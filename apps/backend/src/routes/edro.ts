@@ -14,6 +14,7 @@ import {
   getOrchestratorInfo,
   TaskType,
 } from '../services/ai/copyService';
+import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { buildCreativePrompt, generateAdCreative, generateArtDirectorPrompt, refineScenePrompt } from '../services/adCreativeService';
 import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
 import { getClientById } from '../repos/clientsRepo';
@@ -974,6 +975,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         campaign_id: z.string().uuid().optional(),
         campaign_phase_id: z.string().optional(),
         behavior_intent_id: z.string().optional(),
+        auto_create_trello: z.boolean().optional(),
+        auto_copy_ia: z.boolean().optional(),
       })
       .refine((data) => data.client_id || data.client_name, {
         message: 'client_id or client_name is required',
@@ -1073,6 +1076,94 @@ export default async function edroRoutes(app: FastifyInstance) {
             );
           }
         } catch { /* best-effort */ }
+      });
+    }
+
+    // ── Auto-criar card no Trello do cliente (não-bloqueante) ──
+    if (body.auto_create_trello && mainClientId && tenantId) {
+      setImmediate(async () => {
+        try {
+          const { getTrelloCredentials } = await import('../services/trelloSyncService');
+          const creds = await getTrelloCredentials(tenantId);
+          if (!creds) return;
+
+          // Encontrar o board do cliente pelo client_id
+          const { rows: boardRows } = await query<{ id: string; trello_board_id: string }>(
+            `SELECT pb.id, pb.trello_board_id
+               FROM project_boards pb
+              WHERE pb.tenant_id = $1
+                AND pb.client_id = $2
+                AND pb.trello_board_id IS NOT NULL
+              ORDER BY pb.created_at DESC
+              LIMIT 1`,
+            [tenantId, mainClientId]
+          );
+          if (!boardRows[0]) return;
+
+          const { id: boardId, trello_board_id: trelloBoardId } = boardRows[0];
+
+          // Encontrar a primeira lista do board (Briefing ou equivalente)
+          const { rows: listRows } = await query<{ id: string; trello_list_id: string }>(
+            `SELECT id, trello_list_id
+               FROM project_lists
+              WHERE board_id = $1
+                AND tenant_id = $2
+                AND trello_list_id IS NOT NULL
+              ORDER BY position ASC
+              LIMIT 1`,
+            [boardId, tenantId]
+          );
+          if (!listRows[0]) return;
+
+          const { id: listId, trello_list_id: trelloListId } = listRows[0];
+
+          // Criar card no Trello
+          const params = new URLSearchParams({
+            key: creds.apiKey, token: creds.apiToken,
+            idList: trelloListId,
+            name: briefing.title,
+            pos: 'top',
+            ...(dueAt ? { due: dueAt.toISOString() } : {}),
+          });
+          const res = await fetch(`https://api.trello.com/1/cards?${params}`, {
+            method: 'POST', signal: AbortSignal.timeout(8_000),
+          });
+          if (res.ok) {
+            const card = await res.json() as { id: string; shortUrl: string };
+            // Inserir localmente
+            const { rows: posRows } = await query<{ max_pos: string }>(
+              `SELECT COALESCE(MAX(position), 0) + 65536 AS max_pos FROM project_cards WHERE list_id = $1 AND tenant_id = $2 AND NOT is_archived`,
+              [listId, tenantId]
+            );
+            await query(
+              `INSERT INTO project_cards (board_id, list_id, tenant_id, title, position, due_date, trello_card_id, trello_url)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               ON CONFLICT DO NOTHING`,
+              [boardId, listId, tenantId, briefing.title, parseFloat(posRows[0]?.max_pos ?? '65536'), dueAt ?? null, card.id, card.shortUrl]
+            );
+            // Salvar referência no briefing
+            await query(
+              `UPDATE edro_briefings SET payload = COALESCE(payload, '{}'::jsonb) || $1::jsonb WHERE id = $2`,
+              [JSON.stringify({ trello_card_url: card.shortUrl, trello_card_id: card.id }), briefing.id]
+            );
+          }
+        } catch (err) {
+          console.warn('[briefing] auto Trello card failed:', (err as any)?.message);
+        }
+      });
+    }
+
+    // ── Auto-disparar Copy IA — move para coluna copy_ia (não-bloqueante) ──────
+    if (body.auto_copy_ia && tenantId) {
+      setImmediate(async () => {
+        try {
+          await query(
+            `UPDATE edro_briefings SET status = 'copy_ia' WHERE id = $1`,
+            [briefing.id]
+          );
+        } catch (err) {
+          console.warn('[briefing] auto copy IA status update failed:', (err as any)?.message);
+        }
       });
     }
 
@@ -4878,5 +4969,49 @@ Retorne APENAS JSON válido (sem markdown):
         scheduled_at: schedRes.rows[0]?.scheduled_at,
       },
     });
+  });
+
+  // ── POST /edro/ai/parse-job ─────────────────────────────────────────────────
+  // Recebe descrição freeform e retorna campos estruturados do briefing.
+  app.post('/edro/ai/parse-job', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const body = z.object({
+      description: z.string().min(5),
+      client_name:  z.string().optional(),
+    }).parse(request.body);
+
+    const prompt = `Você é um assistente especialista em operações de agência de marketing.
+A seguir está uma descrição breve de um job/demanda recebido por um gestor de conta.
+Extraia e estruture as informações em JSON.
+
+DESCRIÇÃO DO JOB:
+"${body.description}"${body.client_name ? `\n\nCLIENTE: ${body.client_name}` : ''}
+
+Retorne APENAS JSON válido, sem markdown, com este formato exato:
+{
+  "title": "<título claro e conciso para o card do job, máx 60 chars>",
+  "objective": "<um de: awareness | engagement | conversao | leads | branding | lancamento | outro>",
+  "objective_label": "<descrição do objetivo em português>",
+  "target_audience": "<público-alvo inferido, ou vazio se não mencionado>",
+  "channels": ["<canal1>", "<canal2>"],
+  "due_hint": "<prazo inferido da descrição em formato YYYY-MM-DD, ou null>",
+  "format_hint": "<tipo de peça: post, stories, video, carrossel, email, banner, etc — ou null>",
+  "notes": "<observações relevantes extraídas da descrição>",
+  "confidence": <0.0 a 1.0 — quão completa é a descrição>
+}`;
+
+    try {
+      const result = await generateWithProvider('openai', {
+        prompt,
+        temperature: 0.2,
+        maxTokens: 500,
+      });
+
+      const raw = result.output.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(raw);
+
+      return reply.send({ ok: true, data: parsed });
+    } catch (err: any) {
+      return reply.status(500).send({ ok: false, error: err?.message || 'Falha ao analisar job.' });
+    }
   });
 }

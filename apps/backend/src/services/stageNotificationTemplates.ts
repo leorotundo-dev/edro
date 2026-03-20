@@ -12,15 +12,20 @@ type StageChangeEmailParams = {
 };
 
 const STAGE_EMOJI: Record<string, string> = {
-  briefing: '📋',
-  iclips_in: '📥',
-  alinhamento: '🤝',
-  copy_ia: '🤖',
-  aprovacao: '✅',
-  producao: '🎨',
-  revisao: '🔍',
-  entrega: '📦',
+  briefing:          '📋',
+  copy_ia:           '🤖',
+  alinhamento:       '🤝',
+  producao:          '🎨',
+  aprovacao_interna: '🔍',
+  ajustes:           '✏️',
+  aprovacao_cliente: '🏁',
+  concluido:         '✅',
+  // legados
+  iclips_in:  '📥',
   iclips_out: '📤',
+  aprovacao:  '✅',
+  revisao:    '🔍',
+  entrega:    '📦',
 };
 
 function stageLabel(stage: WorkflowStage): string {

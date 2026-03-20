@@ -33,15 +33,14 @@ type Briefing = {
 };
 
 const KANBAN_COLUMNS = [
-  { key: 'briefing',    label: 'Briefing',      color: '#e3f2fd' },
-  { key: 'iclips_in',  label: 'iClips Entrada', color: '#f3e5f5' },
-  { key: 'alinhamento',label: 'Alinhamento',    color: '#fff3e0' },
-  { key: 'copy_ia',    label: 'Copy IA',        color: '#fce4ec' },
-  { key: 'aprovacao',  label: 'Aprovação',      color: '#ffe0b2' },
-  { key: 'producao',   label: 'Produção',       color: '#e8f5e9' },
-  { key: 'revisao',    label: 'Revisão',        color: '#e0f7fa' },
-  { key: 'iclips_out', label: 'iClips Saída',   color: '#f9fbe7' },
-  { key: 'done',       label: 'Concluído',      color: '#f1f8e9' },
+  { key: 'briefing',          label: 'Briefing',          color: '#e3f2fd', accent: '#1976d2' },
+  { key: 'copy_ia',           label: 'Copy IA',           color: '#f3e5f5', accent: '#7b1fa2' },
+  { key: 'alinhamento',       label: 'Alinhamento',       color: '#fff3e0', accent: '#f57c00' },
+  { key: 'producao',          label: 'Produção',          color: '#e0f2f1', accent: '#00796b' },
+  { key: 'aprovacao_interna', label: 'Aprovação Interna', color: '#fff8e1', accent: '#f9a825' },
+  { key: 'ajustes',           label: 'Ajustes',           color: '#fce4ec', accent: '#c62828' },
+  { key: 'aprovacao_cliente', label: 'Aprovação Cliente', color: '#e8eaf6', accent: '#3949ab' },
+  { key: 'concluido',         label: 'Concluído',         color: '#e8f5e9', accent: '#2e7d32' },
 ];
 
 function formatShortDate(value?: string | null) {
@@ -67,8 +66,22 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
   const [draggingId,       setDraggingId]       = useState<string | null>(null);
   const [dropTargetColumn, setDropTargetColumn] = useState<string | null>(null);
 
+  // Normaliza etapas legadas para o novo fluxo
+  const LEGACY_MAP: Record<string, string> = {
+    iclips_in: 'alinhamento',
+    iclips_out: 'aprovacao_cliente',
+    aprovacao: 'aprovacao_interna',
+    revisao: 'ajustes',
+    entrega: 'concluido',
+    done: 'concluido',
+  };
+  const normalizedBriefings = briefings.map((b) => ({
+    ...b,
+    status: LEGACY_MAP[b.status] ?? b.status,
+  }));
+
   const grouped = KANBAN_COLUMNS.reduce<Record<string, Briefing[]>>((acc, col) => {
-    acc[col.key] = briefings.filter((b) => b.status === col.key);
+    acc[col.key] = normalizedBriefings.filter((b) => b.status === col.key);
     return acc;
   }, {});
 
@@ -102,8 +115,9 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
               bgcolor: isTarget ? 'action.selected' : 'background.paper',
               borderRadius: 2,
               border: '1px solid',
-              borderColor: isTarget ? 'primary.main' : 'divider',
+              borderColor: isTarget ? col.accent : 'divider',
               borderStyle: isTarget ? 'dashed' : 'solid',
+              borderTop: `3px solid ${col.accent}`,
               transition: 'all 0.15s',
               p: 1,
             }}
@@ -125,13 +139,13 @@ export default function BriefingsKanban({ briefings, onBriefingClick, onStageCha
           >
             {/* Column header */}
             <Stack direction="row" alignItems="center" justifyContent="space-between" px={0.5} py={0.25}>
-              <Typography variant="caption" fontWeight={700} color="text.secondary" noWrap>
+              <Typography variant="caption" fontWeight={800} noWrap sx={{ color: col.accent }}>
                 {col.label}
               </Typography>
               <Chip
                 label={cards.length}
                 size="small"
-                sx={{ height: 18, fontSize: '0.6rem', bgcolor: col.color, color: 'text.primary', minWidth: 24 }}
+                sx={{ height: 18, fontSize: '0.6rem', bgcolor: col.color, color: col.accent, fontWeight: 700, minWidth: 24 }}
               />
             </Stack>
 

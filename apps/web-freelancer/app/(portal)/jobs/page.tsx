@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { swrFetcher, apiPatch } from '@/lib/api';
+import { swrFetcher, apiPatch, apiPost } from '@/lib/api';
 
 type Job = {
   id: string;
@@ -15,6 +15,7 @@ type Job = {
   board_name?: string | null;
   list_name?: string | null;
   due_complete?: boolean;
+  pending_acceptance?: boolean;  // true = aguardando aceite do freelancer
 };
 
 type Groups = {
@@ -28,9 +29,10 @@ type Groups = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  briefing: 'Briefing', iclips_in: 'Entrada', alinhamento: 'Alinhamento',
-  copy_ia: 'Copy IA', aprovacao: 'Aprovação', producao: 'Produção',
-  revisao: 'Revisão', iclips_out: 'Saída', done: 'Concluído',
+  briefing: 'Briefing', alinhamento: 'Alinhamento',
+  copy_ia: 'Copy IA', aprovacao_interna: 'Aprov. Interna',
+  producao: 'Produção', ajustes: 'Ajustes',
+  aprovacao_cliente: 'Aprov. Cliente', concluido: 'Concluído',
   intake: 'Entrada', planned: 'Planejado', ready: 'Pronto',
   allocated: 'Alocado', in_progress: 'Em produção', in_review: 'Em revisão',
   awaiting_approval: 'Aguard. aprovação', approved: 'Aprovado', blocked: 'Bloqueado',
@@ -64,15 +66,21 @@ function groupJobs(jobs: Job[], today: Date): Groups {
 // ── Job row ───────────────────────────────────────────────────────────────────
 
 function JobRow({
-  job, today, completing, onComplete,
+  job, today, completing, onComplete, onRespond, responding,
 }: {
   job: Job;
   today: Date;
   completing: string | null;
   onComplete: (id: string) => void;
+  onRespond: (id: string, source: string, action: 'accept' | 'reject') => void;
+  responding: string | null;
 }) {
-  const isDone = ['done', 'published'].includes(job.status) || (job.source === 'trello_card' && !!job.due_complete);
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const isDone = ['done', 'published', 'concluido'].includes(job.status) || (job.source === 'trello_card' && !!job.due_complete);
   const canComplete = job.source === 'trello_card' && !isDone;
+  const needsResponse = job.pending_acceptance && !isDone;
 
   const statusLabel = job.source === 'trello_card'
     ? (job.list_name ?? job.status)
@@ -163,7 +171,31 @@ function JobRow({
       )}
 
       {/* Action */}
-      {canComplete ? (
+      {needsResponse ? (
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => onRespond(job.id, job.source, 'accept')}
+            disabled={responding === job.id}
+            style={{
+              background: 'rgba(19,222,185,0.10)', border: '1.5px solid rgba(19,222,185,0.35)',
+              color: '#13DEB9', borderRadius: 8, padding: '5px 11px',
+              cursor: 'pointer', fontWeight: 800, fontSize: 11,
+            }}
+          >
+            {responding === job.id ? '...' : '✓ Aceitar'}
+          </button>
+          <button
+            onClick={() => setShowRejectForm(v => !v)}
+            style={{
+              background: 'rgba(250,137,107,0.08)', border: '1.5px solid rgba(250,137,107,0.3)',
+              color: '#FA896B', borderRadius: 8, padding: '5px 9px',
+              cursor: 'pointer', fontWeight: 700, fontSize: 11,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : canComplete ? (
         <button
           onClick={() => onComplete(job.id)}
           disabled={completing === job.id}
@@ -187,17 +219,56 @@ function JobRow({
         </Link>
       )}
     </div>
+
+    {/* Reject form */}
+    {showRejectForm && (
+      <div style={{
+        padding: '10px 18px 14px', borderTop: '1px solid var(--portal-border)',
+        background: 'rgba(250,137,107,0.04)',
+      }}>
+        <p style={{ fontSize: 12, color: 'var(--portal-muted)', margin: '0 0 8px' }}>
+          Por que está recusando este job?
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={rejectReason}
+            onChange={e => setRejectReason(e.target.value)}
+            placeholder="Motivo (obrigatório)..."
+            style={{
+              flex: 1, background: 'var(--portal-bg)', border: '1px solid var(--portal-border)',
+              borderRadius: 8, padding: '7px 11px', color: 'var(--portal-text)',
+              fontSize: 13, outline: 'none',
+            }}
+          />
+          <button
+            onClick={() => { if (rejectReason.trim()) { onRespond(job.id, job.source, 'reject'); setShowRejectForm(false); } }}
+            disabled={!rejectReason.trim() || responding === job.id}
+            style={{
+              background: '#FA896B', border: 'none', borderRadius: 8, color: '#fff',
+              padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 12,
+              opacity: rejectReason.trim() ? 1 : 0.4,
+            }}
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
 function Section({
-  emoji, title, color, count, jobs, today, completing, onComplete, defaultOpen = true,
+  emoji, title, color, count, jobs, today, completing, onComplete, onRespond, responding, defaultOpen = true,
 }: {
   emoji: string; title: string; color: string; count: number;
   jobs: Job[]; today: Date; completing: string | null;
-  onComplete: (id: string) => void; defaultOpen?: boolean;
+  onComplete: (id: string) => void;
+  onRespond: (id: string, source: string, action: 'accept' | 'reject') => void;
+  responding: string | null;
+  defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   if (!jobs.length) return null;
@@ -234,6 +305,8 @@ function Section({
           today={today}
           completing={completing}
           onComplete={onComplete}
+          onRespond={onRespond}
+          responding={responding}
         />
       ))}
     </section>
@@ -244,15 +317,19 @@ function Section({
 
 export default function JobsPage() {
   const { data, isLoading, mutate } = useSWR<{ jobs?: Job[] }>('/freelancers/portal/me/jobs', swrFetcher);
-  const [completing, setCompleting] = useState<string | null>(null);
-  const [localDone, setLocalDone] = useState<Set<string>>(new Set());
+  const [completing,  setCompleting]  = useState<string | null>(null);
+  const [responding,  setResponding]  = useState<string | null>(null);
+  const [localDone,   setLocalDone]   = useState<Set<string>>(new Set());
+  const [localAccepted, setLocalAccepted] = useState<Set<string>>(new Set());
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
-  // Apply optimistic completions on top of server data
-  const jobs: Job[] = (data?.jobs ?? []).map(j =>
-    localDone.has(j.id) && j.source === 'trello_card' ? { ...j, due_complete: true } : j
-  );
+  // Apply optimistic updates
+  const jobs: Job[] = (data?.jobs ?? []).map(j => {
+    if (localDone.has(j.id) && j.source === 'trello_card') return { ...j, due_complete: true };
+    if (localAccepted.has(j.id)) return { ...j, pending_acceptance: false, status: 'alinhamento' };
+    return j;
+  });
 
   const groups = groupJobs(jobs, today);
 
@@ -273,6 +350,19 @@ export default function JobsPage() {
       setLocalDone(prev => { const next = new Set(prev); next.delete(jobId); return next; });
     } finally {
       setCompleting(null);
+    }
+  }
+
+  async function handleRespond(jobId: string, source: string, action: 'accept' | 'reject') {
+    setResponding(jobId);
+    if (action === 'accept') setLocalAccepted(prev => new Set([...prev, jobId]));
+    try {
+      await apiPost(`/freelancers/portal/me/jobs/${jobId}/respond`, { action, source });
+      mutate();
+    } catch {
+      if (action === 'accept') setLocalAccepted(prev => { const next = new Set(prev); next.delete(jobId); return next; });
+    } finally {
+      setResponding(null);
     }
   }
 
@@ -375,37 +465,60 @@ export default function JobsPage() {
         </section>
       )}
 
+      {/* Pending acceptance — shown first if any */}
+      {jobs.some(j => j.pending_acceptance) && (
+        <section style={{
+          background: 'rgba(93,135,255,0.06)', border: '2px solid rgba(93,135,255,0.3)',
+          borderRadius: 14, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(93,135,255,0.2)' }}>
+            <span style={{ fontWeight: 800, fontSize: 14, color: '#5D87FF' }}>🔔 Aguardando seu aceite</span>
+          </div>
+          {jobs.filter(j => j.pending_acceptance).map(job => (
+            <JobRow key={job.id} job={job} today={today}
+              completing={completing} onComplete={handleComplete}
+              onRespond={handleRespond} responding={responding} />
+          ))}
+        </section>
+      )}
+
       {/* Sections in urgency order */}
       <Section
         emoji="🔴" title="Atrasados" color="#ff4444"
         count={groups.overdue.length} jobs={groups.overdue}
         today={today} completing={completing} onComplete={handleComplete}
+        onRespond={handleRespond} responding={responding}
       />
       <Section
         emoji="🚨" title="Hoje" color="#F8A800"
         count={groups.today.length} jobs={groups.today}
         today={today} completing={completing} onComplete={handleComplete}
+        onRespond={handleRespond} responding={responding}
       />
       <Section
         emoji="⚡" title="Amanhã" color="#F8A800"
         count={groups.tomorrow.length} jobs={groups.tomorrow}
         today={today} completing={completing} onComplete={handleComplete}
+        onRespond={handleRespond} responding={responding}
       />
       <Section
         emoji="📅" title="Esta semana" color="#5D87FF"
         count={groups.thisWeek.length} jobs={groups.thisWeek}
         today={today} completing={completing} onComplete={handleComplete}
+        onRespond={handleRespond} responding={responding}
       />
       <Section
         emoji="🗓" title="Próximas semanas" color="var(--portal-muted)"
         count={groups.later.length} jobs={groups.later}
         today={today} completing={completing} onComplete={handleComplete}
+        onRespond={handleRespond} responding={responding}
         defaultOpen={false}
       />
       <Section
         emoji="○" title="Sem prazo definido" color="var(--portal-muted)"
         count={groups.noDue.length} jobs={groups.noDue}
         today={today} completing={completing} onComplete={handleComplete}
+        onRespond={handleRespond} responding={responding}
         defaultOpen={false}
       />
 
@@ -414,6 +527,7 @@ export default function JobsPage() {
         emoji="✅" title="Concluídos" color="#13DEB9"
         count={groups.done.length} jobs={groups.done}
         today={today} completing={completing} onComplete={handleComplete}
+        onRespond={handleRespond} responding={responding}
         defaultOpen={false}
       />
 

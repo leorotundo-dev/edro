@@ -1,343 +1,523 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AppShell from '@/components/AppShell';
-import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Collapse from '@mui/material/Collapse';
+import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconChevronRight, IconTemplate } from '@tabler/icons-react';
+import { alpha } from '@mui/material/styles';
+import {
+  IconArrowRight,
+  IconBrain,
+  IconCalendar,
+  IconCheck,
+  IconChevronRight,
+  IconEdit,
+  IconRefresh,
+  IconSend,
+  IconSparkles,
+  IconUser,
+} from '@tabler/icons-react';
+import AppShell from '@/components/AppShell';
+import { apiGet, apiPost } from '@/lib/api';
 
-type BriefingTemplate = {
-  id: string;
-  name: string;
-  category: string;
-  objective?: string;
-  target_audience?: string;
-  channels?: string[];
-  additional_notes?: string;
-};
+type EdroClient = { id: string; name: string; segment?: string };
 
-type BriefingFormData = {
-  client_name: string;
+type ParsedJob = {
   title: string;
   objective: string;
+  objective_label: string;
   target_audience: string;
-  channels: string;
-  due_at: string;
-  traffic_owner: string;
-  additional_notes: string;
+  channels: string[];
+  due_hint: string | null;
+  format_hint: string | null;
+  notes: string;
+  confidence: number;
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  social: 'Social',
-  ads: 'Tráfego Pago',
-  email: 'Email',
-  launch: 'Lançamento',
-  seasonal: 'Sazonal',
-  content: 'Conteúdo',
-};
+const OBJECTIVE_OPTIONS = [
+  { value: 'awareness',   label: 'Awareness / Reconhecimento de Marca' },
+  { value: 'engagement',  label: 'Engajamento' },
+  { value: 'conversao',   label: 'Conversão / Vendas' },
+  { value: 'leads',       label: 'Geração de Leads' },
+  { value: 'branding',    label: 'Branding / Institucional' },
+  { value: 'lancamento',  label: 'Lançamento de Produto' },
+  { value: 'outro',       label: 'Outro' },
+];
+
+const ALL_CHANNELS = [
+  'Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'YouTube',
+  'WhatsApp', 'Email', 'Google Ads', 'Meta Ads', 'Site/Blog',
+];
+
+const STEP_LABELS = ['Contexto', 'Revisão IA', 'Confirmar'];
 
 export default function NewBriefingClient() {
-  const router = useRouter();
+  const router       = useRouter();
   const searchParams = useSearchParams();
-  // client_id = clients.id (TEXT) — vem da aba de briefings do workspace do cliente
-  const prefillClientId = searchParams.get('client_id') || '';
+  const descRef      = useRef<HTMLTextAreaElement>(null);
+
   const prefillClientName = searchParams.get('client_name') || '';
-  // Parâmetros vindos do calendário (quando o usuário clica numa data/evento)
-  const prefillTitle = searchParams.get('title') || '';
-  const prefillDate = searchParams.get('date') || '';
-  const prefillEventWhy = searchParams.get('event_why') || '';
-  const prefillEventCategories = searchParams.get('event_categories') || '';
+  const prefillTitle      = searchParams.get('title') || '';
+  const prefillDate       = searchParams.get('date') || '';
 
-  // Monta notas adicionais com contexto do evento do calendário
-  const calendarNotes = [
-    prefillEventWhy ? `Contexto do evento: ${prefillEventWhy}` : '',
-    prefillEventCategories ? `Categorias: ${prefillEventCategories}` : '',
-  ].filter(Boolean).join('\n');
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [templates, setTemplates] = useState<BriefingTemplate[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [formData, setFormData] = useState<BriefingFormData>({
-    client_name: prefillClientName,
-    title: prefillTitle,
-    objective: '',
-    target_audience: '',
-    channels: '',
-    due_at: prefillDate,
-    traffic_owner: '',
-    additional_notes: calendarNotes,
-  });
+  const [step,           setStep]           = useState(0);
+  const [clients,        setClients]        = useState<EdroClient[]>([]);
+  const [selectedClient, setSelectedClient] = useState<EdroClient | null>(null);
+  const [description,    setDescription]    = useState(prefillTitle);
+  const [analyzing,      setAnalyzing]      = useState(false);
+  const [parsed,         setParsed]         = useState<ParsedJob | null>(null);
+  const [editedTitle,    setEditedTitle]    = useState('');
+  const [editedObjective,setEditedObjective]= useState('');
+  const [editedAudience, setEditedAudience] = useState('');
+  const [editedChannels, setEditedChannels] = useState<string[]>([]);
+  const [editedDue,      setEditedDue]      = useState(prefillDate);
+  const [editedNotes,    setEditedNotes]    = useState('');
+  const [trafficOwner,   setTrafficOwner]   = useState('');
+  const [submitting,     setSubmitting]     = useState(false);
+  const [error,          setError]          = useState('');
 
   useEffect(() => {
-    apiGet<{ data: BriefingTemplate[] }>('/edro/templates')
-      .then((res) => setTemplates(res?.data ?? []))
+    apiGet<{ data: EdroClient[] }>('/edro/clients')
+      .then((res) => {
+        const list = res?.data ?? [];
+        setClients(list);
+        if (prefillClientName) {
+          const found = list.find(
+            (c) => c.name.toLowerCase() === prefillClientName.toLowerCase()
+          );
+          if (found) setSelectedClient(found);
+        }
+      })
       .catch(() => {});
-  }, []);
+  }, [prefillClientName]);
 
-  const applyTemplate = (tpl: BriefingTemplate) => {
-    setSelectedTemplate(tpl.id);
-    setFormData((prev) => ({
-      ...prev,
-      objective: tpl.objective || prev.objective,
-      target_audience: tpl.target_audience || prev.target_audience,
-      channels: tpl.channels?.join(', ') || prev.channels,
-      additional_notes: tpl.additional_notes || prev.additional_notes,
-    }));
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleAnalyze = useCallback(async () => {
+    if (!description.trim() || description.trim().length < 10) {
+      setError('Descreva o job em pelo menos 10 caracteres.');
+      return;
+    }
     setError('');
+    setAnalyzing(true);
+    try {
+      const res = await apiPost<{ ok: boolean; data: ParsedJob }>('/edro/ai/parse-job', {
+        description: description.trim(),
+        client_name: selectedClient?.name,
+      });
+      if (!res?.ok || !res.data) throw new Error('Falha ao analisar.');
+      const d = res.data;
+      setParsed(d);
+      setEditedTitle(d.title);
+      setEditedObjective(d.objective);
+      setEditedAudience(d.target_audience);
+      setEditedChannels(d.channels?.length ? d.channels : []);
+      setEditedDue(d.due_hint ?? prefillDate);
+      setEditedNotes(d.notes);
+      setStep(1);
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao analisar o job com IA.');
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [description, selectedClient, prefillDate]);
 
+  const handleSubmit = async () => {
+    if (!editedTitle.trim()) { setError('Título é obrigatório.'); return; }
+    setError('');
+    setSubmitting(true);
     try {
       const payload: Record<string, any> = {
-        // Se veio da aba do cliente (client_id é o clients.id TEXT),
-        // o backend usará como main_client_id (fonte única de verdade do perfil)
-        ...(prefillClientId ? { client_id: prefillClientId } : { client_name: formData.client_name }),
-        title: formData.title,
+        ...(selectedClient?.id
+          ? { client_id: selectedClient.id }
+          : { client_name: selectedClient?.name ?? description.split(' ').slice(0, 3).join(' ') }),
+        title: editedTitle.trim(),
         payload: {
-          objective: formData.objective,
-          target_audience: formData.target_audience,
-          channels: formData.channels,
-          additional_notes: formData.additional_notes,
+          objective:       editedObjective,
+          target_audience: editedAudience,
+          channels:        editedChannels.join(', '),
+          format_hint:     parsed?.format_hint ?? null,
+          additional_notes: editedNotes,
+          original_description: description,
+          ai_confidence:   parsed?.confidence ?? null,
         },
-        due_at: formData.due_at || undefined,
-        traffic_owner: formData.traffic_owner || undefined,
-        notify_traffic: Boolean(formData.traffic_owner),
+        due_at:             editedDue || undefined,
+        traffic_owner:      trafficOwner || undefined,
+        notify_traffic:     Boolean(trafficOwner),
+        source:             'novo_job_ai',
+        auto_create_trello: true,
+        auto_copy_ia:       true,
       };
 
       const response = await apiPost<{ success: boolean; data: { briefing: { id: string } } }>(
-        '/edro/briefings',
-        payload
+        '/edro/briefings', payload
       );
 
       if (response?.data?.briefing?.id) {
         router.push(`/edro/${response.data.briefing.id}`);
       } else {
-        setError('Briefing criado mas ID não retornado.');
+        setError('Job criado mas ID não retornado.');
       }
     } catch (err: any) {
-      setError(err?.message || 'Erro ao criar briefing.');
+      setError(err?.message || 'Erro ao criar job.');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const handleCancel = () => {
-    router.push('/edro');
-  };
+  const confidenceColor = parsed
+    ? parsed.confidence >= 0.75 ? '#13DEB9' : parsed.confidence >= 0.5 ? '#FFAE1F' : '#FA896B'
+    : '#999';
 
   return (
     <AppShell
-      title="Novo Briefing"
+      title="Novo Job"
       topbarLeft={
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button size="small" onClick={handleCancel} sx={{ color: 'text.secondary', textTransform: 'none' }}>
+          <Button size="small" onClick={() => router.push('/edro')} sx={{ color: 'text.secondary', textTransform: 'none' }}>
             Edro
           </Button>
           <IconChevronRight size={14} />
-          <Typography variant="body2" fontWeight={500}>Novo Briefing</Typography>
+          <Typography variant="body2" fontWeight={500}>Novo Job</Typography>
         </Stack>
       }
     >
-      <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
+      <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 760, mx: 'auto' }}>
 
-        {templates.length > 0 && (
-          <Card variant="outlined" sx={{ mb: 3, bgcolor: 'action.hover' }}>
-            <CardContent>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-                <IconTemplate size={18} />
-                <Typography variant="subtitle2">Começar a partir de um template</Typography>
-              </Stack>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {templates.map((tpl) => (
-                  <Chip
-                    key={tpl.id}
-                    label={tpl.name}
-                    size="small"
-                    variant={selectedTemplate === tpl.id ? 'filled' : 'outlined'}
-                    color={selectedTemplate === tpl.id ? 'primary' : 'default'}
-                    onClick={() => applyTemplate(tpl)}
-                    sx={{ mb: 0.5 }}
-                  />
-                ))}
-              </Stack>
-              {selectedTemplate && (
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Campos preenchidos pelo template. Você pode editar antes de criar.
+        {/* Step indicator */}
+        <Stack direction="row" spacing={0} alignItems="center" sx={{ mb: 3 }}>
+          {STEP_LABELS.map((label, i) => (
+            <Stack key={i} direction="row" alignItems="center" spacing={0}>
+              <Stack alignItems="center" spacing={0.25}>
+                <Box sx={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  bgcolor: i < step ? '#13DEB9' : i === step ? 'primary.main' : 'action.disabledBackground',
+                  color: i <= step ? '#fff' : 'text.disabled',
+                  fontSize: '0.75rem', fontWeight: 700,
+                }}>
+                  {i < step ? <IconCheck size={14} /> : i + 1}
+                </Box>
+                <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: i === step ? 700 : 400, color: i === step ? 'primary.main' : 'text.secondary' }}>
+                  {label}
                 </Typography>
+              </Stack>
+              {i < STEP_LABELS.length - 1 && (
+                <Box sx={{ width: 48, height: 2, bgcolor: i < step ? '#13DEB9' : 'divider', mb: 1.8 }} />
               )}
-            </CardContent>
-          </Card>
-        )}
+            </Stack>
+          ))}
+        </Stack>
 
-        <form onSubmit={handleSubmit}>
-          <Stack spacing={3}>
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+
+        {/* ── STEP 0: Contexto ── */}
+        {step === 0 && (
+          <Stack spacing={2.5}>
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>Informações Básicas</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <Box sx={{ width: 32, height: 32, borderRadius: 2, bgcolor: alpha('#5D87FF', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconUser size={18} color="#5D87FF" />
+                  </Box>
+                  <Typography variant="subtitle2" fontWeight={700}>Para qual cliente é esse job?</Typography>
+                </Stack>
 
-                <Stack spacing={2}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Cliente *"
-                    name="client_name"
-                    value={formData.client_name}
-                    onChange={handleChange}
-                    required
-                    placeholder="Nome do cliente"
-                  />
-
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Título do Briefing *"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    required
-                    inputProps={{ minLength: 3 }}
-                    placeholder="Ex: Campanha Dia das Mães 2026"
-                  />
-
-                  <Box>
+                <Autocomplete
+                  options={clients}
+                  getOptionLabel={(o) => o.name}
+                  value={selectedClient}
+                  onChange={(_, v) => setSelectedClient(v)}
+                  freeSolo
+                  onInputChange={(_, val) => {
+                    if (!clients.find((c) => c.name === val)) {
+                      setSelectedClient({ id: '', name: val });
+                    }
+                  }}
+                  renderInput={(params) => (
                     <TextField
-                      fullWidth
+                      {...params}
                       size="small"
-                      label="Responsável de Tráfego"
-                      name="traffic_owner"
-                      type="email"
-                      value={formData.traffic_owner}
-                      onChange={handleChange}
-                      placeholder="email@edro.digital"
+                      label="Cliente *"
+                      placeholder="Comece a digitar o nome do cliente..."
+                      required
                     />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                      Receberá notificações sobre o briefing
+                  )}
+                  renderOption={(props, option) => (
+                    <li {...props} key={option.id}>
+                      <Stack>
+                        <Typography variant="body2" fontWeight={600}>{option.name}</Typography>
+                        {option.segment && (
+                          <Typography variant="caption" color="text.secondary">{option.segment}</Typography>
+                        )}
+                      </Stack>
+                    </li>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card variant="outlined" sx={{ borderColor: analyzing ? 'primary.main' : undefined }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Box sx={{ width: 32, height: 32, borderRadius: 2, bgcolor: alpha('#7B5EA7', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconBrain size={18} color="#7B5EA7" />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight={700}>Descreva o job</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Fale naturalmente — a IA vai estruturar o briefing por você
                     </Typography>
                   </Box>
+                </Stack>
 
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Prazo de Entrega"
-                    name="due_at"
-                    type="date"
-                    value={formData.due_at}
-                    onChange={handleChange}
-                    InputLabelProps={{ shrink: true }}
-                  />
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={5}
+                  inputRef={descRef}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={`Ex: "Preciso de um post para o Instagram do Banco BBC divulgando a abertura de conta digital para jovens de 18 a 25 anos. Queremos algo moderno, descontraído. Prazo até sexta-feira."`}
+                  variant="outlined"
+                  sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.9rem' } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleAnalyze();
+                  }}
+                />
+
+                <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                  Ctrl+Enter para analisar rapidamente
+                </Typography>
+              </CardContent>
+            </Card>
+
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleAnalyze}
+              disabled={analyzing || !description.trim() || description.trim().length < 10}
+              endIcon={analyzing ? <CircularProgress size={16} color="inherit" /> : <IconSparkles size={18} />}
+              sx={{ py: 1.5, fontWeight: 700 }}
+            >
+              {analyzing ? 'A IA está analisando...' : 'Analisar com IA'}
+            </Button>
+          </Stack>
+        )}
+
+        {/* ── STEP 1: Revisão ── */}
+        {step === 1 && parsed && (
+          <Stack spacing={2.5}>
+            {/* IA confidence badge */}
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: confidenceColor }} />
+              <Typography variant="caption" color="text.secondary">
+                Confiança da IA: <strong style={{ color: confidenceColor }}>{Math.round(parsed.confidence * 100)}%</strong>
+                {parsed.confidence < 0.6 && ' — preencha os campos em branco'}
+              </Typography>
+              <Box sx={{ flex: 1 }} />
+              <Button size="small" startIcon={<IconRefresh size={14} />} onClick={() => setStep(0)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
+                Reescrever
+              </Button>
+            </Stack>
+
+            {/* Original description collapsed */}
+            <Card variant="outlined" sx={{ bgcolor: alpha('#7B5EA7', 0.04) }}>
+              <CardContent sx={{ py: '8px !important', px: '12px !important' }}>
+                <Stack direction="row" spacing={1} alignItems="flex-start">
+                  <IconBrain size={14} color="#7B5EA7" style={{ marginTop: 3, flexShrink: 0 }} />
+                  <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', lineHeight: 1.5 }}>
+                    {description.length > 160 ? description.slice(0, 160) + '…' : description}
+                  </Typography>
                 </Stack>
               </CardContent>
             </Card>
 
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>Detalhes da Campanha</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <IconEdit size={16} color="#5D87FF" />
+                  <Typography variant="subtitle2" fontWeight={700}>Revise e complete os campos</Typography>
+                </Stack>
 
                 <Stack spacing={2}>
                   <TextField
-                    fullWidth
-                    size="small"
-                    select
-                    label="Objetivo *"
-                    name="objective"
-                    value={formData.objective}
-                    onChange={handleChange}
+                    fullWidth size="small"
+                    label="Título do Job *"
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
                     required
+                    helperText="O título vai aparecer no card do Trello"
+                  />
+
+                  <TextField
+                    fullWidth size="small" select
+                    label="Objetivo"
+                    value={editedObjective}
+                    onChange={(e) => setEditedObjective(e.target.value)}
                   >
-                    <MenuItem value="">Selecione o objetivo</MenuItem>
-                    <MenuItem value="awareness">Awareness / Reconhecimento de Marca</MenuItem>
-                    <MenuItem value="engagement">Engajamento</MenuItem>
-                    <MenuItem value="conversao">Conversão / Vendas</MenuItem>
-                    <MenuItem value="leads">Geração de Leads</MenuItem>
-                    <MenuItem value="branding">Branding / Institucional</MenuItem>
-                    <MenuItem value="lancamento">Lançamento de Produto</MenuItem>
+                    {OBJECTIVE_OPTIONS.map((o) => (
+                      <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                    ))}
                   </TextField>
 
                   <TextField
-                    fullWidth
-                    size="small"
-                    multiline
-                    rows={3}
-                    label="Público-Alvo *"
-                    name="target_audience"
-                    value={formData.target_audience}
-                    onChange={handleChange}
-                    required
-                    placeholder="Ex: Mulheres, 25-45 anos, classes A/B, interessadas em decoração..."
+                    fullWidth size="small" multiline rows={2}
+                    label="Público-Alvo"
+                    value={editedAudience}
+                    onChange={(e) => setEditedAudience(e.target.value)}
+                    placeholder="Ex: Mulheres, 25-40 anos, classes A/B..."
                   />
 
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Canais *"
-                    name="channels"
-                    value={formData.channels}
-                    onChange={handleChange}
-                    required
-                    placeholder="Ex: Instagram, Facebook, LinkedIn"
-                  />
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.75, display: 'block' }}>
+                      Canais
+                    </Typography>
+                    <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                      {ALL_CHANNELS.map((ch) => {
+                        const active = editedChannels.includes(ch);
+                        return (
+                          <Chip
+                            key={ch}
+                            label={ch}
+                            size="small"
+                            variant={active ? 'filled' : 'outlined'}
+                            color={active ? 'primary' : 'default'}
+                            onClick={() =>
+                              setEditedChannels((prev) =>
+                                prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]
+                              )
+                            }
+                            sx={{ cursor: 'pointer' }}
+                          />
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField
+                      fullWidth size="small"
+                      label="Prazo de Entrega"
+                      type="date"
+                      value={editedDue}
+                      onChange={(e) => setEditedDue(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{ startAdornment: <IconCalendar size={14} style={{ marginRight: 6, color: '#999' }} /> }}
+                    />
+                    <TextField
+                      fullWidth size="small"
+                      label="Gestor Responsável (email)"
+                      type="email"
+                      value={trafficOwner}
+                      onChange={(e) => setTrafficOwner(e.target.value)}
+                      placeholder="email@edro.digital"
+                      InputProps={{ startAdornment: <IconUser size={14} style={{ marginRight: 6, color: '#999' }} /> }}
+                    />
+                  </Stack>
+
+                  {parsed.format_hint && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="caption" color="text.secondary">Formato detectado:</Typography>
+                      <Chip label={parsed.format_hint} size="small" variant="outlined" />
+                    </Stack>
+                  )}
 
                   <TextField
-                    fullWidth
-                    size="small"
-                    multiline
-                    rows={4}
+                    fullWidth size="small" multiline rows={2}
                     label="Observações Adicionais"
-                    name="additional_notes"
-                    value={formData.additional_notes}
-                    onChange={handleChange}
-                    placeholder="Informações adicionais, referências, restrições..."
+                    value={editedNotes}
+                    onChange={(e) => setEditedNotes(e.target.value)}
                   />
                 </Stack>
               </CardContent>
             </Card>
 
             <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+              <Button variant="outlined" onClick={() => setStep(0)}>Voltar</Button>
               <Button
-                variant="outlined"
-                onClick={handleCancel}
-                disabled={loading}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
                 variant="contained"
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+                onClick={() => { setError(''); setStep(2); }}
+                disabled={!editedTitle.trim()}
+                endIcon={<IconArrowRight size={16} />}
+                sx={{ fontWeight: 700 }}
               >
-                {loading ? 'Criando...' : 'Criar Briefing'}
+                Próximo
               </Button>
             </Stack>
           </Stack>
-        </form>
+        )}
+
+        {/* ── STEP 2: Confirmação ── */}
+        {step === 2 && (
+          <Stack spacing={2.5}>
+            <Card variant="outlined" sx={{ borderColor: 'primary.main', borderWidth: 2 }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <IconCheck size={18} color="#5D87FF" />
+                  <Typography variant="subtitle1" fontWeight={800}>Confirme o Job</Typography>
+                </Stack>
+
+                <Stack spacing={1.5}>
+                  {[
+                    { label: 'Cliente',        value: selectedClient?.name || '—' },
+                    { label: 'Título',          value: editedTitle },
+                    { label: 'Objetivo',        value: OBJECTIVE_OPTIONS.find((o) => o.value === editedObjective)?.label ?? editedObjective || '—' },
+                    { label: 'Público',         value: editedAudience || '—' },
+                    { label: 'Canais',          value: editedChannels.length ? editedChannels.join(', ') : '—' },
+                    { label: 'Prazo',           value: editedDue ? new Date(editedDue + 'T12:00:00').toLocaleDateString('pt-BR') : '—' },
+                    { label: 'Gestor',          value: trafficOwner || '—' },
+                  ].map(({ label, value }) => (
+                    <Stack key={label} direction="row" spacing={1} alignItems="flex-start">
+                      <Typography variant="caption" color="text.secondary" sx={{ minWidth: 90, pt: 0.1 }}>{label}</Typography>
+                      <Typography variant="caption" fontWeight={600}>{value}</Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Collapse in>
+                  <Stack spacing={0.75}>
+                    {[
+                      { icon: '🃏', text: 'Card criado automaticamente no Trello do cliente' },
+                      { icon: '🤖', text: 'Copy IA será gerada automaticamente pelo sistema' },
+                      { icon: '🔔', text: trafficOwner ? `${trafficOwner} será notificado(a)` : 'Gestores serão notificados via painel' },
+                    ].map((item) => (
+                      <Stack key={item.text} direction="row" spacing={1} alignItems="flex-start">
+                        <Typography sx={{ fontSize: '0.85rem', mt: '1px' }}>{item.icon}</Typography>
+                        <Typography variant="caption" color="text.secondary">{item.text}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Collapse>
+              </CardContent>
+            </Card>
+
+            <Stack direction="row" spacing={1.5} justifyContent="flex-end">
+              <Button variant="outlined" onClick={() => setStep(1)} disabled={submitting}>Editar</Button>
+              <Button
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={submitting}
+                endIcon={submitting ? <CircularProgress size={16} color="inherit" /> : <IconSend size={16} />}
+                sx={{ fontWeight: 700, minWidth: 160 }}
+              >
+                {submitting ? 'Criando Job...' : 'Criar Job'}
+              </Button>
+            </Stack>
+          </Stack>
+        )}
       </Box>
     </AppShell>
   );

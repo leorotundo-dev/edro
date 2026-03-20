@@ -865,6 +865,87 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send({ jobs: res.rows });
   });
 
+  // POST /freelancers/portal/me/jobs/:jobId/respond — aceitar ou recusar job
+  app.post('/freelancers/portal/me/jobs/:jobId/respond', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { jobId } = request.params as { jobId: string };
+    const { action, reason, source } = (request.body as any) ?? {};
+
+    if (!action || !['accept', 'reject'].includes(action)) {
+      return reply.status(400).send({ error: 'action must be "accept" or "reject"' });
+    }
+
+    // Briefing job
+    if (!source || source === 'briefing') {
+      const { rows: briefRows } = await pool.query(
+        `SELECT id, title, status, assignees, traffic_owner FROM edro_briefings WHERE id = $1`,
+        [jobId]
+      );
+      if (!briefRows[0]) return reply.status(404).send({ error: 'Job não encontrado.' });
+      const b = briefRows[0];
+
+      // Atualiza assignees: adiciona accepted / reason no entry do freelancer
+      const assignees: any[] = Array.isArray(b.assignees) ? b.assignees : [];
+      const updatedAssignees = assignees.map((a: any) => {
+        if (a.user_id === userId) {
+          return {
+            ...a,
+            accepted: action === 'accept',
+            accepted_at: new Date().toISOString(),
+            rejection_reason: action === 'reject' ? (reason ?? null) : null,
+          };
+        }
+        return a;
+      });
+
+      // Se aceito e briefing em copy_ia → move para alinhamento
+      const newStatus =
+        action === 'accept' && ['copy_ia', 'briefing'].includes(b.status)
+          ? 'alinhamento'
+          : b.status;
+
+      await pool.query(
+        `UPDATE edro_briefings SET assignees = $1::jsonb, status = $2 WHERE id = $3`,
+        [JSON.stringify(updatedAssignees), newStatus, jobId]
+      );
+
+      return reply.send({ ok: true, action, new_status: newStatus });
+    }
+
+    // Trello card (project_card)
+    if (source === 'trello_card') {
+      // Para Trello cards, usamos os membros — apenas sinalizamos com um comentário
+      const { rows: cardRows } = await pool.query(
+        `SELECT pc.id, pc.title, pc.trello_card_id, pb.tenant_id
+           FROM project_cards pc
+           JOIN project_boards pb ON pb.id = pc.board_id
+          WHERE pc.id = $1`,
+        [jobId]
+      );
+      if (!cardRows[0]) return reply.status(404).send({ error: 'Card não encontrado.' });
+
+      if (action === 'reject' && reason && cardRows[0].trello_card_id) {
+        // Tenta adicionar comentário no Trello com o motivo da recusa
+        try {
+          const { getTrelloCredentials } = await import('../services/trelloSyncService');
+          const creds = await getTrelloCredentials(cardRows[0].tenant_id);
+          if (creds) {
+            const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, text: `❌ Job recusado. Motivo: ${reason}` });
+            await fetch(`https://api.trello.com/1/cards/${cardRows[0].trello_card_id}/actions/comments?${params}`, {
+              method: 'POST', signal: AbortSignal.timeout(8_000),
+            });
+          }
+        } catch { /* best-effort */ }
+      }
+
+      return reply.send({ ok: true, action });
+    }
+
+    return reply.status(400).send({ error: 'source inválido' });
+  });
+
   app.get('/freelancers/portal/me/jobs/:jobId', async (request: any, reply) => {
     const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
