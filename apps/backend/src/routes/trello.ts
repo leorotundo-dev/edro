@@ -1267,7 +1267,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
        FROM project_card_members pcm
        JOIN project_cards pc ON pc.id = pcm.card_id
        JOIN project_boards pb ON pb.id = pc.board_id
-       LEFT JOIN freelancers f ON LOWER(f.email) = LOWER(pcm.email) AND f.tenant_id = $1
+       LEFT JOIN edro_users fu ON LOWER(fu.email) = LOWER(pcm.email)
+       LEFT JOIN freelancer_profiles f ON f.user_id = fu.id
        WHERE pb.tenant_id = $1 AND pcm.display_name IS NOT NULL
        ORDER BY pcm.display_name`,
       [tenantId],
