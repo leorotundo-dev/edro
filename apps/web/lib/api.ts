@@ -236,7 +236,7 @@ async function requestWithRefresh<T>(path: string, options: RequestInit): Promis
 
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname || '/';
-      const shouldRedirect = !(pathname === '/calendar' || pathname.startsWith('/calendar/') || pathname.startsWith('/edro/aprovacao-externa'));
+      const shouldRedirect = !(pathname === '/login' || pathname.startsWith('/login') || pathname === '/calendar' || pathname.startsWith('/calendar/') || pathname.startsWith('/edro/aprovacao-externa'));
       localStorage.removeItem('edro_token');
       localStorage.removeItem('edro_refresh');
       localStorage.removeItem('edro_user');
