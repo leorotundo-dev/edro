@@ -12,7 +12,7 @@ COPY packages/shared/package.json ./packages/shared/
 
 RUN pnpm install --filter "@edro/backend..." --prod --no-frozen-lockfile
 
-# cache-bust: 2026-03-06
+# cache-bust: 2026-03-20
 COPY apps/backend ./apps/backend
 COPY packages/shared ./packages/shared
 
