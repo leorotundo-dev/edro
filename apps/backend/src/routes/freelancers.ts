@@ -200,7 +200,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         `SELECT eu.id
            FROM edro_users eu
            JOIN tenant_users tu ON tu.user_id = eu.id
-          WHERE eu.id = $1
+          WHERE eu.id = $1::uuid
             AND tu.tenant_id = $2
           LIMIT 1`,
         [userId, tenantId],
@@ -832,7 +832,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        FROM edro_briefings b
        LEFT JOIN edro_clients ec ON ec.id = b.client_id
        WHERE b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
-          OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1 LIMIT 1)
+          OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1::uuid LIMIT 1)
        UNION ALL
        SELECT j.id, j.title, j.status, j.deadline_at as due_at,
               c.name as client_name, 'ops_job' as source,
@@ -1240,7 +1240,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     // ── Add comment to DB ─────────────────────────────────────────────────
     if (body.comment?.trim()) {
-      const userRes = await pool.query(`SELECT name FROM edro_users WHERE id = $1`, [userId]);
+      const userRes = await pool.query(`SELECT name FROM edro_users WHERE id = $1::uuid`, [userId]);
       const authorName = userRes.rows[0]?.name ?? 'Freelancer';
       await pool.query(
         `INSERT INTO project_card_comments (card_id, tenant_id, body, author_name, commented_at)
@@ -1407,7 +1407,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        LEFT JOIN edro_clients ec ON ec.id = b.client_id
        WHERE (
          b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
-         OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1 LIMIT 1)
+         OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $1::uuid LIMIT 1)
        )
        AND b.status NOT IN ('done', 'iclips_out', 'published')
        ORDER BY b.due_at ASC NULLS LAST, b.created_at DESC`,
