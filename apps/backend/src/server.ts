@@ -96,7 +96,7 @@ export async function buildServer() {
     timeWindow: '1 minute',
     // Webhook endpoints receive event bursts from Evolution API / Meta / etc.
     // Exempt them from per-IP rate limiting entirely.
-    skip: (request) => request.url.startsWith('/webhook'),
+    allowList: (request) => request.url.startsWith('/webhook'),
   });
 
   app.addHook('preHandler', async (request) => {
