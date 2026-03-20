@@ -794,7 +794,34 @@ export function OpsJobRow({
               <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.72rem' }}>
                 {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
               </Typography>
-              {job.automation_status && job.automation_status !== 'none' ? (
+              {job.automation_status === 'briefing_pending' ? (
+                <Box
+                  component={Link}
+                  href={`/admin/operacoes/jobs/${job.id}/briefing`}
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{ textDecoration: 'none' }}
+                >
+                  <Chip
+                    size="small"
+                    icon={<IconFileText size={11} />}
+                    label="Preencher Briefing"
+                    sx={{
+                      height: 18,
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      bgcolor: 'rgba(255,174,31,0.12)',
+                      color: '#FFAE1F',
+                      border: '1px solid rgba(255,174,31,0.3)',
+                      cursor: 'pointer',
+                      animation: 'brief-pulse 2s ease-in-out infinite',
+                      '@keyframes brief-pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.6 } },
+                      '& .MuiChip-label': { px: 0.75 },
+                      '& .MuiChip-icon': { ml: 0.5, mr: 0, color: '#FFAE1F' },
+                      '&:hover': { bgcolor: 'rgba(255,174,31,0.22)' },
+                    }}
+                  />
+                </Box>
+              ) : job.automation_status && job.automation_status !== 'none' ? (
                 <AutomationPipeline automationStatus={job.automation_status} compact />
               ) : null}
             </Stack>
@@ -1390,7 +1417,30 @@ export function OperationCard({
           <StageRail status={job.status} />
         </Box>
 
-        {job.automation_status && job.automation_status !== 'none' ? (
+        {job.automation_status === 'briefing_pending' ? (
+          <Box sx={{ pt: 0.5 }}>
+            <Button
+              component={Link}
+              href={`/admin/operacoes/jobs/${job.id}/briefing`}
+              size="small"
+              startIcon={<IconFileText size={14} />}
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: '#FFAE1F',
+                bgcolor: 'rgba(255,174,31,0.10)',
+                border: '1px solid rgba(255,174,31,0.3)',
+                px: 1.5,
+                py: 0.4,
+                '&:hover': { bgcolor: 'rgba(255,174,31,0.18)' },
+              }}
+            >
+              Preencher Briefing
+            </Button>
+          </Box>
+        ) : job.automation_status && job.automation_status !== 'none' ? (
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pt: 0.5 }}>
             <AutomationPipeline automationStatus={job.automation_status} />
             {job.estimated_delivery_at ? (
@@ -1704,7 +1754,43 @@ export function OperationsContextRail({
 
             <StageRail status={job.status} />
 
-            {job.automation_status && job.automation_status !== 'none' ? (
+            {job.automation_status === 'briefing_pending' ? (
+              <Box
+                sx={{
+                  py: 1.5,
+                  px: 1.5,
+                  borderRadius: 2,
+                  bgcolor: 'rgba(255,174,31,0.07)',
+                  border: '1px dashed rgba(255,174,31,0.35)',
+                }}
+              >
+                <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.75, color: '#FFAE1F' }}>
+                  Aguardando briefing
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25, fontSize: '0.72rem' }}>
+                  Preencha o briefing para que a IA possa gerar o conteúdo.
+                </Typography>
+                <Button
+                  component={Link}
+                  href={`/admin/operacoes/jobs/${job.id}/briefing`}
+                  size="small"
+                  startIcon={<IconFileText size={14} />}
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    color: '#FFAE1F',
+                    bgcolor: 'rgba(255,174,31,0.12)',
+                    border: '1px solid rgba(255,174,31,0.35)',
+                    px: 2,
+                    '&:hover': { bgcolor: 'rgba(255,174,31,0.22)' },
+                  }}
+                >
+                  Preencher Briefing
+                </Button>
+              </Box>
+            ) : job.automation_status && job.automation_status !== 'none' ? (
               <Box sx={{ py: 0.5, px: 0.25 }}>
                 <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.75 }}>Pipeline IA</Typography>
                 <AutomationPipeline automationStatus={job.automation_status} />

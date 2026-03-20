@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -148,6 +149,7 @@ function BucketSection({
 }
 
 export default function ClientDemandasClient({ clientId }: { clientId: string }) {
+  const router = useRouter();
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
 
@@ -292,11 +294,9 @@ export default function ClientDemandasClient({ clientId }: { clientId: string })
         currentUserId={currentUserId}
         onClose={() => setComposerOpen(false)}
         onCreate={async (payload) => {
-          const created = await createJob(payload);
-          await refresh();
+          const created = await createJob({ ...payload, client_id: payload.client_id || clientId });
           setComposerOpen(false);
-          setSelectedJob(created);
-          setDetailOpen(true);
+          router.push(`/admin/operacoes/jobs/${created.id}/briefing`);
           return created;
         }}
         onUpdate={updateJob}

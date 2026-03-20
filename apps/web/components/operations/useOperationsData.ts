@@ -96,9 +96,11 @@ export function useOperationsData(query = '?active=true') {
     load({ sync: true });
   }, [load]);
 
-  const createJob = useCallback(async (_payload: Record<string, any>): Promise<OperationsJob> => {
-    // In Trello mode, use the kanban board to create cards
-    throw new Error('Criar cards via Central de Operações não disponível no modo Trello. Use o Kanban.');
+  const createJob = useCallback(async (payload: Record<string, any>): Promise<OperationsJob> => {
+    const response = await apiPost<{ data: OperationsJob }>('/jobs', { ...payload, source: payload.source || 'manual' });
+    if (!response?.data) throw new Error('Erro ao criar job.');
+    setJobs((current) => [response.data!, ...current]);
+    return response.data!;
   }, []);
 
   const changeStatus = useCallback(async (jobId: string, status: string, _reason?: string | null) => {

@@ -562,11 +562,10 @@ export default async function jobsRoutes(app: FastifyInstance) {
     );
     await syncOperationalRuntimeForJob(tenantId, rows[0].id);
 
-    // ── Automation hook: auto-generate copy for visual jobs with a client ──
-    const VISUAL_JOB_TYPES = ['copy', 'design_static', 'design_carousel', 'campaign', 'stories', 'reels', 'video'];
-    if (VISUAL_JOB_TYPES.includes(body.job_type) && body.client_id) {
-      enqueueJob(tenantId, 'job_automation', { jobId: rows[0].id, step: 'copy' }).catch(() => {});
-      query(`UPDATE jobs SET automation_status = 'copy_pending' WHERE id = $1 AND tenant_id = $2`, [rows[0].id, tenantId]).catch(() => {});
+    // ── Briefing gate: all jobs with a client go to briefing first ──
+    // Copy generation only fires after briefing is approved (POST /jobs/:id/briefing/approve)
+    if (body.client_id) {
+      query(`UPDATE jobs SET automation_status = 'briefing_pending' WHERE id = $1 AND tenant_id = $2`, [rows[0].id, tenantId]).catch(() => {});
     }
 
     return reply.status(201).send({ data: rows[0] });

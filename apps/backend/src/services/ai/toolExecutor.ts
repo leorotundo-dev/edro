@@ -2270,7 +2270,15 @@ async function opsCreateJob(args: any, ctx: OperationsToolContext): Promise<Tool
   );
   await syncOperationalRuntimeForJob(ctx.tenantId, rows[0].id);
 
-  return { success: true, data: { id: rows[0].id, title: rows[0].title, status: rows[0].status, priority_band: rows[0].priority_band } };
+  // Briefing gate: all jobs with a client require briefing before copy generation
+  if (args.client_id) {
+    await query(
+      `UPDATE jobs SET automation_status = 'briefing_pending' WHERE id = $1 AND tenant_id = $2`,
+      [rows[0].id, ctx.tenantId],
+    );
+  }
+
+  return { success: true, data: { id: rows[0].id, title: rows[0].title, status: rows[0].status, priority_band: rows[0].priority_band, briefing_url: `/admin/operacoes/jobs/${rows[0].id}/briefing` } };
 }
 
 async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
