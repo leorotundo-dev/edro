@@ -791,4 +791,438 @@ export default async function trelloRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // ── Shared helper ─────────────────────────────────────────────────────────
+
+  function _cardToJob(c: Record<string, any>): Record<string, any> {
+    const { band, score } = computePriorityBand(c.due_date as string | null, c.due_complete as boolean);
+    const status = listNameToOpsStatus(c.list_name as string);
+    const labels: { color: string; name: string }[] = Array.isArray(c.labels) ? c.labels : [];
+    const labelNames = labels.map((l) => (l.name?.toLowerCase() ?? '')).join(' ');
+    const jobType = /design|arte|visual|criativo/.test(labelNames) ? 'design_static'
+      : /video|vídeo|reels|stories/.test(labelNames) ? 'video_edit'
+      : /reunion|meeting|reunião/.test(labelNames) ? 'meeting'
+      : 'copy';
+    return {
+      id: c.id, title: c.title, summary: c.description ?? null,
+      client_id: c.client_id ?? null, client_name: c.client_name ?? c.board_name,
+      client_logo_url: c.client_logo_url ?? null, client_brand_color: c.client_brand_color ?? null,
+      job_type: jobType, complexity: 'm', channel: null, source: 'trello', status,
+      priority_score: score, priority_band: band, impact_level: 2, dependency_level: 2,
+      required_skill: null,
+      owner_id: c.owner_user_id ?? null,
+      owner_name: c.owner_name ?? null,
+      owner_email: c.owner_email ?? null,
+      deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
+      estimated_minutes: null, actual_minutes: null,
+      metadata: {
+        trello_card_id: c.trello_card_id, trello_url: c.trello_url,
+        board_id: c.board_id, board_name: c.board_name,
+        list_id: c.list_id, list_name: c.list_name,
+        labels, due_complete: c.due_complete,
+      },
+    };
+  }
+
+  // GET /trello/ops-planner — workload per Trello member for the Planner tab
+  app.get('/trello/ops-planner', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+
+    // One row per (card × member); cards without members appear once with null owner fields
+    const { rows } = await query<Record<string, any>>(
+      `SELECT
+         pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
+         pc.trello_url, pc.trello_card_id,
+         pl.id as list_id, pl.name as list_name,
+         pb.id as board_id, pb.name as board_name, pb.client_id,
+         cl.name as client_name, cl.logo_url as client_logo_url, cl.brand_color as client_brand_color,
+         pcm.display_name as owner_name, pcm.email as owner_email,
+         eu.id as owner_user_id
+       FROM project_cards pc
+       JOIN project_lists pl ON pl.id = pc.list_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       LEFT JOIN project_card_members pcm ON pcm.card_id = pc.id
+       LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       WHERE pc.tenant_id = $1 AND pc.is_archived = false AND pl.is_archived = false
+       ORDER BY pc.due_date ASC NULLS LAST`,
+      [tenantId],
+    );
+
+    const ownerMap = new Map<string, { name: string; email: string | null; user_id: string | null; jobs: Record<string, any>[] }>();
+    const unassigned: Record<string, any>[] = [];
+    const seenUnassigned = new Set<string>();
+
+    for (const row of rows) {
+      const job = _cardToJob(row);
+      if (!row.owner_email) {
+        if (!seenUnassigned.has(row.id as string)) {
+          seenUnassigned.add(row.id as string);
+          unassigned.push(job);
+        }
+        continue;
+      }
+      const key = (row.owner_user_id as string | null) ?? (row.owner_email as string);
+      if (!ownerMap.has(key)) {
+        ownerMap.set(key, {
+          name: row.owner_name as string,
+          email: row.owner_email as string,
+          user_id: row.owner_user_id as string | null,
+          jobs: [],
+        });
+      }
+      ownerMap.get(key)!.jobs.push(job);
+    }
+
+    const ALLOCABLE = 960; // 16h/week heuristic
+    const owners = Array.from(ownerMap.values()).map((m) => {
+      const committed = m.jobs.length * 120; // 2h per card heuristic
+      return {
+        owner: {
+          id: m.user_id ?? m.email ?? m.name,
+          name: m.name,
+          email: m.email,
+          role: 'staff',
+          specialty: null,
+          person_type: 'freelancer' as const,
+          freelancer_profile_id: null,
+        },
+        allocable_minutes: ALLOCABLE,
+        committed_minutes: committed,
+        tentative_minutes: 0,
+        usage: Math.min(2, committed / ALLOCABLE),
+        jobs: m.jobs,
+      };
+    });
+
+    return reply.send({ data: { owners, unassigned_jobs: unassigned } });
+  });
+
+  // GET /trello/ops-calendar — cards grouped by due_date for the Agenda tab
+  app.get('/trello/ops-calendar', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - 7);
+    const windowEnd = new Date();
+    windowEnd.setDate(windowEnd.getDate() + 28);
+
+    const { rows } = await query<Record<string, any>>(
+      `SELECT
+         pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
+         pc.trello_url, pc.trello_card_id,
+         pl.id as list_id, pl.name as list_name,
+         pb.id as board_id, pb.name as board_name, pb.client_id,
+         cl.name as client_name, cl.logo_url as client_logo_url, cl.brand_color as client_brand_color,
+         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_name,
+         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_email,
+         (SELECT eu.id FROM project_card_members pcm
+          JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+          WHERE pcm.card_id = pc.id LIMIT 1) as owner_user_id
+       FROM project_cards pc
+       JOIN project_lists pl ON pl.id = pc.list_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pc.tenant_id = $1 AND pc.is_archived = false AND pl.is_archived = false
+         AND pc.due_date BETWEEN $2::date AND $3::date
+       ORDER BY pc.due_date ASC, pc.position ASC`,
+      [tenantId, windowStart.toISOString().slice(0, 10), windowEnd.toISOString().slice(0, 10)],
+    );
+
+    const dayMap = new Map<string, Record<string, any>[]>();
+    for (const row of rows) {
+      const day = (row.due_date as string).slice(0, 10);
+      if (!dayMap.has(day)) dayMap.set(day, []);
+      dayMap.get(day)!.push(_cardToJob(row));
+    }
+
+    const days = Array.from(dayMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, jobs]) => ({ day, jobs, layerSummary: [] }));
+
+    return reply.send({ data: { days } });
+  });
+
+  // GET /trello/ops-suggest-owner/:cardId — ranked list of best people for this card
+  app.get('/trello/ops-suggest-owner/:cardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+
+    // Card metadata (labels for specialty inference)
+    const { rows: cardRows } = await query<{ labels: any; due_date: string | null }>(
+      `SELECT pc.labels, pc.due_date FROM project_cards pc WHERE pc.id = $1 AND pc.tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+
+    const labels: { color: string; name: string }[] = Array.isArray(cardRows[0].labels) ? cardRows[0].labels : [];
+    const labelText = labels.map((l) => l.name?.toLowerCase() ?? '').join(' ');
+    const isDesign = /design|arte|artes|visual|criativo/.test(labelText);
+    const isVideo = /video|vídeo|reels|stories/.test(labelText);
+
+    // All distinct members who have ever worked on this tenant's boards
+    const { rows: members } = await query<{ display_name: string; email: string; trello_member_id: string | null; user_id: string | null }>(
+      `SELECT DISTINCT pcm.display_name, pcm.email, pcm.trello_member_id, eu.id as user_id
+       FROM project_card_members pcm
+       JOIN project_cards pc ON pc.id = pcm.card_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       WHERE pb.tenant_id = $1 AND pcm.email IS NOT NULL AND pcm.display_name IS NOT NULL`,
+      [tenantId],
+    );
+
+    if (!members.length) return reply.send({ suggestions: [] });
+
+    // Score each member
+    const scored = await Promise.all(members.map(async (m) => {
+      // 1. Current load — active cards (excluding the card being evaluated)
+      const { rows: loadRows } = await query<{ count: string }>(
+        `SELECT COUNT(*)::text as count
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
+           AND pc.is_archived = false AND pc.id != $3`,
+        [m.email, tenantId, cardId],
+      );
+      const activeCards = parseInt(loadRows[0]?.count ?? '0', 10);
+
+      // 2. SLA history — last 90 days
+      const { rows: slaRows } = await query<{ met: string; missed: string; total: string }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE pc.due_complete = true)::text as met,
+           COUNT(*) FILTER (WHERE pc.due_date < now()::date AND pc.due_complete = false)::text as missed,
+           COUNT(*)::text as total
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
+           AND pc.due_date IS NOT NULL
+           AND pc.due_date >= now()::date - interval '90 days'`,
+        [m.email, tenantId],
+      );
+      const slaTotal = parseInt(slaRows[0]?.total ?? '0', 10);
+      const slaMet   = parseInt(slaRows[0]?.met   ?? '0', 10);
+      const slaRate  = slaTotal >= 3 ? Math.round((slaMet / slaTotal) * 100) : null;
+
+      // Scores
+      const loadScore = Math.max(0, 100 - activeCards * 18);   // 0 cards=100, 5≈10
+      const slaScore  = slaRate ?? 70;                          // neutral default
+
+      // Specialty inference: check if this person has done design/video cards
+      let specialtyScore = 65; // neutral
+      if (isDesign || isVideo) {
+        const { rows: spRows } = await query<{ count: string }>(
+          `SELECT COUNT(*)::text as count
+           FROM project_card_members pcm
+           JOIN project_cards pc ON pc.id = pcm.card_id
+           JOIN project_boards pb ON pb.id = pc.board_id
+           WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
+             AND pc.labels::text ILIKE $3`,
+          [m.email, tenantId, isDesign ? '%design%' : '%video%'],
+        );
+        const match = parseInt(spRows[0]?.count ?? '0', 10);
+        specialtyScore = match >= 2 ? 90 : match === 1 ? 75 : 45;
+      }
+
+      const score = Math.round(loadScore * 0.45 + slaScore * 0.35 + specialtyScore * 0.20);
+
+      const reasons: string[] = [];
+      if (activeCards === 0) reasons.push('sem carga no momento');
+      else reasons.push(`${activeCards} card${activeCards !== 1 ? 's' : ''} ativo${activeCards !== 1 ? 's' : ''}`);
+      if (slaRate !== null) reasons.push(`${slaRate}% no prazo`);
+      else reasons.push('sem histórico');
+
+      return {
+        display_name: m.display_name,
+        email: m.email,
+        trello_member_id: m.trello_member_id,
+        user_id: m.user_id,
+        active_cards: activeCards,
+        sla_rate: slaRate,
+        score,
+        score_breakdown: { load: loadScore, sla: slaScore, specialty: specialtyScore },
+        reason: reasons.join(' · '),
+      };
+    }));
+
+    scored.sort((a, b) => b.score - a.score);
+    return reply.send({ suggestions: scored.slice(0, 5) });
+  });
+
+  // POST /trello/ops-cards/:cardId/assign — assign member + sync to Trello
+  app.post('/trello/ops-cards/:cardId/assign', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const { email } = request.body as { email: string };
+    const tenantId = request.user?.tenant_id as string;
+
+    const { rows: cardRows } = await query<{ trello_card_id: string | null }>(
+      `SELECT trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const trelloCardId = cardRows[0].trello_card_id;
+
+    // Find member's trello_member_id from existing records
+    const { rows: memberRows } = await query<{ trello_member_id: string | null; display_name: string }>(
+      `SELECT DISTINCT pcm.trello_member_id, pcm.display_name
+       FROM project_card_members pcm
+       JOIN project_cards pc ON pc.id = pcm.card_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
+       LIMIT 1`,
+      [email, tenantId],
+    );
+    if (!memberRows.length) return reply.status(404).send({ error: 'Membro não encontrado no histórico de boards.' });
+
+    const { trello_member_id, display_name } = memberRows[0];
+
+    // Upsert into project_card_members
+    await query(
+      `INSERT INTO project_card_members (card_id, tenant_id, trello_member_id, display_name, email)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (card_id, trello_member_id) DO UPDATE SET display_name = $4, email = $5`,
+      [cardId, tenantId, trello_member_id ?? email, display_name, email],
+    );
+
+    // Sync to Trello
+    if (trelloCardId && trello_member_id) {
+      try {
+        const creds = await getTrelloCredentials(tenantId);
+        if (creds) {
+          const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, value: trello_member_id });
+          await fetch(`https://api.trello.com/1/cards/${trelloCardId}/idMembers?${params}`, {
+            method: 'POST',
+            signal: AbortSignal.timeout(8_000),
+          });
+        }
+      } catch (err: any) {
+        console.warn('[trello] assign member sync failed:', err?.message);
+      }
+    }
+
+    return reply.send({ ok: true, display_name, email });
+  });
+
+  // GET /trello/ops-sla — SLA metrics derived from due_date + due_complete
+  app.get('/trello/ops-sla', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const { days: daysParam = '90' } = request.query as { days?: string };
+    const periodDays = Math.max(1, Math.min(365, parseInt(daysParam, 10) || 90));
+
+    const since = new Date();
+    since.setDate(since.getDate() - periodDays);
+    const now = new Date();
+
+    const { rows: cards } = await query<Record<string, any>>(
+      `SELECT
+         pc.id, pc.title, pc.due_date, pc.due_complete,
+         pb.client_id, cl.name as client_name,
+         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_name,
+         (SELECT eu.id::text FROM project_card_members pcm
+          JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+          WHERE pcm.card_id = pc.id LIMIT 1) as owner_user_id,
+         (SELECT COUNT(*)::int FROM project_card_actions pca
+          WHERE pca.card_id = pc.id AND pca.action_type = 'moveCard') as move_count
+       FROM project_cards pc
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pc.tenant_id = $1
+         AND pc.due_date IS NOT NULL
+         AND pc.due_date >= $2::date
+         AND pc.is_archived = false
+       ORDER BY pc.due_date ASC`,
+      [tenantId, since.toISOString().slice(0, 10)],
+    );
+
+    type ClientBucket = { client_id: string | null; client_name: string; met: number; missed: number; total: number; totalVariance: number };
+    type OwnerBucket = { owner_id: string | null; owner_name: string; met: number; missed: number; total: number; totalVariance: number; totalRevisions: number };
+
+    let met = 0, missed = 0, open = 0;
+    let totalVarianceDays = 0, varianceCount = 0;
+    const byClientMap = new Map<string, ClientBucket>();
+    const byOwnerMap = new Map<string, OwnerBucket>();
+    const worstMisses: Record<string, any>[] = [];
+
+    for (const c of cards) {
+      const dueDate = c.due_date ? new Date(c.due_date as string) : null;
+      const isPast = dueDate && dueDate < now;
+      let kind: 'met' | 'missed' | 'open';
+      let varianceDays = 0;
+
+      if (c.due_complete) {
+        kind = 'met'; met++;
+      } else if (isPast) {
+        kind = 'missed'; missed++;
+        varianceDays = dueDate ? Math.ceil((now.getTime() - dueDate.getTime()) / 86400000) : 0;
+        if (varianceDays > 0) { totalVarianceDays += varianceDays; varianceCount++; }
+        worstMisses.push({
+          job_id: c.id, title: c.title,
+          client_name: (c.client_name as string | null) ?? '—',
+          owner_name: (c.owner_name as string | null) ?? '—',
+          priority_band: computePriorityBand(c.due_date as string | null, false).band,
+          deadline_at: c.due_date, completed_at: null,
+          days_variance: varianceDays, revision_count: (c.move_count as number) ?? 0,
+        });
+      } else {
+        kind = 'open'; open++;
+      }
+
+      const ck = (c.client_id as string | null) ?? '__no_client__';
+      if (!byClientMap.has(ck)) {
+        byClientMap.set(ck, { client_id: c.client_id as string | null, client_name: (c.client_name as string | null) ?? 'Sem cliente', met: 0, missed: 0, total: 0, totalVariance: 0 });
+      }
+      const cr = byClientMap.get(ck)!;
+      if (kind !== 'open') { cr.total++; if (kind === 'met') cr.met++; else { cr.missed++; cr.totalVariance += varianceDays; } }
+
+      if (c.owner_name) {
+        const ok = (c.owner_user_id as string | null) ?? (c.owner_name as string);
+        if (!byOwnerMap.has(ok)) {
+          byOwnerMap.set(ok, { owner_id: c.owner_user_id as string | null, owner_name: c.owner_name as string, met: 0, missed: 0, total: 0, totalVariance: 0, totalRevisions: 0 });
+        }
+        const ob = byOwnerMap.get(ok)!;
+        if (kind !== 'open') {
+          ob.total++; if (kind === 'met') ob.met++; else { ob.missed++; ob.totalVariance += varianceDays; }
+          ob.totalRevisions += (c.move_count as number) ?? 0;
+        }
+      }
+    }
+
+    const total = met + missed;
+    const rate = total > 0 ? Math.round(met / total * 100) : null;
+
+    return reply.send({
+      data: {
+        period_days: periodDays,
+        overall: {
+          met, missed, open, total, rate,
+          avg_days_variance: varianceCount > 0 ? Math.round(totalVarianceDays / varianceCount * 10) / 10 : 0,
+          avg_actual_minutes: 0,
+          avg_estimated_minutes: 0,
+        },
+        by_client: Array.from(byClientMap.values())
+          .filter((r) => r.total > 0)
+          .map((r) => ({
+            client_id: r.client_id, client_name: r.client_name,
+            met: r.met, missed: r.missed, total: r.total,
+            rate: r.total > 0 ? Math.round(r.met / r.total * 100) : null,
+            avg_days_variance: r.missed > 0 ? Math.round(r.totalVariance / r.missed * 10) / 10 : 0,
+          }))
+          .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0)),
+        by_owner: Array.from(byOwnerMap.values())
+          .filter((r) => r.total > 0)
+          .map((r) => ({
+            owner_id: r.owner_id, owner_name: r.owner_name,
+            met: r.met, missed: r.missed, total: r.total,
+            rate: r.total > 0 ? Math.round(r.met / r.total * 100) : null,
+            avg_days_variance: r.missed > 0 ? Math.round(r.totalVariance / r.missed * 10) / 10 : 0,
+            avg_revisions: r.total > 0 ? Math.round(r.totalRevisions / r.total * 10) / 10 : 0,
+          }))
+          .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0)),
+        worst_misses: worstMisses
+          .sort((a, b) => (b.days_variance as number) - (a.days_variance as number))
+          .slice(0, 10),
+      },
+    });
+  });
 }

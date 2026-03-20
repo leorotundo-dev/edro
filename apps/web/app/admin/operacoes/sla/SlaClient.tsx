@@ -61,7 +61,7 @@ export default function SlaClient() {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const res = await apiGet<{ data: SlaData }>(`/jobs/sla?days=${days}`);
+      const res = await apiGet<{ data: SlaData }>(`/trello/ops-sla?days=${days}`);
       setData(res?.data ?? null);
     } catch (e: any) { setError(e?.message || 'Erro ao carregar SLA.'); }
     finally { setLoading(false); }

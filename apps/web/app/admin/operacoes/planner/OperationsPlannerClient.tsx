@@ -7,16 +7,12 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import FormControl from '@mui/material/FormControl';
 import Grid from '@mui/material/Grid';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
+import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
-import { apiDelete, apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
@@ -25,10 +21,8 @@ import {
   EmptyOperationState,
   EntityLinkCard,
   OperationsContextRail,
-  OpsDivider,
   OpsJobRow,
   OpsSection,
-  OpsSurface,
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
@@ -75,25 +69,17 @@ function formatHours(minutes: number) {
   return `${h}h${m}`;
 }
 
-function toDateInputValue(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
-}
-
-function toIsoFromDateInput(value?: string) {
-  if (!value) return null;
-  return `${value}T12:00:00.000Z`;
-}
-
-function endIsoFromStart(startIso: string | null, minutes: number) {
-  if (!startIso) return null;
-  const date = new Date(startIso);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setUTCMinutes(date.getUTCMinutes() + Math.max(0, minutes));
-  return date.toISOString();
-}
+type Suggestion = {
+  display_name: string;
+  email: string;
+  trello_member_id: string | null;
+  user_id: string | null;
+  active_cards: number;
+  sla_rate: number | null;
+  score: number;
+  score_breakdown: { load: number; sla: number; specialty: number };
+  reason: string;
+};
 
 function plannerWeekdayKey(job: OperationsJob) {
   const allocation = job.metadata?.allocation as { starts_at?: string | null } | undefined;
@@ -247,13 +233,9 @@ export default function OperationsPlannerClient() {
     }>;
     unassigned_jobs: OperationsJob[];
   }>({ owners: [], unassigned_jobs: [] });
-  const [allocationSaving, setAllocationSaving] = useState(false);
-  const [allocationForm, setAllocationForm] = useState({
-    ownerId: '',
-    status: 'committed',
-    plannedMinutes: '',
-    plannedDate: '',
-  });
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [assigning, setAssigning] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -261,7 +243,7 @@ export default function OperationsPlannerClient() {
       setPlannerLoading(true);
       setPlannerError('');
       try {
-        const response = await apiGet<{ data?: typeof plannerData }>('/operations/planner');
+        const response = await apiGet<{ data?: typeof plannerData }>('/trello/ops-planner');
         if (!active) return;
         setPlannerData(response?.data || { owners: [], unassigned_jobs: [] });
       } catch (err: any) {
@@ -306,68 +288,32 @@ export default function OperationsPlannerClient() {
   }, [jobs, plannerJobs, selectedJob]);
 
   useEffect(() => {
-    if (!selectedJob) {
-      setAllocationForm({ ownerId: '', status: 'committed', plannedMinutes: '', plannedDate: '' });
-      return;
-    }
-    const allocation = selectedJob.metadata?.allocation as
-      | { status?: string; planned_minutes?: number | null; starts_at?: string | null }
-      | undefined;
-    setAllocationForm({
-      ownerId: selectedJob.owner_id || '',
-      status: allocation?.status || (selectedJob.status === 'blocked' ? 'blocked' : selectedJob.status === 'planned' ? 'tentative' : 'committed'),
-      plannedMinutes: String(allocation?.planned_minutes ?? selectedJob.estimated_minutes ?? ''),
-      plannedDate: toDateInputValue(allocation?.starts_at || selectedJob.deadline_at),
-    });
-  }, [selectedJob]);
+    if (!selectedJob) { setSuggestions([]); return; }
+    let active = true;
+    setSuggestionsLoading(true);
+    apiGet<{ suggestions: Suggestion[] }>(`/trello/ops-suggest-owner/${selectedJob.id}`)
+      .then((res) => { if (active) setSuggestions(res?.suggestions ?? []); })
+      .catch(() => { if (active) setSuggestions([]); })
+      .finally(() => { if (active) setSuggestionsLoading(false); });
+    return () => { active = false; };
+  }, [selectedJob?.id]);
 
   async function reloadPlanner() {
     await refresh();
-    const response = await apiGet<{ data?: typeof plannerData }>('/operations/planner');
+    const response = await apiGet<{ data?: typeof plannerData }>('/trello/ops-planner');
     setPlannerData(response?.data || { owners: [], unassigned_jobs: [] });
   }
 
-  async function saveAllocation() {
-    if (!selectedJob || !allocationForm.ownerId) {
-      setPlannerError('Selecione um responsável para salvar a alocação.');
-      return;
-    }
-    setAllocationSaving(true);
-    setPlannerError('');
-    try {
-      const startsAt = toIsoFromDateInput(allocationForm.plannedDate);
-      const plannedMinutes = Number(allocationForm.plannedMinutes || selectedJob.estimated_minutes || 0);
-      await apiPost('/operations/allocations', {
-        job_id: selectedJob.id,
-        owner_id: allocationForm.ownerId,
-        status: allocationForm.status,
-        planned_minutes: plannedMinutes,
-        starts_at: startsAt,
-        ends_at: endIsoFromStart(startsAt, plannedMinutes),
-      });
-      await reloadPlanner();
-      const updated = await fetchJob(selectedJob.id);
-      setSelectedJob(updated);
-    } catch (err: any) {
-      setPlannerError(err?.message || 'Falha ao salvar a alocação.');
-    } finally {
-      setAllocationSaving(false);
-    }
-  }
-
-  async function dropAllocation() {
+  async function handleAssign(email: string, displayName: string) {
     if (!selectedJob) return;
-    setAllocationSaving(true);
-    setPlannerError('');
+    setAssigning(email);
     try {
-      await apiDelete(`/operations/allocations/${selectedJob.id}`);
+      await apiPost(`/trello/ops-cards/${selectedJob.id}/assign`, { email });
       await reloadPlanner();
-      const updated = await fetchJob(selectedJob.id);
-      setSelectedJob(updated);
-    } catch (err: any) {
-      setPlannerError(err?.message || 'Falha ao remover a alocação.');
+    } catch {
+      setPlannerError(`Erro ao atribuir para ${displayName}.`);
     } finally {
-      setAllocationSaving(false);
+      setAssigning(null);
     }
   }
 
@@ -429,91 +375,135 @@ export default function OperationsPlannerClient() {
                     if (firstJob) setSelectedJob(firstJob);
                   }}
                 />
-                <OpsSurface>
-                  <Stack spacing={0}>
-                    {ownerRows.map((row, index) => {
-                      const accent = ownerAccent(row.owner.person_type);
-                      const statusLabel = row.usage >= 1 ? 'Estourado' : row.usage >= 0.85 ? 'Sob pressão' : row.usage >= 0.6 ? 'Em equilíbrio' : 'Com folga';
-                      const statusColor = row.usage >= 1 ? 'error' : row.usage >= 0.85 ? 'warning' : row.usage >= 0.6 ? 'info' : 'success';
+                <Stack spacing={2}>
+                  {ownerRows.map((row) => {
+                    const accent = ownerAccent(row.owner.person_type);
+                    const color = heatColor(row.usage);
+                    const statusLabel = row.usage >= 1 ? 'Estourado' : row.usage >= 0.85 ? 'Sob pressão' : row.usage >= 0.6 ? 'Em equilíbrio' : 'Com folga';
+                    const statusColor: 'error' | 'warning' | 'info' | 'success' = row.usage >= 1 ? 'error' : row.usage >= 0.85 ? 'warning' : row.usage >= 0.6 ? 'info' : 'success';
+                    const freeMinutes = Math.max(0, row.allocableMinutes - row.committedMinutes);
 
-                      return (
-                        <Box
-                          key={row.owner.id}
-                          sx={{
-                            pt: index === 0 ? 0 : 2.25,
-                            mt: index === 0 ? 0 : 2.25,
-                            borderTop: index === 0 ? 'none' : '1px solid',
-                            borderColor: index === 0 ? 'transparent' : 'divider',
-                          }}
-                        >
-                          <Stack spacing={1.5}>
-                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }}>
-                              <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-                                <PersonThumb name={row.owner.name} accent={accent} size={36} />
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography variant="body1" fontWeight={900}>{row.owner.name}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {row.owner.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {row.owner.specialty || row.owner.role}
-                                  </Typography>
-                                </Box>
-                              </Stack>
-                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                <Chip size="small" label={`${row.activeJobs.length} demandas`} />
-                                <Chip size="small" color={statusColor} label={statusLabel} />
-                              </Stack>
-                            </Stack>
-
-                            <CapacityBar
-                              allocableMinutes={row.allocableMinutes}
-                              committedMinutes={row.committedMinutes}
-                              tentativeMinutes={row.tentativeMinutes}
-                              title="Capacidade desta semana"
-                            />
-
-                            <Grid container spacing={1}>
-                              {plannerWeekSummary(row.activeJobs).map((day) => (
-                                <Grid key={day.key} size={{ xs: 6, md: 2.4 }}>
-                                  <Box
-                                    sx={(theme) => ({
-                                      px: 1.25,
-                                      py: 1,
-                                      borderRadius: 2,
-                                      bgcolor: day.jobs.length
-                                        ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.06 : 0.03)
-                                        : 'transparent',
-                                      border: '1px solid',
-                                      borderColor: 'divider',
-                                    })}
-                                  >
-                                    <Typography variant="caption" color="text.secondary" fontWeight={700}>{day.label}</Typography>
-                                    <Typography variant="body2" fontWeight={800}>
-                                      {day.jobs.length ? `${day.jobs.length} demanda(s)` : 'Livre'}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {day.jobs.length ? `${Math.round(day.plannedMinutes / 60)}h planejadas` : 'Sem bloco'}
-                                    </Typography>
-                                  </Box>
-                                </Grid>
-                              ))}
-                            </Grid>
-
-                            <Stack spacing={0.35}>
-                              {row.activeJobs.length ? (
-                                row.activeJobs.slice(0, 4).map((job) => (
-                                  <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} />
-                                ))
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  {OPS_COPY.planner.emptyRow}
+                    return (
+                      <Box
+                        key={row.owner.id}
+                        sx={(theme) => ({
+                          borderRadius: 3,
+                          border: '1px solid',
+                          borderColor: alpha(color, 0.28),
+                          borderLeft: `5px solid ${color}`,
+                          bgcolor: theme.palette.mode === 'dark' ? alpha(color, 0.07) : alpha(color, 0.04),
+                          overflow: 'hidden',
+                        })}
+                      >
+                        {/* Header */}
+                        <Box sx={{ px: 2.5, pt: 2.5, pb: 2 }}>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+                            <Stack direction="row" spacing={1.5} alignItems="center">
+                              <PersonThumb name={row.owner.name} accent={accent} size={46} />
+                              <Box>
+                                <Typography variant="body1" fontWeight={900} lineHeight={1.2}>
+                                  {row.owner.name}
                                 </Typography>
-                              )}
+                                <Typography variant="caption" color="text.secondary">
+                                  {row.owner.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'}
+                                  {(row.owner.specialty || row.owner.role) ? ` · ${row.owner.specialty || row.owner.role}` : ''}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Box sx={{
+                                px: 1.5, py: 0.5, borderRadius: 99,
+                                bgcolor: alpha(color, 0.15),
+                                border: `1px solid ${alpha(color, 0.35)}`,
+                              }}>
+                                <Typography variant="caption" fontWeight={800} sx={{ color }}>
+                                  {freeMinutes > 0 ? `${formatHours(freeMinutes)} livre` : 'Sem folga'}
+                                </Typography>
+                              </Box>
+                              <Chip size="small" label={`${row.activeJobs.length} demanda${row.activeJobs.length !== 1 ? 's' : ''}`} />
+                              <Chip size="small" color={statusColor} label={statusLabel} />
                             </Stack>
                           </Stack>
                         </Box>
-                      );
-                    })}
-                  </Stack>
-                </OpsSurface>
+
+                        {/* Capacity bar */}
+                        <Box sx={{ px: 2.5, pb: 2 }}>
+                          <CapacityBar
+                            allocableMinutes={row.allocableMinutes}
+                            committedMinutes={row.committedMinutes}
+                            tentativeMinutes={row.tentativeMinutes}
+                            title="Capacidade desta semana"
+                          />
+                        </Box>
+
+                        {/* Week day mini-blocks */}
+                        <Box sx={{ px: 2.5, pb: 2 }}>
+                          <Grid container spacing={1}>
+                            {plannerWeekSummary(row.activeJobs).map((day) => {
+                              const hasWork = day.jobs.length > 0;
+                              return (
+                                <Grid key={day.key} size={{ xs: 6, md: 2.4 }}>
+                                  <Box
+                                    sx={(theme) => ({
+                                      px: 1.5, py: 1.25,
+                                      borderRadius: 2,
+                                      bgcolor: hasWork
+                                        ? alpha(color, theme.palette.mode === 'dark' ? 0.16 : 0.10)
+                                        : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.04 : 0.03),
+                                      border: '1px solid',
+                                      borderColor: hasWork ? alpha(color, 0.35) : 'divider',
+                                    })}
+                                  >
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight={800}
+                                      sx={{ color: hasWork ? color : 'text.disabled', fontSize: '0.62rem', letterSpacing: '0.07em', textTransform: 'uppercase', display: 'block' }}
+                                    >
+                                      {day.label}
+                                    </Typography>
+                                    <Typography variant="body2" fontWeight={900} sx={{ mt: 0.25, lineHeight: 1.1 }}>
+                                      {hasWork ? `${day.jobs.length}×` : 'Livre'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>
+                                      {hasWork ? `${Math.round(day.plannedMinutes / 60)}h` : '—'}
+                                    </Typography>
+                                  </Box>
+                                </Grid>
+                              );
+                            })}
+                          </Grid>
+                        </Box>
+
+                        {/* Job list */}
+                        <Box
+                          sx={(theme) => ({
+                            px: 2.5, pt: 1.5, pb: 2.5,
+                            borderTop: '1px solid',
+                            borderColor: alpha(color, 0.15),
+                            bgcolor: theme.palette.mode === 'dark' ? alpha('#000', 0.15) : alpha('#fff', 0.55),
+                          })}
+                        >
+                          {row.activeJobs.length > 0 ? (
+                            <Stack spacing={0.35}>
+                              {row.activeJobs.slice(0, 4).map((job) => (
+                                <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} />
+                              ))}
+                              {row.activeJobs.length > 4 && (
+                                <Typography variant="caption" color="text.secondary" sx={{ pt: 0.5, pl: 0.5 }}>
+                                  +{row.activeJobs.length - 4} demandas
+                                </Typography>
+                              )}
+                            </Stack>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                              {OPS_COPY.planner.emptyRow}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Stack>
               </OpsSection>
             </Stack>
           </Grid>
@@ -592,62 +582,73 @@ export default function OperationsPlannerClient() {
                   ),
                 },
                 {
-                  title: 'Ajustar alocação',
-                  content: (
-                    <Stack spacing={1.5}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel id="allocation-owner-label">Responsável</InputLabel>
-                        <Select
-                          labelId="allocation-owner-label"
-                          value={allocationForm.ownerId}
-                          label="Responsável"
-                          onChange={(event) => setAllocationForm((current) => ({ ...current, ownerId: String(event.target.value) }))}
-                        >
-                          {lookups.owners.map((owner) => (
-                            <MenuItem key={owner.id} value={owner.id}>
-                              {owner.name} · {owner.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                      <Grid container spacing={1.25}>
-                        <Grid size={{ xs: 12, md: 6 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel id="allocation-status-label">Estado</InputLabel>
-                            <Select
-                              labelId="allocation-status-label"
-                              value={allocationForm.status}
-                              label="Estado"
-                              onChange={(event) => setAllocationForm((current) => ({ ...current, status: String(event.target.value) }))}
-                            >
-                              <MenuItem value="tentative">Reservado</MenuItem>
-                              <MenuItem value="committed">Confirmado</MenuItem>
-                              <MenuItem value="blocked">Bloqueado</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        <Grid size={{ xs: 12, md: 6 }}>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            type="number"
-                            label="Minutos planejados"
-                            value={allocationForm.plannedMinutes}
-                            onChange={(event) => setAllocationForm((current) => ({ ...current, plannedMinutes: event.target.value }))}
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 12, md: 12 }}>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            type="date"
-                            label="Dia planejado"
-                            value={allocationForm.plannedDate}
-                            onChange={(event) => setAllocationForm((current) => ({ ...current, plannedDate: event.target.value }))}
-                            InputLabelProps={{ shrink: true }}
-                          />
-                        </Grid>
-                      </Grid>
+                  title: 'Indicação inteligente',
+                  content: !selectedJob ? (
+                    <Typography variant="body2" color="text.secondary">Selecione uma demanda para ver sugestões.</Typography>
+                  ) : suggestionsLoading ? (
+                    <Box sx={{ py: 2, display: 'flex', justifyContent: 'center' }}><CircularProgress size={22} /></Box>
+                  ) : suggestions.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">Nenhuma sugestão disponível.</Typography>
+                  ) : (
+                    <Stack spacing={1}>
+                      {suggestions.map((s) => {
+                        const scoreColor = s.score >= 75 ? '#13DEB9' : s.score >= 50 ? '#FFAE1F' : '#FA896B';
+                        const isAssigning = assigning === s.email;
+                        return (
+                          <Box
+                            key={s.email}
+                            sx={(theme) => ({
+                              borderRadius: 2,
+                              border: '1px solid',
+                              borderColor: alpha(scoreColor, 0.25),
+                              borderLeft: `4px solid ${scoreColor}`,
+                              bgcolor: theme.palette.mode === 'dark' ? alpha(scoreColor, 0.06) : alpha(scoreColor, 0.04),
+                              px: 1.5,
+                              py: 1.25,
+                            })}
+                          >
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Stack direction="row" spacing={0.75} alignItems="center">
+                                  <Typography variant="body2" fontWeight={800} noWrap>{s.display_name}</Typography>
+                                  <Chip
+                                    size="small"
+                                    label={`${s.score}`}
+                                    sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha(scoreColor, 0.15), color: scoreColor, '& .MuiChip-label': { px: 0.75 } }}
+                                  />
+                                </Stack>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: '0.65rem' }}>
+                                  {s.reason}
+                                </Typography>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={s.score}
+                                  sx={{ height: 3, borderRadius: 99, bgcolor: alpha(scoreColor, 0.12), '& .MuiLinearProgress-bar': { bgcolor: scoreColor } }}
+                                />
+                                <Stack direction="row" spacing={1.5} sx={{ mt: 0.5 }}>
+                                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+                                    {s.active_cards} cards ativos
+                                  </Typography>
+                                  {s.sla_rate !== null && (
+                                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+                                      SLA {s.sla_rate}%
+                                    </Typography>
+                                  )}
+                                </Stack>
+                              </Box>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                disabled={assigning !== null}
+                                onClick={() => handleAssign(s.email, s.display_name)}
+                                sx={{ flexShrink: 0, minWidth: 72, fontSize: '0.7rem' }}
+                              >
+                                {isAssigning ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : 'Atribuir'}
+                              </Button>
+                            </Stack>
+                          </Box>
+                        );
+                      })}
                     </Stack>
                   ),
                 },
@@ -665,23 +666,7 @@ export default function OperationsPlannerClient() {
                   content: (
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                       <Button variant="contained" onClick={() => setDetailOpen(true)} disabled={!selectedJob}>{OPS_COPY.common.openDetail}</Button>
-                      <Button variant="contained" color="warning" onClick={saveAllocation} disabled={!selectedJob || !allocationForm.ownerId || allocationSaving}>
-                        {allocationSaving ? 'Salvando...' : 'Salvar alocação'}
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="inherit"
-                        onClick={dropAllocation}
-                        disabled={!selectedJob?.owner_id || allocationSaving}
-                      >
-                        Soltar alocação
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        onClick={reloadPlanner}
-                      >
-                        {OPS_COPY.planner.refresh}
-                      </Button>
+                      <Button variant="outlined" onClick={reloadPlanner}>{OPS_COPY.planner.refresh}</Button>
                       <Button variant="outlined" onClick={() => selectedJob && fetchJob(selectedJob.id).then((job) => setSelectedJob(job))} disabled={!selectedJob}>{OPS_COPY.common.refreshDetail}</Button>
                     </Stack>
                   ),

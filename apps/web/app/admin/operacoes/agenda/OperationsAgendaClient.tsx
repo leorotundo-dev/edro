@@ -121,8 +121,8 @@ export default function OperationsAgendaClient() {
       setAgendaError('');
       try {
         const [calendarResponse, plannerResponse] = await Promise.all([
-          apiGet<{ data?: { days?: typeof agendaDays } }>('/operations/calendar'),
-          apiGet<{ data?: PlannerData }>('/operations/planner'),
+          apiGet<{ data?: { days?: typeof agendaDays } }>('/trello/ops-calendar'),
+          apiGet<{ data?: PlannerData }>('/trello/ops-planner'),
         ]);
         if (!active) return;
         setAgendaDays(calendarResponse?.data?.days || []);
