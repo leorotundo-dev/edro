@@ -933,7 +933,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     const dayMap = new Map<string, Record<string, any>[]>();
     for (const row of rows) {
-      const day = (row.due_date as string).slice(0, 10);
+      const day = String(row.due_date).slice(0, 10);
       if (!dayMap.has(day)) dayMap.set(day, []);
       dayMap.get(day)!.push(_cardToJob(row));
     }

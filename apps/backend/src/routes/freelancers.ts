@@ -839,7 +839,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               NULL::text as board_name, NULL::text as list_name, false as due_complete
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
-       WHERE j.owner_id = $1::text
+       WHERE j.owner_id = $1::uuid
          AND j.status NOT IN ('published', 'done', 'archived')
        UNION ALL
        SELECT pc.id, pc.title,
@@ -1150,7 +1150,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          FROM jobs j
          LEFT JOIN clients c ON c.id = j.client_id
          LEFT JOIN job_types jt ON jt.id = j.job_type_id
-         WHERE j.id = $1 AND j.owner_id = $2::text`,
+         WHERE j.id = $1 AND j.owner_id = $2::uuid`,
         [jobId, userId],
       );
       if (res.rows.length) {
@@ -1169,7 +1169,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          WHERE b.id = $1
            AND (
              b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $2::text))
-             OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $2 LIMIT 1)
+             OR b.traffic_owner = (SELECT eu.name FROM edro_users eu WHERE eu.id = $2::uuid LIMIT 1)
            )`,
         [jobId, userId],
       );
