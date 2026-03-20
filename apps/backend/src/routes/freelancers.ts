@@ -329,7 +329,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          FROM jobs j
          LEFT JOIN clients c ON c.id = j.client_id
         WHERE j.tenant_id = $1
-          AND j.owner_id = $2
+          AND j.owner_id = $2::uuid
           AND j.status NOT IN ('archived')
         ORDER BY j.created_at DESC
         LIMIT 20`,
@@ -343,7 +343,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          COALESCE(SUM(j.estimated_minutes), 0)::int            AS active_minutes
          FROM jobs j
         WHERE j.tenant_id = $1
-          AND j.owner_id = $2
+          AND j.owner_id = $2::uuid
           AND j.status NOT IN ('done', 'published', 'archived', 'cancelled')`,
       [tenantId, profile.user_id],
     );
@@ -355,7 +355,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               AVG(CASE WHEN deadline_at IS NOT NULL AND completed_at > deadline_at THEN 0 ELSE 100 END)::int AS punctuality
          FROM jobs
         WHERE tenant_id = $1
-          AND owner_id = $2
+          AND owner_id = $2::uuid
           AND status IN ('done', 'published')
           AND completed_at > now() - interval '6 months'
         GROUP BY 1
@@ -371,7 +371,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          COUNT(*)::int                AS sample_count
          FROM jobs
         WHERE tenant_id = $1
-          AND owner_id = $2
+          AND owner_id = $2::uuid
           AND status IN ('done', 'published')
           AND actual_minutes IS NOT NULL
           AND estimated_minutes IS NOT NULL
