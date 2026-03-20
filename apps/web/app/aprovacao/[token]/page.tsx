@@ -11,10 +11,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import EditNoteIcon from '@mui/icons-material/EditNote';
-import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
-import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
+import { IconCircleCheck, IconEdit, IconThumbUp, IconThumbDown } from '@tabler/icons-react';
 
 type BriefingData = {
   id: string;
@@ -102,7 +99,7 @@ export default function ClientApprovalPage() {
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
         <Paper elevation={0} sx={{ maxWidth: 480, width: '100%', p: 5, textAlign: 'center', border: '1px solid #bbf7d0', borderRadius: 3 }}>
-          <CheckCircleIcon sx={{ fontSize: 64, color: '#16a34a', mb: 2 }} />
+          <Box sx={{ mb: 2 }}><IconCircleCheck size={64} color="#16a34a" /></Box>
           <Typography variant="h5" fontWeight={700} gutterBottom>Aprovado!</Typography>
           <Typography color="text.secondary">
             Obrigado! O conteúdo foi aprovado e nossa equipe dará continuidade ao processo.
@@ -116,7 +113,7 @@ export default function ClientApprovalPage() {
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
         <Paper elevation={0} sx={{ maxWidth: 480, width: '100%', p: 5, textAlign: 'center', border: '1px solid #fde68a', borderRadius: 3 }}>
-          <EditNoteIcon sx={{ fontSize: 64, color: '#d97706', mb: 2 }} />
+          <Box sx={{ mb: 2 }}><IconEdit size={64} color="#d97706" /></Box>
           <Typography variant="h5" fontWeight={700} gutterBottom>Feedback enviado!</Typography>
           <Typography color="text.secondary">
             Recebemos seus comentários e nossa equipe fará os ajustes necessários. Em breve entraremos em contato.
@@ -266,7 +263,7 @@ export default function ClientApprovalPage() {
                 variant="contained"
                 color="success"
                 size="large"
-                startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <ThumbUpAltIcon />}
+                startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <IconThumbUp size={18} />}
                 disabled={submitting}
                 onClick={() => handleAction('approve')}
                 sx={{ flex: 1, minWidth: 160, fontWeight: 700, py: 1.5 }}
@@ -277,7 +274,7 @@ export default function ClientApprovalPage() {
                 variant="outlined"
                 color="warning"
                 size="large"
-                startIcon={<ThumbDownAltIcon />}
+                startIcon={<IconThumbDown size={18} />}
                 disabled={submitting || !feedback.trim()}
                 onClick={() => handleAction('request_changes')}
                 sx={{ flex: 1, minWidth: 160, fontWeight: 700, py: 1.5 }}

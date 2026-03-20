@@ -472,7 +472,7 @@ export default function NewBriefingClient() {
                   {[
                     { label: 'Cliente',        value: selectedClient?.name || '—' },
                     { label: 'Título',          value: editedTitle },
-                    { label: 'Objetivo',        value: OBJECTIVE_OPTIONS.find((o) => o.value === editedObjective)?.label ?? editedObjective || '—' },
+                    { label: 'Objetivo',        value: (OBJECTIVE_OPTIONS.find((o) => o.value === editedObjective)?.label ?? editedObjective) || '—' },
                     { label: 'Público',         value: editedAudience || '—' },
                     { label: 'Canais',          value: editedChannels.length ? editedChannels.join(', ') : '—' },
                     { label: 'Prazo',           value: editedDue ? new Date(editedDue + 'T12:00:00').toLocaleDateString('pt-BR') : '—' },
