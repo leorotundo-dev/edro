@@ -91,7 +91,13 @@ export async function buildServer() {
     secret: env.JWT_SECRET,
   });
 
-  await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+    // Webhook endpoints receive event bursts from Evolution API / Meta / etc.
+    // Exempt them from per-IP rate limiting entirely.
+    skip: (request) => request.url.startsWith('/webhook'),
+  });
 
   app.addHook('preHandler', async (request) => {
     const user = request.user as { tenant_id?: string; email?: string } | undefined;
