@@ -563,4 +563,232 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     return reply.send({ cards, boards });
   });
+
+  // ── Operations Center feed — cards as OperationsJob[] ────────────────────
+
+  function listNameToOpsStatus(name: string): string {
+    const n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (/bloqueado|blocked|impedido/.test(n)) return 'blocked';
+    if (/conclu|done|fechad|arquivad|closed|finaliz|finish/.test(n)) return 'done';
+    if (/publicad|entregue|delivered|published/.test(n)) return 'published';
+    if (/aprovado\b/.test(n) && !/aguard|wait/.test(n)) return 'approved';
+    if (/aprovacao|aprovação|aguard.*aprov|approval|waiting/.test(n)) return 'awaiting_approval';
+    if (/revisao|revisão|review|revisar/.test(n)) return 'in_review';
+    if (/producao|produção|andamento|in.?progress|fazendo|doing|execucao|execução/.test(n)) return 'in_progress';
+    if (/alocad|allocated/.test(n)) return 'allocated';
+    if (/pronto\b|ready\b/.test(n)) return 'ready';
+    if (/planej|classif/.test(n)) return 'planned';
+    return 'intake';
+  }
+
+  function computePriorityBand(dueDate: string | null, dueComplete: boolean): { band: string; score: number } {
+    if (dueComplete) return { band: 'p4', score: 1 };
+    if (!dueDate) return { band: 'p3', score: 5 };
+    const diffHours = (new Date(dueDate).getTime() - Date.now()) / 3600000;
+    if (diffHours <= 0) return { band: 'p0', score: 24 };
+    if (diffHours <= 24) return { band: 'p0', score: 22 };
+    if (diffHours <= 48) return { band: 'p1', score: 18 };
+    if (diffHours <= 72) return { band: 'p1', score: 16 };
+    if (diffHours <= 168) return { band: 'p2', score: 12 };
+    return { band: 'p3', score: 6 };
+  }
+
+  // GET /trello/ops-feed — all active cards mapped to OperationsJob format
+  app.get('/trello/ops-feed', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+
+    const { rows: cards } = await query<{
+      id: string; title: string; description: string | null;
+      due_date: string | null; due_complete: boolean; labels: any;
+      cover_color: string | null; trello_url: string | null; trello_card_id: string | null;
+      list_id: string; list_name: string;
+      board_id: string; board_name: string;
+      client_id: string | null; client_name: string | null;
+      client_logo_url: string | null; client_brand_color: string | null;
+      owner_name: string | null; owner_email: string | null; owner_user_id: string | null;
+    }>(
+      `SELECT
+         pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
+         pc.cover_color, pc.trello_url, pc.trello_card_id,
+         pl.id as list_id, pl.name as list_name,
+         pb.id as board_id, pb.name as board_name,
+         pb.client_id,
+         cl.name as client_name,
+         cl.logo_url as client_logo_url,
+         cl.brand_color as client_brand_color,
+         -- first assigned member
+         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_name,
+         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_email,
+         (SELECT eu.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) WHERE pcm.card_id = pc.id LIMIT 1) as owner_user_id
+       FROM project_cards pc
+       JOIN project_lists pl ON pl.id = pc.list_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pc.tenant_id = $1 AND pc.is_archived = false AND pl.is_archived = false
+       ORDER BY pc.due_date ASC NULLS LAST, pc.position ASC`,
+      [tenantId],
+    );
+
+    const jobs = cards.map((c) => {
+      const { band, score } = computePriorityBand(c.due_date, c.due_complete);
+      const status = listNameToOpsStatus(c.list_name);
+      const labels: { color: string; name: string }[] = Array.isArray(c.labels) ? c.labels : [];
+      const labelNames = labels.map((l) => l.name?.toLowerCase() ?? '').join(' ');
+      const jobType = /design|arte|artes|visual|criativo/.test(labelNames) ? 'design_static'
+        : /video|vídeo|reels|stories/.test(labelNames) ? 'video_edit'
+        : /reunion|meeting|reunião/.test(labelNames) ? 'meeting'
+        : 'copy';
+
+      return {
+        id: c.id,
+        title: c.title,
+        summary: c.description ?? null,
+        client_id: c.client_id ?? null,
+        client_name: c.client_name ?? c.board_name,
+        client_logo_url: c.client_logo_url ?? null,
+        client_brand_color: c.client_brand_color ?? null,
+        job_type: jobType,
+        complexity: 'm' as const,
+        channel: null,
+        source: 'trello',
+        status,
+        priority_score: score,
+        priority_band: band as 'p0' | 'p1' | 'p2' | 'p3' | 'p4',
+        impact_level: 2,
+        dependency_level: 2,
+        required_skill: null,
+        owner_id: c.owner_user_id ?? null,
+        owner_name: c.owner_name ?? null,
+        owner_email: c.owner_email ?? null,
+        deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
+        estimated_minutes: null,
+        actual_minutes: null,
+        metadata: {
+          trello_card_id: c.trello_card_id,
+          trello_url: c.trello_url,
+          board_id: c.board_id,
+          board_name: c.board_name,
+          list_id: c.list_id,
+          list_name: c.list_name,
+          labels,
+          due_complete: c.due_complete,
+        },
+      };
+    });
+
+    // Owners: distinct members across all boards
+    const { rows: members } = await query<{ display_name: string; email: string; user_id: string | null }>(
+      `SELECT DISTINCT pcm.display_name, pcm.email,
+              eu.id as user_id
+       FROM project_card_members pcm
+       JOIN project_boards pb ON pb.id = (
+         SELECT board_id FROM project_cards WHERE id = pcm.card_id LIMIT 1
+       )
+       LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       WHERE pb.tenant_id = $1`,
+      [tenantId],
+    );
+
+    const owners = members
+      .filter((m) => m.display_name)
+      .map((m) => ({
+        id: m.user_id ?? m.email,
+        name: m.display_name,
+        email: m.email ?? '',
+        role: 'staff',
+        specialty: null,
+        person_type: 'freelancer' as const,
+      }));
+
+    // Clients
+    const { rows: clientRows } = await query<{ id: string; name: string; logo_url: string | null; brand_color: string | null }>(
+      `SELECT DISTINCT cl.id, cl.name, cl.logo_url, cl.brand_color
+       FROM clients cl
+       JOIN project_boards pb ON pb.client_id = cl.id::text
+       WHERE pb.tenant_id = $1 AND pb.is_archived = false`,
+      [tenantId],
+    );
+
+    return reply.send({
+      jobs,
+      owners,
+      clients: clientRows,
+    });
+  });
+
+  // POST /trello/ops-cards/:cardId/status — move card to best matching list
+  app.post('/trello/ops-cards/:cardId/status', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const { status } = request.body as { status: string };
+    const tenantId = request.user?.tenant_id as string;
+
+    const { rows: cardRows } = await query<{ board_id: string; trello_card_id: string | null }>(
+      `SELECT board_id, trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const { board_id, trello_card_id } = cardRows[0];
+
+    // Find best matching list on the same board
+    const { rows: lists } = await query<{ id: string; name: string; trello_list_id: string | null }>(
+      `SELECT id, name, trello_list_id FROM project_lists WHERE board_id = $1 AND is_archived = false ORDER BY position`,
+      [board_id],
+    );
+
+    const targetStatus = status.toLowerCase();
+    // Score each list: higher = better match
+    const scored = lists.map((l) => {
+      const mapped = listNameToOpsStatus(l.name);
+      return { ...l, score: mapped === targetStatus ? 10 : 0 };
+    });
+    const best = scored.sort((a, b) => b.score - a.score)[0];
+    if (!best) return reply.status(400).send({ error: 'Nenhuma lista encontrada.' });
+
+    // Update DB
+    await query(
+      `UPDATE project_cards SET list_id = $1, updated_at = now() WHERE id = $2 AND tenant_id = $3`,
+      [best.id, cardId, tenantId],
+    );
+
+    // Sync to Trello
+    if (trello_card_id && best.trello_list_id) {
+      try {
+        const creds = await getTrelloCredentials(tenantId);
+        if (creds) {
+          await fetch(
+            `https://api.trello.com/1/cards/${trello_card_id}?key=${creds.apiKey}&token=${creds.apiToken}&idList=${best.trello_list_id}`,
+            { method: 'PUT', signal: AbortSignal.timeout(8_000) },
+          );
+        }
+      } catch (err: any) {
+        console.warn('[trello ops] status sync failed:', err?.message);
+      }
+    }
+
+    // Return the updated card as OperationsJob shape
+    const { rows: updated } = await query(
+      `SELECT pc.id, pc.title, pc.due_date, pc.due_complete, pc.labels,
+              pl.name as list_name, pb.name as board_name, pb.client_id,
+              cl.name as client_name
+       FROM project_cards pc
+       JOIN project_lists pl ON pl.id = pc.list_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pc.id = $1`,
+      [cardId],
+    );
+    if (!updated.length) return reply.send({ ok: true });
+    const c = updated[0];
+    const { band, score } = computePriorityBand(c.due_date, c.due_complete);
+    return reply.send({
+      ok: true,
+      data: {
+        id: c.id, title: c.title, status: listNameToOpsStatus(c.list_name),
+        client_name: c.client_name ?? c.board_name, deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
+        source: 'trello', job_type: 'copy', complexity: 'm', impact_level: 2, dependency_level: 2,
+        priority_band: band, priority_score: score,
+        metadata: { board_name: c.board_name, list_name: c.list_name },
+      },
+    });
+  });
 }
