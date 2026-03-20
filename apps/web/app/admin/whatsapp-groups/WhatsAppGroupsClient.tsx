@@ -132,9 +132,14 @@ export default function WhatsAppGroupsClient() {
     setQr(null);
     setQrTimeout(false);
     try {
-      const res = await apiPost<{ success: boolean; qr: { base64: string; code: string } }>(
+      const res = await apiPost<{ success: boolean; already_connected?: boolean; qr: { base64: string; code: string } | null }>(
         '/whatsapp-groups/connect', {},
       );
+      if (res?.already_connected) {
+        // Instance already open — just refresh status
+        await loadStatus();
+        return;
+      }
       if (res?.qr?.base64) {
         setQr(res.qr);
       } else {

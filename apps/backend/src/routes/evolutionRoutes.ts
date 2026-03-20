@@ -44,17 +44,19 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
     const instance = rows[0] ?? null;
 
-    // Try to get live status
+    // Always try to get live status from Evolution API — even without a DB row
+    // (instance may have been created externally or after a DB wipe)
     let liveStatus = null;
-    if (instance) {
-      try {
-        liveStatus = await getInstanceStatus(tenantId);
-      } catch { /* ignore */ }
-    }
+    try {
+      liveStatus = await getInstanceStatus(tenantId);
+    } catch { /* ignore — Evolution API may be unreachable */ }
+
+    // Re-fetch DB row in case getInstanceStatus just upserted it
+    const dbRow = instance ?? (liveStatus ? (await query(`SELECT * FROM evolution_instances WHERE tenant_id = $1`, [tenantId])).rows[0] ?? null : null);
 
     return reply.send({
       configured: true,
-      instance,
+      instance: dbRow,
       live: liveStatus,
     });
   });
@@ -70,6 +72,14 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     }
 
     try {
+      // Check if already connected — if so, skip QR entirely
+      try {
+        const current = await getInstanceStatus(tenantId);
+        if (current.state === 'open') {
+          return reply.send({ success: true, already_connected: true, qr: null });
+        }
+      } catch { /* not yet created — continue to createInstance */ }
+
       await createInstance(tenantId);
       // Poll up to 20s so the instance has time to initiate Baileys connection
       const qr = await getQrCode(tenantId, { pollSeconds: 20 });

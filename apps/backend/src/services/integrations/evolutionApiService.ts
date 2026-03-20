@@ -169,17 +169,17 @@ export async function getInstanceStatus(tenantId: string): Promise<EvolutionInst
 
   const state = data.instance?.state ?? 'close';
 
-  // Sync status to DB
+  // Upsert status to DB — works even if no row exists yet (e.g. after DB wipe)
+  const dbStatus = state === 'open' ? 'connected' : state === 'connecting' ? 'connecting' : 'disconnected';
   await query(
-    `UPDATE evolution_instances
-     SET status = $1,
-         phone_number = COALESCE($2, phone_number),
-         connected_at = CASE WHEN $1 = 'open' AND connected_at IS NULL THEN now() ELSE connected_at END,
-         last_seen_at = now()
-     WHERE tenant_id = $3`,
-    [state === 'open' ? 'connected' : state === 'connecting' ? 'connecting' : 'disconnected',
-     data.instance?.profileName ?? null,
-     tenantId],
+    `INSERT INTO evolution_instances (tenant_id, instance_name, status, phone_number, connected_at, last_seen_at)
+     VALUES ($3, $4, $1, $2, CASE WHEN $1 = 'connected' THEN now() ELSE NULL END, now())
+     ON CONFLICT (tenant_id) DO UPDATE
+       SET status = $1,
+           phone_number = COALESCE($2, evolution_instances.phone_number),
+           connected_at = CASE WHEN $1 = 'connected' AND evolution_instances.connected_at IS NULL THEN now() ELSE evolution_instances.connected_at END,
+           last_seen_at = now()`,
+    [dbStatus, data.instance?.profileName ?? null, tenantId, name],
   );
 
   return {
