@@ -961,17 +961,17 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
       // Format performance (from Meta sync)
       query(
         `SELECT
-           fpm.metric_name,
-           SUM(fpm.metric_value)::int AS total,
-           ROUND(AVG(fpm.metric_value), 1)::float AS avg
+           SUM(fpm.saves)::int AS total_saves,
+           SUM(fpm.clicks)::int AS total_clicks,
+           SUM(fpm.likes)::int AS total_likes,
+           SUM(fpm.impressions)::int AS total_impressions,
+           ROUND(AVG(fpm.engagement_rate), 2)::float AS avg_engagement_rate
          FROM format_performance_metrics fpm
          JOIN campaign_formats cf ON cf.id = fpm.campaign_format_id
          JOIN campaigns camp ON camp.id = cf.campaign_id
          JOIN clients cl ON cl.id = camp.client_id
          WHERE cl.tenant_id = $1 AND camp.client_id = $2
-           AND fpm.measurement_date >= $3 AND fpm.measurement_date <= $4
-         GROUP BY fpm.metric_name
-         ORDER BY fpm.metric_name`,
+           AND fpm.measurement_date >= $3 AND fpm.measurement_date <= $4`,
         [tenantId, clientId, dateFrom, dateTo]
       ).catch(() => ({ rows: [] })),
       // Learning rules summary

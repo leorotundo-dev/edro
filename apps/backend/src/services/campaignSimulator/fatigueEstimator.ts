@@ -65,9 +65,9 @@ async function loadHistoricalFatigue(
        cf.id as format_id,
        cf.platform,
        bi_amd.amd,
-       fpm.recorded_at,
-       fpm.total_saves + fpm.total_clicks + fpm.total_likes + fpm.total_comments as total_eng,
-       fpm.total_impressions as imp
+       fpm.measurement_date,
+       fpm.saves + fpm.clicks + fpm.likes + fpm.comments as total_eng,
+       fpm.impressions as imp
      FROM campaign_formats cf
      JOIN campaigns c ON c.id = cf.campaign_id
      JOIN format_performance_metrics fpm ON fpm.campaign_format_id = cf.id
@@ -80,7 +80,7 @@ async function loadHistoricalFatigue(
        AND ($2::text IS NULL OR c.client_id::text = $2)
        AND ($3::text IS NULL OR cf.platform ILIKE $3)
        AND ($4::text IS NULL OR bi_amd.amd = $4)
-     ORDER BY cf.id, fpm.recorded_at ASC
+     ORDER BY cf.id, fpm.measurement_date ASC
      LIMIT 200`,
     [tenantId, clientId || null, platform || null, amd || null],
   );
