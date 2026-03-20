@@ -60,6 +60,19 @@ async function checkAndHeal(tenantId: string, name: string): Promise<void> {
 
   console.log(`[whatsappHealth] ${name}: state=${currentState}, attempting restart`);
 
+  // Wait 5s then re-check — instance may have been reconnecting when we polled
+  await new Promise(r => setTimeout(r, 5000));
+  try {
+    const recheck = await getInstanceStatus(tenantId);
+    if (recheck.state === 'open') {
+      console.log(`[whatsappHealth] ${name}: reconnected on its own, skipping restart`);
+      await resolveQrSignal(tenantId, name);
+      return;
+    }
+  } catch {
+    return; // Evolution API unreachable
+  }
+
   const base = (env.EVOLUTION_API_URL ?? '').replace(/\/$/, '');
   const key = env.EVOLUTION_API_KEY ?? '';
 
