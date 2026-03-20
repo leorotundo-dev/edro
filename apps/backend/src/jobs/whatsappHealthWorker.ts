@@ -58,46 +58,55 @@ async function checkAndHeal(tenantId: string, name: string): Promise<void> {
     return;
   }
 
-  console.log(`[whatsappHealth] ${name}: state=${currentState}, attempting reconnect`);
+  console.log(`[whatsappHealth] ${name}: state=${currentState}, attempting restart`);
 
-  // Attempt reconnect via /instance/connect/:name
   const base = (env.EVOLUTION_API_URL ?? '').replace(/\/$/, '');
   const key = env.EVOLUTION_API_KEY ?? '';
 
-  const res = await fetch(`${base}/instance/connect/${name}`, {
+  // Use POST /instance/restart/:name — restores session from DB without touching credentials.
+  // DO NOT use GET /instance/connect which generates a new QR if credentials are stale.
+  const res = await fetch(`${base}/instance/restart/${name}`, {
+    method: 'POST',
     headers: { apikey: key, 'Content-Type': 'application/json' },
   }).catch(() => null);
 
   if (!res) {
-    // Evolution API unreachable — do not mark needs_qr, might just be a momentary outage
+    // Evolution API unreachable — do not change status, will retry next cycle
     return;
   }
 
-  const data: any = await res.json().catch(() => ({}));
-
-  // If Evolution returns a QR code the Baileys session is gone → manual re-scan required
-  const hasQr = !!(data?.base64 || data?.qrcode?.base64 || data?.code);
-  if (hasQr) {
-    console.warn(`[whatsappHealth] ${name}: session expired, QR required`);
-    await query(
-      `UPDATE evolution_instances SET status = 'needs_qr', last_seen_at = now() WHERE tenant_id = $1`,
-      [tenantId],
-    ).catch(() => {});
-    await upsertQrSignal(tenantId, name);
-    return;
-  }
-
-  // Give Baileys a moment to establish the connection
-  await new Promise(r => setTimeout(r, 4000));
+  // Give Baileys time to reconnect (multi-device handshake takes ~8s)
+  await new Promise(r => setTimeout(r, 10000));
 
   try {
     const recheck = await getInstanceStatus(tenantId);
     if (recheck.state === 'open') {
-      console.log(`[whatsappHealth] ${name}: reconnected successfully`);
+      console.log(`[whatsappHealth] ${name}: reconnected successfully via restart`);
       await resolveQrSignal(tenantId, name);
-    } else {
-      console.warn(`[whatsappHealth] ${name}: still not connected after reconnect attempt (state=${recheck.state})`);
+      return;
     }
+
+    // If still not open after restart, check if /instance/connect returns a QR
+    // (session credentials truly expired — manual re-scan required)
+    const connectRes = await fetch(`${base}/instance/connect/${name}`, {
+      headers: { apikey: key, 'Content-Type': 'application/json' },
+    }).catch(() => null);
+
+    if (connectRes) {
+      const data: any = await connectRes.json().catch(() => ({}));
+      const hasQr = !!(data?.base64 || data?.qrcode?.base64 || data?.code);
+      if (hasQr) {
+        console.warn(`[whatsappHealth] ${name}: session credentials expired, QR required`);
+        await query(
+          `UPDATE evolution_instances SET status = 'needs_qr', last_seen_at = now() WHERE tenant_id = $1`,
+          [tenantId],
+        ).catch(() => {});
+        await upsertQrSignal(tenantId, name);
+        return;
+      }
+    }
+
+    console.warn(`[whatsappHealth] ${name}: still not connected after restart (state=${recheck.state})`);
   } catch {
     // ignore — will retry next cycle
   }

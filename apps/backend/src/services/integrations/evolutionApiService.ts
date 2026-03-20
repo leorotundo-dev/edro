@@ -200,21 +200,29 @@ export async function disconnectInstance(tenantId: string): Promise<void> {
 }
 
 /**
- * Restart an existing instance (delete + recreate).
- * Useful when the Baileys session gets stuck or corrupted.
+ * Restart an existing instance WITHOUT deleting credentials.
+ * Uses POST /instance/restart/:name — Baileys reconnects using saved DB credentials.
+ *
+ * Only use forceRecreate=true when the session is truly unrecoverable (corrupted auth).
  */
-export async function restartInstance(tenantId: string): Promise<void> {
+export async function restartInstance(tenantId: string, forceRecreate = false): Promise<void> {
   const name = instanceName(tenantId);
 
-  // Try to delete the existing instance
-  try {
-    await evolFetch(`/instance/delete/${name}`, { method: 'DELETE' });
-    console.log(`[evolutionApi] Deleted instance ${name} for restart`);
-  } catch (err: any) {
-    console.warn(`[evolutionApi] Delete before restart failed (may not exist): ${err.message}`);
+  if (!forceRecreate) {
+    // Soft restart — keeps session credentials in DB, just restarts the Baileys client
+    await evolFetch(`/instance/restart/${name}`, { method: 'POST' });
+    console.log(`[evolutionApi] Restarted instance ${name}`);
+    return;
   }
 
-  // Recreate
+  // Hard recreate — only when session is truly unrecoverable
+  try {
+    await evolFetch(`/instance/delete/${name}`, { method: 'DELETE' });
+    console.log(`[evolutionApi] Deleted instance ${name} for hard recreate`);
+  } catch (err: any) {
+    console.warn(`[evolutionApi] Delete before recreate failed (may not exist): ${err.message}`);
+  }
+
   await createInstance(tenantId);
 }
 
