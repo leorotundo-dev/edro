@@ -237,7 +237,7 @@ export default function NewBriefingClient() {
                   options={clients}
                   getOptionLabel={(o) => typeof o === 'string' ? o : o.name}
                   value={selectedClient}
-                  onChange={(_, v) => setSelectedClient(v)}
+                  onChange={(_, v) => setSelectedClient(typeof v === 'string' ? { id: '', name: v } : v)}
                   freeSolo
                   onInputChange={(_, val) => {
                     if (!clients.find((c) => c.name === val)) {
