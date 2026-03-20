@@ -100,7 +100,7 @@ function JobRow({
   const dueColor = isOverdue ? '#ff4444' : isToday ? '#F8A800' : '#5D87FF';
 
   return (
-    <>
+    <div style={{ borderBottom: '1px solid var(--portal-border)' }}>
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '13px 18px',
@@ -109,7 +109,6 @@ function JobRow({
         : isToday
         ? 'rgba(248,168,0,0.04)'
         : 'transparent',
-      borderBottom: '1px solid var(--portal-border)',
       transition: 'background 0.15s',
     }}>
       {/* Status dot */}
@@ -255,7 +254,7 @@ function JobRow({
         </div>
       </div>
     )}
-    </>
+    </div>
   );
 }
 
