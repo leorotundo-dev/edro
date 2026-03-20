@@ -17,7 +17,10 @@ CREATE TABLE IF NOT EXISTS simulation_scoring_weights (
   last_calibrated_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, COALESCE(client_id, ''), COALESCE(platform, ''))
 );
+
+-- UNIQUE on expressions requires a separate index (inline UNIQUE doesn't support COALESCE)
+CREATE UNIQUE INDEX IF NOT EXISTS sim_weights_unique_idx
+  ON simulation_scoring_weights(tenant_id, COALESCE(client_id, ''), COALESCE(platform, ''));
 
 CREATE INDEX IF NOT EXISTS sim_weights_tenant_client ON simulation_scoring_weights(tenant_id, client_id);

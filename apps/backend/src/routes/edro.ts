@@ -4973,7 +4973,7 @@ Retorne APENAS JSON válido (sem markdown):
 
   // ── POST /edro/ai/parse-job ─────────────────────────────────────────────────
   // Recebe descrição freeform e retorna campos estruturados do briefing.
-  app.post('/edro/ai/parse-job', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.post('/edro/ai/parse-job', async (request: any, reply) => {
     const body = z.object({
       description: z.string().min(5),
       client_name:  z.string().optional(),
