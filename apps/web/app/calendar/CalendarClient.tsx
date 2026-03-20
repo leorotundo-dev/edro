@@ -73,6 +73,13 @@ import {
   IconAlertCircle,
   IconPlayerPlay,
   IconClock,
+  IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandTiktok,
+  IconBrandFacebook,
+  IconBrandYoutube,
+  IconBrandX,
+  IconBrandWhatsapp,
 } from '@tabler/icons-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar-rbc.css';
@@ -411,6 +418,19 @@ const ORIGIN_FILTER_OPTIONS: Array<{
 function getOriginLabel(origin?: string) {
   if (!origin) return 'Calendário';
   return ORIGIN_LABELS[origin] || origin;
+}
+
+type PlatformMeta = { Icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }> | null; color: string };
+function getPlatformMeta(title: string, platform?: string | null): PlatformMeta {
+  const t = (platform || title).toLowerCase();
+  if (/instagram|stories|reels|carrossel|carousel/.test(t)) return { Icon: IconBrandInstagram, color: '#E1306C' };
+  if (/linkedin/.test(t)) return { Icon: IconBrandLinkedin, color: '#0A66C2' };
+  if (/tiktok/.test(t)) return { Icon: IconBrandTiktok, color: '#010101' };
+  if (/facebook|fb/.test(t)) return { Icon: IconBrandFacebook, color: '#1877F2' };
+  if (/youtube/.test(t)) return { Icon: IconBrandYoutube, color: '#FF0000' };
+  if (/twitter|twit\b/.test(t)) return { Icon: IconBrandX, color: '#000000' };
+  if (/whatsapp/.test(t)) return { Icon: IconBrandWhatsapp, color: '#25D366' };
+  return { Icon: null, color: '' };
 }
 
 function getEventColorByOrigin(origin?: string, fallbackTier?: 'A' | 'B' | 'C') {
@@ -1580,35 +1600,46 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   );
 
   const rbcEventPropGetter = useCallback((event: CalendarRbcEvent) => {
-    // ── Production job event ──────────────────────────────────────────────────
+    // ── Production job (Trello) — left-border accent, soft background ─────────
     if ((event.resource as any).isProductionCard) {
       const card = (event.resource as any).productionCard as ProductionCard;
-      const baseColor = getBoardColor(card.color_index);
+      const baseColor = card.is_overdue ? '#dc2626' : getBoardColor(card.color_index);
       return {
         style: {
-          backgroundColor: card.is_overdue ? '#dc2626' : baseColor,
-          border: card.due_complete ? `2px solid #16a34a` : '1px solid rgba(0,0,0,0.15)',
-          opacity: card.due_complete ? 0.65 : 1,
-          color: '#fff',
-          fontSize: '11px',
+          backgroundColor: `${baseColor}18`,
+          borderLeft: `3px solid ${baseColor}`,
+          border: 'none',
+          opacity: card.due_complete ? 0.55 : 1,
+          color: baseColor,
           fontStyle: card.stage_class === 'done' ? 'italic' : 'normal',
         },
       };
     }
-    // ── Regular editorial/operational event ──────────────────────────────────
+    // ── Operational event (meetings, deadlines, publications) ─────────────────
     const item = event.resource.event;
     if (item.origin && item.origin !== 'editorial_global') {
+      const c = getEventColorByOrigin(item.origin, event.tier);
       return {
         style: {
-          backgroundColor: getEventColorByOrigin(item.origin, event.tier),
+          backgroundColor: `${c}18`,
+          borderLeft: `3px solid ${c}`,
           border: 'none',
-          color: '#fff',
+          color: c,
         },
       };
     }
+    // ── Editorial global event — brand color or tier class ────────────────────
     if (brandColor) {
-      const opacity = event.tier === 'A' ? 'ff' : event.tier === 'B' ? 'cc' : '88';
-      return { style: { backgroundColor: `${brandColor}${opacity}`, border: 'none', color: '#fff' } };
+      const alpha = event.tier === 'A' ? '22' : event.tier === 'B' ? '18' : '10';
+      const borderAlpha = event.tier === 'A' ? 'ff' : event.tier === 'B' ? 'cc' : '88';
+      return {
+        style: {
+          backgroundColor: `${brandColor}${alpha}`,
+          borderLeft: `3px solid ${brandColor}${borderAlpha}`,
+          border: 'none',
+          color: brandColor,
+        },
+      };
     }
     return { className: `tier-${event.tier.toLowerCase()}` };
   }, [brandColor]);
@@ -1635,14 +1666,17 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
 
   const CalendarEventContent = ({ event }: { event: CalendarRbcEvent }) => {
     const item = event.resource.event;
+    const isProductionCard = (event.resource as any).isProductionCard;
+    const productionCard = isProductionCard ? (event.resource as any).productionCard as ProductionCard : null;
+    const { Icon: PlatformIcon } = getPlatformMeta(event.title, productionCard?.platform ?? null);
+    const scoreLabel = item.layer === 'operational'
+      ? item.time_label || null
+      : Math.round(event.score) > 0 ? `${Math.round(event.score)}%` : null;
     return (
       <span className="rbc-event-content">
-        <span className="truncate">{event.title}</span>
-        <span className="rbc-event-score">
-          {item.layer === 'operational'
-            ? item.time_label || getOriginLabel(item.origin)
-            : `${Math.round(event.score)}%`}
-        </span>
+        {PlatformIcon && <PlatformIcon size={10} style={{ flexShrink: 0, opacity: 0.9 }} />}
+        <span className="rbc-event-title truncate">{event.title}</span>
+        {scoreLabel && <span className="rbc-event-score">{scoreLabel}</span>}
       </span>
     );
   };

@@ -37,8 +37,8 @@
 
 /* --- TODAY highlight --- */
 .rbc-today {
-  background: rgba(232, 82, 25, 0.10);
-  box-shadow: inset 0 0 0 2px rgba(232, 82, 25, 0.30);
+  background: rgba(232, 82, 25, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(232, 82, 25, 0.25);
 }
 
 .rbc-today.rbc-day-bg {
@@ -75,12 +75,12 @@
 
 /* Selected day background (not today) */
 .rbc-selected-day {
-  background: rgba(232, 82, 25, 0.05);
-  box-shadow: inset 0 0 0 2px rgba(232, 82, 25, 0.45);
+  background: rgba(232, 82, 25, 0.04);
+  box-shadow: inset 0 0 0 2px rgba(232, 82, 25, 0.40);
 }
 
 .rbc-date-cell {
-  padding: 6px 8px;
+  padding: 5px 8px 3px;
   font-size: 12px;
   color: #7c8fac;
 }
@@ -91,52 +91,82 @@
   text-decoration: none;
 }
 
+/* ─── Event pill ─────────────────────────────────────────────────── */
 .rbc-event {
-  border-radius: 8px;
-  padding: 2px 6px;
+  border-radius: 5px;
+  padding: 3px 6px;
   font-size: 11px;
   font-weight: 600;
-  border: none;
+  border: none !important;
   box-shadow: none;
+  margin-bottom: 2px;  /* breathing room between events */
+  line-height: 1.3;
 }
 
+/* Tier styles (editorial events without a specific color) */
 .rbc-event.tier-a {
-  background: rgba(19, 222, 185, 0.18);
-  color: #0f766e;
+  background: rgba(19, 222, 185, 0.16);
+  border-left: 3px solid #13DEB9 !important;
+  color: #0a7a6a;
 }
 
 .rbc-event.tier-b {
-  background: rgba(255, 174, 31, 0.2);
-  color: #b45309;
+  background: rgba(255, 174, 31, 0.16);
+  border-left: 3px solid #FFAE1F !important;
+  color: #92500a;
 }
 
 .rbc-event.tier-c {
-  background: transparent;
-  color: #94a3b8;
-  font-weight: 400;
-  padding-left: 2px;
-  padding-right: 2px;
+  background: rgba(124, 143, 172, 0.10);
+  border-left: 3px solid #c8d0dc !important;
+  color: #6b7a94;
+  font-weight: 500;
 }
 
+/* ─── Event content row ─────────────────────────────────────────── */
 .rbc-event-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.rbc-event-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .rbc-event-score {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  opacity: 0.8;
+  opacity: 0.75;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
+/* "+N mais" link */
 .rbc-show-more {
   font-size: 11px;
   font-weight: 600;
   color: #E85219;
+  margin-top: 2px;
+  padding-left: 6px;
 }
 
+/* ─── Row & cell spacing ─────────────────────────────────────────── */
+.rbc-row-content {
+  padding: 2px 2px 4px;
+}
+
+.rbc-row-segment {
+  padding: 0 4px;
+}
+
+/* ─── Time view ─────────────────────────────────────────────────── */
 .rbc-time-content > * + * > * {
   border-left: 1px solid #e5eaef;
 }
@@ -205,16 +235,20 @@
 }
 
 .dark .rbc-event.tier-a {
-  background: rgba(19, 222, 185, 0.15);
+  background: rgba(19, 222, 185, 0.12);
+  border-left-color: #2dd4bf !important;
   color: #2dd4bf;
 }
 
 .dark .rbc-event.tier-b {
-  background: rgba(255, 174, 31, 0.15);
+  background: rgba(255, 174, 31, 0.12);
+  border-left-color: #fbbf24 !important;
   color: #fbbf24;
 }
 
 .dark .rbc-event.tier-c {
+  background: rgba(107, 114, 128, 0.10);
+  border-left-color: #4b5563 !important;
   color: #6b7280;
 }
 
