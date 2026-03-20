@@ -276,7 +276,12 @@ export async function syncTrelloBoard(
          RETURNING id`,
         [
           edroListId, boardId, tenantId, card.name, card.desc || null, card.pos,
-          card.due ? card.due.split('T')[0] : null, card.dueComplete,
+          (() => {
+            if (!card.due) return null;
+            const d = card.due.split('T')[0];
+            const dt = new Date(d + 'T00:00:00Z');
+            return !isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === d ? d : null;
+          })(), card.dueComplete,
           JSON.stringify(card.labels ?? []), card.cover?.color ?? null, card.closed,
           card.id, card.url, card.shortLink,
         ],

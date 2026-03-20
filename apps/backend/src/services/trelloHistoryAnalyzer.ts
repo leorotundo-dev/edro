@@ -359,7 +359,8 @@ export async function analyzeBoardHistory(boardId: string, tenantId: string): Pr
       completedFinishedAts.push(analytics.finished_at);
     }
 
-    // Upsert card analytics
+    // Upsert card analytics — skip cards with invalid data (e.g. impossible dates)
+    try {
     await query(
       `INSERT INTO project_card_analytics (
          card_id, board_id, tenant_id,
@@ -401,6 +402,9 @@ export async function analyzeBoardHistory(boardId: string, tenantId: string): Pr
         analytics.finished_at,
       ],
     );
+    } catch (cardErr: any) {
+      console.warn(`[trelloAnalyzer] Skipping card ${card.id} (${card.title?.slice(0, 30)}): ${cardErr?.message}`);
+    }
   }
 
   // 6. Board-level aggregation
