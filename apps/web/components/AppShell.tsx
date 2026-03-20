@@ -5,7 +5,6 @@ import Box from '@mui/material/Box';
 import Sidebar from './layout/sidebar/Sidebar';
 import Header from './layout/header/Header';
 import { ConfirmProvider } from '@/hooks/useConfirm';
-import JarvisFab from './jarvis/JarvisFab';
 import JarvisDrawer from './jarvis/JarvisDrawer';
 
 type ActionButton = {
@@ -85,7 +84,6 @@ export default function AppShell({
           {children}
         </Box>
       </Box>
-      <JarvisFab />
       <JarvisDrawer />
     </Box>
     </ConfirmProvider>

@@ -2,7 +2,6 @@ import {
   IconHome,
   IconLayoutDashboard,
   IconLayoutKanban,
-  IconClipboardList,
   IconUsers,
   IconCalendar,
   IconPalette,
@@ -11,14 +10,9 @@ import {
   IconUsersGroup,
   IconReceipt2,
   IconPhoto,
-  IconRobot,
-  IconBrain,
   IconBrandWhatsapp,
-  IconMicrophone,
   IconSparkles,
-  IconChartBar,
   IconAddressBook,
-  IconStack2,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -40,7 +34,7 @@ export type MenuGroupType = {
 
 const MenuItems: MenuGroupType[] = [
   {
-    subheader: 'Principal',
+    subheader: 'Operações',
     items: [
       {
         id: 'home',
@@ -49,74 +43,10 @@ const MenuItems: MenuGroupType[] = [
         href: '/',
       },
       {
-        id: 'minha-fila',
-        title: 'Minha Fila',
-        icon: IconStack2,
-        href: '/meu-trabalho',
-      },
-      {
         id: 'operacoes',
-        title: 'Central de Operações',
+        title: 'Jobs',
         icon: IconLayoutDashboard,
         href: '/admin/operacoes',
-        badge: 'Beta',
-        badgeColor: 'warning',
-      },
-      {
-        id: 'intelligence',
-        title: 'Inteligência IA',
-        icon: IconChartBar,
-        href: '/admin/intelligence',
-      },
-      {
-        id: 'briefings',
-        title: 'Edro Briefings',
-        icon: IconClipboardList,
-        href: '/edro',
-        badge: 'New',
-        badgeColor: 'primary',
-      },
-      {
-        id: 'jarvis-chat',
-        title: 'Jarvis Chat',
-        icon: IconBrain,
-        href: '/jarvis',
-      },
-      {
-        id: 'jarvis',
-        title: 'Jarvis Propostas',
-        icon: IconRobot,
-        href: '/edro/jarvis',
-      },
-      {
-        id: 'clients',
-        title: 'Clientes',
-        icon: IconUsers,
-        href: '/clients',
-      },
-      {
-        id: 'whatsapp',
-        title: 'WhatsApp',
-        icon: IconBrandWhatsapp,
-        href: '/whatsapp',
-      },
-      {
-        id: 'reunioes',
-        title: 'Reuniões',
-        icon: IconMicrophone,
-        href: '/admin/reunioes',
-      },
-      {
-        id: 'pessoas',
-        title: 'Pessoas',
-        icon: IconAddressBook,
-        href: '/admin/pessoas',
-      },
-      {
-        id: 'calendar',
-        title: 'Calendário',
-        icon: IconCalendar,
-        href: '/calendar',
       },
       {
         id: 'projetos',
@@ -124,11 +54,46 @@ const MenuItems: MenuGroupType[] = [
         icon: IconLayoutKanban,
         href: '/projetos',
       },
+      {
+        id: 'calendar',
+        title: 'Calendário',
+        icon: IconCalendar,
+        href: '/calendar',
+      },
+    ],
+  },
+  {
+    subheader: 'Clientes',
+    items: [
+      {
+        id: 'clients',
+        title: 'Clientes',
+        icon: IconUsers,
+        href: '/clients',
+      },
+      {
+        id: 'comunicacoes',
+        title: 'Comunicações',
+        icon: IconBrandWhatsapp,
+        href: '/comunicacoes',
+      },
+      {
+        id: 'pessoas',
+        title: 'Pessoas',
+        icon: IconAddressBook,
+        href: '/admin/pessoas',
+      },
     ],
   },
   {
     subheader: 'Criativo',
     items: [
+      {
+        id: 'studio',
+        title: 'Studio',
+        icon: IconPalette,
+        href: '/studio',
+      },
       {
         id: 'canvas',
         title: 'Canvas',
@@ -138,21 +103,15 @@ const MenuItems: MenuGroupType[] = [
         badgeColor: 'warning',
       },
       {
-        id: 'studio',
-        title: 'Creative Studio',
-        icon: IconPalette,
-        href: '/studio',
-      },
-      {
         id: 'biblioteca',
-        title: 'Biblioteca de Peças',
+        title: 'Biblioteca',
         icon: IconPhoto,
         href: '/studio/biblioteca',
       },
     ],
   },
   {
-    subheader: 'Financeiro',
+    subheader: 'Agência',
     requiredGroupRole: ['admin', 'manager'],
     items: [
       {
@@ -162,33 +121,20 @@ const MenuItems: MenuGroupType[] = [
         href: '/financeiro',
       },
       {
+        id: 'pagamentos',
+        title: 'Pagamentos',
+        icon: IconReceipt2,
+        href: '/admin/pagamentos',
+      },
+      {
         id: 'equipe',
         title: 'Equipe',
         icon: IconUsersGroup,
         href: '/admin/equipe',
       },
       {
-        id: 'pagamentos',
-        title: 'Pagamentos',
-        icon: IconReceipt2,
-        href: '/admin/pagamentos',
-      },
-    ],
-  },
-  {
-    subheader: 'Admin',
-    requiredGroupRole: ['admin', 'manager'],
-    items: [
-      {
-        id: 'admin-trello',
-        title: 'Integração Trello',
-        icon: IconLayoutKanban,
-        href: '/admin/trello',
-        requiredRole: ['admin'],
-      },
-      {
         id: 'admin-system',
-        title: 'System Admin',
+        title: 'Admin',
         icon: IconShieldCheck,
         href: '/admin/system',
         requiredRole: ['admin'],
