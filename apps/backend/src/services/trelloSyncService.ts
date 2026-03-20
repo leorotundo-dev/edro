@@ -7,7 +7,7 @@
  * O schema Edro é independente do Trello — desconectar o Trello não quebra nada.
  */
 
-import { query } from '../db';
+import { query, pool } from '../db';
 
 const TRELLO_BASE = 'https://api.trello.com/1';
 
@@ -141,6 +141,37 @@ export async function upsertTrelloConnector(
 
 // ─── Public: full board sync ─────────────────────────────────────────────────
 
+// Helper: fetch ALL actions with cursor-based pagination (Trello caps at 1000/page)
+async function fetchAllBoardActions(
+  trelloBoardId: string,
+  creds: TrelloCredentials,
+): Promise<TrelloAction[]> {
+  const all: TrelloAction[] = [];
+  let before: string | null = null;
+
+  for (let page = 0; page < 20; page++) { // safety cap: 20 pages × 1000 = 20k actions
+    const extra: Record<string, string> = {
+      filter: 'commentCard,updateCard',
+      limit: '1000',
+      fields: 'id,type,date,memberCreator,data',
+    };
+    if (before) extra.before = before;
+
+    const batch = await trelloGet<TrelloAction[]>(
+      `/boards/${trelloBoardId}/actions`,
+      creds,
+      extra,
+    );
+
+    if (!batch.length) break;
+    all.push(...batch);
+    if (batch.length < 1000) break; // last page
+    before = batch[batch.length - 1].id; // cursor = oldest action id in batch
+  }
+
+  return all;
+}
+
 export async function syncTrelloBoard(
   tenantId: string,
   trelloBoardId: string,
@@ -148,7 +179,7 @@ export async function syncTrelloBoard(
 ): Promise<{ boardId: string; cardsSync: number; actionsSync: number }> {
   const creds = await getConnectorCreds(tenantId);
 
-  // Start log
+  // Start log (outside transaction — we always want a log entry)
   const logRes = await query<{ id: string }>(
     `INSERT INTO trello_sync_log (tenant_id, trello_board_id, status, started_at)
      VALUES ($1, $2, 'running', now()) RETURNING id`,
@@ -156,14 +187,47 @@ export async function syncTrelloBoard(
   );
   const logId = logRes.rows[0].id;
 
-  try {
-    // 1. Fetch board info
-    const board = await trelloGet<TrelloBoard>(`/boards/${trelloBoardId}`, creds, {
-      fields: 'id,name,desc,url,closed',
-    });
+  // ── Fetch all Trello data before opening the DB transaction ──────────────
+  // (avoids holding a DB connection open during network I/O)
 
-    // 2. Upsert project_board
-    const boardRes = await query<{ id: string }>(
+  let board: TrelloBoard;
+  let lists: TrelloList[];
+  let cards: TrelloCard[];
+  let members: TrelloMember[];
+  let checklists: TrelloChecklist[];
+  let actions: TrelloAction[];
+
+  try {
+    board      = await trelloGet<TrelloBoard>(`/boards/${trelloBoardId}`, creds, { fields: 'id,name,desc,url,closed' });
+    lists      = await trelloGet<TrelloList[]>(`/boards/${trelloBoardId}/lists`, creds, { fields: 'id,name,closed,pos' });
+    cards      = await trelloGet<TrelloCard[]>(`/boards/${trelloBoardId}/cards`, creds, {
+      filter: 'open', // only active cards — archived cards retrieved separately if needed
+      fields: 'id,idList,name,desc,pos,due,dueComplete,labels,cover,closed,url,shortLink,idMembers',
+    });
+    members    = await trelloGet<TrelloMember[]>(`/boards/${trelloBoardId}/members`, creds, { fields: 'id,fullName,username,email,avatarUrl' });
+    checklists = await trelloGet<TrelloChecklist[]>(`/boards/${trelloBoardId}/checklists`, creds, { fields: 'id,idCard,name,checkItems' });
+    actions    = await fetchAllBoardActions(trelloBoardId, creds);
+
+    if (members.some((m) => !m.email)) {
+      // Trello API may not return emails without the "account" OAuth scope.
+      // We fall back to matching by trello_member_id in the local DB.
+      console.warn(`[trelloSync] Board ${trelloBoardId}: ${members.filter((m) => !m.email).length} member(s) without email — falling back to DB lookup.`);
+    }
+  } catch (err: any) {
+    await query(
+      `UPDATE trello_sync_log SET status = 'error', error_message = $1, finished_at = now() WHERE id = $2`,
+      [`Trello fetch failed: ${err?.message ?? 'Unknown error'}`, logId],
+    );
+    throw err;
+  }
+
+  // ── Persist inside a single DB transaction ────────────────────────────────
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Upsert project_board
+    const boardRes = await client.query<{ id: string }>(
       `INSERT INTO project_boards (tenant_id, client_id, name, description, trello_board_id, trello_url, last_synced_at)
        VALUES ($1, $2, $3, $4, $5, $6, now())
        ON CONFLICT (tenant_id, trello_board_id)
@@ -173,18 +237,12 @@ export async function syncTrelloBoard(
     );
     const boardId = boardRes.rows[0].id;
 
-    // Update log with board reference
-    await query(`UPDATE trello_sync_log SET board_id = $1 WHERE id = $2`, [boardId, logId]);
+    await client.query(`UPDATE trello_sync_log SET board_id = $1 WHERE id = $2`, [boardId, logId]);
 
-    // 3. Fetch lists
-    const lists = await trelloGet<TrelloList[]>(`/boards/${trelloBoardId}/lists`, creds, {
-      fields: 'id,name,closed,pos',
-    });
-
-    const listIdMap: Record<string, string> = {}; // trello list id → edro list id
-
+    // 2. Upsert lists
+    const listIdMap: Record<string, string> = {};
     for (const list of lists) {
-      const listRes = await query<{ id: string }>(
+      const listRes = await client.query<{ id: string }>(
         `INSERT INTO project_lists (board_id, tenant_id, name, position, is_archived, trello_list_id)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (board_id, trello_list_id)
@@ -195,20 +253,17 @@ export async function syncTrelloBoard(
       listIdMap[list.id] = listRes.rows[0].id;
     }
 
-    // 4. Fetch all cards (including archived)
-    const cards = await trelloGet<TrelloCard[]>(`/boards/${trelloBoardId}/cards`, creds, {
-      filter: 'all',
-      fields: 'id,idList,name,desc,pos,due,dueComplete,labels,cover,closed,url,shortLink,idMembers',
-    });
-
-    const cardIdMap: Record<string, string> = {}; // trello card id → edro card id
+    // 3. Upsert cards
+    const cardIdMap: Record<string, string> = {};
     let cardsSync = 0;
-
     for (const card of cards) {
       const edroListId = listIdMap[card.idList];
-      if (!edroListId) continue; // orphan card
+      if (!edroListId) {
+        console.warn(`[trelloSync] Card "${card.name}" (${card.id}) belongs to unknown list ${card.idList} — skipped`);
+        continue;
+      }
 
-      const cardRes = await query<{ id: string }>(
+      const cardRes = await client.query<{ id: string }>(
         `INSERT INTO project_cards
            (list_id, board_id, tenant_id, title, description, position, due_date, due_complete,
             labels, cover_color, is_archived, trello_card_id, trello_url, trello_short_id)
@@ -220,86 +275,90 @@ export async function syncTrelloBoard(
            is_archived = $11, trello_url = $13, updated_at = now()
          RETURNING id`,
         [
-          edroListId,
-          boardId,
-          tenantId,
-          card.name,
-          card.desc || null,
-          card.pos,
-          card.due ? card.due.split('T')[0] : null,
-          card.dueComplete,
-          JSON.stringify(card.labels ?? []),
-          card.cover?.color ?? null,
-          card.closed,
-          card.id,
-          card.url,
-          card.shortLink,
+          edroListId, boardId, tenantId, card.name, card.desc || null, card.pos,
+          card.due ? card.due.split('T')[0] : null, card.dueComplete,
+          JSON.stringify(card.labels ?? []), card.cover?.color ?? null, card.closed,
+          card.id, card.url, card.shortLink,
         ],
       );
       cardIdMap[card.id] = cardRes.rows[0].id;
       cardsSync++;
     }
 
-    // 5. Fetch members of the board
-    const members = await trelloGet<TrelloMember[]>(`/boards/${trelloBoardId}/members`, creds, {
-      fields: 'id,fullName,username,email,avatarUrl',
-    });
-
-    // Build trello member id → edro freelancer id map (by email)
-    const freelancerMap: Record<string, string> = {};
+    // 4. Build member email map — Trello API may not return emails for other members.
+    //    Fallback: look up existing email from prior syncs by trello_member_id.
+    const memberEmailMap: Record<string, string> = {}; // trello_member_id → email
+    const memberById: Record<string, TrelloMember> = {};
     for (const m of members) {
+      memberById[m.id] = m;
       if (m.email) {
-        const fRes = await query<{ id: string }>(
-          `SELECT id FROM freelancers WHERE tenant_id = $1 AND email = $2 LIMIT 1`,
-          [tenantId, m.email],
-        );
-        if (fRes.rows.length) freelancerMap[m.id] = fRes.rows[0].id;
+        memberEmailMap[m.id] = m.email;
       }
     }
 
-    // Assign members to cards
+    // For members without email, try to find from prior sync
+    const missingEmailIds = members.filter((m) => !m.email).map((m) => m.id);
+    if (missingEmailIds.length > 0) {
+      const existing = await client.query<{ trello_member_id: string; email: string }>(
+        `SELECT DISTINCT ON (trello_member_id) trello_member_id, email
+           FROM project_card_members
+          WHERE tenant_id = $1
+            AND trello_member_id = ANY($2::text[])
+            AND email IS NOT NULL`,
+        [tenantId, missingEmailIds],
+      );
+      for (const row of existing.rows) {
+        if (row.email) memberEmailMap[row.trello_member_id] = row.email;
+      }
+    }
+
+    // Build trello_member_id → freelancer_id map (by email)
+    const freelancerMap: Record<string, string> = {};
+    const knownEmails = Object.values(memberEmailMap).filter(Boolean);
+    if (knownEmails.length > 0) {
+      const fRes = await client.query<{ id: string; email: string }>(
+        `SELECT id, email FROM freelancers
+          WHERE tenant_id = $1 AND LOWER(email) = ANY($2::text[])`,
+        [tenantId, knownEmails.map((e) => e.toLowerCase())],
+      );
+      const emailToFreelancer: Record<string, string> = {};
+      for (const row of fRes.rows) emailToFreelancer[row.email.toLowerCase()] = row.id;
+      for (const [trelloId, email] of Object.entries(memberEmailMap)) {
+        const fId = emailToFreelancer[email.toLowerCase()];
+        if (fId) freelancerMap[trelloId] = fId;
+      }
+    }
+
+    // Upsert card members
     for (const card of cards) {
       const edroCardId = cardIdMap[card.id];
       if (!edroCardId || !card.idMembers?.length) continue;
-
       for (const memberId of card.idMembers) {
-        const m = members.find((x) => x.id === memberId);
+        const m = memberById[memberId];
         if (!m) continue;
-        await query(
+        await client.query(
           `INSERT INTO project_card_members
              (card_id, tenant_id, freelancer_id, trello_member_id, display_name, avatar_url, email)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (card_id, trello_member_id) DO UPDATE SET
-             freelancer_id = $3, display_name = $5, avatar_url = $6, email = $7`,
-          [
-            edroCardId,
-            tenantId,
-            freelancerMap[memberId] ?? null,
-            memberId,
-            m.fullName,
-            m.avatarUrl ?? null,
-            m.email ?? null,
-          ],
+             freelancer_id = COALESCE($3, project_card_members.freelancer_id),
+             display_name = $5, avatar_url = $6,
+             email = COALESCE($7, project_card_members.email)`,
+          [edroCardId, tenantId, freelancerMap[memberId] ?? null, memberId, m.fullName, m.avatarUrl ?? null, memberEmailMap[memberId] ?? null],
         );
       }
     }
 
-    // 6. Fetch checklists
-    const checklists = await trelloGet<TrelloChecklist[]>(`/boards/${trelloBoardId}/checklists`, creds, {
-      fields: 'id,idCard,name,checkItems',
-    });
-
+    // 5. Upsert checklists
     for (const cl of checklists) {
       const edroCardId = cardIdMap[cl.idCard];
       if (!edroCardId) continue;
-
       const items = cl.checkItems.map((item) => ({
         trello_id: item.id,
         text: item.name,
         checked: item.state === 'complete',
       }));
-
-      await query(
+      await client.query(
         `INSERT INTO project_card_checklists (card_id, tenant_id, name, items, trello_checklist_id)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (trello_checklist_id)
@@ -308,19 +367,9 @@ export async function syncTrelloBoard(
       );
     }
 
-    // 7. Fetch ALL actions: comments + card movements (for history analyzer)
-    // Trello returns max 1000 per request; we request both types in one call
-    const actions = await trelloGet<TrelloAction[]>(`/boards/${trelloBoardId}/actions`, creds, {
-      filter: 'commentCard,updateCard',
-      limit: '1000',
-      fields: 'id,type,date,memberCreator,data',
-    });
-
-    // Build a map of trello list id → list name (for movement actions)
+    // 6. Upsert actions (paginated — fetchAllBoardActions handles >1000)
     const trelloListNameMap: Record<string, string> = {};
-    for (const list of lists) {
-      trelloListNameMap[list.id] = list.name;
-    }
+    for (const list of lists) trelloListNameMap[list.id] = list.name;
 
     let actionsSync = 0;
     for (const action of actions) {
@@ -329,62 +378,48 @@ export async function syncTrelloBoard(
       if (!edroCardId) continue;
 
       if (action.type === 'commentCard' && action.data.text) {
-        await query(
+        await client.query(
           `INSERT INTO project_card_comments
              (card_id, tenant_id, body, author_name, author_avatar, trello_action_id, commented_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (trello_action_id) DO NOTHING`,
-          [
-            edroCardId,
-            tenantId,
-            action.data.text,
-            action.memberCreator.fullName,
-            action.memberCreator.avatarUrl ?? null,
-            action.id,
-            action.date,
-          ],
+          [edroCardId, tenantId, action.data.text, action.memberCreator.fullName, action.memberCreator.avatarUrl ?? null, action.id, action.date],
         );
         actionsSync++;
       } else if (action.type === 'updateCard' && (action.data as any).listAfter) {
-        // Card moved between lists — record for history analyzer
         const d = action.data as any;
         const fromListName = d.listBefore?.name ?? trelloListNameMap[d.listBefore?.id] ?? null;
         const toListName   = d.listAfter?.name  ?? trelloListNameMap[d.listAfter?.id]  ?? null;
         if (!toListName) continue;
-
-        await query(
+        await client.query(
           `INSERT INTO project_card_actions
-             (card_id, board_id, tenant_id, action_type, trello_action_id,
-              from_list_name, to_list_name, actor_name, occurred_at)
+             (card_id, board_id, tenant_id, action_type, trello_action_id, from_list_name, to_list_name, actor_name, occurred_at)
            VALUES ($1, $2, $3, 'moveCard', $4, $5, $6, $7, $8)
            ON CONFLICT (trello_action_id) DO NOTHING`,
-          [
-            edroCardId, boardId, tenantId, action.id,
-            fromListName, toListName,
-            action.memberCreator?.fullName ?? null,
-            action.date,
-          ],
+          [edroCardId, boardId, tenantId, action.id, fromListName, toListName, action.memberCreator?.fullName ?? null, action.date],
         );
         actionsSync++;
       }
     }
 
-    // Done
-    await query(
-      `UPDATE trello_sync_log
-       SET status = 'done', cards_synced = $1, actions_synced = $2, finished_at = now()
-       WHERE id = $3`,
+    await client.query(
+      `UPDATE trello_sync_log SET status = 'done', cards_synced = $1, actions_synced = $2, finished_at = now() WHERE id = $3`,
       [cardsSync, actionsSync, logId],
     );
 
-    console.log(`[trelloSync] Board "${board.name}" (${trelloBoardId}): ${cardsSync} cards, ${actionsSync} comments`);
+    await client.query('COMMIT');
+    console.log(`[trelloSync] Board "${board.name}" (${trelloBoardId}): ${cardsSync} cards, ${actionsSync} actions (${actions.length} fetched)`);
     return { boardId, cardsSync, actionsSync };
+
   } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
     await query(
       `UPDATE trello_sync_log SET status = 'error', error_message = $1, finished_at = now() WHERE id = $2`,
       [err?.message ?? 'Unknown error', logId],
     );
     throw err;
+  } finally {
+    client.release();
   }
 }
 

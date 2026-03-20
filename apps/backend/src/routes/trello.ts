@@ -269,10 +269,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
             if (Object.keys(trelloUpdate).length) {
               const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, ...trelloUpdate });
-              await fetch(`https://api.trello.com/1/cards/${trelloCardId}?${params}`, {
+              const syncRes = await fetch(`https://api.trello.com/1/cards/${trelloCardId}?${params}`, {
                 method: 'PUT',
                 signal: AbortSignal.timeout(8_000),
               });
+              if (!syncRes.ok) console.warn('[trello] card update sync-back failed:', syncRes.status, await syncRes.text().catch(() => ''));
             }
           }
         }
@@ -742,7 +743,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       return { ...l, score: mapped === targetStatus ? 10 : 0 };
     });
     const best = scored.sort((a, b) => b.score - a.score)[0];
-    if (!best) return reply.status(400).send({ error: 'Nenhuma lista encontrada.' });
+    if (!best || best.score === 0) return reply.status(400).send({ error: `Nenhuma lista encontrada para status "${targetStatus}".` });
 
     // Update DB
     await query(
@@ -755,10 +756,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
       try {
         const creds = await getTrelloCredentials(tenantId);
         if (creds) {
-          await fetch(
+          const syncRes = await fetch(
             `https://api.trello.com/1/cards/${trello_card_id}?key=${creds.apiKey}&token=${creds.apiToken}&idList=${best.trello_list_id}`,
             { method: 'PUT', signal: AbortSignal.timeout(8_000) },
           );
+          if (!syncRes.ok) console.warn('[trello ops] status sync-back failed:', syncRes.status, await syncRes.text().catch(() => ''));
         }
       } catch (err: any) {
         console.warn('[trello ops] status sync failed:', err?.message);
@@ -973,58 +975,77 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     if (!members.length) return reply.send({ suggestions: [] });
 
-    // Score each member
-    const scored = await Promise.all(members.map(async (m) => {
-      // 1. Current load — active cards (excluding the card being evaluated)
-      const { rows: loadRows } = await query<{ count: string }>(
-        `SELECT COUNT(*)::text as count
-         FROM project_card_members pcm
-         JOIN project_cards pc ON pc.id = pcm.card_id
-         JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
-           AND pc.is_archived = false AND pc.id != $3`,
-        [m.email, tenantId, cardId],
-      );
-      const activeCards = parseInt(loadRows[0]?.count ?? '0', 10);
+    // Batch all scoring queries — 3 queries total regardless of member count
+    const emails = members.map((m) => m.email.toLowerCase());
 
-      // 2. SLA history — last 90 days
-      const { rows: slaRows } = await query<{ met: string; missed: string; total: string }>(
-        `SELECT
-           COUNT(*) FILTER (WHERE pc.due_complete = true)::text as met,
-           COUNT(*) FILTER (WHERE pc.due_date < now()::date AND pc.due_complete = false)::text as missed,
-           COUNT(*)::text as total
+    // 1. Active cards per member (excluding the card being evaluated)
+    const { rows: loadRows } = await query<{ email: string; count: string }>(
+      `SELECT LOWER(pcm.email) as email, COUNT(*)::text as count
+       FROM project_card_members pcm
+       JOIN project_cards pc ON pc.id = pcm.card_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       WHERE pb.tenant_id = $1
+         AND pc.is_archived = false
+         AND pc.id != $2
+         AND LOWER(pcm.email) = ANY($3::text[])
+       GROUP BY LOWER(pcm.email)`,
+      [tenantId, cardId, emails],
+    );
+    const loadMap = new Map(loadRows.map((r) => [r.email, parseInt(r.count, 10)]));
+
+    // 2. SLA history — last 90 days, all members at once
+    const { rows: slaRows } = await query<{ email: string; met: string; total: string }>(
+      `SELECT
+         LOWER(pcm.email) as email,
+         COUNT(*) FILTER (WHERE pc.due_complete = true)::text as met,
+         COUNT(*)::text as total
+       FROM project_card_members pcm
+       JOIN project_cards pc ON pc.id = pcm.card_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       WHERE pb.tenant_id = $1
+         AND pc.due_date IS NOT NULL
+         AND pc.due_date >= now()::date - interval '90 days'
+         AND LOWER(pcm.email) = ANY($2::text[])
+       GROUP BY LOWER(pcm.email)`,
+      [tenantId, emails],
+    );
+    const slaMap = new Map(slaRows.map((r) => [r.email, { met: parseInt(r.met, 10), total: parseInt(r.total, 10) }]));
+
+    // 3. Specialty match — only fired when card has design/video labels
+    const specialtyMap = new Map<string, number>();
+    if (isDesign || isVideo) {
+      const labelFilter = isDesign ? '%design%' : '%video%';
+      const { rows: spRows } = await query<{ email: string; count: string }>(
+        `SELECT LOWER(pcm.email) as email, COUNT(*)::text as count
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
-           AND pc.due_date IS NOT NULL
-           AND pc.due_date >= now()::date - interval '90 days'`,
-        [m.email, tenantId],
+         WHERE pb.tenant_id = $1
+           AND pc.labels::text ILIKE $2
+           AND LOWER(pcm.email) = ANY($3::text[])
+         GROUP BY LOWER(pcm.email)`,
+        [tenantId, labelFilter, emails],
       );
-      const slaTotal = parseInt(slaRows[0]?.total ?? '0', 10);
-      const slaMet   = parseInt(slaRows[0]?.met   ?? '0', 10);
+      for (const r of spRows) specialtyMap.set(r.email, parseInt(r.count, 10));
+    }
+
+    // Score each member synchronously using pre-fetched data
+    const scored = members.map((m) => {
+      const emailLower = m.email.toLowerCase();
+      const activeCards = loadMap.get(emailLower) ?? 0;
+      const sla = slaMap.get(emailLower);
+      const slaTotal = sla?.total ?? 0;
+      const slaMet   = sla?.met   ?? 0;
       const slaRate  = slaTotal >= 3 ? Math.round((slaMet / slaTotal) * 100) : null;
 
-      // Scores
-      const loadScore = Math.max(0, 100 - activeCards * 18);   // 0 cards=100, 5≈10
-      const slaScore  = slaRate ?? 70;                          // neutral default
-
-      // Specialty inference: check if this person has done design/video cards
       let specialtyScore = 65; // neutral
       if (isDesign || isVideo) {
-        const { rows: spRows } = await query<{ count: string }>(
-          `SELECT COUNT(*)::text as count
-           FROM project_card_members pcm
-           JOIN project_cards pc ON pc.id = pcm.card_id
-           JOIN project_boards pb ON pb.id = pc.board_id
-           WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
-             AND pc.labels::text ILIKE $3`,
-          [m.email, tenantId, isDesign ? '%design%' : '%video%'],
-        );
-        const match = parseInt(spRows[0]?.count ?? '0', 10);
+        const match = specialtyMap.get(emailLower) ?? 0;
         specialtyScore = match >= 2 ? 90 : match === 1 ? 75 : 45;
       }
 
+      const loadScore = Math.max(0, 100 - activeCards * 18);
+      const slaScore  = slaRate ?? 70;
       const score = Math.round(loadScore * 0.45 + slaScore * 0.35 + specialtyScore * 0.20);
 
       const reasons: string[] = [];
@@ -1044,7 +1065,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
         score_breakdown: { load: loadScore, sla: slaScore, specialty: specialtyScore },
         reason: reasons.join(' · '),
       };
-    }));
+    });
 
     scored.sort((a, b) => b.score - a.score);
     return reply.send({ suggestions: scored.slice(0, 5) });
@@ -1091,10 +1112,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
         const creds = await getTrelloCredentials(tenantId);
         if (creds) {
           const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, value: trello_member_id });
-          await fetch(`https://api.trello.com/1/cards/${trelloCardId}/idMembers?${params}`, {
+          const syncRes = await fetch(`https://api.trello.com/1/cards/${trelloCardId}/idMembers?${params}`, {
             method: 'POST',
             signal: AbortSignal.timeout(8_000),
           });
+          if (!syncRes.ok) console.warn('[trello] assign member sync-back failed:', syncRes.status, await syncRes.text().catch(() => ''));
         }
       } catch (err: any) {
         console.warn('[trello] assign member sync failed:', err?.message);
