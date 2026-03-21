@@ -715,13 +715,11 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
     setPlanMissing([]);
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
       const formData = new FormData();
       formData.append('file', planFile);
 
       const response = await fetch(buildApiUrl('/clients/plan/analyze'), {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
 
