@@ -19,7 +19,7 @@
     "@mui/material": "^7.0.0",
     "@mui/system": "^7.0.0",
     "@tabler/icons-react": "^3.29.0",
-    "@tailwindcss/postcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.2.2",
     "@xyflow/react": "^12.10.1",
     "apexcharts": "^4.4.0",
     "autoprefixer": "^10.4.20",
