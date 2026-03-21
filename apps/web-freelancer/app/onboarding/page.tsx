@@ -11,17 +11,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
-
-const SKILLS = [
-  { code: 'copy',        label: 'Redação / Copywriting' },
-  { code: 'design',      label: 'Design Gráfico' },
-  { code: 'video',       label: 'Vídeo / Motion' },
-  { code: 'social',      label: 'Gestão de Social Media' },
-  { code: 'estrategia',  label: 'Estratégia de Conteúdo' },
-  { code: 'operacao',    label: 'Operações / Tráfego' },
-  { code: 'atendimento', label: 'Atendimento / CS' },
-  { code: 'financeiro',  label: 'Financeiro / Contábil' },
-];
+import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
 
 const STEPS = ['empresa', 'representante', 'pagamento', 'skills'] as const;
 type Step = typeof STEPS[number];
@@ -119,8 +109,8 @@ export default function OnboardingPage() {
     bank_name: '',
     bank_agency: '',
     bank_account: '',
-    // Bloco 4: Skills
-    skills: [] as string[],
+    // Bloco 4: Arsenal
+    skills: [] as SelectedSkill[],
     portfolio_url: '',
     weekly_capacity: 40,
   });
@@ -156,15 +146,6 @@ export default function OnboardingPage() {
     } finally {
       setCnpjLoading(false);
     }
-  }
-
-  function toggleSkill(code: string) {
-    setForm(prev => ({
-      ...prev,
-      skills: prev.skills.includes(code)
-        ? prev.skills.filter(s => s !== code)
-        : [...prev.skills, code],
-    }));
   }
 
   function validateStep(): string | null {
@@ -395,37 +376,23 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Bloco 4: Skills ─── */}
+          {/* ── Bloco 4: Arsenal ─── */}
           {currentStep === 'skills' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <Field label="Especialidades da empresa" required hint="Selecione todas que se aplicam. São usadas para filtrar quais escopos serão ofertados.">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-                  {SKILLS.map(s => {
-                    const selected = form.skills.includes(s.code);
-                    return (
-                      <button
-                        key={s.code}
-                        type="button"
-                        onClick={() => toggleSkill(s.code)}
-                        style={{
-                          padding: '10px 14px', borderRadius: 8, textAlign: 'left', cursor: 'pointer',
-                          border: selected ? '1.5px solid var(--portal-accent, #E85219)' : '1px solid rgba(255,255,255,0.12)',
-                          background: selected ? 'rgba(232,82,25,0.12)' : 'rgba(255,255,255,0.03)',
-                          color: selected ? '#fff' : 'rgba(255,255,255,0.55)',
-                          fontSize: 12, fontWeight: selected ? 700 : 400,
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        {selected ? '✓ ' : ''}{s.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{
+                background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)',
+                borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'rgba(255,255,255,0.55)',
+              }}>
+                Como no Behance, adicione as tags que definem o seu estúdio/empresa. Nosso algoritmo usará essas informações para enviar os Cards (Jobs) que dão match com as suas especialidades.
+              </div>
+              <ArsenalPicker
+                value={form.skills}
+                onChange={skills => set('skills', skills)}
+              />
               <Field label="Link do portfólio" hint="Behance, site, Drive, ou qualquer referência de trabalhos">
                 <input style={inputStyle} value={form.portfolio_url} onChange={e => set('portfolio_url', e.target.value)} placeholder="https://..." />
               </Field>
-              <Field label="Capacidade semanal declarada (demandas simultâneas)" hint="Não é controle de jornada — apenas informa sua disponibilidade para oferta de escopos.">
+              <Field label="Capacidade de demandas simultâneas" hint="Não é controle de jornada — apenas informa sua disponibilidade para oferta de escopos.">
                 <select style={{ ...inputStyle, appearance: 'none' }} value={form.weekly_capacity} onChange={e => set('weekly_capacity', parseInt(e.target.value))}>
                   <option value={10}>Baixa — até 1 escopo/semana</option>
                   <option value={20}>Média — até 2 escopos/semana</option>
