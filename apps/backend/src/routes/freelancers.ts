@@ -2433,7 +2433,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               payment_notes = $3,
               updated_at    = now()
         WHERE id = $1::uuid AND tenant_id = $2
-          AND status IN ('nf_submitted','nf_analysis','overdue')
+          AND status != 'paid'
         RETURNING id, freelancer_id, period_month, approved_brl, glosa_brl`,
       [cycleId, tenantId, payment_notes ?? null],
     );
@@ -2455,8 +2455,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send({ ok: true });
   });
 
-  // ── GET /admin/partners — list all agency partners (admin) ─────────────────
-  app.get('/admin/partners', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  // ── GET /freelancers/admin/partners — list all agency partners (admin) ──────
+  app.get('/freelancers/admin/partners', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { rows } = await pool.query(
       `SELECT * FROM agency_partners WHERE tenant_id = $1 ORDER BY sort_order, name`,
@@ -2465,8 +2465,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send({ partners: rows });
   });
 
-  // ── POST /admin/partners — create partner ─────────────────────────────────
-  app.post('/admin/partners', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  // ── POST /freelancers/admin/partners — create partner ────────────────────
+  app.post('/freelancers/admin/partners', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { category, name, description, logo_emoji, discount_text, link_url, sort_order } =
       request.body as { category: string; name: string; description?: string; logo_emoji?: string; discount_text?: string; link_url?: string; sort_order?: number };
@@ -2479,8 +2479,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.status(201).send({ partner: rows[0] });
   });
 
-  // ── PATCH /admin/partners/:id — update partner ────────────────────────────
-  app.patch('/admin/partners/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  // ── PATCH /freelancers/admin/partners/:id — update partner ───────────────
+  app.patch('/freelancers/admin/partners/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { id } = request.params as { id: string };
     const body = request.body as Record<string, any>;
@@ -2498,16 +2498,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send({ partner: rows[0] });
   });
 
-  // ── DELETE /admin/partners/:id — delete partner ───────────────────────────
-  app.delete('/admin/partners/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  // ── DELETE /freelancers/admin/partners/:id — delete partner ──────────────
+  app.delete('/freelancers/admin/partners/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { id } = request.params as { id: string };
     await pool.query(`DELETE FROM agency_partners WHERE id = $1::uuid AND tenant_id = $2`, [id, tenantId]);
     return reply.send({ ok: true });
   });
 
-  // ── GET /admin/briefing-ratings — rating insights by account manager ──────
-  app.get('/admin/briefing-ratings', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  // ── GET /freelancers/admin/briefing-ratings — rating insights ────────────
+  app.get('/freelancers/admin/briefing-ratings', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { days = '90' } = request.query as { days?: string };
 
@@ -2531,6 +2531,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          ROUND(AVG(r.briefing_quality)::numeric, 2)     AS avg_briefing_quality,
          ROUND(AVG(r.overall_experience)::numeric, 2)   AS avg_overall_experience,
          COUNT(*)                                        AS rating_count,
+         MAX(r.created_at)                               AS last_rated_at,
          STRING_AGG(r.notes, ' | ') FILTER (WHERE r.notes IS NOT NULL) AS notes
        FROM freelancer_briefing_ratings r
        JOIN jobs j ON j.id = r.job_id
@@ -2542,14 +2543,25 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       [tenantId, days],
     );
 
+    const summary = summaryRes.rows[0];
     return reply.send({
-      summary: summaryRes.rows[0],
-      jobs: jobsRes.rows,
+      ratings: jobsRes.rows.map((r: any) => ({
+        job_id: r.job_id,
+        job_title: r.job_title,
+        client_name: r.client_name ?? null,
+        rating_count: Number(r.rating_count),
+        avg_briefing_quality: Number(r.avg_briefing_quality),
+        avg_overall_experience: Number(r.avg_overall_experience),
+        last_rated_at: r.last_rated_at,
+      })),
+      total_jobs: Number(summary.total_ratings ?? 0),
+      avg_briefing_quality: Number(summary.avg_briefing_quality ?? 0),
+      avg_overall_experience: Number(summary.avg_overall_experience ?? 0),
     });
   });
 
-  // ── GET /admin/tenant-config ───────────────────────────────────────────────
-  app.get('/admin/tenant-config', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  // ── GET /freelancers/admin/tenant-config ──────────────────────────────────
+  app.get('/freelancers/admin/tenant-config', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { rows } = await pool.query(
       `SELECT * FROM tenant_config WHERE tenant_id = $1`,
@@ -2558,8 +2570,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send({ config: rows[0] ?? null });
   });
 
-  // ── PATCH /admin/tenant-config ────────────────────────────────────────────
-  app.patch('/admin/tenant-config', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  // ── PATCH /freelancers/admin/tenant-config ────────────────────────────────
+  app.patch('/freelancers/admin/tenant-config', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { agency_name, agency_cnpj, agency_ie, agency_address, agency_city, agency_email, agency_phone } =
       request.body as { agency_name?: string; agency_cnpj?: string; agency_ie?: string; agency_address?: string; agency_city?: string; agency_email?: string; agency_phone?: string };
