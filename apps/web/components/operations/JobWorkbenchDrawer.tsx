@@ -21,6 +21,7 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Skeleton from '@mui/material/Skeleton';
 import { alpha } from '@mui/material/styles';
+import Link from 'next/link';
 import {
   IconPlayerPlay,
   IconPlayerPause,
@@ -30,6 +31,9 @@ import {
   IconThumbUp,
   IconBrush,
   IconSparkles,
+  IconFileText,
+  IconCircleCheck,
+  IconCircleX,
 } from '@tabler/icons-react';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import IconButton from '@mui/material/IconButton';
@@ -111,6 +115,126 @@ function FoggBar({ label, value }: { label: string; value?: number | null }) {
         <Box sx={{ height: 4, borderRadius: 2, bgcolor: color, width: `${pct}%`, transition: 'width 300ms ease' }} />
       </Box>
     </Stack>
+  );
+}
+
+// ─── Briefing Approval Panel ──────────────────────────────────────────────────
+
+function BriefingApprovalPanel({ jobId, onApproved }: { jobId: string; onApproved: () => void }) {
+  const [briefing, setBriefing] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState<'approve' | 'reject' | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showReject, setShowReject] = useState(false);
+
+  useEffect(() => {
+    apiGet<any>(`/jobs/${jobId}/briefing`)
+      .then((res) => setBriefing(res.briefing))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [jobId]);
+
+  const handleApprove = async () => {
+    setActing('approve');
+    try {
+      await apiPost(`/jobs/${jobId}/briefing/approve`, {});
+      onApproved();
+    } catch { /* silent */ } finally { setActing(null); }
+  };
+
+  const handleReject = async () => {
+    setActing('reject');
+    try {
+      await apiPost(`/jobs/${jobId}/briefing/reject`, { reason: rejectReason || undefined });
+      onApproved();
+    } catch { /* silent */ } finally { setActing(null); }
+  };
+
+  if (loading) return <Skeleton variant="rounded" height={80} />;
+  if (!briefing || briefing.status !== 'submitted') return null;
+
+  return (
+    <Box sx={(theme) => ({
+      p: 2,
+      borderRadius: 2.5,
+      border: '1.5px solid',
+      borderColor: alpha(theme.palette.warning.main, 0.4),
+      bgcolor: alpha(theme.palette.warning.main, 0.05),
+    })}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+        <IconFileText size={16} color="#FFAE1F" />
+        <Typography variant="body2" fontWeight={800} sx={{ color: 'warning.dark', flex: 1 }}>
+          Briefing aguardando aprovação
+        </Typography>
+        <Button
+          component={Link}
+          href={`/admin/operacoes/jobs/${jobId}/briefing`}
+          size="small"
+          variant="text"
+          sx={{ fontSize: '0.72rem', color: 'text.secondary' }}
+        >
+          Ver briefing →
+        </Button>
+      </Stack>
+
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+        O briefing foi preenchido e submetido. Revise e aprove para iniciar a geração de copy pelo Jarvis.
+      </Typography>
+
+      {showReject ? (
+        <Stack spacing={1}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Motivo da rejeição (opcional)"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            multiline
+            rows={2}
+            placeholder="Descreva o que precisa ser ajustado..."
+          />
+          <Stack direction="row" spacing={1}>
+            <Button
+              size="small"
+              variant="contained"
+              color="error"
+              startIcon={<IconCircleX size={15} />}
+              disabled={acting === 'reject'}
+              onClick={handleReject}
+              sx={{ flex: 1 }}
+            >
+              {acting === 'reject' ? 'Rejeitando…' : 'Confirmar rejeição'}
+            </Button>
+            <Button size="small" variant="text" onClick={() => setShowReject(false)} disabled={!!acting}>
+              Cancelar
+            </Button>
+          </Stack>
+        </Stack>
+      ) : (
+        <Stack direction="row" spacing={1}>
+          <Button
+            size="small"
+            variant="contained"
+            color="success"
+            startIcon={<IconCircleCheck size={15} />}
+            disabled={!!acting}
+            onClick={handleApprove}
+            sx={{ flex: 1 }}
+          >
+            {acting === 'approve' ? 'Aprovando…' : 'Aprovar e gerar copy'}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            disabled={!!acting}
+            onClick={() => setShowReject(true)}
+          >
+            Rejeitar
+          </Button>
+        </Stack>
+      )}
+    </Box>
   );
 }
 
@@ -1221,6 +1345,15 @@ export default function JobWorkbenchDrawer({
                 <Stack spacing={1.5}>
                   <Typography variant="h6" fontWeight={800}>Pipeline IA</Typography>
                   <AutomationPipeline automationStatus={detailJob.automation_status} />
+                  {detailJob.automation_status === 'briefing_pending' && (
+                    <BriefingApprovalPanel
+                      jobId={detailJob.id}
+                      onApproved={() => {
+                        // Refresh job data so automation_status updates
+                        setDetailJob((prev) => prev ? { ...prev, automation_status: 'copy_pending' } : prev);
+                      }}
+                    />
+                  )}
                   <CreativeDraftsPanel jobId={detailJob.id} />
                 </Stack>
               </>
