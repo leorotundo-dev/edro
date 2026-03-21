@@ -21,9 +21,13 @@ import {
   exchangeCalendarCode,
   watchCalendar,
 } from '../services/integrations/googleCalendarService';
+import { env } from '../env';
 
 function getIntegrationsRedirectUrl(query: string) {
-  const webUrl = (process.env.WEB_URL ?? 'https://edro-production.up.railway.app').replace(/\/$/, '');
+  const webUrl = env.WEB_URL?.replace(/\/$/, '');
+  if (!webUrl) {
+    throw new Error('WEB_URL não configurado para redirecionar o fluxo do Google Calendar.');
+  }
   return `${webUrl}/admin/integrations?${query}`;
 }
 
@@ -31,7 +35,7 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
 
   // ── Start OAuth ─────────────────────────────────────────────────────────
   app.get('/auth/google/calendar/start', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request: any, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const mode = typeof request.query?.mode === 'string' ? request.query.mode : '';
@@ -71,7 +75,7 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
 
   // ── Watch status ────────────────────────────────────────────────────────
   app.get('/calendar/watch-status', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
 
@@ -123,7 +127,7 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
 
   // ── List upcoming auto-join meetings ────────────────────────────────────
   app.get('/calendar/auto-joins', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
