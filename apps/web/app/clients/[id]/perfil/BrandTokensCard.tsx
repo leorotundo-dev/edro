@@ -26,21 +26,14 @@ import {
 } from '@tabler/icons-react';
 import { apiPatch, buildApiUrl } from '@/lib/api';
 
-function getToken() {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('edro_token') || '';
-}
-
 async function uploadBrandAsset(clientId: string, file: File, assetType: string): Promise<string> {
   const form = new FormData();
   form.append('file', file);
   form.append('assetType', assetType);
   const url = buildApiUrl(`/clients/${clientId}/brand-assets/upload`);
-  const token = getToken();
   const res = await fetch(url, {
     method: 'POST',
     body: form,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
@@ -314,10 +307,9 @@ export default function BrandTokensCard({ clientId, initialTokens, initialWebsit
     setSuccess('');
     try {
       // Save brand_tokens + knowledge_base (website + socials) in one patch
-      const token = getToken();
-      const currentClient = await fetch(buildApiUrl(`/clients/${clientId}`), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }).then((r) => r.json()).catch(() => ({}));
+      const currentClient = await fetch(buildApiUrl(`/clients/${clientId}`))
+        .then((r) => r.json())
+        .catch(() => ({}));
       const currentKb = currentClient?.client?.profile?.knowledge_base || currentClient?.profile?.knowledge_base || {};
       await apiPatch(`/clients/${clientId}`, {
         brand_tokens: tokens,
