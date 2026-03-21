@@ -2166,4 +2166,221 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (!res.rows.length) return reply.status(404).send({ error: 'Ciclo não encontrado ou já processado' });
     return reply.send({ ok: true });
   });
+
+  // ── GET /freelancers/portal/me/analytics — B2B performance stats (90d) ─────
+  app.get('/freelancers/portal/me/analytics', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const fpRes = await pool.query(
+      `SELECT fp.id, fp.tenant_id FROM freelancer_profiles fp WHERE fp.user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { id: freelancerId, tenant_id } = fpRes.rows[0];
+
+    const statsRes = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'approved')                                          AS total_approved,
+         COUNT(*) FILTER (WHERE status = 'approved' AND adjustment_feedback IS NULL)          AS zero_refacao_count,
+         COUNT(*) FILTER (WHERE delivered_at IS NOT NULL AND due_at IS NOT NULL
+                            AND delivered_at::date <= due_at::date)                           AS sla_hit,
+         COUNT(*) FILTER (WHERE delivered_at IS NOT NULL AND due_at IS NOT NULL)              AS sla_total,
+         ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
+               FILTER (WHERE delivered_at IS NOT NULL AND status = 'approved')::numeric, 1)   AS avg_days,
+         ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'P')::numeric, 1)        AS avg_days_p,
+         ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'M')::numeric, 1)        AS avg_days_m,
+         ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'G')::numeric, 1)        AS avg_days_g,
+         ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'GG')::numeric, 1)       AS avg_days_gg,
+         COALESCE(SUM(fee_brl) FILTER (WHERE status = 'approved'), 0)                        AS total_earned_brl
+       FROM jobs
+       WHERE owner_id = $1 AND tenant_id = $2
+         AND created_at > NOW() - INTERVAL '90 days'`,
+      [freelancerId, tenant_id],
+    );
+
+    const r = statsRes.rows[0];
+    const totalApproved = parseInt(r.total_approved ?? '0');
+    const zeroRefacao  = parseInt(r.zero_refacao_count ?? '0');
+    const slaHit       = parseInt(r.sla_hit ?? '0');
+    const slaTotal     = parseInt(r.sla_total ?? '0');
+
+    return reply.send({
+      period: '90d',
+      total_approved: totalApproved,
+      total_earned_brl: parseFloat(r.total_earned_brl ?? '0'),
+      zero_refacao_rate: totalApproved > 0 ? Math.round((zeroRefacao / totalApproved) * 100) : null,
+      sla_hit_rate:      slaTotal     > 0 ? Math.round((slaHit     / slaTotal)     * 100) : null,
+      avg_delivery_days: {
+        all: r.avg_days    ? parseFloat(r.avg_days)    : null,
+        P:   r.avg_days_p  ? parseFloat(r.avg_days_p)  : null,
+        M:   r.avg_days_m  ? parseFloat(r.avg_days_m)  : null,
+        G:   r.avg_days_g  ? parseFloat(r.avg_days_g)  : null,
+        GG:  r.avg_days_gg ? parseFloat(r.avg_days_gg) : null,
+      },
+    });
+  });
+
+  // ── POST /freelancers/portal/me/jobs/:id/rate — reverse rating ─────────────
+  app.post('/freelancers/portal/me/jobs/:id/rate', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { id: jobId } = request.params as { id: string };
+    const { briefing_quality, overall_experience, notes } = request.body as {
+      briefing_quality: number; overall_experience: number; notes?: string;
+    };
+
+    if (!briefing_quality || !overall_experience) {
+      return reply.status(400).send({ error: 'briefing_quality e overall_experience são obrigatórios' });
+    }
+
+    const fpRes = await pool.query(
+      `SELECT fp.id, fp.tenant_id FROM freelancer_profiles fp WHERE fp.user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { id: freelancerId, tenant_id } = fpRes.rows[0];
+
+    const jobCheck = await pool.query(
+      `SELECT id FROM jobs WHERE id = $1 AND owner_id = $2 AND status = 'approved'`,
+      [jobId, freelancerId],
+    );
+    if (!jobCheck.rows.length) return reply.status(404).send({ error: 'Job não encontrado ou não aprovado' });
+
+    await pool.query(
+      `INSERT INTO freelancer_briefing_ratings
+         (job_id, freelancer_id, tenant_id, briefing_quality, overall_experience, notes)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (job_id, freelancer_id) DO UPDATE
+         SET briefing_quality   = EXCLUDED.briefing_quality,
+             overall_experience = EXCLUDED.overall_experience,
+             notes              = EXCLUDED.notes`,
+      [jobId, freelancerId, tenant_id, briefing_quality, overall_experience, notes ?? null],
+    );
+
+    return reply.send({ ok: true });
+  });
+
+  // ── GET /freelancers/portal/me/forecast — upcoming pool demand aggregated ──
+  app.get('/freelancers/portal/me/forecast', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const fpRes = await pool.query(
+      `SELECT fp.tenant_id FROM freelancer_profiles fp WHERE fp.user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { tenant_id } = fpRes.rows[0];
+
+    const [groupRes, totRes] = await Promise.all([
+      pool.query(
+        `SELECT
+           COALESCE(job_category, 'outros') AS category,
+           job_size,
+           COUNT(*)                         AS count,
+           COALESCE(SUM(fee_brl), 0)        AS total_fee_brl,
+           COALESCE(SUM(job_points), 0)     AS total_points
+         FROM jobs
+         WHERE tenant_id = $1
+           AND pool_visible = true
+           AND owner_id IS NULL
+           AND status IN ('ready', 'intake', 'planned')
+         GROUP BY job_category, job_size
+         ORDER BY job_category NULLS LAST, job_size`,
+        [tenant_id],
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS total_jobs, COALESCE(SUM(fee_brl), 0) AS total_fee_brl
+         FROM jobs
+         WHERE tenant_id = $1
+           AND pool_visible = true AND owner_id IS NULL
+           AND status IN ('ready', 'intake', 'planned')`,
+        [tenant_id],
+      ),
+    ]);
+
+    return reply.send({
+      forecast: groupRes.rows,
+      summary: {
+        total_jobs: parseInt(totRes.rows[0].total_jobs ?? '0'),
+        total_fee_brl: parseFloat(totRes.rows[0].total_fee_brl ?? '0'),
+      },
+    });
+  });
+
+  // ── GET /freelancers/portal/me/partners — agency B2B partner hub ───────────
+  app.get('/freelancers/portal/me/partners', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const fpRes = await pool.query(
+      `SELECT fp.tenant_id FROM freelancer_profiles fp WHERE fp.user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { tenant_id } = fpRes.rows[0];
+
+    const result = await pool.query(
+      `SELECT id, category, name, description, logo_emoji, discount_text, link_url
+       FROM agency_partners
+       WHERE tenant_id = $1 AND is_active = true
+       ORDER BY sort_order, name`,
+      [tenant_id],
+    );
+
+    return reply.send({ partners: result.rows });
+  });
+
+  // ── GET /freelancers/portal/me/portfolio — Hall da Fama (approved G/GG) ───
+  app.get('/freelancers/portal/me/portfolio', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const fpRes = await pool.query(
+      `SELECT fp.id, fp.tenant_id FROM freelancer_profiles fp WHERE fp.user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { id: freelancerId, tenant_id } = fpRes.rows[0];
+
+    const [portfolioRes, statsRes] = await Promise.all([
+      pool.query(
+        `SELECT j.id, j.title, j.job_size, j.job_category, j.fee_brl,
+                j.approved_at, j.delivered_link, j.summary,
+                c.name AS client_name
+         FROM jobs j
+         LEFT JOIN clients c ON c.id = j.client_id
+         WHERE j.owner_id = $1 AND j.tenant_id = $2
+           AND j.status = 'approved'
+           AND j.job_size IN ('G', 'GG')
+         ORDER BY j.approved_at DESC NULLS LAST
+         LIMIT 30`,
+        [freelancerId, tenant_id],
+      ),
+      pool.query(
+        `SELECT
+           COUNT(*)                                      AS total_approved,
+           COUNT(*) FILTER (WHERE job_size IN ('G','GG')) AS big_jobs,
+           COALESCE(SUM(fee_brl), 0)                    AS total_earned
+         FROM jobs
+         WHERE owner_id = $1 AND tenant_id = $2 AND status = 'approved'`,
+        [freelancerId, tenant_id],
+      ),
+    ]);
+
+    return reply.send({
+      portfolio: portfolioRes.rows,
+      stats: {
+        total_approved: parseInt(statsRes.rows[0].total_approved ?? '0'),
+        big_jobs:       parseInt(statsRes.rows[0].big_jobs ?? '0'),
+        total_earned:   parseFloat(statsRes.rows[0].total_earned ?? '0'),
+      },
+    });
+  });
 }

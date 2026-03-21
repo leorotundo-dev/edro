@@ -5,6 +5,131 @@ import Link from 'next/link';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { swrFetcher, apiPost } from '@/lib/api';
 
+// ── Rating Modal — Avaliação Reversa ──────────────────────────────────────────
+
+function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {[1, 2, 3, 4, 5].map(s => (
+        <button key={s} type="button" onClick={() => onChange(s)} style={{
+          fontSize: 26, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+          filter: s <= value ? 'none' : 'grayscale(1) opacity(0.25)',
+          transition: 'filter 0.1s, transform 0.1s',
+          transform: s === value ? 'scale(1.2)' : 'scale(1)',
+        }}>⭐</button>
+      ))}
+    </div>
+  );
+}
+
+function RatingModal({ job, onClose }: { job: { id: string; title: string }; onClose: (rated: boolean) => void }) {
+  const [bq, setBq] = useState(0);
+  const [oe, setOe] = useState(0);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit() {
+    if (!bq || !oe) { setError('Avalie ambos os campos para enviar'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      await apiPost(`/freelancers/portal/me/jobs/${job.id}/rate`, {
+        briefing_quality: bq,
+        overall_experience: oe,
+        notes: notes.trim() || undefined,
+      });
+      onClose(true);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao enviar avaliação');
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end', padding: '0 0 env(safe-area-inset-bottom)',
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 480, margin: '0 auto',
+        background: 'var(--portal-card)', border: '1.5px solid var(--portal-border)',
+        borderRadius: '20px 20px 0 0', padding: '24px 20px 32px',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--portal-text)' }}>Avaliar Escopo</p>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--portal-muted)' }}>{job.title}</p>
+          </div>
+          <button type="button" onClick={() => onClose(false)} style={{
+            background: 'none', border: 'none', color: 'var(--portal-muted)', fontSize: 20, cursor: 'pointer', padding: '0 4px',
+          }}>✕</button>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Qualidade do Briefing
+          </p>
+          <StarPicker value={bq} onChange={setBq} />
+          {bq > 0 && (
+            <p style={{ fontSize: 11, color: '#F8A800', margin: '5px 0 0' }}>
+              {bq === 5 ? 'Briefing perfeito! Objetivo e completo.' : bq >= 4 ? 'Muito bom.' : bq === 3 ? 'Satisfatório.' : bq === 2 ? 'Poderia ser mais detalhado.' : 'Briefing incompleto.'}
+            </p>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Experiência Geral
+          </p>
+          <StarPicker value={oe} onChange={setOe} />
+          {oe > 0 && (
+            <p style={{ fontSize: 11, color: '#5D87FF', margin: '5px 0 0' }}>
+              {oe === 5 ? 'Excelente parceria!' : oe >= 4 ? 'Boa experiência.' : oe === 3 ? 'OK.' : oe === 2 ? 'Processo poderia melhorar.' : 'Difícil de trabalhar.'}
+            </p>
+          )}
+        </div>
+
+        <textarea
+          placeholder="Comentário opcional — feedback construtivo é sempre bem-vindo..."
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={2}
+          style={{
+            width: '100%', boxSizing: 'border-box', marginBottom: 12,
+            background: 'var(--portal-bg)', border: '1px solid var(--portal-border)',
+            borderRadius: 8, padding: '9px 12px', color: 'var(--portal-text)',
+            fontSize: 13, outline: 'none', resize: 'vertical',
+          }}
+        />
+
+        {error && <p style={{ fontSize: 12, color: '#ff4444', margin: '0 0 10px' }}>{error}</p>}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => onClose(false)} disabled={loading} style={{
+            flex: 1, padding: '12px 0', borderRadius: 10,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid var(--portal-border)',
+            color: 'var(--portal-muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            Agora não
+          </button>
+          <button type="button" onClick={submit} disabled={loading || !bq || !oe} style={{
+            flex: 2, padding: '12px 0', borderRadius: 10,
+            background: (bq && oe) ? 'rgba(248,168,0,0.15)' : 'rgba(255,255,255,0.04)',
+            border: `1.5px solid ${(bq && oe) ? 'rgba(248,168,0,0.45)' : 'rgba(255,255,255,0.08)'}`,
+            color: (bq && oe) ? '#F8A800' : 'var(--portal-muted)',
+            fontSize: 13, fontWeight: 800,
+            cursor: (bq && oe) ? 'pointer' : 'not-allowed',
+          }}>
+            {loading ? '...' : 'Enviar Avaliação'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type JobSize = 'P' | 'M' | 'G' | 'GG';
@@ -176,7 +301,11 @@ function DeliveryForm({ jobId, onDelivered }: { jobId: string; onDelivered: () =
 
 // ── Job card ──────────────────────────────────────────────────────────────────
 
-function JobCard({ job, onMutate }: { job: Job; onMutate: () => void }) {
+function JobCard({ job, onMutate, onRate, rated }: {
+  job: Job; onMutate: () => void;
+  onRate?: (job: Job) => void;
+  rated?: boolean;
+}) {
   const [showDelivery, setShowDelivery] = useState(false);
   const sla = slaLabel(job.due_at);
   const isUrgent = sla && (sla.color === '#ff4444' || sla.color === '#F8A800');
@@ -304,7 +433,21 @@ function JobCard({ job, onMutate }: { job: Job; onMutate: () => void }) {
             </span>
           )}
           {isApproved && (
-            <span style={{ fontSize: 18 }}>✅</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+              <span style={{ fontSize: 18 }}>✅</span>
+              {onRate && !rated && (
+                <button type="button" onClick={() => onRate(job)} style={{
+                  fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+                  background: 'rgba(248,168,0,0.1)', border: '1px solid rgba(248,168,0,0.3)',
+                  color: '#F8A800', cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>
+                  ⭐ Avaliar
+                </button>
+              )}
+              {rated && (
+                <span style={{ fontSize: 10, color: 'var(--portal-muted)' }}>Avaliado ✓</span>
+              )}
+            </div>
           )}
           {!isInProgress && !isAdjustment && !isInReview && !isApproved && (
             <Link href={`/jobs/${job.id}?source=${job.source}`}
@@ -326,10 +469,12 @@ function JobCard({ job, onMutate }: { job: Job; onMutate: () => void }) {
 // ── Kanban column ─────────────────────────────────────────────────────────────
 
 function KanbanColumn({
-  emoji, title, color, bg, border, jobs, emptyText, onMutate,
+  emoji, title, color, bg, border, jobs, emptyText, onMutate, onRate, ratedJobIds,
 }: {
   emoji: string; title: string; color: string; bg: string; border: string;
   jobs: Job[]; emptyText?: string; onMutate: () => void;
+  onRate?: (job: Job) => void;
+  ratedJobIds?: Set<string>;
 }) {
   const [open, setOpen] = useState(true);
   if (jobs.length === 0 && !emptyText) return null;
@@ -364,7 +509,10 @@ function KanbanColumn({
             {emptyText}
           </div>
         ) : (
-          jobs.map(job => <JobCard key={job.id} job={job} onMutate={onMutate} />)
+          jobs.map(job => (
+            <JobCard key={job.id} job={job} onMutate={onMutate}
+              onRate={onRate} rated={ratedJobIds?.has(job.id)} />
+          ))
         )
       )}
     </section>
@@ -514,6 +662,8 @@ function EarningsBar() {
 
 export default function JobsPage() {
   const { data, isLoading, mutate } = useSWR<{ jobs?: Job[] }>('/freelancers/portal/me/jobs', swrFetcher);
+  const [ratingJob, setRatingJob] = useState<Job | null>(null);
+  const [ratedJobIds, setRatedJobIds] = useState<Set<string>>(new Set());
 
   const jobs = data?.jobs ?? [];
 
@@ -599,6 +749,8 @@ export default function JobsPage() {
         bg="rgba(19,222,185,0.04)" border="rgba(19,222,185,0.15)"
         jobs={colAprovado}
         onMutate={mutate}
+        onRate={setRatingJob}
+        ratedJobIds={ratedJobIds}
       />
 
       {/* Legacy (briefings, trello cards) — kept for backwards compat */}
@@ -620,6 +772,17 @@ export default function JobsPage() {
             <p className="portal-card-subtitle">Aceite escopos do Mercado acima ou aguarde ser alocado.</p>
           </div>
         </section>
+      )}
+
+      {/* Rating modal — renders on top */}
+      {ratingJob && (
+        <RatingModal
+          job={ratingJob}
+          onClose={(rated) => {
+            if (rated) setRatedJobIds(prev => new Set([...prev, ratingJob.id]));
+            setRatingJob(null);
+          }}
+        />
       )}
 
     </div>
