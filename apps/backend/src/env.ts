@@ -82,6 +82,7 @@ const envSchema = z.object({
   WHATSAPP_WEBHOOK_SECRET: z.string().optional(),
   EVOLUTION_API_URL: z.string().url().optional(),
   EVOLUTION_API_KEY: z.string().optional(),
+  EVOLUTION_WEBHOOK_SECRET: z.string().optional(),
   PERPLEXITY_API_KEY: z.string().optional(),
   LEONARDO_API_KEY: z.string().optional(),
   FAL_API_KEY: z.string().optional(),
@@ -98,6 +99,7 @@ const envSchema = z.object({
   RECALL_REGION: z.string().optional(),
   RECALL_GOOGLE_LOGIN_GROUP_ID: z.string().optional(),
   RECALL_WEBHOOK_SECRET: z.string().optional(),
+  ENABLE_TEMP_PGVECTOR_CHECK: z.coerce.boolean().optional(),
 });
 
 // Railway injects RAILWAY_SERVICE_<NAME>_URL for linked services (no https:// prefix)
@@ -112,7 +114,172 @@ const parsed = envSchema.parse({
   EVOLUTION_API_KEY: process.env.EVOLUTION_API_KEY || process.env.RAILWAY_SERVICE_EVOLUTION_API_KEY,
 });
 
+const isProductionLike = parsed.NODE_ENV === 'production' || parsed.NODE_ENV === 'staging';
+const allowUnsafeLocalAuthHelpers = parsed.NODE_ENV === 'development' || parsed.NODE_ENV === 'test';
+const portalLoginSecret = parsed.EDRO_LOGIN_SECRET || parsed.JWT_SECRET;
+
+function hasValue(value: unknown): boolean {
+  return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+}
+
+function isLocalHostname(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+function validateUrl(name: string, value: string | undefined, issues: string[]) {
+  if (!hasValue(value)) return;
+
+  try {
+    const url = new URL(value!);
+    if (isProductionLike && url.protocol !== 'https:' && !isLocalHostname(url.hostname)) {
+      issues.push(`${name} deve usar https em ${parsed.NODE_ENV}.`);
+    }
+  } catch {
+    issues.push(`${name} deve ser uma URL absoluta válida.`);
+  }
+}
+
+function validateSecureRuntimeConfig() {
+  const issues: string[] = [];
+  const insecureSecretPattern = /^(secret|no-secret|changeme|change-me|default|placeholder)$/i;
+
+  if (insecureSecretPattern.test(parsed.JWT_SECRET.trim())) {
+    issues.push('JWT_SECRET usa um valor inseguro/reservado.');
+  }
+
+  if (hasValue(parsed.EDRO_LOGIN_SECRET) && insecureSecretPattern.test(parsed.EDRO_LOGIN_SECRET!.trim())) {
+    issues.push('EDRO_LOGIN_SECRET usa um valor inseguro/reservado.');
+  }
+
+  if (isProductionLike) {
+    if (parsed.EDRO_LOGIN_ECHO_CODE) {
+      issues.push('EDRO_LOGIN_ECHO_CODE deve permanecer desabilitado em produção/staging.');
+    }
+
+    if (parsed.ENABLE_TEMP_PGVECTOR_CHECK) {
+      issues.push('ENABLE_TEMP_PGVECTOR_CHECK deve permanecer desabilitado em produção/staging.');
+    }
+
+    if (!hasValue(parsed.EDRO_LOGIN_SECRET)) {
+      issues.push('EDRO_LOGIN_SECRET é obrigatório em produção/staging.');
+    } else if (parsed.EDRO_LOGIN_SECRET === parsed.JWT_SECRET) {
+      issues.push('EDRO_LOGIN_SECRET não pode reutilizar JWT_SECRET em produção/staging.');
+    }
+
+    const allowedOrigins = (parsed.ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (allowedOrigins.includes('*')) {
+      issues.push('ALLOWED_ORIGINS não pode conter "*" em produção/staging.');
+    }
+  }
+
+  validateUrl('WEB_URL', parsed.WEB_URL, issues);
+  validateUrl('PUBLIC_API_URL', parsed.PUBLIC_API_URL, issues);
+  validateUrl('OIDC_ISSUER_URL', parsed.OIDC_ISSUER_URL, issues);
+  validateUrl('OIDC_REDIRECT_URI', parsed.OIDC_REDIRECT_URI, issues);
+  validateUrl('META_REDIRECT_URI', parsed.META_REDIRECT_URI, issues);
+  validateUrl('GOOGLE_REDIRECT_URI', parsed.GOOGLE_REDIRECT_URI, issues);
+  validateUrl('GOOGLE_CALENDAR_REDIRECT_URI', parsed.GOOGLE_CALENDAR_REDIRECT_URI, issues);
+  validateUrl('GOOGLE_CALENDAR_WEBHOOK_URL', parsed.GOOGLE_CALENDAR_WEBHOOK_URL, issues);
+
+  const oidcConfigured = [
+    parsed.OIDC_ISSUER_URL,
+    parsed.OIDC_CLIENT_ID,
+    parsed.OIDC_CLIENT_SECRET,
+    parsed.OIDC_REDIRECT_URI,
+  ].some(hasValue);
+  if (oidcConfigured) {
+    if (!hasValue(parsed.OIDC_ISSUER_URL) || !hasValue(parsed.OIDC_CLIENT_ID) || !hasValue(parsed.OIDC_CLIENT_SECRET) || !hasValue(parsed.OIDC_REDIRECT_URI)) {
+      issues.push('OIDC exige OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET e OIDC_REDIRECT_URI juntos.');
+    }
+    if (!hasValue(parsed.WEB_URL)) {
+      issues.push('WEB_URL é obrigatório quando OIDC estiver habilitado.');
+    }
+  }
+
+  const gmailConfigured = [
+    parsed.GOOGLE_CLIENT_ID,
+    parsed.GOOGLE_CLIENT_SECRET,
+    parsed.GOOGLE_REDIRECT_URI,
+    parsed.GOOGLE_PUBSUB_TOPIC,
+  ].some(hasValue);
+  if (gmailConfigured) {
+    if (!hasValue(parsed.GOOGLE_CLIENT_ID) || !hasValue(parsed.GOOGLE_CLIENT_SECRET)) {
+      issues.push('Gmail OAuth exige GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.');
+    }
+    if (!hasValue(parsed.GOOGLE_REDIRECT_URI) && !hasValue(parsed.PUBLIC_API_URL)) {
+      issues.push('Gmail OAuth exige GOOGLE_REDIRECT_URI ou PUBLIC_API_URL.');
+    }
+    if (!hasValue(parsed.WEB_URL)) {
+      issues.push('WEB_URL é obrigatório quando Gmail OAuth estiver habilitado.');
+    }
+  }
+
+  const calendarConfigured = [
+    parsed.GOOGLE_CALENDAR_REDIRECT_URI,
+    parsed.GOOGLE_CALENDAR_WEBHOOK_URL,
+  ].some(hasValue);
+  if (calendarConfigured) {
+    if (!hasValue(parsed.GOOGLE_CLIENT_ID) || !hasValue(parsed.GOOGLE_CLIENT_SECRET)) {
+      issues.push('Google Calendar OAuth exige GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.');
+    }
+    if (!hasValue(parsed.GOOGLE_CALENDAR_WEBHOOK_URL)) {
+      issues.push('GOOGLE_CALENDAR_WEBHOOK_URL é obrigatório quando Google Calendar estiver habilitado.');
+    }
+    if (!hasValue(parsed.GOOGLE_CALENDAR_REDIRECT_URI) && !hasValue(parsed.PUBLIC_API_URL)) {
+      issues.push('Google Calendar OAuth exige GOOGLE_CALENDAR_REDIRECT_URI ou PUBLIC_API_URL.');
+    }
+    if (!hasValue(parsed.WEB_URL)) {
+      issues.push('WEB_URL é obrigatório quando Google Calendar estiver habilitado.');
+    }
+  }
+
+  const metaConfigured = [
+    parsed.META_APP_ID,
+    parsed.META_APP_SECRET,
+    parsed.META_REDIRECT_URI,
+  ].some(hasValue);
+  if (metaConfigured) {
+    if (!hasValue(parsed.META_APP_ID) || !hasValue(parsed.META_APP_SECRET)) {
+      issues.push('Meta OAuth exige META_APP_ID e META_APP_SECRET.');
+    }
+    if (!hasValue(parsed.META_REDIRECT_URI) && !hasValue(parsed.PUBLIC_API_URL)) {
+      issues.push('Meta OAuth exige META_REDIRECT_URI ou PUBLIC_API_URL.');
+    }
+    if (!hasValue(parsed.WEB_URL)) {
+      issues.push('WEB_URL é obrigatório quando Meta OAuth estiver habilitado.');
+    }
+  }
+
+  const metaWebhookConfigured = [
+    parsed.WHATSAPP_TOKEN,
+    parsed.WHATSAPP_PHONE_ID,
+    parsed.META_VERIFY_TOKEN,
+  ].some(hasValue);
+  if (metaWebhookConfigured && isProductionLike && !hasValue(parsed.META_APP_SECRET)) {
+    issues.push('META_APP_SECRET é obrigatório para validar assinatura de webhook Meta em produção/staging.');
+  }
+
+  if (hasValue(parsed.RECALL_API_KEY) && isProductionLike && !hasValue(parsed.RECALL_WEBHOOK_SECRET)) {
+    issues.push('RECALL_WEBHOOK_SECRET é obrigatório quando Recall estiver habilitado em produção/staging.');
+  }
+
+  if (hasValue(parsed.EVOLUTION_API_URL) && hasValue(parsed.PUBLIC_API_URL) && isProductionLike && !hasValue(parsed.EVOLUTION_WEBHOOK_SECRET)) {
+    issues.push('EVOLUTION_WEBHOOK_SECRET é obrigatório quando o webhook Evolution estiver exposto em produção/staging.');
+  }
+
+  if (issues.length) {
+    throw new Error(`Configuração insegura de ambiente:\n- ${issues.join('\n- ')}`);
+  }
+}
+
+validateSecureRuntimeConfig();
+
 export const env = {
   ...parsed,
   CLAUDE_API_KEY: parsed.CLAUDE_API_KEY || parsed.ANTHROPIC_API_KEY,
 };
+
+export { allowUnsafeLocalAuthHelpers, isProductionLike, portalLoginSecret };
