@@ -21,6 +21,7 @@ import crypto from 'crypto';
 import { query } from '../../db';
 import { generateWithProvider } from '../ai/copyOrchestrator';
 import { createBriefing } from '../../repositories/edroBriefingRepository';
+import { env } from '../../env';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -31,7 +32,8 @@ const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
 
 function signOAuthState(payload: object): string {
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const secret = env.GOOGLE_CLIENT_SECRET;
+  if (!secret) throw new Error('GOOGLE_CLIENT_SECRET não configurado.');
   const sig = crypto.createHmac('sha256', secret).update(data).digest('base64url');
   return `${data}.${sig}`;
 }
@@ -41,18 +43,29 @@ function verifyOAuthState(rawState: string): { tenantId: string } {
   if (dotIndex < 0) throw new Error('Invalid OAuth state format');
   const data = rawState.slice(0, dotIndex);
   const sig = rawState.slice(dotIndex + 1);
-  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const secret = env.GOOGLE_CLIENT_SECRET;
+  if (!secret) throw new Error('GOOGLE_CLIENT_SECRET não configurado.');
   const expected = crypto.createHmac('sha256', secret).update(data).digest('base64url');
   if (sig !== expected) throw new Error('Invalid OAuth state signature');
   return JSON.parse(Buffer.from(data, 'base64url').toString());
 }
 
+function resolveGmailRedirectUri(): string {
+  if (env.GOOGLE_REDIRECT_URI) {
+    return env.GOOGLE_REDIRECT_URI;
+  }
+  const publicBase = env.PUBLIC_API_URL?.replace(/\/$/, '');
+  if (!publicBase) {
+    throw new Error('Configure GOOGLE_REDIRECT_URI ou PUBLIC_API_URL para o OAuth do Gmail.');
+  }
+  return `${publicBase}/auth/google/callback`;
+}
+
 // ── OAuth helpers ─────────────────────────────────────────────────────────
 
 export function gmailOAuthUrl(tenantId: string): string {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const publicBase = (process.env.PUBLIC_API_URL ?? 'https://api.edro.digital').replace(/\/$/, '');
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI ?? `${publicBase}/auth/google/callback`;
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const redirectUri = resolveGmailRedirectUri();
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID não configurado.');
 
   const state = signOAuthState({ tenantId, ts: Date.now() });
@@ -78,10 +91,12 @@ export async function exchangeGmailCode(code: string, rawState: string): Promise
   tenantId: string;
   email: string;
 }> {
-  const clientId = process.env.GOOGLE_CLIENT_ID!;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
-  const publicBase = (process.env.PUBLIC_API_URL ?? 'https://api.edro.digital').replace(/\/$/, '');
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI ?? `${publicBase}/auth/google/callback`;
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const clientSecret = env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = resolveGmailRedirectUri();
+  if (!clientId || !clientSecret) {
+    throw new Error('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET não configurados.');
+  }
 
   // Exchange code for tokens
   const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
@@ -137,7 +152,7 @@ export async function exchangeGmailCode(code: string, rawState: string): Promise
 // ── Gmail watch (Pub/Sub push) ────────────────────────────────────────────
 
 export async function watchGmailInbox(tenantId: string): Promise<void> {
-  const pubsubTopic = process.env.GOOGLE_PUBSUB_TOPIC;
+  const pubsubTopic = env.GOOGLE_PUBSUB_TOPIC;
   if (!pubsubTopic) throw new Error('GOOGLE_PUBSUB_TOPIC não configurado.');
 
   const accessToken = await getValidAccessToken(tenantId);
@@ -376,7 +391,7 @@ export async function getValidAccessToken(tenantId: string): Promise<string> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_secret: env.GOOGLE_CLIENT_SECRET!,
       refresh_token,
       grant_type: 'refresh_token',
     }),
