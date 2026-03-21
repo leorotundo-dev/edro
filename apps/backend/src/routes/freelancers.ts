@@ -830,7 +830,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               ec.name as client_name, 'briefing' as source,
               NULL::text as board_name, NULL::text as list_name, false as due_complete,
               NULL::numeric as fee_brl, NULL::text as job_size,
-              false as pending_acceptance
+              false as pending_acceptance,
+              NULL::text as delivered_link, NULL::text as adjustment_feedback,
+              NULL::timestamptz as approved_at, NULL::timestamptz as delivered_at
        FROM edro_briefings b
        LEFT JOIN edro_clients ec ON ec.id = b.client_id
        WHERE b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
@@ -840,7 +842,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               c.name as client_name, 'ops_job' as source,
               NULL::text as board_name, NULL::text as list_name, false as due_complete,
               j.fee_brl, j.job_size,
-              false as pending_acceptance
+              false as pending_acceptance,
+              j.delivered_link, j.adjustment_feedback,
+              j.approved_at, j.delivered_at
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        WHERE j.owner_id = $1::uuid
@@ -856,7 +860,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               pc.due_complete,
               NULL::numeric as fee_brl,
               NULL::text as job_size,
-              false as pending_acceptance
+              false as pending_acceptance,
+              NULL::text as delivered_link, NULL::text as adjustment_feedback,
+              NULL::timestamptz as approved_at, NULL::timestamptz as delivered_at
        FROM project_cards pc
        JOIN project_card_members pcm ON pcm.card_id = pc.id
        JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
@@ -1937,5 +1943,50 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       total_brl: row.total_brl,
       jobs: row.jobs ?? [],
     });
+  });
+
+  // ── Kanban: Deliver escopo (Em Execução → Em Homologação) ───────────────────
+
+  // POST /freelancers/portal/me/jobs/:id/deliver
+  // Freelancer submits delivery link → job enters 'in_review', SLA pauses.
+  app.post('/freelancers/portal/me/jobs/:id/deliver', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { id } = request.params as { id: string };
+    const { delivered_link, delivery_notes } = request.body as {
+      delivered_link: string;
+      delivery_notes?: string;
+    };
+
+    if (!delivered_link?.trim()) {
+      return reply.status(400).send({ error: 'Link de entrega obrigatório' });
+    }
+
+    // Verify ownership and eligible status
+    const check = await pool.query(
+      `SELECT id FROM jobs
+       WHERE id = $1::uuid
+         AND owner_id = $2::uuid
+         AND status IN ('allocated', 'in_progress', 'adjustment')`,
+      [id, userId],
+    );
+    if (!check.rows.length) {
+      return reply.status(404).send({ error: 'Escopo não encontrado ou não elegível para entrega' });
+    }
+
+    await pool.query(
+      `UPDATE jobs
+          SET status          = 'in_review',
+              delivered_at    = now(),
+              delivered_link  = $1,
+              delivery_notes  = $2,
+              sla_paused_at   = now(),
+              updated_at      = now()
+        WHERE id = $3::uuid`,
+      [delivered_link.trim(), delivery_notes?.trim() ?? null, id],
+    );
+
+    return reply.send({ ok: true });
   });
 }
