@@ -212,23 +212,14 @@ if (!hasValue(env.S3_SECRET_KEY) && !hasValue(env.FILE_STORAGE_ROOT)) {
 }
 
 if (issues.length) {
-  console.error(`Deploy env check failed for mode=${mode}.\n`);
-  for (const issue of issues) {
-    console.error(`- ${issue}`);
-  }
+  console.error(`Deploy env check failed with ${issues.length} issue(s).`);
   if (warnings.length) {
-    console.error('\nWarnings:\n');
-    for (const warning of warnings) {
-      console.error(`- ${warning}`);
-    }
+    console.error(`Warnings recorded: ${warnings.length}.`);
   }
   process.exit(1);
 }
 
-console.log(`Deploy env check passed for mode=${mode}.`);
+console.log('Deploy env check passed.');
 if (warnings.length) {
-  console.log('\nWarnings:');
-  for (const warning of warnings) {
-    console.log(`- ${warning}`);
-  }
+  console.log(`Warnings recorded: ${warnings.length}.`);
 }
