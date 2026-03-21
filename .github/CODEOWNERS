@@ -1,0 +1,18 @@
+* @leorotundo-dev
+
+# Security-sensitive areas
+/apps/backend/src/auth/ @leorotundo-dev
+/apps/backend/src/routes/auth.ts @leorotundo-dev
+/apps/backend/src/routes/sso.ts @leorotundo-dev
+/apps/backend/src/routes/webhook*.ts @leorotundo-dev
+/apps/backend/src/services/integrations/ @leorotundo-dev
+/apps/backend/src/env.ts @leorotundo-dev
+/apps/web/app/api/ @leorotundo-dev
+/apps/web/lib/serverAuth.ts @leorotundo-dev
+/apps/web-cliente/app/api/ @leorotundo-dev
+/apps/web-cliente/lib/serverAuth.ts @leorotundo-dev
+/apps/web-freelancer/app/api/ @leorotundo-dev
+/apps/web-freelancer/lib/serverAuth.ts @leorotundo-dev
+/docs/security/ @leorotundo-dev
+/SECURITY.md @leorotundo-dev
+/scripts/security/ @leorotundo-dev
