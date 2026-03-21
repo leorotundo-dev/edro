@@ -8,7 +8,7 @@ type AuthGateProps = {
 };
 
 const PUBLIC_PATHS = new Set(['/login']);
-const PUBLIC_PREFIXES = ['/calendar', '/edro/aprovacao-externa', '/proposta', '/portal/approval'];
+const PUBLIC_PREFIXES = ['/calendar', '/edro/aprovacao-externa', '/proposta', '/portal', '/portal/approval'];
 
 export default function AuthGate({ children }: AuthGateProps) {
   const router = useRouter();
@@ -19,19 +19,31 @@ export default function AuthGate({ children }: AuthGateProps) {
     PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   useEffect(() => {
+    let cancelled = false;
+
     if (isPublicPath) {
       setReady(true);
       return;
     }
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) {
-      const nextParam = encodeURIComponent(pathname);
-      router.replace(`/login?next=${nextParam}`);
-      return;
-    }
+    const validateSession = async () => {
+      const res = await fetch('/api/auth/session', { cache: 'no-store' });
+      if (!res.ok) {
+        localStorage.removeItem('edro_user');
+        const nextParam = encodeURIComponent(pathname);
+        router.replace(`/login?next=${nextParam}`);
+        return;
+      }
 
-    setReady(true);
+      const data = await res.json();
+      if (!cancelled && data?.user) {
+        localStorage.setItem('edro_user', JSON.stringify(data.user));
+        setReady(true);
+      }
+    };
+
+    void validateSession();
+    return () => { cancelled = true; };
   }, [isPublicPath, pathname, router]);
 
   if (!ready && !isPublicPath) {
