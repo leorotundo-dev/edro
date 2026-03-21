@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
+import { hasClientPerm } from '../auth/clientPerms';
 import { tenantGuard } from '../auth/tenantGuard';
 import { encryptJSON } from '../security/secrets';
 import { query } from '../db';
@@ -14,9 +15,9 @@ type OAuthSession = {
     access_token: string;
     instagram_business_id: string | null;
   }>;
-  longLivedToken: string;
   clientId: string;
   tenantId: string;
+  userId: string;
   expiresAt: number;
 };
 
@@ -32,26 +33,70 @@ setInterval(() => {
 
 const GRAPH_VERSION = env.META_GRAPH_VERSION || 'v19.0';
 
+function resolveMetaFrontendUrl() {
+  const webUrl = env.WEB_URL?.replace(/\/$/, '');
+  if (!webUrl) {
+    throw new Error('WEB_URL não configurado para concluir o OAuth da Meta.');
+  }
+  return webUrl;
+}
+
+function resolveMetaRedirectUri() {
+  if (env.META_REDIRECT_URI) {
+    return env.META_REDIRECT_URI;
+  }
+  const publicApiUrl = env.PUBLIC_API_URL?.replace(/\/$/, '');
+  if (!publicApiUrl) {
+    throw new Error('Configure META_REDIRECT_URI ou PUBLIC_API_URL para o OAuth da Meta.');
+  }
+  return `${publicApiUrl}/api/auth/meta/callback`;
+}
+
 export default async function metaOAuthRoutes(app: FastifyInstance) {
 
   // ── 1. Iniciar OAuth ────────────────────────────────────────────────────────
   // Chamado pelo popup window: GET /api/auth/meta/start?clientId=X
   // Redireciona para o Facebook OAuth dialog.
-  app.get('/auth/meta/start', { preHandler: [authGuard, tenantGuard()] }, async (request: any, reply) => {
+  app.get('/auth/meta/start', { preHandler: [authGuard, tenantGuard(), requirePerm('integrations:write')] }, async (request: any, reply) => {
     if (!env.META_APP_ID) {
       return reply.status(503).send('META_APP_ID não configurado. Configure nas variáveis de ambiente.');
     }
 
     const { clientId } = request.query as { clientId?: string };
+    const tenantId = (request.user as any).tenant_id as string;
+    const userId = (request.user as any).sub as string;
+    const role = (request.user as any).role as string | undefined;
+
+    if (clientId) {
+      const { rows } = await query(
+        `SELECT id FROM clients WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [clientId, tenantId],
+      );
+      if (!rows.length) {
+        return reply.status(404).send({ error: 'client_not_found' });
+      }
+
+      const allowed = await hasClientPerm({
+        tenantId,
+        userId,
+        role,
+        clientId,
+        perm: 'write',
+      });
+      if (!allowed) {
+        return reply.status(403).send({ error: 'client_forbidden', client_id: clientId, perm: 'write' });
+      }
+    }
+
     const state = crypto.randomUUID();
-    const redirectUri = env.META_REDIRECT_URI || `${env.PUBLIC_API_URL || ''}/api/auth/meta/callback`;
+    const redirectUri = resolveMetaRedirectUri();
 
     // Store state → session mapping (will be populated on callback)
     sessions.set(state, {
       pages: [],
-      longLivedToken: '',
       clientId: clientId || '',
-      tenantId: (request.user as any).tenant_id,
+      tenantId,
+      userId,
       expiresAt: Date.now() + 10 * 60_000,
     });
 
@@ -83,7 +128,7 @@ export default async function metaOAuthRoutes(app: FastifyInstance) {
       error?: string;
     };
 
-    const webUrl = env.WEB_URL || 'http://localhost:3000';
+    const webUrl = resolveMetaFrontendUrl();
 
     if (fbError || !code || !state) {
       const msg = encodeURIComponent(fbError || 'cancelled');
@@ -95,7 +140,7 @@ export default async function metaOAuthRoutes(app: FastifyInstance) {
       return reply.redirect(`${webUrl}/auth/meta/select?error=state_expired`);
     }
 
-    const redirectUri = env.META_REDIRECT_URI || `${env.PUBLIC_API_URL || ''}/api/auth/meta/callback`;
+    const redirectUri = resolveMetaRedirectUri();
 
     try {
       // a) Troca code → short-lived user token
@@ -140,9 +185,9 @@ export default async function metaOAuthRoutes(app: FastifyInstance) {
       sessions.delete(state);
       sessions.set(sessionId, {
         pages,
-        longLivedToken,
         clientId: session.clientId,
         tenantId: session.tenantId,
+        userId: session.userId,
         expiresAt: Date.now() + 10 * 60_000,
       });
 
@@ -155,19 +200,33 @@ export default async function metaOAuthRoutes(app: FastifyInstance) {
 
   // ── 3. Dados da sessão (chamado pelo popup frontend) ────────────────────────
   // GET /api/auth/meta/session/:id
-  app.get('/auth/meta/session/:id', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/auth/meta/session/:id', { preHandler: [authGuard, tenantGuard(), requirePerm('integrations:write')] }, async (request: any, reply) => {
     const { id } = request.params as { id: string };
     const session = sessions.get(id);
     if (!session || session.expiresAt < Date.now()) {
       return reply.status(404).send({ error: 'session_expired' });
     }
-    return reply.send({ pages: session.pages, clientId: session.clientId });
+    const tenantId = (request.user as any).tenant_id as string;
+    const userId = (request.user as any).sub as string;
+    if (session.tenantId !== tenantId || session.userId !== userId) {
+      return reply.status(403).send({ error: 'session_forbidden' });
+    }
+
+    return reply.send({
+      clientId: session.clientId,
+      pages: session.pages.map((page) => ({
+        id: page.id,
+        name: page.name,
+        picture: page.picture,
+        instagram_business_id: page.instagram_business_id,
+      })),
+    });
   });
 
   // ── 4. Salvar página selecionada ────────────────────────────────────────────
   // POST /api/auth/meta/complete
   // Body: { sessionId, pageId }
-  app.post('/auth/meta/complete', { preHandler: [authGuard, tenantGuard()] }, async (request: any, reply) => {
+  app.post('/auth/meta/complete', { preHandler: [authGuard, tenantGuard(), requirePerm('integrations:write')] }, async (request: any, reply) => {
     const { sessionId, pageId } = (request.body || {}) as { sessionId?: string; pageId?: string };
     if (!sessionId || !pageId) return reply.status(400).send({ error: 'sessionId and pageId required' });
 
@@ -180,9 +239,13 @@ export default async function metaOAuthRoutes(app: FastifyInstance) {
     if (!page) return reply.status(400).send({ error: 'page_not_found' });
 
     const tenantId = (request.user as any).tenant_id as string;
+    const userId = (request.user as any).sub as string;
     const clientId = session.clientId;
 
     if (!clientId) return reply.status(400).send({ error: 'clientId missing from session' });
+    if (session.tenantId !== tenantId || session.userId !== userId) {
+      return reply.status(403).send({ error: 'session_forbidden' });
+    }
 
     // Criptografar o page_access_token (não expira enquanto relação user-page existir)
     const enc = await encryptJSON({ access_token: page.access_token });
