@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import useSWR from 'swr';
+import { useCallback, useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -32,10 +31,6 @@ type InReviewJob = {
   sla_paused_at: string | null;
   deadline_at: string | null;
 };
-
-function swrFetcher(url: string) {
-  return apiGet(url);
-}
 
 function daysSince(d: string | null) {
   if (!d) return null;
@@ -148,13 +143,21 @@ function JobReviewCard({ job, onAction }: { job: InReviewJob; onAction: () => vo
 }
 
 export default function HomologacaoPage() {
-  const { data, isLoading, mutate } = useSWR<{ jobs: InReviewJob[] }>(
-    '/jobs?status=in_review&source=ops_job&limit=100',
-    swrFetcher,
-    { refreshInterval: 30000 },
-  );
+  const [jobs, setJobs] = useState<InReviewJob[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const jobs = (data?.jobs ?? []).filter(j => (j as any).status === 'in_review');
+  const load = useCallback(async () => {
+    try {
+      const res: any = await apiGet('/jobs?status=in_review&source=ops_job&limit=100');
+      setJobs((res?.jobs ?? []).filter((j: any) => j.status === 'in_review'));
+    } catch { /* silent */ } finally { setIsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
 
   return (
     <AppShell title="Homologação">
@@ -176,7 +179,7 @@ export default function HomologacaoPage() {
               {jobs.length} entrega{jobs.length !== 1 ? 's' : ''} aguardando homologação
             </Alert>
             {jobs.map(job => (
-              <JobReviewCard key={job.id} job={job} onAction={() => mutate()} />
+              <JobReviewCard key={job.id} job={job} onAction={load} />
             ))}
           </Stack>
         )}

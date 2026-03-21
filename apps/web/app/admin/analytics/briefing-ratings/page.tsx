@@ -1,6 +1,6 @@
 'use client';
 
-import useSWR from 'swr';
+import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -52,11 +52,20 @@ function QualityBand({ score }: { score: number }) {
 }
 
 export default function BriefingRatingsPage() {
-  const { data, isLoading } = useSWR<{ ratings: RatingRow[]; total_jobs: number; avg_briefing_quality: number; avg_overall_experience: number }>(
-    '/freelancers/admin/briefing-ratings',
-    (url: string) => apiGet(url),
-    { refreshInterval: 60000 },
-  );
+  const [data, setData] = useState<{ ratings: RatingRow[]; total_jobs: number; avg_briefing_quality: number; avg_overall_experience: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res: any = await apiGet('/freelancers/admin/briefing-ratings');
+        setData(res);
+      } catch { /* silent */ } finally { setIsLoading(false); }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, []);
 
   const ratings = data?.ratings ?? [];
   const avgBQ = data?.avg_briefing_quality ?? 0;

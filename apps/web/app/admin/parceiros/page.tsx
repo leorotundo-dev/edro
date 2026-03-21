@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import useSWR from 'swr';
+import { useCallback, useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -183,22 +182,27 @@ function PartnerDialog({
 }
 
 export default function ParceirosAdminPage() {
-  const { data, isLoading, mutate } = useSWR<{ partners: Partner[] }>(
-    '/freelancers/admin/partners',
-    (url: string) => apiGet(url),
-  );
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const partners = data?.partners ?? [];
+  const load = useCallback(async () => {
+    try {
+      const res: any = await apiGet('/freelancers/admin/partners');
+      setPartners(res?.partners ?? []);
+    } catch { /* silent */ } finally { setIsLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Remover este parceiro?')) return;
     setDeleting(id);
     try {
       await apiDelete(`/freelancers/admin/partners/${id}`);
-      mutate();
+      load();
     } catch (e: any) {
       alert(e.message ?? 'Erro');
     } finally {
@@ -295,7 +299,7 @@ export default function ParceirosAdminPage() {
         open={dialogOpen}
         initial={editing}
         onClose={() => setDialogOpen(false)}
-        onSaved={() => mutate()}
+        onSaved={load}
       />
     </AppShell>
   );

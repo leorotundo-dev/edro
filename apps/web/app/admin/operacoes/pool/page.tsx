@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import useSWR from 'swr';
+import { useCallback, useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -113,14 +112,24 @@ function PoolJobRow({ job, onSaved }: { job: PoolJob; onSaved: () => void }) {
 
 export default function PoolManagementPage() {
   const [filter, setFilter] = useState('all');
-  const { data, isLoading, mutate } = useSWR<{ jobs: PoolJob[] }>(
-    `/jobs/pool-queue${filter !== 'all' ? `?status=${filter}` : ''}`,
-    (url: string) => apiGet(url),
-    { refreshInterval: 30000 },
-  );
+  const [jobs, setJobs] = useState<PoolJob[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const jobs = data?.jobs ?? [];
-  const inPool   = jobs.filter(j => j.pool_visible).length;
+  const load = useCallback(async () => {
+    try {
+      const res: any = await apiGet(`/jobs/pool-queue${filter !== 'all' ? `?status=${filter}` : ''}`);
+      setJobs(res?.jobs ?? []);
+    } catch { /* silent */ } finally { setIsLoading(false); }
+  }, [filter]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const inPool    = jobs.filter(j => j.pool_visible).length;
   const notInPool = jobs.filter(j => !j.pool_visible).length;
 
   return (
@@ -149,7 +158,7 @@ export default function PoolManagementPage() {
         ) : (
           <Stack spacing={2}>
             {jobs.map(job => (
-              <PoolJobRow key={job.id} job={job} onSaved={() => mutate()} />
+              <PoolJobRow key={job.id} job={job} onSaved={load} />
             ))}
           </Stack>
         )}
