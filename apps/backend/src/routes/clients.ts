@@ -2260,15 +2260,19 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
 
   // GET /clients/:id/wallet/current-month
   // Architecture:
-  //   - cost_budget = fee × (1 - tax - margin)  [per-client spendable budget]
-  //   - cost_used   = SUM(fee_brl on jobs)       [job fees are deducted from THIS client's wallet]
-  //   - global_prices = from job_size_prices      [same for ALL clients — freelancers see one table]
+  //   - cost_budget = fee × (1 - tax - margin)       [per-client spendable BRL]
+  //   - POINT_VALUE = R$50 (global agency constant)   [same for ALL clients]
+  //   - points_budget = cost_budget / POINT_VALUE     [per-client points ceiling]
+  //   - cost_used / pts_used = SUM from jobs this month
+  //   - global_catalog = job_size_prices grouped by category [freelancers see one table]
   app.get(
     '/clients/:id/wallet/current-month',
     { preHandler: [requirePerm('clients:read')] },
     async (request: any, reply) => {
       const { id } = request.params as { id: string };
       const tenantId = request.user.tenantId;
+
+      const POINT_VALUE = 50; // 1 pt = R$50 (global agency constant)
 
       // Load wallet config
       const clientRes = await query(
@@ -2283,15 +2287,17 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
       const taxRate = Number(cfg.tax_rate_pct ?? 10) / 100;
       const margin = Number(cfg.target_margin_pct ?? 60) / 100;
 
-      // Budget = fee × (1 - tax - margin) — purely per-client
+      // Per-client budget in BRL and points
       const costBudget = fee * (1 - taxRate - margin);
+      const ptsBudget = costBudget > 0 ? Math.floor(costBudget / POINT_VALUE) : 0;
 
       // Live burn for current month (excludes archived/cancelled)
       const burnRes = await query(
         `SELECT
-           COALESCE(SUM(fee_brl), 0)          AS cost_used,
-           COUNT(*)                            AS jobs_count,
-           COUNT(*) FILTER (WHERE is_refacao_cliente = true) AS refacoes_count
+           COALESCE(SUM(fee_brl), 0)                              AS cost_used,
+           COALESCE(SUM(job_points), 0)                           AS pts_used,
+           COUNT(*)                                               AS jobs_count,
+           COUNT(*) FILTER (WHERE is_refacao_cliente = true)      AS refacoes_count
          FROM jobs
          WHERE client_id = $1
            AND tenant_id = $2
@@ -2301,29 +2307,49 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
       );
       const burn = burnRes.rows[0];
       const costUsed = Number(burn.cost_used);
+      const ptsUsed  = Number(burn.pts_used);
       const costRemaining = costBudget - costUsed;
+      const ptsRemaining  = ptsBudget - ptsUsed;
 
-      // Global price table — same for every client, freelancers see one rate
-      const pricesRes = await query(
-        `SELECT size, label, description, ref_price_brl, sort_order
-         FROM job_size_prices ORDER BY sort_order`,
+      // Global catalog — same for ALL clients, grouped by category
+      const catalogRes = await query(
+        `SELECT category, size, label, description,
+                ref_price_brl, ref_price_max_brl,
+                point_weight, point_weight_max,
+                is_recurring, sort_order
+         FROM job_size_prices
+         ORDER BY category, sort_order`,
         [],
       );
+
+      // Group by category for the UI
+      const catalogByCategory: Record<string, any[]> = {};
+      for (const row of catalogRes.rows) {
+        if (!catalogByCategory[row.category]) catalogByCategory[row.category] = [];
+        catalogByCategory[row.category].push(row);
+      }
 
       return reply.send({
         config: {
           monthly_fee_brl: fee,
           tax_rate_pct: Number(cfg.tax_rate_pct ?? 10),
           target_margin_pct: Number(cfg.target_margin_pct ?? 60),
+          point_value_brl: POINT_VALUE,
         },
         wallet: {
+          // BRL dimension
           cost_budget: Number(costBudget.toFixed(2)),
           cost_used: Number(costUsed.toFixed(2)),
           cost_remaining: Number(costRemaining.toFixed(2)),
           cost_pct: costBudget > 0 ? Math.round((costUsed / costBudget) * 100) : 0,
+          // Points dimension
+          pts_budget: ptsBudget,
+          pts_used: ptsUsed,
+          pts_remaining: ptsRemaining,
+          pts_pct: ptsBudget > 0 ? Math.round((ptsUsed / ptsBudget) * 100) : 0,
           is_exceeded: costUsed > costBudget,
         },
-        global_prices: pricesRes.rows,
+        catalog: catalogByCategory,
         burn: {
           jobs_count: Number(burn.jobs_count),
           refacoes_count: Number(burn.refacoes_count),

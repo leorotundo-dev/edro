@@ -159,12 +159,45 @@ function HealthCard({ clientId }: { clientId: string }) {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type CatalogItem = {
+  category: string; size: string; label: string; description: string;
+  ref_price_brl: string; ref_price_max_brl: string | null;
+  point_weight: string; point_weight_max: string | null;
+  is_recurring: boolean;
+};
+
 type WalletData = {
-  config: { monthly_fee_brl: number; tax_rate_pct: number; target_margin_pct: number };
-  wallet: { cost_budget: number; cost_used: number; cost_remaining: number; cost_pct: number; is_exceeded: boolean };
-  global_prices: { size: string; label: string; description: string; ref_price_brl: string }[];
+  config: { monthly_fee_brl: number; tax_rate_pct: number; target_margin_pct: number; point_value_brl: number };
+  wallet: {
+    cost_budget: number; cost_used: number; cost_remaining: number; cost_pct: number;
+    pts_budget: number; pts_used: number; pts_remaining: number; pts_pct: number;
+    is_exceeded: boolean;
+  };
+  catalog: Record<string, CatalogItem[]>;
   burn: { jobs_count: number; refacoes_count: number };
 };
+
+const CAT_META: Record<string, { emoji: string; label: string }> = {
+  design:     { emoji: '🎨', label: 'Design e Visual' },
+  video:      { emoji: '🎬', label: 'Vídeo e Motion' },
+  copy:       { emoji: '✍️', label: 'Copy e Estratégia' },
+  management: { emoji: '⚙️', label: 'Gestão e Performance' },
+};
+
+const SIZE_COLOR: Record<string, 'default' | 'info' | 'warning' | 'error' | 'success'> = {
+  PP: 'default', P: 'success', M: 'info', G: 'warning', GG: 'error',
+};
+
+function ptsBadge(pw: string, pwMax: string | null) {
+  const v = parseFloat(pw);
+  const label = pwMax ? `${v}–${parseFloat(pwMax)} pts` : `${v} pt${v !== 1 ? 's' : ''}`;
+  return label;
+}
+
+function priceBadge(min: string, max: string | null) {
+  if (max) return `${brl(min)} – ${brl(max)}`;
+  return brl(min);
+}
 
 // ── Carteira Tab ───────────────────────────────────────────────────────────────
 
@@ -174,6 +207,7 @@ function CarteiraTab({ clientId }: { clientId: string }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ monthly_fee_brl: '', tax_rate_pct: '10', target_margin_pct: '60' });
   const [saved, setSaved] = useState(false);
+  const [catTab, setCatTab] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -210,17 +244,20 @@ function CarteiraTab({ clientId }: { clientId: string }) {
     }
   };
 
-  // Live preview while user edits the form
+  // Live preview while user edits
+  const POINT_VALUE = data?.config.point_value_brl ?? 50;
   const liveFee = parseFloat(form.monthly_fee_brl) || 0;
   const liveTax = parseFloat(form.tax_rate_pct) / 100 || 0;
   const liveMargin = parseFloat(form.target_margin_pct) / 100 || 0;
   const liveBudget = liveFee * (1 - liveTax - liveMargin);
+  const livePts = liveBudget > 0 ? Math.floor(liveBudget / POINT_VALUE) : 0;
 
   if (loading) return <Box py={4} display="flex" justifyContent="center"><CircularProgress size={24} /></Box>;
 
   const wallet = data?.wallet;
-  const pct = wallet?.cost_pct ?? 0;
+  const pct = wallet?.pts_pct ?? 0;
   const barColor = pct >= 100 ? 'error' : pct >= 80 ? 'warning' : 'success';
+  const catKeys = Object.keys(data?.catalog ?? {});
 
   return (
     <Stack spacing={3}>
@@ -231,8 +268,8 @@ function CarteiraTab({ clientId }: { clientId: string }) {
             Configuração da Carteira
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-            Define o orçamento mensal disponível para pagar fornecedores deste cliente.
-            Fórmula: Fee × (1 − Impostos − Margem)
+            Orçamento mensal do fornecedor = Fee × (1 − Impostos − Margem).
+            1 Ponto = {brl(POINT_VALUE)} (global para todos os clientes).
           </Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -249,7 +286,6 @@ function CarteiraTab({ clientId }: { clientId: string }) {
                 value={form.tax_rate_pct}
                 onChange={(e) => setForm({ ...form, tax_rate_pct: e.target.value })}
                 InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                helperText="Ex: 10 = 10% de impostos"
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -258,15 +294,14 @@ function CarteiraTab({ clientId }: { clientId: string }) {
                 value={form.target_margin_pct}
                 onChange={(e) => setForm({ ...form, target_margin_pct: e.target.value })}
                 InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                helperText="Ex: 60 = 60% de lucro"
               />
             </Grid>
           </Grid>
 
           {liveFee > 0 && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              Orçamento calculado: <strong>{brl(liveBudget)}/mês</strong> disponíveis para pagar fornecedores
-              &nbsp;({brl(liveFee)} − {form.tax_rate_pct}% impostos − {form.target_margin_pct}% margem)
+              Orçamento calculado: <strong>{brl(liveBudget)}/mês</strong> = <strong>{livePts} pontos</strong>
+              &nbsp;({brl(liveFee)} − {form.tax_rate_pct}% − {form.target_margin_pct}%, 1pt = {brl(POINT_VALUE)})
             </Alert>
           )}
 
@@ -276,55 +311,78 @@ function CarteiraTab({ clientId }: { clientId: string }) {
               disabled={saving || !form.monthly_fee_brl}
               startIcon={saved ? <IconCheck size={14} /> : <IconTrendingUp size={14} />}
             >
-              {saved ? 'Salvo!' : saving ? <CircularProgress size={14} /> : 'Salvar configuração'}
+              {saved ? 'Salvo!' : saving ? <CircularProgress size={14} /> : 'Salvar'}
             </Button>
           </Stack>
         </CardContent>
       </Card>
 
-      {/* Wallet status */}
-      {wallet && wallet.cost_budget > 0 && (
+      {/* Wallet status — dual BRL + points */}
+      {wallet && wallet.pts_budget > 0 && (
         <Card variant="outlined">
           <CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-              <Typography variant="subtitle2" fontWeight={700}>
-                Burn este mês
-              </Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+              <Typography variant="subtitle2" fontWeight={700}>Burn este mês</Typography>
               <Chip
-                label={wallet.is_exceeded ? 'ESTOURADA' : `${pct}% utilizado`}
+                label={wallet.is_exceeded ? 'ESTOURADA' : `${pct}% dos pontos`}
                 color={wallet.is_exceeded ? 'error' : pct >= 80 ? 'warning' : 'success'}
                 size="small"
               />
             </Stack>
 
             <LinearProgress
-              variant="determinate"
-              value={Math.min(pct, 100)}
-              color={barColor}
+              variant="determinate" value={Math.min(pct, 100)} color={barColor}
               sx={{ height: 10, borderRadius: 5, mb: 2 }}
             />
 
-            <Grid container spacing={2}>
+            {/* Points row */}
+            <Grid container spacing={1} mb={1.5}>
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="caption" color="text.secondary">Pontos/mês</Typography>
+                <Typography variant="body1" fontWeight={800}>{wallet.pts_budget} pts</Typography>
+              </Grid>
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="caption" color="text.secondary">Usados</Typography>
+                <Typography variant="body1" fontWeight={800}
+                  color={wallet.is_exceeded ? 'error.main' : 'text.primary'}>
+                  {wallet.pts_used} pts
+                </Typography>
+              </Grid>
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="caption" color="text.secondary">Restam</Typography>
+                <Typography variant="body1" fontWeight={800}
+                  color={wallet.pts_remaining < 0 ? 'error.main' : 'success.main'}>
+                  {wallet.pts_remaining} pts
+                </Typography>
+              </Grid>
+            </Grid>
+
+            <Divider sx={{ my: 1 }} />
+
+            {/* BRL row */}
+            <Grid container spacing={1}>
               <Grid size={{ xs: 4 }}>
                 <Typography variant="caption" color="text.secondary">Orçamento</Typography>
                 <Typography variant="body2" fontWeight={700}>{brl(wallet.cost_budget)}</Typography>
               </Grid>
               <Grid size={{ xs: 4 }}>
                 <Typography variant="caption" color="text.secondary">Comprometido</Typography>
-                <Typography variant="body2" fontWeight={700} color={wallet.is_exceeded ? 'error.main' : 'text.primary'}>
+                <Typography variant="body2" fontWeight={700}
+                  color={wallet.is_exceeded ? 'error.main' : 'text.primary'}>
                   {brl(wallet.cost_used)}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 4 }}>
-                <Typography variant="caption" color="text.secondary">Saldo restante</Typography>
-                <Typography variant="body2" fontWeight={700} color={wallet.cost_remaining < 0 ? 'error.main' : 'success.main'}>
+                <Typography variant="caption" color="text.secondary">Saldo</Typography>
+                <Typography variant="body2" fontWeight={700}
+                  color={wallet.cost_remaining < 0 ? 'error.main' : 'success.main'}>
                   {brl(wallet.cost_remaining)}
                 </Typography>
               </Grid>
             </Grid>
 
             {data?.burn && (
-              <Typography variant="caption" color="text.secondary" mt={1} display="block">
+              <Typography variant="caption" color="text.secondary" mt={1.5} display="block">
                 {data.burn.jobs_count} escopos no mês
                 {data.burn.refacoes_count > 0 && ` · ${data.burn.refacoes_count} refações do cliente`}
               </Typography>
@@ -332,48 +390,66 @@ function CarteiraTab({ clientId }: { clientId: string }) {
 
             {wallet.is_exceeded && (
               <Alert severity="error" sx={{ mt: 2 }}>
-                Carteira estourada — novos escopos estão bloqueados para este cliente.
-                Contate o cliente para aditar o contrato ou transfira jobs para o próximo mês.
+                Carteira estourada. Contate o cliente para aditar ou transfira jobs para o próximo mês.
               </Alert>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Global price table */}
-      {data?.global_prices && data.global_prices.length > 0 && (
+      {/* Global catalog — 4 categories with tabs */}
+      {catKeys.length > 0 && (
         <Card variant="outlined">
           <CardContent>
             <Typography variant="subtitle2" fontWeight={700} gutterBottom>
               Tabela de Preços Global
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-              Preços pagos aos fornecedores são os mesmos para todos os clientes.
-              O fornecedor vê o valor do escopo, nunca quem é o cliente.
+            <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+              Mesmos preços para todos os clientes. 1 Ponto = {brl(POINT_VALUE)}.
             </Typography>
-            <Divider sx={{ mb: 1.5 }} />
-            <Stack spacing={1}>
-              {data.global_prices.map((p) => (
-                <Stack key={p.size} direction="row" alignItems="flex-start" spacing={2}>
-                  <Chip
-                    label={p.size}
-                    size="small"
-                    sx={{ fontWeight: 800, minWidth: 40 }}
-                    color={p.size === 'P' ? 'success' : p.size === 'M' ? 'info' : p.size === 'G' ? 'warning' : 'default'}
-                  />
-                  <Box flex={1}>
-                    <Typography variant="body2" fontWeight={600}>{p.label}</Typography>
-                    <Typography variant="caption" color="text.secondary">{p.description}</Typography>
-                  </Box>
-                  <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ whiteSpace: 'nowrap' }}>
-                    {brl(p.ref_price_brl)}
-                  </Typography>
-                </Stack>
+
+            <Tabs value={catTab} onChange={(_, v) => setCatTab(v)}
+              sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }} variant="scrollable">
+              {catKeys.map((cat) => (
+                <Tab key={cat} label={`${CAT_META[cat]?.emoji ?? ''} ${CAT_META[cat]?.label ?? cat}`}
+                  sx={{ fontSize: 12, minHeight: 40 }} />
               ))}
-            </Stack>
-            <Alert severity="info" sx={{ mt: 2 }} icon={false}>
-              Para ajustar os preços globais, acesse <strong>Configurações → Tabela de Preços</strong>.
-            </Alert>
+            </Tabs>
+
+            {catKeys.map((cat, idx) => (
+              catTab === idx && (
+                <Stack key={cat} spacing={1.5}>
+                  {(data!.catalog[cat] ?? []).map((item) => (
+                    <Stack key={`${item.category}-${item.size}`}
+                      direction="row" alignItems="flex-start" spacing={1.5}
+                      sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2,
+                            bgcolor: item.is_recurring ? 'action.hover' : 'transparent' }}>
+                      <Chip label={item.size} size="small"
+                        color={SIZE_COLOR[item.size] ?? 'default'}
+                        sx={{ fontWeight: 800, minWidth: 36, flexShrink: 0 }} />
+                      <Box flex={1} minWidth={0}>
+                        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                          <Typography variant="body2" fontWeight={700}>{item.label}</Typography>
+                          {item.is_recurring && (
+                            <Chip label="Recorrente" size="small" color="info" variant="outlined"
+                              sx={{ fontSize: 10, height: 18 }} />
+                          )}
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary">{item.description}</Typography>
+                      </Box>
+                      <Box textAlign="right" flexShrink={0}>
+                        <Typography variant="body2" fontWeight={800} color="primary.main">
+                          {priceBadge(item.ref_price_brl, item.ref_price_max_brl)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {ptsBadge(item.point_weight, item.point_weight_max)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ))}
+                </Stack>
+              )
+            ))}
           </CardContent>
         </Card>
       )}
