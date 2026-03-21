@@ -34,27 +34,39 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('fl_token');
-    if (!token) { window.location.href = '/login'; return; }
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      setName(payload.name ?? payload.email?.split('@')[0] ?? 'Freelancer');
-      setEmail(payload.email ?? '');
-    } catch {
-      setName('Freelancer');
-    }
+    let cancelled = false;
 
-    // Onboarding gate — redirect if PJ setup not complete
-    apiGet<{ onboarding_complete: boolean; terms_accepted: boolean }>('/freelancers/portal/me/onboarding-status')
+    const loadSession = async () => {
+      const res = await fetch('/api/auth/session', { cache: 'no-store' });
+      if (!res.ok) {
+        clearToken();
+        window.location.href = '/login';
+        return;
+      }
+
+      const data = await res.json();
+      if (!cancelled) {
+        const sessionEmail = data?.user?.email ?? '';
+        setName(data?.user?.name ?? sessionEmail.split('@')[0] ?? 'Freelancer');
+        setEmail(sessionEmail);
+      }
+    };
+
+    void loadSession();
+
+    // Onboarding gate — redirect if PJ setup or contract not complete
+    apiGet<{ onboarding_complete: boolean; terms_accepted: boolean; contract_status: string }>('/freelancers/portal/me/onboarding-status')
       .then(status => {
         if (!status.onboarding_complete) {
           router.replace('/onboarding');
-        } else if (!status.terms_accepted) {
+        } else if (status.contract_status !== 'signed') {
+          // Redirect to contract signing flow (replaces old clickwrap terms page)
           router.replace('/onboarding/termos');
         }
       })
       .catch(() => { /* network error — don't block portal */ });
-  }, []);
+    return () => { cancelled = true; };
+  }, [router]);
 
   const activeLabel = useMemo(() => NAV.find(n => n.match(pathname))?.label ?? '', [pathname]);
 
@@ -90,7 +102,11 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
         {/* User at bottom */}
         <div className="ps-sidebar-footer">
-          <button type="button" className="ps-user-btn" onClick={() => { clearToken(); window.location.href = '/login'; }}>
+          <button type="button" className="ps-user-btn" onClick={async () => {
+            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+            clearToken();
+            window.location.href = '/login';
+          }}>
             <span className="ps-avatar">{initials(name)}</span>
             <span className="ps-user-info">
               <span className="ps-user-name">{name || 'Freelancer'}</span>
@@ -107,7 +123,11 @@ export default function PortalShell({ children }: { children: React.ReactNode })
           <div>
             <p className="ps-header-section">{activeLabel}</p>
           </div>
-          <span className="ps-header-logout" onClick={() => { clearToken(); window.location.href = '/login'; }}>
+          <span className="ps-header-logout" onClick={async () => {
+            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+            clearToken();
+            window.location.href = '/login';
+          }}>
             Sair
           </span>
         </header>

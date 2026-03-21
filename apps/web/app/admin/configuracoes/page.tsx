@@ -22,6 +22,8 @@ type TenantConfig = {
   agency_city: string;
   agency_email: string;
   agency_phone: string;
+  agency_representative: string;
+  agency_representative_cpf: string;
 };
 
 const BLANK: TenantConfig = {
@@ -32,6 +34,8 @@ const BLANK: TenantConfig = {
   agency_city: '',
   agency_email: '',
   agency_phone: '',
+  agency_representative: '',
+  agency_representative_cpf: '',
 };
 
 export default function ConfiguracoesPage() {
@@ -141,6 +145,30 @@ export default function ConfiguracoesPage() {
                   onChange={(e) => set('agency_email', e.target.value)}
                   fullWidth
                   type="email"
+                />
+              </Grid>
+            </Grid>
+
+            <Typography variant="subtitle2" fontWeight={700} mt={3} mb={2}>
+              Representante Legal — para assinar contratos
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 7 }}>
+                <TextField
+                  label="Nome completo do representante"
+                  value={form.agency_representative}
+                  onChange={(e) => set('agency_representative', e.target.value)}
+                  fullWidth
+                  placeholder="Nome Sobrenome"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 5 }}>
+                <TextField
+                  label="CPF do representante"
+                  value={form.agency_representative_cpf}
+                  onChange={(e) => set('agency_representative_cpf', e.target.value)}
+                  fullWidth
+                  placeholder="000.000.000-00"
                 />
               </Grid>
             </Grid>

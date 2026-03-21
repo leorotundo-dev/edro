@@ -7,6 +7,8 @@ import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
 import { syncFreelancerPerson } from '../repos/peopleRepo';
 import { generateCopy } from '../services/ai/copyService';
+import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
+import { generateContractPdf } from '../services/contractTemplateService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -1632,6 +1634,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF.' });
     }
 
+    const skillsJson = Array.isArray(body.skills) && body.skills.length
+      ? JSON.stringify(body.skills)
+      : '[]';
+    const skillIds = Array.isArray(body.skills) && body.skills.length
+      ? body.skills.map((s: any) => (typeof s === 'string' ? s : s.id)).filter(Boolean)
+      : null;
+
     await pool.query(
       `UPDATE freelancer_profiles SET
         cnpj = $2, razao_social = $3, nome_fantasia = $4,
@@ -1642,6 +1651,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         pix_key = $16, pix_key_type = $17,
         portfolio_url = $18, weekly_capacity = $19,
         skills = COALESCE($20::text[], skills),
+        skills_json = $22::jsonb,
         phone = COALESCE($21, phone),
         updated_at = now()
        WHERE user_id = $1`,
@@ -1665,8 +1675,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         body.pix_key_type ?? 'cnpj',
         body.portfolio_url ?? null,
         body.weekly_capacity ?? 40,
-        body.skills?.length ? body.skills : null,
+        skillIds,
         body.phone ?? null,
+        skillsJson,
       ],
     );
 
@@ -1790,7 +1801,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const { rows } = await pool.query(
       `SELECT onboarding_complete, terms_accepted_at, cnpj, razao_social,
-              pix_key, skills, sla_score
+              pix_key, skills, sla_score,
+              contract_status, contract_signed_at, contract_pdf_url
          FROM freelancer_profiles WHERE user_id = $1`,
       [userId],
     );
@@ -1805,6 +1817,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       has_skills: !!(profile.skills?.length),
       razao_social: profile.razao_social ?? null,
       sla_score: parseFloat(profile.sla_score) || 100,
+      contract_status: profile.contract_status ?? 'none',
+      contract_signed_at: profile.contract_signed_at ?? null,
+      contract_pdf_url: profile.contract_pdf_url ?? null,
     });
   });
 
@@ -2573,23 +2588,235 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // ── PATCH /freelancers/admin/tenant-config ────────────────────────────────
   app.patch('/freelancers/admin/tenant-config', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
-    const { agency_name, agency_cnpj, agency_ie, agency_address, agency_city, agency_email, agency_phone } =
-      request.body as { agency_name?: string; agency_cnpj?: string; agency_ie?: string; agency_address?: string; agency_city?: string; agency_email?: string; agency_phone?: string };
+    const { agency_name, agency_cnpj, agency_ie, agency_address, agency_city, agency_email, agency_phone,
+            agency_representative, agency_representative_cpf } =
+      request.body as {
+        agency_name?: string; agency_cnpj?: string; agency_ie?: string;
+        agency_address?: string; agency_city?: string; agency_email?: string; agency_phone?: string;
+        agency_representative?: string; agency_representative_cpf?: string;
+      };
     const { rows } = await pool.query(
-      `INSERT INTO tenant_config (tenant_id, agency_name, agency_cnpj, agency_ie, agency_address, agency_city, agency_email, agency_phone, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
+      `INSERT INTO tenant_config
+         (tenant_id, agency_name, agency_cnpj, agency_ie, agency_address, agency_city,
+          agency_email, agency_phone, agency_representative, agency_representative_cpf, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
        ON CONFLICT (tenant_id) DO UPDATE SET
-         agency_name    = EXCLUDED.agency_name,
-         agency_cnpj    = EXCLUDED.agency_cnpj,
-         agency_ie      = EXCLUDED.agency_ie,
-         agency_address = EXCLUDED.agency_address,
-         agency_city    = EXCLUDED.agency_city,
-         agency_email   = EXCLUDED.agency_email,
-         agency_phone   = EXCLUDED.agency_phone,
-         updated_at     = now()
+         agency_name               = EXCLUDED.agency_name,
+         agency_cnpj               = EXCLUDED.agency_cnpj,
+         agency_ie                 = EXCLUDED.agency_ie,
+         agency_address            = EXCLUDED.agency_address,
+         agency_city               = EXCLUDED.agency_city,
+         agency_email              = EXCLUDED.agency_email,
+         agency_phone              = EXCLUDED.agency_phone,
+         agency_representative     = EXCLUDED.agency_representative,
+         agency_representative_cpf = EXCLUDED.agency_representative_cpf,
+         updated_at                = now()
        RETURNING *`,
-      [tenantId, agency_name ?? null, agency_cnpj ?? null, agency_ie ?? null, agency_address ?? null, agency_city ?? null, agency_email ?? null, agency_phone ?? null],
+      [tenantId, agency_name ?? null, agency_cnpj ?? null, agency_ie ?? null,
+       agency_address ?? null, agency_city ?? null, agency_email ?? null, agency_phone ?? null,
+       agency_representative ?? null, agency_representative_cpf ?? null],
     );
     return reply.send({ config: rows[0] });
+  });
+
+  // ── CONTRACT ROUTES ─────────────────────────────────────────────────────────
+
+  // POST /freelancers/portal/me/contract/send — generate PDF + upload to D4Sign + send
+  app.post('/freelancers/portal/me/contract/send', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+    let userId: string;
+    let tenantId: string;
+    let userEmail: string;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      userId = payload.sub ?? payload.id;
+      tenantId = payload.tenant_id ?? '';
+      userEmail = payload.email ?? '';
+    } catch { return reply.status(401).send({ error: 'Token inválido' }); }
+
+    // Load freelancer profile
+    const { rows: profRows } = await pool.query(
+      `SELECT cnpj, razao_social, nome_fantasia,
+              address_street, address_number, address_complement,
+              address_district, address_city, address_state, address_cep,
+              representante_nome, representante_cpf, estado_civil,
+              onboarding_complete, contract_status
+         FROM freelancer_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    const prof = profRows[0];
+    if (!prof) return reply.status(404).send({ error: 'Perfil não encontrado.' });
+    if (!prof.onboarding_complete) return reply.status(400).send({ error: 'Conclua o onboarding antes de solicitar o contrato.' });
+    if (!prof.cnpj) return reply.status(400).send({ error: 'CNPJ não preenchido no perfil.' });
+    if (prof.contract_status === 'pending_signature') {
+      return reply.send({ ok: true, message: 'Contrato já enviado. Verifique seu e-mail para assinar.' });
+    }
+    if (prof.contract_status === 'signed') {
+      return reply.send({ ok: true, message: 'Contrato já assinado.' });
+    }
+
+    // Load agency/tenant config
+    const { rows: cfgRows } = await pool.query(
+      `SELECT agency_name, agency_cnpj, agency_address, agency_city,
+              agency_representative, agency_representative_cpf, agency_email
+         FROM tenant_config WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    const cfg = cfgRows[0];
+    if (!cfg?.agency_cnpj) {
+      return reply.status(400).send({ error: 'Configure os dados fiscais da agência em Configurações antes de gerar contratos.' });
+    }
+
+    // Generate PDF
+    const today = new Date();
+    const contractDate = today.toLocaleDateString('pt-BR');
+    const pdfBuffer = await generateContractPdf({
+      agency_razao_social: cfg.agency_name ?? 'Edro Studio Ltda.',
+      agency_cnpj: cfg.agency_cnpj,
+      agency_address: cfg.agency_address ?? '',
+      agency_city_state: cfg.agency_city ?? 'São Paulo/SP',
+      agency_representative: cfg.agency_representative ?? 'Representante Legal',
+      agency_cpf: cfg.agency_representative_cpf ?? '',
+      razao_social: prof.razao_social,
+      cnpj: prof.cnpj,
+      nome_fantasia: prof.nome_fantasia,
+      address_street: prof.address_street ?? '',
+      address_number: prof.address_number ?? '',
+      address_complement: prof.address_complement,
+      address_district: prof.address_district ?? '',
+      address_city: prof.address_city ?? '',
+      address_state: prof.address_state ?? '',
+      address_cep: prof.address_cep ?? '',
+      representante_nome: prof.representante_nome ?? '',
+      representante_cpf: prof.representante_cpf ?? '',
+      estado_civil: prof.estado_civil,
+      contract_date: contractDate,
+    });
+
+    const filename = `contrato_${prof.cnpj.replace(/\D/g, '')}_${today.toISOString().slice(0,10)}.pdf`;
+
+    // Upload to D4Sign and send
+    const d4signUuid = await createAndSendContract({
+      pdfBuffer,
+      filename,
+      freelancerEmail: userEmail,
+      freelancerName: prof.representante_nome ?? prof.razao_social,
+      agencyEmail: cfg.agency_email ?? undefined,
+      agencyName: cfg.agency_name ?? 'Edro Studio',
+    });
+
+    // Persist D4Sign UUID and status
+    await pool.query(
+      `UPDATE freelancer_profiles
+          SET contract_d4sign_uuid = $2,
+              contract_status = 'pending_signature',
+              contract_sent_at = now(),
+              updated_at = now()
+        WHERE user_id = $1`,
+      [userId, d4signUuid],
+    );
+
+    // Log event
+    await pool.query(
+      `INSERT INTO freelancer_contract_events (user_id, tenant_id, event_type, d4sign_uuid, payload)
+       VALUES ($1, $2, 'sent', $3, $4)`,
+      [userId, tenantId, d4signUuid, JSON.stringify({ email: userEmail, filename })],
+    );
+
+    return reply.send({
+      ok: true,
+      message: 'Contrato enviado para seu e-mail. Assine digitalmente para liberar acesso completo.',
+      d4sign_uuid: d4signUuid,
+    });
+  });
+
+  // GET /freelancers/portal/me/contract — return contract status for the portal
+  app.get('/freelancers/portal/me/contract', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+    let userId: string;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      userId = payload.sub ?? payload.id;
+    } catch { return reply.status(401).send({ error: 'Token inválido' }); }
+
+    const { rows } = await pool.query(
+      `SELECT contract_status, contract_d4sign_uuid, contract_signed_at, contract_pdf_url, contract_sent_at
+         FROM freelancer_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    const prof = rows[0];
+    if (!prof) return reply.status(404).send({ error: 'Perfil não encontrado' });
+
+    return reply.send({
+      status: prof.contract_status ?? 'none',
+      d4sign_uuid: prof.contract_d4sign_uuid ?? null,
+      signed_at: prof.contract_signed_at ?? null,
+      pdf_url: prof.contract_pdf_url ?? null,
+      sent_at: prof.contract_sent_at ?? null,
+    });
+  });
+
+  // POST /webhooks/d4sign — D4Sign webhook (document signed / cancelled)
+  // NOTE: registered WITHOUT authGuard — D4Sign calls this from their servers
+  app.post('/webhooks/d4sign', async (request: any, reply) => {
+    const payload = parseWebhook(request.body);
+    if (!payload) return reply.status(400).send({ error: 'Invalid payload' });
+
+    const { uuid, type_post } = payload;
+
+    // Find which freelancer this contract belongs to
+    const { rows } = await pool.query(
+      `SELECT fp.user_id, fp.tenant_id, eu.email
+         FROM freelancer_profiles fp
+         JOIN edro_users eu ON eu.id = fp.user_id
+        WHERE fp.contract_d4sign_uuid = $1
+        LIMIT 1`,
+      [uuid],
+    );
+    const prof = rows[0];
+    if (!prof) {
+      // Not a freelancer contract — might be a future doc type; ignore silently
+      return reply.send({ ok: true });
+    }
+
+    if (type_post === 'signed') {
+      // All signers have signed
+      const pdfUrl = await getSignedDownloadUrl(uuid);
+
+      await pool.query(
+        `UPDATE freelancer_profiles
+            SET contract_status = 'signed',
+                contract_signed_at = now(),
+                contract_pdf_url = $2,
+                updated_at = now()
+          WHERE user_id = $1`,
+        [prof.user_id, pdfUrl],
+      );
+
+      await pool.query(
+        `INSERT INTO freelancer_contract_events (user_id, tenant_id, event_type, d4sign_uuid, payload)
+         VALUES ($1, $2, 'signed', $3, $4)`,
+        [prof.user_id, prof.tenant_id, uuid, JSON.stringify({ pdf_url: pdfUrl, email: payload.email })],
+      );
+
+    } else if (type_post === 'cancelled') {
+      await pool.query(
+        `UPDATE freelancer_profiles
+            SET contract_status = 'cancelled',
+                updated_at = now()
+          WHERE user_id = $1`,
+        [prof.user_id],
+      );
+
+      await pool.query(
+        `INSERT INTO freelancer_contract_events (user_id, tenant_id, event_type, d4sign_uuid, payload)
+         VALUES ($1, $2, 'cancelled', $3, $4)`,
+        [prof.user_id, prof.tenant_id, uuid, JSON.stringify(payload)],
+      );
+    }
+
+    return reply.send({ ok: true });
   });
 }
