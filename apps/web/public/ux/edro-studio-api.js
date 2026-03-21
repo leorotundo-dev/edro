@@ -33,55 +33,8 @@
     }
   };
 
-  const safeRemove = (key) => {
-    try {
-      window.localStorage.removeItem(key);
-    } catch {
-      // ignore
-    }
-    try {
-      if (window.top && window.top !== window) {
-        window.top.localStorage.removeItem(key);
-      }
-    } catch {
-      // ignore
-    }
-  };
-
   const getAuthHeaders = () => {
-    const headers = { 'Content-Type': 'application/json' };
-    const token = safeGet('edro_token');
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    return headers;
-  };
-
-  const refreshAccessToken = async () => {
-    const refreshToken = safeGet('edro_refresh');
-    const userRaw = safeGet('edro_user');
-    if (!refreshToken || !userRaw) return false;
-
-    let user;
-    try {
-      user = JSON.parse(userRaw);
-    } catch {
-      return false;
-    }
-    if (!user?.id) return false;
-
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, refreshToken }),
-    });
-
-    if (!response.ok) return false;
-    const data = await response.json();
-    if (data?.accessToken) safeSet('edro_token', data.accessToken);
-    if (data?.refreshToken) safeSet('edro_refresh', data.refreshToken);
-    if (data?.user) safeSet('edro_user', JSON.stringify(data.user));
-    return true;
+    return { 'Content-Type': 'application/json' };
   };
 
   const request = async (path, options = {}) => {
@@ -94,10 +47,6 @@
     });
 
     if (response.status === 401) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        return request(path, options);
-      }
       if (window.top) window.top.location.href = '/login';
     }
 
@@ -295,12 +244,15 @@
     request,
     getClientId,
     setClientId,
-    getToken: () => safeGet('edro_token'),
-    setToken: (token) => safeSet('edro_token', token),
+    getToken: () => null,
+    setToken: () => {},
     clearSession: () => {
-      safeRemove('edro_token');
-      safeRemove('edro_refresh');
-      safeRemove('edro_user');
+      safeSet('edro_user', '');
+      try {
+        window.localStorage.removeItem('edro_user');
+      } catch {
+        // ignore
+      }
     },
   };
 
