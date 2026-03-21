@@ -1989,4 +1989,181 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     return reply.send({ ok: true });
   });
+
+  // ── Billing Dashboard ─────────────────────────────────────────────────────────
+
+  // GET /freelancers/portal/me/billing
+  // Returns current cycle (live) + NF action state + previous cycle + statement
+  app.get('/freelancers/portal/me/billing', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const fpRes = await pool.query(
+      `SELECT fp.id, fp.tenant_id, fp.user_id FROM freelancer_profiles fp WHERE fp.user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { id: freelancerId, tenant_id } = fpRes.rows[0];
+
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+    // ── Current month (live from jobs) ────────────────────────────────────────
+    const currRes = await pool.query(
+      `SELECT
+         COALESCE(SUM(fee_brl) FILTER (WHERE status = 'approved'), 0)                           AS approved_brl,
+         COALESCE(SUM(COALESCE(glosa_brl, 0)) FILTER (WHERE status = 'approved'), 0)            AS glosa_brl,
+         COALESCE(SUM(fee_brl) FILTER (WHERE status IN
+           ('allocated','in_progress','in_review','adjustment')), 0)                            AS pending_brl
+       FROM jobs
+       WHERE owner_id = $1::uuid AND tenant_id = $2
+         AND date_trunc('month', COALESCE(approved_at, created_at)) = date_trunc('month', now())
+         AND status NOT IN ('archived','cancelled')`,
+      [userId, tenant_id],
+    );
+    const curr = currRes.rows[0];
+    const approvedBrl = Number(curr.approved_brl);
+    const glosaBrl    = Number(curr.glosa_brl);
+    const pendingBrl  = Number(curr.pending_brl);
+
+    // ── Statement: this month's jobs ──────────────────────────────────────────
+    const stmtRes = await pool.query(
+      `SELECT j.id, j.title, j.status, j.approved_at,
+              j.fee_brl, COALESCE(j.glosa_brl, 0) AS glosa_brl,
+              (j.fee_brl - COALESCE(j.glosa_brl, 0)) AS net_brl,
+              j.deadline_at, j.job_size, j.job_category
+       FROM jobs j
+       WHERE j.owner_id = $1::uuid AND j.tenant_id = $2
+         AND date_trunc('month', COALESCE(j.approved_at, j.created_at)) = date_trunc('month', now())
+         AND j.status NOT IN ('archived','cancelled')
+       ORDER BY j.approved_at DESC NULLS LAST, j.created_at DESC
+       LIMIT 50`,
+      [userId, tenant_id],
+    );
+
+    // ── Previous cycle (for NF action) ────────────────────────────────────────
+    const nfWindowOpen = dayOfMonth >= 1 && dayOfMonth <= 5;
+    const analysisWindow = dayOfMonth >= 6 && dayOfMonth <= 9;
+
+    let prevCycle: any = null;
+
+    // Auto-freeze previous month on D1–D5
+    if (nfWindowOpen || analysisWindow || dayOfMonth === 10) {
+      let cycleRes = await pool.query(
+        `SELECT * FROM freelancer_billing_cycles WHERE freelancer_id = $1 AND period_month = $2`,
+        [freelancerId, prevMonth],
+      );
+
+      if (!cycleRes.rows.length && nfWindowOpen) {
+        // Snapshot D0: sum all approved jobs in previous month
+        const snapRes = await pool.query(
+          `SELECT
+             COALESCE(SUM(fee_brl), 0)                  AS approved_brl,
+             COALESCE(SUM(COALESCE(glosa_brl, 0)), 0)   AS glosa_brl
+           FROM jobs
+           WHERE owner_id = $1::uuid AND tenant_id = $2
+             AND status = 'approved'
+             AND date_trunc('month', approved_at) = date_trunc('month', now() - interval '1 month')`,
+          [userId, tenant_id],
+        );
+        const snap = snapRes.rows[0];
+        const nfDueDate    = new Date(now.getFullYear(), now.getMonth(), 5);
+        const paymentDate  = new Date(now.getFullYear(), now.getMonth(), 10);
+
+        await pool.query(
+          `INSERT INTO freelancer_billing_cycles
+             (freelancer_id, tenant_id, period_month, approved_brl, glosa_brl, nf_due_date, payment_date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (freelancer_id, period_month) DO NOTHING`,
+          [freelancerId, tenant_id, prevMonth, snap.approved_brl, snap.glosa_brl, nfDueDate, paymentDate],
+        );
+
+        cycleRes = await pool.query(
+          `SELECT * FROM freelancer_billing_cycles WHERE freelancer_id = $1 AND period_month = $2`,
+          [freelancerId, prevMonth],
+        );
+      }
+
+      prevCycle = cycleRes.rows[0] ?? null;
+    }
+
+    // ── Month name helper ─────────────────────────────────────────────────────
+    const MONTH_NAMES: Record<string, string> = {
+      '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+      '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
+      '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro',
+    };
+    const [prevYear, prevMM] = prevMonth.split('-');
+    const prevMonthName = `${MONTH_NAMES[prevMM] ?? prevMM}/${prevYear}`;
+
+    return reply.send({
+      day_of_month: dayOfMonth,
+      current: {
+        period_month: currentMonth,
+        approved_brl: Number(approvedBrl.toFixed(2)),
+        pending_brl: Number(pendingBrl.toFixed(2)),
+        glosa_brl: Number(glosaBrl.toFixed(2)),
+        net_brl: Number((approvedBrl - glosaBrl).toFixed(2)),
+      },
+      nf_action: prevCycle
+        ? {
+            cycle_id: prevCycle.id,
+            period_month: prevCycle.period_month,
+            period_name: prevMonthName,
+            amount_brl: Number((Number(prevCycle.approved_brl) - Number(prevCycle.glosa_brl)).toFixed(2)),
+            status: prevCycle.status,
+            nf_submitted: !!prevCycle.nf_submitted_at,
+            nf_url: prevCycle.nf_url ?? null,
+            nf_number: prevCycle.nf_number ?? null,
+            nf_due_date: prevCycle.nf_due_date,
+            payment_date: prevCycle.payment_date,
+            paid_at: prevCycle.paid_at ?? null,
+            window_open: nfWindowOpen,
+            overdue: dayOfMonth > 5 && prevCycle.status === 'nf_pending',
+          }
+        : null,
+      // Agency CNPJ data — admin must configure via tenant settings
+      agency_data: {
+        description_suggestion: `Serviços de comunicação, design e marketing referentes ao mês de ${prevMonthName}`,
+      },
+      statement: stmtRes.rows,
+    });
+  });
+
+  // POST /freelancers/portal/me/billing/:cycleId/submit-nf
+  app.post('/freelancers/portal/me/billing/:cycleId/submit-nf', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { cycleId } = request.params as { cycleId: string };
+    const { nf_url, nf_number } = request.body as { nf_url: string; nf_number?: string };
+
+    if (!nf_url?.trim()) return reply.status(400).send({ error: 'Link da NF-e obrigatório' });
+
+    const fpRes = await pool.query(
+      `SELECT id FROM freelancer_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const freelancerId = fpRes.rows[0].id;
+
+    const res = await pool.query(
+      `UPDATE freelancer_billing_cycles
+          SET nf_url         = $1,
+              nf_number      = $2,
+              nf_submitted_at = now(),
+              status          = 'nf_analysis',
+              updated_at      = now()
+        WHERE id = $3::uuid AND freelancer_id = $4
+          AND status IN ('nf_pending','overdue')
+        RETURNING id`,
+      [nf_url.trim(), nf_number?.trim() ?? null, cycleId, freelancerId],
+    );
+
+    if (!res.rows.length) return reply.status(404).send({ error: 'Ciclo não encontrado ou já processado' });
+    return reply.send({ ok: true });
+  });
 }
