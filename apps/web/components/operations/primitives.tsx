@@ -599,6 +599,7 @@ export function OpsSummaryStat({
 
 // ── Automation Pipeline Steps ──────────────────────────────────────────────
 const AUTOMATION_STEPS = [
+  { key: 'briefing', label: 'Briefing', icon: <IconFileText size={13} /> },
   { key: 'copy', label: 'Copy', icon: <IconPencil size={13} /> },
   { key: 'image', label: 'Imagem', icon: <IconPhoto size={13} /> },
   { key: 'assign', label: 'Designer', icon: <IconUserCheck size={13} /> },
@@ -607,15 +608,17 @@ const AUTOMATION_STEPS = [
 
 function getAutomationStepIndex(automationStatus?: string | null): number {
   if (!automationStatus || automationStatus === 'none') return -1;
-  if (automationStatus === 'copy_pending') return 0;
-  if (automationStatus === 'copy_done') return 1;
-  if (automationStatus === 'image_pending') return 1;
-  if (automationStatus === 'image_done') return 2;
-  if (automationStatus === 'ready_for_review') return 4;
+  if (automationStatus === 'briefing_pending') return 0;
+  if (automationStatus === 'copy_pending') return 1;
+  if (automationStatus === 'copy_done') return 2;
+  if (automationStatus === 'image_pending') return 2;
+  if (automationStatus === 'image_done') return 3;
+  if (automationStatus === 'ready_for_review') return 5;
   return -1;
 }
 
 function isStepLoading(automationStatus?: string | null, stepKey: string = ''): boolean {
+  if (automationStatus === 'briefing_pending' && stepKey === 'briefing') return true;
   if (automationStatus === 'copy_pending' && stepKey === 'copy') return true;
   if (automationStatus === 'image_pending' && stepKey === 'image') return true;
   return false;
