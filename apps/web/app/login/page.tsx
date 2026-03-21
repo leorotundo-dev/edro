@@ -52,29 +52,19 @@ export default function LoginPage() {
     let cancelled = false;
 
     const bootstrapSession = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
       const nextPath = resolveNextPath();
-      if (token) {
-        localStorage.setItem('edro_token', token);
-        window.history.replaceState({}, '', nextPath);
-      }
-
-      const hasToken = !!localStorage.getItem('edro_token');
-      const hasRefresh = !!localStorage.getItem('edro_refresh');
-      if (!hasToken && !hasRefresh) return;
+      const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+      if (!sessionRes.ok) return;
 
       try {
-        const me = await apiGet('/auth/me');
+        const data = await sessionRes.json();
         if (cancelled) return;
-        if (me?.email) {
-          localStorage.setItem('edro_user', JSON.stringify(me));
+        if (data?.user?.email) {
+          localStorage.setItem('edro_user', JSON.stringify(data.user));
         }
         router.replace(nextPath);
       } catch {
         if (cancelled) return;
-        localStorage.removeItem('edro_token');
-        localStorage.removeItem('edro_refresh');
         localStorage.removeItem('edro_user');
       }
     };
@@ -88,9 +78,18 @@ export default function LoginPage() {
     setMessage('');
     try {
       setLoading(true);
-      const response = await apiPost('/auth/request', { email });
-      if (response?.code) {
-        setMessage(`Código gerado: ${response.code}`);
+      const response = await fetch('/api/auth/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || text || 'Falha ao solicitar código.');
+      }
+      if (data?.code) {
+        setMessage(`Código gerado: ${data.code}`);
       } else {
         setMessage('Código enviado. Verifique seu email.');
       }
@@ -107,12 +106,17 @@ export default function LoginPage() {
     setMessage('');
     try {
       setLoading(true);
-      const response = await apiPost('/auth/verify', { email, code });
-      const token = response?.accessToken || response?.token;
-      if (!token) throw new Error('Token não retornado.');
-      localStorage.setItem('edro_token', token);
-      if (response?.refreshToken) localStorage.setItem('edro_refresh', response.refreshToken);
-      if (response?.user) localStorage.setItem('edro_user', JSON.stringify(response.user));
+      const response = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || text || 'Falha ao validar código.');
+      }
+      if (data?.user) localStorage.setItem('edro_user', JSON.stringify(data.user));
       router.replace(resolveNextPath());
     } catch (err: any) {
       setError(err?.message || 'Falha ao validar código.');
