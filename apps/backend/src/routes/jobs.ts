@@ -89,6 +89,10 @@ const jobStatusValues = [
   'in_progress',
   'blocked',
   'in_review',
+  'adjustment',
+  'copy_review',
+  'billing',
+  'finalizing',
   'awaiting_approval',
   'approved',
   'scheduled',
@@ -167,7 +171,10 @@ function canTransition(fromStatus: string, toStatus: string, row: any) {
   if (toStatus === 'scheduled') return fromStatus === 'approved';
   if (toStatus === 'published') return fromStatus === 'scheduled' || fromStatus === 'approved';
   if (toStatus === 'done') return ['published', 'approved', 'in_review', 'in_progress'].includes(fromStatus);
-  if (['ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved'].includes(toStatus)) {
+  // B2B kanban transitions
+  if (toStatus === 'adjustment') return fromStatus === 'in_review';
+  if (toStatus === 'approved')   return ['in_review', 'awaiting_approval', 'adjustment'].includes(fromStatus);
+  if (['ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'copy_review', 'billing', 'finalizing'].includes(toStatus)) {
     if (!isIntakeComplete(row)) return false;
   }
   return true;
@@ -1314,5 +1321,123 @@ export default async function jobsRoutes(app: FastifyInstance) {
     );
 
     return { success: true, briefing: rows[0] };
+  });
+
+  // ── POST /jobs/:jobId/b2b-approve — admin approves freelancer delivery ──────
+  app.post('/jobs/:jobId/b2b-approve', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId   = (request.user as any)?.sub as string;
+    const { jobId } = request.params as { jobId: string };
+
+    const { rows } = await query(
+      `UPDATE jobs
+          SET status       = 'approved',
+              approved_at  = now(),
+              sla_paused_at = NULL,
+              updated_at   = now()
+        WHERE id = $1 AND tenant_id = $2
+          AND status IN ('in_review', 'adjustment')
+        RETURNING id, title, owner_id, fee_brl`,
+      [jobId, tenantId],
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Job não encontrado ou não está em revisão' });
+
+    // Log status transition
+    await query(
+      `INSERT INTO job_status_history (job_id, from_status, to_status, changed_by, tenant_id, reason)
+       VALUES ($1, 'in_review', 'approved', $2::uuid, $3, 'b2b_approved')
+       ON CONFLICT DO NOTHING`,
+      [jobId, userId, tenantId],
+    ).catch(() => {}); // table may not exist, ignore
+
+    return reply.send({ ok: true, job: rows[0] });
+  });
+
+  // ── POST /jobs/:jobId/b2b-adjustment — admin sends back with feedback ───────
+  app.post('/jobs/:jobId/b2b-adjustment', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    const { feedback } = request.body as { feedback: string };
+
+    if (!feedback?.trim()) return reply.status(400).send({ error: 'Feedback é obrigatório para solicitar ajuste' });
+
+    const { rows } = await query(
+      `UPDATE jobs
+          SET status              = 'adjustment',
+              adjustment_feedback = $3,
+              updated_at          = now()
+        WHERE id = $1 AND tenant_id = $2
+          AND status = 'in_review'
+        RETURNING id, title, owner_id`,
+      [jobId, tenantId, feedback.trim()],
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Job não encontrado ou não está em revisão' });
+
+    return reply.send({ ok: true, job: rows[0] });
+  });
+
+  // ── PATCH /jobs/:jobId/pool-visibility — admin configures pool visibility ──
+  app.patch('/jobs/:jobId/pool-visibility', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    const { pool_visible, fee_brl, job_size, job_category } = request.body as {
+      pool_visible: boolean;
+      fee_brl?: number;
+      job_size?: string;
+      job_category?: string;
+    };
+
+    const sets: string[] = ['pool_visible = $3', 'updated_at = now()'];
+    const vals: any[] = [jobId, tenantId, pool_visible];
+
+    if (fee_brl !== undefined)      { sets.push(`fee_brl = $${vals.length + 1}`);      vals.push(fee_brl); }
+    if (job_size !== undefined)     { sets.push(`job_size = $${vals.length + 1}`);     vals.push(job_size); }
+    if (job_category !== undefined) { sets.push(`job_category = $${vals.length + 1}`); vals.push(job_category); }
+
+    // When making visible, ensure status allows pool self-selection
+    if (pool_visible) {
+      sets.push(`status = CASE WHEN status IN ('intake','planned') THEN 'ready' ELSE status END`);
+    }
+
+    const { rows } = await query(
+      `UPDATE jobs SET ${sets.join(', ')}
+        WHERE id = $1 AND tenant_id = $2
+        RETURNING id, title, pool_visible, status, fee_brl, job_size, job_category`,
+      vals,
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Job não encontrado' });
+
+    return reply.send({ ok: true, job: rows[0] });
+  });
+
+  // ── GET /jobs/pool-queue — jobs available for pool management ──────────────
+  app.get('/jobs/pool-queue', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { status: statusFilter } = request.query as { status?: string };
+
+    let where = `WHERE j.tenant_id = $1 AND j.owner_id IS NULL`;
+    const vals: any[] = [tenantId];
+
+    if (statusFilter === 'in_pool') {
+      where += ` AND j.pool_visible = true`;
+    } else if (statusFilter === 'ready_to_pool') {
+      where += ` AND j.pool_visible = false AND j.status IN ('intake','planned','ready')`;
+    } else {
+      where += ` AND (j.pool_visible = true OR j.status IN ('intake','planned','ready'))`;
+    }
+
+    const { rows } = await query(
+      `SELECT j.id, j.title, j.status, j.pool_visible, j.fee_brl, j.job_size, j.job_category,
+              j.deadline_at, j.created_at,
+              c.name AS client_name
+       FROM jobs j
+       LEFT JOIN clients c ON c.id = j.client_id
+       ${where}
+       ORDER BY j.created_at DESC
+       LIMIT 100`,
+      vals,
+    );
+
+    return reply.send({ jobs: rows });
   });
 }

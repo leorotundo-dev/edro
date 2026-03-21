@@ -19,16 +19,165 @@ import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Tabs from '@mui/material/Tabs';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { IconCheck, IconDownload, IconReceipt2 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
+
+type BillingCycle = {
+  id: string;
+  freelancer_id: string;
+  display_name: string;
+  pix_key: string | null;
+  cycle_start: string;
+  cycle_end: string;
+  due_date: string;
+  total_fee_brl: string;
+  job_count: number;
+  status: 'open' | 'paid' | 'overdue';
+  paid_at: string | null;
+};
+
+function BillingCyclesTab() {
+  const [cycles, setCycles] = useState<BillingCycle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res: any = await apiGet('/freelancers/admin/billing-cycles');
+      setCycles(res.cycles ?? []);
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao carregar ciclos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleMarkPaid = async (id: string) => {
+    setPayingId(id);
+    try {
+      await apiPost(`/freelancers/admin/billing-cycles/${id}/mark-paid`, {});
+      setCycles((prev) => prev.map((c) => c.id === id ? { ...c, status: 'paid', paid_at: new Date().toISOString() } : c));
+    } catch (e: any) {
+      alert(e.message ?? 'Erro');
+    } finally {
+      setPayingId(null);
+    }
+  };
+
+  const openCycles = cycles.filter((c) => c.status !== 'paid');
+  const paidCycles = cycles.filter((c) => c.status === 'paid');
+  const totalPending = openCycles.reduce((s, c) => s + parseFloat(c.total_fee_brl), 0);
+
+  if (loading) return <Stack alignItems="center" py={6}><CircularProgress /></Stack>;
+  if (error) return <Alert severity="error">{error}</Alert>;
+
+  return (
+    <Box>
+      <Stack direction="row" spacing={2} mb={3} flexWrap="wrap">
+        <Card variant="outlined" sx={{ flex: 1, minWidth: 160 }}>
+          <CardContent sx={{ py: '12px !important', px: 2 }}>
+            <Typography variant="caption" color="text.secondary">A pagar (D10)</Typography>
+            <Typography variant="h6" fontWeight={700} color="warning.main">R$ {totalPending.toFixed(2)}</Typography>
+          </CardContent>
+        </Card>
+        <Card variant="outlined" sx={{ flex: 1, minWidth: 160 }}>
+          <CardContent sx={{ py: '12px !important', px: 2 }}>
+            <Typography variant="caption" color="text.secondary">Ciclos abertos</Typography>
+            <Typography variant="h6" fontWeight={700}>{openCycles.length}</Typography>
+          </CardContent>
+        </Card>
+        <Card variant="outlined" sx={{ flex: 1, minWidth: 160 }}>
+          <CardContent sx={{ py: '12px !important', px: 2 }}>
+            <Typography variant="caption" color="text.secondary">Pagos</Typography>
+            <Typography variant="h6" fontWeight={700} color="success.main">{paidCycles.length}</Typography>
+          </CardContent>
+        </Card>
+      </Stack>
+
+      {cycles.length === 0 ? (
+        <Alert severity="info">Nenhum ciclo de pagamento encontrado. Ciclos são criados automaticamente quando um job é marcado como aprovado.</Alert>
+      ) : (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Freelancer</TableCell>
+                <TableCell>PIX</TableCell>
+                <TableCell>Período</TableCell>
+                <TableCell>Jobs</TableCell>
+                <TableCell>Valor</TableCell>
+                <TableCell>Vencimento</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell align="right">Ação</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {cycles.map((c) => (
+                <TableRow key={c.id} sx={{ opacity: c.status === 'paid' ? 0.6 : 1 }}>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600}>{c.display_name}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" color="text.secondary">{c.pix_key ?? '—'}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption">
+                      {new Date(c.cycle_start).toLocaleDateString('pt-BR')} → {new Date(c.cycle_end).toLocaleDateString('pt-BR')}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{c.job_count}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={700} color={c.status === 'paid' ? 'success.main' : 'warning.main'}>
+                      R$ {parseFloat(c.total_fee_brl).toFixed(2)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption">{new Date(c.due_date).toLocaleDateString('pt-BR')}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={c.status === 'paid' ? 'Pago' : c.status === 'overdue' ? 'Em atraso' : 'Aberto'}
+                      size="small"
+                      color={c.status === 'paid' ? 'success' : c.status === 'overdue' ? 'error' : 'warning'}
+                    />
+                    {c.paid_at && (
+                      <Typography variant="caption" color="text.disabled" display="block">
+                        {new Date(c.paid_at).toLocaleDateString('pt-BR')}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    {c.status !== 'paid' && (
+                      <Tooltip title="Marcar como pago">
+                        <IconButton size="small" color="success" disabled={payingId === c.id} onClick={() => handleMarkPaid(c.id)}>
+                          {payingId === c.id ? <CircularProgress size={14} /> : <IconCheck size={15} />}
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Box>
+  );
+}
 
 type Payable = {
   id: string;
@@ -65,6 +214,7 @@ function buildMonthOptions(): { value: string; label: string }[] {
 
 export default function PagamentosPage() {
   const monthOptions = buildMonthOptions();
+  const [tab, setTab]                     = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [payables, setPayables]           = useState<Payable[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -148,38 +298,44 @@ export default function PagamentosPage() {
   return (
     <AppShell title="Pagamentos">
       <Box sx={{ p: 3, maxWidth: 1100 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
             <IconReceipt2 size={22} />
             <Typography variant="h5" fontWeight={700}>Pagamentos</Typography>
           </Stack>
 
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              size="small"
-              sx={{ minWidth: 180, fontSize: '0.85rem' }}
-            >
-              {monthOptions.map((o) => (
-                <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-              ))}
-            </Select>
-
-            {!hasPayables && (
-              <Button
-                variant="contained"
+          {tab === 0 && (
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
                 size="small"
-                onClick={() => setCloseDialog(true)}
+                sx={{ minWidth: 180, fontSize: '0.85rem' }}
               >
-                Fechar Mês
-              </Button>
-            )}
-          </Stack>
+                {monthOptions.map((o) => (
+                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                ))}
+              </Select>
+
+              {!hasPayables && (
+                <Button variant="contained" size="small" onClick={() => setCloseDialog(true)}>
+                  Fechar Mês
+                </Button>
+              )}
+            </Stack>
+          )}
         </Stack>
+
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+          <Tab label="Honorários por Hora" />
+          <Tab label="Ciclos de Jobs (D10)" />
+        </Tabs>
 
         {error && <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
+        {tab === 1 && <BillingCyclesTab />}
+
+        {tab === 0 && <>
         {/* Summary cards */}
         <Grid container spacing={2} mb={3}>
           {[
@@ -296,6 +452,7 @@ export default function PagamentosPage() {
             </Table>
           </TableContainer>
         )}
+        </>}
       </Box>
 
       {/* Close month confirmation dialog */}

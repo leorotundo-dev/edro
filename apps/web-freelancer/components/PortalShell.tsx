@@ -8,13 +8,20 @@ import clsx from 'clsx';
 
 const NAV = [
   { href: '/',           label: 'Dashboard',   icon: '⊞', match: (p: string) => p === '/' },
-  { href: '/jobs',       label: 'Jobs',         icon: '◈', match: (p: string) => p.startsWith('/jobs') },
-  { href: '/agenda',     label: 'Agenda',       icon: '📅', match: (p: string) => p.startsWith('/agenda') },
-  { href: '/studio',     label: 'Studio',       icon: '✦', match: (p: string) => p.startsWith('/studio') },
-  { href: '/horas',      label: 'Score',        icon: '★', match: (p: string) => p.startsWith('/horas') },
-  { href: '/pagamentos', label: 'Honorários',   icon: '◎', match: (p: string) => p.startsWith('/pagamentos') },
-  { href: '/perfil',     label: 'Perfil',       icon: '◉', match: (p: string) => p.startsWith('/perfil') },
+  { href: '/jobs',       label: 'Escopos',     icon: '◈', match: (p: string) => p.startsWith('/jobs') },
+  { href: '/pagamentos', label: 'Honorários',  icon: '◎', match: (p: string) => p.startsWith('/pagamentos') },
+  { href: '/analytics',  label: 'Analytics',   icon: '📊', match: (p: string) => p.startsWith('/analytics') },
+  { href: '/radar',      label: 'Radar',       icon: '🔮', match: (p: string) => p.startsWith('/radar') },
+  { href: '/portfolio',  label: 'Hall da Fama',icon: '🏆', match: (p: string) => p.startsWith('/portfolio') },
+  { href: '/parceiros',  label: 'Parceiros',   icon: '🤝', match: (p: string) => p.startsWith('/parceiros') },
+  { href: '/agenda',     label: 'Agenda',      icon: '📅', match: (p: string) => p.startsWith('/agenda') },
+  { href: '/studio',     label: 'Studio',      icon: '✦', match: (p: string) => p.startsWith('/studio') },
+  { href: '/horas',      label: 'Score',       icon: '★', match: (p: string) => p.startsWith('/horas') },
+  { href: '/perfil',     label: 'Perfil',      icon: '◉', match: (p: string) => p.startsWith('/perfil') },
 ];
+
+// Mobile nav shows only most-used items
+const MOBILE_NAV = NAV.filter(n => ['/', '/jobs', '/pagamentos', '/analytics', '/portfolio'].includes(n.href));
 
 function initials(value: string) {
   return value.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || 'FR';
@@ -113,7 +120,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
       {/* ── Mobile bottom nav ───────────────────────────────── */}
       <nav className="ps-mobile-nav" aria-label="Atalhos">
-        {NAV.map(item => {
+        {MOBILE_NAV.map(item => {
           const active = item.match(pathname);
           return (
             <Link key={item.href} href={item.href} className={clsx('ps-mobile-item', active && 'ps-mobile-item-active')}>

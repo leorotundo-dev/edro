@@ -2125,10 +2125,20 @@ export default async function freelancersRoutes(app: FastifyInstance) {
             overdue: dayOfMonth > 5 && prevCycle.status === 'nf_pending',
           }
         : null,
-      // Agency CNPJ data — admin must configure via tenant settings
-      agency_data: {
-        description_suggestion: `Serviços de comunicação, design e marketing referentes ao mês de ${prevMonthName}`,
-      },
+      agency_data: await (async () => {
+        const cfgRes = await pool.query(`SELECT * FROM tenant_config WHERE tenant_id = $1`, [tenant_id]).catch(() => ({ rows: [] }));
+        const cfg = cfgRes.rows[0] ?? {};
+        return {
+          agency_name:    cfg.agency_name    ?? null,
+          agency_cnpj:    cfg.agency_cnpj    ?? null,
+          agency_ie:      cfg.agency_ie      ?? null,
+          agency_address: cfg.agency_address ?? null,
+          agency_city:    cfg.agency_city    ?? null,
+          agency_email:   cfg.agency_email   ?? null,
+          agency_phone:   cfg.agency_phone   ?? null,
+          description_suggestion: `Serviços de comunicação, design e marketing referentes ao mês de ${prevMonthName}`,
+        };
+      })(),
       statement: stmtRes.rows,
     });
   });
@@ -2382,5 +2392,192 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         total_earned:   parseFloat(statsRes.rows[0].total_earned ?? '0'),
       },
     });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADMIN ROUTES — Billing Cycles, Partners, Ratings, Tenant Config
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── GET /freelancers/admin/billing-cycles — list cycles for D10 action ────
+  app.get('/freelancers/admin/billing-cycles', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { status: statusFilter, month } = request.query as { status?: string; month?: string };
+
+    let where = `WHERE bc.tenant_id = $1`;
+    const vals: any[] = [tenantId];
+    if (statusFilter) { vals.push(statusFilter); where += ` AND bc.status = $${vals.length}`; }
+    if (month)        { vals.push(month);        where += ` AND bc.period_month = $${vals.length}`; }
+
+    const { rows } = await pool.query(
+      `SELECT bc.*, fp.display_name, fp.pix_key, fp.cnpj
+       FROM freelancer_billing_cycles bc
+       JOIN freelancer_profiles fp ON fp.id = bc.freelancer_id
+       ${where}
+       ORDER BY bc.period_month DESC, fp.display_name
+       LIMIT 200`,
+      vals,
+    );
+    return reply.send({ cycles: rows });
+  });
+
+  // ── POST /freelancers/admin/billing-cycles/:id/mark-paid — D10 action ─────
+  app.post('/freelancers/admin/billing-cycles/:id/mark-paid', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { id: cycleId } = request.params as { id: string };
+    const { payment_notes } = request.body as { payment_notes?: string };
+
+    const { rows } = await pool.query(
+      `UPDATE freelancer_billing_cycles
+          SET status        = 'paid',
+              paid_at       = now(),
+              payment_notes = $3,
+              updated_at    = now()
+        WHERE id = $1::uuid AND tenant_id = $2
+          AND status IN ('nf_submitted','nf_analysis','overdue')
+        RETURNING id, freelancer_id, period_month, approved_brl, glosa_brl`,
+      [cycleId, tenantId, payment_notes ?? null],
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Ciclo não encontrado ou não elegível para pagamento' });
+    return reply.send({ ok: true, cycle: rows[0] });
+  });
+
+  // ── GET /freelancers/admin/billing-cycles/:id/mark-paid (overdue) ──────────
+  app.post('/freelancers/admin/billing-cycles/:id/mark-overdue', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { id: cycleId } = request.params as { id: string };
+    const { rows } = await pool.query(
+      `UPDATE freelancer_billing_cycles SET status = 'overdue', updated_at = now()
+        WHERE id = $1::uuid AND tenant_id = $2 AND status IN ('nf_pending','nf_submitted')
+        RETURNING id`,
+      [cycleId, tenantId],
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Ciclo não encontrado' });
+    return reply.send({ ok: true });
+  });
+
+  // ── GET /admin/partners — list all agency partners (admin) ─────────────────
+  app.get('/admin/partners', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { rows } = await pool.query(
+      `SELECT * FROM agency_partners WHERE tenant_id = $1 ORDER BY sort_order, name`,
+      [tenantId],
+    );
+    return reply.send({ partners: rows });
+  });
+
+  // ── POST /admin/partners — create partner ─────────────────────────────────
+  app.post('/admin/partners', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { category, name, description, logo_emoji, discount_text, link_url, sort_order } =
+      request.body as { category: string; name: string; description?: string; logo_emoji?: string; discount_text?: string; link_url?: string; sort_order?: number };
+    if (!category || !name) return reply.status(400).send({ error: 'category e name são obrigatórios' });
+    const { rows } = await pool.query(
+      `INSERT INTO agency_partners (tenant_id, category, name, description, logo_emoji, discount_text, link_url, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [tenantId, category, name, description ?? null, logo_emoji ?? '🤝', discount_text ?? null, link_url ?? null, sort_order ?? 0],
+    );
+    return reply.status(201).send({ partner: rows[0] });
+  });
+
+  // ── PATCH /admin/partners/:id — update partner ────────────────────────────
+  app.patch('/admin/partners/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { id } = request.params as { id: string };
+    const body = request.body as Record<string, any>;
+    const allowed = ['category','name','description','logo_emoji','discount_text','link_url','sort_order','is_active'];
+    const sets: string[] = ['updated_at = now()'];
+    const vals: any[] = [id, tenantId];
+    for (const key of allowed) {
+      if (body[key] !== undefined) { vals.push(body[key]); sets.push(`${key} = $${vals.length}`); }
+    }
+    const { rows } = await pool.query(
+      `UPDATE agency_partners SET ${sets.join(', ')} WHERE id = $1::uuid AND tenant_id = $2 RETURNING *`,
+      vals,
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Parceiro não encontrado' });
+    return reply.send({ partner: rows[0] });
+  });
+
+  // ── DELETE /admin/partners/:id — delete partner ───────────────────────────
+  app.delete('/admin/partners/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { id } = request.params as { id: string };
+    await pool.query(`DELETE FROM agency_partners WHERE id = $1::uuid AND tenant_id = $2`, [id, tenantId]);
+    return reply.send({ ok: true });
+  });
+
+  // ── GET /admin/briefing-ratings — rating insights by account manager ──────
+  app.get('/admin/briefing-ratings', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { days = '90' } = request.query as { days?: string };
+
+    // Summary totals
+    const summaryRes = await pool.query(
+      `SELECT
+         COUNT(*)                                                   AS total_ratings,
+         ROUND(AVG(briefing_quality)::numeric, 2)                  AS avg_briefing_quality,
+         ROUND(AVG(overall_experience)::numeric, 2)                AS avg_overall_experience,
+         COUNT(*) FILTER (WHERE briefing_quality <= 2)             AS low_quality_count
+       FROM freelancer_briefing_ratings
+       WHERE tenant_id = $1 AND created_at > NOW() - ($2 || ' days')::interval`,
+      [tenantId, days],
+    );
+
+    // Per-job breakdown with job title
+    const jobsRes = await pool.query(
+      `SELECT
+         r.job_id, j.title AS job_title, j.client_id,
+         c.name AS client_name,
+         ROUND(AVG(r.briefing_quality)::numeric, 2)     AS avg_briefing_quality,
+         ROUND(AVG(r.overall_experience)::numeric, 2)   AS avg_overall_experience,
+         COUNT(*)                                        AS rating_count,
+         STRING_AGG(r.notes, ' | ') FILTER (WHERE r.notes IS NOT NULL) AS notes
+       FROM freelancer_briefing_ratings r
+       JOIN jobs j ON j.id = r.job_id
+       LEFT JOIN clients c ON c.id = j.client_id
+       WHERE r.tenant_id = $1 AND r.created_at > NOW() - ($2 || ' days')::interval
+       GROUP BY r.job_id, j.title, j.client_id, c.name
+       ORDER BY avg_briefing_quality ASC
+       LIMIT 50`,
+      [tenantId, days],
+    );
+
+    return reply.send({
+      summary: summaryRes.rows[0],
+      jobs: jobsRes.rows,
+    });
+  });
+
+  // ── GET /admin/tenant-config ───────────────────────────────────────────────
+  app.get('/admin/tenant-config', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { rows } = await pool.query(
+      `SELECT * FROM tenant_config WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    return reply.send({ config: rows[0] ?? null });
+  });
+
+  // ── PATCH /admin/tenant-config ────────────────────────────────────────────
+  app.patch('/admin/tenant-config', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { agency_name, agency_cnpj, agency_ie, agency_address, agency_city, agency_email, agency_phone } =
+      request.body as { agency_name?: string; agency_cnpj?: string; agency_ie?: string; agency_address?: string; agency_city?: string; agency_email?: string; agency_phone?: string };
+    const { rows } = await pool.query(
+      `INSERT INTO tenant_config (tenant_id, agency_name, agency_cnpj, agency_ie, agency_address, agency_city, agency_email, agency_phone, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
+       ON CONFLICT (tenant_id) DO UPDATE SET
+         agency_name    = EXCLUDED.agency_name,
+         agency_cnpj    = EXCLUDED.agency_cnpj,
+         agency_ie      = EXCLUDED.agency_ie,
+         agency_address = EXCLUDED.agency_address,
+         agency_city    = EXCLUDED.agency_city,
+         agency_email   = EXCLUDED.agency_email,
+         agency_phone   = EXCLUDED.agency_phone,
+         updated_at     = now()
+       RETURNING *`,
+      [tenantId, agency_name ?? null, agency_cnpj ?? null, agency_ie ?? null, agency_address ?? null, agency_city ?? null, agency_email ?? null, agency_phone ?? null],
+    );
+    return reply.send({ config: rows[0] });
   });
 }

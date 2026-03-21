@@ -13,6 +13,11 @@ import {
   IconBrandWhatsapp,
   IconSparkles,
   IconAddressBook,
+  IconCheckbox,
+  IconShoppingBag,
+  IconHeartHandshake,
+  IconStarFilled,
+  IconSettings,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -47,6 +52,20 @@ const MenuItems: MenuGroupType[] = [
         title: 'Jobs',
         icon: IconLayoutDashboard,
         href: '/admin/operacoes',
+      },
+      {
+        id: 'homologacao',
+        title: 'Homologação',
+        icon: IconCheckbox,
+        href: '/admin/operacoes/homologacao',
+        requiredRole: ['admin', 'manager'],
+      },
+      {
+        id: 'pool',
+        title: 'Mercado de Escopos',
+        icon: IconShoppingBag,
+        href: '/admin/operacoes/pool',
+        requiredRole: ['admin', 'manager'],
       },
       {
         id: 'projetos',
@@ -131,6 +150,27 @@ const MenuItems: MenuGroupType[] = [
         title: 'Equipe',
         icon: IconUsersGroup,
         href: '/admin/equipe',
+      },
+      {
+        id: 'parceiros',
+        title: 'Parceiros',
+        icon: IconHeartHandshake,
+        href: '/admin/parceiros',
+        requiredRole: ['admin', 'manager'],
+      },
+      {
+        id: 'briefing-ratings',
+        title: 'Avaliações',
+        icon: IconStarFilled,
+        href: '/admin/analytics/briefing-ratings',
+        requiredRole: ['admin', 'manager'],
+      },
+      {
+        id: 'configuracoes',
+        title: 'Configurações',
+        icon: IconSettings,
+        href: '/admin/configuracoes',
+        requiredRole: ['admin'],
       },
       {
         id: 'admin-system',
