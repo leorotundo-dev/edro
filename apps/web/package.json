@@ -37,7 +37,7 @@
     "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.0.0",
     "@types/react-big-calendar": "^1.8.10",
     "@types/react-dom": "^19.0.0",
