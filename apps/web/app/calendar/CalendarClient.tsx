@@ -991,17 +991,12 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
   }, [calendars, activeCalendarId]);
 
   const handleExport = async (id: string, kind: 'csv' | 'iclips') => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) return;
-
     const path =
       kind === 'csv'
         ? `/api/calendars/${id}/export.csv`
         : `/api/calendars/${id}/export.iclips.json`;
 
-    const response = await fetch(buildApiUrl(path), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetch(buildApiUrl(path));
     if (!response.ok) {
       setError('Falha ao exportar.');
       return;
@@ -2000,7 +1995,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                     <IconButton
                       size="small"
                       title="Abrir fonte"
-                      onClick={(e) => { e.stopPropagation(); window.open(r.url, '_blank'); }}
+                      onClick={(e) => { e.stopPropagation(); window.open(r.url, '_blank', 'noopener'); }}
                     >
                       <IconExternalLink size={16} />
                     </IconButton>
