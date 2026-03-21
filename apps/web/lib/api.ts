@@ -99,83 +99,9 @@ export interface ApiResponse<T = unknown> {
 }
 
 function getAuthHeaders(): HeadersInit {
-  const headers: Record<string, string> = {
+  return {
     'Content-Type': 'application/json',
   };
-
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('edro_token');
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-  }
-
-  return headers;
-}
-
-// Mutex to prevent concurrent refresh token requests
-let refreshPromise: Promise<boolean> | null = null;
-
-async function refreshAccessToken(): Promise<boolean> {
-  // If there's already a refresh in progress, wait for it
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-
-  // Start a new refresh and store the promise
-  refreshPromise = performRefresh();
-
-  try {
-    const result = await refreshPromise;
-    return result;
-  } finally {
-    // Clear the promise after completion (success or failure)
-    refreshPromise = null;
-  }
-}
-
-async function performRefresh(): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
-
-  const refreshToken = localStorage.getItem('edro_refresh');
-  const userRaw = localStorage.getItem('edro_user');
-  if (!refreshToken || !userRaw) return false;
-
-  try {
-    const user = JSON.parse(userRaw);
-    if (!user?.id) return false;
-
-    const response = await fetch(`${getApiBase()}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, refreshToken }),
-    });
-
-    const text = await response.text();
-    if (!response.ok) {
-      // Clear tokens on refresh failure
-      localStorage.removeItem('edro_token');
-      localStorage.removeItem('edro_refresh');
-      localStorage.removeItem('edro_user');
-      return false;
-    }
-
-    const data = JSON.parse(text);
-
-    if (data?.accessToken) {
-      localStorage.setItem('edro_token', data.accessToken);
-    }
-    if (data?.refreshToken) {
-      localStorage.setItem('edro_refresh', data.refreshToken);
-    }
-    return true;
-  } catch (error) {
-    // Clear tokens on any error
-    localStorage.removeItem('edro_token');
-    localStorage.removeItem('edro_refresh');
-    localStorage.removeItem('edro_user');
-    return false;
-  }
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -225,20 +151,9 @@ async function requestWithRefresh<T>(path: string, options: RequestInit): Promis
   });
 
   if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      const retry = await fetch(`${apiBase}${path}`, {
-        ...options,
-        headers: getAuthHeaders(),
-      });
-      return handleResponse<T>(retry);
-    }
-
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname || '/';
       const shouldRedirect = !(pathname === '/login' || pathname.startsWith('/login') || pathname === '/calendar' || pathname.startsWith('/calendar/') || pathname.startsWith('/edro/aprovacao-externa'));
-      localStorage.removeItem('edro_token');
-      localStorage.removeItem('edro_refresh');
       localStorage.removeItem('edro_user');
       if (shouldRedirect) {
         window.location.href = '/login';
@@ -262,24 +177,14 @@ export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 
 export async function apiPostFormData<T = any>(path: string, formData: FormData): Promise<T> {
   const apiBase = getApiBase();
-  const headers: Record<string, string> = {};
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('edro_token');
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
   const response = await fetch(`${apiBase}${path}`, {
     method: 'POST',
-    headers,
     body: formData,
   });
   if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      const newHeaders: Record<string, string> = {};
-      const token = localStorage.getItem('edro_token');
-      if (token) newHeaders.Authorization = `Bearer ${token}`;
-      const retry = await fetch(`${apiBase}${path}`, { method: 'POST', headers: newHeaders, body: formData });
-      return handleResponse<T>(retry);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('edro_user');
+      window.location.href = '/login';
     }
   }
   return handleResponse<T>(response);
