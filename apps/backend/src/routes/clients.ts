@@ -2255,4 +2255,110 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
       });
     },
   );
+
+  // ── Carteira do Cliente ──────────────────────────────────────────────────────
+
+  // GET /clients/:id/wallet/current-month
+  // Architecture:
+  //   - cost_budget = fee × (1 - tax - margin)  [per-client spendable budget]
+  //   - cost_used   = SUM(fee_brl on jobs)       [job fees are deducted from THIS client's wallet]
+  //   - global_prices = from job_size_prices      [same for ALL clients — freelancers see one table]
+  app.get(
+    '/clients/:id/wallet/current-month',
+    { preHandler: [requirePerm('clients:read')] },
+    async (request: any, reply) => {
+      const { id } = request.params as { id: string };
+      const tenantId = request.user.tenantId;
+
+      // Load wallet config
+      const clientRes = await query(
+        `SELECT monthly_fee_brl, tax_rate_pct, target_margin_pct
+         FROM clients WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      if (!clientRes.rows.length) return reply.code(404).send({ error: 'Cliente não encontrado' });
+
+      const cfg = clientRes.rows[0];
+      const fee = Number(cfg.monthly_fee_brl ?? 0);
+      const taxRate = Number(cfg.tax_rate_pct ?? 10) / 100;
+      const margin = Number(cfg.target_margin_pct ?? 60) / 100;
+
+      // Budget = fee × (1 - tax - margin) — purely per-client
+      const costBudget = fee * (1 - taxRate - margin);
+
+      // Live burn for current month (excludes archived/cancelled)
+      const burnRes = await query(
+        `SELECT
+           COALESCE(SUM(fee_brl), 0)          AS cost_used,
+           COUNT(*)                            AS jobs_count,
+           COUNT(*) FILTER (WHERE is_refacao_cliente = true) AS refacoes_count
+         FROM jobs
+         WHERE client_id = $1
+           AND tenant_id = $2
+           AND date_trunc('month', created_at) = date_trunc('month', now())
+           AND status NOT IN ('archived', 'cancelled')`,
+        [id, tenantId],
+      );
+      const burn = burnRes.rows[0];
+      const costUsed = Number(burn.cost_used);
+      const costRemaining = costBudget - costUsed;
+
+      // Global price table — same for every client, freelancers see one rate
+      const pricesRes = await query(
+        `SELECT size, label, description, ref_price_brl, sort_order
+         FROM job_size_prices ORDER BY sort_order`,
+        [],
+      );
+
+      return reply.send({
+        config: {
+          monthly_fee_brl: fee,
+          tax_rate_pct: Number(cfg.tax_rate_pct ?? 10),
+          target_margin_pct: Number(cfg.target_margin_pct ?? 60),
+        },
+        wallet: {
+          cost_budget: Number(costBudget.toFixed(2)),
+          cost_used: Number(costUsed.toFixed(2)),
+          cost_remaining: Number(costRemaining.toFixed(2)),
+          cost_pct: costBudget > 0 ? Math.round((costUsed / costBudget) * 100) : 0,
+          is_exceeded: costUsed > costBudget,
+        },
+        global_prices: pricesRes.rows,
+        burn: {
+          jobs_count: Number(burn.jobs_count),
+          refacoes_count: Number(burn.refacoes_count),
+        },
+      });
+    },
+  );
+
+  // PATCH /clients/:id/wallet-config — save fee + tax + margin
+  app.patch(
+    '/clients/:id/wallet-config',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply) => {
+      const { id } = request.params as { id: string };
+      const tenantId = request.user.tenantId;
+      const { monthly_fee_brl, tax_rate_pct, target_margin_pct } =
+        request.body as {
+          monthly_fee_brl?: number;
+          tax_rate_pct?: number;
+          target_margin_pct?: number;
+        };
+
+      const res = await query(
+        `UPDATE clients
+         SET monthly_fee_brl    = COALESCE($1, monthly_fee_brl),
+             tax_rate_pct       = COALESCE($2, tax_rate_pct),
+             target_margin_pct  = COALESCE($3, target_margin_pct),
+             updated_at         = now()
+         WHERE id = $4 AND tenant_id = $5
+         RETURNING monthly_fee_brl, tax_rate_pct, target_margin_pct`,
+        [monthly_fee_brl ?? null, tax_rate_pct ?? null, target_margin_pct ?? null, id, tenantId],
+      );
+
+      if (!res.rows.length) return reply.code(404).send({ error: 'Cliente não encontrado' });
+      return reply.send(res.rows[0]);
+    },
+  );
 }

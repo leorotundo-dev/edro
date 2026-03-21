@@ -32,6 +32,8 @@ import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import Divider from '@mui/material/Divider';
+import InputAdornment from '@mui/material/InputAdornment';
 import {
   IconCheck,
   IconCurrencyDollar,
@@ -39,6 +41,7 @@ import {
   IconPlus,
   IconSend,
   IconTrendingUp,
+  IconWallet,
 } from '@tabler/icons-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -151,6 +154,236 @@ function HealthCard({ clientId }: { clientId: string }) {
         </Stack>
       </CardContent>
     </Card>
+  );
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type WalletData = {
+  config: { monthly_fee_brl: number; tax_rate_pct: number; target_margin_pct: number };
+  wallet: { cost_budget: number; cost_used: number; cost_remaining: number; cost_pct: number; is_exceeded: boolean };
+  global_prices: { size: string; label: string; description: string; ref_price_brl: string }[];
+  burn: { jobs_count: number; refacoes_count: number };
+};
+
+// ── Carteira Tab ───────────────────────────────────────────────────────────────
+
+function CarteiraTab({ clientId }: { clientId: string }) {
+  const [data, setData] = useState<WalletData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ monthly_fee_brl: '', tax_rate_pct: '10', target_margin_pct: '60' });
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await apiGet<WalletData>(`/clients/${clientId}/wallet/current-month`);
+      setData(d);
+      setForm({
+        monthly_fee_brl: d.config.monthly_fee_brl > 0 ? String(d.config.monthly_fee_brl) : '',
+        tax_rate_pct: String(d.config.tax_rate_pct),
+        target_margin_pct: String(d.config.target_margin_pct),
+      });
+    } catch {
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiPatch(`/clients/${clientId}/wallet-config`, {
+        monthly_fee_brl: parseFloat(form.monthly_fee_brl) || null,
+        tax_rate_pct: parseFloat(form.tax_rate_pct),
+        target_margin_pct: parseFloat(form.target_margin_pct),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Live preview while user edits the form
+  const liveFee = parseFloat(form.monthly_fee_brl) || 0;
+  const liveTax = parseFloat(form.tax_rate_pct) / 100 || 0;
+  const liveMargin = parseFloat(form.target_margin_pct) / 100 || 0;
+  const liveBudget = liveFee * (1 - liveTax - liveMargin);
+
+  if (loading) return <Box py={4} display="flex" justifyContent="center"><CircularProgress size={24} /></Box>;
+
+  const wallet = data?.wallet;
+  const pct = wallet?.cost_pct ?? 0;
+  const barColor = pct >= 100 ? 'error' : pct >= 80 ? 'warning' : 'success';
+
+  return (
+    <Stack spacing={3}>
+      {/* Config card */}
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+            Configuração da Carteira
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+            Define o orçamento mensal disponível para pagar fornecedores deste cliente.
+            Fórmula: Fee × (1 − Impostos − Margem)
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                size="small" label="Fee mensal" fullWidth type="number"
+                value={form.monthly_fee_brl}
+                onChange={(e) => setForm({ ...form, monthly_fee_brl: e.target.value })}
+                InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                size="small" label="Impostos" fullWidth type="number"
+                value={form.tax_rate_pct}
+                onChange={(e) => setForm({ ...form, tax_rate_pct: e.target.value })}
+                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                helperText="Ex: 10 = 10% de impostos"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                size="small" label="Margem alvo" fullWidth type="number"
+                value={form.target_margin_pct}
+                onChange={(e) => setForm({ ...form, target_margin_pct: e.target.value })}
+                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                helperText="Ex: 60 = 60% de lucro"
+              />
+            </Grid>
+          </Grid>
+
+          {liveFee > 0 && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Orçamento calculado: <strong>{brl(liveBudget)}/mês</strong> disponíveis para pagar fornecedores
+              &nbsp;({brl(liveFee)} − {form.tax_rate_pct}% impostos − {form.target_margin_pct}% margem)
+            </Alert>
+          )}
+
+          <Stack direction="row" justifyContent="flex-end" mt={2}>
+            <Button
+              size="small" variant="contained" onClick={handleSave}
+              disabled={saving || !form.monthly_fee_brl}
+              startIcon={saved ? <IconCheck size={14} /> : <IconTrendingUp size={14} />}
+            >
+              {saved ? 'Salvo!' : saving ? <CircularProgress size={14} /> : 'Salvar configuração'}
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* Wallet status */}
+      {wallet && wallet.cost_budget > 0 && (
+        <Card variant="outlined">
+          <CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                Burn este mês
+              </Typography>
+              <Chip
+                label={wallet.is_exceeded ? 'ESTOURADA' : `${pct}% utilizado`}
+                color={wallet.is_exceeded ? 'error' : pct >= 80 ? 'warning' : 'success'}
+                size="small"
+              />
+            </Stack>
+
+            <LinearProgress
+              variant="determinate"
+              value={Math.min(pct, 100)}
+              color={barColor}
+              sx={{ height: 10, borderRadius: 5, mb: 2 }}
+            />
+
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="caption" color="text.secondary">Orçamento</Typography>
+                <Typography variant="body2" fontWeight={700}>{brl(wallet.cost_budget)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="caption" color="text.secondary">Comprometido</Typography>
+                <Typography variant="body2" fontWeight={700} color={wallet.is_exceeded ? 'error.main' : 'text.primary'}>
+                  {brl(wallet.cost_used)}
+                </Typography>
+              </Grid>
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="caption" color="text.secondary">Saldo restante</Typography>
+                <Typography variant="body2" fontWeight={700} color={wallet.cost_remaining < 0 ? 'error.main' : 'success.main'}>
+                  {brl(wallet.cost_remaining)}
+                </Typography>
+              </Grid>
+            </Grid>
+
+            {data?.burn && (
+              <Typography variant="caption" color="text.secondary" mt={1} display="block">
+                {data.burn.jobs_count} escopos no mês
+                {data.burn.refacoes_count > 0 && ` · ${data.burn.refacoes_count} refações do cliente`}
+              </Typography>
+            )}
+
+            {wallet.is_exceeded && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                Carteira estourada — novos escopos estão bloqueados para este cliente.
+                Contate o cliente para aditar o contrato ou transfira jobs para o próximo mês.
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Global price table */}
+      {data?.global_prices && data.global_prices.length > 0 && (
+        <Card variant="outlined">
+          <CardContent>
+            <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+              Tabela de Preços Global
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+              Preços pagos aos fornecedores são os mesmos para todos os clientes.
+              O fornecedor vê o valor do escopo, nunca quem é o cliente.
+            </Typography>
+            <Divider sx={{ mb: 1.5 }} />
+            <Stack spacing={1}>
+              {data.global_prices.map((p) => (
+                <Stack key={p.size} direction="row" alignItems="flex-start" spacing={2}>
+                  <Chip
+                    label={p.size}
+                    size="small"
+                    sx={{ fontWeight: 800, minWidth: 40 }}
+                    color={p.size === 'P' ? 'success' : p.size === 'M' ? 'info' : p.size === 'G' ? 'warning' : 'default'}
+                  />
+                  <Box flex={1}>
+                    <Typography variant="body2" fontWeight={600}>{p.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">{p.description}</Typography>
+                  </Box>
+                  <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ whiteSpace: 'nowrap' }}>
+                    {brl(p.ref_price_brl)}
+                  </Typography>
+                </Stack>
+              ))}
+            </Stack>
+            <Alert severity="info" sx={{ mt: 2 }} icon={false}>
+              Para ajustar os preços globais, acesse <strong>Configurações → Tabela de Preços</strong>.
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
+
+      {!data?.config.monthly_fee_brl && !loading && (
+        <Alert severity="warning">
+          Configure o fee mensal acima para ativar o controle de carteira.
+        </Alert>
+      )}
+    </Stack>
   );
 }
 
@@ -297,6 +530,7 @@ export default function ClientFinanceiroPage() {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="Contratos" icon={<IconFileText size={14} />} iconPosition="start" />
         <Tab label="Faturas" icon={<IconCurrencyDollar size={14} />} iconPosition="start" />
+        <Tab label="Carteira" icon={<IconWallet size={14} />} iconPosition="start" />
       </Tabs>
 
       {/* Contracts tab */}
@@ -429,6 +663,9 @@ export default function ClientFinanceiroPage() {
           )}
         </Box>
       )}
+
+      {/* Carteira tab */}
+      {tab === 2 && <CarteiraTab clientId={clientId} />}
 
       {/* New Contract Dialog */}
       <Dialog open={openContract} onClose={() => setOpenContract(false)} maxWidth="xs" fullWidth>
