@@ -6,7 +6,8 @@
     "dev": "next dev -p 3445",
     "build": "next build",
     "start": "next start -p ${PORT:-3445} -H 0.0.0.0",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "^15.0.0",
