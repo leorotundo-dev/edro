@@ -20,6 +20,7 @@ import { query } from '../../db';
 import { enqueueJob } from '../../jobs/jobQueue';
 import { ensureInternalClient } from '../../repos/clientsRepo';
 import { syncMeetingParticipantsFromCalendarPayload } from '../../repos/meetingParticipantsRepo';
+import { env } from '../../env';
 
 type ResolvedCalendarClient = {
   id: string;
@@ -31,7 +32,8 @@ type ResolvedCalendarClient = {
 
 function signOAuthState(payload: object): string {
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const secret = env.GOOGLE_CLIENT_SECRET;
+  if (!secret) throw new Error('GOOGLE_CLIENT_SECRET não configurado.');
   const sig = crypto.createHmac('sha256', secret).update(data).digest('base64url');
   return `${data}.${sig}`;
 }
@@ -41,10 +43,22 @@ function verifyOAuthState(rawState: string): { tenantId: string } {
   if (dotIndex < 0) throw new Error('Invalid OAuth state format');
   const data = rawState.slice(0, dotIndex);
   const sig = rawState.slice(dotIndex + 1);
-  const secret = process.env.GOOGLE_CLIENT_SECRET ?? 'no-secret';
+  const secret = env.GOOGLE_CLIENT_SECRET;
+  if (!secret) throw new Error('GOOGLE_CLIENT_SECRET não configurado.');
   const expected = crypto.createHmac('sha256', secret).update(data).digest('base64url');
   if (sig !== expected) throw new Error('Invalid OAuth state signature');
   return JSON.parse(Buffer.from(data, 'base64url').toString());
+}
+
+function resolveCalendarRedirectUri(): string {
+  if (env.GOOGLE_CALENDAR_REDIRECT_URI) {
+    return env.GOOGLE_CALENDAR_REDIRECT_URI;
+  }
+  const publicBase = env.PUBLIC_API_URL?.replace(/\/$/, '');
+  if (!publicBase) {
+    throw new Error('Configure GOOGLE_CALENDAR_REDIRECT_URI ou PUBLIC_API_URL para o OAuth do Google Calendar.');
+  }
+  return `${publicBase}/auth/google/calendar/callback`;
 }
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -55,9 +69,8 @@ let hasClientContactEmailColumn: boolean | null = null;
 // ── OAuth ─────────────────────────────────────────────────────────────────
 
 export function calendarOAuthUrl(tenantId: string): string {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const publicBase = (process.env.PUBLIC_API_URL ?? 'https://api.edro.digital').replace(/\/$/, '');
-  const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI ?? `${publicBase}/auth/google/calendar/callback`;
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const redirectUri = resolveCalendarRedirectUri();
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID não configurado.');
 
   const state = signOAuthState({ tenantId, ts: Date.now() });
@@ -83,10 +96,12 @@ export async function exchangeCalendarCode(code: string, rawState: string): Prom
   tenantId: string;
   email: string;
 }> {
-  const clientId = process.env.GOOGLE_CLIENT_ID!;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
-  const publicBase = (process.env.PUBLIC_API_URL ?? 'https://api.edro.digital').replace(/\/$/, '');
-  const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI ?? `${publicBase}/auth/google/calendar/callback`;
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const clientSecret = env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = resolveCalendarRedirectUri();
+  if (!clientId || !clientSecret) {
+    throw new Error('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET não configurados.');
+  }
 
   const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
@@ -136,7 +151,7 @@ export async function exchangeCalendarCode(code: string, rawState: string): Prom
 // ── Calendar watch ────────────────────────────────────────────────────────
 
 export async function watchCalendar(tenantId: string): Promise<void> {
-  const webhookUrl = process.env.GOOGLE_CALENDAR_WEBHOOK_URL;
+  const webhookUrl = env.GOOGLE_CALENDAR_WEBHOOK_URL;
   if (!webhookUrl) throw new Error('GOOGLE_CALENDAR_WEBHOOK_URL não configurado.');
 
   const { rows } = await query(
@@ -427,7 +442,7 @@ export async function getCalendarAccessToken(tenantId: string): Promise<string> 
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_secret: env.GOOGLE_CLIENT_SECRET!,
       refresh_token,
       grant_type: 'refresh_token',
     }),
