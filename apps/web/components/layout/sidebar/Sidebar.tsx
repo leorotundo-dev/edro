@@ -52,7 +52,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
   const lgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const { role } = useRole();
   const opsCritical = useOpsCriticalCount();
-  const { toggle: toggleJarvis, unreadCount: jarvisUnread, isOpen: jarvisOpen } = useJarvis();
+  const { openPalette, toggle: toggleJarvis, unreadCount: jarvisUnread, isOpen: jarvisOpen, isPaletteOpen } = useJarvis();
 
   const [user, setUser] = useState<{ name?: string; email?: string; role?: string }>({});
   useEffect(() => {
@@ -208,10 +208,10 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
         })}
       </Box>
 
-      {/* Jarvis button */}
-      <Tooltip title={open ? '' : 'Jarvis'} placement="right">
+      {/* Jarvis button — opens command palette */}
+      <Tooltip title={open ? '' : 'Jarvis (Ctrl+J)'} placement="right">
         <Box
-          onClick={toggleJarvis}
+          onClick={openPalette}
           sx={{
             mx: 1.5,
             mb: 1,
@@ -223,8 +223,8 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
             justifyContent: open ? 'flex-start' : 'center',
             gap: 1.25,
             cursor: 'pointer',
-            bgcolor: jarvisOpen ? 'rgba(232,82,25,0.14)' : 'rgba(232,82,25,0.07)',
-            border: `1px solid ${jarvisOpen ? 'rgba(232,82,25,0.4)' : 'rgba(232,82,25,0.18)'}`,
+            bgcolor: (jarvisOpen || isPaletteOpen) ? 'rgba(232,82,25,0.14)' : 'rgba(232,82,25,0.07)',
+            border: `1px solid ${(jarvisOpen || isPaletteOpen) ? 'rgba(232,82,25,0.4)' : 'rgba(232,82,25,0.18)'}`,
             transition: 'all 150ms ease',
             '&:hover': { bgcolor: 'rgba(232,82,25,0.16)', borderColor: 'rgba(232,82,25,0.4)' },
           }}
@@ -235,21 +235,34 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
             sx={{ '& .MuiBadge-badge': { fontSize: '0.55rem', minWidth: 14, height: 14, top: 2, right: 2 } }}
           >
             <Box sx={{ color: EDRO_ORANGE, display: 'flex', alignItems: 'center' }}>
-              <IconBrain size={18} stroke={jarvisOpen ? 2 : 1.5} />
+              <IconBrain size={18} stroke={(jarvisOpen || isPaletteOpen) ? 2 : 1.5} />
             </Box>
           </Badge>
           {open && (
-            <Typography
-              sx={{
-                fontSize: '0.84rem',
-                fontWeight: jarvisOpen ? 700 : 500,
-                color: jarvisOpen ? '#fff' : EDRO_ORANGE,
-                flex: 1,
-                lineHeight: 1,
-              }}
-            >
-              Jarvis
-            </Typography>
+            <>
+              <Typography
+                sx={{
+                  fontSize: '0.84rem',
+                  fontWeight: (jarvisOpen || isPaletteOpen) ? 700 : 500,
+                  color: (jarvisOpen || isPaletteOpen) ? '#fff' : EDRO_ORANGE,
+                  flex: 1,
+                  lineHeight: 1,
+                }}
+              >
+                Jarvis
+              </Typography>
+              <Box
+                component="kbd"
+                sx={{
+                  fontSize: '0.55rem',
+                  color: 'rgba(255,255,255,0.3)',
+                  fontFamily: 'monospace',
+                  letterSpacing: 0,
+                }}
+              >
+                ⌃J
+              </Box>
+            </>
           )}
           {open && jarvisUnread > 0 && (
             <Chip

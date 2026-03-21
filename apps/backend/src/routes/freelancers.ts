@@ -1561,4 +1561,267 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     return reply.send({ ok: true, newStatus: nextStatus });
   });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── B2B LEGAL COMPLIANCE ROUTES ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // GET /freelancers/portal/cnpj/:cnpj — proxy BrasilAPI for CNPJ auto-fill
+  app.get('/freelancers/portal/cnpj/:cnpj', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { cnpj } = request.params as { cnpj: string };
+    const clean = cnpj.replace(/\D/g, '');
+    if (clean.length !== 14) return reply.status(400).send({ error: 'CNPJ inválido' });
+
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
+      if (!res.ok) return reply.status(404).send({ error: 'CNPJ não encontrado na Receita Federal' });
+      const data = await res.json() as any;
+      return reply.send({
+        cnpj: clean,
+        razao_social: data.razao_social ?? null,
+        nome_fantasia: data.nome_fantasia ?? null,
+        situacao: data.descricao_situacao_cadastral ?? null,
+        logradouro: data.logradouro ?? null,
+        numero: data.numero ?? null,
+        complemento: data.complemento ?? null,
+        bairro: data.bairro ?? null,
+        municipio: data.municipio ?? null,
+        uf: data.uf ?? null,
+        cep: data.cep ?? null,
+      });
+    } catch {
+      return reply.status(502).send({ error: 'Erro ao consultar BrasilAPI' });
+    }
+  });
+
+  // POST /freelancers/portal/me/onboarding — save PJ onboarding data
+  app.post('/freelancers/portal/me/onboarding', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+    let userId: string;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      userId = payload.sub ?? payload.id;
+    } catch { return reply.status(401).send({ error: 'Token inválido' }); }
+
+    const body = request.body as Record<string, any>;
+
+    // Validate mandatory PJ fields
+    if (!body.cnpj || !body.razao_social || !body.representante_nome || !body.pix_key) {
+      return reply.status(400).send({ error: 'Campos obrigatórios: cnpj, razao_social, representante_nome, pix_key' });
+    }
+
+    // Block CPF as pix_key_type
+    if (body.pix_key_type === 'cpf') {
+      return reply.status(400).send({ error: 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF.' });
+    }
+
+    await pool.query(
+      `UPDATE freelancer_profiles SET
+        cnpj = $2, razao_social = $3, nome_fantasia = $4,
+        inscricao_municipal = $5,
+        address_street = $6, address_number = $7, address_complement = $8,
+        address_district = $9, address_city = $10, address_state = $11, address_cep = $12,
+        representante_nome = $13, representante_cpf = $14, estado_civil = $15,
+        pix_key = $16, pix_key_type = $17,
+        portfolio_url = $18, weekly_capacity = $19,
+        skills = COALESCE($20::text[], skills),
+        phone = COALESCE($21, phone),
+        updated_at = now()
+       WHERE user_id = $1`,
+      [
+        userId,
+        body.cnpj?.replace(/\D/g, ''),
+        body.razao_social,
+        body.nome_fantasia ?? null,
+        body.inscricao_municipal ?? null,
+        body.address_street ?? null,
+        body.address_number ?? null,
+        body.address_complement ?? null,
+        body.address_district ?? null,
+        body.address_city ?? null,
+        body.address_state ?? null,
+        body.address_cep?.replace(/\D/g, '') ?? null,
+        body.representante_nome,
+        body.representante_cpf?.replace(/\D/g, '') ?? null,
+        body.estado_civil ?? null,
+        body.pix_key,
+        body.pix_key_type ?? 'cnpj',
+        body.portfolio_url ?? null,
+        body.weekly_capacity ?? 40,
+        body.skills?.length ? body.skills : null,
+        body.phone ?? null,
+      ],
+    );
+
+    return reply.send({ ok: true, message: 'Cadastro salvo. Aguardando assinatura do contrato.' });
+  });
+
+  // POST /freelancers/portal/me/terms/accept — clickwrap acceptance (logs IP + timestamp)
+  app.post('/freelancers/portal/me/terms/accept', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+    let userId: string;
+    let tenantId: string;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      userId = payload.sub ?? payload.id;
+      tenantId = payload.tenant_id ?? '';
+    } catch { return reply.status(401).send({ error: 'Token inválido' }); }
+
+    const body = request.body as { terms_version?: string };
+    const version = body.terms_version ?? '1.0';
+
+    // Get client IP (respects X-Forwarded-For from proxies)
+    const ip = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+      ?? request.ip
+      ?? 'unknown';
+    const userAgent = (request.headers['user-agent'] as string) ?? null;
+
+    // Insert acceptance log (immutable audit trail)
+    await pool.query(
+      `INSERT INTO freelancer_term_acceptances (user_id, tenant_id, terms_version, accepted_at, ip_address, user_agent)
+       VALUES ($1, $2, $3, now(), $4, $5)`,
+      [userId, tenantId, version, ip, userAgent],
+    );
+
+    // Mark profile as onboarding_complete + terms accepted
+    await pool.query(
+      `UPDATE freelancer_profiles
+          SET onboarding_complete = true,
+              terms_accepted_at = now(),
+              terms_accepted_ip = $2,
+              terms_version = $3,
+              updated_at = now()
+        WHERE user_id = $1`,
+      [userId, ip, version],
+    );
+
+    return reply.send({ ok: true, accepted_at: new Date().toISOString(), ip, version });
+  });
+
+  // GET /freelancers/portal/me/score — Scorecard B2B do Fornecedor
+  app.get('/freelancers/portal/me/score', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+    let userId: string;
+    let tenantId: string;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      userId = payload.sub ?? payload.id;
+      tenantId = payload.tenant_id ?? '';
+    } catch { return reply.status(401).send({ error: 'Token inválido' }); }
+
+    // Fetch profile score fields
+    const { rows: profileRows } = await pool.query(
+      `SELECT sla_score, deliveries_total, deliveries_on_time, deliveries_late, score_updated_at
+         FROM freelancer_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    const profile = profileRows[0] ?? { sla_score: 100, deliveries_total: 0, deliveries_on_time: 0, deliveries_late: 0 };
+
+    // Recent SLA violations (last 90 days)
+    const { rows: violations } = await pool.query(
+      `SELECT job_title, deadline_at, delivered_at, days_late, glosa_brl
+         FROM freelancer_sla_violations
+        WHERE freelancer_id = $1 AND created_at > now() - interval '90 days'
+        ORDER BY created_at DESC LIMIT 10`,
+      [userId],
+    );
+
+    // Recent completed deliveries from jobs (last 30 days)
+    const { rows: recentJobs } = await pool.query(
+      `SELECT j.title, j.deadline_at, j.updated_at AS completed_at,
+              CASE WHEN j.deadline_at IS NOT NULL AND j.updated_at > j.deadline_at
+                   THEN CEIL(EXTRACT(EPOCH FROM (j.updated_at - j.deadline_at)) / 86400)
+                   ELSE 0 END AS days_late
+         FROM jobs j
+        WHERE j.owner_id = $1 AND j.tenant_id = $2
+          AND j.status IN ('approved', 'published', 'concluido')
+          AND j.updated_at > now() - interval '30 days'
+        ORDER BY j.updated_at DESC LIMIT 10`,
+      [userId, tenantId],
+    );
+
+    const slaScore = parseFloat(profile.sla_score) || 100;
+    const scoreLabel = slaScore >= 90 ? 'Excelente' : slaScore >= 75 ? 'Bom' : slaScore >= 60 ? 'Regular' : 'Crítico';
+    const scoreColor = slaScore >= 90 ? 'green' : slaScore >= 75 ? 'blue' : slaScore >= 60 ? 'yellow' : 'red';
+
+    return reply.send({
+      score: {
+        value: slaScore,
+        label: scoreLabel,
+        color: scoreColor,
+        deliveries_total: profile.deliveries_total ?? 0,
+        deliveries_on_time: profile.deliveries_on_time ?? 0,
+        deliveries_late: profile.deliveries_late ?? 0,
+        updated_at: profile.score_updated_at ?? null,
+      },
+      violations,
+      recent_deliveries: recentJobs,
+    });
+  });
+
+  // GET /freelancers/portal/me/onboarding-status — check if onboarding is complete
+  app.get('/freelancers/portal/me/onboarding-status', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+    let userId: string;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      userId = payload.sub ?? payload.id;
+    } catch { return reply.status(401).send({ error: 'Token inválido' }); }
+
+    const { rows } = await pool.query(
+      `SELECT onboarding_complete, terms_accepted_at, cnpj, razao_social,
+              pix_key, skills, sla_score
+         FROM freelancer_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    const profile = rows[0];
+    if (!profile) return reply.status(404).send({ error: 'Perfil não encontrado' });
+
+    return reply.send({
+      onboarding_complete: profile.onboarding_complete ?? false,
+      terms_accepted: !!profile.terms_accepted_at,
+      has_cnpj: !!profile.cnpj,
+      has_pix: !!profile.pix_key,
+      has_skills: !!(profile.skills?.length),
+      razao_social: profile.razao_social ?? null,
+      sla_score: parseFloat(profile.sla_score) || 100,
+    });
+  });
+
+  // POST /freelancers/payables/:id/nf — supplier uploads NF-e link
+  app.post('/freelancers/portal/me/payables/:payableId/nf', async (request: any, reply) => {
+    const token = request.headers.authorization?.replace('Bearer ', '');
+    if (!token) return reply.status(401).send({ error: 'Unauthorized' });
+    let userId: string;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      userId = payload.sub ?? payload.id;
+    } catch { return reply.status(401).send({ error: 'Token inválido' }); }
+
+    const { payableId } = request.params as { payableId: string };
+    const body = request.body as { nf_url?: string; nf_number?: string };
+    if (!body.nf_url) return reply.status(400).send({ error: 'nf_url é obrigatório' });
+
+    // Verify payable belongs to this freelancer
+    const profileRes = await pool.query(`SELECT id FROM freelancer_profiles WHERE user_id = $1`, [userId]);
+    const profileId = profileRes.rows[0]?.id;
+    if (!profileId) return reply.status(403).send({ error: 'Perfil não encontrado' });
+
+    const { rows } = await pool.query(
+      `UPDATE freelancer_payables
+          SET nf_url = $1, nf_number = $2, nf_uploaded_at = now()
+        WHERE id = $3 AND freelancer_id = $4
+        RETURNING id, nf_url, nf_number, nf_uploaded_at`,
+      [body.nf_url, body.nf_number ?? null, payableId, profileId],
+    );
+    if (!rows.length) return reply.status(404).send({ error: 'Competência não encontrada' });
+    return reply.send({ ok: true, payable: rows[0] });
+  });
 }

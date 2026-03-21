@@ -6,6 +6,7 @@ import Sidebar from './layout/sidebar/Sidebar';
 import Header from './layout/header/Header';
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import JarvisDrawer from './jarvis/JarvisDrawer';
+import JarvisCommandPalette from './jarvis/JarvisCommandPalette';
 
 type ActionButton = {
   label: string;
@@ -85,6 +86,7 @@ export default function AppShell({
         </Box>
       </Box>
       <JarvisDrawer />
+      <JarvisCommandPalette />
     </Box>
     </ConfirmProvider>
   );

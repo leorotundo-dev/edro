@@ -819,6 +819,84 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     required: ['job_id', 'owner_id'],
     category: 'action',
   },
+  // ── Briefing tools ──────────────────────────────────────────────────────────
+  {
+    name: 'get_job_briefing',
+    description: 'Busca o briefing de um job e o contexto do cliente pré-preenchido (tom, clusters, estilo visual). Use antes de criar ou completar um briefing.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+    },
+    required: ['job_id'],
+    category: 'read',
+  },
+  {
+    name: 'fill_job_briefing',
+    description: 'Preenche ou atualiza o briefing inteligente de um job. Informe os campos do job que são específicos — o perfil do cliente já é carregado automaticamente. Chame get_job_briefing primeiro para ver o contexto do cliente.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      context_trigger: { type: 'string', description: 'Por que este job existe agora', enum: ['lançamento_produto', 'ativacao_sazonalidade', 'oportunidade_tendencia', 'demanda_cliente', 'estrategia_proativa', 'crise_reputacao'] },
+      consumer_moment: { type: 'string', description: 'Momento do consumidor', enum: ['descobrindo_problema', 'comparando_solucoes', 'decidindo_compra', 'ja_cliente_upsell', 'pos_compra_retencao'] },
+      main_risk: { type: 'string', description: 'Principal risco a evitar', enum: ['mensagem_generica', 'publico_errado', 'timing_incorreto', 'tom_inadequado', 'saturacao_formato'] },
+      main_objective: { type: 'string', description: 'Objetivo principal', enum: ['reconhecimento', 'engajamento', 'conversao', 'performance', 'mix'] },
+      success_metrics: { type: 'array', items: { type: 'string' }, description: 'Métricas de sucesso (ex: taxa_salvamento, ctr, leads, alcance, engajamento, vendas)' },
+      specific_barriers: { type: 'array', items: { type: 'string' }, description: 'Barreiras de conversão (ex: preco_alto, nao_conhece_marca, momento_errado, nao_percebe_valor, concorrente_preferido, excesso_informacao)' },
+      message_structure: { type: 'string', description: 'Estrutura da mensagem', enum: ['prova_social', 'transformacao', 'contraste', 'urgencia', 'curiosidade', 'storytelling', 'dado_surpreendente'] },
+      desired_emotion: { type: 'array', items: { type: 'string' }, description: 'Emoções desejadas (máx 2): confianca, pertencimento, urgencia, admiracao, alivio, inspiracao, divertimento, nostalgia' },
+      desired_amd: { type: 'string', description: 'Ação desejada (AMD)', enum: ['salvar', 'clicar', 'compartilhar', 'responder', 'marcar_amigo', 'proposta_direta'] },
+      regulatory_flags: { type: 'array', items: { type: 'string' }, description: 'Restrições regulatórias: linguagem_promocional, produto_financeiro, alimento_bebida, saude_medicamento, infantil, politico, sem_restricoes' },
+      ref_notes: { type: 'string', description: 'Notas e referências específicas para este job' },
+      pieces: { type: 'array', items: { type: 'string' }, description: 'Array de peças como strings "formato|plataforma|versoes" (ex: "reels|instagram|2", "carrossel|instagram|1", "post_feed|linkedin|1")' },
+    },
+    required: ['job_id', 'context_trigger', 'consumer_moment', 'main_objective', 'desired_amd'],
+    category: 'action',
+  },
+  {
+    name: 'submit_job_briefing',
+    description: 'Submete o briefing de um job para aprovação. O briefing deve estar preenchido (use fill_job_briefing antes).',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+    },
+    required: ['job_id'],
+    category: 'action',
+  },
+  {
+    name: 'approve_job_briefing',
+    description: 'Aprova o briefing de um job e dispara a geração de copy pelo pipeline de IA. Use depois de submit_job_briefing ou quando o briefing já estiver submetido.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+    },
+    required: ['job_id'],
+    category: 'action',
+  },
+  {
+    name: 'get_job_creative_drafts',
+    description: 'Busca os rascunhos de copy e imagem gerados pela IA para um job. Retorna hook, corpo, CTA e score Fogg por peça.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+    },
+    required: ['job_id'],
+    category: 'read',
+  },
+  {
+    name: 'approve_creative_draft',
+    description: 'Aprova um rascunho de copy ou imagem gerado pela IA. Avança o job para o próximo estágio.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      draft_id: { type: 'string', description: 'UUID do rascunho (obtido via get_job_creative_drafts)' },
+    },
+    required: ['job_id', 'draft_id'],
+    category: 'action',
+  },
+  {
+    name: 'regenerate_creative_draft',
+    description: 'Descarta o rascunho atual e solicita nova geração de copy ou imagem para o job.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      step: { type: 'string', description: 'Etapa a regenerar', enum: ['copy', 'image'] },
+    },
+    required: ['job_id', 'step'],
+    category: 'action',
+  },
 ];
 
 export function getOperationsToolDefinitions(): ToolDefinition[] {

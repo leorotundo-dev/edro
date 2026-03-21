@@ -236,7 +236,7 @@ function getQuickActions(pathname: string, hasClient: boolean): string[] {
 // ── Main component ────────────────────────────────────────────────────
 
 export default function JarvisChatPanel() {
-  const { clientId, setClientId, clientName, conversationId, setConversationId, bump, isOpen } = useJarvis();
+  const { clientId, setClientId, clientName, conversationId, setConversationId, bump, isOpen, pendingMessage, clearPendingMessage } = useJarvis();
   const pathname = usePathname();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationMemories, setConversationMemories] = useState<ConversationMemory[]>([]);
@@ -270,6 +270,17 @@ export default function JarvisChatPanel() {
       })));
     }).catch(() => {});
   }, [conversationId, clientId]);
+
+  // Auto-send message from command palette when drawer opens
+  useEffect(() => {
+    if (isOpen && pendingMessage && clientId) {
+      clearPendingMessage();
+      // Small delay so the drawer is fully rendered before sending
+      const timer = setTimeout(() => sendMessage(pendingMessage), 120);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, pendingMessage, clientId]);
 
   useEffect(() => {
     if (!clientId) {

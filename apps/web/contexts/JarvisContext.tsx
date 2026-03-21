@@ -9,6 +9,15 @@ type JarvisContextValue = {
   open: (clientId?: string) => void;
   close: () => void;
   toggle: () => void;
+  // Command palette
+  isPaletteOpen: boolean;
+  openPalette: () => void;
+  closePalette: () => void;
+  // Send a pre-filled message: opens drawer + queues message
+  openWithMessage: (message: string) => void;
+  pendingMessage: string | null;
+  clearPendingMessage: () => void;
+  // Client / conversation
   clientId: string | null;
   clientName: string | null;
   setClientId: (id: string) => void;
@@ -41,6 +50,8 @@ function detectPageContext(pathname: string | null): { type: 'client' | 'job' | 
 export function JarvisProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [clientId, setClientIdState] = useState<string | null>(null);
   const [clientName, setClientName] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -60,7 +71,6 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (ctx.type !== 'client') {
-      // Fallback: localStorage for client (persists last visited client)
       try {
         const stored = localStorage.getItem('edro_active_client_id');
         if (stored) setClientIdState(stored);
@@ -89,8 +99,34 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, [pageContext.type, pageContext.id]);
 
+  // Ctrl+J / Cmd+J — opens command palette (or toggles drawer if palette already open)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'j') {
+        // Don't fire inside text inputs (so typing Ctrl+J in Jarvis chat doesn't reopen palette)
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+        e.preventDefault();
+        if (isPaletteOpen) {
+          setIsPaletteOpen(false);
+        } else if (isOpen) {
+          setIsOpen(false);
+        } else {
+          setIsPaletteOpen(true);
+        }
+      }
+      // Escape closes palette
+      if (e.key === 'Escape' && isPaletteOpen) {
+        setIsPaletteOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isPaletteOpen, isOpen]);
+
   const open = useCallback((id?: string) => {
     if (id) setClientIdState(id);
+    setIsPaletteOpen(false);
     setIsOpen(true);
     setUnreadCount(0);
   }, []);
@@ -104,20 +140,31 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const openPalette = useCallback(() => setIsPaletteOpen(true), []);
+  const closePalette = useCallback(() => setIsPaletteOpen(false), []);
+
+  const openWithMessage = useCallback((message: string) => {
+    setIsPaletteOpen(false);
+    setPendingMessage(message);
+    setIsOpen(true);
+    setUnreadCount(0);
+  }, []);
+
+  const clearPendingMessage = useCallback(() => setPendingMessage(null), []);
+
   const setClientId = useCallback((id: string) => {
     setClientIdState(id);
     try { localStorage.setItem('edro_active_client_id', id); } catch { /* ignore */ }
   }, []);
 
-  const bump = useCallback(() => {
-    setUnreadCount(prev => prev + 1);
-  }, []);
-
+  const bump = useCallback(() => setUnreadCount(prev => prev + 1), []);
   const clearUnread = useCallback(() => setUnreadCount(0), []);
 
   return (
     <JarvisContext.Provider value={{
       isOpen, open, close, toggle,
+      isPaletteOpen, openPalette, closePalette,
+      openWithMessage, pendingMessage, clearPendingMessage,
       clientId, clientName, setClientId,
       conversationId, setConversationId,
       unreadCount, bump, clearUnread,

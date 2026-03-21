@@ -30,6 +30,7 @@ import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
 import { analyzeCognitiveLoad } from '../cognitiveLoadService';
 import { generateWithProvider } from './copyOrchestrator';
+import { enqueueJob } from '../../jobs/jobQueue';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -150,6 +151,14 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   list_whatsapp_groups: toolListWhatsAppGroups,
   get_whatsapp_insights: toolGetWhatsAppInsights,
   get_whatsapp_digests: toolGetWhatsAppDigests,
+  // Grupo 9 — Briefing Inteligente de Jobs
+  get_job_briefing: toolGetJobBriefing,
+  fill_job_briefing: toolFillJobBriefing,
+  submit_job_briefing: toolSubmitJobBriefing,
+  approve_job_briefing: toolApproveJobBriefing,
+  get_job_creative_drafts: toolGetJobCreativeDrafts,
+  approve_creative_draft: toolApproveCreativeDraft,
+  regenerate_creative_draft: toolRegenerateCreativeDraft,
 };
 
 export async function executeTool(
@@ -2388,4 +2397,313 @@ async function opsManageAllocation(args: any, ctx: OperationsToolContext): Promi
   });
   await syncOperationalRuntimeForJob(ctx.tenantId, args.job_id);
   return { success: true, data };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── GRUPO 9 — Briefing Inteligente de Jobs ────────────────────────
+// ══════════════════════════════════════════════════════════════════
+
+async function toolGetJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { job_id } = args;
+  if (!job_id) return { success: false, error: 'job_id é obrigatório' };
+
+  // Fetch job + client name
+  const { rows: jobRows } = await query<any>(
+    `SELECT j.*, c.name AS client_name
+       FROM jobs j
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE j.id = $1 AND j.tenant_id = $2`,
+    [job_id, ctx.tenantId],
+  );
+  if (!jobRows.length) return { success: false, error: 'Job não encontrado.' };
+  const job = jobRows[0];
+
+  // Fetch briefing + pieces
+  const { rows: briefRows } = await query<any>(
+    `SELECT * FROM job_briefings WHERE job_id = $1 AND tenant_id = $2`,
+    [job_id, ctx.tenantId],
+  );
+  const briefing = briefRows[0] ?? null;
+  const pieces = briefing
+    ? (await query<any>(`SELECT * FROM job_briefing_pieces WHERE briefing_id = $1 ORDER BY sort_order`, [briefing.id])).rows
+    : [];
+
+  // Build client_context
+  let clientContext: Record<string, any> = {};
+  if (job.client_id) {
+    const { rows: clientRows } = await query<any>(
+      `SELECT profile FROM clients WHERE id = $1 AND tenant_id = $2`,
+      [job.client_id, ctx.tenantId],
+    );
+    const profile = clientRows[0]?.profile ?? {};
+    const kb = profile.knowledge_base ?? {};
+    const bt = profile.brand_tokens ?? {};
+
+    const { rows: clusterRows } = await query<any>(
+      `SELECT id, cluster_type, cluster_label, preferred_amd, preferred_triggers,
+              avg_save_rate, avg_click_rate, avg_engagement_rate
+         FROM client_behavior_profiles
+        WHERE client_id = $1 AND tenant_id = $2
+        ORDER BY confidence_score DESC`,
+      [job.client_id, ctx.tenantId],
+    );
+    const { rows: vsRows } = await query<any>(
+      `SELECT style_summary, mood FROM client_visual_style
+        WHERE client_id = $1 AND tenant_id = $2
+        ORDER BY analyzed_at DESC LIMIT 1`,
+      [job.client_id, ctx.tenantId],
+    );
+    const { rows: ruleRows } = await query<any>(
+      `SELECT rule_type, rule_text, uplift_pct FROM learning_rules
+        WHERE client_id = $1 AND tenant_id = $2 AND is_active = true
+        ORDER BY uplift_pct DESC LIMIT 5`,
+      [job.client_id, ctx.tenantId],
+    );
+
+    clientContext = {
+      tone_description: profile.tone_description ?? null,
+      personality_traits: profile.personality_traits ?? [],
+      formality_level: profile.formality_level ?? null,
+      forbidden_claims: kb.forbidden_claims ?? [],
+      negative_keywords: profile.negative_keywords ?? [],
+      pillars: profile.pillars ?? [],
+      reference_brands: bt.referenceStyles ?? [],
+      audience: kb.audience ?? null,
+      brand_promise: kb.brand_promise ?? null,
+      visual_style: vsRows[0]?.style_summary ?? null,
+      behavior_clusters: clusterRows,
+      learning_rules: ruleRows,
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      job: { id: job.id, title: job.title, job_type: job.job_type, client_id: job.client_id, client_name: job.client_name, automation_status: job.automation_status },
+      briefing,
+      pieces,
+      client_context: clientContext,
+    },
+  };
+}
+
+async function toolFillJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { job_id } = args;
+  if (!job_id) return { success: false, error: 'job_id é obrigatório' };
+
+  // Verify job + get client_id
+  const { rows: jobRows } = await query<any>(
+    `SELECT id, client_id FROM jobs WHERE id = $1 AND tenant_id = $2`,
+    [job_id, ctx.tenantId],
+  );
+  if (!jobRows.length) return { success: false, error: 'Job não encontrado.' };
+  const clientId = jobRows[0].client_id;
+  if (!clientId) return { success: false, error: 'Job sem cliente associado.' };
+
+  // Block if already submitted/approved
+  const { rows: existing } = await query<any>(
+    `SELECT id, status FROM job_briefings WHERE job_id = $1 AND tenant_id = $2`,
+    [job_id, ctx.tenantId],
+  );
+  if (existing.length && existing[0].status !== 'draft') {
+    return { success: false, error: `Briefing com status '${existing[0].status}'. Só é possível editar em draft.` };
+  }
+
+  // Upsert briefing
+  const { rows: briefRows } = await query<any>(
+    `INSERT INTO job_briefings (
+        job_id, tenant_id, client_id,
+        context_trigger, consumer_moment, main_risk,
+        main_objective, success_metrics,
+        target_cluster_ids, specific_barriers,
+        message_structure, desired_emotion, desired_amd,
+        tone_override, regulatory_flags,
+        ref_links, ref_notes
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17)
+      ON CONFLICT (job_id) DO UPDATE SET
+        context_trigger    = EXCLUDED.context_trigger,
+        consumer_moment    = EXCLUDED.consumer_moment,
+        main_risk          = EXCLUDED.main_risk,
+        main_objective     = EXCLUDED.main_objective,
+        success_metrics    = EXCLUDED.success_metrics,
+        target_cluster_ids = EXCLUDED.target_cluster_ids,
+        specific_barriers  = EXCLUDED.specific_barriers,
+        message_structure  = EXCLUDED.message_structure,
+        desired_emotion    = EXCLUDED.desired_emotion,
+        desired_amd        = EXCLUDED.desired_amd,
+        tone_override      = EXCLUDED.tone_override,
+        regulatory_flags   = EXCLUDED.regulatory_flags,
+        ref_links          = EXCLUDED.ref_links,
+        ref_notes          = EXCLUDED.ref_notes,
+        updated_at         = now()
+      RETURNING *`,
+    [
+      job_id, ctx.tenantId, clientId,
+      args.context_trigger ?? null,
+      args.consumer_moment ?? null,
+      args.main_risk ?? null,
+      args.main_objective ?? null,
+      args.success_metrics ?? null,
+      args.target_cluster_ids ?? null,
+      args.specific_barriers ?? null,
+      args.message_structure ?? null,
+      args.desired_emotion ?? null,
+      args.desired_amd ?? null,
+      args.tone_override ? JSON.stringify(args.tone_override) : null,
+      args.regulatory_flags ?? null,
+      args.ref_links ?? null,
+      args.ref_notes ?? null,
+    ],
+  );
+  const briefing = briefRows[0];
+
+  // Parse and replace pieces (format: "format_type|platform|versions")
+  if (args.pieces !== undefined && Array.isArray(args.pieces)) {
+    await query(`DELETE FROM job_briefing_pieces WHERE briefing_id = $1`, [briefing.id]);
+    for (const [i, piece] of args.pieces.entries()) {
+      let format_type: string, platform: string | null = null, versions = 1, priority = 'media', notes: string | null = null;
+      if (typeof piece === 'string') {
+        const parts = piece.split('|');
+        format_type = parts[0]?.trim() || piece;
+        platform = parts[1]?.trim() || null;
+        versions = parseInt(parts[2]?.trim() || '1', 10) || 1;
+      } else {
+        format_type = piece.format_type;
+        platform = piece.platform ?? null;
+        versions = piece.versions ?? 1;
+        priority = piece.priority ?? 'media';
+        notes = piece.notes ?? null;
+      }
+      await query(
+        `INSERT INTO job_briefing_pieces (briefing_id, format_type, platform, versions, priority, notes, sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [briefing.id, format_type, platform, versions, priority, notes, i],
+      );
+    }
+  }
+
+  const { rows: pieces } = await query<any>(
+    `SELECT * FROM job_briefing_pieces WHERE briefing_id = $1 ORDER BY sort_order`,
+    [briefing.id],
+  );
+  return { success: true, data: { briefing, pieces, message: 'Briefing salvo como rascunho.' } };
+}
+
+async function toolSubmitJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { job_id } = args;
+  if (!job_id) return { success: false, error: 'job_id é obrigatório' };
+
+  const { rows } = await query<any>(
+    `UPDATE job_briefings
+        SET status = 'submitted', submitted_at = now()
+      WHERE job_id = $1 AND tenant_id = $2 AND status = 'draft'
+      RETURNING *`,
+    [job_id, ctx.tenantId],
+  );
+  if (!rows.length) return { success: false, error: 'Briefing não encontrado ou já submetido.' };
+
+  await query(
+    `UPDATE jobs SET automation_status = 'briefing_pending', updated_at = now()
+      WHERE id = $1 AND tenant_id = $2`,
+    [job_id, ctx.tenantId],
+  );
+
+  return { success: true, data: { briefing: rows[0], message: 'Briefing submetido para aprovação. Status do job: briefing_pending.' } };
+}
+
+async function toolApproveJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { job_id } = args;
+  if (!job_id) return { success: false, error: 'job_id é obrigatório' };
+
+  const { rows } = await query<any>(
+    `UPDATE job_briefings
+        SET status = 'approved', approved_at = now(), approved_by = $3::uuid
+      WHERE job_id = $1 AND tenant_id = $2 AND status = 'submitted'
+      RETURNING *`,
+    [job_id, ctx.tenantId, ctx.userId ?? null],
+  );
+  if (!rows.length) return { success: false, error: 'Briefing não encontrado ou não está em status submitted.' };
+
+  await query(
+    `UPDATE jobs
+        SET status = 'in_progress', automation_status = 'copy_pending', updated_at = now()
+      WHERE id = $1 AND tenant_id = $2`,
+    [job_id, ctx.tenantId],
+  );
+
+  await enqueueJob(ctx.tenantId, 'job_automation', { jobId: job_id, step: 'copy' });
+
+  return { success: true, data: { briefing: rows[0], message: 'Briefing aprovado. Geração de copy iniciada (copy_pending).' } };
+}
+
+async function toolGetJobCreativeDrafts(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { job_id } = args;
+  if (!job_id) return { success: false, error: 'job_id é obrigatório' };
+
+  const { rows } = await query<any>(
+    `SELECT id, draft_type, piece_label, content, approval_status,
+            draft_approved_at, created_at
+       FROM job_creative_drafts
+      WHERE tenant_id = $1 AND job_id = $2
+      ORDER BY created_at DESC`,
+    [ctx.tenantId, job_id],
+  );
+
+  if (!rows.length) {
+    return { success: true, data: { drafts: [], message: 'Nenhum rascunho gerado ainda para este job.' } };
+  }
+
+  return {
+    success: true,
+    data: { drafts: rows, total: rows.length },
+    metadata: { row_count: rows.length },
+  };
+}
+
+async function toolApproveCreativeDraft(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { draft_id, job_id } = args;
+  if (!draft_id || !job_id) return { success: false, error: 'draft_id e job_id são obrigatórios' };
+
+  const { rows } = await query<any>(
+    `UPDATE job_creative_drafts
+        SET draft_approved_by = $3,
+            draft_approved_at = now(),
+            approval_status = 'approved'
+      WHERE tenant_id = $1 AND id = $2 AND job_id = $4
+      RETURNING id, piece_label, draft_type, approval_status`,
+    [ctx.tenantId, draft_id, ctx.userId ?? null, job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Rascunho não encontrado.' };
+
+  // Auto-advance job from in_review → approved
+  const jobRes = await query<any>(
+    `SELECT status FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+    [ctx.tenantId, job_id],
+  );
+  if (jobRes.rows[0]?.status === 'in_review') {
+    await query(`UPDATE jobs SET status = 'approved' WHERE tenant_id = $1 AND id = $2`, [ctx.tenantId, job_id]);
+  }
+
+  return { success: true, data: { draft: rows[0], message: `Rascunho '${rows[0].piece_label}' aprovado.` } };
+}
+
+async function toolRegenerateCreativeDraft(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const { job_id, step } = args;
+  if (!job_id) return { success: false, error: 'job_id é obrigatório' };
+  const draftStep = step === 'image' ? 'image' : 'copy';
+
+  const jobRes = await query<any>(
+    `SELECT id FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+    [ctx.tenantId, job_id],
+  );
+  if (!jobRes.rows.length) return { success: false, error: 'Job não encontrado.' };
+
+  const automationStatus = draftStep === 'copy' ? 'copy_pending' : 'image_pending';
+  await query(
+    `UPDATE jobs SET automation_status = $2 WHERE id = $1 AND tenant_id = $3`,
+    [job_id, automationStatus, ctx.tenantId],
+  );
+  await enqueueJob(ctx.tenantId, 'job_automation', { jobId: job_id, step: draftStep });
+
+  return { success: true, data: { message: `Regeneração de ${draftStep} enfileirada. automation_status → ${automationStatus}.` } };
 }

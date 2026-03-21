@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { clearToken } from '@/lib/api';
+import { usePathname, useRouter } from 'next/navigation';
+import { clearToken, apiGet } from '@/lib/api';
 import clsx from 'clsx';
 
 const NAV = [
@@ -11,8 +11,8 @@ const NAV = [
   { href: '/jobs',       label: 'Jobs',         icon: '◈', match: (p: string) => p.startsWith('/jobs') },
   { href: '/agenda',     label: 'Agenda',       icon: '📅', match: (p: string) => p.startsWith('/agenda') },
   { href: '/studio',     label: 'Studio',       icon: '✦', match: (p: string) => p.startsWith('/studio') },
-  { href: '/horas',      label: 'Horas',        icon: '◷', match: (p: string) => p.startsWith('/horas') },
-  { href: '/pagamentos', label: 'Pagamentos',   icon: '◎', match: (p: string) => p.startsWith('/pagamentos') },
+  { href: '/horas',      label: 'Score',        icon: '★', match: (p: string) => p.startsWith('/horas') },
+  { href: '/pagamentos', label: 'Honorários',   icon: '◎', match: (p: string) => p.startsWith('/pagamentos') },
   { href: '/perfil',     label: 'Perfil',       icon: '◉', match: (p: string) => p.startsWith('/perfil') },
 ];
 
@@ -22,6 +22,7 @@ function initials(value: string) {
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
@@ -35,6 +36,17 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     } catch {
       setName('Freelancer');
     }
+
+    // Onboarding gate — redirect if PJ setup not complete
+    apiGet<{ onboarding_complete: boolean; terms_accepted: boolean }>('/freelancers/portal/me/onboarding-status')
+      .then(status => {
+        if (!status.onboarding_complete) {
+          router.replace('/onboarding');
+        } else if (!status.terms_accepted) {
+          router.replace('/onboarding/termos');
+        }
+      })
+      .catch(() => { /* network error — don't block portal */ });
   }, []);
 
   const activeLabel = useMemo(() => NAV.find(n => n.match(pathname))?.label ?? '', [pathname]);

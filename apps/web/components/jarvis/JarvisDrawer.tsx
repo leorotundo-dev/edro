@@ -93,6 +93,10 @@ export default function JarvisDrawer() {
               : conversationId
               ? 'Conversa ativa'
               : 'Contexto global'}
+            {' ·'}{' '}
+            <Box component="kbd" sx={{ fontSize: '0.58rem', opacity: 0.6, fontFamily: 'monospace', bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+              Ctrl+J
+            </Box>
           </Typography>
         </Box>
 
