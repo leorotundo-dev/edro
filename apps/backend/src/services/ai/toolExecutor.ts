@@ -158,7 +158,10 @@ export async function executeTool(
   ctx: ToolContext,
 ): Promise<ToolResult> {
   const handler = TOOL_MAP[toolName];
+  // Fall through to operations tool map — ToolContext satisfies OperationsToolContext
   if (!handler) {
+    const opsHandler = OPS_TOOL_MAP[toolName];
+    if (opsHandler) return executeOperationsTool(toolName, args, ctx);
     return { success: false, error: `Tool '${toolName}' not found` };
   }
   try {

@@ -182,12 +182,27 @@ async function plugin3Generator(
     prova_social: 'Foque em PROVA SOCIAL. Mencione resultados de clientes, casos de sucesso, volume de pessoas atendidas. Crie FOMO e validação.',
   };
 
-  const platform = params.platform?.toLowerCase() ?? 'instagram';
+  const rawPlatform3 = params.platform?.toLowerCase() ?? 'instagram';
+  const platform = rawPlatform3.includes('reel') ? 'reels'
+    : rawPlatform3.includes('storie') ? 'stories'
+    : rawPlatform3.includes('tiktok') ? 'tiktok'
+    : rawPlatform3.includes('linkedin') ? 'linkedin'
+    : rawPlatform3.includes('twitter') || rawPlatform3 === 'x' ? 'twitter'
+    : rawPlatform3.includes('facebook') || rawPlatform3 === 'fb' ? 'facebook'
+    : rawPlatform3.includes('whatsapp') ? 'whatsapp'
+    : rawPlatform3.includes('email') ? 'email'
+    : rawPlatform3.includes('instagram') ? 'instagram'
+    : rawPlatform3;
   const charLimits: Record<string, string> = {
-    instagram: '≤ 125 chars no título, legenda até 2200 chars',
-    linkedin:  '≤ 210 chars antes do "ver mais", posts de até 3000 chars',
-    twitter:   '≤ 280 chars totais',
-    facebook:  '≤ 80 chars no copy principal',
+    instagram: 'Linha 1 ≤ 125 chars (visível sem "ver mais"), legenda até 2200 chars, 8-15 hashtags',
+    reels:     'Legenda ≤ 150 chars, roteiro por cortes de câmera, hashtags ao final',
+    tiktok:    'Legenda ≤ 150 chars, 15-30 hashtags, roteiro linha-a-linha (cada linha = corte)',
+    stories:   '1 ideia por slide, texto central com margem de 15%, CTA no último slide',
+    linkedin:  'Linha 1 ≤ 210 chars (visível antes de "ver mais"), post até 3000 chars, 3-5 hashtags no final',
+    twitter:   '≤ 270 chars por tweet; thread: 1º tweet = tese completa + 🧵, numeração 1/ 2/ 3/',
+    facebook:  '≤ 80 chars no copy principal, link preview como CTA, 2-5 hashtags',
+    whatsapp:  '≤ 3 parágrafos de 160 chars, link no final, bold apenas em 1-2 palavras-chave',
+    email:     'Subject ≤ 50 chars, 1 CTA por email, parágrafos de 2-3 linhas',
   };
 
   const hook = strategy.hooks[appeal === 'dor' ? 0 : appeal === 'logica' ? 1 : 2] ?? strategy.hooks[0];
@@ -243,13 +258,94 @@ async function plugin4PlatformOptimizer(
   params: AgentRedatorParams,
   variant: Omit<CopyVariant, 'audit' | 'flagged'>,
 ): Promise<Omit<CopyVariant, 'audit' | 'flagged'>> {
-  const platform = params.platform?.toLowerCase() ?? 'instagram';
+  const rawPlatform = params.platform?.toLowerCase() ?? 'instagram';
+  // Normalize platform key to match platformRules keys
+  const platform = rawPlatform.includes('reel') ? 'reels'
+    : rawPlatform.includes('storie') ? 'stories'
+    : rawPlatform.includes('tiktok') ? 'tiktok'
+    : rawPlatform.includes('linkedin') ? 'linkedin'
+    : rawPlatform.includes('twitter') || rawPlatform === 'x' ? 'twitter'
+    : rawPlatform.includes('facebook') || rawPlatform === 'fb' ? 'facebook'
+    : rawPlatform.includes('whatsapp') || rawPlatform === 'wa' ? 'whatsapp'
+    : rawPlatform.includes('email') ? 'email'
+    : rawPlatform.includes('instagram') ? 'instagram'
+    : rawPlatform;
   const platformRules: Record<string, string> = {
-    instagram: 'Parágrafos de 1-2 linhas. Emojis a cada 2-3 parágrafos. Quebras de linha para escaneabilidade. Hashtags no final (5-10). CTA antes das hashtags.',
-    linkedin:  'Tom profissional. Primeiro parágrafo = gancho (sem hashtags no início). Bullets para listas. Hashtags ao final (3-5). CTA explícito.',
-    twitter:   'Máximo 280 chars. Sem hashtags no body, apenas 1-2 ao final. CTA ultra-curto.',
-    facebook:  'Parágrafos curtos. Link preview como CTA primário. Emojis moderados.',
-    tiktok:    'Legenda curta (150 chars). Hashtags trending (10+). Hook na primeira linha.',
+    instagram: `REGRAS INSTAGRAM FEED:
+- Linha 1 (≤125 chars): deve funcionar SEM "ver mais" — é a única linha que a maioria lê
+- Estrutura: gancho → desenvolvimento (3-4 parágrafos) → prova/dado → CTA → hashtags
+- Parágrafos de 1-2 linhas com espaço duplo entre eles (sem espaço = muro de texto)
+- Emojis contextuais (não decorativos) a cada 2-3 parágrafos, nunca no meio de frase
+- Hashtags: 8-15, mix nicho (10K-500K) + média (500K-5M) + ampla (>5M), sempre no FINAL
+- CTA explícito ANTES das hashtags — nunca enterrar o CTA depois das tags
+- Se carrossel: legenda referencia os slides ("Deslize →")`,
+
+    reels: `REGRAS INSTAGRAM REELS:
+- Legenda: ≤ 150 chars, 1 frase de impacto que complementa o vídeo
+- Hashtags: 8-15, mix nicho + ampla, ao final da legenda
+- Roteiro segue: [HOOK 0-3s] → [CONFLITO 3-25s] → [VIRADA/INSIGHT 25-45s] → [CTA+PAUSA 45-58s]
+- Cada linha do roteiro = instrução de corte de câmera
+- Texto em tela: máx 5 palavras por bloco, fonte grande, alto contraste
+- CTA verbal + pausa de câmera antes do final (0.5s de silêncio = ênfase emocional)`,
+
+    tiktok: `REGRAS TIKTOK:
+- Legenda: ≤ 150 chars, direto ao ponto — sem parágrafos longos
+- Hashtags: 15-30, sempre incluir #fyp #foryou + nicho específico + 2-3 trending do momento
+- Roteiro: [HOOK visceral 0-3s] → [DESENVOLVIMENTO 3-25s] → [PAYOFF 25-45s] → [CTA+PAUSA]
+- Cada linha = instrução de edição/corte
+- Texto em tela: máx 5 palavras, fonte enorme, contraste extremo, posição central
+- Hook obrigatório nos 3 primeiros segundos — pergunta, afirmação polêmica ou promessa
+- Mencionar "trending audio" quando culturalmente relevante`,
+
+    stories: `REGRAS INSTAGRAM STORIES:
+- 1 ideia por slide — jamais sobrecarregar
+- Texto: posição central, 15% de margem segura nas bordas (UI do app cobre as bordas)
+- Fundo: cor sólida ou blur suave — nunca textura poluída ou foto escura com texto claro
+- Sequência: [Gancho/Pergunta] → [Desenvolvimento] → [Prova] → [CTA com Link Sticker]
+- Link Sticker apenas no ÚLTIMO slide
+- Se objetivo é engajamento: usar Enquete ou Caixinha de Perguntas (3x mais resposta)
+- Cada slide: máx 2-3 linhas de texto`,
+
+    linkedin: `REGRAS LINKEDIN:
+- Primeira linha: insight inesperado ou dado contraintuitivo (visível sem "ver mais", ≤ 210 chars)
+- JAMAIS começar com: "Hoje quero compartilhar", "É com prazer", "Vim trazer", "Reflexão"
+- Estrutura: [Insight/Hook] → [Contexto/história] → [Aprendizado concreto] → [CTA]
+- Tom: par a par — especialista com especialista, primeira pessoa, sem pedantismo corporativo
+- Bullets: use símbolos (→ ✓ ▸), nunca hífen puro; máx 5 bullets por bloco
+- Hashtags: 3-5 ao FINAL, NUNCA no corpo do texto
+- Se carrossel: slide 1 = promessa clara, slides 2-9 = delivery, último = síntese + CTA + marca
+- Horário pico: terça a quinta, 8h-10h e 12h-13h`,
+
+    twitter: `REGRAS X/TWITTER:
+- Tweet único: ≤ 270 chars (reservar 10 para citações)
+- Se thread: primeiro tweet = TESE COMPLETA + promessa ("Thread sobre X 🧵")
+- Numeração obrigatória: 1/ 2/ 3/ etc.
+- Último tweet: síntese 1 frase + CTA + pedir RT
+- Máx 2 hashtags por tweet, apenas ao final, nunca no meio de frase
+- Tom direto, sem rodeios — Twitter recompensa assertividade`,
+
+    facebook: `REGRAS FACEBOOK:
+- Parágrafos curtos (2-3 linhas), espaço entre parágrafos
+- Primeira linha: gancho que gera curiosidade ou identidade ("Você também faz isso?")
+- Link preview como CTA primário — texto deve preparar para o clique
+- Emojis moderados (1-2 por parágrafo), nunca em excesso
+- CTA explícito antes do link
+- Hashtags: 2-5 no máximo, Facebook não amplifica por hashtag`,
+
+    whatsapp: `REGRAS WHATSAPP/BROADCAST:
+- Primeira linha: razão clara de abrir, sem pitch — contexto antes de oferta
+- Máx 3 parágrafos curtos (≤ 160 chars cada) — mensagem longa = não lida
+- Link sempre no FINAL, nunca no início
+- Tom: conversa humana, primeira pessoa
+- Bold (*asteriscos*) apenas em 1-2 palavras-chave, nunca frases inteiras
+- Emojis: 1-2 por mensagem, início ou final do parágrafo`,
+
+    email: `REGRAS EMAIL MARKETING:
+- Subject: ≤ 50 chars, benefício explícito ou curiosidade — sem spam words
+- Estrutura: [Hook 1-2 linhas] → [Problema] → [Solução] → [Prova/dado] → [CTA único]
+- 1 CTA principal por email — múltiplos CTAs matam conversão
+- Parágrafos de 2-3 linhas, mobile first
+- Preview text complementa o subject — nunca repete`,
   };
 
   const prompt = `Você é um especialista em formatação de conteúdo para ${params.platform ?? 'Instagram'}.

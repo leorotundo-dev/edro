@@ -884,5 +884,5 @@ export function toGeminiTools(tools: ToolDefinition[]) {
 }
 
 export function getAllToolDefinitions(): ToolDefinition[] {
-  return TOOLS;
+  return [...TOOLS, ...OPERATIONS_TOOLS];
 }
