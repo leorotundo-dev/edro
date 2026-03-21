@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { env } from '../env';
+import { allowUnsafeLocalAuthHelpers, env, portalLoginSecret } from '../env';
 import { makeHash } from '../utils/hash';
 import { createLoginCode, consumeLoginCode, upsertUser } from '../repositories/edroUserRepository';
 import { sendEmail } from './emailService';
@@ -17,10 +17,8 @@ const parseList = (value?: string | null) =>
 const allowedDomains = parseList(env.EDRO_ALLOWED_DOMAINS || 'edro.digital');
 const adminEmails = parseList(env.EDRO_ADMIN_EMAILS || '');
 
-const loginSecret = env.EDRO_LOGIN_SECRET || env.JWT_SECRET;
-
 const buildCodeHash = (email: string, code: string) =>
-  makeHash(`${loginSecret}:${email}:${code}`);
+  makeHash(`${portalLoginSecret}:${email}:${code}`);
 
 const generateCode = () =>
   crypto.randomInt(0, 1000000).toString().padStart(6, '0');
@@ -60,7 +58,7 @@ export async function requestLoginCode(emailInput: string) {
     return { delivery: 'email' as const };
   }
 
-  const allowEcho = env.EDRO_LOGIN_ECHO_CODE || env.NODE_ENV !== 'production';
+  const allowEcho = env.EDRO_LOGIN_ECHO_CODE || allowUnsafeLocalAuthHelpers;
   if (allowEcho) {
     return { delivery: 'echo' as const, code, error: delivery.error };
   }

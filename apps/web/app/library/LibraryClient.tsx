@@ -220,17 +220,12 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
 
   const uploadFile = async (file: File) => {
     if (!selectedClient) return;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) return;
 
     const form = new FormData();
     form.append('file', file);
 
     const response = await fetch(buildApiUrl(`/clients/${selectedClient.id}/library/upload`), {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: form,
     });
 
@@ -243,14 +238,10 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
   };
 
   const openFile = async (itemId: string, title: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) return;
     setError('');
 
     try {
-      const response = await fetch(buildApiUrl(`/library/${itemId}/file`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(buildApiUrl(`/library/${itemId}/file`));
       if (!response.ok) throw new Error('Failed to open file.');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);

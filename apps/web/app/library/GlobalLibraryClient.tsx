@@ -110,10 +110,8 @@ export default function GlobalLibraryClient() {
       const formData = new FormData();
       Array.from(fileList).forEach((file) => formData.append('files', file));
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
       await fetch(buildApiUrl('/library/upload'), {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
       loadData();

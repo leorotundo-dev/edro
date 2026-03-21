@@ -33,6 +33,7 @@ import {
   recordPreferenceFeedback,
 } from '../services/preferenceEngine';
 import { syncClientContactPerson } from '../repos/peopleRepo';
+import { env, portalLoginSecret } from '../env';
 
 type PlanExtraction = {
   name?: string;
@@ -68,6 +69,18 @@ function safeJsonParse(text: string): Record<string, any> | null {
     }
     return null;
   }
+}
+
+function resolveClientPortalLoginUrl() {
+  const webUrl = env.WEB_URL?.replace(/\/$/, '');
+  if (webUrl) return `${webUrl}/cliente/login`;
+
+  const directPortalUrl = process.env.NEXT_PUBLIC_CLIENTE_URL?.trim();
+  if (directPortalUrl && /^https?:\/\//i.test(directPortalUrl)) {
+    return `${directPortalUrl.replace(/\/$/, '')}/login`;
+  }
+
+  throw new Error('client_portal_url_not_configured');
 }
 
 function normalizeString(value?: string | null) {
@@ -1338,8 +1351,6 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
       const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
       const { email } = z.object({ email: z.string().email() }).parse(request.body);
       const tenantId = (request.user as any).tenant_id;
-      const loginSecret = process.env.JWT_SECRET ?? 'secret';
-
       // Verify client belongs to this tenant
       const clientCheck = await query<{ id: string; name: string }>(
         `SELECT id, name FROM clients WHERE id = $1 AND tenant_id = $2`,
@@ -1360,17 +1371,16 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
       // Generate OTP magic link
       const code = String(Math.floor(100000 + Math.random() * 900000));
-      const codeHash = makeHash(`portal:${loginSecret}:${normalized}:${code}`);
+      const codeHash = makeHash(`portal:${portalLoginSecret}:${normalized}:${code}`);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
       await createLoginCode({ email: normalized, codeHash, expiresAt });
 
-      const webUrl = process.env.WEB_URL?.replace(/\/$/, '');
-      const directPortalUrl = process.env.NEXT_PUBLIC_CLIENTE_URL?.replace(/\/$/, '');
-      const portalUrl = webUrl
-        ? `${webUrl}/cliente/login`
-        : directPortalUrl
-          ? `${directPortalUrl}/login`
-          : '/cliente/login';
+      let portalUrl: string;
+      try {
+        portalUrl = resolveClientPortalLoginUrl();
+      } catch {
+        return reply.status(503).send({ error: 'client_portal_url_not_configured' });
+      }
 
       await sendEmail({
         to: normalized,
@@ -1446,7 +1456,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
   // GET /clients/:clientId/account-manager/alerts — read cached alerts
   app.get('/clients/:clientId/account-manager/alerts', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')],
   }, async (request: any, reply: any) => {
     const tenantId  = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -1456,7 +1466,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
   // POST /clients/:clientId/account-manager/compute — generate new alerts
   app.post('/clients/:clientId/account-manager/compute', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')],
   }, async (request: any, reply: any) => {
     const tenantId  = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -1466,7 +1476,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
   // PATCH /clients/:clientId/account-manager/alerts/:alertId — action or dismiss
   app.patch('/clients/:clientId/account-manager/alerts/:alertId', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')],
   }, async (request: any, reply: any) => {
     const tenantId  = request.user.tenant_id;
     const { alertId } = request.params as { clientId: string; alertId: string };
@@ -1480,7 +1490,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
   // GET /admin/intelligence — global Account Manager alerts + top Copy ROI across all clients
   app.get('/admin/intelligence', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     try {
@@ -1617,7 +1627,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
   // Returns action-focused items only: briefing_pending jobs, urgent alerts,
   // auto-briefings, pending meeting proposals, high-confidence opportunities.
   app.get('/jarvis/feed', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('portfolio:read')],
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     try {
@@ -2050,7 +2060,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
   // ── WhatsApp Pulse — summary of recent group activity ─────────
   app.get(
     '/clients/:clientId/whatsapp-pulse',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')] },
     async (request: any, reply) => {
       const normalizeTopic = (item: any): string => {
         if (typeof item === 'string') return item;
@@ -2267,10 +2277,10 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
   //   - global_catalog = job_size_prices grouped by category [freelancers see one table]
   app.get(
     '/clients/:id/wallet/current-month',
-    { preHandler: [requirePerm('clients:read')] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')] },
     async (request: any, reply) => {
       const { id } = request.params as { id: string };
-      const tenantId = request.user.tenantId;
+      const tenantId = request.user.tenant_id as string;
 
       const POINT_VALUE = 50; // 1 pt = R$50 (global agency constant)
 
@@ -2361,10 +2371,10 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
   // PATCH /clients/:id/wallet-config — save fee + tax + margin
   app.patch(
     '/clients/:id/wallet-config',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')] },
     async (request: any, reply) => {
       const { id } = request.params as { id: string };
-      const tenantId = request.user.tenantId;
+      const tenantId = request.user.tenant_id as string;
       const { monthly_fee_brl, tax_rate_pct, target_margin_pct } =
         request.body as {
           monthly_fee_brl?: number;

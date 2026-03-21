@@ -199,14 +199,12 @@ function AssetSlotCard({
   clientId,
   onUploaded,
   onDeleted,
-  token,
 }: {
   slot: AssetSlot;
   items: LibraryItem[];
   clientId: string;
   onUploaded: () => void;
   onDeleted: (id: string) => void;
-  token: string | null;
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -218,7 +216,6 @@ function AssetSlotCard({
   const hasItems = matchingItems.length > 0;
 
   const handleFile = async (file: File) => {
-    if (!token) return;
     setUploading(true);
     setError('');
     const form = new FormData();
@@ -227,7 +224,6 @@ function AssetSlotCard({
     try {
       const res = await fetch(buildApiUrl(`/clients/${clientId}/library/upload?${qs}`), {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
       if (!res.ok) throw new Error('Falha ao enviar');
@@ -322,14 +318,12 @@ function PhotoGridSection({
   clientId,
   onUploaded,
   onDeleted,
-  token,
 }: {
   slot: AssetSlot;
   items: LibraryItem[];
   clientId: string;
   onUploaded: () => void;
   onDeleted: (id: string) => void;
-  token: string | null;
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -344,7 +338,6 @@ function PhotoGridSection({
   const loraReady = isBrandSlot && count >= LORA_THRESHOLD;
 
   const handleFiles = async (files: FileList) => {
-    if (!token) return;
     setUploading(true);
     setError('');
     const qs = `category=${slot.category}&subcategory=${slot.subcategory}`;
@@ -354,7 +347,6 @@ function PhotoGridSection({
       try {
         await fetch(buildApiUrl(`/clients/${clientId}/library/upload?${qs}`), {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
           body: form,
         });
       } catch { /* non-fatal, continue */ }
@@ -519,8 +511,6 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
   const [referenceUrl, setReferenceUrl] = useState('');
   const [addingUrl, setAddingUrl] = useState(false);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -538,11 +528,9 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
 
   const handleDelete = async (id: string) => {
     if (!await confirm('Remover este item?')) return;
-    if (!token) return;
     try {
       await fetch(buildApiUrl(`/library/${id}`), {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
       setItems((prev) => prev.filter((i) => i.id !== id));
     } catch (e: any) {
@@ -635,7 +623,6 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
               clientId={clientId}
               onUploaded={load}
               onDeleted={handleDelete}
-              token={token}
             />
           ))}
         </Stack>
@@ -665,7 +652,6 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
               clientId={clientId}
               onUploaded={load}
               onDeleted={handleDelete}
-              token={token}
             />
           ))}
         </Stack>
@@ -752,7 +738,6 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
               clientId={clientId}
               onUploaded={load}
               onDeleted={handleDelete}
-              token={token}
             />
           ))}
         </Stack>
@@ -793,10 +778,7 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
                               <IconButton
                                 size="small"
                                 onClick={async () => {
-                                  if (!token) return;
-                                  const res = await fetch(buildApiUrl(`/library/${item.id}/file`), {
-                                    headers: { Authorization: `Bearer ${token}` },
-                                  });
+                                  const res = await fetch(buildApiUrl(`/library/${item.id}/file`));
                                   const blob = await res.blob();
                                   const url = URL.createObjectURL(blob);
                                   const a = document.createElement('a');

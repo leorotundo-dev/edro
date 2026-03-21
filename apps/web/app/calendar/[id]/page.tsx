@@ -117,17 +117,12 @@ export default function CalendarReviewPage() {
   };
 
   const downloadFile = async (kind: 'csv' | 'iclips') => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('edro_token') : null;
-    if (!token) return;
-
     const path =
       kind === 'csv'
         ? `/api/calendars/${calendarId}/export.csv`
         : `/api/calendars/${calendarId}/export.iclips.json`;
 
-    const response = await fetch(buildApiUrl(path), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetch(buildApiUrl(path));
     if (!response.ok) {
       setError('Falha ao exportar.');
       return;

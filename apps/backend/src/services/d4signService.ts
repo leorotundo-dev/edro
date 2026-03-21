@@ -53,7 +53,9 @@ export async function uploadDocument(
   if (!SAFE) throw new Error('D4SIGN_SAFE_UUID não configurado.');
 
   const form = new FormData();
-  form.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), filename);
+  const pdfArrayBuffer = new ArrayBuffer(pdfBuffer.byteLength);
+  new Uint8Array(pdfArrayBuffer).set(pdfBuffer);
+  form.append('file', new Blob([pdfArrayBuffer], { type: 'application/pdf' }), filename);
 
   const data = await d4fetch(`/documents/${SAFE}/upload`, {
     method: 'POST',

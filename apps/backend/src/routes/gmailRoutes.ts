@@ -19,9 +19,13 @@ import {
   watchGmailInbox,
 } from '../services/integrations/gmailService';
 import { syncGoogleContacts } from '../services/integrations/googleContactsService';
+import { env } from '../env';
 
 function getIntegrationsRedirectUrl(query: string) {
-  const webUrl = (process.env.WEB_URL ?? 'https://edro-production.up.railway.app').replace(/\/$/, '');
+  const webUrl = env.WEB_URL?.replace(/\/$/, '');
+  if (!webUrl) {
+    throw new Error('WEB_URL não configurado para redirecionar o fluxo do Gmail.');
+  }
   return `${webUrl}/admin/integrations?${query}`;
 }
 
@@ -29,7 +33,7 @@ export default async function gmailRoutes(app: FastifyInstance) {
 
   // ── Start OAuth flow ────────────────────────────────────────────────────
   app.get('/auth/google/start', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request: any, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const mode = typeof request.query?.mode === 'string' ? request.query.mode : '';
@@ -58,7 +62,7 @@ export default async function gmailRoutes(app: FastifyInstance) {
 
     try {
       const { tenantId, email } = await exchangeGmailCode(code, state);
-      if (process.env.GOOGLE_PUBSUB_TOPIC) {
+      if (env.GOOGLE_PUBSUB_TOPIC) {
         await watchGmailInbox(tenantId);
       } else {
         console.warn('[gmailRoutes] GOOGLE_PUBSUB_TOPIC not set — skipping watch setup. Gmail connected without real-time notifications.');
@@ -78,7 +82,7 @@ export default async function gmailRoutes(app: FastifyInstance) {
 
   // ── Connection status ───────────────────────────────────────────────────
   app.get('/gmail/status', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
 
@@ -112,7 +116,7 @@ export default async function gmailRoutes(app: FastifyInstance) {
 
   // ── Sync Google Contacts → people directory ─────────────────────────────
   app.post('/people/sync-contacts', {
-    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     try {
@@ -128,7 +132,7 @@ export default async function gmailRoutes(app: FastifyInstance) {
 
   // ── Disconnect ──────────────────────────────────────────────────────────
   app.delete('/gmail/disconnect', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     await query(`DELETE FROM gmail_connections WHERE tenant_id = $1`, [tenantId]);

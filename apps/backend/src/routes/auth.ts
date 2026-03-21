@@ -9,7 +9,7 @@ import { authGuard } from '../auth/rbac';
 import { sendEmail } from '../services/emailService';
 import { makeHash } from '../utils/hash';
 import { pool } from '../db';
-import { env } from '../env';
+import { allowUnsafeLocalAuthHelpers, env, portalLoginSecret } from '../env';
 
 export default async function authRoutes(app: FastifyInstance) {
   app.post('/auth/request', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
@@ -164,9 +164,8 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // ── Portal magic-link auth (client + freelancer portals) ──────────────────
 
-  const loginSecret = process.env.EDRO_LOGIN_SECRET || process.env.JWT_SECRET || 'secret';
   const buildPortalHash = (email: string, code: string) =>
-    makeHash(`portal:${loginSecret}:${email}:${code}`);
+    makeHash(`portal:${portalLoginSecret}:${email}:${code}`);
 
   // POST /auth/magic-link — generate OTP, send via email (bypasses domain check)
   app.post('/auth/magic-link', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
@@ -197,7 +196,7 @@ export default async function authRoutes(app: FastifyInstance) {
       console.error('[magic-link] email delivery failed:', delivery.error, '| to:', normalized);
       // In production without echo mode, surface the error explicitly.
       // When EDRO_LOGIN_ECHO_CODE=true, fall through and return the code on screen.
-      if (env.NODE_ENV === 'production' && !env.EDRO_LOGIN_ECHO_CODE) {
+      if (!allowUnsafeLocalAuthHelpers && !env.EDRO_LOGIN_ECHO_CODE) {
         return reply.status(503).send({ ok: false, error: 'Falha ao enviar e-mail. Tente novamente ou entre em contato com o suporte.' });
       }
     } else {
@@ -206,7 +205,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const resp: any = { ok: true };
     // Echo code in dev/staging or when EDRO_LOGIN_ECHO_CODE=true
-    if (env.NODE_ENV !== 'production' || env.EDRO_LOGIN_ECHO_CODE) resp.code = code;
+    if (allowUnsafeLocalAuthHelpers || env.EDRO_LOGIN_ECHO_CODE) resp.code = code;
     return reply.send(resp);
   });
 
@@ -262,7 +261,7 @@ export default async function authRoutes(app: FastifyInstance) {
       if (!rows.length) {
         const adminEmails = (env.EDRO_ADMIN_EMAILS ?? '').split(',').map((e: string) => e.trim().toLowerCase());
         const isAdmin = adminEmails.includes(normalized);
-        if (isAdmin || env.EDRO_LOGIN_ECHO_CODE) {
+        if (allowUnsafeLocalAuthHelpers && (isAdmin || env.EDRO_LOGIN_ECHO_CODE)) {
           // Get the first available tenant
           const { rows: tenants } = await pool.query(`SELECT id FROM tenants LIMIT 1`);
           const tenantId = tenants[0]?.id ?? null;
