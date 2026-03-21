@@ -66,9 +66,12 @@ import peopleRoutes from './people';
 import simulationRoutes from './simulation';
 import competitorsRoutes from './competitors';
 import trelloRoutes from './trello';
+import { env } from '../env';
 
 export async function registerRoutes(app: FastifyInstance) {
-  app.register(tempPgVectorCheck);
+  if (!['production', 'staging'].includes(env.NODE_ENV) && env.ENABLE_TEMP_PGVECTOR_CHECK) {
+    app.register(tempPgVectorCheck);
+  }
   app.register(healthRoutes);
 
   app.register(authRoutes, { prefix: '/api' });
