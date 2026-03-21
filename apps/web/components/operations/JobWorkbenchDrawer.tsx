@@ -285,7 +285,7 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
     } catch { /* silent */ } finally { setApproving(null); }
   };
 
-  const copyDraft = drafts.find((d) => d.draft_type === 'copy' && d.status === 'done');
+  const copyDrafts = drafts.filter((d) => d.draft_type === 'copy' && d.status === 'done');
   const imageDraft = drafts.find((d) => d.draft_type === 'image' && d.status === 'done');
   const pendingCopy = drafts.find((d) => d.draft_type === 'copy' && (d.status === 'pending' || d.status === 'generating'));
   const pendingImage = drafts.find((d) => d.draft_type === 'image' && (d.status === 'pending' || d.status === 'generating'));
@@ -306,11 +306,14 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
       <Stack direction="row" spacing={1} alignItems="center">
         <IconSparkles size={16} />
         <Typography variant="body2" fontWeight={900}>Rascunho IA</Typography>
+        {copyDrafts.length > 1 && (
+          <Chip label={`${copyDrafts.length} peças`} size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+        )}
       </Stack>
 
-      {/* Copy Draft */}
-      {copyDraft ? (
-        <Box sx={(theme) => ({
+      {/* Copy Drafts — one card per piece */}
+      {copyDrafts.length > 0 ? copyDrafts.map((copyDraft, idx) => (
+        <Box key={copyDraft.id} sx={(theme) => ({
           p: 2,
           borderRadius: 2.5,
           border: '1px solid',
@@ -318,7 +321,7 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
           bgcolor: alpha(theme.palette.primary.main, 0.03),
         })}>
           <Typography variant="caption" fontWeight={800} color="primary.main" sx={{ display: 'block', mb: 1 }}>
-            COPY GERADO
+            {copyDrafts.length > 1 ? `PEÇA ${idx + 1} — COPY GERADO` : 'COPY GERADO'}
           </Typography>
           {copyDraft.hook_text ? (
             <Typography variant="body1" fontWeight={800} sx={{ mb: 0.5, lineHeight: 1.3 }}>
@@ -362,18 +365,20 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
                 </Button>
               </>
             )}
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<IconRefresh size={14} />}
-              onClick={() => handleRegenerate('copy')}
-              disabled={!!regenerating}
-            >
-              {regenerating === 'copy' ? 'Gerando...' : 'Regenerar'}
-            </Button>
+            {idx === 0 && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<IconRefresh size={14} />}
+                onClick={() => handleRegenerate('copy')}
+                disabled={!!regenerating}
+              >
+                {regenerating === 'copy' ? 'Gerando...' : 'Regenerar tudo'}
+              </Button>
+            )}
           </Stack>
         </Box>
-      ) : pendingCopy ? (
+      )) : pendingCopy ? (
         <Box sx={{ p: 2, borderRadius: 2.5, border: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary" fontWeight={700}>
             A IA esta rabiscando o copy...
