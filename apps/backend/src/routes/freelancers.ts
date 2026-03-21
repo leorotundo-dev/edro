@@ -828,7 +828,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const res = await pool.query(
       `SELECT b.id, b.title, b.status, b.due_at,
               ec.name as client_name, 'briefing' as source,
-              NULL::text as board_name, NULL::text as list_name, false as due_complete
+              NULL::text as board_name, NULL::text as list_name, false as due_complete,
+              NULL::numeric as fee_brl, NULL::text as job_size,
+              false as pending_acceptance
        FROM edro_briefings b
        LEFT JOIN edro_clients ec ON ec.id = b.client_id
        WHERE b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
@@ -836,7 +838,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        UNION ALL
        SELECT j.id, j.title, j.status, j.deadline_at as due_at,
               c.name as client_name, 'ops_job' as source,
-              NULL::text as board_name, NULL::text as list_name, false as due_complete
+              NULL::text as board_name, NULL::text as list_name, false as due_complete,
+              j.fee_brl, j.job_size,
+              false as pending_acceptance
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        WHERE j.owner_id = $1::uuid
@@ -849,7 +853,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               'trello_card' as source,
               pb.name as board_name,
               pl.name as list_name,
-              pc.due_complete
+              pc.due_complete,
+              NULL::numeric as fee_brl,
+              NULL::text as job_size,
+              false as pending_acceptance
        FROM project_cards pc
        JOIN project_card_members pcm ON pcm.card_id = pc.id
        JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
@@ -1823,5 +1830,112 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     );
     if (!rows.length) return reply.status(404).send({ error: 'Competência não encontrada' });
     return reply.send({ ok: true, payable: rows[0] });
+  });
+
+  // ── T-Shirt Pricing & Pool ────────────────────────────────────────────────
+
+  // GET /freelancers/portal/job-sizes — reference pricing table
+  app.get('/freelancers/portal/job-sizes', async (_request: any, reply) => {
+    const { rows } = await pool.query(
+      `SELECT size, label, description, ref_price_brl
+         FROM job_size_prices
+        ORDER BY sort_order`,
+    );
+    return reply.send({ sizes: rows });
+  });
+
+  // GET /freelancers/portal/me/pool — open escopos available for self-selection
+  app.get('/freelancers/portal/me/pool', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const fpRes = await pool.query(
+      `SELECT fp.id, fp.skills, fp.tenant_id FROM freelancer_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { tenant_id } = fpRes.rows[0];
+
+    const { rows } = await pool.query(
+      `SELECT j.id, j.title, j.status, j.deadline_at AS due_at,
+              j.fee_brl, j.job_size, j.summary,
+              c.name AS client_name,
+              sp.label AS size_label,
+              sp.description AS size_description
+         FROM jobs j
+         LEFT JOIN clients c ON c.id = j.client_id
+         LEFT JOIN job_size_prices sp ON sp.size = j.job_size
+        WHERE j.tenant_id = $1
+          AND j.pool_visible = true
+          AND j.owner_id IS NULL
+          AND j.status IN ('ready', 'intake', 'planned')
+        ORDER BY j.priority_score DESC, j.deadline_at ASC NULLS LAST
+        LIMIT 30`,
+      [tenant_id],
+    );
+    return reply.send({ pool: rows });
+  });
+
+  // POST /freelancers/portal/me/pool/:jobId/accept — self-select a pool job
+  app.post('/freelancers/portal/me/pool/:jobId/accept', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { jobId } = request.params as { jobId: string };
+
+    const fpRes = await pool.query(
+      `SELECT fp.id, fp.tenant_id FROM freelancer_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { tenant_id } = fpRes.rows[0];
+
+    const { rows } = await pool.query(
+      `UPDATE jobs
+          SET owner_id = $1::uuid,
+              status = 'allocated',
+              pool_visible = false,
+              updated_at = now()
+        WHERE id = $2::uuid
+          AND tenant_id = $3
+          AND pool_visible = true
+          AND owner_id IS NULL
+          AND status IN ('ready', 'intake', 'planned')
+        RETURNING id, title, status, fee_brl, job_size, deadline_at`,
+      [userId, jobId, tenant_id],
+    );
+
+    if (!rows.length) {
+      return reply.status(409).send({ error: 'Escopo não disponível — pode ter sido aceito por outro fornecedor.' });
+    }
+    return reply.send({ ok: true, job: rows[0] });
+  });
+
+  // GET /freelancers/portal/me/earnings/current-month — sum of fee_brl for this month
+  app.get('/freelancers/portal/me/earnings/current-month', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*)::int                        AS completed_count,
+         COALESCE(SUM(fee_brl), 0)::numeric   AS total_brl,
+         json_agg(json_build_object(
+           'id', id, 'title', title, 'fee_brl', fee_brl,
+           'job_size', job_size, 'completed_at', completed_at
+         ) ORDER BY completed_at DESC)         AS jobs
+       FROM jobs
+       WHERE owner_id = $1::uuid
+         AND status IN ('done', 'published', 'approved')
+         AND date_trunc('month', completed_at) = date_trunc('month', now())`,
+      [userId],
+    );
+
+    const row = rows[0];
+    return reply.send({
+      completed_count: row.completed_count,
+      total_brl: row.total_brl,
+      jobs: row.jobs ?? [],
+    });
   });
 }
