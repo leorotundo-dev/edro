@@ -23,7 +23,11 @@ Garantir que qualquer deploy relevante da Edro entre em producao com seguranca, 
 - `ENABLE_TEMP_PGVECTOR_CHECK=false`
 - `META_APP_SECRET` configurado quando houver webhook Meta ativo
 - `EVOLUTION_WEBHOOK_SECRET` configurado quando houver webhook Evolution ativo
+- `RECALL_WEBHOOK_SECRET` configurado quando Recall.ai estiver habilitado
+- `D4SIGN_TOKEN_API` + `D4SIGN_CRYPT_KEY` + `D4SIGN_SAFE_UUID` + `D4SIGN_WEBHOOK_SECRET` configurados quando D4Sign estiver habilitado
+- `EDRO_ENFORCE_PRIVILEGED_MFA=true` após todos os usuários admin/manager terem feito enroll de MFA (ver MFA_ROLLOUT_RUNBOOK.md)
 - `ALLOWED_ORIGINS` fechado para os domínios reais dos portais
+- Migrations pendentes aplicadas em ordem: 0108, 0293, 0294, 0295, 0296
 
 ## Pre-deploy de borda e runtime
 
@@ -53,6 +57,8 @@ Garantir que qualquer deploy relevante da Edro entre em producao com seguranca, 
 - rota administrativa sensivel bloqueando usuario sem role adequada
 - webhook invalido retornando erro
 - webhook valido processando com sucesso
+- `/admin/integrations/health` retorna `d4sign.token_api: true` e `auth.mfa_enforced: true` após ativar flags
+- `audit_log` recebendo entradas após login (consultar: `SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 5`)
 
 ## Critérios de rollback
 

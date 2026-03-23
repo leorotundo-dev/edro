@@ -64,6 +64,14 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       auth: {
         oidc_issuer:     has('OIDC_ISSUER_URL'),
         oidc_client_id:  has('OIDC_CLIENT_ID'),
+        mfa_enforced:    Boolean(env.EDRO_ENFORCE_PRIVILEGED_MFA),
+      },
+      d4sign: {
+        token_api:        has('D4SIGN_TOKEN_API'),
+        crypt_key:        has('D4SIGN_CRYPT_KEY'),
+        safe_uuid:        has('D4SIGN_SAFE_UUID'),
+        webhook_secret:   has('D4SIGN_WEBHOOK_SECRET'),
+        sandbox:          Boolean(env.D4SIGN_SANDBOX),
       },
     });
   });

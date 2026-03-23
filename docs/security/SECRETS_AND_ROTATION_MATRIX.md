@@ -26,6 +26,10 @@ Dar visibilidade minima de quais segredos existem, para que servem, onde ficam e
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / outras chaves IA | consumo de IA | backend | Plataforma IA | 90 dias | monitorar uso anomalo |
 | `S3_SECRET_KEY` | storage | backend/infra | Infra | 90 dias | revisar escopo e bucket policy |
 | `GATEWAY_SHARED_SECRET` | gateway publisher | backend | Infra/Integracoes | 90 dias | nao repassar ao frontend |
+| `RECALL_WEBHOOK_SECRET` | autenticidade de webhook Recall.ai | backend | Integracoes | 90 dias | obrigatorio em producao quando Recall habilitado |
+| `D4SIGN_TOKEN_API` | autenticacao na API D4Sign | backend | Juridico/Contrato | conforme D4Sign | revogar no dashboard D4Sign em caso de incidente |
+| `D4SIGN_CRYPT_KEY` | chave criptografica D4Sign | backend | Juridico/Contrato | conforme D4Sign | par com TOKEN_API — nao separar |
+| `D4SIGN_WEBHOOK_SECRET` | autenticidade de webhook D4Sign | backend | Juridico/Contrato | 90 dias | registrar como `?token=<valor>` na URL do webhook no painel D4Sign |
 
 ## Runbook minimo de rotacao
 
