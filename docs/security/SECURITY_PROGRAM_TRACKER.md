@@ -19,7 +19,7 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
 - `SEC-107`
   Gates de seguranca e branch protection ativos no GitHub. Pipeline atualizado em 2026-03-23. Commit: `ee8d958c`.
 - `SEC-109`
-  Audit trail parcialmente completo: `WEBHOOK_SIGNATURE_INVALID` de todos os webhooks publicos → `audit_log`; `USER_ROLE_CHANGED`, `CLIENT_PERMISSIONS_GRANTED`, `CLIENT_PERMISSIONS_REVOKED` → `audit_log`; `BRIEFINGS_EXPORTED` → `audit_log`. Faltam: acoes de admin em clientes, briefings e jobs de alto impacto.
+  Audit trail completo para eventos de alto impacto: `WEBHOOK_SIGNATURE_INVALID` (todos os webhooks) → `audit_log`; `USER_ROLE_CHANGED`, `CLIENT_PERMISSIONS_GRANTED`, `CLIENT_PERMISSIONS_REVOKED` → `audit_log`; `BRIEFINGS_EXPORTED` → `audit_log`; `JOB_CREATED`, `JOB_STATUS_CHANGED`, `JOB_DELETED`, `JOB_BRIEFING_APPROVED`, `JOB_B2B_APPROVED` → `audit_log` (commits: `16febc58`); `CLIENT_CREATED`, `CLIENT_DELETED` → `audit_log` (commit: `45dc451e`). Faltam somente: acoes admin de baixo impacto e eventos de briefing avulso.
 - `SEC-111`
   Varredura de fallbacks inseguros concluida. Nenhum segredo critico tem fallback hardcoded. `GATEWAY_SHARED_SECRET` agora obrigatorio em producao via validacao em `env.ts`. Commits: `bc16e4e2`.
 
