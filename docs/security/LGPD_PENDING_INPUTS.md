@@ -13,12 +13,12 @@ Atualizado em: 2026-03-23
 |---|---|---|
 | Razão social da Edro | DPA, Aviso, contratos | ✅ `EDRO COMUNICACAO DE MARKETING LTDA` |
 | CNPJ da Edro | DPA, Aviso | ✅ `42.728.944/0001-20` |
-| Endereço sede | DPA, Aviso | **PENDENTE — preencher** |
-| E-mail geral de contato | Aviso | **PENDENTE — definir** |
-| E-mail de privacidade / encarregado | DPA, Aviso | **PENDENTE — definir** |
-| Nome e cargo do encarregado (DPO) | Aviso | **PENDENTE — designar ou indicar que não há DPO nomeado formalmente** |
+| Endereço sede | DPA, Aviso | ✅ `Rua Samaritá, 1117, 3º Andar, São Paulo, SP` |
+| E-mail geral de contato | Aviso | ✅ `privacidade@edro.digital` (mesmo canal de privacidade) |
+| E-mail de privacidade / encarregado | DPA, Aviso | ✅ `privacidade@edro.digital` |
+| Nome e cargo do encarregado (DPO) | Aviso | ✅ Sem Encarregado formalmente designado — canal: `privacidade@edro.digital` |
 | Cidade para assinaturas | DPA | ✅ `São Paulo` |
-| Signatário da Edro no DPA | DPA | **PENDENTE — preencher nome e cargo** |
+| Signatário da Edro no DPA | DPA | ✅ `Leonardo Rotundo — Sócio` |
 
 ---
 
@@ -45,15 +45,9 @@ Exceção: dados de usuários internos da Edro (colaboradores, freelancers) → 
 
 ## 4. Canal de solicitações do titular (Aviso de Privacidade)
 
-Substituir `{{DATA_SUBJECT_REQUEST_CHANNEL}}` por um dos formatos abaixo:
+✅ **DEFINIDO**: E-mail: privacidade@edro.digital — indicar no assunto 'Direito do Titular'
 
-**Opção A** (e-mail direto):
-> "E-mail: privacidade@edro.digital — indicar no assunto 'Direito do Titular'"
-
-**Opção B** (formulário):
-> "Formulário disponível em: [URL do formulário]"
-
-**Decisão pendente**: definir o canal e criar o endereço de e-mail ou formulário.
+Templates atualizados com este canal.
 
 ---
 
@@ -97,11 +91,12 @@ A seção 10 do template foi preenchida com base na implementação real:
 
 ## 9. Próximos passos para publicação
 
-1. Preencher os campos da tabela do item 1 (dados legais da Edro)
-2. Definir e criar o canal do titular (item 4)
-3. Enviar DPA e Aviso para revisão jurídica com estas notas
-4. Após aprovação jurídica: publicar Aviso de Privacidade na plataforma
-5. Incluir DPA como anexo padrão nos contratos de clientes enterprise
+1. ✅ Todos os campos da Edro preenchidos (dados legais, canal de privacidade, signatário)
+2. ✅ Canal do titular definido: privacidade@edro.digital
+3. Criar a caixa de e-mail `privacidade@edro.digital` se ainda não existir
+4. Enviar DPA e Aviso para revisão jurídica com estas notas
+5. Após aprovação jurídica: publicar Aviso de Privacidade na plataforma
+6. Incluir DPA como anexo padrão nos contratos de clientes enterprise
 
 ---
 

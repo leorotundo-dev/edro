@@ -22,7 +22,7 @@ Este modelo e um ponto de partida tecnico-operacional para anexo contratual de t
 Este Anexo de Tratamento de Dados Pessoais ("`Anexo`") integra o contrato principal celebrado entre:
 
 - `{{CLIENT_LEGAL_NAME}}`, inscrita no CNPJ sob o n. `{{CLIENT_CNPJ}}`, com sede em `{{CLIENT_ADDRESS}}`, doravante "`Cliente`"; e
-- `EDRO COMUNICACAO DE MARKETING LTDA`, inscrita no CNPJ sob o n. `42.728.944/0001-20`, com sede em `{{EDRO_ADDRESS}}`, doravante "`Edro`".
+- `EDRO COMUNICACAO DE MARKETING LTDA`, inscrita no CNPJ sob o n. `42.728.944/0001-20`, com sede em `Rua Samaritá, 1117, 3º Andar, São Paulo, SP`, doravante "`Edro`".
 
 ## 1. Objeto
 
@@ -190,8 +190,8 @@ Pelo Cliente:
 
 Pela Edro:
 
-- Nome: `{{EDRO_SIGNATORY_NAME}}`
-- Cargo: `{{EDRO_SIGNATORY_ROLE}}`
+- Nome: `Leonardo Rotundo`
+- Cargo: `Sócio`
 
 ---
 
