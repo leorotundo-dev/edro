@@ -85,6 +85,7 @@ import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../services/cognitiveLoadService';
 import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../services/decisionStackService';
 import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
+import { audit } from '../audit/audit';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -3583,6 +3584,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     });
 
     const query_params = querySchema.parse(request.query);
+    const exportTenantId: string = (request.user as any)?.tenant_id;
 
     try {
       let sql = `
@@ -3603,8 +3605,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         LEFT JOIN edro_tasks t ON t.briefing_id = b.id
       `;
 
-      const params: any[] = [];
-      const conditions: string[] = [];
+      const params: any[] = [exportTenantId];
+      const conditions: string[] = ['b.tenant_id = $1'];
 
       if (query_params.startDate) {
         conditions.push(`b.created_at >= $${params.length + 1}`);
@@ -3616,13 +3618,20 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         params.push(query_params.endDate);
       }
 
-      if (conditions.length > 0) {
-        sql += ` WHERE ${conditions.join(' AND ')}`;
-      }
-
+      sql += ` WHERE ${conditions.join(' AND ')}`;
       sql += ` GROUP BY b.id ORDER BY b.created_at DESC`;
 
       const { rows } = await query<any>(sql, params);
+
+      audit({
+        actor_user_id: (request.user as any)?.sub ?? null,
+        actor_email: (request.user as any)?.email ?? null,
+        action: 'BRIEFINGS_EXPORTED',
+        entity_type: 'edro_briefings',
+        entity_id: exportTenantId,
+        after: { format: query_params.format, startDate: query_params.startDate, endDate: query_params.endDate, row_count: rows.length },
+        ip: request.ip,
+      }).catch(() => {});
 
       if (query_params.format === 'json') {
         return reply.send({ success: true, data: rows });
