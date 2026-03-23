@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { enforcePrivilegedMfa } from '../env';
+import { securityLog } from '../audit/securityLog';
 
 export type Role = 'admin' | 'manager' | 'reviewer' | 'viewer' | 'staff';
 
@@ -92,8 +93,17 @@ export function shouldEnforcePrivilegedMfa(role?: string | null) {
 export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
   try {
     await request.jwtVerify();
-    const user = request.user as { role?: string; mfa?: boolean } | undefined;
+    const user = request.user as { role?: string; mfa?: boolean; sub?: string; tenant_id?: string; email?: string } | undefined;
     if (shouldEnforcePrivilegedMfa(user?.role) && user?.mfa !== true) {
+      securityLog({
+        event: 'MFA_REQUIRED_BLOCKED',
+        email: user?.email ?? null,
+        user_id: user?.sub ?? null,
+        tenant_id: user?.tenant_id ?? null,
+        ip: request.ip,
+        user_agent: request.headers['user-agent'] ?? null,
+        detail: { role: user?.role, url: request.url },
+      }).catch(() => {});
       return reply.status(403).send({ error: 'mfa_required' });
     }
   } catch {
@@ -103,9 +113,18 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
 
 export function requirePerm(perm: string) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role?: string } | undefined;
+    const user = request.user as { role?: string; sub?: string; tenant_id?: string; email?: string } | undefined;
     const role = normalizeRole(user?.role);
     if (!can(role, perm)) {
+      securityLog({
+        event: 'PERMISSION_DENIED',
+        email: user?.email ?? null,
+        user_id: user?.sub ?? null,
+        tenant_id: user?.tenant_id ?? null,
+        ip: request.ip,
+        user_agent: request.headers['user-agent'] ?? null,
+        detail: { role, perm, url: request.url },
+      }).catch(() => {});
       return reply.status(403).send({ error: 'Sem permissao.', perm });
     }
   };
