@@ -1,6 +1,16 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+const envBoolean = z.preprocess((value) => {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off', ''].includes(normalized)) return false;
+  }
+
+  return value;
+}, z.boolean());
+
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   JWT_SECRET: z.string().min(10),
@@ -26,8 +36,9 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().optional(),
   EDRO_ALLOWED_DOMAINS: z.string().optional(),
   EDRO_ADMIN_EMAILS: z.string().optional(),
+  EDRO_ENFORCE_PRIVILEGED_MFA: envBoolean.optional(),
   EDRO_LOGIN_CODE_TTL_MINUTES: z.coerce.number().optional(),
-  EDRO_LOGIN_ECHO_CODE: z.coerce.boolean().optional(),
+  EDRO_LOGIN_ECHO_CODE: envBoolean.optional(),
   EDRO_LOGIN_SECRET: z.string().optional(),
   EDRO_ICLIPS_NOTIFY_EMAIL: z.string().optional(),
   SMTP_HOST: z.string().optional(),
@@ -43,8 +54,8 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
-  S3_FORCE_PATH_STYLE: z.coerce.boolean().optional(),
-  JOBS_RUNNER_ENABLED: z.coerce.boolean().optional(),
+  S3_FORCE_PATH_STYLE: envBoolean.optional(),
+  JOBS_RUNNER_ENABLED: envBoolean.optional(),
   JOBS_RUNNER_INTERVAL_MS: z.coerce.number().optional(),
   MASTER_KEY_B64: z.string().optional(),
   OIDC_ISSUER_URL: z.string().optional(),
@@ -55,7 +66,7 @@ const envSchema = z.object({
   PUBLIC_API_URL: z.string().optional(),
   PUBLISHER_GATEWAY_URL: z.string().optional(),
   GATEWAY_SHARED_SECRET: z.string().optional(),
-  ENABLE_METRICS: z.coerce.boolean().optional(),
+  ENABLE_METRICS: envBoolean.optional(),
   CALENDAR_CSV_PATH: z.string().optional(),
   CALENDAR_YEAR: z.coerce.number().optional(),
   SOCIAL_DATA_API_URL: z.string().optional(),
@@ -67,12 +78,12 @@ const envSchema = z.object({
   META_REDIRECT_URI: z.string().optional(),
   REPORTEI_BASE_URL: z.string().url().optional().or(z.literal('')),
   REPORTEI_TOKEN: z.string().optional(),
-  CLIENT_INTEL_ENABLED: z.coerce.boolean().optional(),
+  CLIENT_INTEL_ENABLED: envBoolean.optional(),
   CLIENT_INTEL_INTERVAL_MS: z.coerce.number().optional(),
   CLIENT_INTEL_MAX_URLS: z.coerce.number().optional(),
   CLIENT_INTEL_MAX_DOCS: z.coerce.number().optional(),
   CLIENT_INTEL_MAX_CHARS: z.coerce.number().optional(),
-  CALENDAR_RECALC_ENABLED: z.coerce.boolean().optional(),
+  CALENDAR_RECALC_ENABLED: envBoolean.optional(),
   CALENDAR_RECALC_INTERVAL_MS: z.coerce.number().optional(),
   CALENDAR_RECALC_FROM: z.string().optional(),
   CALENDAR_RECALC_TO: z.string().optional(),
