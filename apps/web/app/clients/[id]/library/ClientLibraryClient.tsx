@@ -769,7 +769,7 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
                         <Stack direction="row" spacing={0.5}>
                           {item.type === 'link' && item.source_url ? (
                             <Tooltip title="Abrir link">
-                              <IconButton size="small" component="a" href={item.source_url} target="_blank">
+                              <IconButton size="small" component="a" href={item.source_url} target="_blank" rel="noopener noreferrer">
                                 <IconExternalLink size={14} />
                               </IconButton>
                             </Tooltip>

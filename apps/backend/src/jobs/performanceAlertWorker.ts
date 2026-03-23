@@ -78,28 +78,41 @@ interface AlertCandidate {
   kind: 'drop' | 'spike';
 }
 
-export async function runPerformanceAlertWorkerOnce() {
-  if (running) return;
-  if (!shouldRunToday()) return;
+async function runPerformanceAlertWorker(params?: {
+  tenantId?: string;
+  force?: boolean;
+  skipSchedule?: boolean;
+}): Promise<{ processed: number; inserted: number }> {
+  const { tenantId, force = false, skipSchedule = false } = params || {};
+
+  if (running) return { processed: 0, inserted: 0 };
+  if (!skipSchedule && !force && !shouldRunToday()) return { processed: 0, inserted: 0 };
+
   const today = new Date().toISOString().slice(0, 10);
-  if (lastRunDate === today) return;
+  if (!skipSchedule && lastRunDate === today) return { processed: 0, inserted: 0 };
   running = true;
 
   try {
     await ensureNotificationLogsTable();
 
-    // Fetch latest 30d snapshots for all clients
-    const { rows: snapshots } = await query<any>(`
+    const scopeClause = tenantId ? ` AND s.tenant_id = $1` : '';
+    const scopeParams = tenantId ? [tenantId] : [];
+
+    const { rows: snapshots } = await query<any>(
+      `
       SELECT s.client_id, s.tenant_id, s.platform, s.metrics, c.name AS client_name
       FROM reportei_metric_snapshots s
       JOIN clients c ON c.id = s.client_id
       WHERE s.time_window = '30d'
         AND s.synced_at > NOW() - INTERVAL '8 days'
-    `).catch(() => ({ rows: [] }));
+        ${scopeClause}
+      `,
+      scopeParams,
+    ).catch(() => ({ rows: [] }));
 
     if (!snapshots.length) {
       console.log('[perfAlerts] No recent snapshots found, skipping');
-      return;
+      return { processed: 0, inserted: 0 };
     }
 
     const candidates: AlertCandidate[] = [];
@@ -109,10 +122,10 @@ export async function runPerformanceAlertWorkerOnce() {
       const monitored = MONITORED_METRICS[snap.platform] ?? [];
 
       for (const metricKey of monitored) {
-        const m = metrics[metricKey];
-        if (!m || m.value == null || m.comparison == null || m.delta_pct == null) continue;
+        const metric = metrics[metricKey];
+        if (!metric || metric.value == null || metric.comparison == null || metric.delta_pct == null) continue;
 
-        const delta = m.delta_pct / 100; // stored as percentage
+        const delta = metric.delta_pct / 100;
         if (delta <= DROP_THRESHOLD) {
           candidates.push({
             client_id: snap.client_id,
@@ -120,9 +133,9 @@ export async function runPerformanceAlertWorkerOnce() {
             tenant_id: snap.tenant_id,
             platform: snap.platform,
             metric: metricKey,
-            value: m.value,
-            comparison: m.comparison,
-            delta_pct: m.delta_pct,
+            value: metric.value,
+            comparison: metric.comparison,
+            delta_pct: metric.delta_pct,
             kind: 'drop',
           });
         } else if (delta >= SPIKE_THRESHOLD) {
@@ -132,9 +145,9 @@ export async function runPerformanceAlertWorkerOnce() {
             tenant_id: snap.tenant_id,
             platform: snap.platform,
             metric: metricKey,
-            value: m.value,
-            comparison: m.comparison,
-            delta_pct: m.delta_pct,
+            value: metric.value,
+            comparison: metric.comparison,
+            delta_pct: metric.delta_pct,
             kind: 'spike',
           });
         }
@@ -143,70 +156,89 @@ export async function runPerformanceAlertWorkerOnce() {
 
     console.log(`[perfAlerts] ${candidates.length} alerts detected across ${snapshots.length} snapshots`);
 
-    // Deduplicate: one alert per (client, platform, metric) per week
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const { rows: recentAlerts } = await query<any>(
-      `SELECT payload->>'client_id' AS client_id, payload->>'metric' AS metric
-       FROM notification_logs
-       WHERE type IN ('perf_drop', 'perf_spike')
-         AND sent_at > $1`,
-      [sevenDaysAgo.toISOString()]
-    ).catch(() => ({ rows: [] }));
+    const recentAlertsQuery = tenantId
+      ? query<any>(
+        `SELECT payload->>'client_id' AS client_id, payload->>'metric' AS metric
+         FROM notification_logs
+         WHERE tenant_id = $2
+           AND type IN ('perf_drop', 'perf_spike')
+           AND sent_at > $1`,
+        [sevenDaysAgo.toISOString(), tenantId],
+      )
+      : query<any>(
+        `SELECT payload->>'client_id' AS client_id, payload->>'metric' AS metric
+         FROM notification_logs
+         WHERE type IN ('perf_drop', 'perf_spike')
+           AND sent_at > $1`,
+        [sevenDaysAgo.toISOString()],
+      );
 
-    const recentKeys = new Set(recentAlerts.map((r: any) => `${r.client_id}:${r.metric}`));
+    const { rows: recentAlerts } = await recentAlertsQuery.catch(() => ({ rows: [] }));
+    const recentKeys = new Set(recentAlerts.map((row: any) => `${row.client_id}:${row.metric}`));
 
     let inserted = 0;
-    for (const c of candidates) {
-      const dedupeKey = `${c.client_id}:${c.metric}`;
+    for (const candidate of candidates) {
+      const dedupeKey = `${candidate.client_id}:${candidate.metric}`;
       if (recentKeys.has(dedupeKey)) continue;
 
-      const label = METRIC_LABELS[c.metric] ?? c.metric;
-      const directionText = c.kind === 'drop'
-        ? `queda de ${Math.abs(c.delta_pct).toFixed(1)}%`
-        : `alta de ${c.delta_pct.toFixed(1)}%`;
+      const label = METRIC_LABELS[candidate.metric] ?? candidate.metric;
+      const directionText = candidate.kind === 'drop'
+        ? `queda de ${Math.abs(candidate.delta_pct).toFixed(1)}%`
+        : `alta de ${candidate.delta_pct.toFixed(1)}%`;
 
-      const title = c.kind === 'drop'
-        ? `Queda detectada: ${label} em ${c.client_name}`
-        : `Pico detectado: ${label} em ${c.client_name}`;
+      const title = candidate.kind === 'drop'
+        ? `Queda detectada: ${label} em ${candidate.client_name}`
+        : `Pico detectado: ${label} em ${candidate.client_name}`;
 
-      const body = `${c.client_name} registrou ${directionText} em ${label} (${c.platform}) nos últimos 30 dias. `
-        + `Período atual: ${c.value?.toLocaleString('pt-BR') ?? '—'} vs anterior: ${c.comparison?.toLocaleString('pt-BR') ?? '—'}.`;
+      const body = `${candidate.client_name} registrou ${directionText} em ${label} (${candidate.platform}) nos últimos 30 dias. `
+        + `Período atual: ${candidate.value?.toLocaleString('pt-BR') ?? '—'} vs anterior: ${candidate.comparison?.toLocaleString('pt-BR') ?? '—'}.`;
 
       await query(
         `INSERT INTO notification_logs (tenant_id, client_id, type, severity, title, body, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`,
         [
-          c.tenant_id,
-          c.client_id,
-          c.kind === 'drop' ? 'perf_drop' : 'perf_spike',
-          c.kind === 'drop' ? 'warning' : 'info',
+          candidate.tenant_id,
+          candidate.client_id,
+          candidate.kind === 'drop' ? 'perf_drop' : 'perf_spike',
+          candidate.kind === 'drop' ? 'warning' : 'info',
           title,
           body,
           JSON.stringify({
-            client_id: c.client_id,
-            client_name: c.client_name,
-            platform: c.platform,
-            metric: c.metric,
+            client_id: candidate.client_id,
+            client_name: candidate.client_name,
+            platform: candidate.platform,
+            metric: candidate.metric,
             metric_label: label,
-            value: c.value,
-            comparison: c.comparison,
-            delta_pct: c.delta_pct,
-            kind: c.kind,
+            value: candidate.value,
+            comparison: candidate.comparison,
+            delta_pct: candidate.delta_pct,
+            kind: candidate.kind,
             window: '30d',
           }),
-        ]
+        ],
       );
       inserted++;
       recentKeys.add(dedupeKey);
     }
 
     console.log(`[perfAlerts] ${inserted} new alerts saved`);
-    lastRunDate = today;
-  } catch (e: any) {
-    console.error('[perfAlerts] Worker failed:', e.message);
+    if (!skipSchedule) lastRunDate = today;
+    return { processed: candidates.length, inserted };
+  } catch (error: any) {
+    console.error('[perfAlerts] Worker failed:', error.message);
+    throw error;
   } finally {
     running = false;
   }
+}
+
+export async function runPerformanceAlertWorkerOnce() {
+  return runPerformanceAlertWorker();
+}
+
+export async function runPerformanceAlertWorkerForTenant(tenantId: string) {
+  return runPerformanceAlertWorker({ tenantId, force: true, skipSchedule: true });
 }

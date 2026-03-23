@@ -915,6 +915,7 @@ export default function SimulationClient() {
                         startIcon={<IconExternalLink size={14} />}
                         href={`/studio/brief?id=${createdBriefingId}`}
                         target="_blank"
+                        rel="noopener noreferrer"
                         component="a"
                       >
                         Abrir briefing

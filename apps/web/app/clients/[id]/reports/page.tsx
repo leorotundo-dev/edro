@@ -144,7 +144,7 @@ export default function ClientReportsPage() {
   };
 
   const handlePrint = () => {
-    window.open(`/clients/${clientId}/reports/print?template=${template}&from=${from}&to=${to}`, '_blank');
+    window.open(`/clients/${clientId}/reports/print?template=${template}&from=${from}&to=${to}`, '_blank', 'noopener');
   };
 
   const handleEmail = async () => {

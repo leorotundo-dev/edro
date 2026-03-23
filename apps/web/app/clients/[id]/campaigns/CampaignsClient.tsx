@@ -1743,7 +1743,7 @@ function CampaignDetail({
               layout: JSON.stringify(piece.layout),
               image_url: piece.image_url || '',
             });
-            window.open(`/studio/canvas?${params.toString()}`, '_blank');
+            window.open(`/studio/canvas?${params.toString()}`, '_blank', 'noopener');
           }}
           onRegeneratePiece={handleRegeneratePiece}
           onClose={() => setShowCampaignCanvas(false)}

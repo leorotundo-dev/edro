@@ -30,7 +30,7 @@ import Tabs from '@mui/material/Tabs';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { IconCheck, IconDownload, IconReceipt2 } from '@tabler/icons-react';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
 
 type BillingCycle = {
   id: string;
@@ -270,8 +270,8 @@ export default function PagamentosPage() {
   const handleDownloadPdf = async (p: Payable) => {
     setPdfLoading(p.id);
     try {
-      const response = await fetch(`/api/freelancers/payables/${p.id}/pdf`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
+      const response = await fetch(buildApiUrl(`/freelancers/payables/${p.id}/pdf`), {
+        cache: 'no-store',
       });
       if (!response.ok) throw new Error('Erro ao gerar PDF');
       const blob = await response.blob();

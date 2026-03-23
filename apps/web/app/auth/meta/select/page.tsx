@@ -50,7 +50,7 @@ export default function MetaSelectPage() {
       setDone(true);
       // Notify opener and close popup
       if (window.opener) {
-        window.opener.postMessage({ type: 'meta_connected', provider: 'meta' }, '*');
+        window.opener.postMessage({ type: 'meta_connected', provider: 'meta' }, window.location.origin);
         window.close();
       } else {
         // Fallback: redirect to connectors page

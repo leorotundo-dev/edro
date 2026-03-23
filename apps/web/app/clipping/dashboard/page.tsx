@@ -375,7 +375,7 @@ export default function ClippingDashboardPage() {
                           transition: 'all 0.2s',
                           '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
                         }}
-                        onClick={() => item.url && window.open(item.url, '_blank')}
+                        onClick={() => item.url && window.open(item.url, '_blank', 'noopener')}
                       >
                         <Stack direction="row" justifyContent="space-between" alignItems="center">
                           <Typography variant="subtitle2" sx={{ maxWidth: '70%' }} noWrap>{item.title}</Typography>
@@ -407,7 +407,7 @@ export default function ClippingDashboardPage() {
                           transition: 'all 0.2s',
                           '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
                         }}
-                        onClick={() => item.url && window.open(item.url, '_blank')}
+                        onClick={() => item.url && window.open(item.url, '_blank', 'noopener')}
                       >
                         <Stack direction="row" justifyContent="space-between" alignItems="center">
                           <Typography variant="subtitle2" sx={{ maxWidth: '70%' }} noWrap>{item.title}</Typography>

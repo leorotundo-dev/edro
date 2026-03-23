@@ -899,7 +899,7 @@ export default function CanvasClient() {
           style: { transform: 'none' },
         });
         if (fmt === 'pdf') {
-          const w = window.open('', '_blank');
+          const w = window.open('', '_blank', 'noopener,noreferrer');
           if (w) {
             w.document.write(`<html><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000"><img src="${dataUrl}" style="max-width:100%;max-height:100vh" /></body></html>`);
             w.document.title = 'Canvas Edro — PDF';
@@ -921,14 +921,15 @@ export default function CanvasClient() {
     // Classic mode
     if (!currentImage) return;
     if (fmt === 'png' || fmt === 'jpg') {
-      const a = document.createElement('a');
-      a.href = currentImage;
-      a.download = `canvas-edro.${fmt}`;
-      a.target = '_blank';
-      a.click();
-    } else if (fmt === 'pdf') {
-      const w = window.open('', '_blank');
-      if (w) {
+        const a = document.createElement('a');
+        a.href = currentImage;
+        a.download = `canvas-edro.${fmt}`;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.click();
+      } else if (fmt === 'pdf') {
+      const w = window.open('', '_blank', 'noopener,noreferrer');
+        if (w) {
         w.document.write(`<html><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000"><img src="${currentImage}" style="max-width:100%;max-height:100vh" /></body></html>`);
         w.document.title = 'Canvas Edro — PDF';
         setTimeout(() => w.print(), 500);
@@ -1349,7 +1350,7 @@ export default function CanvasClient() {
 
             {/* Download */}
             <Tooltip title="Download">
-              <IconButton size="small" component="a" href={currentImage} target="_blank" download sx={{ color: '#666' }}>
+              <IconButton size="small" component="a" href={currentImage} target="_blank" rel="noopener noreferrer" download sx={{ color: '#666' }}>
                 <IconDownload size={14} />
               </IconButton>
             </Tooltip>

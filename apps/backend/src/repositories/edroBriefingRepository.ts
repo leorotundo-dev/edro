@@ -211,6 +211,7 @@ export async function linkBriefingsByClientName(clientName: string, clientId: st
 }
 
 export async function listBriefings(params?: {
+  tenantId?: string;
   status?: string;
   clientId?: string;
   search?: string;
@@ -219,6 +220,11 @@ export async function listBriefings(params?: {
 }): Promise<{ rows: EdroBriefing[]; total: number }> {
   const filters: string[] = [];
   const values: any[] = [];
+
+  if (params?.tenantId) {
+    values.push(params.tenantId);
+    filters.push(`b.tenant_id = $${values.length}`);
+  }
 
   if (params?.status) {
     values.push(params.status);
@@ -299,7 +305,8 @@ export async function listEdroClients(): Promise<EdroClient[]> {
   return rows;
 }
 
-export async function getBriefingById(id: string): Promise<EdroBriefing | null> {
+export async function getBriefingById(id: string, tenantId?: string): Promise<EdroBriefing | null> {
+  const values = tenantId ? [id, tenantId] : [id];
   const { rows } = await query<EdroBriefing>(
     `
       SELECT b.*, c.name AS client_name,
@@ -323,9 +330,10 @@ export async function getBriefingById(id: string): Promise<EdroBriefing | null> 
       FROM edro_briefings b
       LEFT JOIN edro_clients c ON c.id = b.client_id
       WHERE b.id = $1
+        ${tenantId ? 'AND b.tenant_id = $2' : ''}
       LIMIT 1
     `,
-    [id]
+    values
   );
   return rows[0] || null;
 }
@@ -343,8 +351,22 @@ export async function updateBriefingStatus(id: string, status: string) {
   return rows[0] ?? null;
 }
 
-export async function deleteBriefing(id: string): Promise<boolean> {
+export async function deleteBriefing(id: string, tenantId?: string): Promise<boolean> {
   // Delete related data first (stages, copies, tasks, notifications)
+  if (tenantId) {
+    await query(`DELETE FROM edro_notifications WHERE briefing_id = $1 AND tenant_id = $2`, [id, tenantId]);
+    await query(`DELETE FROM edro_tasks WHERE briefing_id = $1 AND tenant_id = $2`, [id, tenantId]);
+    await query(
+      `DELETE FROM edro_copy_versions
+       WHERE briefing_id = $1
+         AND briefing_id IN (SELECT id FROM edro_briefings WHERE id = $1 AND tenant_id = $2)`,
+      [id, tenantId]
+    );
+    await query(`DELETE FROM edro_briefing_stages WHERE briefing_id = $1 AND tenant_id = $2`, [id, tenantId]);
+    const { rows } = await query(`DELETE FROM edro_briefings WHERE id = $1 AND tenant_id = $2 RETURNING id`, [id, tenantId]);
+    return rows.length > 0;
+  }
+
   await query(`DELETE FROM edro_notifications WHERE briefing_id = $1`, [id]);
   await query(`DELETE FROM edro_tasks WHERE briefing_id = $1`, [id]);
   await query(`DELETE FROM edro_copy_versions WHERE briefing_id = $1`, [id]);
@@ -363,15 +385,18 @@ export async function archiveBriefing(id: string, tenantId?: string): Promise<Ed
   return rows[0] ?? null;
 }
 
-export async function listCopyVersions(briefingId: string): Promise<EdroCopyVersion[]> {
+export async function listCopyVersions(briefingId: string, tenantId?: string): Promise<EdroCopyVersion[]> {
+  const values = tenantId ? [briefingId, tenantId] : [briefingId];
   const { rows } = await query<EdroCopyVersion>(
     `
-      SELECT *
-      FROM edro_copy_versions
-      WHERE briefing_id = $1
+      SELECT cv.*
+      FROM edro_copy_versions cv
+      ${tenantId ? 'JOIN edro_briefings b ON b.id = cv.briefing_id' : ''}
+      WHERE cv.briefing_id = $1
+      ${tenantId ? 'AND b.tenant_id = $2' : ''}
       ORDER BY created_at DESC
     `,
-    [briefingId]
+    values
   );
   return rows;
 }

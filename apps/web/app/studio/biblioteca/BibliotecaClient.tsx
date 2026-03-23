@@ -131,6 +131,7 @@ export default function BibliotecaClient() {
     a.href = url;
     a.download = 'edro-creative.png';
     a.target = '_blank';
+    a.rel = 'noopener noreferrer';
     a.click();
   };
 

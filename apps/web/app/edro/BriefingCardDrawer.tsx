@@ -45,7 +45,7 @@ import {
   IconUser,
   IconX,
 } from '@tabler/icons-react';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
 
 // ── Label presets ────────────────────────────────────────────────────────────
 
@@ -388,11 +388,8 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
       form.append('file', file);
       form.append('briefing_id', briefingId);
       form.append('title', file.name.replace(/\.[^.]+$/, ''));
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
-      const res = await fetch(`${apiBase}/api/artworks/upload`, {
+      const res = await fetch(buildApiUrl('/artworks/upload'), {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
       });
       if (res.ok) {
@@ -617,7 +614,7 @@ export default function BriefingCardDrawer({ briefingId, onClose, onUpdate }: Pr
         <Stack direction="row" spacing={0.5}>
           {data && (
             <Tooltip title="Abrir página completa">
-              <IconButton size="small" href={`/edro/${data.id}`} target="_blank" component="a">
+              <IconButton size="small" href={`/edro/${data.id}`} target="_blank" rel="noopener noreferrer" component="a">
                 <IconExternalLink size={16} />
               </IconButton>
             </Tooltip>

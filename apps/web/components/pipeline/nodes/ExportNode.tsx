@@ -247,6 +247,7 @@ export default function ExportNode() {
             component={Link}
             href={`/studio/pipeline/${briefing?.id}/app`}
             target="_blank"
+            rel="noopener noreferrer"
             startIcon={<IconAppWindow size={12} />}
             sx={{
               textTransform: 'none', fontSize: '0.65rem',
