@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db/db';
+import { decryptJSON } from '../security/secrets';
 import {
   generateAdCreative,
   generateArtDirectorPrompt,
@@ -1027,7 +1028,7 @@ Retorne SOMENTE um JSON válido:
 
     // Fetch Meta connector for this client
     const { rows: connectorRows } = await query(
-      `SELECT payload, secrets_enc FROM connectors WHERE tenant_id = $1 AND client_id = $2 AND provider = 'meta' AND status = 'active' LIMIT 1`,
+      `SELECT payload, secrets_enc FROM connectors WHERE tenant_id = $1 AND client_id = $2 AND provider = 'meta' LIMIT 1`,
       [tenantId, client_id]
     );
     if (!connectorRows.length) {
@@ -1036,7 +1037,12 @@ Retorne SOMENTE um JSON válido:
 
     const connector = connectorRows[0];
     const payload = connector.payload as Record<string, any>;
-    const accessToken = connector.secrets_enc; // stored as plaintext for now (encrypted in production)
+    const secrets = connector.secrets_enc ? await decryptJSON(connector.secrets_enc) : {};
+    const accessToken = secrets.access_token as string | undefined;
+
+    if (!accessToken) {
+      return reply.status(400).send({ success: false, error: 'Meta access token missing for this client.' });
+    }
 
     const META_GRAPH_VERSION = 'v18.0';
     const igUserId = payload.instagram_business_id as string | undefined;

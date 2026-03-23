@@ -18,6 +18,7 @@ import { enqueueJob } from '../jobs/jobQueue';
 import { ensureInternalClient, isInternalClientId } from '../repos/clientsRepo';
 import {
   calendarOAuthUrl,
+  disconnectCalendar,
   exchangeCalendarCode,
   watchCalendar,
 } from '../services/integrations/googleCalendarService';
@@ -246,7 +247,7 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
     preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
-    await query(`DELETE FROM google_calendar_channels WHERE tenant_id = $1`, [tenantId]);
+    await disconnectCalendar(tenantId);
     return reply.send({ ok: true });
   });
 }

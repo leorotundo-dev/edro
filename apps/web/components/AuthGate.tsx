@@ -7,7 +7,13 @@ type AuthGateProps = {
   children: React.ReactNode;
 };
 
-const PUBLIC_PATHS = new Set(['/login', '/privacidade']);
+const PUBLIC_PATHS = new Set([
+  '/login',
+  '/privacidade',
+  '/politica-de-privacidade',
+  '/exclusao-de-dados',
+  '/termos-de-uso',
+]);
 const PUBLIC_PREFIXES = ['/calendar', '/edro/aprovacao-externa', '/proposta', '/portal', '/portal/approval'];
 
 export default function AuthGate({ children }: AuthGateProps) {

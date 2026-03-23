@@ -1549,7 +1549,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
         query(
           `SELECT
              MAX(CASE WHEN provider = 'meta'    THEN last_sync_at END) AS meta_last_sync,
-             COUNT(CASE WHEN provider = 'meta' AND status = 'active' THEN 1 END)::int AS meta_connectors
+             COUNT(CASE WHEN provider = 'meta' THEN 1 END)::int AS meta_connectors
            FROM connectors WHERE tenant_id = $1`,
           [tenantId],
         ),
