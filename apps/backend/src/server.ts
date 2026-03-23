@@ -23,6 +23,14 @@ import { requireClientPerm, hasClientPerm } from './auth/clientPerms';
 import { audit } from './audit/audit';
 import { httpRequests, register as metricsRegistry } from './obs/metrics';
 
+const API_SECURITY_HEADERS = [
+  ['Content-Security-Policy', "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"],
+  ['Referrer-Policy', 'no-referrer'],
+  ['X-Content-Type-Options', 'nosniff'],
+  ['X-Frame-Options', 'DENY'],
+  ['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
+] as const;
+
 async function requireCalendarClientPerm(params: {
   request: any;
   reply: any;
@@ -94,9 +102,6 @@ export async function buildServer() {
   await app.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
-    // Webhook endpoints receive event bursts from Evolution API / Meta / etc.
-    // Exempt them from per-IP rate limiting entirely.
-    allowList: (request) => request.url.startsWith('/webhook'),
   });
 
   app.addHook('preHandler', async (request) => {
@@ -110,6 +115,12 @@ export async function buildServer() {
   });
 
   app.addHook('onSend', async (_request, reply, payload) => {
+    for (const [header, value] of API_SECURITY_HEADERS) {
+      if (!reply.hasHeader(header)) {
+        reply.header(header, value);
+      }
+    }
+
     const contentType = reply.getHeader('content-type');
     if (typeof contentType === 'string' && contentType.startsWith('application/json')) {
       if (!/charset=/i.test(contentType)) {

@@ -16,5 +16,7 @@ export function tenantGuard() {
     if (!rows[0]) {
       return reply.status(403).send({ error: 'not_member' });
     }
+
+    (request as any).tenantId = tenantId;
   };
 }
