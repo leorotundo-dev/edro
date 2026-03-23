@@ -128,7 +128,12 @@ export default async function authRoutes(app: FastifyInstance) {
           tenantId: tenant.id,
           purpose,
         });
-        return reply.send({ success: true, pendingToken, mfaRequired: true, kind: purpose });
+        return reply.send({
+          success: true,
+          pendingToken,
+          mfaRequired: mfaEnabled,
+          mfaEnrollmentRequired: !mfaEnabled,
+        });
       }
 
       const accessToken = app.jwt.sign(
@@ -171,20 +176,29 @@ export default async function authRoutes(app: FastifyInstance) {
   const handleMe = async (request: any, reply: any) => {
     try {
       await request.jwtVerify();
-      const userPayload = request.user as { email?: string };
+      const userPayload = request.user as { email?: string; role?: string; mfa?: boolean };
       if (!userPayload?.email) {
         return reply.status(401).send({ error: 'Não autorizado.' });
+      }
+      // Enforce MFA for privileged sessions (returns 401, not 403, since this is an auth status endpoint)
+      if (shouldEnforcePrivilegedMfa(userPayload.role) && userPayload.mfa !== true) {
+        return reply.status(401).send({ error: 'mfa_required' });
       }
       const user = await findUserByEmail(userPayload.email);
       if (!user) {
         return reply.status(404).send({ error: 'Usuário não encontrado.' });
       }
       const tenant = await getPrimaryTenantForUser(user.id);
+      const mfaRecord = await findUserMfaByUserId(user.id);
+      const mfaEnabled = Boolean(mfaRecord?.enabled_at && mfaRecord?.secret_enc);
+      const mfaEnforced = shouldEnforcePrivilegedMfa(tenant?.role ?? user.role);
       return reply.send({
         id: user.id,
         email: user.email,
         role: user.role,
         tenant_id: tenant?.tenant_id ?? null,
+        mfa_enabled: mfaEnabled,
+        mfa_enforced: mfaEnforced,
       });
     } catch (error) {
       return reply.status(401).send({ error: 'Não autorizado.' });
@@ -204,7 +218,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const newRefresh = crypto.randomBytes(48).toString('hex');
 
     try {
-      const refreshExpiresAt = await rotateRefreshToken(body.userId, body.refreshToken, newRefresh);
+      const { expiresAt: refreshExpiresAt, mfaVerified } = await rotateRefreshToken(body.userId, body.refreshToken, newRefresh);
       const user = await findUserById(body.userId);
       if (!user) {
         return reply.status(401).send({ error: 'invalid_user' });
@@ -215,12 +229,18 @@ export default async function authRoutes(app: FastifyInstance) {
         return reply.status(401).send({ error: 'missing_tenant' });
       }
 
+      // Privileged roles require MFA-verified refresh tokens
+      if (shouldEnforcePrivilegedMfa(tenant.role) && !mfaVerified) {
+        return reply.status(401).send({ error: 'mfa_reauth_required' });
+      }
+
       const accessToken = app.jwt.sign(
         {
           sub: user.id,
           email: user.email,
           role: tenant.role,
           tenant_id: tenant.tenant_id,
+          mfa: mfaVerified,
         },
         { expiresIn: '30m' }
       );

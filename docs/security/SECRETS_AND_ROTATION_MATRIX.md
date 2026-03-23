@@ -30,6 +30,14 @@ Dar visibilidade minima de quais segredos existem, para que servem, onde ficam e
 | `D4SIGN_TOKEN_API` | autenticacao na API D4Sign | backend | Juridico/Contrato | conforme D4Sign | revogar no dashboard D4Sign em caso de incidente |
 | `D4SIGN_CRYPT_KEY` | chave criptografica D4Sign | backend | Juridico/Contrato | conforme D4Sign | par com TOKEN_API — nao separar |
 | `D4SIGN_WEBHOOK_SECRET` | autenticidade de webhook D4Sign | backend | Juridico/Contrato | 90 dias | registrar como `?token=<valor>` na URL do webhook no painel D4Sign |
+| `WHATSAPP_WEBHOOK_SECRET` | autenticidade de webhook WhatsApp | backend | Integracoes | 90 dias | separado do WHATSAPP_TOKEN |
+| `META_VERIFY_TOKEN` | token de verificacao de webhook Meta (Instagram DMs) | backend | Integracoes | 90 dias | registrar no painel do App Meta |
+| `MASTER_KEY_B64` | chave mestra de criptografia (base64) | backend | Infra/CTO | 180 dias ou incidente | usada para envelope encryption — rotacao coordenada |
+| `PERPLEXITY_API_KEY` | acesso a API Perplexity (inteligencia de tendencias) | backend | Plataforma IA | 90 dias | monitorar uso anomalo |
+| `LEONARDO_API_KEY` | geracao de imagens via Leonardo.ai | backend | Plataforma IA | 90 dias | monitorar uso anomalo |
+| `FAL_API_KEY` | geracao de imagens via fal.ai | backend | Plataforma IA | 90 dias | monitorar uso anomalo |
+| `RAPIDAPI_KEY` | coleta de dados de perfil via RapidAPI/Proxycurl | backend | Integracoes | 90 dias | monitorar cota e uso anomalo |
+| `REPORTEI_TOKEN` | acesso a API Reportei (metricas de campanha) | backend | Integracoes | 90 dias | necessario para learning loop de performance |
 
 ## Runbook minimo de rotacao
 

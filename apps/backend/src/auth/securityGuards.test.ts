@@ -14,6 +14,10 @@ vi.mock('../db', () => ({
   query: (...args: any[]) => mockQuery(...args),
 }));
 
+vi.mock('../audit/securityLog', () => ({
+  securityLog: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../env', () => ({
   get enforcePrivilegedMfa() {
     return mfaRolloutState.enforced;
