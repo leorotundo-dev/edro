@@ -24,7 +24,7 @@ vi.mock('../env', () => ({
   },
 }));
 
-import { authGuard } from './rbac';
+import { authGuard, requirePerm } from './rbac';
 import { tenantGuard } from './tenantGuard';
 import { requireClientPerm } from './clientPerms';
 
@@ -43,6 +43,11 @@ beforeAll(async () => {
   app.get(
     '/clients/:clientId/test',
     { preHandler: [authGuard, tenantGuard(), requireClientPerm('read')] },
+    async () => ({ ok: true }),
+  );
+  app.post(
+    '/write-op',
+    { preHandler: [authGuard, requirePerm('clients:write')] },
     async () => ({ ok: true }),
   );
 
@@ -192,5 +197,85 @@ describe('requireClientPerm', () => {
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ ok: true });
+  });
+});
+
+describe('authGuard — unauthenticated requests', () => {
+  it('returns 401 when no Authorization header is provided', async () => {
+    const res = await app.inject({ method: 'GET', url: '/protected' });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.body)).toEqual({ error: 'Não autorizado.' });
+  });
+
+  it('returns 401 for a malformed token', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/protected',
+      headers: { authorization: 'Bearer not-a-real-jwt' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('blocks a pending-MFA token (kind=pending_mfa, mfa=undefined) on privileged routes', async () => {
+    const pendingToken = app.jwt.sign({
+      sub: 'user-admin',
+      email: 'admin@edro.digital',
+      role: 'admin',
+      tenant_id: 'tenant-1',
+      kind: 'pending_mfa',
+      // mfa field intentionally absent
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/protected',
+      headers: { authorization: `Bearer ${pendingToken}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({ error: 'mfa_required' });
+  });
+});
+
+describe('requirePerm', () => {
+  it('blocks a viewer from a clients:write operation', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/write-op',
+      headers: { authorization: `Bearer ${viewerToken}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toMatchObject({ error: 'Sem permissao.', perm: 'clients:write' });
+  });
+
+  it('allows staff (clients:write) through', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/write-op',
+      headers: { authorization: `Bearer ${staffToken}` },
+    });
+
+    // staff has clients:write and no MFA enforcement → 200
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ ok: true });
+  });
+
+  it('blocks a reviewer from clients:write', async () => {
+    const reviewerToken = app.jwt.sign({
+      sub: 'user-reviewer',
+      email: 'reviewer@edro.digital',
+      role: 'reviewer',
+      tenant_id: 'tenant-1',
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/write-op',
+      headers: { authorization: `Bearer ${reviewerToken}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toMatchObject({ perm: 'clients:write' });
   });
 });
