@@ -99,9 +99,40 @@ export async function buildServer() {
     secret: env.JWT_SECRET,
   });
 
+  // Global rate limit baseline — per-route overrides applied via config.rateLimit
   await app.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
+    // Tighten auth/SSO routes at route-registration time (see onRoute hook below)
+    keyGenerator: (request) => {
+      // Prefer forwarded IP (Railway sets X-Forwarded-For)
+      const forwarded = request.headers['x-forwarded-for'];
+      const ip = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : request.ip;
+      return ip;
+    },
+  });
+
+  // Per-route rate limit overrides — runs once at startup, zero overhead at runtime
+  app.addHook('onRoute', (routeOptions) => {
+    const url = routeOptions.url ?? '';
+    const isAuth = url.startsWith('/api/auth') || url.startsWith('/api/sso') || url.startsWith('/api/portal/auth');
+    const isMagicLink = url.includes('magic-link') || url.includes('/auth/request') || url.includes('/auth/verify');
+    const isWebhook = url.startsWith('/webhook') || url.startsWith('/api/webhooks');
+    const isAdminJob = url.startsWith('/api/admin/jobs');
+
+    if (isMagicLink) {
+      // Strict: 5 attempts per minute per IP (brute-force / enumeration protection)
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 5, timeWindow: '1 minute' } };
+    } else if (isAuth) {
+      // Strict: 20 per minute per IP for login/token/session endpoints
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 20, timeWindow: '1 minute' } };
+    } else if (isWebhook) {
+      // Medium: 200 per minute — webhooks receive event bursts but are HMAC-protected
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 200, timeWindow: '1 minute' } };
+    } else if (isAdminJob) {
+      // Strict: manual job triggers should not be spammed
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 10, timeWindow: '1 minute' } };
+    }
   });
 
   app.addHook('preHandler', async (request) => {

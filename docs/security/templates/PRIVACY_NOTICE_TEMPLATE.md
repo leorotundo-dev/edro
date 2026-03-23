@@ -123,9 +123,13 @@ Nenhuma medida de seguranca e absoluta, mas buscamos evoluir continuamente o niv
 
 ## 10. Cookies e tecnologias similares
 
-`{{COOKIE_DISCLOSURE_SECTION}}`
+Os portais da Edro utilizam cookies de sessao tecnica para autenticacao e protecao do acesso. Esses cookies sao:
 
-Se os portais utilizarem cookies ou tecnologias similares para autenticacao, sessao, seguranca ou analytics, essa informacao deve constar aqui com nivel de detalhe compativel com o tratamento real.
+- **Cookie de sessao autenticada** (`edro_session` / `edro_portal_session`): cookie `HttpOnly`, `Secure`, `SameSite=Lax`, gerado no servidor apos autenticacao via magic-link ou SSO. Nao e acessivel via JavaScript. Expirado automaticamente apos inatividade ou logout. Finalidade: manter o usuario autenticado durante a sessao ativa e proteger o acesso ao portal.
+
+- **Ausencia de cookies de rastreamento ou analytics de terceiros**: a plataforma nao utiliza, na operacao atual, cookies de terceiros para publicidade, rastreamento comportamental ou analytics externo. Caso isso mude, este aviso sera atualizado.
+
+Os cookies tecnicamente necessarios sao definidos pelo proprio servidor e nao exigem consentimento nos termos do marco regulatorio aplicavel, por serem estritamente necessarios para a prestacao do servico solicitado pelo usuario.
 
 ## 11. Direitos dos titulares
 
