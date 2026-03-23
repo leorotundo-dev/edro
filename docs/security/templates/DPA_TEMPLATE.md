@@ -22,20 +22,20 @@ Este modelo e um ponto de partida tecnico-operacional para anexo contratual de t
 Este Anexo de Tratamento de Dados Pessoais ("`Anexo`") integra o contrato principal celebrado entre:
 
 - `{{CLIENT_LEGAL_NAME}}`, inscrita no CNPJ sob o n. `{{CLIENT_CNPJ}}`, com sede em `{{CLIENT_ADDRESS}}`, doravante "`Cliente`"; e
-- `{{EDRO_LEGAL_NAME}}`, inscrita no CNPJ sob o n. `{{EDRO_CNPJ}}`, com sede em `{{EDRO_ADDRESS}}`, doravante "`Edro`".
+- `EDRO COMUNICACAO DE MARKETING LTDA`, inscrita no CNPJ sob o n. `42.728.944/0001-20`, com sede em `{{EDRO_ADDRESS}}`, doravante "`Edro`".
 
 ## 1. Objeto
 
 1.1. Este Anexo disciplina as condicoes aplicaveis ao tratamento de dados pessoais realizado no contexto dos servicos contratados no contrato principal, em conformidade com a Lei n. 13.709/2018 ("`LGPD`") e regulamentos aplicaveis.
 
-1.2. O escopo dos servicos cobertos por este Anexo compreende: `{{SERVICE_SCOPE}}`.
+1.2. O escopo dos servicos cobertos por este Anexo compreende: Plataforma de gestão de produção de conteúdo digital, incluindo briefings, aprovações, calendários editoriais, campanhas, análise de performance, integrações com canais sociais e comunicação com fornecedores criativos..
 
 ## 2. Papel das partes
 
 2.1. As partes reconhecem que, para os fluxos descritos neste Anexo:
 
-- o `Cliente` atua como `{{CLIENT_ROLE_IN_PROCESSING}}`; e
-- a `Edro` atua como `{{EDRO_ROLE_IN_PROCESSING}}`.
+- o `Cliente` atua como **Controlador** — determina as finalidades e meios do tratamento dos dados de seus próprios consumidores/audiência; e
+- a `Edro` atua como **Operadora** — trata dados pessoais conforme instruções do Cliente no contexto da plataforma.
 
 2.2. Quando a Edro atuar como operadora em nome do Cliente, tratara os dados pessoais de acordo com as instrucoes documentadas do Cliente, ressalvadas as hipoteses em que a legislacao exigir tratamento diverso.
 
@@ -88,13 +88,13 @@ Este Anexo de Tratamento de Dados Pessoais ("`Anexo`") integra o contrato princi
 
 6.3. Quando houver exigencia contratual de notificacao previa de novo subprocessador, aplicar o seguinte texto opcional:
 
-`{{OPTIONAL_SUBPROCESSOR_NOTICE_CLAUSE}}`
+_[Cláusula para clientes enterprise]_ A Edro notificará o Cliente com antecedência mínima de 30 (trinta) dias sobre adição de novo subprocessador que acesse dados pessoais cobertos por este Anexo, disponibilizando oportunidade de objeção razoável. _[Para clientes padrão, remover ou substituir por texto mais genérico.]_
 
 ## 7. Transferencia internacional
 
 7.1. Na medida em que o tratamento envolver fornecedores ou infraestrutura localizados fora do Brasil, a Edro adotara o mecanismo contratual e/ou base juridica aplicavel para transferencia internacional, em conformidade com a LGPD e regulamentos da ANPD.
 
-7.2. A lista de subprocessadores e transferencias internacionais aplicaveis ao escopo contratado consta do anexo/registro correspondente: `{{SUBPROCESSOR_REFERENCE}}`.
+7.2. A lista de subprocessadores e transferencias internacionais aplicaveis ao escopo contratado consta do anexo/registro correspondente: Lista de subprocessadores disponível em `docs/security/SUBPROCESSOR_REGISTER_SHAREABLE_2026-03-21.md` ou mediante solicitação por e-mail ao canal de privacidade..
 
 ## 8. Cooperacao em direitos do titular
 
@@ -131,7 +131,7 @@ Este Anexo de Tratamento de Dados Pessoais ("`Anexo`") integra o contrato princi
 
 10.3. Se houver exigencia especifica do Cliente sobre descarte ao termino, preencher:
 
-`{{TERMINATION_RETURN_DELETE_RULE}}`
+Encerrada a relação contratual, a Edro excluirá ou anonimizará os dados pessoais cobertos por este Anexo em até 90 (noventa) dias, ressalvados dados sujeitos a obrigação legal de retenção, backups operacionais em janela de rotação e registros de auditoria necessários para defesa de direitos.
 
 ## 11. Confidencialidade e acesso interno
 
@@ -165,7 +165,7 @@ Este Anexo de Tratamento de Dados Pessoais ("`Anexo`") integra o contrato princi
 
 ## Assinaturas
 
-`{{CITY}}`, `{{SIGN_DATE}}`
+São Paulo, `{{SIGN_DATE}}`
 
 Pelo Cliente:
 

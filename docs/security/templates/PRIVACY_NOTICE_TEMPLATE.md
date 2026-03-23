@@ -15,16 +15,16 @@ Este modelo serve como base de texto para o aviso de privacidade da Edro. Ele **
 
 # Aviso de Privacidade - Edro Digital
 
-Ultima atualizacao: `{{LAST_UPDATED_DATE}}`
+Ultima atualizacao: `2026-03-23`
 
 ## 1. Quem somos
 
-A `{{EDRO_LEGAL_NAME}}` ("`Edro`", "`nos`") trata dados pessoais no contexto da prestacao de servicos, operacao da plataforma e relacionamento com clientes, parceiros, freelancers, leads e usuarios.
+A `EDRO COMUNICACAO DE MARKETING LTDA` ("`Edro`", "`nos`") trata dados pessoais no contexto da prestacao de servicos, operacao da plataforma e relacionamento com clientes, parceiros, freelancers, leads e usuarios.
 
 Dados de contato institucionais:
 
-- Razao social: `{{EDRO_LEGAL_NAME}}`
-- CNPJ: `{{EDRO_CNPJ}}`
+- Razao social: `EDRO COMUNICACAO DE MARKETING LTDA`
+- CNPJ: `42.728.944/0001-20`
 - Endereco: `{{EDRO_ADDRESS}}`
 - E-mail principal: `{{GENERAL_CONTACT_EMAIL}}`
 

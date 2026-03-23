@@ -11,20 +11,20 @@ Atualizado em: 2026-03-23
 
 | Campo | Onde usar | Status |
 |---|---|---|
-| Razão social da Edro | DPA, Aviso, contratos | **PENDENTE — preencher** |
-| CNPJ da Edro | DPA, Aviso | **PENDENTE — preencher** |
+| Razão social da Edro | DPA, Aviso, contratos | ✅ `EDRO COMUNICACAO DE MARKETING LTDA` |
+| CNPJ da Edro | DPA, Aviso | ✅ `42.728.944/0001-20` |
 | Endereço sede | DPA, Aviso | **PENDENTE — preencher** |
 | E-mail geral de contato | Aviso | **PENDENTE — definir** |
 | E-mail de privacidade / encarregado | DPA, Aviso | **PENDENTE — definir** |
 | Nome e cargo do encarregado (DPO) | Aviso | **PENDENTE — designar ou indicar que não há DPO nomeado formalmente** |
-| Cidade para assinaturas | DPA | Sugestão: `São Paulo` — confirmar |
-| Signatário da Edro no DPA | DPA | **PENDENTE** |
+| Cidade para assinaturas | DPA | ✅ `São Paulo` |
+| Signatário da Edro no DPA | DPA | **PENDENTE — preencher nome e cargo** |
 
 ---
 
 ## 2. Escopo de serviços (DPA)
 
-Substituir `{{SERVICE_SCOPE}}` por:
+✅ **PREENCHIDO no template** — texto padrão aplicado:
 
 > "Plataforma de gestão de produção de conteúdo digital, incluindo briefings, aprovações, calendários editoriais, campanhas, análise de performance, integrações com canais sociais e comunicação com fornecedores criativos."
 
@@ -32,7 +32,7 @@ Ajustar conforme o contrato específico de cada cliente.
 
 ---
 
-## 3. Papel das partes (DPA)
+## 3. Papel das partes (DPA) — ✅ PREENCHIDO no template
 
 Para a maioria dos clientes Edro:
 
@@ -57,15 +57,15 @@ Substituir `{{DATA_SUBJECT_REQUEST_CHANNEL}}` por um dos formatos abaixo:
 
 ---
 
-## 5. Subprocessadores — referência no DPA
+## 5. Subprocessadores — referência no DPA — ✅ PREENCHIDO no template
 
-Substituir `{{SUBPROCESSOR_REFERENCE}}` por:
+Texto aplicado:
 
 > "Lista de subprocessadores disponível em `docs/security/SUBPROCESSOR_REGISTER_SHAREABLE_2026-03-21.md` ou mediante solicitação por e-mail ao canal de privacidade."
 
 ---
 
-## 6. Cláusula de notificação de subprocessadores (DPA — opcional)
+## 6. Cláusula de notificação de subprocessadores (DPA — opcional) — ✅ PREENCHIDO no template
 
 `{{OPTIONAL_SUBPROCESSOR_NOTICE_CLAUSE}}` — recomendação:
 
@@ -76,7 +76,7 @@ Para clientes padrão: remover a cláusula ou substituir por texto mais genéric
 
 ---
 
-## 7. Regra de retorno/descarte ao término (DPA)
+## 7. Regra de retorno/descarte ao término (DPA) — ✅ PREENCHIDO no template
 
 Substituir `{{TERMINATION_RETURN_DELETE_RULE}}` por:
 
