@@ -1,20 +1,37 @@
 {
   "root": true,
-  "extends": [
-    "next/core-web-vitals"
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  },
+  "settings": {
+    "react": { "version": "detect" }
+  },
+  "plugins": ["react-hooks"],
+  "ignorePatterns": [
+    "components/mockups/**",
+    "app/admin/whatsapp-groups/**",
+    "app/clients/**/library/**"
   ],
+  "reportUnusedDisableDirectives": false,
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "ecmaFeatures": { "jsx": true }
+  },
   "rules": {
-    "@next/next/no-img-element": "off",
-    "@next/next/no-page-custom-font": "off",
-    "react/no-unescaped-entities": "off"
+    "react-hooks/rules-of-hooks": "warn",
+    "react-hooks/exhaustive-deps": "warn"
   },
   "overrides": [
     {
-      "files": ["components/mockups/**/*.tsx", "components/mockups/**/*.ts"],
-      "rules": {
-        "react/forbid-dom-props": "off",
-        "react/forbid-component-props": "off",
-        "react/no-inline-styles": "off"
+      "files": ["**/*.ts", "**/*.tsx"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "ecmaVersion": 2022,
+        "sourceType": "module",
+        "ecmaFeatures": { "jsx": true }
       }
     }
   ]

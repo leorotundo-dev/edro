@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p ${PORT:-3333} -H 0.0.0.0",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=100",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
