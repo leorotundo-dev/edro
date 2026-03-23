@@ -161,6 +161,16 @@ async function requestWithRefresh<T>(path: string, options: RequestInit): Promis
     }
   }
 
+  if (response.status === 403) {
+    const cloned = response.clone();
+    const body = await cloned.json().catch(() => ({}));
+    if (body?.error === 'mfa_required' && typeof window !== 'undefined') {
+      localStorage.removeItem('edro_user');
+      window.location.href = '/login';
+      return {} as T;
+    }
+  }
+
   return handleResponse<T>(response);
 }
 
