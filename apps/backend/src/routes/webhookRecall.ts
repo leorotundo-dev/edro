@@ -24,7 +24,7 @@ export default async function webhookRecallRoutes(app: FastifyInstance) {
     return Readable.from([rawBody]);
   });
 
-  app.post('/webhook/recall', async (request, reply) => {
+  app.post('/webhook/recall', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request, reply) => {
     const rawBody = typeof (request as any).rawBody === 'string'
       ? (request as any).rawBody
       : JSON.stringify(request.body ?? {});

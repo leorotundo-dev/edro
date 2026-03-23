@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { requireClientPerm } from '../auth/clientPerms';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
@@ -10,7 +11,7 @@ import { backfillWhatsAppClientMemory, persistWhatsAppMessageMemory } from '../s
 export default async function whatsappInboxRoutes(app: FastifyInstance) {
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  app.get('/whatsapp/stats', { preHandler: [authGuard, tenantGuard()] }, async (req, reply) => {
+  app.get('/whatsapp/stats', { preHandler: [authGuard, tenantGuard(), requirePerm('portfolio:read')] }, async (req, reply) => {
     const tenantId = (req.user as any).tenant_id;
     const [cloud, grp, briefs, totalCloud, totalGrp] = await Promise.all([
       query(`SELECT COUNT(*) AS cnt FROM whatsapp_messages WHERE tenant_id = $1 AND created_at > now() - INTERVAL '24h'`, [tenantId]),
@@ -27,7 +28,7 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
   });
 
   // ── Conversations list ─────────────────────────────────────────────────────
-  app.get('/whatsapp/conversations', { preHandler: [authGuard, tenantGuard()] }, async (req, reply) => {
+  app.get('/whatsapp/conversations', { preHandler: [authGuard, tenantGuard(), requirePerm('portfolio:read')] }, async (req, reply) => {
     const tenantId = (req.user as any).tenant_id;
 
     // Latest cloud API message per client
@@ -81,7 +82,9 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
 
   // ── Messages thread for a client ──────────────────────────────────────────
   app.get<{ Querystring: { client_id: string; limit?: string } }>(
-    '/whatsapp/messages', { preHandler: [authGuard, tenantGuard()] }, async (req, reply) => {
+    '/whatsapp/messages',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')] },
+    async (req, reply) => {
       const tenantId = (req.user as any).tenant_id;
       const { client_id } = req.query;
       const lim = Math.min(parseInt(req.query.limit ?? '80'), 200);

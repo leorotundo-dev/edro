@@ -2342,7 +2342,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
   // GET /calendar/events/:eventId/inspirations
   app.get(
     '/calendar/events/:eventId/inspirations',
-    { preHandler: [authGuard, tenantGuard] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('events:read')] },
     async (request: any, reply) => {
       const { eventId } = z.object({ eventId: z.string().min(1) }).parse(request.params);
 
@@ -2371,7 +2371,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
   // POST /calendar/admin/inspiration-batch
   app.post(
     '/calendar/admin/inspiration-batch',
-    { preHandler: [authGuard, tenantGuard, requirePerm('admin')] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply) => {
       const body = z.object({ limit: z.number().int().min(1).max(10).optional().default(5) }).parse(
         request.body || {}
@@ -2420,7 +2420,7 @@ export default async function calendarRoutes(app: FastifyInstance) {
   // Adapts a collected inspiration to a specific client's voice, segment and strategy.
   app.post(
     '/calendar/events/:eventId/inspirations/:inspirationId/adapt',
-    { preHandler: [authGuard, tenantGuard] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('events:read'), requirePerm('clients:read'), requireClientPerm('read')] },
     async (request: any, reply) => {
       const { eventId, inspirationId } = z
         .object({ eventId: z.string().min(1), inspirationId: z.string().uuid() })

@@ -1,9 +1,10 @@
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { FastifyInstance } from 'fastify';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
-import { authGuard, requirePerm } from '../auth/rbac';
-import { requireClientPerm } from '../auth/clientPerms';
+import { authGuard, can, normalizeRole, requirePerm } from '../auth/rbac';
+import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
 import { generateCampaignStrategy } from '../services/ai/agentPlanner';
@@ -136,11 +137,178 @@ async function logSnapshotReads(params: {
   );
 }
 
+type ClientScopePerm = 'read' | 'write';
+
+async function ensureScopedClientAccess(params: {
+  request: FastifyRequest;
+  reply: FastifyReply;
+  tenantId: string;
+  clientId: string | null | undefined;
+  perm: ClientScopePerm;
+}) {
+  const { request, reply, tenantId, clientId, perm } = params;
+  const user = request.user as { sub?: string; role?: string } | undefined;
+  if ((user?.role || '').toLowerCase() === 'admin') {
+    return true;
+  }
+  if (!user?.sub) {
+    reply.status(401).send({ error: 'missing_user' });
+    return false;
+  }
+  if (!clientId) {
+    return true;
+  }
+
+  const allowed = await hasClientPerm({
+    tenantId,
+    userId: user.sub,
+    role: user.role,
+    clientId,
+    perm,
+  });
+  if (!allowed) {
+    reply.status(403).send({ error: 'client_forbidden', perm, client_id: clientId });
+    return false;
+  }
+  return true;
+}
+
+async function resolveClientIdByCampaign(tenantId: string, campaignId: string) {
+  const { rows } = await pool.query<{ client_id: string | null }>(
+    `SELECT client_id FROM campaigns WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+    [campaignId, tenantId]
+  );
+  return rows[0]?.client_id ?? null;
+}
+
+async function resolveClientIdByCampaignFormat(tenantId: string, formatId: string) {
+  const { rows } = await pool.query<{ client_id: string | null }>(
+    `SELECT client_id FROM campaign_formats WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+    [formatId, tenantId]
+  );
+  return rows[0]?.client_id ?? null;
+}
+
+async function resolveClientIdByCreativeConcept(tenantId: string, conceptId: string) {
+  const { rows } = await pool.query<{ client_id: string | null }>(
+    `SELECT c.client_id
+       FROM creative_concepts cc
+       JOIN campaigns c ON c.id = cc.campaign_id
+      WHERE cc.id=$1 AND cc.tenant_id=$2 AND c.tenant_id=$2
+      LIMIT 1`,
+    [conceptId, tenantId]
+  );
+  return rows[0]?.client_id ?? null;
+}
+
+async function resolveClientIdByBehavioralCopy(tenantId: string, copyId: string) {
+  const { rows } = await pool.query<{ client_id: string | null }>(
+    `SELECT c.client_id
+       FROM campaign_behavioral_copies cb
+       JOIN campaigns c ON c.id = cb.campaign_id
+      WHERE cb.id=$1 AND cb.tenant_id=$2 AND c.tenant_id=$2
+      LIMIT 1`,
+    [copyId, tenantId]
+  );
+  return rows[0]?.client_id ?? null;
+}
+
+function requireCampaignListAccess() {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const user = request.user as { role?: string } | undefined;
+    const clientId = (request.query as any)?.client_id as string | undefined;
+    if (!tenantId) {
+      return reply.status(401).send({ error: 'missing_tenant' });
+    }
+    if (!clientId) {
+      const role = normalizeRole(user?.role);
+      if (!can(role, 'portfolio:read')) {
+        return reply.status(403).send({ error: 'Sem permissao.', perm: 'portfolio:read' });
+      }
+      return;
+    }
+
+    const allowed = await ensureScopedClientAccess({
+      request,
+      reply,
+      tenantId,
+      clientId,
+      perm: 'read',
+    });
+    if (!allowed) return;
+  };
+}
+
+function requireCampaignPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const campaignId = (request.params as any)?.id as string | undefined;
+    if (!tenantId || !campaignId) {
+      return reply.status(400).send({ error: 'missing_campaign_id' });
+    }
+    const clientId = await resolveClientIdByCampaign(tenantId, campaignId);
+    if (clientId === null) {
+      return reply.status(404).send({ error: 'campaign_not_found' });
+    }
+    const allowed = await ensureScopedClientAccess({ request, reply, tenantId, clientId, perm });
+    if (!allowed) return;
+  };
+}
+
+function requireCampaignFormatPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const formatId = (request.params as any)?.id as string | undefined;
+    if (!tenantId || !formatId) {
+      return reply.status(400).send({ error: 'missing_campaign_format_id' });
+    }
+    const clientId = await resolveClientIdByCampaignFormat(tenantId, formatId);
+    if (clientId === null) {
+      return reply.status(404).send({ error: 'campaign_format_not_found' });
+    }
+    const allowed = await ensureScopedClientAccess({ request, reply, tenantId, clientId, perm });
+    if (!allowed) return;
+  };
+}
+
+function requireCreativeConceptPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const conceptId = (request.params as any)?.id as string | undefined;
+    if (!tenantId || !conceptId) {
+      return reply.status(400).send({ error: 'missing_concept_id' });
+    }
+    const clientId = await resolveClientIdByCreativeConcept(tenantId, conceptId);
+    if (clientId === null) {
+      return reply.status(404).send({ error: 'concept_not_found' });
+    }
+    const allowed = await ensureScopedClientAccess({ request, reply, tenantId, clientId, perm });
+    if (!allowed) return;
+  };
+}
+
+function requireBehavioralCopyPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const copyId = (request.params as any)?.copyId as string | undefined;
+    if (!tenantId || !copyId) {
+      return reply.status(400).send({ error: 'missing_behavioral_copy_id' });
+    }
+    const clientId = await resolveClientIdByBehavioralCopy(tenantId, copyId);
+    if (clientId === null) {
+      return reply.status(404).send({ error: 'behavioral_copy_not_found' });
+    }
+    const allowed = await ensureScopedClientAccess({ request, reply, tenantId, clientId, perm });
+    if (!allowed) return;
+  };
+}
+
 export default async function campaignRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
 
-  app.get('/campaigns', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/campaigns', { preHandler: [requirePerm('clients:read'), requireCampaignListAccess()] }, async (request: any) => {
     const tenantId = (request.user as any).tenant_id as string;
     const clientId = request.query?.client_id as string | undefined;
     const status = request.query?.status as string | undefined;
@@ -161,7 +329,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
     return { success: true, data: rows };
   });
 
-  app.get('/campaigns/:id', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+  app.get('/campaigns/:id', { preHandler: [requirePerm('clients:read'), requireCampaignPerm('read')] }, async (request: any, reply) => {
     const tenantId = (request.user as any).tenant_id as string;
     const campaignId = request.params?.id as string;
     const { rows: campaigns } = await pool.query(
@@ -219,7 +387,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.get(
     '/campaign-formats/:id',
-    { preHandler: [requirePerm('clients:read')] },
+    { preHandler: [requirePerm('clients:read'), requireCampaignFormatPerm('read')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const formatId = request.params?.id as string;
@@ -432,7 +600,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
     }
   );
 
-  app.patch('/campaigns/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  app.patch('/campaigns/:id', { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any).tenant_id as string;
     const userId = (request.user as any).sub as string | undefined;
     const campaignId = request.params?.id as string;
@@ -491,7 +659,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
     return { success: true, data: rows[0] };
   });
 
-  app.patch('/campaign-formats/:id', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  app.patch('/campaign-formats/:id', { preHandler: [requirePerm('clients:write'), requireCampaignFormatPerm('write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any).tenant_id as string;
     const userId = (request.user as any).sub as string | undefined;
     const formatId = request.params?.id as string;
@@ -534,7 +702,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.post(
     '/campaign-formats/:id/lock',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignFormatPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const userId = (request.user as any).sub as string | undefined;
@@ -552,7 +720,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.post(
     '/campaign-formats/:id/metrics',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignFormatPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const formatId = request.params?.id as string;
@@ -646,7 +814,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.post(
     '/campaign-formats/:id/summary/recalc',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignFormatPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const formatId = request.params?.id as string;
@@ -796,7 +964,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.post(
     '/campaigns/:id/creative-concepts',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const campaignId = request.params?.id as string;
@@ -842,7 +1010,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.patch(
     '/creative-concepts/:id',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCreativeConceptPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const conceptId = request.params?.id as string;
@@ -895,7 +1063,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.delete(
     '/creative-concepts/:id',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCreativeConceptPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const conceptId = request.params?.id as string;
@@ -914,7 +1082,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
   // ─── AgentPlanner: generate behavioral strategy for a campaign ────────────
   app.post(
     '/campaigns/:id/generate-strategy',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const campaignId = request.params?.id as string;
@@ -1072,7 +1240,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
   // ── Link Instagram post to campaign format ──────────────────────────────
   app.post(
     '/campaign-formats/:id/link-post',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignFormatPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const formatId = request.params?.id as string;
@@ -1105,7 +1273,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
   // ─── AgentWriter + AgentAuditor: generate behavioral copy for a specific intent ───
   app.post(
     '/campaigns/:id/behavioral-copy',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const campaignId = request.params?.id as string;
@@ -1313,7 +1481,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.get(
     '/campaigns/:id/behavioral-copies',
-    { preHandler: [requirePerm('clients:read')] },
+    { preHandler: [requirePerm('clients:read'), requireCampaignPerm('read')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const campaignId = request.params?.id as string;
@@ -1350,7 +1518,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
   app.patch(
     '/campaigns/behavioral-copies/:copyId/briefing',
-    { preHandler: [requirePerm('clients:write')] },
+    { preHandler: [requirePerm('clients:write'), requireBehavioralCopyPerm('write')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id as string;
       const { copyId } = request.params as { copyId: string };

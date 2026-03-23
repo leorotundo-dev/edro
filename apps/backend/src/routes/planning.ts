@@ -1,7 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { requireClientPerm } from '../auth/clientPerms';
 import multipart from '@fastify/multipart';
 import { extractText } from '../library/extract';
 import { transcribeAudioBuffer } from '../services/meetingService';
@@ -184,16 +185,17 @@ function normalizeCommandPayload(raw: Record<string, any> | null) {
 }
 
 async function resolveBriefingFromCommand(params: {
+  tenantId: string;
   clientId: string;
   briefingId?: string;
   briefingTitle?: string;
 }) {
   if (params.briefingId) {
-    const direct = await getBriefingById(params.briefingId);
+    const direct = await getBriefingById(params.briefingId, params.tenantId);
     if (direct) return direct;
   }
 
-  const briefings = await listBriefings({ clientId: params.clientId, limit: 20 });
+  const briefings = await listBriefings({ tenantId: params.tenantId, clientId: params.clientId, limit: 20 });
   if (!briefings.rows.length) return null;
 
   const title = (params.briefingTitle || '').trim().toLowerCase();
@@ -648,9 +650,13 @@ async function ensureCalendarEvents(): Promise<number> {
 }
 
 export default async function planningRoutes(app: FastifyInstance) {
+  const planningTenantReadGuards = [authGuard, tenantGuard(), requirePerm('clients:read')];
+  const planningClientReadGuards = [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')];
+  const planningClientWriteGuards = [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')];
+
   // Get available providers
   app.get('/planning/providers', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningTenantReadGuards,
   }, async (request, reply) => {
     const info = getAvailableProvidersInfo();
     return reply.send({
@@ -677,7 +683,7 @@ export default async function planningRoutes(app: FastifyInstance) {
   await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 } });
 
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/jarvis/upload', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     let data: any;
     try {
@@ -714,7 +720,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // Chat with AI — kept simple and fast: message → AI → response
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/chat', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     const startMs = Date.now();
     const { clientId } = request.params;
@@ -935,6 +941,7 @@ export default async function planningRoutes(app: FastifyInstance) {
           actionResult = { action: 'create_briefing', briefing: { id: briefing.id, title: briefing.title } };
         } else if (parsed.action === 'generate_copy') {
           const briefing = await resolveBriefingFromCommand({
+            tenantId,
             clientId,
             briefingId: parsed.copy.briefing_id,
             briefingTitle: parsed.copy.briefing_title,
@@ -1060,7 +1067,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // List conversations
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/planning/conversations', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1089,7 +1096,7 @@ export default async function planningRoutes(app: FastifyInstance) {
   // Get conversation detail
   app.get<{ Params: { clientId: string; conversationId: string } }>(
     '/clients/:clientId/planning/conversations/:conversationId',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: planningClientReadGuards },
     async (request, reply) => {
       const { clientId, conversationId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1114,7 +1121,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // Create new conversation
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/conversations', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1143,7 +1150,7 @@ export default async function planningRoutes(app: FastifyInstance) {
   // Delete conversation
   app.delete<{ Params: { clientId: string; conversationId: string } }>(
     '/clients/:clientId/planning/conversations/:conversationId',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: planningClientWriteGuards },
     async (request, reply) => {
       const { clientId, conversationId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1161,7 +1168,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // AI Opportunities endpoints
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/insights/opportunities', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1194,7 +1201,7 @@ export default async function planningRoutes(app: FastifyInstance) {
 
   // Generate opportunities from clipping and trends
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/insights/opportunities/generate', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1314,7 +1321,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // Update opportunity status
   app.patch<{ Params: { clientId: string; opportunityId: string } }>(
     '/clients/:clientId/insights/opportunities/:opportunityId',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: planningClientWriteGuards },
     async (request, reply) => {
       const { clientId, opportunityId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1343,7 +1350,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // ── Full AI Analysis ──────────────────────────────────────────────
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/analyze', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1595,7 +1602,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // POST /clients/:id/planning/health - Check health of all intelligence sources
   // Single SQL with scalar subqueries — 1 DB connection, fast
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/health', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1690,7 +1697,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // POST /clients/:id/planning/context - Load intelligence stats via single DB query
   // Single SQL with scalar subqueries — uses 1 DB connection instead of 7
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/context', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1768,7 +1775,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // POST /clients/:id/planning/validate-copy - Anti-repetition + brand safety
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/validate-copy', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1824,7 +1831,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // POST /clients/:id/planning/opportunities/detect - Trigger opportunity detection
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/opportunities/detect', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1859,7 +1866,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // POST /clients/:id/planning/opportunities/:oppId/action - Convert opportunity to briefing
   app.post<{ Params: { clientId: string; oppId: string } }>(
     '/clients/:clientId/planning/opportunities/:oppId/action',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: planningClientWriteGuards },
     async (request, reply) => {
       const { clientId, oppId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -1931,16 +1938,17 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // GET /clients/:clientId/briefings - List briefings for a specific client
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/briefings', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
+    const tenantId = (request.user as any).tenant_id as string;
     const edroId = await resolveEdroClientId(clientId);
 
     if (!edroId) {
       return reply.send({ success: true, briefings: [] });
     }
 
-    const briefings = await listBriefings({ clientId: edroId, limit: 50 });
+    const briefings = await listBriefings({ tenantId, clientId: edroId, limit: 50 });
 
     return reply.send({
       success: true,
@@ -1950,17 +1958,18 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // DELETE /clients/:clientId/briefings/:briefingId - Delete a briefing
   app.delete<{ Params: { clientId: string; briefingId: string } }>('/clients/:clientId/briefings/:briefingId', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     const { briefingId } = request.params;
-    const deleted = await deleteBriefing(briefingId);
+    const tenantId = (request.user as any).tenant_id as string;
+    const deleted = await deleteBriefing(briefingId, tenantId);
     if (!deleted) return reply.status(404).send({ error: 'not_found' });
     return reply.send({ ok: true });
   });
 
   // PATCH /clients/:clientId/briefings/:briefingId/archive - Archive a briefing
   app.patch<{ Params: { clientId: string; briefingId: string } }>('/clients/:clientId/briefings/:briefingId/archive', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     const { briefingId } = request.params;
     const tenantId = (request as any).user?.tenant_id as string | undefined;
@@ -1971,9 +1980,10 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // GET /clients/:clientId/copies - List copy versions for a specific client
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/copies', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
+    const tenantId = (request.user as any).tenant_id as string;
     const edroId = await resolveEdroClientId(clientId);
 
     if (!edroId) {
@@ -1985,9 +1995,10 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
        FROM edro_copy_versions ecv
        JOIN edro_briefings eb ON eb.id = ecv.briefing_id
        WHERE eb.client_id = $1::uuid
+         AND eb.tenant_id = $2
        ORDER BY ecv.created_at DESC
        LIMIT 50`,
-      [edroId]
+      [edroId, tenantId]
     );
 
     return reply.send({
@@ -1998,7 +2009,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // POST /clients/:id/planning/bootstrap - Seed initial data for a client
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/planning/bootstrap', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientWriteGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -2040,7 +2051,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // GET /clients/:clientId/planning/opportunities - List opportunities (alias)
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/planning/opportunities', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningClientReadGuards,
   }, async (request, reply) => {
     const { clientId } = request.params;
     const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -2076,7 +2087,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // GET /clients/:clientId/intelligence/documents — paginated client content
   app.get<{ Params: { clientId: string }; Querystring: { limit?: string; offset?: string; platform?: string } }>(
     '/clients/:clientId/intelligence/documents',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: planningClientReadGuards },
     async (request, reply) => {
       const { clientId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -2116,7 +2127,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // GET /clients/:clientId/intelligence/sources — content sources with status
   app.get<{ Params: { clientId: string } }>(
     '/clients/:clientId/intelligence/sources',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: planningClientReadGuards },
     async (request, reply) => {
       const { clientId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -2129,7 +2140,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
   // GET /clients/:clientId/intelligence/insights — latest AI insight
   app.get<{ Params: { clientId: string } }>(
     '/clients/:clientId/intelligence/insights',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: planningClientReadGuards },
     async (request, reply) => {
       const { clientId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
@@ -2141,7 +2152,7 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
 
   // Global conversations list (cross-client) — used by home page
   app.get('/planning/conversations', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: planningTenantReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any)?.tenant_id || 'default';
     const userId = (request.user as any)?.sub;

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { requireClientPerm } from '../auth/clientPerms';
 import {
   recomputeClientBehaviorProfiles,
   loadBehaviorProfiles,
@@ -12,9 +13,9 @@ export default async function behaviorProfilesRoutes(app: FastifyInstance) {
   // Returns the newly computed profiles.
 
   app.post('/clients/:clientId/behavior-profiles/compute', {
-    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard(), requireClientPerm('write')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const { clientId } = request.params as { clientId: string };
 
     try {
@@ -29,9 +30,9 @@ export default async function behaviorProfilesRoutes(app: FastifyInstance) {
   // Returns stored behavior profiles (last computed).
 
   app.get('/clients/:clientId/behavior-profiles', {
-    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard(), requireClientPerm('read')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const { clientId } = request.params as { clientId: string };
 
     const profiles = await loadBehaviorProfiles(tenantId, clientId);

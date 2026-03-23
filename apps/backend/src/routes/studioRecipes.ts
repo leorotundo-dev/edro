@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db/db';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 
 const saveSchema = z.object({
@@ -20,9 +20,10 @@ const saveSchema = z.object({
 export default async function studioRecipesRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
+  app.addHook('preHandler', requirePerm('library:read'));
 
   // ── Save a recipe ──────────────────────────────────────────────────────────
-  app.post('/studio/recipes', async (request: any, reply) => {
+  app.post('/studio/recipes', { preHandler: [requirePerm('library:write')] }, async (request: any, reply) => {
     const tenantId = request.tenantId as string;
     const body = saveSchema.parse(request.body);
 
@@ -78,7 +79,7 @@ export default async function studioRecipesRoutes(app: FastifyInstance) {
   });
 
   // ── Increment use_count when a recipe is applied ───────────────────────────
-  app.post('/studio/recipes/:id/use', async (request: any, reply) => {
+  app.post('/studio/recipes/:id/use', { preHandler: [requirePerm('library:write')] }, async (request: any, reply) => {
     const tenantId = request.tenantId as string;
     const { id } = request.params as { id: string };
 
@@ -92,7 +93,7 @@ export default async function studioRecipesRoutes(app: FastifyInstance) {
   });
 
   // ── Delete a recipe ────────────────────────────────────────────────────────
-  app.delete('/studio/recipes/:id', async (request: any, reply) => {
+  app.delete('/studio/recipes/:id', { preHandler: [requirePerm('library:write')] }, async (request: any, reply) => {
     const tenantId = request.tenantId as string;
     const { id } = request.params as { id: string };
 

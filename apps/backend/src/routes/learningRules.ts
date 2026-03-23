@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
 import {
   recomputeClientLearningRules,
   loadLearningRules,
@@ -14,9 +15,9 @@ export default async function learningRulesRoutes(app: FastifyInstance) {
   // Returns newly generated rules sorted by uplift_value DESC.
 
   app.post('/clients/:clientId/learning-rules/compute', {
-    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard(), requireClientPerm('write')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const { clientId } = request.params as { clientId: string };
 
     try {
@@ -31,9 +32,9 @@ export default async function learningRulesRoutes(app: FastifyInstance) {
   // Returns stored active learning rules (last computed).
 
   app.get('/clients/:clientId/learning-rules', {
-    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard(), requireClientPerm('read')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const { clientId } = request.params as { clientId: string };
 
     const rules = await loadLearningRules(tenantId, clientId);
@@ -44,9 +45,9 @@ export default async function learningRulesRoutes(app: FastifyInstance) {
   // Returns all human-confirmed permanent directives for a client.
 
   app.get('/clients/:clientId/directives', {
-    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard(), requireClientPerm('read')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const { clientId } = request.params as { clientId: string };
 
     const { rows } = await query(
@@ -63,9 +64,9 @@ export default async function learningRulesRoutes(app: FastifyInstance) {
   // Manually add a permanent directive (direct from UI, not from WhatsApp/meeting).
 
   app.post('/clients/:clientId/directives', {
-    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard(), requireClientPerm('write')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const { clientId } = request.params as { clientId: string };
     const body = z.object({
       directive: z.string().min(3).max(500),
@@ -86,10 +87,31 @@ export default async function learningRulesRoutes(app: FastifyInstance) {
   // Remove a permanent directive.
 
   app.delete('/clients/directives/:directiveId', {
-    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard()],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
+    const user = request.user as { sub?: string; role?: string } | undefined;
     const { directiveId } = z.object({ directiveId: z.string().uuid() }).parse(request.params);
+
+    const { rows } = await query<{ client_id: string }>(
+      `SELECT client_id FROM client_directives WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [directiveId, tenantId],
+    );
+    const clientId = rows[0]?.client_id;
+    if (!clientId) {
+      return reply.status(404).send({ error: 'directive_not_found' });
+    }
+
+    const allowed = await hasClientPerm({
+      tenantId,
+      userId: user?.sub || '',
+      role: user?.role,
+      clientId,
+      perm: 'write',
+    });
+    if (!allowed) {
+      return reply.status(403).send({ error: 'client_forbidden', perm: 'write', client_id: clientId });
+    }
 
     await query(
       `DELETE FROM client_directives WHERE id = $1 AND tenant_id = $2`,

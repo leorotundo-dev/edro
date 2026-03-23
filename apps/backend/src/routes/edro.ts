@@ -18,6 +18,7 @@ import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { buildCreativePrompt, generateAdCreative, generateArtDirectorPrompt, refineScenePrompt } from '../services/adCreativeService';
 import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
 import { getClientById } from '../repos/clientsRepo';
+import { tenantGuard } from '../auth/tenantGuard';
 import { buildClientKnowledgeFromRow } from '../providers/clientKnowledge';
 import { buildClientKnowledgeBlock } from '../ai/knowledgePrompt';
 import { query } from '../db';
@@ -704,6 +705,7 @@ async function notifyStageChange(params: {
 
 export default async function edroRoutes(app: FastifyInstance) {
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const ensureTenantMembership = tenantGuard();
 
   app.addHook('preHandler', async (request, reply) => {
     // Public approval endpoints don't require authentication
@@ -713,6 +715,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     } catch {
       return reply.status(401).send({ success: false, error: 'Não autorizado.' });
     }
+
+    await ensureTenantMembership(request, reply);
+    if (reply.sent) return;
   });
 
   app.get('/edro/briefings', async (request, reply) => {
@@ -728,7 +733,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     const limit = q.limit ? Math.min(parseInt(q.limit, 10) || 50, 200) : 50;
     const offset = q.offset ? parseInt(q.offset, 10) || 0 : 0;
 
+    const tenantId = (request.user as any).tenant_id as string;
     const { rows: briefings, total } = await listBriefings({
+      tenantId,
       status: q.status,
       clientId: q.clientId,
       search: q.search,
@@ -1223,14 +1230,15 @@ export default async function edroRoutes(app: FastifyInstance) {
     const paramsSchema = z.object({ id: z.string().uuid() });
 
     const params = paramsSchema.parse(request.params);
-    const briefing = await getBriefingById(params.id);
+    const tenantId = (request.user as any).tenant_id as string;
+    const briefing = await getBriefingById(params.id, tenantId);
 
     if (!briefing) {
       return reply.status(404).send({ success: false, error: 'briefing não encontrado' });
     }
 
     const stages = await ensureBriefingStages(briefing.id);
-    const copies = await listCopyVersions(briefing.id);
+    const copies = await listCopyVersions(briefing.id, tenantId);
     const tasks = await listTasks(briefing.id);
 
     // ── Client context (keywords, pillars, brand voice, knowledge base) ──────
@@ -1301,6 +1309,7 @@ export default async function edroRoutes(app: FastifyInstance) {
   // PATCH /edro/briefings/:id — update title, due_at, traffic_owner, labels, checklist
   app.patch('/edro/briefings/:id', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId = (request.user as any).tenant_id as string;
     const body = z.object({
       title:         z.string().min(1).optional(),
       due_at:        z.string().nullable().optional(),
@@ -1316,7 +1325,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     }).parse(request.body ?? {});
 
     const sets: string[] = [];
-    const vals: any[] = [id];
+    const vals: any[] = [id, tenantId];
 
     if (body.title         !== undefined) { vals.push(body.title);                          sets.push(`title=$${vals.length}`); }
     if (body.due_at        !== undefined) { vals.push(body.due_at);                         sets.push(`due_at=$${vals.length}`); }
@@ -1329,7 +1338,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (!sets.length) return reply.send({ success: true });
 
     const { rows } = await query<any>(
-      `UPDATE edro_briefings SET ${sets.join(', ')}, updated_at=NOW() WHERE id=$1 RETURNING *`,
+      `UPDATE edro_briefings SET ${sets.join(', ')}, updated_at=NOW() WHERE id=$1 AND tenant_id=$2 RETURNING *`,
       vals
     );
     if (!rows.length) return reply.status(404).send({ success: false, error: 'not_found' });
@@ -1368,7 +1377,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     const body = z.object({ client_id: z.string().min(1) }).parse(request.body);
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
 
-    const briefing = await getBriefingById(id);
+    const briefing = await getBriefingById(id, tenantId);
     if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
 
     // Validar que o client_id pertence a este tenant
@@ -1391,11 +1400,11 @@ export default async function edroRoutes(app: FastifyInstance) {
   // POST /edro/briefings/:id/research — trigger Tavily web search and save refs to payload
   app.post('/edro/briefings/:id/research', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const briefing = await getBriefingById(id);
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const briefing = await getBriefingById(id, tenantId);
     if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
     if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
 
-    const tenantId = (request.user as any)?.tenant_id ?? 'system';
     let segment = '';
     const researchClientId =
       (briefing as any).main_client_id ||
@@ -1427,8 +1436,10 @@ export default async function edroRoutes(app: FastifyInstance) {
       }));
       if (refs.length > 20) {
         await query(
-          `UPDATE edro_briefings SET payload = COALESCE(payload,'{}') || $1::jsonb WHERE id = $2`,
-          [JSON.stringify({ web_research_refs: refs, web_research_articles: articles }), id]
+          `UPDATE edro_briefings
+           SET payload = COALESCE(payload,'{}') || $1::jsonb
+           WHERE id = $2 AND tenant_id = $3`,
+          [JSON.stringify({ web_research_refs: refs, web_research_articles: articles }), id, tenantId]
         );
       }
       return reply.send({ success: true, web_research_refs: refs, articles });
@@ -1440,7 +1451,8 @@ export default async function edroRoutes(app: FastifyInstance) {
   // DELETE /edro/briefings/:id - Delete a briefing permanently
   app.delete('/edro/briefings/:id', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const deleted = await deleteBriefing(id);
+    const tenantId = (request.user as any).tenant_id as string;
+    const deleted = await deleteBriefing(id, tenantId);
     if (!deleted) return reply.status(404).send({ success: false, error: 'not_found' });
     return reply.send({ success: true });
   });
@@ -3367,7 +3379,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
   });
 
   // Public endpoint — no auth required (registered in separate scope below)
-  app.get('/edro/public/approval', async (request, reply) => {
+  app.get('/edro/public/approval', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { token } = z.object({ token: z.string().min(20) }).parse(request.query);
 
     const { rows } = await query<any>(
@@ -3404,7 +3416,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     });
   });
 
-  app.post('/edro/public/approval', async (request, reply) => {
+  app.post('/edro/public/approval', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const bodySchema = z.object({
       token: z.string().min(20),
       copyId: z.string().uuid(),

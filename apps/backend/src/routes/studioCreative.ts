@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db/db';
 import {
@@ -79,6 +79,7 @@ const refineSchema = z.object({
 export default async function studioCreativeRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
+  app.addHook('preHandler', requirePerm('library:write'));
 
   /**
    * POST /studio/creative/generate

@@ -34,13 +34,13 @@ export default async function operationsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
 
-  app.post('/operations/rebuild', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+  app.post('/operations/rebuild', { preHandler: [requirePerm('clients:write'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const data = await rebuildOperationalRuntime(tenantId);
     return { success: true, data };
   });
 
-  app.post('/operations/allocations', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+  app.post('/operations/allocations', { preHandler: [requirePerm('clients:write'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const changedBy = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
     const body = allocationSchema.parse(request.body);
@@ -58,7 +58,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
     return { success: true, data };
   });
 
-  app.delete('/operations/allocations/:jobId', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+  app.delete('/operations/allocations/:jobId', { preHandler: [requirePerm('clients:write'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const changedBy = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
     const { jobId } = request.params as { jobId: string };
@@ -67,25 +67,25 @@ export default async function operationsRoutes(app: FastifyInstance) {
     return { success: true, data };
   });
 
-  app.get('/operations/planner', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/operations/planner', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const data = await buildPlannerSnapshot(tenantId);
     return { success: true, data };
   });
 
-  app.get('/operations/overview', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/operations/overview', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const data = await buildOverviewSnapshot(tenantId);
     return { success: true, data };
   });
 
-  app.get('/operations/calendar', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/operations/calendar', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const data = await buildCalendarSnapshot(tenantId);
     return { success: true, data };
   });
 
-  app.get('/operations/risks', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/operations/risks', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const data = await buildRiskSnapshot(tenantId);
     return { success: true, data };
@@ -93,7 +93,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
 
   // ─── Signals feed ───
 
-  app.get('/operations/signals', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/operations/signals', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const qs = request.query as { limit?: string };
     const limit = Math.min(Number(qs.limit || 30), 100);
@@ -114,7 +114,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
     return { success: true, data: rows };
   });
 
-  app.post('/operations/signals/:id/resolve', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+  app.post('/operations/signals/:id/resolve', { preHandler: [requirePerm('clients:write'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
     const { id } = request.params as { id: string };
@@ -127,7 +127,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
     return { success: true };
   });
 
-  app.post('/operations/signals/:id/snooze', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+  app.post('/operations/signals/:id/snooze', { preHandler: [requirePerm('clients:write'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { id } = request.params as { id: string };
     const body = request.body as { hours?: number };
@@ -141,7 +141,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
     return { success: true };
   });
 
-  app.post('/operations/signals/rebuild', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+  app.post('/operations/signals/rebuild', { preHandler: [requirePerm('clients:write'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     await rebuildOperationalSignals(tenantId);
     return { success: true };
@@ -155,7 +155,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
     conversationId: z.string().uuid().nullish(),
   });
 
-  app.post('/operations/chat', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+  app.post('/operations/chat', { preHandler: [requirePerm('clients:write'), requirePerm('portfolio:read')] }, async (request: any, reply) => {
     const startMs = Date.now();
     const tenantId = (request.user as any)?.tenant_id as string;
     const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;

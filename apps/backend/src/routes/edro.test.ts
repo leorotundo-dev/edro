@@ -68,6 +68,10 @@ vi.mock('../services/notificationService', () => ({
 vi.mock('../services/stageNotificationTemplates', () => ({
   buildStageChangeEmail: vi.fn().mockReturnValue({ subject: 'Test', text: 'Test', html: '<p>Test</p>' }),
 }));
+vi.mock('../security/secrets', () => ({
+  encryptJSON: vi.fn().mockResolvedValue('encrypted'),
+  decryptJSON: vi.fn().mockResolvedValue({}),
+}));
 vi.mock('../library/storage', () => ({
   saveFile: vi.fn().mockResolvedValue('https://s3.example.com/file.jpg'),
   buildKey: vi.fn().mockReturnValue('test/key'),
@@ -113,6 +117,7 @@ beforeAll(async () => {
     email: 'test@edro.digital',
     role: 'admin',
     tenant_id: '81fe2f7f-69d7-441a-9a2e-5c4f5d4c5cc5',
+    mfa: true,
   });
 });
 
@@ -170,6 +175,7 @@ describe('Authentication', () => {
 describe('GET /api/edro/metrics', () => {
   it('returns aggregated metrics', async () => {
     mockQuery
+      .mockResolvedValueOnce({ rows: [{ exists: 1 }] })
       .mockResolvedValueOnce({ rows: [{ count: 42 }] })
       .mockResolvedValueOnce({ rows: [{ status: 'active', count: 10 }] })
       .mockResolvedValueOnce({ rows: [{ stage: 'copy_ia', avg_hours: 12.5 }] })
@@ -201,6 +207,7 @@ describe('GET /api/edro/metrics', () => {
 
 describe('GET /api/edro/briefings', () => {
   it('returns briefings list', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ exists: 1 }] });
     mockRepoFns.listBriefings.mockResolvedValueOnce({
       rows: [{ id: 'b1', title: 'Test', status: 'active' }],
       total: 1,
@@ -222,6 +229,7 @@ describe('GET /api/edro/briefings', () => {
 describe('PATCH /api/edro/copies/:copyId/feedback', () => {
   it('updates copy score and feedback', async () => {
     mockQuery
+      .mockResolvedValueOnce({ rows: [{ exists: 1 }] })
       .mockResolvedValueOnce({ rows: [{ id: 'copy-1' }] })
       .mockResolvedValueOnce({ rows: [] });
 
@@ -332,6 +340,8 @@ describe('Public Approval Portal', () => {
 describe('Templates', () => {
   it('GET returns templates list', async () => {
     mockQuery.mockResolvedValueOnce({
+      rows: [{ exists: 1 }],
+    }).mockResolvedValueOnce({
       rows: [
         { id: 't1', name: 'Social', category: 'social' },
         { id: 't2', name: 'Ads', category: 'ads' },

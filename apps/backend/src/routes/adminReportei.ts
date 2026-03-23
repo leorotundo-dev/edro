@@ -1,12 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { ReporteiClient } from '../providers/reportei/reporteiClient';
 import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 import { query } from '../db';
-import { syncAllClientsLearningRules } from '../services/reporteiLearningSync';
-import { runPerformanceAlertWorkerOnce } from '../jobs/performanceAlertWorker';
+import { syncTenantLearningRules } from '../services/reporteiLearningSync';
+import { runPerformanceAlertWorkerForTenant } from '../jobs/performanceAlertWorker';
 
 // ── Name normalization for auto-matching ──────────────────────────────────────
 function normName(s: string): string {
@@ -37,7 +37,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Verify token + list all projects and integrations
   app.get(
     '/admin/reportei/explore',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any) => {
       const { token: queryToken } = z
         .object({ token: z.string().optional() })
@@ -79,7 +79,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Show all Edro clients with their current Reportei connector status
   app.get(
     '/admin/reportei/status',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any) => {
       const tenantId = (request.user as any).tenant_id;
       const token = process.env.REPORTEI_TOKEN || '';
@@ -165,7 +165,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Matches ALL known platform slugs and builds a platforms map per client.
   app.post(
     '/admin/reportei/auto-link',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any) => {
       const tenantId = (request.user as any).tenant_id;
       const { dry_run } = z
@@ -276,7 +276,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Manually link a specific client to a specific integration
   app.post(
     '/admin/reportei/link-client',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any) => {
       const tenantId = (request.user as any).tenant_id;
       const { client_id, integration_id } = z
@@ -297,7 +297,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // ── GET /admin/reportei/metrics ───────────────────────────────────────────
   app.get(
     '/admin/reportei/metrics',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any) => {
       const { slug } = z.object({ slug: z.string().min(1) }).parse(request.query);
       const token = process.env.REPORTEI_TOKEN || '';
@@ -311,7 +311,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // ── GET /admin/reportei/test-client/:clientId ─────────────────────────────
   app.get(
     '/admin/reportei/test-client/:clientId',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any) => {
       const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
       const tenantId = (request.user as any).tenant_id;
@@ -359,7 +359,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Test Reportei API for all linked clients and return health status
   app.post(
     '/admin/reportei/check-all',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
       const token = process.env.REPORTEI_TOKEN || '';
@@ -455,7 +455,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Reveals stale IDs (integration deleted/replaced) vs truly expired tokens.
   app.post(
     '/admin/reportei/verify-ids',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
       const token = process.env.REPORTEI_TOKEN || '';
@@ -524,7 +524,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Delete snapshots that contain Reportei error payloads (code/exception keys)
   app.post(
     '/admin/reportei/cleanup-snapshots',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
       const { rows } = await query<any>(
@@ -542,7 +542,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Full diagnostic: calls Reportei API and returns raw response + DB state
   app.post(
     '/admin/reportei/debug-sync/:clientId',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply: any) => {
       const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
       const tenantId = (request.user as any).tenant_id;
@@ -625,10 +625,11 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Triggers learning rule generation from existing snapshots
   app.post(
     '/admin/reportei/run-learning',
-    { preHandler: [tenantGuard(), authGuard] },
-    async (_request: any, reply: any) => {
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
+    async (request: any, reply: any) => {
       try {
-        const result = await syncAllClientsLearningRules();
+        const tenantId = (request.user as any).tenant_id as string;
+        const result = await syncTenantLearningRules(tenantId);
         return reply.send({ ok: true, ...result });
       } catch (e: any) {
         return reply.status(500).send({ error: e.message });
@@ -640,14 +641,12 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Force-run performance alert detection
   app.post(
     '/admin/reportei/run-alerts',
-    { preHandler: [tenantGuard(), authGuard] },
-    async (_request: any, reply: any) => {
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
+    async (request: any, reply: any) => {
       try {
-        const prev = process.env.PERF_ALERT_FORCE;
-        (process.env as any).PERF_ALERT_FORCE = 'true';
-        await runPerformanceAlertWorkerOnce();
-        (process.env as any).PERF_ALERT_FORCE = prev ?? '';
-        return reply.send({ ok: true });
+        const tenantId = (request.user as any).tenant_id as string;
+        const result = await runPerformanceAlertWorkerForTenant(tenantId);
+        return reply.send({ ok: true, ...result });
       } catch (e: any) {
         return reply.status(500).send({ error: e.message });
       }
@@ -658,11 +657,12 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // Manually trigger monthly report generation for all active clients
   app.post(
     '/admin/reports/monthly/generate',
-    { preHandler: [tenantGuard(), authGuard] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply: any) => {
       const body = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).parse(request.body);
-      const { generateMonthlyReportsForAll } = await import('../jobs/monthlyReportsWorker');
-      const result = await generateMonthlyReportsForAll(body.month);
+      const tenantId = (request.user as any).tenant_id as string;
+      const { generateMonthlyReportsForTenant } = await import('../jobs/monthlyReportsWorker');
+      const result = await generateMonthlyReportsForTenant(tenantId, body.month);
       return reply.send({ ...result, month: body.month });
     }
   );
@@ -671,7 +671,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // List all generated reports for the tenant
   app.get(
     '/admin/reports/monthly',
-    { preHandler: [tenantGuard(), authGuard] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
       const { rows } = await query(
@@ -690,7 +690,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
   // List recent performance alerts for the tenant
   app.get(
     '/admin/reportei/alerts',
-    { preHandler: [tenantGuard(), authGuard] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
     async (request: any, reply: any) => {
       const tenantId = (request.user as any).tenant_id;
       const limit = Number((request.query as any)?.limit ?? 50);

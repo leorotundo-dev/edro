@@ -8,7 +8,7 @@ export default async function securityRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
 
-  app.get('/security/immutable-audit', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/security/immutable-audit', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any).tenant_id as string;
 
     const querySchema = z.object({
@@ -55,7 +55,7 @@ export default async function securityRoutes(app: FastifyInstance) {
     return { success: true, data: rows };
   });
 
-  app.get('/security/access-logs', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/security/access-logs', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any).tenant_id as string;
 
     const querySchema = z.object({
@@ -112,7 +112,7 @@ export default async function securityRoutes(app: FastifyInstance) {
     return { success: true, data: rows };
   });
 
-  app.get('/security/dashboard', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+  app.get('/security/dashboard', { preHandler: [requirePerm('clients:read'), requirePerm('portfolio:read')] }, async (request: any) => {
     const tenantId = (request.user as any).tenant_id as string;
 
     const { rows: auditStats } = await pool.query(
@@ -139,8 +139,26 @@ export default async function securityRoutes(app: FastifyInstance) {
       [tenantId]
     );
 
+    // Avoid cross-tenant leakage from the shared stats view by aggregating directly with tenant scope.
     const { rows: accessTimeline } = await pool.query(
-      `SELECT * FROM catalog_snapshot_access_stats ORDER BY day DESC LIMIT 30`
+      `SELECT
+        DATE_TRUNC('day', log_timestamp) AS day,
+        COUNT(*) AS total_accesses,
+        COUNT(*) FILTER (WHERE operation_type = 'SELECT') AS reads,
+        COUNT(*) FILTER (WHERE operation_type = 'UPDATE') AS updates,
+        COUNT(*) FILTER (WHERE operation_type = 'DELETE') AS deletes,
+        COUNT(*) FILTER (WHERE is_suspicious = TRUE) AS suspicious_accesses,
+        AVG(query_duration_ms) AS avg_query_duration_ms,
+        AVG(snapshot_size_bytes) AS avg_snapshot_size_bytes,
+        COUNT(DISTINCT accessed_by) AS unique_users,
+        COUNT(DISTINCT client_ip) AS unique_ips
+       FROM catalog_snapshot_access_log
+       WHERE tenant_id=$1
+         AND log_timestamp > NOW() - INTERVAL '30 days'
+       GROUP BY DATE_TRUNC('day', log_timestamp)
+       ORDER BY day DESC
+       LIMIT 30`,
+      [tenantId]
     );
 
     return {

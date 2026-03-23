@@ -1,11 +1,18 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
+import { env } from '../env';
 import { handleWhatsAppMessage } from '../services/whatsappBriefingService';
+import {
+  getCapturedRawBody,
+  registerRawBodyCapture,
+  verifyMetaWebhookSignature,
+} from '../services/integrations/webhookSecurityService';
 
 export default async function webhooksRoutes(app: FastifyInstance) {
+  registerRawBodyCapture(app, ['/api/webhooks/whatsapp']);
 
   // ── WhatsApp Cloud API — webhook verification (GET challenge) ─────────────
-  app.get('/webhooks/whatsapp', async (request: any, reply: any) => {
+  app.get('/webhooks/whatsapp', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = request.query as Record<string, string>;
     const expected = process.env.WHATSAPP_WEBHOOK_SECRET;
     if (mode === 'subscribe' && token === expected) {
@@ -15,7 +22,16 @@ export default async function webhooksRoutes(app: FastifyInstance) {
   });
 
   // ── WhatsApp Cloud API — incoming messages ─────────────────────────────────
-  app.post('/webhooks/whatsapp', async (request: any, reply: any) => {
+  app.post('/webhooks/whatsapp', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
+    if (env.META_APP_SECRET) {
+      try {
+        verifyMetaWebhookSignature(request.headers as Record<string, string | string[] | undefined>, getCapturedRawBody(request), env.META_APP_SECRET);
+      } catch (error: any) {
+        request.log.warn({ error: error?.message }, '[api/webhooks/whatsapp] signature verification failed');
+        return reply.status(401).send({ error: 'invalid_signature' });
+      }
+    }
+
     // Always ack immediately — Meta expects 200 within 20s
     reply.send({ ok: true });
 
@@ -39,7 +55,7 @@ export default async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post('/webhooks/publisher', async (request: any, reply: any) => {
+  app.post('/webhooks/publisher', { config: { rateLimit: { max: 180, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const secret = String(request.headers?.authorization || '').replace('Bearer ', '');
     const expected = process.env.GATEWAY_SHARED_SECRET;
     if (expected && secret !== expected) {
