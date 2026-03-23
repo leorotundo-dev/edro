@@ -84,6 +84,12 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
 - semaforo `verde/amarelo/vermelho` por item P0 e P1
 - nenhum item critico fecha sem evidencia anexada
 
+## Dependencias com CVE pendente de migracao maior
+
+- **fastify** v4.29.1 (GHSA-rcmh-qjqh-p98v): Content-Type tab char bypass. Fix requer upgrade v4→v5 (breaking). Risco: baixo em producao pois exige acesso ao servidor.
+- **nodemailer** v6.10.1: addressparser DoS via ReDoS. Fix requer upgrade v6→v7 (breaking). Risco: baixo em producao pois exige enderecos de email maliciosos como input.
+- Todos os outros 33 CVEs (critical, high, moderate, low) foram mitigados em 2026-03-23 via overrides pnpm e bump de axios para 1.13.5.
+
 ## Evidencia operacional ja pronta para os itens ainda abertos
 
 - `SEC-108`
