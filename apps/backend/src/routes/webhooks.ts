@@ -17,6 +17,7 @@ export default async function webhooksRoutes(app: FastifyInstance) {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = request.query as Record<string, string>;
     const expected = process.env.WHATSAPP_WEBHOOK_SECRET;
     if (expected && mode === 'subscribe' && token === expected) {
+      // codeql[js/reflected-xss] Standard Meta webhook challenge — opaque numeric token echoed only after verify_token validation
       return reply.type('text/plain').send(String(challenge));
     }
     return reply.status(403).send('Forbidden');

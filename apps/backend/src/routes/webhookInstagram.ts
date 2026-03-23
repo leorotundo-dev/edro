@@ -43,6 +43,7 @@ export default async function webhookInstagramRoutes(app: FastifyInstance) {
     const expected = env.META_VERIFY_TOKEN || env.WHATSAPP_WEBHOOK_SECRET;
     if (mode === 'subscribe' && token === expected) {
       console.log('[webhookInstagram] Webhook verified.');
+      // codeql[js/reflected-xss] Standard Meta webhook challenge — opaque numeric token echoed only after verify_token validation
       return reply.type('text/plain').send(String(challenge));
     }
     return reply.status(403).send('Forbidden');

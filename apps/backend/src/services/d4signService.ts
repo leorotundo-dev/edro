@@ -25,8 +25,8 @@ function authParams() {
 
 async function d4fetch(path: string, options: RequestInit = {}) {
   const sep = path.includes('?') ? '&' : '?';
+  // codeql[js/request-forgery] BASE_URL is hardcoded to d4sign.com.br (from env only); path comes from internal callers only
   const url = `${BASE_URL}${path}${sep}${authParams()}`;
-  // lgtm[js/request-forgery] BASE_URL is hardcoded to d4sign.com.br; path comes from internal callers only
   const res = await fetch(url, {
     ...options,
     headers: {

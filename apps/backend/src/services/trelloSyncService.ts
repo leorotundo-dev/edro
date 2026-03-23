@@ -28,6 +28,7 @@ function trelloUrl(path: string, creds: TrelloCredentials, extra: Record<string,
 }
 
 async function trelloGet<T>(path: string, creds: TrelloCredentials, extra: Record<string, string> = {}): Promise<T> {
+  // codeql[js/request-forgery] TRELLO_BASE is hardcoded to api.trello.com; path comes from internal callers only
   const res = await fetch(trelloUrl(path, creds, extra), {
     signal: AbortSignal.timeout(15_000),
   });

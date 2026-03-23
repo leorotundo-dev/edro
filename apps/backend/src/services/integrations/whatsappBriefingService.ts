@@ -55,8 +55,15 @@ async function downloadMedia(mediaId: string, accessToken: string): Promise<Buff
   if (!metaRes.ok) throw new Error(`WhatsApp media URL fetch failed (${metaRes.status})`);
   const meta = await metaRes.json() as { url: string };
 
+  // Validate URL is from a known Meta/Facebook CDN before downloading
+  const mediaUrl = new URL(meta.url);
+  const allowed = ['.facebook.com', '.fbcdn.net', '.fbsbx.com', '.whatsapp.net'];
+  if (mediaUrl.protocol !== 'https:' || !allowed.some(h => mediaUrl.hostname.endsWith(h))) {
+    throw new Error(`Unexpected media URL host from WhatsApp API: ${mediaUrl.hostname}`);
+  }
+
   // Step 2: download binary
-  const fileRes = await fetch(meta.url, {
+  const fileRes = await fetch(mediaUrl.href, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!fileRes.ok) throw new Error(`WhatsApp media download failed (${fileRes.status})`);
@@ -71,6 +78,7 @@ async function sendWhatsAppText(
   text:          string,
   accessToken:   string,
 ): Promise<void> {
+  // codeql[js/request-forgery] GRAPH_API is hardcoded to graph.facebook.com; phoneNumberId comes from the connectors DB table
   await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
     method:  'POST',
     headers: {

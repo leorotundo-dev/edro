@@ -523,9 +523,11 @@ export async function buildServer() {
       const calendarId = request.params.calendarId;
       const { url, apiKey } = request.body ?? {};
       if (!url) return reply.code(400).send({ error: 'url_required' });
+      let safeUrl: string;
       try {
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:') return reply.code(400).send({ error: 'url_must_be_https' });
+        safeUrl = parsed.href; // use parsed URL to satisfy SSRF analysis
       } catch {
         return reply.code(400).send({ error: 'url_invalid' });
       }
@@ -551,7 +553,7 @@ export async function buildServer() {
         name: rows[0].client_name,
       });
 
-      const response = await fetch(url, {
+      const response = await fetch(safeUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

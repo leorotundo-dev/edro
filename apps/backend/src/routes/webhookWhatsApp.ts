@@ -39,6 +39,7 @@ export default async function webhookWhatsAppRoutes(app: FastifyInstance) {
     for (const row of rows) {
       const secrets = await decryptJSON(row.secrets_enc).catch(() => ({} as any));
       if (secrets.verify_token === token) {
+        // codeql[js/reflected-xss] Standard Meta webhook challenge — opaque numeric token echoed only after verify_token validation
         return reply.type('text/plain').send(String(challenge));
       }
     }
