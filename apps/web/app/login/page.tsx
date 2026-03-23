@@ -249,7 +249,7 @@ export default function LoginPage() {
   const subtitleByStep: Record<LoginStep, string> = {
     request: 'Digite seu email corporativo para continuar.',
     verify: 'Insira o código enviado para seu email.',
-    mfa: 'Use o código do app autenticador ou um recovery code.',
+    mfa: 'Abra o Google Authenticator, Authy ou Microsoft Authenticator no celular.',
     mfaSetup: 'Cadastre a chave abaixo no app autenticador e valide o primeiro código.',
     mfaRecovery: 'Salve estes códigos. Eles serão exibidos apenas uma vez.',
   };
@@ -439,6 +439,7 @@ export default function LoginPage() {
                     required
                     fullWidth
                     size="small"
+                    inputProps={{ inputMode: 'numeric', autoComplete: 'one-time-code' }}
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         bgcolor: 'rgba(255,255,255,0.04)',
@@ -451,6 +452,17 @@ export default function LoginPage() {
                       '& .MuiInputLabel-root.Mui-focused': { color: '#E85219' },
                     }}
                   />
+                  {step === 'mfa' && (
+                    <div className="rounded-lg border border-white/[0.07] bg-white/[0.025] p-3 flex flex-col gap-1.5">
+                      <p className="text-[12px] text-slate-400 font-medium">Como achar o código:</p>
+                      <p className="text-[12px] text-slate-500">
+                        Abra o app autenticador no seu celular (Google Authenticator, Authy ou Microsoft Authenticator) e procure a entrada <span className="text-slate-300 font-mono">edro.digital</span>.
+                      </p>
+                      <p className="text-[12px] text-slate-500 mt-1">
+                        Tem recovery codes? Digite o código no formato <span className="text-slate-300 font-mono">ABCDE-12345</span>.
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -488,6 +500,18 @@ export default function LoginPage() {
                   sx={{ color: '#64748b', fontSize: 13, '&:hover': { color: '#94a3b8' } }}
                 >
                   Reenviar código
+                </Button>
+              )}
+
+              {step === 'mfa' && (
+                <Button
+                  type="button"
+                  variant="text"
+                  onClick={() => { setStep('request'); setMfaCode(''); setError(''); }}
+                  disabled={loading}
+                  sx={{ color: '#64748b', fontSize: 13, '&:hover': { color: '#94a3b8' } }}
+                >
+                  Usar outro email
                 </Button>
               )}
             </form>
