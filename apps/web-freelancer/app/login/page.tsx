@@ -94,6 +94,42 @@ export default function LoginPage() {
           </div>
         </div>
 
+        <div className="portal-onboarding">
+          <p className="portal-onboarding-heading">Como funciona</p>
+          <div className="portal-steps">
+            <div className="portal-step">
+              <div className="portal-step-num">01</div>
+              <p className="portal-step-title">Contrato</p>
+              <p className="portal-step-desc">Voce recebe e assina digitalmente um contrato de prestacao de servicos via D4Sign antes de comecar.</p>
+            </div>
+            <div className="portal-step">
+              <div className="portal-step-num">02</div>
+              <p className="portal-step-title">Jobs</p>
+              <p className="portal-step-desc">Recebe jobs com briefing, contexto criativo e prazo diretamente neste portal.</p>
+            </div>
+            <div className="portal-step">
+              <div className="portal-step-num">03</div>
+              <p className="portal-step-title">Entrega</p>
+              <p className="portal-step-desc">Registra horas trabalhadas ou marca a entrega como concluida no sistema.</p>
+            </div>
+            <div className="portal-step">
+              <div className="portal-step-num">04</div>
+              <p className="portal-step-title">Pagamento</p>
+              <p className="portal-step-desc">Emite nota fiscal para a Edro.Digital e recebe o pagamento no prazo contratado.</p>
+            </div>
+          </div>
+
+          <div className="portal-commercial">
+            <p className="portal-commercial-title">Relacao comercial</p>
+            <div className="portal-commercial-items">
+              <span className="portal-commercial-item">Voce atua como prestador de servico autonomo ou pessoa juridica — nao ha vinculo empregaticio.</span>
+              <span className="portal-commercial-item">A emissao de nota fiscal e obrigatoria para liberacao do pagamento.</span>
+              <span className="portal-commercial-item">Escopo, valor por entrega e prazo de pagamento sao definidos no contrato assinado.</span>
+              <span className="portal-commercial-item">A Edro.Digital pode atribuir, pausar ou encerrar projetos conforme a demanda dos clientes.</span>
+            </div>
+          </div>
+        </div>
+
         <p className="portal-brand-subtitle">Edro.Digital · rede de execucao conectada</p>
       </section>
 
