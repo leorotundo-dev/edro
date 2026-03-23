@@ -77,7 +77,29 @@ export function extractUserId(token?: string | null) {
 
 export function isSameOriginWrite(request: NextRequest) {
   const origin = request.headers.get('origin');
-  return !origin || origin === request.nextUrl.origin;
+  if (!origin) return true;
+  if (origin === request.nextUrl.origin) return true;
+
+  // Railway proxies strip https and rewrite the host header, so nextUrl.origin
+  // resolves to the internal container address. Accept the forwarded public origin.
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') ?? 'https';
+  if (forwardedHost) {
+    const publicOrigin = `${forwardedProto}://${forwardedHost}`;
+    if (origin === publicOrigin) return true;
+  }
+
+  // Also accept the explicitly configured app URL (NEXT_PUBLIC_APP_URL).
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl) {
+    try {
+      if (origin === new URL(appUrl).origin) return true;
+    } catch {
+      // ignore malformed URL
+    }
+  }
+
+  return false;
 }
 
 export async function refreshAccessToken(refreshToken: string, userId: string) {
