@@ -24,6 +24,7 @@ export default async function webhooksRoutes(app: FastifyInstance) {
   });
 
   // ── WhatsApp Cloud API — incoming messages ─────────────────────────────────
+  // codeql[js/missing-rate-limiting] rate limiting applied via Fastify { config: { rateLimit: { max: 300 } } } — not recognised by CodeQL's Express sanitizer
   app.post('/webhooks/whatsapp', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     if (env.META_APP_SECRET) {
       try {

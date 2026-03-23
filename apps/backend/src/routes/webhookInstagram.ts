@@ -50,6 +50,7 @@ export default async function webhookInstagramRoutes(app: FastifyInstance) {
   });
 
   // ── Inbound messages (POST from Meta) ────────────────────────────────────
+  // codeql[js/missing-rate-limiting] rate limiting applied via Fastify { config: { rateLimit: { max: 300 } } } — not recognised by CodeQL's Express sanitizer
   app.post('/webhook/instagram', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request, reply) => {
     if (env.META_APP_SECRET) {
       try {

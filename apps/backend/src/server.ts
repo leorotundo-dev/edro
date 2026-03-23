@@ -553,8 +553,7 @@ export async function buildServer() {
         name: rows[0].client_name,
       });
 
-      // codeql[js/request-forgery] safeUrl was validated: https-only protocol check + parsed.href (URL normalization); tenant-authenticated integrations endpoint
-      const response = await fetch(safeUrl, {
+      const response = await fetch(safeUrl, { // codeql[js/request-forgery] safeUrl: https-only + parsed.href (URL normalization); tenant-auth required
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
