@@ -111,6 +111,12 @@ const envSchema = z.object({
   RECALL_GOOGLE_LOGIN_GROUP_ID: z.string().optional(),
   RECALL_WEBHOOK_SECRET: z.string().optional(),
   ENABLE_TEMP_PGVECTOR_CHECK: z.coerce.boolean().optional(),
+  // D4Sign e-signature
+  D4SIGN_TOKEN_API: z.string().optional(),
+  D4SIGN_CRYPT_KEY: z.string().optional(),
+  D4SIGN_SAFE_UUID: z.string().optional(),
+  D4SIGN_SANDBOX: envBoolean.optional(),
+  D4SIGN_WEBHOOK_SECRET: z.string().optional(),
 });
 
 // Railway injects RAILWAY_SERVICE_<NAME>_URL for linked services (no https:// prefix)
@@ -281,6 +287,10 @@ function validateSecureRuntimeConfig() {
     issues.push('EVOLUTION_WEBHOOK_SECRET é obrigatório quando o webhook Evolution estiver exposto em produção/staging.');
   }
 
+  if (hasValue(parsed.D4SIGN_TOKEN_API) && isProductionLike && !hasValue(parsed.D4SIGN_WEBHOOK_SECRET)) {
+    issues.push('D4SIGN_WEBHOOK_SECRET é obrigatório quando D4Sign estiver configurado em produção/staging.');
+  }
+
   if (issues.length) {
     throw new Error(`Configuração insegura de ambiente:\n- ${issues.join('\n- ')}`);
   }
@@ -292,5 +302,7 @@ export const env = {
   ...parsed,
   CLAUDE_API_KEY: parsed.CLAUDE_API_KEY || parsed.ANTHROPIC_API_KEY,
 };
+
+export const enforcePrivilegedMfa = parsed.EDRO_ENFORCE_PRIVILEGED_MFA ?? false;
 
 export { allowUnsafeLocalAuthHelpers, isProductionLike, portalLoginSecret };
