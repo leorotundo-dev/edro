@@ -73,7 +73,7 @@ Ver tambem: `TRUST_PACKAGE_STATUS_2026-03-21.md` (baseline)
 
 | Pendencia | Impacto | Urgencia |
 | --- | --- | --- |
-| Endereco da sede, email privacidade, DPO, signatario DPA | Bloqueia DPA e Aviso de Privacidade finais | Alta |
+| ~~Endereco, email privacidade, DPO, signatario DPA~~ | ✅ Resolvido 2026-03-23 — templates DPA e Aviso preenchidos | — |
 | DPAs com OpenAI, Anthropic, Google, Meta, Recall | Valida transferencias internacionais para clientes enterprise | Alta |
 | DNS cutover para Cloudflare (WAF) | Protecao de borda e dominio canonico | Media |
 | Contratar fornecedor de pentest | Finaliza SEC-117; necessario para clientes enterprise grandes | Media |

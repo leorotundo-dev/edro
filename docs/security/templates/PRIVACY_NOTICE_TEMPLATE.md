@@ -25,13 +25,13 @@ Dados de contato institucionais:
 
 - Razao social: `EDRO COMUNICACAO DE MARKETING LTDA`
 - CNPJ: `42.728.944/0001-20`
-- Endereco: `{{EDRO_ADDRESS}}`
-- E-mail principal: `{{GENERAL_CONTACT_EMAIL}}`
+- Endereco: `Rua Samaritá, 1117, 3º Andar, São Paulo, SP`
+- E-mail principal: `privacidade@edro.digital`
 
 Canal de privacidade / encarregado:
 
-- E-mail: `{{PRIVACY_CONTACT_EMAIL}}`
-- Nome/funcao: `{{DPO_OR_PRIVACY_OWNER}}`
+- E-mail: `privacidade@edro.digital`
+- Nome/funcao: `Canal de Privacidade (sem Encarregado formalmente designado)`
 
 ## 2. A quem este aviso se aplica
 
@@ -146,7 +146,7 @@ Nos termos da LGPD e conforme aplicavel ao caso concreto, o titular pode solicit
 
 Para exercer direitos, o titular pode entrar em contato por:
 
-- `{{DATA_SUBJECT_REQUEST_CHANNEL}}`
+- `E-mail: privacidade@edro.digital — indicar no assunto 'Direito do Titular'`
 
 Podemos solicitar informacoes adicionais para validar identidade, compreender o pedido e prevenir acesso indevido a dados.
 
@@ -162,11 +162,11 @@ Este aviso pode ser atualizado periodicamente para refletir mudancas legais, ope
 
 Para assuntos gerais:
 
-- `{{GENERAL_CONTACT_EMAIL}}`
+- `privacidade@edro.digital`
 
 Para assuntos de privacidade e direitos do titular:
 
-- `{{PRIVACY_CONTACT_EMAIL}}`
+- `privacidade@edro.digital`
 
 ---
 
