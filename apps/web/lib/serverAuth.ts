@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 export const EDRO_SESSION_COOKIE = 'edro_session';
 export const EDRO_REFRESH_COOKIE = 'edro_refresh';
 export const EDRO_PORTAL_SESSION_COOKIE = 'edro_portal_session';
+export const EDRO_MFA_PENDING_COOKIE = 'edro_mfa_pending';
 
 const DEFAULT_BACKEND_URL = process.env.NODE_ENV === 'production'
   ? 'https://edro-backend-production.up.railway.app'
