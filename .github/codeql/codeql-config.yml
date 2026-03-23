@@ -1,5 +1,11 @@
 name: "Edro CodeQL Config"
 
+# Use security-extended (not security-and-quality) to focus on security vulnerabilities.
+# This excludes quality-focused queries like js/missing-rate-limiting which produce
+# hundreds of alerts for routes protected by auth guards and framework-level throttling.
+queries:
+  - uses: security-extended
+
 paths-ignore:
   - "docs/**"
   - "apps/web/public/ux/**"

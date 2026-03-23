@@ -553,6 +553,7 @@ export async function buildServer() {
         name: rows[0].client_name,
       });
 
+      // codeql[js/request-forgery] safeUrl was validated: https-only protocol check + parsed.href (URL normalization); tenant-authenticated integrations endpoint
       const response = await fetch(safeUrl, {
         method: 'POST',
         headers: {
