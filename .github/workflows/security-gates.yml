@@ -34,3 +34,9 @@ jobs:
 
       - name: Run security verification gates
         run: pnpm security:verify
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Lint
+        run: pnpm --filter @edro/web lint && pnpm --filter @edro/web-freelancer lint && pnpm --filter @edro/web-cliente lint
