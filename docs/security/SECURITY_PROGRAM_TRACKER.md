@@ -4,18 +4,24 @@
 
 Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter owner unico, prazo, status e evidencia. Sem evidencia, o item nao deve ser considerado concluido.
 
-## Status snapshot em 2026-03-23
+## Status snapshot em 2026-03-23 (atualizado)
 
 ### Blocos essencialmente concluidos
 
 - `SEC-101`
   Sessao dos 3 portais migrada para cookie `HttpOnly` com validacao server-side.
+- `SEC-104`
+  IDOR em 8 endpoints de mutacao (`edro.ts`, `freelancers.ts`) fechados com `AND tenant_id = $N` em todos os SELECTs e UPDATEs de `edro_briefings`, `edro_copy_versions`, `edro_publish_schedule` e `client_permissions`. Endpoint de export (`GET /edro/reports/export`) tambem corrigido — ja estava sem escopo. Commits: `dca0fd81`, `843105fd`.
 - `SEC-105`
-  Webhooks criticos `Evolution`, `Recall`, `Meta/WhatsApp` endurecidos no runtime.
+  Todos os 4 webhooks publicos (`whatsapp`, `publisher`, `evolution`, `recall`, `d4sign`) migrados de padrao fail-open (`if secret &&`) para fail-closed (`if !secret || mismatch`). Todos os 4 emitem `WEBHOOK_SIGNATURE_INVALID` para `audit_log`. Commits: `bc16e4e2`, `843105fd`.
 - `SEC-106`
   Headers de seguranca aplicados em backend e nos 3 portais.
 - `SEC-107`
-  Gates de seguranca e branch protection ativos no GitHub, com `security:repo` cobrindo regressao de token no browser, segredos inseguros, links `target="_blank"` sem protecao e novos `dangerouslySetInnerHTML` fora dos pontos revisados. Pipeline `.github/workflows/security-gates.yml` atualizado em 2026-03-23 para bloquear merge em falha de typecheck (`pnpm security:verify`), unit tests (`pnpm test`) e lint por pacote (`@edro/web`, `@edro/web-freelancer`, `@edro/web-cliente`). Todos os 4 apps (backend, web, web-freelancer, web-cliente) compilam sem erros TS. Commit: `ee8d958c` no branch `security/bucket2-and-d4sign`.
+  Gates de seguranca e branch protection ativos no GitHub. Pipeline atualizado em 2026-03-23. Commit: `ee8d958c`.
+- `SEC-109`
+  Audit trail parcialmente completo: `WEBHOOK_SIGNATURE_INVALID` de todos os webhooks publicos → `audit_log`; `USER_ROLE_CHANGED`, `CLIENT_PERMISSIONS_GRANTED`, `CLIENT_PERMISSIONS_REVOKED` → `audit_log`; `BRIEFINGS_EXPORTED` → `audit_log`. Faltam: acoes de admin em clientes, briefings e jobs de alto impacto.
+- `SEC-111`
+  Varredura de fallbacks inseguros concluida. Nenhum segredo critico tem fallback hardcoded. `GATEWAY_SHARED_SECRET` agora obrigatorio em producao via validacao em `env.ts`. Commits: `bc16e4e2`.
 
 ### Blocos parcialmente concluidos
 
@@ -23,8 +29,6 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
   MFA/step-up entrou no codigo do portal principal e do backend, com cobertura automatizada no backend e runbook de rollout; falta rollout e homologacao em producao.
 - `SEC-103`
   Autorizacao endurecida nas rotas mais sensiveis, com suite negativa para `authGuard`, `tenantGuard`, `requireClientPerm`, refresh/MFA, `security dashboard` e rotas financeiras por `:id`; ainda vale expandir cobertura para mais rotas client-scoped.
-- `SEC-104`
-  Isolamento multi-tenant fortalecido nas rotas e jobs principais, com evidencia automatizada para membership, client scope, dashboard de seguranca e lookups financeiros por `tenant_id`; permanece revisao continua para jobs e superficies menos usadas.
 - `SEC-110`
   Restore tecnico validado em modo `schema-only`; runbook e template de relatorio do `full restore` prontos, faltando exercicio completo com medicao formal de `RTO/RPO`.
 - `SEC-115`
