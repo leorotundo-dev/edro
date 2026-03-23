@@ -914,8 +914,9 @@ export default async function edroRoutes(app: FastifyInstance) {
   // ── Creative Image for Mockups ────────────────────────────────
   app.post('/edro/briefings/:id/creative-image', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId: string = (request.user as any)?.tenant_id;
 
-    const briefing = await getBriefingById(id);
+    const briefing = await getBriefingById(id, tenantId);
     if (!briefing) {
       return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
     }
@@ -942,7 +943,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         ? `${env.S3_ENDPOINT}/${env.S3_BUCKET}/${key}`
         : `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
 
-      await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2`, [imageUrl, id]);
+      await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2 AND tenant_id = $3`, [imageUrl, id, tenantId]);
 
       return reply.send({ success: true, data: { creative_image_url: imageUrl } });
     }
@@ -950,14 +951,16 @@ export default async function edroRoutes(app: FastifyInstance) {
     const bodySchema = z.object({ imageUrl: z.string().url() });
     const body = bodySchema.parse(request.body);
 
-    await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2`, [body.imageUrl, id]);
+    await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2 AND tenant_id = $3`, [body.imageUrl, id, tenantId]);
 
     return reply.send({ success: true, data: { creative_image_url: body.imageUrl } });
   });
 
   app.delete('/edro/briefings/:id/creative-image', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    await query(`UPDATE edro_briefings SET creative_image_url = NULL WHERE id = $1`, [id]);
+    const tenantId: string = (request.user as any)?.tenant_id;
+    const { rowCount } = await query(`UPDATE edro_briefings SET creative_image_url = NULL WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+    if (!rowCount) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
     return reply.send({ success: true });
   });
 
@@ -4921,13 +4924,13 @@ Retorne APENAS JSON válido (sem markdown):
     const tenantId: string = request.user?.tenant_id;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Unauthorized' });
 
-    // Load briefing + latest copy
+    // Load briefing + latest copy (tenant-scoped to prevent IDOR)
     const briefingRes = await query<any>(
       `SELECT b.id, b.title, b.status, b.source, b.main_client_id,
               (b.payload->>'platform') AS platform
        FROM edro_briefings b
-       WHERE b.id = $1`,
-      [id],
+       WHERE b.id = $1 AND b.tenant_id = $2`,
+      [id, tenantId],
     );
     const briefing = briefingRes.rows[0];
     if (!briefing) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
@@ -4957,10 +4960,10 @@ Retorne APENAS JSON válido (sem markdown):
 
     const platform = briefing.platform ?? 'instagram';
 
-    // Mark briefing approved
+    // Mark briefing approved (tenant-scoped)
     await query(
-      `UPDATE edro_briefings SET status = 'approved', updated_at = NOW() WHERE id = $1`,
-      [id],
+      `UPDATE edro_briefings SET status = 'approved', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId],
     );
 
     // Insert into scheduled_publications
