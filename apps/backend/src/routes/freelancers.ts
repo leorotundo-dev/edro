@@ -901,8 +901,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       if (!briefRows[0]) return reply.status(404).send({ error: 'Job não encontrado.' });
       const b = briefRows[0];
 
-      // Atualiza assignees: adiciona accepted / reason no entry do freelancer
+      // Verify the requesting user is actually assigned to this briefing
       const assignees: any[] = Array.isArray(b.assignees) ? b.assignees : [];
+      const isAssigned = assignees.some((a: any) => a.user_id === userId);
+      if (!isAssigned) return reply.status(404).send({ error: 'Job não encontrado.' });
+
+      // Atualiza assignees: adiciona accepted / reason no entry do freelancer
       const updatedAssignees = assignees.map((a: any) => {
         if (a.user_id === userId) {
           return {
