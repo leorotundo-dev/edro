@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Buffer } from 'node:buffer';
+import {
+  buildBackendApiUrl,
+  EDRO_REFRESH_COOKIE,
+  EDRO_SESSION_COOKIE,
+  extractUserId,
+  getCookieConfig,
+  hasValidAccessToken,
+  isSameOriginWrite,
+  refreshAccessToken,
+} from '@/lib/serverAuth';
 
 // Increase timeout for AI-heavy requests (brand voice, strategic brief, etc.)
 export const maxDuration = 120;
 
-const DEFAULT_BACKEND_URL = process.env.NODE_ENV === 'production'
-  ? 'https://edro-backend-production.up.railway.app'
-  : 'http://localhost:3333';
 const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 90000);
-const API_SUFFIX_REGEX = /\/api$/i;
 
 function isAbortError(error: unknown) {
   return (
@@ -34,48 +40,18 @@ function buildProxyErrorResponse(error: unknown) {
   return NextResponse.json({ error: 'Proxy request failed' }, { status: 500 });
 }
 
-function resolveBackendBase() {
-  const explicit = process.env.EDRO_BACKEND_URL?.trim();
-  if (explicit && /^https?:\/\//i.test(explicit)) {
-    return explicit.replace(/\/$/, '');
-  }
-
-  const railway = process.env.RAILWAY_SERVICE_EDRO_BACKEND_URL?.trim();
-  if (railway) {
-    return `https://${railway.replace(/\/$/, '')}`;
-  }
-
-  const publicBackend = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
-  if (publicBackend && /^https?:\/\//i.test(publicBackend)) {
-    return publicBackend.replace(/\/$/, '');
-  }
-
-  const publicBase = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (publicBase && /^https?:\/\//i.test(publicBase)) {
-    return publicBase.replace(/\/$/, '');
-  }
-
-  return DEFAULT_BACKEND_URL;
-}
-
-function buildTargetUrl(path: string, query = '') {
-  const base = resolveBackendBase();
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const finalPath = API_SUFFIX_REGEX.test(base) || normalizedPath.startsWith('/api')
-    ? normalizedPath
-    : `/api${normalizedPath}`;
-  return `${base}${finalPath}${query}`;
-}
-
-function buildHeaders(request: NextRequest, bodyLength?: number) {
+function buildHeaders(request: NextRequest, accessToken?: string | null, bodyLength?: number) {
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (lower === 'host' || lower === 'content-length') return;
+    if (lower === 'host' || lower === 'content-length' || lower === 'cookie' || lower === 'authorization') return;
     headers[key] = value;
   });
   if (bodyLength != null && bodyLength > 0) {
     headers['content-length'] = String(bodyLength);
+  }
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
   return headers;
 }
@@ -119,115 +95,94 @@ async function proxyFetch(init: RequestInit, path: string, query = '') {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
   try {
-    const response = await fetch(buildTargetUrl(path, query), {
+    const response = await fetch(`${buildBackendApiUrl(path)}${query}`, {
       ...init,
       signal: controller.signal,
     });
     return response;
-  } catch (error) {
-    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
 }
 
-export async function GET(
+async function executeProxy(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: Promise<{ path: string[] }> },
+  method: string,
 ) {
+  if (!['GET', 'HEAD'].includes(method) && !isSameOriginWrite(request)) {
+    return NextResponse.json({ error: 'forbidden_origin' }, { status: 403 });
+  }
+
   const { path: pathSegments = [] } = await params;
   const path = '/' + pathSegments.join('/');
-  const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+  const query = request.nextUrl.searchParams.toString()
+    ? `?${request.nextUrl.searchParams.toString()}`
+    : '';
+  const body = await readRequestBody(request);
 
-  try {
-    const response = await proxyFetch(
-      { method: 'GET', headers: buildHeaders(request) },
+  const accessToken = request.cookies.get(EDRO_SESSION_COOKIE)?.value ?? null;
+  const refreshToken = request.cookies.get(EDRO_REFRESH_COOKIE)?.value ?? null;
+
+  const runUpstream = (token?: string | null) =>
+    proxyFetch(
+      {
+        method,
+        headers: buildHeaders(request, token, body?.byteLength),
+        body,
+      },
       path,
-      query
+      query,
     );
-    return await buildProxyResponse(response);
+
+  try {
+    let upstream = await runUpstream(accessToken);
+    let refreshed: any = null;
+
+    if (upstream.status === 401 && refreshToken) {
+      const userId = extractUserId(accessToken);
+      if (userId) {
+        refreshed = await refreshAccessToken(refreshToken, userId);
+      }
+      if (refreshed?.accessToken) {
+        upstream = await runUpstream(refreshed.accessToken);
+      }
+    }
+
+    const response = await buildProxyResponse(upstream);
+    if (refreshed?.accessToken) {
+      response.cookies.set(EDRO_SESSION_COOKIE, refreshed.accessToken, getCookieConfig(60 * 30));
+    }
+    if (refreshed?.refreshToken) {
+      response.cookies.set(EDRO_REFRESH_COOKIE, refreshed.refreshToken, getCookieConfig(60 * 60 * 24 * 14));
+    }
+    if (upstream.status === 401) {
+      response.cookies.set(EDRO_SESSION_COOKIE, '', { ...getCookieConfig(60 * 30), maxAge: 0 });
+      response.cookies.set(EDRO_REFRESH_COOKIE, '', { ...getCookieConfig(60 * 60 * 24 * 14), maxAge: 0 });
+    }
+    return response;
   } catch (error) {
     logProxyError(error);
     return buildProxyErrorResponse(error);
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { path: pathSegments = [] } = await params;
-  const path = '/' + pathSegments.join('/');
-
-  try {
-    const body = await readRequestBody(request);
-    const response = await proxyFetch(
-      { method: 'POST', headers: buildHeaders(request, body?.byteLength), body },
-      path
-    );
-    return await buildProxyResponse(response);
-  } catch (error) {
-    logProxyError(error);
-    return buildProxyErrorResponse(error);
-  }
+export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return executeProxy(request, context, 'GET');
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { path: pathSegments = [] } = await params;
-  const path = '/' + pathSegments.join('/');
-
-  try {
-    const body = await readRequestBody(request);
-    const response = await proxyFetch(
-      { method: 'PUT', headers: buildHeaders(request, body?.byteLength), body },
-      path
-    );
-    return await buildProxyResponse(response);
-  } catch (error) {
-    logProxyError(error);
-    return buildProxyErrorResponse(error);
-  }
+export async function POST(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return executeProxy(request, context, 'POST');
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { path: pathSegments = [] } = await params;
-  const path = '/' + pathSegments.join('/');
-
-  try {
-    const body = await readRequestBody(request);
-    const response = await proxyFetch(
-      { method: 'PATCH', headers: buildHeaders(request, body?.byteLength), body },
-      path
-    );
-    return await buildProxyResponse(response);
-  } catch (error) {
-    logProxyError(error);
-    return buildProxyErrorResponse(error);
-  }
+export async function PUT(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return executeProxy(request, context, 'PUT');
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { path: pathSegments = [] } = await params;
-  const path = '/' + pathSegments.join('/');
+export async function PATCH(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return executeProxy(request, context, 'PATCH');
+}
 
-  try {
-    const response = await proxyFetch(
-      { method: 'DELETE', headers: buildHeaders(request) },
-      path
-    );
-    return await buildProxyResponse(response);
-  } catch (error) {
-    logProxyError(error);
-    return buildProxyErrorResponse(error);
-  }
+export async function DELETE(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return executeProxy(request, context, 'DELETE');
 }
