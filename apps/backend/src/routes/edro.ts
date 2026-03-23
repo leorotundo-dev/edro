@@ -710,7 +710,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
   app.addHook('preHandler', async (request, reply) => {
     // Public approval endpoints don't require authentication
-    if ((request.url as string).startsWith('/api/edro/public/')) return;
+    if ((request.url as string).startsWith('/api/edro/public/') || (request.url as string).startsWith('/api/edro/client-approval/')) return;
     try {
       await request.jwtVerify();
     } catch {
