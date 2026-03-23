@@ -1672,6 +1672,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       regeneration_count: z.number().int().min(0).max(20).optional(),
     });
     const body = bodySchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id;
 
     const { rows } = await query<any>(
       `UPDATE edro_copy_versions
@@ -1679,8 +1680,9 @@ export default async function edroRoutes(app: FastifyInstance) {
            score = COALESCE($3, score),
            feedback = COALESCE($4, feedback)
        WHERE id = $1
+         AND briefing_id IN (SELECT id FROM edro_briefings WHERE tenant_id = $5)
        RETURNING *`,
-      [copyId, body.status ?? null, body.score ?? null, body.feedback ?? null]
+      [copyId, body.status ?? null, body.score ?? null, body.feedback ?? null, tenantId]
     );
 
     if (!rows.length) {
@@ -1688,7 +1690,6 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     const copyRow = rows[0];
-    const tenantId = (request.user as any)?.tenant_id;
     const user = resolveUser(request);
 
     if (tenantId && copyRow?.briefing_id) {
@@ -3561,13 +3562,16 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
 
   app.delete('/edro/schedules/:scheduleId', async (request, reply) => {
     const { scheduleId } = z.object({ scheduleId: z.string().uuid() }).parse(request.params);
+    const tenantId: string = (request.user as any)?.tenant_id;
 
-    await query(
+    const { rowCount } = await query(
       `UPDATE edro_publish_schedule SET status = 'cancelled', updated_at = NOW()
-       WHERE id = $1 AND status = 'scheduled'`,
-      [scheduleId]
+       WHERE id = $1 AND status = 'scheduled'
+         AND briefing_id IN (SELECT id FROM edro_briefings WHERE tenant_id = $2)`,
+      [scheduleId, tenantId]
     );
 
+    if (!rowCount) return reply.status(404).send({ success: false, error: 'Schedule não encontrado.' });
     return reply.send({ success: true });
   });
 
