@@ -4,7 +4,7 @@
 
 Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter owner unico, prazo, status e evidencia. Sem evidencia, o item nao deve ser considerado concluido.
 
-## Status snapshot em 2026-03-21
+## Status snapshot em 2026-03-23
 
 ### Blocos essencialmente concluidos
 
@@ -15,7 +15,7 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
 - `SEC-106`
   Headers de seguranca aplicados em backend e nos 3 portais.
 - `SEC-107`
-  Gates de seguranca e branch protection ativos no GitHub, com `security:repo` cobrindo regressao de token no browser, segredos inseguros, links `target="_blank"` sem protecao e novos `dangerouslySetInnerHTML` fora dos pontos revisados.
+  Gates de seguranca e branch protection ativos no GitHub, com `security:repo` cobrindo regressao de token no browser, segredos inseguros, links `target="_blank"` sem protecao e novos `dangerouslySetInnerHTML` fora dos pontos revisados. Pipeline `.github/workflows/security-gates.yml` atualizado em 2026-03-23 para bloquear merge em falha de typecheck (`pnpm security:verify`), unit tests (`pnpm test`) e lint por pacote (`@edro/web`, `@edro/web-freelancer`, `@edro/web-cliente`). Todos os 4 apps (backend, web, web-freelancer, web-cliente) compilam sem erros TS. Commit: `ee8d958c` no branch `security/bucket2-and-d4sign`.
 
 ### Blocos parcialmente concluidos
 
