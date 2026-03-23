@@ -224,6 +224,7 @@ function AssetSlotCard({
     try {
       const res = await fetch(buildApiUrl(`/clients/${clientId}/library/upload?${qs}`), {
         method: 'POST',
+        credentials: 'include',
         body: form,
       });
       if (!res.ok) throw new Error('Falha ao enviar');
@@ -347,6 +348,7 @@ function PhotoGridSection({
       try {
         await fetch(buildApiUrl(`/clients/${clientId}/library/upload?${qs}`), {
           method: 'POST',
+          credentials: 'include',
           body: form,
         });
       } catch { /* non-fatal, continue */ }
@@ -531,6 +533,7 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
     try {
       await fetch(buildApiUrl(`/library/${id}`), {
         method: 'DELETE',
+        credentials: 'include',
       });
       setItems((prev) => prev.filter((i) => i.id !== id));
     } catch (e: any) {
@@ -778,7 +781,7 @@ export default function ClientLibraryClient({ clientId }: { clientId: string }) 
                               <IconButton
                                 size="small"
                                 onClick={async () => {
-                                  const res = await fetch(buildApiUrl(`/library/${item.id}/file`));
+                                  const res = await fetch(buildApiUrl(`/library/${item.id}/file`), { credentials: 'include' });
                                   const blob = await res.blob();
                                   const url = URL.createObjectURL(blob);
                                   const a = document.createElement('a');

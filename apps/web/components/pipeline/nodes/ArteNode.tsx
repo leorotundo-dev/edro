@@ -159,7 +159,7 @@ export default function ArteNode() {
     setEditLoading(true);
     setEditError('');
     try {
-      const res = await fetch('/api/studio/creative/edit-image', {
+      const res = await fetch('/api/proxy/studio/creative/edit-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +192,7 @@ export default function ArteNode() {
     setRemoveBgLoading(true);
     setEditError('');
     try {
-      const res = await fetch('/api/studio/creative/remove-bg', {
+      const res = await fetch('/api/proxy/studio/creative/remove-bg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: currentUrl }),
@@ -210,7 +210,7 @@ export default function ArteNode() {
     setUpscaleLoading(true);
     setEditError('');
     try {
-      const res = await fetch('/api/studio/creative/upscale', {
+      const res = await fetch('/api/proxy/studio/creative/upscale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: currentUrl }),
@@ -228,7 +228,7 @@ export default function ArteNode() {
     setAnimateLoading(true);
     setEditError('');
     try {
-      const res = await fetch('/api/studio/creative/image-to-video', {
+      const res = await fetch('/api/proxy/studio/creative/image-to-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: currentUrl, duration: 5 }),

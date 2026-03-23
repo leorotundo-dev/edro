@@ -38,7 +38,7 @@ const STEPS: { id: SectionId; label: string }[] = [
   { id: 'approval', label: 'Aprovação' },
 ];
 
-const API = '/api';
+const API = '/api/proxy';
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function CollabPage() {

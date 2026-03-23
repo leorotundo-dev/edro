@@ -988,7 +988,7 @@ export default function ChatAgentPanel() {
 
     try {
       const category = briefing?.payload?.segment || briefing?.title || activeFormat?.platform || 'advertising';
-      const res = await fetch('/api/studio/creative/visual-insights', {
+      const res = await fetch('/api/proxy/studio/creative/visual-insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category, platform: activeFormat?.platform ?? 'Instagram' }),
@@ -1113,7 +1113,7 @@ export default function ChatAgentPanel() {
     }, 500);
 
     try {
-      const res = await fetch('/api/studio/creative/edit-image', {
+      const res = await fetch('/api/proxy/studio/creative/edit-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1166,7 +1166,7 @@ export default function ChatAgentPanel() {
     }
     updateMsg(agentMsgId, { narration: 'Removendo fundo via BiRefNet…', isTyping: true });
     try {
-      const res = await fetch('/api/studio/creative/remove-bg', {
+      const res = await fetch('/api/proxy/studio/creative/remove-bg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: currentUrl }),
@@ -1203,7 +1203,7 @@ export default function ChatAgentPanel() {
     }
     updateMsg(agentMsgId, { narration: 'Aplicando upscale 4× via Clarity Upscaler (~30s)…', isTyping: true });
     try {
-      const res = await fetch('/api/studio/creative/upscale', {
+      const res = await fetch('/api/proxy/studio/creative/upscale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: currentUrl }),
@@ -1238,7 +1238,7 @@ export default function ChatAgentPanel() {
     }
     updateMsg(agentMsgId, { narration: 'Animando imagem com Kling AI (~60s)…', isTyping: true });
     try {
-      const res = await fetch('/api/studio/creative/image-to-video', {
+      const res = await fetch('/api/proxy/studio/creative/image-to-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: currentUrl, duration: 5 }),
@@ -1281,7 +1281,7 @@ export default function ChatAgentPanel() {
     });
 
     try {
-      const res = await fetch('/api/studio/creative/critique-arte', {
+      const res = await fetch('/api/proxy/studio/creative/critique-arte', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
