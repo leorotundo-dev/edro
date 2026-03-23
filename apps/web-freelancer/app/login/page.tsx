@@ -125,7 +125,6 @@ export default function LoginPage() {
               <span className="portal-commercial-item">Voce atua como prestador de servico autonomo ou pessoa juridica — nao ha vinculo empregaticio.</span>
               <span className="portal-commercial-item">A emissao de nota fiscal e obrigatoria para liberacao do pagamento.</span>
               <span className="portal-commercial-item">Escopo, valor por entrega e prazo de pagamento sao definidos no contrato assinado.</span>
-              <span className="portal-commercial-item">A Edro.Digital pode atribuir, pausar ou encerrar projetos conforme a demanda dos clientes.</span>
             </div>
           </div>
         </div>
