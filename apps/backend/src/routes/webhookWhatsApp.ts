@@ -39,7 +39,7 @@ export default async function webhookWhatsAppRoutes(app: FastifyInstance) {
     for (const row of rows) {
       const secrets = await decryptJSON(row.secrets_enc).catch(() => ({} as any));
       if (secrets.verify_token === token) {
-        return reply.send(challenge);
+        return reply.type('text/plain').send(String(challenge));
       }
     }
 

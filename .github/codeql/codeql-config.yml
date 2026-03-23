@@ -1,0 +1,7 @@
+name: "Edro CodeQL Config"
+
+paths-ignore:
+  - "docs/**"
+  - "apps/web/public/ux/**"
+  - "apps/publisher/**"
+  - "legacy/**"

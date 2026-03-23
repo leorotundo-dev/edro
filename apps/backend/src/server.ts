@@ -523,6 +523,12 @@ export async function buildServer() {
       const calendarId = request.params.calendarId;
       const { url, apiKey } = request.body ?? {};
       if (!url) return reply.code(400).send({ error: 'url_required' });
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'https:') return reply.code(400).send({ error: 'url_must_be_https' });
+      } catch {
+        return reply.code(400).send({ error: 'url_invalid' });
+      }
 
       const allowed = await requireCalendarClientPerm({
         request,
