@@ -9,6 +9,7 @@ import { syncFreelancerPerson } from '../repos/peopleRepo';
 import { generateCopy } from '../services/ai/copyService';
 import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
 import { generateContractPdf } from '../services/contractTemplateService';
+import { securityLog } from '../audit/securityLog';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -2769,11 +2770,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // Configure D4Sign to POST to: /webhooks/d4sign?token=<D4SIGN_WEBHOOK_SECRET>
   app.post('/webhooks/d4sign', async (request: any, reply) => {
     const webhookSecret = process.env.D4SIGN_WEBHOOK_SECRET;
-    if (webhookSecret) {
-      const provided = (request.query as Record<string, string>)?.token;
-      if (!provided || provided !== webhookSecret) {
-        return reply.status(401).send({ error: 'invalid_webhook_token' });
-      }
+    const provided = (request.query as Record<string, string>)?.token;
+    if (!webhookSecret || !provided || provided !== webhookSecret) {
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'd4sign', reason: !webhookSecret ? 'secret_not_configured' : 'token_mismatch' } }).catch(() => {});
+      return reply.status(401).send({ error: 'invalid_webhook_token' });
     }
 
     const payload = parseWebhook(request.body);

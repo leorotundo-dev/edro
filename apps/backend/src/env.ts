@@ -291,6 +291,10 @@ function validateSecureRuntimeConfig() {
     issues.push('D4SIGN_WEBHOOK_SECRET é obrigatório quando D4Sign estiver configurado em produção/staging.');
   }
 
+  if (isProductionLike && !hasValue(parsed.GATEWAY_SHARED_SECRET)) {
+    issues.push('GATEWAY_SHARED_SECRET é obrigatório em produção/staging para proteger o webhook do publisher.');
+  }
+
   if (issues.length) {
     throw new Error(`Configuração insegura de ambiente:\n- ${issues.join('\n- ')}`);
   }

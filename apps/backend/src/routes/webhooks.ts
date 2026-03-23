@@ -7,6 +7,7 @@ import {
   registerRawBodyCapture,
   verifyMetaWebhookSignature,
 } from '../services/integrations/webhookSecurityService';
+import { securityLog } from '../audit/securityLog';
 
 export default async function webhooksRoutes(app: FastifyInstance) {
   registerRawBodyCapture(app, ['/api/webhooks/whatsapp']);
@@ -15,7 +16,7 @@ export default async function webhooksRoutes(app: FastifyInstance) {
   app.get('/webhooks/whatsapp', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = request.query as Record<string, string>;
     const expected = process.env.WHATSAPP_WEBHOOK_SECRET;
-    if (mode === 'subscribe' && token === expected) {
+    if (expected && mode === 'subscribe' && token === expected) {
       return reply.send(challenge);
     }
     return reply.status(403).send('Forbidden');
@@ -28,6 +29,7 @@ export default async function webhooksRoutes(app: FastifyInstance) {
         verifyMetaWebhookSignature(request.headers as Record<string, string | string[] | undefined>, getCapturedRawBody(request), env.META_APP_SECRET);
       } catch (error: any) {
         request.log.warn({ error: error?.message }, '[api/webhooks/whatsapp] signature verification failed');
+        securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'whatsapp', reason: error?.message } }).catch(() => {});
         return reply.status(401).send({ error: 'invalid_signature' });
       }
     }
@@ -58,7 +60,8 @@ export default async function webhooksRoutes(app: FastifyInstance) {
   app.post('/webhooks/publisher', { config: { rateLimit: { max: 180, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const secret = String(request.headers?.authorization || '').replace('Bearer ', '');
     const expected = process.env.GATEWAY_SHARED_SECRET;
-    if (expected && secret !== expected) {
+    if (!expected || secret !== expected) {
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'publisher', reason: !expected ? 'secret_not_configured' : 'secret_mismatch' } }).catch(() => {});
       return reply.status(403).send({ error: 'forbidden' });
     }
 
