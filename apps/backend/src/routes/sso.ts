@@ -198,6 +198,6 @@ export default async function ssoRoutes(app: FastifyInstance) {
         `default-src 'none'; base-uri 'none'; form-action ${formOrigin}; frame-ancestors 'none'; script-src 'unsafe-inline'`,
       );
 
-    return reply.send(buildSsoBridgeHtml(actionUrl, access, '/'));
+    return reply.send(buildSsoBridgeHtml(actionUrl, token, '/'));
   });
 }
