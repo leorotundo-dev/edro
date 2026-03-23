@@ -45,19 +45,35 @@ Este Anexo de Tratamento de Dados Pessoais ("`Anexo`") integra o contrato princi
 
 3.1. As categorias de titulares potencialmente envolvidas neste escopo sao:
 
-- `{{DATA_SUBJECT_CATEGORIES}}`
+- representantes e usuarios do Cliente (colaboradores, gestores, pontos de contato)
+- leads e contatos comerciais do Cliente
+- consumidores, seguidores e contatos dos canais do Cliente (conforme servicos ativos)
+- participantes de reunioes e interacoes operacionais vinculadas ao servico
 
 3.2. As categorias de dados pessoais potencialmente tratadas sao:
 
-- `{{PERSONAL_DATA_CATEGORIES}}`
+- dados de identificacao: nome, cargo, empresa
+- dados de contato: e-mail, telefone, canais de mensageria
+- dados de autenticacao e acesso: login, sessao, logs de acesso
+- dados operacionais: briefings, projetos, tarefas, aprovacoes, comentarios, anexos
+- dados de comunicacao: mensagens, notificacoes e interacoes relacionadas ao servico
+- dados de reunioes e transcricoes, quando o servico utilizar esses recursos
+- dados financeiros estritamente necessarios a cobranca e obrigacoes legais
+- dados tecnicos: IP, timestamps, logs e eventos de seguranca
 
 3.3. As finalidades do tratamento abrangidas por este Anexo sao:
 
-- `{{PROCESSING_PURPOSES}}`
+- autenticacao e controle de acesso aos portais do servico
+- prestacao dos servicos contratados, operacao da plataforma e execucao de fluxos operacionais
+- processamento de briefings, aprovacoes, producao de conteudo e entrega de resultados
+- integracao com canais e plataformas conforme escopo contratado
+- comunicacao operacional, suporte e gestao do relacionamento contratual
+- cumprimento de obrigacoes legais, regulatorias e contratuais
+- seguranca, auditoria e continuidade operacional
 
 ## 4. Instrucoes do Cliente
 
-4.1. O Cliente podera emitir instrucoes razoaveis e documentadas sobre o tratamento coberto por este Anexo por meio de `{{INSTRUCTION_CHANNEL}}`.
+4.1. O Cliente podera emitir instrucoes razoaveis e documentadas sobre o tratamento coberto por este Anexo por meio do canal de atendimento da Edro ou e-mail de privacidade/encarregado, conforme contratualmente definido.
 
 4.2. A Edro podera recusar, suspender ou solicitar formalizacao adicional para instrucoes que:
 

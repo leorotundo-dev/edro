@@ -102,6 +102,29 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
   - Commit `e22fbaf0` (PR #20): fecha bypass de `client-approval` no preHandler de `edro.ts` e adiciona tratamento de 403 `mfa_required` em `apps/web/lib/api.ts`
   - `EDRO_ENFORCE_PRIVILEGED_MFA=true` confirmado em Railway prod
 - `SEC-112` (ROPA): Fluxos 9 a 12 adicionados a `ROPA_PRELIMINARY_2026-03-21.md` — AI/copy, Instagram DM, social listening, analytics — junto com secao de pendencias juridicas
+- `SEC-116` (RIPD): Template criado + 5 drafts produzidos:
+  - `RIPD_IA_COPY_GENERATION_DRAFT_2026-03-23.md` (fluxo 9 — alto risco)
+  - `RIPD_BRIEFINGS_PRODUCAO_DRAFT_2026-03-23.md` (fluxo 4 — medio)
+  - `RIPD_COMUNICACOES_WEBHOOKS_DRAFT_2026-03-23.md` (fluxo 5 — alto risco, base legal de terceiros em aberto)
+  - `RIPD_REUNIOES_GRAVACOES_DRAFT_2026-03-23.md` (fluxo 6 — ALTO RISCO, audio/video biometrico, urgente juridico)
+  - `RIPD_INSTAGRAM_DMS_DRAFT_2026-03-23.md` (fluxo 10 — medio-alto)
+  - Todos status `rascunho` — pendentes revisao juridica
+- `SEC-115` (tabletop): Cenario estruturado criado em `INCIDENT_TABLETOP_SCENARIO_2026-03-23.md` — 5 blocos, 19 perguntas, checklists pre/pos; pendente agendamento e execucao
+- `SEC-110` (backup): Script automatizado `scripts/backup_restore_drill.sh` criado com suporte a `--schema-only` e `--no-cleanup`; gera relatorio automatico em `docs/security/`; pendente execucao com dados reais
+- `DPA_TEMPLATE.md`: secoes 3 e 4 preenchidas com categorias de titulares, dados e finalidades padrao
+
+## Itens bloqueados por input do usuario (nao resolvidos automaticamente)
+
+| Item | O que falta |
+| --- | --- |
+| `LGPD_PENDING_INPUTS` — endereco da sede | Usuario precisa fornecer |
+| `LGPD_PENDING_INPUTS` — email de privacidade | Usuario precisa definir/criar |
+| `LGPD_PENDING_INPUTS` — DPO/encarregado | Usuario precisa designar |
+| `LGPD_PENDING_INPUTS` — signatario do DPA | Usuario precisa indicar nome e cargo |
+| SEC-108 WAF (DNS cutover) | Requer acesso Hostinger + conta Cloudflare |
+| SEC-110 drill completo com dados | Requer janela aprovada + DB prod acessivel de fora Railway |
+| SEC-117 pentest | Requer contratacao de fornecedor (criterios em `PENTEST_READINESS_PACKAGE_2026-03-21.md`) |
+| DPAs com OpenAI, Anthropic, Google, Meta, Recall | Requer aceite/assinatura formal e arquivo da evidencia |
 
 ## Evidencia operacional ja pronta para os itens ainda abertos
 
@@ -110,8 +133,10 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
 - `SEC-108`
   `EDGE_CUSTOM_DOMAIN_CUTOVER_PLAN.md`
 - `SEC-110`
-  `FULL_RESTORE_RUNBOOK.md` e `FULL_RESTORE_REPORT_TEMPLATE.md`
+  `FULL_RESTORE_RUNBOOK.md`, `FULL_RESTORE_REPORT_TEMPLATE.md`, `scripts/backup_restore_drill.sh`
 - `SEC-115`
-  `templates/INCIDENT_PLAYBOOK_TEMPLATE.md` e `INCIDENT_TABLETOP_RUNBOOK.md`
+  `templates/INCIDENT_PLAYBOOK_TEMPLATE.md`, `INCIDENT_TABLETOP_RUNBOOK.md`, `INCIDENT_TABLETOP_SCENARIO_2026-03-23.md`
+- `SEC-116`
+  `templates/RIPD_TEMPLATE.md` + 5 drafts acima
 - `SEC-117`
-  `PENTEST_READINESS_PACKAGE_2026-03-21.md`
+  `PENTEST_READINESS_PACKAGE_2026-03-21.md` (criterios de qualificacao, guia contratual, estimativa de esforco)
