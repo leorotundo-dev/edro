@@ -45,6 +45,21 @@ Ver tambem: `TRUST_PACKAGE_STATUS_2026-03-21.md` (baseline)
 
 ---
 
+## Avancos adicionais — 2026-03-23 (tarde)
+
+- Email `privacidade@edro.digital` criado — canal oficial de DSR operacional
+- Templates DPA e Aviso de Privacidade totalmente preenchidos com dados reais:
+  endereco sede, signatario (Leonardo Rotundo — Socio), email de privacidade, status DPO
+- DPA OpenAI confirmado: incorporado ao OpenAI Services Agreement para uso de API (sem aceite separado necessario)
+  Refs: openai.com/policies/data-processing-addendum + openai.com/policies/service-terms
+- Recall.ai DPA: nao publicado — solicitacao por email pendente (privacy@recall.ai)
+- Registro de execucao do tabletop criado e pronto para preencher no dia:
+  `TABLETOP_EXECUTION_RECORD_2026-04.md`
+- 4 RIPDs adicionais produzidos (Flows 4, 5, 6, 10) — total de 5 RIPDs rascunhados
+- Fluxo 6 (reunioes / Recall.ai) classificado como ALTO RISCO — aviso de gravacao e DPA Recall sao pre-requisitos criticos antes de expandir uso
+
+---
+
 ## O que pode ser afirmado hoje (2026-03-23)
 
 - codigo e runtime endurecidos
@@ -64,7 +79,7 @@ Ver tambem: `TRUST_PACKAGE_STATUS_2026-03-21.md` (baseline)
 - WAF/edge anti-bot formalizado (plano existe; execucao depende de DNS Hostinger + Cloudflare)
 - pentest externo executado (prontidao documentada; fornecedor nao contratado)
 - restore full com dados em ambiente isolado e RTO/RPO medidos (runbook e script prontos; execucao depende de janela aprovada)
-- pacote LGPD totalmente fechado (endereco, DPO, email de privacidade, DPAs de IA pendentes)
+- pacote LGPD totalmente fechado (dados proprios preenchidos; DPAs Recall + Resend + Evolution pendentes; revisao juridica dos templates pendente)
 - tabletop de incidente executado com ata (cenario pronto; data nao agendada)
 
 ---
@@ -74,7 +89,11 @@ Ver tambem: `TRUST_PACKAGE_STATUS_2026-03-21.md` (baseline)
 | Pendencia | Impacto | Urgencia |
 | --- | --- | --- |
 | ~~Endereco, email privacidade, DPO, signatario DPA~~ | ✅ Resolvido 2026-03-23 — templates DPA e Aviso preenchidos | — |
-| DPAs com OpenAI, Anthropic, Google, Meta, Recall | Valida transferencias internacionais para clientes enterprise | Alta |
+| ~~Email privacidade@edro.digital~~ | ✅ Criado 2026-03-23 | — |
+| ~~DPA OpenAI~~ | ✅ Incorporado automaticamente ao OpenAI API Services Agreement | — |
+| DPA Recall.ai | Solicitar por email (privacy@recall.ai) — CRITICO para fluxo de reunioes | Alta |
+| DPA Resend e Evolution | Valida transferencias internacionais | Media |
+| DPA Google e Meta | Cobertos por termos empresariais quando conta business ativa — validar | Media |
 | DNS cutover para Cloudflare (WAF) | Protecao de borda e dominio canonico | Media |
 | Contratar fornecedor de pentest | Finaliza SEC-117; necessario para clientes enterprise grandes | Media |
 | Agendar e executar tabletop de incidente | Fecha SEC-115 | Media |
