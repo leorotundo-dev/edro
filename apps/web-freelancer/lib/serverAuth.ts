@@ -70,7 +70,29 @@ export function isPortalSessionValid(token?: string | null) {
 
 export function isSameOriginWrite(request: NextRequest) {
   const origin = request.headers.get('origin');
-  return !origin || origin === request.nextUrl.origin;
+  if (!origin) return true;
+  if (origin === request.nextUrl.origin) return true;
+
+  // Railway reverse proxy rewrites the host header to an internal address.
+  // Accept the public origin derived from x-forwarded-host.
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') ?? 'https';
+  if (forwardedHost) {
+    const publicOrigin = `${forwardedProto}://${forwardedHost}`;
+    if (origin === publicOrigin) return true;
+  }
+
+  // Also accept the explicitly configured app URL.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (appUrl) {
+    try {
+      if (origin === new URL(appUrl).origin) return true;
+    } catch {
+      // ignore malformed URL
+    }
+  }
+
+  return false;
 }
 
 export function buildBackendApiUrl(pathSegments: string[], search: string) {
