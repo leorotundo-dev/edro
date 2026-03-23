@@ -115,17 +115,41 @@ export async function buildServer() {
   // Per-route rate limit overrides — runs once at startup, zero overhead at runtime
   app.addHook('onRoute', (routeOptions) => {
     const url = routeOptions.url ?? '';
-    const isAuth = url.startsWith('/api/auth') || url.startsWith('/api/sso') || url.startsWith('/api/portal/auth');
+    const method = routeOptions.method;
     const isMagicLink = url.includes('magic-link') || url.includes('/auth/request') || url.includes('/auth/verify');
+    const isAuth = url.startsWith('/api/auth') || url.startsWith('/api/sso') || url.startsWith('/api/portal/auth');
     const isWebhook = url.startsWith('/webhook') || url.startsWith('/api/webhooks');
     const isAdminJob = url.startsWith('/api/admin/jobs');
+    const isAiGen =
+      url.includes('/behavioral-copy') ||
+      url.includes('/generate') ||
+      url.includes('/simulation/preview') ||
+      url.includes('/studio/') ||
+      url.includes('/campaigns/') ||
+      url.includes('/pautas/generate') ||
+      url.includes('/copy/generate') ||
+      url.includes('/creative-image');
+    const isPublicApproval =
+      url.includes('/public/approval') ||
+      url.includes('/client-approval') ||
+      url.includes('/public/creative-approval');
+    const isExport = url.includes('/export') || url.includes('/reports/export');
 
     if (isMagicLink) {
-      // Strict: 5 attempts per minute per IP (brute-force / enumeration protection)
+      // Strict: 5 per minute — brute-force / enumeration protection
       (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 5, timeWindow: '1 minute' } };
     } else if (isAuth) {
-      // Strict: 20 per minute per IP for login/token/session endpoints
+      // Strict: 20 per minute per IP
       (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 20, timeWindow: '1 minute' } };
+    } else if (isPublicApproval) {
+      // Strict: public endpoints with no auth — prevent token enumeration
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 30, timeWindow: '1 minute' } };
+    } else if (isAiGen && (method === 'POST' || method === 'PUT')) {
+      // Strict: AI generation is expensive — 20 calls/min per IP
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 20, timeWindow: '1 minute' } };
+    } else if (isExport) {
+      // Strict: data export — prevent bulk scraping
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 10, timeWindow: '1 minute' } };
     } else if (isWebhook) {
       // Medium: 200 per minute — webhooks receive event bursts but are HMAC-protected
       (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 200, timeWindow: '1 minute' } };
@@ -133,6 +157,14 @@ export async function buildServer() {
       // Strict: manual job triggers should not be spammed
       (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 10, timeWindow: '1 minute' } };
     }
+
+    // Tighten body size for routes that don't need large payloads
+    if (isAuth || isPublicApproval || isExport) {
+      routeOptions.bodyLimit = 64 * 1024; // 64KB
+    } else if (!isWebhook && !isAiGen && !url.includes('/upload') && !url.includes('/library')) {
+      routeOptions.bodyLimit = 512 * 1024; // 512KB for standard API calls
+    }
+    // Webhooks, AI gen, uploads and library keep the global 10MB
   });
 
   app.addHook('preHandler', async (request) => {
