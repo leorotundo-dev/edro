@@ -89,6 +89,16 @@ export default function LoginPage() {
 
     const bootstrapSession = async () => {
       const nextPath = resolveNextPath();
+
+      // Check for pending MFA cookie first — resume mid-flow if user refreshed the page
+      try {
+        const pendingRes = await fetch('/api/auth/mfa/pending', { cache: 'no-store' });
+        if (!cancelled && pendingRes.ok) {
+          const hasPending = await bootstrapPendingMfa();
+          if (hasPending) return;
+        }
+      } catch { /* no pending cookie — continue to session check */ }
+
       const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
       if (!sessionRes.ok) return;
 
@@ -151,6 +161,11 @@ export default function LoginPage() {
       const data = text ? JSON.parse(text) : {};
       if (!response.ok) {
         throw new Error(data?.error || data?.message || text || 'Falha ao validar código.');
+      }
+      // MFA required — pending token stored in HttpOnly cookie; bootstrap MFA step
+      if (data?.mfaRequired || data?.mfaEnrollmentRequired) {
+        await bootstrapPendingMfa();
+        return;
       }
       if (data?.user) localStorage.setItem('edro_user', JSON.stringify(data.user));
       router.replace(resolveNextPath());
