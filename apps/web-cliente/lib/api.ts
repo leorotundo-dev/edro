@@ -1,38 +1,15 @@
-function resolveApiUrl() {
-  const explicit = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, '');
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    return 'http://localhost:3000';
-  }
-  return 'https://edro-backend-production.up.railway.app';
-}
+export function setToken(_token: string) {}
 
-const API_URL = resolveApiUrl();
-
-const TOKEN_KEY = 'cl_token';
-
-function getToken(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem(TOKEN_KEY) ?? '';
-}
-
-export function setToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
+export function clearToken() {}
 
 async function request<T = any>(method: string, path: string, body?: unknown): Promise<T> {
-  const token = getToken();
-  const res = await fetch(`${API_URL}/api${path}`, {
+  const res = await fetch(`/api/proxy${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    cache: 'no-store',
   });
 
   if (res.status === 401) {

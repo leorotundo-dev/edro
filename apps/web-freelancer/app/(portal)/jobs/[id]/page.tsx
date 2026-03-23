@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
-import { swrFetcher, apiPost, apiPatch, getApiBaseUrl } from '@/lib/api';
+import { swrFetcher, apiPost, apiPatch } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -541,11 +541,9 @@ function OpsTimerSection({ jobId }: { jobId: string }) {
     setError('');
     const minutes = Math.max(1, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000));
     try {
-      const base = getApiBaseUrl();
-      const token = localStorage.getItem('fl_token') ?? '';
-      const res = await fetch(`${base}/api/jobs/${jobId}/time-entries`, {
+      const res = await fetch(`/api/proxy/jobs/${jobId}/time-entries`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ minutes, notes: description.trim() || null }),
       });
       if (!res.ok) throw new Error(await res.text());

@@ -47,9 +47,12 @@ export default function Profile() {
 
   const handleLogout = () => {
     if (typeof window === 'undefined') return;
-    window.localStorage.removeItem('edro_token');
-    window.localStorage.removeItem('edro_user');
-    window.location.href = '/login';
+    fetch('/api/auth/logout', { method: 'POST' })
+      .catch(() => null)
+      .finally(() => {
+        window.localStorage.removeItem('edro_user');
+        window.location.href = '/login';
+      });
   };
 
   return (

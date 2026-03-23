@@ -121,6 +121,7 @@ export default function MultiFormatNode() {
         a.href = url;
         a.download = `arte-${fmt?.label.replace(/\s/g, '-').toLowerCase() ?? fmtId}.jpg`;
         a.target = '_blank';
+        a.rel = 'noopener noreferrer';
         a.click();
       }, i * 400);
     });

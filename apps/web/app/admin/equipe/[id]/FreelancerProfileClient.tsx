@@ -415,7 +415,7 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
               )}
               <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
                 {profile.portfolio_url && (
-                  <Button size="small" startIcon={<IconLink size={13} />} href={profile.portfolio_url} target="_blank"
+                  <Button size="small" startIcon={<IconLink size={13} />} href={profile.portfolio_url} target="_blank" rel="noopener noreferrer"
                     sx={{ fontSize: '0.7rem', py: 0.25 }}>
                     Portfólio
                   </Button>

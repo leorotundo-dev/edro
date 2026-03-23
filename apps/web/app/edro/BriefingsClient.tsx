@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { apiGet, apiDelete, apiPatch, apiPost } from '@/lib/api';
+import { apiGet, apiDelete, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
 import { useConfirm } from '@/hooks/useConfirm';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -316,7 +316,7 @@ export default function BriefingsClient() {
       const url = `/edro/reports/export?format=${format}`;
 
       if (format === 'csv') {
-        window.open(`${process.env.NEXT_PUBLIC_API_URL || '/api'}${url}`, '_blank');
+        window.open(buildApiUrl(url), '_blank', 'noopener');
       } else {
         const response = await apiGet<{ success: boolean; data: any[] }>(url);
         const blob = new Blob([JSON.stringify(response?.data || [], null, 2)], {
@@ -721,6 +721,7 @@ export default function BriefingsClient() {
                           variant="outlined"
                           href={meeting.video_url}
                           target="_blank"
+                          rel="noopener noreferrer"
                           component="a"
                           sx={{ fontSize: '0.72rem', py: 0.25 }}
                         >
@@ -1224,6 +1225,7 @@ export default function BriefingsClient() {
                     startIcon={<IconVideo size={16} />}
                     href={meetResult.url}
                     target="_blank"
+                    rel="noopener noreferrer"
                     component="a"
                   >
                     Entrar na Reunião

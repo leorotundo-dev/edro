@@ -1,7 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db/db';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { requireClientPerm } from '../auth/clientPerms';
 import { buildContentIntelligenceReport } from '../services/contentIntelligenceService';
 import { GeminiService } from '../services/ai/geminiService';
 import { OpenAIService } from '../services/ai/openaiService';
@@ -36,6 +37,10 @@ async function resolveEdroClient(tenantId: string, clientRef: string) {
   return rows[0] ?? null;
 }
 
+const clientReadGuards = [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')];
+const clientWriteGuards = [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')];
+const portfolioReadGuards = [authGuard, tenantGuard(), requirePerm('portfolio:read')];
+
 // ── Plugin ───────────────────────────────────────────────────────────────────
 
 export default async function analyticsRoutes(app: FastifyInstance) {
@@ -45,7 +50,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // Composite score (0-100) measuring client relationship health
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/health-score', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -166,7 +171,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // Briefings stuck in a stage longer than expected
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/bottleneck-alerts', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -231,7 +236,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
   // AI-generated monthly value report for client presentation
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/proof-of-value', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientWriteGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -340,7 +345,7 @@ Seja objetivo, use dados concretos, tom consultivo e profissional. Máximo 400 p
   // Extracts brand voice characteristics from copy history
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/brand-voice', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -428,7 +433,7 @@ Retorne JSON com exatamente esta estrutura:
   // 4b. SAVE BRAND VOICE DNA TO CLIENT PROFILE
   // ────────────────────────────────────────────────────────────────────────────
   app.patch('/clients/:clientId/brand-voice', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientWriteGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -463,7 +468,7 @@ Retorne JSON com exatamente esta estrutura:
   // Evolução mensal dos quality scores das copies geradas (pipeline collaborative)
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/quality-timeline', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -504,7 +509,7 @@ Retorne JSON com exatamente esta estrutura:
   // Compare client metrics vs anonymized cross-client averages
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/benchmark', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -647,7 +652,7 @@ Retorne JSON com exatamente esta estrutura:
   // GET — Load persisted content gaps for a client
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/content-gap', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -678,7 +683,7 @@ Retorne JSON com exatamente esta estrutura:
   // Uses Tavily to find content opportunities not yet in calendar
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/content-gap', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientWriteGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -778,7 +783,7 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
   // 7a. GET — Load latest persisted strategic brief
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/strategic-brief', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -804,7 +809,7 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
   // Full strategic brief using Claude for premium quality
   // ────────────────────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/strategic-brief', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientWriteGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -948,7 +953,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Calculates true ROI of the client retainer relationship
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/roi-retainer', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1041,7 +1046,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Suggests optimal content dates based on historical patterns
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/predictive-calendar', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1134,7 +1139,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Links copy versions to campaign performance
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/clients/:clientId/content-results', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1236,13 +1241,9 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // Returns health score for every client in the tenant (for admin dashboard)
   // ────────────────────────────────────────────────────────────────────────────
   app.get('/admin/clients-health', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: portfolioReadGuards,
   }, async (req, reply) => {
     const tenantId = (req.user as any).tenant_id as string;
-    const user = (req as any).user;
-    if (!['admin', 'manager'].includes(user?.role)) {
-      return reply.status(403).send({ error: 'Forbidden' });
-    }
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
@@ -1395,7 +1396,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
 
   // ── AMD Performance — O que funcionou por AMD + persona + momento ──────────
   app.get('/clients/:clientId/amd-performance', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1445,7 +1446,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
 
   // GET /clients/:clientId/post-metrics — briefing_post_metrics para o cliente
   app.get('/clients/:clientId/post-metrics', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1469,7 +1470,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // ── GET /clients/:clientId/metrics/reportei ─────────────────────────────
   // Real performance metrics from Reportei snapshots (FASE 2)
   app.get('/clients/:clientId/metrics/reportei', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1542,7 +1543,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // ── POST /clients/:clientId/metrics/reportei/sync ──────────────────────
   // Manual trigger to sync Reportei metrics for this client immediately
   app.post('/clients/:clientId/metrics/reportei/sync', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientWriteGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1554,7 +1555,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // ── GET /clients/:clientId/metrics/benchmark ────────────────────────────
   // Compare this client's metrics vs portfolio average (FASE 5)
   app.get('/clients/:clientId/metrics/benchmark', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (req, reply) => {
     const { clientId } = req.params as { clientId: string };
     const tenantId = (req.user as any).tenant_id as string;
@@ -1626,12 +1627,9 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // ── GET /admin/roi-distribution ─────────────────────────────────────────────
   // Global copy ROI label distribution (last 90 days) for dashboard home
   app.get('/admin/roi-distribution', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: portfolioReadGuards,
   }, async (req: any, reply: any) => {
     const tenantId = req.user.tenant_id as string;
-    if (!['admin', 'manager'].includes(req.user?.role)) {
-      return reply.status(403).send({ error: 'Forbidden' });
-    }
     const { rows } = await query<{ roi_label: string; count: string }>(
       `SELECT roi_label, COUNT(*) AS count
        FROM copy_roi_scores
@@ -1647,7 +1645,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
   // ── GET /clients/:clientId/metrics/content-intelligence ─────────────────────
   // FASE 7: briefing topic → performance correlation
   app.get('/clients/:clientId/metrics/content-intelligence', {
-    preHandler: [tenantGuard(), authGuard],
+    preHandler: clientReadGuards,
   }, async (request: any, reply: any) => {
     const { clientId } = request.params as { clientId: string };
     const tenantId = request.user?.tenant_id as string;

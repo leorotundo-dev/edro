@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard, requirePerm } from '../auth/rbac';
+import { requireClientPerm } from '../auth/clientPerms';
 import { tenantGuard } from '../auth/tenantGuard';
 import { fetchMetaAdsCampaigns } from '../services/integrations/metaAdsService';
 import { fetchGoogleAnalyticsReport } from '../services/integrations/googleAnalyticsService';
@@ -8,7 +9,7 @@ import { syncMetaPerformanceForClient } from '../services/integrations/metaSyncS
 export default async function integrationDataRoutes(app: FastifyInstance) {
   // Fetch Meta Ads data for a client
   app.get('/clients/:clientId/integrations/meta-ads', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')],
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -26,7 +27,7 @@ export default async function integrationDataRoutes(app: FastifyInstance) {
 
   // ── Sync Meta post-level metrics → format_performance_metrics + LearningEngine
   app.post('/clients/:clientId/integrations/sync-meta-performance', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')],
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -40,7 +41,7 @@ export default async function integrationDataRoutes(app: FastifyInstance) {
 
   // WhatsApp messages history for a client
   app.get('/clients/:clientId/whatsapp/messages', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')],
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -62,7 +63,7 @@ export default async function integrationDataRoutes(app: FastifyInstance) {
 
   // Fetch Google Analytics data for a client
   app.get('/clients/:clientId/integrations/google-analytics', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')],
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };

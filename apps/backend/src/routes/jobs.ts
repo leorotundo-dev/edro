@@ -14,6 +14,7 @@ import { sendWhatsAppText } from '../services/whatsappService';
 import { proposeAllocations, updateFreelancerScores } from '../services/allocationService';
 import { generateCalibrationReport, getCalibratedEstimate } from '../services/jobs/calibrationService';
 import { notifyJobBlocked, notifyJobAssigned } from '../services/jobs/opsNotificationService';
+import { audit } from '../audit/audit';
 
 /** Send approval request directly to the client's primary WhatsApp contact. */
 async function notifyClientApprovalNeeded(
@@ -575,6 +576,16 @@ export default async function jobsRoutes(app: FastifyInstance) {
       query(`UPDATE jobs SET automation_status = 'briefing_pending' WHERE id = $1 AND tenant_id = $2`, [rows[0].id, tenantId]).catch(() => {});
     }
 
+    audit({
+      actor_user_id: userId,
+      actor_email: (request.user as any)?.email ?? null,
+      action: 'JOB_CREATED',
+      entity_type: 'jobs',
+      entity_id: rows[0].id,
+      after: { title: rows[0].title, job_type: rows[0].job_type, status: rows[0].status, client_id: rows[0].client_id },
+      ip: request.ip,
+    }).catch(() => {});
+
     return reply.status(201).send({ data: rows[0] });
   });
 
@@ -818,11 +829,23 @@ export default async function jobsRoutes(app: FastifyInstance) {
       })();
     }
 
+    audit({
+      actor_user_id: userId,
+      actor_email: (request.user as any)?.email ?? null,
+      action: 'JOB_STATUS_CHANGED',
+      entity_type: 'jobs',
+      entity_id: jobId,
+      before: { status: current.status },
+      after: { status: body.status, reason: body.reason ?? null },
+      ip: request.ip,
+    }).catch(() => {});
+
     return { data: rows[0] };
   });
 
   app.delete('/jobs/:jobId', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
     const { jobId } = request.params as { jobId: string };
 
     const currentRes = await query(
@@ -847,6 +870,16 @@ export default async function jobsRoutes(app: FastifyInstance) {
         console.error('[jobs] delete recalculateOwnerETAs failed:', err?.message || err);
       });
     }
+
+    audit({
+      actor_user_id: userId,
+      actor_email: (request.user as any)?.email ?? null,
+      action: 'JOB_DELETED',
+      entity_type: 'jobs',
+      entity_id: jobId,
+      before: { id: jobId, owner_id: current.owner_id },
+      ip: request.ip,
+    }).catch(() => {});
 
     return { success: true, deleted: jobId };
   });
@@ -1295,6 +1328,16 @@ export default async function jobsRoutes(app: FastifyInstance) {
     // Enqueue copy generation
     await enqueueJob(tenantId, 'job_automation', { jobId, step: 'copy' });
 
+    audit({
+      actor_user_id: userId,
+      actor_email: (request.user as any)?.email ?? null,
+      action: 'JOB_BRIEFING_APPROVED',
+      entity_type: 'job_briefings',
+      entity_id: rows[0].id,
+      after: { job_id: jobId, approved_at: rows[0].approved_at },
+      ip: request.ip,
+    }).catch(() => {});
+
     return { success: true, briefing: rows[0] };
   });
 
@@ -1349,6 +1392,16 @@ export default async function jobsRoutes(app: FastifyInstance) {
        ON CONFLICT DO NOTHING`,
       [jobId, userId, tenantId],
     ).catch(() => {}); // table may not exist, ignore
+
+    audit({
+      actor_user_id: userId,
+      actor_email: (request.user as any)?.email ?? null,
+      action: 'JOB_B2B_APPROVED',
+      entity_type: 'jobs',
+      entity_id: jobId,
+      after: { title: rows[0].title, fee_brl: rows[0].fee_brl },
+      ip: request.ip,
+    }).catch(() => {});
 
     return reply.send({ ok: true, job: rows[0] });
   });

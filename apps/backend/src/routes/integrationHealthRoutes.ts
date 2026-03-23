@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { sendWhatsAppText, isWhatsAppConfigured } from '../services/whatsappService';
+import { env } from '../env';
 
 function has(key: string): boolean {
   const v = process.env[key];
@@ -63,6 +64,14 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       auth: {
         oidc_issuer:     has('OIDC_ISSUER_URL'),
         oidc_client_id:  has('OIDC_CLIENT_ID'),
+        mfa_enforced:    Boolean(env.EDRO_ENFORCE_PRIVILEGED_MFA),
+      },
+      d4sign: {
+        token_api:        has('D4SIGN_TOKEN_API'),
+        crypt_key:        has('D4SIGN_CRYPT_KEY'),
+        safe_uuid:        has('D4SIGN_SAFE_UUID'),
+        webhook_secret:   has('D4SIGN_WEBHOOK_SECRET'),
+        sandbox:          Boolean(env.D4SIGN_SANDBOX),
       },
     });
   });
@@ -88,10 +97,10 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
   app.get('/admin/integrations/config-hints', {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
   }, async (_request, reply) => {
-    const publicApiUrl = process.env.PUBLIC_API_URL?.replace(/\/$/, '') || 'https://api.edro.digital';
+    const publicApiUrl = env.PUBLIC_API_URL?.replace(/\/$/, '') || null;
     return reply.send({
-      google_redirect_uri_gmail:     `${publicApiUrl}/auth/google/callback`,
-      google_redirect_uri_calendar:  `${publicApiUrl}/auth/google/calendar/callback`,
+      google_redirect_uri_gmail:     publicApiUrl ? `${publicApiUrl}/auth/google/callback` : null,
+      google_redirect_uri_calendar:  publicApiUrl ? `${publicApiUrl}/auth/google/calendar/callback` : null,
       webhook_base_url:              publicApiUrl,
       meta_verify_token_set:         has('META_VERIFY_TOKEN'),
     });

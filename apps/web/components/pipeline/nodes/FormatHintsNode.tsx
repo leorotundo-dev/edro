@@ -87,7 +87,7 @@ export default function FormatHintsNode() {
         || briefing?.title
         || activeFormat?.platform
         || 'advertising';
-      const res = await fetch('/api/studio/creative/visual-insights', {
+      const res = await fetch('/api/proxy/studio/creative/visual-insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

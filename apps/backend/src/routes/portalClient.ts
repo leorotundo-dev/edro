@@ -15,11 +15,14 @@
  *   GET  /portal/client/invoices
  */
 
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db';
-import { authGuard } from '../auth/rbac';
+import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { env } from '../env';
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
@@ -35,6 +38,85 @@ function requireClient(request: any, reply: any): string | null {
     return null;
   }
   return clientId;
+}
+
+type ClientScopePerm = 'read' | 'write';
+
+async function ensureScopedClientAccess(params: {
+  request: FastifyRequest;
+  reply: FastifyReply;
+  tenantId: string;
+  clientId: string | null | undefined;
+  perm: ClientScopePerm;
+}) {
+  const { request, reply, tenantId, clientId, perm } = params;
+  const user = request.user as { sub?: string; role?: string } | undefined;
+  if ((user?.role || '').toLowerCase() === 'admin') {
+    return true;
+  }
+  if (!user?.sub) {
+    reply.status(401).send({ error: 'missing_user' });
+    return false;
+  }
+  if (!clientId) {
+    return true;
+  }
+
+  const allowed = await hasClientPerm({
+    tenantId,
+    userId: user.sub,
+    role: user.role,
+    clientId,
+    perm,
+  });
+  if (!allowed) {
+    reply.status(403).send({ error: 'client_forbidden', perm, client_id: clientId });
+    return false;
+  }
+  return true;
+}
+
+function requirePortalLinkPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const tokenId = (request.params as any)?.tokenId as string | undefined;
+    if (!tenantId || !tokenId) {
+      return reply.status(400).send({ error: 'missing_token_id' });
+    }
+
+    const result = await pool.query(
+      `SELECT client_id
+         FROM client_portal_tokens
+        WHERE id = $1 AND tenant_id = $2
+        LIMIT 1`,
+      [tokenId, tenantId],
+    );
+    const clientId = result.rows[0]?.client_id as string | undefined;
+    if (!clientId) {
+      return reply.status(404).send({ error: 'not_found' });
+    }
+
+    const allowed = await ensureScopedClientAccess({
+      request,
+      reply,
+      tenantId,
+      clientId,
+      perm,
+    });
+    if (!allowed) return;
+  };
+}
+
+function resolvePortalBaseUrl() {
+  const webUrl = env.WEB_URL?.replace(/\/$/, '');
+  if (webUrl) return webUrl;
+
+  const directPortalUrl = process.env.NEXT_PUBLIC_CLIENTE_URL?.trim();
+  if (directPortalUrl && /^https?:\/\//i.test(directPortalUrl)) {
+    return directPortalUrl.replace(/\/$/, '');
+  }
+
+  throw new Error('portal_url_not_configured');
 }
 
 // ── Routes ─────────────────────────────────────────────────────────────────────
@@ -324,7 +406,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
   // POST /portal/invite/:clientId — generate magic link (admin only)
   app.post('/portal/invite/:clientId', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id;
     if (!tenantId) return reply.status(401).send({ error: 'Unauthorized' });
@@ -354,8 +436,12 @@ export async function portalTokenRoutes(app: FastifyInstance) {
     );
 
     const row = result.rows[0];
-    const webUrl = process.env.WEB_URL ?? 'https://edro-production.up.railway.app';
-    const portalUrl = `${webUrl}/portal/${row.token}`;
+    let portalUrl: string;
+    try {
+      portalUrl = `${resolvePortalBaseUrl()}/portal/${row.token}`;
+    } catch {
+      return reply.status(503).send({ error: 'portal_url_not_configured' });
+    }
 
     return reply.send({
       ok: true,
@@ -415,7 +501,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
   // GET /portal/links/:clientId — list active tokens for admin
   app.get('/portal/links/:clientId', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -428,18 +514,23 @@ export async function portalTokenRoutes(app: FastifyInstance) {
       [tenantId, clientId],
     );
 
-    const webUrl = process.env.WEB_URL ?? 'https://edro-production.up.railway.app';
+    let portalBaseUrl: string;
+    try {
+      portalBaseUrl = resolvePortalBaseUrl();
+    } catch {
+      return reply.status(503).send({ error: 'portal_url_not_configured' });
+    }
     return reply.send({
       links: result.rows.map(r => ({
         ...r,
-        url: `${webUrl}/portal/${r.token}`,
+        url: `${portalBaseUrl}/portal/${r.token}`,
       })),
     });
   });
 
   // DELETE /portal/links/:tokenId — revoke token
   app.delete('/portal/links/:tokenId', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requirePortalLinkPerm('write')],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id;
     const { tokenId } = request.params as { tokenId: string };

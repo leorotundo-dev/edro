@@ -2,7 +2,10 @@ import { FastifyInstance } from 'fastify';
 import { getOidcClient } from '../auth/oidc';
 import * as oidcClient from 'openid-client';
 import { findUserByEmail, upsertUser } from '../repositories/edroUserRepository';
+import { findUserMfaByUserId } from '../repositories/edroUserMfaRepository';
 import { ensureTenantForDomain, ensureTenantMembership, mapRoleToTenantRole } from '../repos/tenantRepo';
+import { shouldEnforcePrivilegedMfa } from '../auth/rbac';
+import { issuePendingMfaToken } from './auth';
 import { env } from '../env';
 
 const SSO_STATE_COOKIE = 'edro_sso_state';
@@ -96,7 +99,7 @@ function buildSsoBridgeHtml(actionUrl: string, token: string, nextPath: string) 
 }
 
 export default async function ssoRoutes(app: FastifyInstance) {
-  app.get('/auth/sso/start', async (_request, reply) => {
+  app.get('/auth/sso/start', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (_request, reply) => {
     const config = await getOidcClient();
     const state = oidcClient.randomState();
     const pkceCodeVerifier = oidcClient.randomPKCECodeVerifier();
@@ -118,7 +121,7 @@ export default async function ssoRoutes(app: FastifyInstance) {
     return reply.redirect(url.toString());
   });
 
-  app.get('/auth/sso/callback', async (request: any, reply: any) => {
+  app.get('/auth/sso/callback', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const config = await getOidcClient();
     const cookies = parseCookieHeader(request.headers.cookie);
     const expectedState = cookies.get(SSO_STATE_COOKIE);
@@ -163,10 +166,25 @@ export default async function ssoRoutes(app: FastifyInstance) {
     const tenantRole = mapRoleToTenantRole(user.role);
     await ensureTenantMembership({ tenant_id: tenant.id, user_id: user.id, role: tenantRole });
 
-    const access = app.jwt.sign(
-      { sub: user.id, email, role: tenantRole, tenant_id: tenant.id },
-      { expiresIn: '30m' }
-    );
+    let token: string;
+    let kind: 'access' | 'mfa_challenge' | 'mfa_setup' = 'access';
+    if (shouldEnforcePrivilegedMfa(tenantRole)) {
+      const mfaRecord = await findUserMfaByUserId(user.id);
+      const mfaEnabled = Boolean(mfaRecord?.enabled_at && mfaRecord?.secret_enc);
+      kind = mfaEnabled ? 'mfa_challenge' : 'mfa_setup';
+      token = issuePendingMfaToken(app, {
+        userId: user.id,
+        email,
+        role: tenantRole,
+        tenantId: tenant.id,
+        purpose: kind,
+      });
+    } else {
+      token = app.jwt.sign(
+        { sub: user.id, email, role: tenantRole, tenant_id: tenant.id, mfa: false },
+        { expiresIn: '30m' },
+      );
+    }
 
     const webUrl = resolveWebUrl();
     const actionUrl = `${webUrl}/api/auth/sso/complete`;
@@ -180,6 +198,6 @@ export default async function ssoRoutes(app: FastifyInstance) {
         `default-src 'none'; base-uri 'none'; form-action ${formOrigin}; frame-ancestors 'none'; script-src 'unsafe-inline'`,
       );
 
-    return reply.send(buildSsoBridgeHtml(actionUrl, access, '/'));
+    return reply.send(buildSsoBridgeHtml(actionUrl, token, '/'));
   });
 }

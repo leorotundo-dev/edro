@@ -9,6 +9,7 @@ import { syncFreelancerPerson } from '../repos/peopleRepo';
 import { generateCopy } from '../services/ai/copyService';
 import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
 import { generateContractPdf } from '../services/contractTemplateService';
+import { securityLog } from '../audit/securityLog';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -884,6 +885,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   app.post('/freelancers/portal/me/jobs/:jobId/respond', async (request: any, reply) => {
     const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+    const tenantId: string = (request.user as any)?.tenant_id;
 
     const { jobId } = request.params as { jobId: string };
     const { action, reason, source } = (request.body as any) ?? {};
@@ -895,14 +897,18 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     // Briefing job
     if (!source || source === 'briefing') {
       const { rows: briefRows } = await pool.query(
-        `SELECT id, title, status, assignees, traffic_owner FROM edro_briefings WHERE id = $1`,
-        [jobId]
+        `SELECT id, title, status, assignees, traffic_owner FROM edro_briefings WHERE id = $1 AND tenant_id = $2`,
+        [jobId, tenantId]
       );
       if (!briefRows[0]) return reply.status(404).send({ error: 'Job não encontrado.' });
       const b = briefRows[0];
 
-      // Atualiza assignees: adiciona accepted / reason no entry do freelancer
+      // Verify the requesting user is actually assigned to this briefing
       const assignees: any[] = Array.isArray(b.assignees) ? b.assignees : [];
+      const isAssigned = assignees.some((a: any) => a.user_id === userId);
+      if (!isAssigned) return reply.status(404).send({ error: 'Job não encontrado.' });
+
+      // Atualiza assignees: adiciona accepted / reason no entry do freelancer
       const updatedAssignees = assignees.map((a: any) => {
         if (a.user_id === userId) {
           return {
@@ -922,8 +928,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
           : b.status;
 
       await pool.query(
-        `UPDATE edro_briefings SET assignees = $1::jsonb, status = $2 WHERE id = $3`,
-        [JSON.stringify(updatedAssignees), newStatus, jobId]
+        `UPDATE edro_briefings SET assignees = $1::jsonb, status = $2 WHERE id = $3 AND tenant_id = $4`,
+        [JSON.stringify(updatedAssignees), newStatus, jobId, tenantId]
       );
 
       // Auto-schedule Google Calendar alignment meeting when freelancer accepts
@@ -932,12 +938,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
           try {
             const { rows: briefFull } = await pool.query(
               `SELECT b.title, b.payload, b.traffic_owner, b.due_at,
-                      (SELECT tenant_id FROM tenants LIMIT 1) AS tenant_id,
+                      b.tenant_id,
                       ec.name AS client_name
                  FROM edro_briefings b
                  LEFT JOIN edro_clients ec ON ec.id = b.client_id
-                WHERE b.id = $1`,
-              [jobId]
+                WHERE b.id = $1 AND b.tenant_id = $2`,
+              [jobId, tenantId]
             );
             const bf = briefFull[0];
             if (!bf?.tenant_id) return;
@@ -972,8 +978,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               `UPDATE edro_briefings
                   SET meeting_url = $2,
                       payload = jsonb_set(COALESCE(payload,'{}'), '{alignment_meeting_url}', to_jsonb($2::text))
-                WHERE id = $1`,
-              [jobId, meeting.meetUrl]
+                WHERE id = $1 AND tenant_id = $3`,
+              [jobId, meeting.meetUrl, tenantId]
             );
           } catch (err) {
             console.warn('[freelancers/respond] Google Calendar auto-schedule failed:', err);
@@ -1020,6 +1026,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   app.post('/freelancers/portal/me/jobs/:jobId/complete', async (request: any, reply) => {
     const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+    const tenantId: string = (request.user as any)?.tenant_id;
 
     const { jobId } = request.params as { jobId: string };
     const { notes, source } = (request.body as any) ?? {};
@@ -1027,12 +1034,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (!source || source === 'briefing') {
       const { rows: briefRows } = await pool.query(
         `SELECT b.id, b.title, b.status, b.assignees, b.traffic_owner, b.payload,
-                (SELECT tenant_id FROM tenants LIMIT 1) AS tenant_id,
+                b.tenant_id,
                 ec.name AS client_name
            FROM edro_briefings b
            LEFT JOIN edro_clients ec ON ec.id = b.client_id
-          WHERE b.id = $1`,
-        [jobId]
+          WHERE b.id = $1 AND b.tenant_id = $2`,
+        [jobId, tenantId]
       );
       if (!briefRows[0]) return reply.status(404).send({ error: 'Job não encontrado.' });
 
@@ -1063,8 +1070,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
                   to_jsonb($2::text)
                 ),
                 updated_at = now()
-          WHERE id = $1`,
-        [jobId, notes ?? '']
+          WHERE id = $1 AND tenant_id = $3`,
+        [jobId, notes ?? '', tenantId]
       );
 
       // Notify managers via email
@@ -1591,6 +1598,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (clean.length !== 14) return reply.status(400).send({ error: 'CNPJ inválido' });
 
     try {
+      // codeql[js/request-forgery] domain hardcoded to brasilapi.com.br; ${clean} is digits-only (regex + length validated)
       const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
       if (!res.ok) return reply.status(404).send({ error: 'CNPJ não encontrado na Receita Federal' });
       const data = await res.json() as any;
@@ -2760,7 +2768,15 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
   // POST /webhooks/d4sign — D4Sign webhook (document signed / cancelled)
   // NOTE: registered WITHOUT authGuard — D4Sign calls this from their servers
+  // Configure D4Sign to POST to: /webhooks/d4sign?token=<D4SIGN_WEBHOOK_SECRET>
   app.post('/webhooks/d4sign', async (request: any, reply) => {
+    const webhookSecret = process.env.D4SIGN_WEBHOOK_SECRET;
+    const provided = (request.query as Record<string, string>)?.token;
+    if (!webhookSecret || !provided || provided !== webhookSecret) {
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'd4sign', reason: !webhookSecret ? 'secret_not_configured' : 'token_mismatch' } }).catch(() => {});
+      return reply.status(401).send({ error: 'invalid_webhook_token' });
+    }
+
     const payload = parseWebhook(request.body);
     if (!payload) return reply.status(400).send({ error: 'Invalid payload' });
 

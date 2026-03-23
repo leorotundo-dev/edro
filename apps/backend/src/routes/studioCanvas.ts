@@ -5,7 +5,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import multipart from '@fastify/multipart';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { generateCompletion } from '../services/ai/claudeService';
 import { buildKey, saveFile } from '../library/storage';
@@ -130,6 +130,7 @@ Se for apenas ANSWER, retorne actions vazio e a mensagem no campo message.`;
 export default async function studioCanvasRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
+  app.addHook('preHandler', requirePerm('library:write'));
 
   app.post('/studio/canvas/chat', async (request: any, reply) => {
     const body = chatSchema.parse(request.body || {});

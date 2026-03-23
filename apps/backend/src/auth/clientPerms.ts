@@ -6,12 +6,16 @@ type ClientPerm = 'read' | 'write' | 'review' | 'publish';
 function getClientId(request: FastifyRequest): string | null {
   const params = request.params as Record<string, any> | undefined;
   const body = request.body as Record<string, any> | undefined;
-  const route = (request as any).routerPath || '';
+  const query = request.query as Record<string, any> | undefined;
+  const route = ((request as any).routeOptions?.url as string | undefined) || '';
 
   if (params?.clientId) return params.clientId;
   if (route.includes('/clients/') && params?.id) return params.id;
   if (body?.client_id) return body.client_id;
+  if (body?.clientId) return body.clientId;
   if (body?.client?.id) return body.client.id;
+  if (query?.client_id) return query.client_id;
+  if (query?.clientId) return query.clientId;
   return null;
 }
 

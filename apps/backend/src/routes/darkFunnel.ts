@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { query } from '../db';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
-import { requireClientPerm } from '../auth/clientPerms';
+import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
 import { parseDarkFunnelSignal } from '../services/darkFunnelParser';
 
 const PostBody = z.object({
@@ -23,9 +23,9 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
   // Record a new dark funnel event (with auto-parsing)
 
   app.post('/dark-funnel', {
-    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard(), requireClientPerm('write')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const body = PostBody.parse(request.body);
 
     // Verify client belongs to tenant
@@ -66,9 +66,9 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
   // List dark funnel events for a client
 
   app.get('/dark-funnel', {
-    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard(), requireClientPerm('read')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const query_params = request.query as Record<string, string>;
 
     const clientId = query_params['client_id'];
@@ -110,9 +110,9 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
   // Channel distribution + journey stage breakdown for a client
 
   app.get('/dark-funnel/stats', {
-    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:read'), tenantGuard(), requireClientPerm('read')],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
     const query_params = request.query as Record<string, string>;
 
     const clientId = query_params['client_id'];
@@ -144,10 +144,29 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
   // ── DELETE /dark-funnel/:id ───────────────────────────────────────────────
 
   app.delete('/dark-funnel/:id', {
-    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard],
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard()],
   }, async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
+    const tenantId = (request.user as any).tenant_id as string;
+    const user = request.user as { sub?: string; role?: string } | undefined;
     const { id } = request.params as { id: string };
+
+    const { rows } = await query<{ client_id: string }>(
+      `SELECT client_id FROM dark_funnel_events WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+      [id, tenantId]
+    );
+    const clientId = rows[0]?.client_id;
+    if (!clientId) return reply.status(404).send({ error: 'not_found' });
+
+    const allowed = await hasClientPerm({
+      tenantId,
+      userId: user?.sub || '',
+      role: user?.role,
+      clientId,
+      perm: 'write',
+    });
+    if (!allowed) {
+      return reply.status(403).send({ error: 'client_forbidden', perm: 'write', client_id: clientId });
+    }
 
     const { rowCount } = await query(
       `DELETE FROM dark_funnel_events WHERE id=$1 AND tenant_id=$2`,

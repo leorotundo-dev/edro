@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiGet, apiPost, apiDelete } from '@/lib/api';
+import { apiGet, apiPost, apiDelete, buildApiUrl } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -255,18 +255,25 @@ export default function ClientConnectorsPage() {
   };
 
   const handleMetaOAuth = (providerId: string) => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
     const popup = window.open(
-      `${apiBase}/auth/meta/start?clientId=${clientId}`,
+      buildApiUrl(`/auth/meta/start?clientId=${encodeURIComponent(clientId)}`),
       'meta_oauth',
       'width=600,height=700,left=200,top=100'
     );
     if (!popup) return; // blocked by browser
     setOauthLoading(providerId);
 
+    let pollClosed: ReturnType<typeof setInterval> | null = null;
+    const cleanup = () => {
+      if (pollClosed) clearInterval(pollClosed);
+      window.removeEventListener('message', onMessage);
+    };
+
     const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.source !== popup) return;
       if (e.data?.type === 'meta_connected') {
-        window.removeEventListener('message', onMessage);
+        cleanup();
         setOauthLoading(null);
         loadConnectors();
       }
@@ -274,10 +281,9 @@ export default function ClientConnectorsPage() {
     window.addEventListener('message', onMessage);
 
     // Cleanup if popup is closed without completing
-    const pollClosed = setInterval(() => {
+    pollClosed = setInterval(() => {
       if (popup.closed) {
-        clearInterval(pollClosed);
-        window.removeEventListener('message', onMessage);
+        cleanup();
         setOauthLoading(null);
       }
     }, 500);

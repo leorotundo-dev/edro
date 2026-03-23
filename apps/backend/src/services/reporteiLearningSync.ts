@@ -188,3 +188,21 @@ export async function syncAllClientsLearningRules(): Promise<{ clients: number; 
 
   return { clients: clients.length, total_rules: totalRules };
 }
+
+export async function syncTenantLearningRules(tenantId: string): Promise<{ clients: number; total_rules: number }> {
+  const { rows: clients } = await query<{ client_id: string }>(
+    `SELECT DISTINCT client_id
+     FROM reportei_metric_snapshots
+     WHERE tenant_id = $1
+       AND synced_at > NOW() - INTERVAL '8 days'`,
+    [tenantId],
+  ).catch(() => ({ rows: [] }));
+
+  let totalRules = 0;
+  for (const client of clients) {
+    const { rules } = await syncReporteiLearningRules(client.client_id, tenantId).catch(() => ({ rules: 0 }));
+    totalRules += rules;
+  }
+
+  return { clients: clients.length, total_rules: totalRules };
+}

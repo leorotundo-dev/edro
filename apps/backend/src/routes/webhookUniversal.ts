@@ -14,7 +14,8 @@ import { FastifyInstance } from 'fastify';
 import { query } from '../db';
 import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { createBriefing } from '../repositories/edroBriefingRepository';
-import { authGuard } from '../auth/rbac';
+import { authGuard, requirePerm } from '../auth/rbac';
+import { requireClientPerm } from '../auth/clientPerms';
 import { tenantGuard } from '../auth/tenantGuard';
 
 const BRIEFING_PROMPT = `Você é um assistente de agência. Uma mensagem chegou via webhook externo (Zapier/Make/n8n) de um cliente.
@@ -175,7 +176,7 @@ export async function webhookAdminRoutes(app: FastifyInstance) {
 
   // GET /clients/:clientId/webhook-events — list recent webhook events for a client
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/webhook-events', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin'), requireClientPerm('read')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { clientId } = request.params;
@@ -194,7 +195,7 @@ export async function webhookAdminRoutes(app: FastifyInstance) {
 
   // POST /clients/:clientId/webhook-secret/regenerate — regenerate webhook secret
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/webhook-secret/regenerate', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: [authGuard, tenantGuard(), requirePerm('admin'), requireClientPerm('write')],
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { clientId } = request.params;

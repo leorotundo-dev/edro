@@ -3,6 +3,7 @@ import { allowUnsafeLocalAuthHelpers, env, portalLoginSecret } from '../env';
 import { makeHash } from '../utils/hash';
 import { createLoginCode, consumeLoginCode, upsertUser } from '../repositories/edroUserRepository';
 import { sendEmail } from './emailService';
+import { securityLog } from '../audit/securityLog';
 
 const DEFAULT_CODE_TTL_MINUTES = 10;
 
@@ -32,9 +33,10 @@ export function isAllowedEmail(email: string) {
   return allowedDomains.includes(domain.toLowerCase());
 }
 
-export async function requestLoginCode(emailInput: string) {
+export async function requestLoginCode(emailInput: string, meta?: { ip?: string; userAgent?: string }) {
   const email = normalizeEmail(emailInput);
   if (!isAllowedEmail(email)) {
+    securityLog({ event: 'LOGIN_FAILED_DOMAIN', email, ip: meta?.ip ?? null }).catch(() => {});
     throw new Error('domain_not_allowed');
   }
 
@@ -55,21 +57,25 @@ export async function requestLoginCode(emailInput: string) {
   });
 
   if (delivery.ok) {
+    securityLog({ event: 'LOGIN_CODE_REQUESTED', email, ip: meta?.ip ?? null, user_agent: meta?.userAgent ?? null }).catch(() => {});
     return { delivery: 'email' as const };
   }
 
   const allowEcho = env.EDRO_LOGIN_ECHO_CODE || allowUnsafeLocalAuthHelpers;
   if (allowEcho) {
+    securityLog({ event: 'LOGIN_CODE_REQUESTED', email, ip: meta?.ip ?? null, detail: { delivery: 'echo' } }).catch(() => {});
     return { delivery: 'echo' as const, code, error: delivery.error };
   }
 
+  securityLog({ event: 'LOGIN_FAILED_EMAIL_DELIVERY', email, ip: meta?.ip ?? null }).catch(() => {});
   console.warn('[auth] email delivery failed', delivery.error);
   throw new Error('email_failed');
 }
 
-export async function verifyLoginCode(emailInput: string, code: string) {
+export async function verifyLoginCode(emailInput: string, code: string, meta?: { ip?: string; userAgent?: string }) {
   const email = normalizeEmail(emailInput);
   if (!isAllowedEmail(email)) {
+    securityLog({ event: 'LOGIN_FAILED_DOMAIN', email, ip: meta?.ip ?? null }).catch(() => {});
     throw new Error('domain_not_allowed');
   }
 
@@ -82,11 +88,21 @@ export async function verifyLoginCode(emailInput: string, code: string) {
   const codeHash = buildCodeHash(email, code);
   const consumed = await consumeLoginCode({ email, codeHash });
   if (!consumed) {
+    securityLog({ event: 'LOGIN_FAILED_INVALID_CODE', email, ip: meta?.ip ?? null, user_agent: meta?.userAgent ?? null }).catch(() => {});
     throw new Error('invalid_code');
   }
 
   const role = resolveRole(email);
   const user = await upsertUser({ email, role });
+
+  securityLog({
+    event: 'LOGIN_SUCCESS',
+    email,
+    user_id: (user as any).id ?? null,
+    tenant_id: (user as any).tenant_id ?? null,
+    ip: meta?.ip ?? null,
+    user_agent: meta?.userAgent ?? null,
+  }).catch(() => {});
 
   return user;
 }

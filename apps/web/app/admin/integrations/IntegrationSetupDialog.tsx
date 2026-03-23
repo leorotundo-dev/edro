@@ -328,7 +328,7 @@ function GoogleOAuthSetup({
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
               Acesse console.cloud.google.com → APIs &amp; Services → Credentials → Create OAuth 2.0 Client ID.
             </Typography>
-            <Button size="small" variant="outlined" href="https://console.cloud.google.com/apis/credentials" target="_blank"
+            <Button size="small" variant="outlined" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer"
               endIcon={<IconExternalLink size={13} />}>
               Abrir Google Cloud Console
             </Button>
@@ -375,7 +375,7 @@ function GoogleOAuthSetup({
               Para ativar: Google Cloud Console → Pub/Sub → Topics → Create Topic.
             </Typography>
             <Button size="small" variant="outlined"
-              href="https://console.cloud.google.com/cloudpubsub/topic/list" target="_blank"
+              href="https://console.cloud.google.com/cloudpubsub/topic/list" target="_blank" rel="noopener noreferrer"
               endIcon={<IconExternalLink size={13} />}>
               Abrir Pub/Sub no Cloud Console
             </Button>
@@ -464,7 +464,7 @@ function WhatsAppMetaSetup({ health }: { health: IntegrationHealth | null }) {
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
               Acesse developers.facebook.com → My Apps → Create App → Business → WhatsApp.
             </Typography>
-            <Button size="small" variant="outlined" href="https://developers.facebook.com/apps" target="_blank"
+            <Button size="small" variant="outlined" href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer"
               endIcon={<IconExternalLink size={13} />}>
               Abrir Meta for Developers
             </Button>
@@ -542,7 +542,7 @@ function RecallSetup({ health }: { health: IntegrationHealth | null }) {
 
       <Stack spacing={1.5}>
         <Step n={1} label="Criar conta no Recall.ai" done={!!apiKeyOk}>
-          <Button size="small" variant="outlined" href="https://recall.ai" target="_blank" endIcon={<IconExternalLink size={13} />}>
+          <Button size="small" variant="outlined" href="https://recall.ai" target="_blank" rel="noopener noreferrer" endIcon={<IconExternalLink size={13} />}>
             Acessar Recall.ai
           </Button>
         </Step>
@@ -612,7 +612,7 @@ function InstagramSetup({ health, hints }: { health: IntegrationHealth | null; h
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
               Após o webhook estar ativo, vá em cada cliente → Instagram → Conectar conta via OAuth.
             </Typography>
-            <Button size="small" variant="outlined" href="https://developers.facebook.com/apps" target="_blank"
+            <Button size="small" variant="outlined" href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer"
               endIcon={<IconExternalLink size={13} />}>
               Abrir Meta for Developers
             </Button>

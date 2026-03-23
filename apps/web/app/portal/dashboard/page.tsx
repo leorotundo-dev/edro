@@ -2,7 +2,7 @@
 /**
  * Portal do Cliente — Dashboard
  * Public-facing dashboard for clients with no login required.
- * Uses the JWT stored in sessionStorage by the /portal/[token] page.
+ * Uses an HttpOnly portal session established by the /portal/[token] page.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,8 +17,7 @@ import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconBriefcase, IconCheck, IconClockHour3, IconMessagePlus, IconRefresh, IconX } from '@tabler/icons-react';
-import { buildApiUrl } from '@/lib/api';
+import { IconBriefcase, IconCheck, IconClockHour3, IconMessagePlus, IconRefresh } from '@tabler/icons-react';
 
 const EDRO_ORANGE = '#E85219';
 
@@ -38,19 +37,38 @@ type ClientInfo = {
   status: string;
 };
 
-function portalHeaders(): HeadersInit {
-  const token = typeof window !== 'undefined' ? sessionStorage.getItem('portal_token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
+type PortalSessionResponse = {
+  authenticated: boolean;
+  client: ClientInfo | null;
+};
 
-async function portalFetch(path: string, opts: RequestInit = {}) {
-  const url = buildApiUrl(path);
-  const res = await fetch(url, { ...opts, headers: { ...portalHeaders(), ...(opts.headers ?? {}) } });
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  return res.json();
+async function portalFetch<T>(path: string, opts: RequestInit = {}) {
+  const response = await fetch(path, {
+    ...opts,
+    headers: {
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(opts.headers ?? {}),
+    },
+    cache: 'no-store',
+  });
+
+  const text = await response.text();
+  let payload: any = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { raw: text };
+    }
+  }
+
+  if (!response.ok) {
+    const error = new Error(payload?.error || payload?.message || `API error ${response.status}`) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+
+  return (payload ?? {}) as T;
 }
 
 const STATUS_COLORS: Record<string, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
@@ -79,19 +97,16 @@ export default function PortalDashboard() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
 
-  const clientName = typeof window !== 'undefined' ? sessionStorage.getItem('portal_client_name') ?? '' : '';
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [meRes, jobsRes] = await Promise.all([
-        portalFetch('/portal/client/me'),
-        portalFetch('/portal/client/jobs'),
+      const [sessionRes, jobsRes] = await Promise.all([
+        portalFetch<PortalSessionResponse>('/api/portal/session'),
+        portalFetch<{ jobs?: Job[] }>('/api/portal/proxy/client/jobs'),
       ]);
-      setClient(meRes.client ?? null);
+      setClient(sessionRes.client ?? null);
       setJobs(jobsRes.jobs ?? []);
     } catch {
-      // Token may be expired — redirect back
       router.replace('/portal/expired');
     } finally {
       setLoading(false);
@@ -99,19 +114,21 @@ export default function PortalDashboard() {
   }, [router]);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('portal_token');
-    if (!token) { router.replace('/portal/expired'); return; }
     load();
-  }, [load, router]);
+  }, [load]);
 
   const handleApprove = async (jobId: string) => {
     setApproving(jobId);
     try {
-      await portalFetch(`/portal/client/jobs/${jobId}/approve`, {
+      await portalFetch(`/api/portal/proxy/client/jobs/${encodeURIComponent(jobId)}/approve`, {
         method: 'POST',
         body: JSON.stringify({}),
       });
       await load();
+    } catch (err: any) {
+      if (err?.status === 401) {
+        router.replace('/portal/expired');
+      }
     } finally {
       setApproving(null);
     }
@@ -122,35 +139,36 @@ export default function PortalDashboard() {
     setSubmitting(true);
     setSubmitSuccess(false);
     try {
-      await portalFetch('/portal/client/jobs/request', {
+      await portalFetch('/api/portal/proxy/client/jobs/request', {
         method: 'POST',
         body: JSON.stringify({ message: requestText.trim() }),
       });
       setRequestText('');
       setSubmitSuccess(true);
-    } catch {
-      // Keep text so user can retry
+    } catch (err: any) {
+      if (err?.status === 401) {
+        router.replace('/portal/expired');
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const pendingApproval = jobs.filter(j => j.status === 'review');
-  const inProgress = jobs.filter(j => j.status === 'in_progress' || j.status === 'draft');
-  const done = jobs.filter(j => j.status === 'approved');
+  const pendingApproval = jobs.filter((job) => job.status === 'review');
+  const inProgress = jobs.filter((job) => job.status === 'in_progress' || job.status === 'draft');
+  const done = jobs.filter((job) => job.status === 'approved');
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#0f0f0f', color: '#fff', pb: 8 }}>
-      {/* Header */}
       <Box sx={{ bgcolor: '#1a1a1a', borderBottom: '1px solid #2a2a2a', py: 2, px: { xs: 2, md: 4 } }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Stack direction="row" alignItems="center" spacing={1.5}>
             <Avatar sx={{ bgcolor: EDRO_ORANGE, width: 36, height: 36, fontSize: '0.85rem', fontWeight: 700 }}>
-              {(client?.name ?? clientName).charAt(0).toUpperCase()}
+              {(client?.name ?? '').charAt(0).toUpperCase()}
             </Avatar>
             <Box>
               <Typography variant="subtitle2" fontWeight={700} color="#fff">
-                {client?.name ?? clientName}
+                {client?.name ?? 'Portal do Cliente'}
               </Typography>
               <Typography variant="caption" color="text.secondary">Portal do Cliente</Typography>
             </Box>
@@ -173,23 +191,21 @@ export default function PortalDashboard() {
           </Stack>
         ) : (
           <Stack spacing={3}>
-
-            {/* Pending approval — highlighted */}
             {pendingApproval.length > 0 && (
               <Box>
                 <Typography variant="subtitle2" fontWeight={700} color={EDRO_ORANGE} sx={{ mb: 1.5 }}>
                   Aguardando sua aprovação ({pendingApproval.length})
                 </Typography>
                 <Stack spacing={1.5}>
-                  {pendingApproval.map(j => (
-                    <Card key={j.id} variant="outlined" sx={{ bgcolor: '#1a1a1a', border: `1px solid ${EDRO_ORANGE}40` }}>
+                  {pendingApproval.map((job) => (
+                    <Card key={job.id} variant="outlined" sx={{ bgcolor: '#1a1a1a', border: `1px solid ${EDRO_ORANGE}40` }}>
                       <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
                           <Box>
-                            <Typography fontWeight={600} color="#fff" sx={{ mb: 0.5 }}>{j.title}</Typography>
+                            <Typography fontWeight={600} color="#fff" sx={{ mb: 0.5 }}>{job.title}</Typography>
                             <Chip
-                              label={STATUS_LABELS[j.status] ?? j.status}
-                              color={STATUS_COLORS[j.status] ?? 'default'}
+                              label={STATUS_LABELS[job.status] ?? job.status}
+                              color={STATUS_COLORS[job.status] ?? 'default'}
                               size="small"
                               sx={{ fontSize: '0.65rem' }}
                             />
@@ -197,9 +213,9 @@ export default function PortalDashboard() {
                           <Button
                             variant="contained"
                             size="small"
-                            startIcon={approving === j.id ? <CircularProgress size={12} color="inherit" /> : <IconCheck size={14} />}
-                            disabled={approving === j.id}
-                            onClick={() => handleApprove(j.id)}
+                            startIcon={approving === job.id ? <CircularProgress size={12} color="inherit" /> : <IconCheck size={14} />}
+                            disabled={approving === job.id}
+                            onClick={() => handleApprove(job.id)}
                             sx={{ bgcolor: EDRO_ORANGE, '&:hover': { bgcolor: '#c44a15' }, whiteSpace: 'nowrap' }}
                           >
                             Aprovar
@@ -212,7 +228,6 @@ export default function PortalDashboard() {
               </Box>
             )}
 
-            {/* In progress */}
             {inProgress.length > 0 && (
               <Box>
                 <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1.5 }}>
@@ -222,14 +237,14 @@ export default function PortalDashboard() {
                   </Stack>
                 </Typography>
                 <Stack spacing={1}>
-                  {inProgress.map(j => (
-                    <Card key={j.id} variant="outlined" sx={{ bgcolor: '#1a1a1a', borderColor: '#2a2a2a' }}>
+                  {inProgress.map((job) => (
+                    <Card key={job.id} variant="outlined" sx={{ bgcolor: '#1a1a1a', borderColor: '#2a2a2a' }}>
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack direction="row" alignItems="center" justifyContent="space-between">
-                          <Typography variant="body2" fontWeight={600} color="#fff">{j.title}</Typography>
+                          <Typography variant="body2" fontWeight={600} color="#fff">{job.title}</Typography>
                           <Chip
-                            label={STATUS_LABELS[j.status] ?? j.status}
-                            color={STATUS_COLORS[j.status] ?? 'default'}
+                            label={STATUS_LABELS[job.status] ?? job.status}
+                            color={STATUS_COLORS[job.status] ?? 'default'}
                             size="small"
                             sx={{ fontSize: '0.65rem' }}
                           />
@@ -241,21 +256,20 @@ export default function PortalDashboard() {
               </Box>
             )}
 
-            {/* Done */}
             {done.length > 0 && (
               <Box>
                 <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1.5 }}>
                   <Stack component="span" direction="row" alignItems="center" spacing={0.5} sx={{ display: 'inline-flex' }}>
                     <IconCheck size={16} />
-                    <span>Concluídos ({done.length})</span>
+                    <span>Concluidos ({done.length})</span>
                   </Stack>
                 </Typography>
                 <Stack spacing={1}>
-                  {done.slice(0, 5).map(j => (
-                    <Card key={j.id} variant="outlined" sx={{ bgcolor: '#1a1a1a', borderColor: '#2a2a2a', opacity: 0.7 }}>
+                  {done.slice(0, 5).map((job) => (
+                    <Card key={job.id} variant="outlined" sx={{ bgcolor: '#1a1a1a', borderColor: '#2a2a2a', opacity: 0.7 }}>
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack direction="row" alignItems="center" justifyContent="space-between">
-                          <Typography variant="body2" fontWeight={600} color="#ccc">{j.title}</Typography>
+                          <Typography variant="body2" fontWeight={600} color="#ccc">{job.title}</Typography>
                           <IconCheck size={16} color="#4ade80" />
                         </Stack>
                       </CardContent>
@@ -274,7 +288,6 @@ export default function PortalDashboard() {
 
             <Divider sx={{ borderColor: '#2a2a2a' }} />
 
-            {/* New request */}
             <Box>
               <Typography variant="subtitle2" fontWeight={700} color="#fff" sx={{ mb: 1.5 }}>
                 <Stack component="span" direction="row" alignItems="center" spacing={0.5} sx={{ display: 'inline-flex' }}>
@@ -288,7 +301,7 @@ export default function PortalDashboard() {
                     <Stack direction="row" alignItems="center" spacing={1}>
                       <IconCheck size={16} color="#4ade80" />
                       <Typography variant="body2" color="#4ade80">
-                        Pedido enviado! Nossa equipe entrará em contato em breve.
+                        Pedido enviado! Nossa equipe entrara em contato em breve.
                       </Typography>
                     </Stack>
                   </CardContent>
@@ -298,9 +311,9 @@ export default function PortalDashboard() {
                 fullWidth
                 multiline
                 minRows={3}
-                placeholder="Descreva o que você precisa… Ex: 'Precisamos de um post para o lançamento do produto X com foco em engajamento.'"
+                placeholder="Descreva o que voce precisa... Ex: 'Precisamos de um post para o lancamento do produto X com foco em engajamento.'"
                 value={requestText}
-                onChange={e => setRequestText(e.target.value)}
+                onChange={(event) => setRequestText(event.target.value)}
                 sx={{
                   mb: 1.5,
                   '& .MuiOutlinedInput-root': {
@@ -323,7 +336,6 @@ export default function PortalDashboard() {
                 Enviar pedido
               </Button>
             </Box>
-
           </Stack>
         )}
       </Box>

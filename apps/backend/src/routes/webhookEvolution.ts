@@ -16,6 +16,8 @@ import { shouldJarvisReply, handleJarvisReply } from '../services/groupJarvisRep
 import { persistWhatsAppInsightMemory, persistWhatsAppMessageMemory } from '../services/whatsappClientMemoryService';
 import { env } from '../env';
 import { resolveOrCreatePerson } from '../repos/peopleRepo';
+import { verifySharedWebhookSecret } from '../services/integrations/webhookSecurityService';
+import { securityLog } from '../audit/securityLog';
 
 const BRIEFING_TRIGGER = /\b(brief(ing)?|pauta|post|conteúdo|campanha|cria|criar|precisamos)\b/i;
 const URGENT_KEYWORDS = /\b(urgente|deadline|amanhã|hoje|cancelar|problema|erro|bug|reclamação|atraso|emergência|prazo)\b/i;
@@ -25,7 +27,26 @@ export default async function webhookEvolutionRoutes(app: FastifyInstance) {
 
   // ── CONNECTION_UPDATE — keep DB in sync ───────────────────────────────────
   // ── MESSAGES_UPSERT — process incoming messages ───────────────────────────
-  app.post('/webhook/evolution', async (request, reply) => {
+  app.post('/webhook/evolution', { config: { rateLimit: { max: 600, timeWindow: '1 minute' } } }, async (request, reply) => {
+    if (!env.EVOLUTION_WEBHOOK_SECRET) {
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'evolution', reason: 'secret_not_configured' } }).catch(() => {});
+      return reply.code(401).send({ error: 'invalid_signature' });
+    }
+    try {
+      verifySharedWebhookSecret(
+        request.headers as Record<string, string | string[] | undefined>,
+        env.EVOLUTION_WEBHOOK_SECRET,
+        {
+          headerNames: ['x-webhook-secret', 'x-evolution-secret', 'x-evolution-webhook-secret'],
+          allowBearerAuth: true,
+        },
+      );
+    } catch (error: any) {
+      request.log.warn({ error: error?.message }, '[webhookEvolution] secret verification failed');
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'evolution', reason: error?.message } }).catch(() => {});
+      return reply.code(401).send({ error: 'invalid_signature' });
+    }
+
     // Return 200 immediately — process async
     reply.code(200).send({ received: true });
 

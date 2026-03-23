@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { swrFetcher, apiPost, apiPatch, getApiBaseUrl } from '@/lib/api';
+import { swrFetcher, apiPost, apiPatch } from '@/lib/api';
 import clsx from 'clsx';
 
 // ── Types ────────────────────────────────────────────────────────────────────

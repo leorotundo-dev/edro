@@ -217,7 +217,7 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
                   sx={{ minWidth: 0, px: 0.75 }}
                   onClick={async () => {
                     const res = await apiGet<{ url: string }>(`/meetings/${meeting.id}/recording`);
-                    if (res?.url) window.open(res.url, '_blank');
+                    if (res?.url) window.open(res.url, '_blank', 'noopener');
                   }}
                 >
                   <IconPlayerPlay size={14} />
@@ -233,7 +233,7 @@ function MeetingCard({ meeting: initialMeeting, clientId, onUpdate }: {
                   sx={{ minWidth: 0, px: 0.75 }}
                   onClick={async () => {
                     const res = await apiGet<{ url: string }>(`/meetings/${meeting.id}/audio`);
-                    if (res?.url) window.open(res.url, '_blank');
+                    if (res?.url) window.open(res.url, '_blank', 'noopener');
                   }}
                 >
                   <IconHeadphones size={14} />

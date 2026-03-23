@@ -38,7 +38,7 @@ const STEPS: { id: SectionId; label: string }[] = [
   { id: 'approval', label: 'Aprovação' },
 ];
 
-const API = '/api';
+const API = '/api/proxy';
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function CollabPage() {
@@ -252,7 +252,7 @@ export default function CollabPage() {
                       <Box component="img" src={arteUrl} alt="Arte"
                         sx={{ width: '100%', display: 'block', maxHeight: 460, objectFit: 'contain', bgcolor: '#0d0d0d' }} />
                     </Box>
-                    <Button component="a" href={arteUrl} target="_blank" size="small" variant="outlined" fullWidth
+                    <Button component="a" href={arteUrl} target="_blank" rel="noopener noreferrer" size="small" variant="outlined" fullWidth
                       startIcon={<IconDownload size={13} />}
                       sx={{ textTransform: 'none', borderColor: '#222', color: '#888' }}>
                       Download

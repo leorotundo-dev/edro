@@ -9,13 +9,15 @@
  *   D4SIGN_SANDBOX     — "true" to use sandbox (default: false)
  */
 
-const BASE_URL = process.env.D4SIGN_SANDBOX === 'true'
+import { env } from '../env';
+
+const BASE_URL = env.D4SIGN_SANDBOX
   ? 'https://sandbox.d4sign.com.br/api/v1'
   : 'https://secure.d4sign.com.br/api/v1';
 
-const TOKEN  = process.env.D4SIGN_TOKEN_API ?? '';
-const CRYPT  = process.env.D4SIGN_CRYPT_KEY ?? '';
-const SAFE   = process.env.D4SIGN_SAFE_UUID ?? '';
+const TOKEN  = env.D4SIGN_TOKEN_API ?? '';
+const CRYPT  = env.D4SIGN_CRYPT_KEY ?? '';
+const SAFE   = env.D4SIGN_SAFE_UUID ?? '';
 
 function authParams() {
   return `tokenAPI=${TOKEN}&cryptKey=${CRYPT}`;
@@ -23,6 +25,7 @@ function authParams() {
 
 async function d4fetch(path: string, options: RequestInit = {}) {
   const sep = path.includes('?') ? '&' : '?';
+  // codeql[js/request-forgery] BASE_URL is hardcoded to d4sign.com.br (from env only); path comes from internal callers only
   const url = `${BASE_URL}${path}${sep}${authParams()}`;
   const res = await fetch(url, {
     ...options,

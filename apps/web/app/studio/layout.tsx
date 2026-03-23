@@ -406,6 +406,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                   component={Link}
                   href={`/clients/${activeClient.id}`}
                   target="_blank"
+                  rel="noopener noreferrer"
                   sx={{ color: 'text.secondary' }}
                 >
                   <IconExternalLink size={12} />

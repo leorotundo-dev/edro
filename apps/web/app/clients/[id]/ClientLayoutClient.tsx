@@ -63,6 +63,15 @@ function hexToRgba(hex: string, alpha: number): string {
   } catch { return `rgba(0,0,0,${alpha})`; }
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 type ClientLayoutClientProps = {
   children: React.ReactNode;
   clientId: string;
@@ -90,7 +99,7 @@ const CLIENT_TABS = [
 ];
 
 function formatMarkdown(text: string): string {
-  let html = text
+  let html = escapeHtml(text)
     // headers
     .replace(/^### (.+)$/gm, '<h4 style="margin:20px 0 8px;font-size:1rem">$1</h4>')
     .replace(/^## (.+)$/gm, '<h3 style="margin:24px 0 10px;font-size:1.15rem">$1</h3>')

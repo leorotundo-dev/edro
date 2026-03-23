@@ -3,11 +3,12 @@
  * Connect WhatsApp, list groups, link groups to clients.
  */
 
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authGuard } from '../auth/rbac';
+import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
-import { requirePerm } from '../auth/rbac';
 import { query } from '../db';
 import {
   createInstance,
@@ -25,12 +26,111 @@ import {
   syncGroupHistory,
 } from '../services/integrations/evolutionApiService';
 
+type ClientScopePerm = 'read' | 'write';
+
+async function ensureScopedClientAccess(params: {
+  request: FastifyRequest;
+  reply: FastifyReply;
+  tenantId: string;
+  clientId: string | null | undefined;
+  perm: ClientScopePerm;
+}) {
+  const { request, reply, tenantId, clientId, perm } = params;
+  const user = request.user as { sub?: string; role?: string } | undefined;
+  if ((user?.role || '').toLowerCase() === 'admin') {
+    return true;
+  }
+  if (!user?.sub) {
+    reply.status(401).send({ error: 'missing_user' });
+    return false;
+  }
+  if (!clientId) {
+    return true;
+  }
+
+  const allowed = await hasClientPerm({
+    tenantId,
+    userId: user.sub,
+    role: user.role,
+    clientId,
+    perm,
+  });
+  if (!allowed) {
+    reply.status(403).send({ error: 'client_forbidden', perm, client_id: clientId });
+    return false;
+  }
+  return true;
+}
+
+function requireWhatsAppGroupPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const groupId = (request.params as any)?.groupId as string | undefined;
+    if (!tenantId || !groupId) {
+      return reply.status(400).send({ error: 'missing_group_id' });
+    }
+
+    const { rows } = await query<{ client_id: string | null }>(
+      `SELECT client_id FROM whatsapp_groups WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [groupId, tenantId],
+    );
+    const group = rows[0];
+    if (!group) {
+      return reply.status(404).send({ error: 'not_found' });
+    }
+
+    const allowed = await ensureScopedClientAccess({
+      request,
+      reply,
+      tenantId,
+      clientId: group.client_id,
+      perm,
+    });
+    if (!allowed) return;
+  };
+}
+
+function requireWhatsAppInsightPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const insightId = (request.params as any)?.insightId as string | undefined;
+    if (!tenantId || !insightId) {
+      return reply.status(400).send({ error: 'missing_insight_id' });
+    }
+
+    const { rows } = await query<{ client_id: string | null }>(
+      `SELECT client_id FROM whatsapp_message_insights WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [insightId, tenantId],
+    );
+    const insight = rows[0];
+    if (!insight) {
+      return reply.status(404).send({ error: 'not_found' });
+    }
+
+    const allowed = await ensureScopedClientAccess({
+      request,
+      reply,
+      tenantId,
+      clientId: insight.client_id,
+      perm,
+    });
+    if (!allowed) return;
+  };
+}
+
 export default async function evolutionRoutes(app: FastifyInstance) {
   await ensureEvolutionTables();
 
+  const portfolioReadGuards = [authGuard, tenantGuard(), requirePerm('portfolio:read')];
+  const clientReadGuards = [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')];
+  const clientWriteGuards = [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')];
+  const adminGuards = [authGuard, tenantGuard(), requirePerm('admin')];
+  const groupReadGuards = [authGuard, tenantGuard(), requirePerm('portfolio:read'), requireWhatsAppGroupPerm('read')];
+  const insightWriteGuards = [authGuard, tenantGuard(), requirePerm('clients:write'), requireWhatsAppInsightPerm('write')];
+
   // ── Status check ───────────────────────────────────────────────────────
   app.get('/whatsapp-groups/status', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: portfolioReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
 
@@ -63,7 +163,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Connect / get QR code ──────────────────────────────────────────────
   app.post('/whatsapp-groups/connect', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
 
@@ -91,7 +191,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Get QR code (polling endpoint for frontend) ────────────────────────
   app.get('/whatsapp-groups/qrcode', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     try {
@@ -105,7 +205,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Disconnect ─────────────────────────────────────────────────────────
   app.delete('/whatsapp-groups/disconnect', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     try {
@@ -118,7 +218,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── List all groups from WhatsApp ──────────────────────────────────────
   app.get('/whatsapp-groups/available', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: portfolioReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     try {
@@ -131,7 +231,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── List linked groups (with client association) ───────────────────────
   app.get('/whatsapp-groups', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: portfolioReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
@@ -155,7 +255,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
   });
 
   app.post('/whatsapp-groups/link', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const body = linkSchema.parse(request.body);
@@ -189,7 +289,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
   ] as const;
 
   app.patch<{ Params: { groupId: string } }>('/whatsapp-groups/:groupId', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const body = updateSchema.parse(request.body ?? {});
@@ -215,7 +315,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Unlink group ───────────────────────────────────────────────────────
   app.delete<{ Params: { groupId: string } }>('/whatsapp-groups/:groupId', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
@@ -229,7 +329,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Messages for a group ───────────────────────────────────────────────
   app.get<{ Params: { groupId: string } }>('/whatsapp-groups/:groupId/messages', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: groupReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
@@ -250,7 +350,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Messages for a client (across all groups) ──────────────────────────
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/whatsapp-group-messages', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
@@ -272,7 +372,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Intelligence: insights for a client ─────────────────────────────────
   app.get<{ Params: { clientId: string } }>('/whatsapp-groups/:clientId/insights', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const qs = request.query as any;
@@ -308,7 +408,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Intelligence: digests for a client ──────────────────────────────────
   app.get<{ Params: { clientId: string } }>('/whatsapp-groups/:clientId/digests', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { rows } = await query(
@@ -323,7 +423,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Intelligence: timeline (messages + insights merged) ─────────────────
   app.get<{ Params: { clientId: string } }>('/whatsapp-groups/:clientId/timeline', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const limit = Math.min(100, Number((request.query as any).limit) || 50);
@@ -367,7 +467,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Intelligence aggregate for client page ──────────────────────────────
   app.get<{ Params: { clientId: string } }>('/clients/:clientId/whatsapp-intelligence', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: clientReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { clientId } = request.params;
@@ -436,7 +536,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Intelligence: summary across all clients ────────────────────────────
   app.get('/whatsapp-groups/intelligence/summary', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: portfolioReadGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
 
@@ -476,7 +576,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Mark insight as actioned ────────────────────────────────────────────
   app.patch<{ Params: { insightId: string } }>('/whatsapp-groups/insights/:insightId/action', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: insightWriteGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     await query(
@@ -488,7 +588,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Confirm insight interpretation (human says: "yes, correct") ─────────
   app.patch<{ Params: { insightId: string } }>('/whatsapp-groups/insights/:insightId/confirm', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: insightWriteGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const userId = (request.user as any).sub as string | undefined;
@@ -512,7 +612,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
   // ── Correct insight interpretation (human provides the right reading) ────
   app.patch<{ Params: { insightId: string }; Body: { corrected_summary: string } }>(
     '/whatsapp-groups/insights/:insightId/correct',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: insightWriteGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const userId = (request.user as any).sub as string | undefined;
@@ -545,7 +645,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Discard insight (human says: "this is noise, ignore") ───────────────
   app.patch<{ Params: { insightId: string } }>('/whatsapp-groups/insights/:insightId/discard', {
-    preHandler: [authGuard, tenantGuard()],
+    preHandler: insightWriteGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const userId = (request.user as any).sub as string | undefined;
@@ -560,7 +660,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Restart instance (delete + recreate) ──────────────────────────────
   app.post('/whatsapp-groups/restart', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     if (!isConfigured()) {
@@ -577,7 +677,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Diagnostic info ──────────────────────────────────────────────────
   app.get('/whatsapp-groups/diagnostics', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const name = instanceName(tenantId);
@@ -617,7 +717,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Reconfigure webhook (admin manual trigger) ────────────────────────
   app.post('/whatsapp-groups/reconfigure-webhook', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     try {
@@ -630,7 +730,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Sync history for all linked groups ──────────────────────────────────
   app.post('/whatsapp-groups/sync-history', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { limit } = (request.body as any) ?? {};
@@ -683,7 +783,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
 
   // ── Sync history for a single group ─────────────────────────────────────
   app.post('/whatsapp-groups/:groupId/sync-history', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('admin')],
+    preHandler: adminGuards,
   }, async (request, reply) => {
     const tenantId = (request.user as any).tenant_id;
     const { groupId } = request.params as any;

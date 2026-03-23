@@ -49,6 +49,16 @@ export function buildKey(tenantId: string, clientId: string, filename: string) {
   return `${tenantId}/${clientId}/${Date.now()}_${safe}`;
 }
 
+/** Resolve key within ROOT, throwing if path traversal is attempted. */
+function safeResolve(key: string): string {
+  const rootResolved = path.resolve(ROOT);
+  const fullPath = path.resolve(ROOT, key);
+  if (fullPath !== rootResolved && !fullPath.startsWith(rootResolved + path.sep)) {
+    throw new Error('Invalid storage key: path traversal detected');
+  }
+  return fullPath;
+}
+
 export async function saveFile(buffer: Buffer, key: string) {
   if (USE_S3) {
     const client = getS3Client();
@@ -62,7 +72,7 @@ export async function saveFile(buffer: Buffer, key: string) {
     return key;
   }
   await ensureStorage();
-  const fullPath = path.join(ROOT, key);
+  const fullPath = safeResolve(key);
   const dir = path.dirname(fullPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -94,7 +104,7 @@ export async function readFile(key: string) {
     }
     return Buffer.from('');
   }
-  const fullPath = path.join(ROOT, key);
+  const fullPath = safeResolve(key);
   return fs.readFileSync(fullPath);
 }
 
@@ -109,7 +119,7 @@ export async function deleteFile(key: string) {
     );
     return;
   }
-  const fullPath = path.join(ROOT, key);
+  const fullPath = safeResolve(key);
   if (fs.existsSync(fullPath)) {
     fs.unlinkSync(fullPath);
   }

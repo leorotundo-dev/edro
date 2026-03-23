@@ -2,11 +2,12 @@
  * Meeting routes — upload, transcription, action approval
  */
 
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authGuard } from '../auth/rbac';
+import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
+import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
-import { requirePerm } from '../auth/rbac';
 import multipart from '@fastify/multipart';
 import mime from 'mime-types';
 import {
@@ -52,9 +53,114 @@ function isAudio(mimeType: string) {
   return AUDIO_MIMES.has(mimeType.toLowerCase());
 }
 
+type ClientScopePerm = 'read' | 'write';
+
+async function ensureScopedClientAccess(params: {
+  request: FastifyRequest;
+  reply: FastifyReply;
+  tenantId: string;
+  clientId: string | null | undefined;
+  perm: ClientScopePerm;
+}) {
+  const { request, reply, tenantId, clientId, perm } = params;
+  const user = request.user as { sub?: string; role?: string } | undefined;
+  if ((user?.role || '').toLowerCase() === 'admin') {
+    return true;
+  }
+  if (!user?.sub) {
+    reply.status(401).send({ error: 'missing_user' });
+    return false;
+  }
+  if (!clientId) {
+    return true;
+  }
+
+  const allowed = await hasClientPerm({
+    tenantId,
+    userId: user.sub,
+    role: user.role,
+    clientId,
+    perm,
+  });
+  if (!allowed) {
+    reply.status(403).send({ error: 'client_forbidden', perm, client_id: clientId });
+    return false;
+  }
+  return true;
+}
+
+function requireMeetingPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const meetingId = (request.params as any)?.meetingId as string | undefined;
+    if (!tenantId || !meetingId) {
+      return reply.status(400).send({ error: 'missing_meeting_id' });
+    }
+
+    const { rows } = await query<{ client_id: string | null }>(
+      `SELECT client_id FROM meetings WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [meetingId, tenantId],
+    );
+    const meeting = rows[0];
+    if (!meeting) {
+      return reply.status(404).send({ error: 'not_found' });
+    }
+
+    const allowed = await ensureScopedClientAccess({
+      request,
+      reply,
+      tenantId,
+      clientId: meeting.client_id,
+      perm,
+    });
+    if (!allowed) return;
+  };
+}
+
+function requireMeetingActionPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const actionId = (request.params as any)?.actionId as string | undefined;
+    if (!tenantId || !actionId) {
+      return reply.status(400).send({ error: 'missing_action_id' });
+    }
+
+    const { rows } = await query<{ client_id: string | null }>(
+      `SELECT m.client_id
+         FROM meeting_actions ma
+         JOIN meetings m ON m.id = ma.meeting_id
+        WHERE ma.id = $1 AND ma.tenant_id = $2
+        LIMIT 1`,
+      [actionId, tenantId],
+    );
+    const action = rows[0];
+    if (!action) {
+      return reply.status(404).send({ error: 'not_found' });
+    }
+
+    const allowed = await ensureScopedClientAccess({
+      request,
+      reply,
+      tenantId,
+      clientId: action.client_id,
+      perm,
+    });
+    if (!allowed) return;
+  };
+}
+
 export default async function meetingRoutes(app: FastifyInstance) {
   await ensureMeetingTables();
   await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } }); // 200 MB
+
+  const meetingReadGuards = [authGuard, tenantGuard(), requirePerm('meetings:read')];
+  const meetingWriteGuards = [authGuard, tenantGuard(), requirePerm('meetings:write')];
+  const portfolioMeetingReadGuards = [authGuard, tenantGuard(), requirePerm('meetings:read'), requirePerm('portfolio:read')];
+  const clientMeetingReadGuards = [authGuard, tenantGuard(), requirePerm('meetings:read'), requirePerm('clients:read'), requireClientPerm('read')];
+  const clientMeetingWriteGuards = [authGuard, tenantGuard(), requirePerm('meetings:write'), requirePerm('clients:write'), requireClientPerm('write')];
+  const scopedMeetingReadGuards = [authGuard, tenantGuard(), requirePerm('meetings:read'), requireMeetingPerm('read')];
+  const scopedMeetingWriteGuards = [authGuard, tenantGuard(), requirePerm('meetings:write'), requireMeetingPerm('write')];
+  const scopedMeetingActionWriteGuards = [authGuard, tenantGuard(), requirePerm('meetings:write'), requireMeetingActionPerm('write')];
 
   const scheduleRecallSchema = z.object({
     meeting_url: z.string().url(),
@@ -77,7 +183,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
 
   app.post(
     '/meetings/instant',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:write'), requirePerm('clients:write')] },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const userEmail = (request.user as any).email as string;
@@ -91,6 +197,14 @@ export default async function meetingRoutes(app: FastifyInstance) {
       }
       const clientId = resolvedClient?.id ?? body.client_id ?? null;
       const clientName = body.client_name ?? resolvedClient?.name ?? 'Reunião Interna Edro';
+      const allowed = await ensureScopedClientAccess({
+        request,
+        reply,
+        tenantId,
+        clientId,
+        perm: 'write',
+      });
+      if (!allowed) return;
 
       const startAt = body.start_at ? new Date(body.start_at) : new Date(Date.now() + 60_000);
 
@@ -207,7 +321,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Global pending proposals (Jarvis review hub) ──────────────────────────
   app.get(
     '/meetings/proposals',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: portfolioMeetingReadGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       let rows: any[] = [];
@@ -284,7 +398,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Archived meetings list ───────────────────────────────────────────────
   app.get(
     '/meetings/archived',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: portfolioMeetingReadGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const { rows } = await query(
@@ -309,7 +423,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Global dashboard stats ──────────────────────────────────────────────
   app.get(
     '/meetings/dashboard',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: portfolioMeetingReadGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       await archiveStaleUncapturedMeetings(tenantId).catch((err: any) => {
@@ -380,7 +494,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Upload + transcribe + analyze ────────────────────────────────────────
   app.post<{ Params: { clientId: string } }>(
     '/clients/:clientId/meetings/upload',
-    { preHandler: [authGuard, tenantGuard(), requirePerm('library:write')] },
+    { preHandler: clientMeetingWriteGuards },
     async (request, reply) => {
       const { clientId } = request.params;
       const tenantId = (request.user as any).tenant_id;
@@ -489,7 +603,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Manual Recall bot scheduling (no Google Calendar required) ──────────
   app.post<{ Params: { clientId: string } }>(
     '/clients/:clientId/meetings/recall-bot',
-    { preHandler: [authGuard, tenantGuard(), requirePerm('library:write')] },
+    { preHandler: clientMeetingWriteGuards },
     async (request, reply) => {
       const { clientId } = request.params;
       const tenantId = (request.user as any).tenant_id;
@@ -553,7 +667,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── List meetings ─────────────────────────────────────────────────────────
   app.get<{ Params: { clientId: string } }>(
     '/clients/:clientId/meetings',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: clientMeetingReadGuards },
     async (request, reply) => {
       const { clientId } = request.params;
       const tenantId = (request.user as any).tenant_id;
@@ -565,11 +679,14 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Get meeting detail ────────────────────────────────────────────────────
   app.get<{ Params: { clientId: string; meetingId: string } }>(
     '/clients/:clientId/meetings/:meetingId',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: clientMeetingReadGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const meeting = await getMeeting(tenantId, request.params.meetingId);
       if (!meeting) return reply.code(404).send({ error: 'not_found' });
+      if (meeting.client_id !== request.params.clientId) {
+        return reply.code(404).send({ error: 'not_found' });
+      }
       return reply.send({ success: true, data: meeting });
     },
   );
@@ -577,7 +694,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Operational status ───────────────────────────────────────────────────
   app.get<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/status',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingReadGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const data = await getMeetingStatus(tenantId, request.params.meetingId);
@@ -589,7 +706,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Audit trail ──────────────────────────────────────────────────────────
   app.get<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/audit',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingReadGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const data = await listMeetingAudit(tenantId, request.params.meetingId);
@@ -601,7 +718,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Retry bot lifecycle ──────────────────────────────────────────────────
   app.post<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/retry-bot',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingWriteGuards },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const userEmail = request.user.email ?? null;
@@ -674,7 +791,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Refresh transcript from source ───────────────────────────────────────
   app.post<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/reprocess-transcript',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingWriteGuards },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const userEmail = request.user.email ?? null;
@@ -720,7 +837,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Unarchive meeting ────────────────────────────────────────────────────
   app.post<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/unarchive',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingWriteGuards },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const userEmail = request.user.email ?? null;
@@ -758,7 +875,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Re-run Claude analysis ───────────────────────────────────────────────
   app.post<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/reanalyze',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingWriteGuards },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const userEmail = request.user.email ?? null;
@@ -832,7 +949,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Resend WhatsApp summary ──────────────────────────────────────────────
   app.post<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/resend-whatsapp',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingWriteGuards },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const userEmail = request.user.email ?? null;
@@ -889,7 +1006,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Send (or generate + send) meeting prep brief via WhatsApp ─────────────
   app.post<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/send-prep',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingWriteGuards },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const { meetingId } = request.params;
@@ -939,7 +1056,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { actionId: string } }>(
     '/meeting-actions/:actionId/approve',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingActionWriteGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const { actionId } = request.params;
@@ -989,7 +1106,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Approve all pending actions for a meeting ─────────────────────────────
   app.post<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/approve-all',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingWriteGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const { meetingId } = request.params;
@@ -1034,7 +1151,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Reject action ─────────────────────────────────────────────────────────
   app.patch<{ Params: { actionId: string } }>(
     '/meeting-actions/:actionId/reject',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingActionWriteGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const ok = await rejectMeetingAction(tenantId, request.params.actionId, (request.user as any).email ?? null);
@@ -1046,7 +1163,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── Get meeting detail (admin — no clientId needed) ──────────────────────
   app.get<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/detail',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: scopedMeetingReadGuards },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const meeting = await getMeeting(tenantId, request.params.meetingId);
@@ -1080,7 +1197,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
 
   app.post(
     '/meetings/create',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:write'), requirePerm('clients:write')] },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const parsed = createMeetingSchema.safeParse(request.body || {});
@@ -1112,6 +1229,14 @@ export default async function meetingRoutes(app: FastifyInstance) {
         }
         const clientId = client?.id ?? body.client_id ?? null;
         const clientName = client?.name ?? 'Reunião Interna Edro';
+        const allowed = await ensureScopedClientAccess({
+          request,
+          reply,
+          tenantId,
+          clientId,
+          perm: 'write',
+        });
+        if (!allowed) return;
 
         let meetingUrl = body.meeting_url ?? '';
         let htmlLink = '';
@@ -1417,10 +1542,18 @@ export default async function meetingRoutes(app: FastifyInstance) {
   // ── List contacts for meeting invites ─────────────────────────────────────
   app.get(
     '/meetings/contacts',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:read'), requirePerm('clients:read')] },
     async (request: any, reply) => {
       const tenantId = request.user.tenant_id;
       const clientId = (request.query as any)?.client_id;
+      const allowed = await ensureScopedClientAccess({
+        request,
+        reply,
+        tenantId,
+        clientId: clientId ?? null,
+        perm: 'read',
+      });
+      if (!allowed) return;
 
       // Client contacts
       let contactsSql = `
@@ -1499,7 +1632,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
 export function meetingDirectiveRoutes(app: FastifyInstance) {
   app.post<{ Params: { meetingId: string }; Body: { directive: string; directive_type: 'boost' | 'avoid' } }>(
     '/meetings/:meetingId/confirm-directive',
-    { preHandler: [authGuard, tenantGuard()] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:write'), requireMeetingPerm('write')] },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const userId = (request.user as any).sub as string | undefined;
@@ -1532,7 +1665,7 @@ export function meetingDirectiveRoutes(app: FastifyInstance) {
   // Recall pre-signed URLs expire — always re-fetch from the Recall API.
   app.get<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/recording',
-    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:read')] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:read'), requireMeetingPerm('read')] },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const { meetingId } = request.params;
@@ -1565,7 +1698,7 @@ export function meetingDirectiveRoutes(app: FastifyInstance) {
   // ── Audio playback URL ─────────────────────────────────────────────────────
   app.get<{ Params: { meetingId: string } }>(
     '/meetings/:meetingId/audio',
-    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:read')] },
+    { preHandler: [authGuard, tenantGuard(), requirePerm('meetings:read'), requireMeetingPerm('read')] },
     async (request, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const { meetingId } = request.params;

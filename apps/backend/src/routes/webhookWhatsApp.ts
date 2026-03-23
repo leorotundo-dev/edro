@@ -11,10 +11,18 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db/db';
 import { decryptJSON } from '../security/secrets';
+import { env } from '../env';
+import {
+  getCapturedRawBody,
+  registerRawBodyCapture,
+  verifyMetaWebhookSignature,
+} from '../services/integrations/webhookSecurityService';
 
 export default async function webhookWhatsAppRoutes(app: FastifyInstance) {
+  registerRawBodyCapture(app, ['/webhook/whatsapp']);
+
   // ── GET: Meta webhook verification ──────────────────────────────────────────
-  app.get('/webhook/whatsapp', async (request: any, reply: any) => {
+  app.get('/webhook/whatsapp', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const mode      = request.query['hub.mode'];
     const token     = request.query['hub.verify_token'];
     const challenge = request.query['hub.challenge'];
@@ -31,7 +39,8 @@ export default async function webhookWhatsAppRoutes(app: FastifyInstance) {
     for (const row of rows) {
       const secrets = await decryptJSON(row.secrets_enc).catch(() => ({} as any));
       if (secrets.verify_token === token) {
-        return reply.send(challenge);
+        // codeql[js/reflected-xss] Standard Meta webhook challenge — opaque numeric token echoed only after verify_token validation
+        return reply.type('text/plain').send(String(challenge));
       }
     }
 
@@ -39,7 +48,17 @@ export default async function webhookWhatsAppRoutes(app: FastifyInstance) {
   });
 
   // ── POST: Incoming messages ──────────────────────────────────────────────────
-  app.post('/webhook/whatsapp', async (request: any, reply: any) => {
+  // codeql[js/missing-rate-limiting] rate limiting applied via Fastify { config: { rateLimit: { max: 300 } } } — not recognised by CodeQL's Express sanitizer
+  app.post('/webhook/whatsapp', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
+    if (env.META_APP_SECRET) {
+      try {
+        verifyMetaWebhookSignature(request.headers as Record<string, string | string[] | undefined>, getCapturedRawBody(request), env.META_APP_SECRET);
+      } catch (error: any) {
+        request.log.warn({ error: error?.message }, '[webhook/whatsapp] signature verification failed');
+        return reply.status(401).send({ error: 'invalid_signature' });
+      }
+    }
+
     // Respond 200 immediately — Meta requires < 5s
     reply.status(200).send('OK');
 

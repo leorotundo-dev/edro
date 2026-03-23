@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db/db';
 import { authGuard, requirePerm } from '../auth/rbac';
+import { requireClientPerm } from '../auth/clientPerms';
 import { tenantGuard } from '../auth/tenantGuard';
 import { sendEmail } from '../services/emailService';
 import { GeminiService } from '../services/ai/geminiService';
@@ -89,9 +90,11 @@ async function resolveClientByRef(tenantId: string, clientRef: string): Promise<
 }
 
 export default async function reportsRoutes(app: FastifyInstance) {
+  const reportClientReadGuards = [authGuard, tenantGuard(), requirePerm('exports:read'), requireClientPerm('read')];
+
   // Get report summary for a client
   app.get('/clients/:clientId/reports/summary', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+    preHandler: reportClientReadGuards,
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -174,7 +177,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
 
   // Send report via email with full data and Edro branding
   app.post('/clients/:clientId/reports/email', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+    preHandler: reportClientReadGuards,
     schema: {
       body: {
         type: 'object',
@@ -330,7 +333,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
 
   // ── Competitive Intelligence (Clipping-selected assets) ─────────────
   app.post('/clients/:clientId/reports/competitive-intelligence', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+    preHandler: reportClientReadGuards,
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -538,7 +541,7 @@ ${assetSnapshot}`,
 
   // ── AI-Powered Report Summary ──────────────────────────────────────
   app.get('/clients/:clientId/reports/ai-summary', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+    preHandler: reportClientReadGuards,
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -918,7 +921,7 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
 
   // ── PDF Report ─────────────────────────────────────────────────────────────
   app.post('/clients/:clientId/reports/pdf', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+    preHandler: reportClientReadGuards,
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -1138,7 +1141,7 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
 
   // ── Copy ROI Scores — get cached ───────────────────────────────────────────
   app.get('/clients/:clientId/reports/copy-roi', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+    preHandler: reportClientReadGuards,
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -1148,7 +1151,7 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
 
   // ── Copy ROI Scores — trigger computation ──────────────────────────────────
   app.post('/clients/:clientId/reports/compute-copy-roi', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('exports:read')],
+    preHandler: reportClientReadGuards,
   }, async (request: any, reply: any) => {
     const tenantId = request.user.tenant_id;
     const { clientId } = request.params as { clientId: string };

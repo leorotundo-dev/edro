@@ -7,6 +7,7 @@ import {
   verifyRecallWebhookSignature,
 } from '../services/integrations/recallWebhookService';
 import { env } from '../env';
+import { securityLog } from '../audit/securityLog';
 
 export default async function webhookRecallRoutes(app: FastifyInstance) {
   app.addHook('preParsing', async (request, _reply, payload) => {
@@ -24,7 +25,7 @@ export default async function webhookRecallRoutes(app: FastifyInstance) {
     return Readable.from([rawBody]);
   });
 
-  app.post('/webhook/recall', async (request, reply) => {
+  app.post('/webhook/recall', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request, reply) => {
     const rawBody = typeof (request as any).rawBody === 'string'
       ? (request as any).rawBody
       : JSON.stringify(request.body ?? {});
@@ -36,12 +37,15 @@ export default async function webhookRecallRoutes(app: FastifyInstance) {
       ]),
     ) as Record<string, string | undefined>;
 
+    if (!isRecallWebhookVerificationConfigured()) {
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'recall', reason: 'secret_not_configured' } }).catch(() => {});
+      return reply.code(401).send({ error: 'invalid_signature' });
+    }
     try {
-      if (isRecallWebhookVerificationConfigured()) {
-        verifyRecallWebhookSignature(normalizedHeaders, rawBody, env.RECALL_WEBHOOK_SECRET!);
-      }
+      verifyRecallWebhookSignature(normalizedHeaders, rawBody, env.RECALL_WEBHOOK_SECRET!);
     } catch (error: any) {
       request.log.warn({ error: error?.message }, '[webhookRecall] signature verification failed');
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'recall', reason: error?.message } }).catch(() => {});
       return reply.code(401).send({ error: 'invalid_signature' });
     }
 

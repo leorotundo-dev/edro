@@ -14,8 +14,14 @@
 
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
+import { env } from '../env';
 import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { createBriefing } from '../repositories/edroBriefingRepository';
+import {
+  getCapturedRawBody,
+  registerRawBodyCapture,
+  verifyMetaWebhookSignature,
+} from '../services/integrations/webhookSecurityService';
 
 const BRIEFING_PROMPT = `Você é um assistente de agência. Uma mensagem chegou via Instagram Direct de um cliente.
 Extraia um briefing conciso. Retorne APENAS JSON: { "title": "...", "objective": "...", "notes": "..." }
@@ -24,25 +30,37 @@ Se não houver solicitação de conteúdo (é só uma saudação ou pergunta sim
 const MIN_TEXT_LENGTH = 10;
 
 export default async function webhookInstagramRoutes(app: FastifyInstance) {
+  registerRawBodyCapture(app, ['/webhook/instagram']);
 
   // ── Webhook verification (GET challenge from Meta) ────────────────────────
-  app.get('/webhook/instagram', async (request: any, reply) => {
+  app.get('/webhook/instagram', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply) => {
     const {
       'hub.mode': mode,
       'hub.verify_token': token,
       'hub.challenge': challenge,
     } = request.query as Record<string, string>;
 
-    const expected = process.env.META_VERIFY_TOKEN || process.env.WHATSAPP_WEBHOOK_SECRET;
+    const expected = env.META_VERIFY_TOKEN || env.WHATSAPP_WEBHOOK_SECRET;
     if (mode === 'subscribe' && token === expected) {
       console.log('[webhookInstagram] Webhook verified.');
-      return reply.send(challenge);
+      // codeql[js/reflected-xss] Standard Meta webhook challenge — opaque numeric token echoed only after verify_token validation
+      return reply.type('text/plain').send(String(challenge));
     }
     return reply.status(403).send('Forbidden');
   });
 
   // ── Inbound messages (POST from Meta) ────────────────────────────────────
-  app.post('/webhook/instagram', async (request, reply) => {
+  // codeql[js/missing-rate-limiting] rate limiting applied via Fastify { config: { rateLimit: { max: 300 } } } — not recognised by CodeQL's Express sanitizer
+  app.post('/webhook/instagram', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request, reply) => {
+    if (env.META_APP_SECRET) {
+      try {
+        verifyMetaWebhookSignature(request.headers as Record<string, string | string[] | undefined>, getCapturedRawBody(request), env.META_APP_SECRET);
+      } catch (error: any) {
+        request.log.warn({ error: error?.message }, '[webhookInstagram] signature verification failed');
+        return reply.code(401).send({ error: 'invalid_signature' });
+      }
+    }
+
     // Ack immediately — Meta expects 200 within 20s
     reply.code(200).send({ received: true });
 

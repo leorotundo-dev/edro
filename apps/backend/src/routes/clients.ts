@@ -34,6 +34,7 @@ import {
 } from '../services/preferenceEngine';
 import { syncClientContactPerson } from '../repos/peopleRepo';
 import { env, portalLoginSecret } from '../env';
+import { audit } from '../audit/audit';
 
 type PlanExtraction = {
   name?: string;
@@ -355,6 +356,16 @@ export default async function clientsRoutes(app: FastifyInstance) {
       const tenantId = (request.user as any).tenant_id;
 
       const client = await createClient({ tenantId, payload: body as any });
+
+      audit({
+        actor_user_id: (request.user as any)?.sub ?? null,
+        actor_email: (request.user as any)?.email ?? null,
+        action: 'CLIENT_CREATED',
+        entity_type: 'clients',
+        entity_id: client.id,
+        after: { name: (client as any).name, segment: (client as any).segment_primary },
+        ip: request.ip,
+      }).catch(() => {});
 
       setImmediate(async () => {
         try {
@@ -1410,6 +1421,16 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
 
       const deleted = await deleteClient({ tenantId, id: params.id });
       if (!deleted) return reply.status(404).send({ error: 'client_not_found' });
+
+      audit({
+        actor_user_id: (request.user as any)?.sub ?? null,
+        actor_email: (request.user as any)?.email ?? null,
+        action: 'CLIENT_DELETED',
+        entity_type: 'clients',
+        entity_id: params.id,
+        ip: request.ip,
+      }).catch(() => {});
+
       return reply.status(204).send();
     }
   );

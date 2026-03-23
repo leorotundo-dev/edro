@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
+import { requireClientPerm } from '../auth/clientPerms';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
 import { omieClient } from '../providers/omie/omieClient';
@@ -147,10 +148,12 @@ export default async function financialRoutes(app: FastifyInstance) {
 
   app.get('/financial/contracts/:id', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const { tenantId } = request;
     const res = await pool.query(
       `SELECT sc.*, c.name as client_name FROM service_contracts sc
-       JOIN clients c ON c.id = sc.client_id WHERE sc.id = $1`,
-      [id],
+       JOIN clients c ON c.id = sc.client_id
+       WHERE sc.id = $1 AND sc.tenant_id = $2`,
+      [id, tenantId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
     return reply.send(res.rows[0]);
@@ -233,10 +236,12 @@ export default async function financialRoutes(app: FastifyInstance) {
 
   app.get('/financial/proposals/:id', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const { tenantId } = request;
     const res = await pool.query(
       `SELECT p.*, c.name as client_name FROM proposals p
-       LEFT JOIN clients c ON c.id = p.client_id WHERE p.id = $1`,
-      [id],
+       LEFT JOIN clients c ON c.id = p.client_id
+       WHERE p.id = $1 AND p.tenant_id = $2`,
+      [id, tenantId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
     return reply.send(res.rows[0]);
@@ -293,7 +298,12 @@ export default async function financialRoutes(app: FastifyInstance) {
     const proposal = res.rows[0];
 
     // Generate PDF and store URL (stored inline for now; can be uploaded to S3)
-    const clientName = (await pool.query(`SELECT name FROM clients WHERE id = $1`, [proposal.client_id])).rows[0]?.name ?? 'Cliente';
+    const clientName = (
+      await pool.query(
+        `SELECT name FROM clients WHERE id = $1 AND tenant_id = $2`,
+        [proposal.client_id, tenantId],
+      )
+    ).rows[0]?.name ?? 'Cliente';
     const pdfBuffer = await generateProposalPdf({
       title: proposal.title,
       clientName,
@@ -342,10 +352,12 @@ export default async function financialRoutes(app: FastifyInstance) {
 
   app.get('/financial/proposals/:id/pdf', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const { tenantId } = request;
     const pRes = await pool.query(
       `SELECT p.*, c.name as client_name FROM proposals p
-       LEFT JOIN clients c ON c.id = p.client_id WHERE p.id = $1`,
-      [id],
+       LEFT JOIN clients c ON c.id = p.client_id
+       WHERE p.id = $1 AND p.tenant_id = $2`,
+      [id, tenantId],
     );
     if (!pRes.rows.length) return reply.status(404).send({ error: 'Not found' });
     const p = pRes.rows[0];
@@ -428,11 +440,12 @@ export default async function financialRoutes(app: FastifyInstance) {
   // Send to Omie — create OS
   app.post('/financial/invoices/:id/send-omie', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
+    const { tenantId } = request;
     const inv = await pool.query(
       `SELECT i.*, sc.omie_client_id FROM invoices i
        LEFT JOIN service_contracts sc ON sc.id = i.contract_id
-       WHERE i.id = $1`,
-      [id],
+       WHERE i.id = $1 AND i.tenant_id = $2`,
+      [id, tenantId],
     );
     if (!inv.rows.length) return reply.status(404).send({ error: 'Not found' });
     const invoice = inv.rows[0];
@@ -468,7 +481,8 @@ export default async function financialRoutes(app: FastifyInstance) {
   // Emit NFS-e
   app.post('/financial/invoices/:id/emit-nfe', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const { id } = request.params as any;
-    const inv = await pool.query(`SELECT omie_os_id, tenant_id FROM invoices WHERE id = $1`, [id]);
+    const { tenantId } = request;
+    const inv = await pool.query(`SELECT omie_os_id, tenant_id FROM invoices WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
     if (!inv.rows.length) return reply.status(404).send({ error: 'Not found' });
     const { omie_os_id } = inv.rows[0];
     if (!omie_os_id) return reply.status(400).send({ error: 'OS not created in Omie yet. Run send-omie first.' });
@@ -609,12 +623,12 @@ export default async function financialRoutes(app: FastifyInstance) {
   });
 
   // Financial summary for a specific client
-  app.get('/clients/:id/financial-summary', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+  app.get('/clients/:id/financial-summary', { preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')] }, async (request: any, reply) => {
     const { id } = request.params as any;
-    const { tenantId } = request;
+    const tenantId = request.user?.tenant_id as string;
 
     const [contracts, invoices, budgets] = await Promise.all([
-      pool.query(`SELECT * FROM service_contracts WHERE client_id = $1 AND status = 'active' ORDER BY created_at DESC`, [id]),
+      pool.query(`SELECT * FROM service_contracts WHERE client_id = $1 AND tenant_id = $2 AND status = 'active' ORDER BY created_at DESC`, [id, tenantId]),
       pool.query(`SELECT * FROM invoices WHERE client_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 12`, [id, tenantId]),
       pool.query(`SELECT * FROM media_budgets WHERE client_id = $1 AND tenant_id = $2 ORDER BY period_month DESC LIMIT 12`, [id, tenantId]),
     ]);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { getApiBaseUrl, setToken } from '@/lib/api';
+import { clearToken } from '@/lib/api';
 
 const FEATURES = [
   'Jobs atribuidos com contexto',
@@ -18,14 +18,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API = getApiBaseUrl();
-
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API}/api/auth/magic-link`, {
+      const res = await fetch('/api/auth/magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role: 'staff' }),
@@ -51,15 +49,13 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API}/api/auth/magic-link/verify`, {
+      const res = await fetch('/api/auth/magic-link/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code, role: 'staff' }),
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      if (!data.token) throw new Error('Token nao retornado');
-      setToken(data.token);
+      clearToken();
       window.location.href = '/';
     } catch (err: any) {
       setError(err.message ?? 'Codigo invalido');

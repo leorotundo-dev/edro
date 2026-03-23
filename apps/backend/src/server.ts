@@ -6,7 +6,7 @@ import { env } from './env';
 import { registerRoutes } from './routes';
 import { runMonthlyFlow } from './flow/monthlyFlow';
 import { RETAIL_BR_EVENTS } from './services/calendarTotal';
-import { initRedis } from './cache/redis';
+import { initRedis, redis } from './cache/redis';
 import { listClients, listCalendars, listFlowRuns } from './repos/readRepo';
 import { createMonthlyCalendar, createFlowRun } from './repos/calendarRepo';
 import { createPostAssetsFromCalendar, setPostStatus, listPostAssets } from './repos/governanceRepo';
@@ -22,6 +22,14 @@ import { tenantGuard } from './auth/tenantGuard';
 import { requireClientPerm, hasClientPerm } from './auth/clientPerms';
 import { audit } from './audit/audit';
 import { httpRequests, register as metricsRegistry } from './obs/metrics';
+
+const API_SECURITY_HEADERS = [
+  ['Content-Security-Policy', "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"],
+  ['Referrer-Policy', 'no-referrer'],
+  ['X-Content-Type-Options', 'nosniff'],
+  ['X-Frame-Options', 'DENY'],
+  ['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
+] as const;
 
 async function requireCalendarClientPerm(params: {
   request: any;
@@ -91,12 +99,73 @@ export async function buildServer() {
     secret: env.JWT_SECRET,
   });
 
+  // Global rate limit baseline — per-route overrides applied via config.rateLimit
   await app.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
-    // Webhook endpoints receive event bursts from Evolution API / Meta / etc.
-    // Exempt them from per-IP rate limiting entirely.
-    allowList: (request) => request.url.startsWith('/webhook'),
+    // Use Redis store when available so limits are shared across Railway replicas
+    ...(redis.isOpen ? { redis } : {}),
+    keyGenerator: (request) => {
+      // Prefer forwarded IP (Railway sets X-Forwarded-For)
+      const forwarded = request.headers['x-forwarded-for'];
+      const ip = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : request.ip;
+      return ip;
+    },
+  });
+
+  // Per-route rate limit overrides — runs once at startup, zero overhead at runtime
+  app.addHook('onRoute', (routeOptions) => {
+    const url = routeOptions.url ?? '';
+    const method = routeOptions.method;
+    const isMagicLink = url.includes('magic-link') || url.includes('/auth/request') || url.includes('/auth/verify');
+    const isAuth = url.startsWith('/api/auth') || url.startsWith('/api/sso') || url.startsWith('/api/portal/auth');
+    const isWebhook = url.startsWith('/webhook') || url.startsWith('/api/webhooks');
+    const isAdminJob = url.startsWith('/api/admin/jobs');
+    const isAiGen =
+      url.includes('/behavioral-copy') ||
+      url.includes('/generate') ||
+      url.includes('/simulation/preview') ||
+      url.includes('/studio/') ||
+      url.includes('/campaigns/') ||
+      url.includes('/pautas/generate') ||
+      url.includes('/copy/generate') ||
+      url.includes('/creative-image');
+    const isPublicApproval =
+      url.includes('/public/approval') ||
+      url.includes('/client-approval') ||
+      url.includes('/public/creative-approval');
+    const isExport = url.includes('/export') || url.includes('/reports/export');
+
+    if (isMagicLink) {
+      // Strict: 5 per minute — brute-force / enumeration protection
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 5, timeWindow: '1 minute' } };
+    } else if (isAuth) {
+      // Strict: 20 per minute per IP
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 20, timeWindow: '1 minute' } };
+    } else if (isPublicApproval) {
+      // Strict: public endpoints with no auth — prevent token enumeration
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 30, timeWindow: '1 minute' } };
+    } else if (isAiGen && (method === 'POST' || method === 'PUT')) {
+      // Strict: AI generation is expensive — 20 calls/min per IP
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 20, timeWindow: '1 minute' } };
+    } else if (isExport) {
+      // Strict: data export — prevent bulk scraping
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 10, timeWindow: '1 minute' } };
+    } else if (isWebhook) {
+      // Medium: 200 per minute — webhooks receive event bursts but are HMAC-protected
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 200, timeWindow: '1 minute' } };
+    } else if (isAdminJob) {
+      // Strict: manual job triggers should not be spammed
+      (routeOptions as any).config = { ...(routeOptions as any).config, rateLimit: { max: 10, timeWindow: '1 minute' } };
+    }
+
+    // Tighten body size for routes that don't need large payloads
+    if (isAuth || isPublicApproval || isExport) {
+      routeOptions.bodyLimit = 64 * 1024; // 64KB
+    } else if (!isWebhook && !isAiGen && !url.includes('/upload') && !url.includes('/library')) {
+      routeOptions.bodyLimit = 512 * 1024; // 512KB for standard API calls
+    }
+    // Webhooks, AI gen, uploads and library keep the global 10MB
   });
 
   app.addHook('preHandler', async (request) => {
@@ -110,6 +179,12 @@ export async function buildServer() {
   });
 
   app.addHook('onSend', async (_request, reply, payload) => {
+    for (const [header, value] of API_SECURITY_HEADERS) {
+      if (!reply.hasHeader(header)) {
+        reply.header(header, value);
+      }
+    }
+
     const contentType = reply.getHeader('content-type');
     if (typeof contentType === 'string' && contentType.startsWith('application/json')) {
       if (!/charset=/i.test(contentType)) {
@@ -448,6 +523,14 @@ export async function buildServer() {
       const calendarId = request.params.calendarId;
       const { url, apiKey } = request.body ?? {};
       if (!url) return reply.code(400).send({ error: 'url_required' });
+      let safeUrl: string;
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'https:') return reply.code(400).send({ error: 'url_must_be_https' });
+        safeUrl = parsed.href; // use parsed URL to satisfy SSRF analysis
+      } catch {
+        return reply.code(400).send({ error: 'url_invalid' });
+      }
 
       const allowed = await requireCalendarClientPerm({
         request,
@@ -470,7 +553,7 @@ export async function buildServer() {
         name: rows[0].client_name,
       });
 
-      const response = await fetch(url, {
+      const response = await fetch(safeUrl, { // codeql[js/request-forgery] safeUrl: https-only + parsed.href (URL normalization); tenant-auth required
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

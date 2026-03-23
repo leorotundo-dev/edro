@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { query } from '../db/db';
 import { authGuard, requirePerm, type Role } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { audit } from '../audit/audit';
 
 const VALID_ROLES: Role[] = ['admin', 'manager', 'reviewer', 'viewer', 'staff'];
 
@@ -65,6 +66,17 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
 
     // Also update edro_users.role for consistency
     await query(`UPDATE edro_users SET role = $1, updated_at = now() WHERE id = $2`, [role, userId]);
+
+    audit({
+      actor_user_id: request.user.sub,
+      actor_email: request.user.email ?? null,
+      action: 'USER_ROLE_CHANGED',
+      entity_type: 'tenant_users',
+      entity_id: userId,
+      before: { role: rows[0]?.role },
+      after: { role },
+      ip: request.ip,
+    }).catch(() => {});
 
     return { success: true };
   });
@@ -135,6 +147,16 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
       `, [tenantId, clientId, userId, perm]);
     }
 
+    audit({
+      actor_user_id: request.user.sub,
+      actor_email: request.user.email ?? null,
+      action: 'CLIENT_PERMISSIONS_GRANTED',
+      entity_type: 'client_permissions',
+      entity_id: `${clientId}:${userId}`,
+      after: { clientId, userId, perms },
+      ip: request.ip,
+    }).catch(() => {});
+
     return { success: true };
   });
 
@@ -149,6 +171,16 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
       DELETE FROM client_permissions
       WHERE tenant_id = $1 AND client_id = $2 AND user_id = $3
     `, [tenantId, clientId, userId]);
+
+    audit({
+      actor_user_id: request.user.sub,
+      actor_email: request.user.email ?? null,
+      action: 'CLIENT_PERMISSIONS_REVOKED',
+      entity_type: 'client_permissions',
+      entity_id: `${clientId}:${userId}`,
+      before: { clientId, userId },
+      ip: request.ip,
+    }).catch(() => {});
 
     return { success: true };
   });

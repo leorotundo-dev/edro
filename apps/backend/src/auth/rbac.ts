@@ -1,12 +1,17 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { enforcePrivilegedMfa } from '../env';
+import { securityLog } from '../audit/securityLog';
 
 export type Role = 'admin' | 'manager' | 'reviewer' | 'viewer' | 'staff';
 
 const perms: Record<Role, string[]> = {
   admin: ['*'],
   manager: [
+    'portfolio:read',
     'calendars:read',
     'calendars:write',
+    'meetings:read',
+    'meetings:write',
     'posts:review',
     'exports:read',
     'integrations:write',
@@ -21,6 +26,8 @@ const perms: Record<Role, string[]> = {
   ],
   reviewer: [
     'calendars:read',
+    'meetings:read',
+    'meetings:write',
     'posts:review',
     'exports:read',
     'clients:read',
@@ -33,6 +40,7 @@ const perms: Record<Role, string[]> = {
   ],
   viewer: [
     'calendars:read',
+    'meetings:read',
     'exports:read',
     'clients:read',
     'library:read',
@@ -42,6 +50,8 @@ const perms: Record<Role, string[]> = {
   ],
   staff: [
     'calendars:read',
+    'meetings:read',
+    'meetings:write',
     'posts:review',
     'exports:read',
     'clients:read',
@@ -71,9 +81,31 @@ export function can(role: Role, perm: string) {
   return list.includes('*') || list.includes(perm);
 }
 
+export function requiresPrivilegedMfa(role?: string | null) {
+  const normalized = normalizeRole(role);
+  return normalized === 'admin' || normalized === 'manager';
+}
+
+export function shouldEnforcePrivilegedMfa(role?: string | null) {
+  return enforcePrivilegedMfa && requiresPrivilegedMfa(role);
+}
+
 export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
   try {
     await request.jwtVerify();
+    const user = request.user as { role?: string; mfa?: boolean; sub?: string; tenant_id?: string; email?: string } | undefined;
+    if (shouldEnforcePrivilegedMfa(user?.role) && user?.mfa !== true) {
+      securityLog({
+        event: 'MFA_REQUIRED_BLOCKED',
+        email: user?.email ?? null,
+        user_id: user?.sub ?? null,
+        tenant_id: user?.tenant_id ?? null,
+        ip: request.ip,
+        user_agent: request.headers['user-agent'] ?? null,
+        detail: { role: user?.role, url: request.url },
+      }).catch(() => {});
+      return reply.status(403).send({ error: 'mfa_required' });
+    }
   } catch {
     return reply.status(401).send({ error: 'Não autorizado.' });
   }
@@ -81,9 +113,18 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
 
 export function requirePerm(perm: string) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role?: string } | undefined;
+    const user = request.user as { role?: string; sub?: string; tenant_id?: string; email?: string } | undefined;
     const role = normalizeRole(user?.role);
     if (!can(role, perm)) {
+      securityLog({
+        event: 'PERMISSION_DENIED',
+        email: user?.email ?? null,
+        user_id: user?.sub ?? null,
+        tenant_id: user?.tenant_id ?? null,
+        ip: request.ip,
+        user_agent: request.headers['user-agent'] ?? null,
+        detail: { role, perm, url: request.url },
+      }).catch(() => {});
       return reply.status(403).send({ error: 'Sem permissao.', perm });
     }
   };

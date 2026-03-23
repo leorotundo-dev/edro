@@ -187,6 +187,7 @@ export default function PortalLinksClient({ clientId }: { clientId: string }) {
                           title="Abrir portal"
                           href={link.url}
                           target="_blank"
+                          rel="noopener noreferrer"
                           sx={{ color: 'text.secondary' }}
                         >
                           <IconExternalLink size={16} />

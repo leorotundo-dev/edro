@@ -31,8 +31,15 @@ async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: Buffer;
   if (!metaRes.ok) throw new Error(`WA media lookup failed (${metaRes.status})`);
   const meta = await metaRes.json() as { url: string; mime_type: string };
 
+  // Validate URL is from a known Meta/Facebook CDN before downloading
+  const mediaUrl = new URL(meta.url);
+  const allowed = ['.facebook.com', '.fbcdn.net', '.fbsbx.com', '.whatsapp.net'];
+  if (mediaUrl.protocol !== 'https:' || !allowed.some(h => mediaUrl.hostname.endsWith(h))) {
+    throw new Error(`Unexpected media URL host from WhatsApp API: ${mediaUrl.hostname}`);
+  }
+
   // Step 2: download binary
-  const fileRes = await fetch(meta.url, {
+  const fileRes = await fetch(mediaUrl.href, {
     headers: { Authorization: `Bearer ${WA_TOKEN}` },
   });
   if (!fileRes.ok) throw new Error(`WA media download failed (${fileRes.status})`);

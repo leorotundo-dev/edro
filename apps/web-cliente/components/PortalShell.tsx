@@ -30,25 +30,32 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const [name, setName] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('cl_token');
-    if (!token) {
-      window.location.href = '/login';
-      return;
-    }
+    let cancelled = false;
 
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      setName(payload.name ?? payload.email ?? 'Cliente');
-    } catch {
-      setName('Cliente');
-    }
+    const loadSession = async () => {
+      const res = await fetch('/api/auth/session', { cache: 'no-store' });
+      if (!res.ok) {
+        clearToken();
+        window.location.href = '/login';
+        return;
+      }
+
+      const data = await res.json();
+      if (!cancelled) {
+        setName(data?.user?.name ?? data?.user?.email ?? 'Cliente');
+      }
+    };
+
+    void loadSession();
+    return () => { cancelled = true; };
   }, []);
 
   const activeSection = useMemo(() => {
     return NAV.find((item) => item.match(pathname))?.label ?? 'Portal';
   }, [pathname]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     clearToken();
     window.location.href = '/login';
   };

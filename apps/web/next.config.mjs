@@ -13,6 +13,14 @@ const FREELANCER_URL = process.env.RAILWAY_SERVICE_EDRO_WEB_FREELANCER_URL
   ?? process.env.NEXT_PUBLIC_FREELANCER_URL
   ?? (isProd ? 'https://edro-web-freelancer-production.up.railway.app' : 'http://localhost:3444');
 
+const securityHeaders = [
+  { key: 'Content-Security-Policy', value: "base-uri 'self'; frame-ancestors 'self'; object-src 'none'" },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@mui/material', '@mui/system', '@mui/lab'],
@@ -26,6 +34,10 @@ const nextConfig = {
   },
   async headers() {
     return [
+      {
+        source: '/:path*',
+        headers: securityHeaders,
+      },
       {
         source: '/admin/:path*',
         headers: [

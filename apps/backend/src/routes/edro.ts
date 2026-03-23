@@ -18,6 +18,7 @@ import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { buildCreativePrompt, generateAdCreative, generateArtDirectorPrompt, refineScenePrompt } from '../services/adCreativeService';
 import { getPlatformProfile, PLATFORM_PROFILES } from '../platformProfiles';
 import { getClientById } from '../repos/clientsRepo';
+import { tenantGuard } from '../auth/tenantGuard';
 import { buildClientKnowledgeFromRow } from '../providers/clientKnowledge';
 import { buildClientKnowledgeBlock } from '../ai/knowledgePrompt';
 import { query } from '../db';
@@ -84,6 +85,7 @@ import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../services/cognitiveLoadService';
 import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../services/decisionStackService';
 import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
+import { audit } from '../audit/audit';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -704,6 +706,7 @@ async function notifyStageChange(params: {
 
 export default async function edroRoutes(app: FastifyInstance) {
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const ensureTenantMembership = tenantGuard();
 
   app.addHook('preHandler', async (request, reply) => {
     // Public approval endpoints don't require authentication
@@ -713,6 +716,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     } catch {
       return reply.status(401).send({ success: false, error: 'Não autorizado.' });
     }
+
+    await ensureTenantMembership(request, reply);
+    if (reply.sent) return;
   });
 
   app.get('/edro/briefings', async (request, reply) => {
@@ -728,7 +734,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     const limit = q.limit ? Math.min(parseInt(q.limit, 10) || 50, 200) : 50;
     const offset = q.offset ? parseInt(q.offset, 10) || 0 : 0;
 
+    const tenantId = (request.user as any).tenant_id as string;
     const { rows: briefings, total } = await listBriefings({
+      tenantId,
       status: q.status,
       clientId: q.clientId,
       search: q.search,
@@ -907,8 +915,9 @@ export default async function edroRoutes(app: FastifyInstance) {
   // ── Creative Image for Mockups ────────────────────────────────
   app.post('/edro/briefings/:id/creative-image', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId: string = (request.user as any)?.tenant_id;
 
-    const briefing = await getBriefingById(id);
+    const briefing = await getBriefingById(id, tenantId);
     if (!briefing) {
       return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
     }
@@ -935,7 +944,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         ? `${env.S3_ENDPOINT}/${env.S3_BUCKET}/${key}`
         : `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
 
-      await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2`, [imageUrl, id]);
+      await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2 AND tenant_id = $3`, [imageUrl, id, tenantId]);
 
       return reply.send({ success: true, data: { creative_image_url: imageUrl } });
     }
@@ -943,14 +952,16 @@ export default async function edroRoutes(app: FastifyInstance) {
     const bodySchema = z.object({ imageUrl: z.string().url() });
     const body = bodySchema.parse(request.body);
 
-    await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2`, [body.imageUrl, id]);
+    await query(`UPDATE edro_briefings SET creative_image_url = $1 WHERE id = $2 AND tenant_id = $3`, [body.imageUrl, id, tenantId]);
 
     return reply.send({ success: true, data: { creative_image_url: body.imageUrl } });
   });
 
   app.delete('/edro/briefings/:id/creative-image', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    await query(`UPDATE edro_briefings SET creative_image_url = NULL WHERE id = $1`, [id]);
+    const tenantId: string = (request.user as any)?.tenant_id;
+    const { rowCount } = await query(`UPDATE edro_briefings SET creative_image_url = NULL WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+    if (!rowCount) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
     return reply.send({ success: true });
   });
 
@@ -1223,14 +1234,15 @@ export default async function edroRoutes(app: FastifyInstance) {
     const paramsSchema = z.object({ id: z.string().uuid() });
 
     const params = paramsSchema.parse(request.params);
-    const briefing = await getBriefingById(params.id);
+    const tenantId = (request.user as any).tenant_id as string;
+    const briefing = await getBriefingById(params.id, tenantId);
 
     if (!briefing) {
       return reply.status(404).send({ success: false, error: 'briefing não encontrado' });
     }
 
     const stages = await ensureBriefingStages(briefing.id);
-    const copies = await listCopyVersions(briefing.id);
+    const copies = await listCopyVersions(briefing.id, tenantId);
     const tasks = await listTasks(briefing.id);
 
     // ── Client context (keywords, pillars, brand voice, knowledge base) ──────
@@ -1301,6 +1313,7 @@ export default async function edroRoutes(app: FastifyInstance) {
   // PATCH /edro/briefings/:id — update title, due_at, traffic_owner, labels, checklist
   app.patch('/edro/briefings/:id', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId = (request.user as any).tenant_id as string;
     const body = z.object({
       title:         z.string().min(1).optional(),
       due_at:        z.string().nullable().optional(),
@@ -1316,7 +1329,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     }).parse(request.body ?? {});
 
     const sets: string[] = [];
-    const vals: any[] = [id];
+    const vals: any[] = [id, tenantId];
 
     if (body.title         !== undefined) { vals.push(body.title);                          sets.push(`title=$${vals.length}`); }
     if (body.due_at        !== undefined) { vals.push(body.due_at);                         sets.push(`due_at=$${vals.length}`); }
@@ -1329,7 +1342,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (!sets.length) return reply.send({ success: true });
 
     const { rows } = await query<any>(
-      `UPDATE edro_briefings SET ${sets.join(', ')}, updated_at=NOW() WHERE id=$1 RETURNING *`,
+      `UPDATE edro_briefings SET ${sets.join(', ')}, updated_at=NOW() WHERE id=$1 AND tenant_id=$2 RETURNING *`,
       vals
     );
     if (!rows.length) return reply.status(404).send({ success: false, error: 'not_found' });
@@ -1368,7 +1381,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     const body = z.object({ client_id: z.string().min(1) }).parse(request.body);
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
 
-    const briefing = await getBriefingById(id);
+    const briefing = await getBriefingById(id, tenantId);
     if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
 
     // Validar que o client_id pertence a este tenant
@@ -1391,11 +1404,11 @@ export default async function edroRoutes(app: FastifyInstance) {
   // POST /edro/briefings/:id/research — trigger Tavily web search and save refs to payload
   app.post('/edro/briefings/:id/research', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const briefing = await getBriefingById(id);
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const briefing = await getBriefingById(id, tenantId);
     if (!briefing) return reply.status(404).send({ success: false, error: 'not_found' });
     if (!isTavilyConfigured()) return reply.status(503).send({ success: false, error: 'tavily_not_configured' });
 
-    const tenantId = (request.user as any)?.tenant_id ?? 'system';
     let segment = '';
     const researchClientId =
       (briefing as any).main_client_id ||
@@ -1427,8 +1440,10 @@ export default async function edroRoutes(app: FastifyInstance) {
       }));
       if (refs.length > 20) {
         await query(
-          `UPDATE edro_briefings SET payload = COALESCE(payload,'{}') || $1::jsonb WHERE id = $2`,
-          [JSON.stringify({ web_research_refs: refs, web_research_articles: articles }), id]
+          `UPDATE edro_briefings
+           SET payload = COALESCE(payload,'{}') || $1::jsonb
+           WHERE id = $2 AND tenant_id = $3`,
+          [JSON.stringify({ web_research_refs: refs, web_research_articles: articles }), id, tenantId]
         );
       }
       return reply.send({ success: true, web_research_refs: refs, articles });
@@ -1440,7 +1455,8 @@ export default async function edroRoutes(app: FastifyInstance) {
   // DELETE /edro/briefings/:id - Delete a briefing permanently
   app.delete('/edro/briefings/:id', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const deleted = await deleteBriefing(id);
+    const tenantId = (request.user as any).tenant_id as string;
+    const deleted = await deleteBriefing(id, tenantId);
     if (!deleted) return reply.status(404).send({ success: false, error: 'not_found' });
     return reply.send({ success: true });
   });
@@ -1657,6 +1673,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       regeneration_count: z.number().int().min(0).max(20).optional(),
     });
     const body = bodySchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id;
 
     const { rows } = await query<any>(
       `UPDATE edro_copy_versions
@@ -1664,8 +1681,9 @@ export default async function edroRoutes(app: FastifyInstance) {
            score = COALESCE($3, score),
            feedback = COALESCE($4, feedback)
        WHERE id = $1
+         AND briefing_id IN (SELECT id FROM edro_briefings WHERE tenant_id = $5)
        RETURNING *`,
-      [copyId, body.status ?? null, body.score ?? null, body.feedback ?? null]
+      [copyId, body.status ?? null, body.score ?? null, body.feedback ?? null, tenantId]
     );
 
     if (!rows.length) {
@@ -1673,7 +1691,6 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     const copyRow = rows[0];
-    const tenantId = (request.user as any)?.tenant_id;
     const user = resolveUser(request);
 
     if (tenantId && copyRow?.briefing_id) {
@@ -3367,7 +3384,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
   });
 
   // Public endpoint — no auth required (registered in separate scope below)
-  app.get('/edro/public/approval', async (request, reply) => {
+  app.get('/edro/public/approval', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { token } = z.object({ token: z.string().min(20) }).parse(request.query);
 
     const { rows } = await query<any>(
@@ -3404,7 +3421,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     });
   });
 
-  app.post('/edro/public/approval', async (request, reply) => {
+  app.post('/edro/public/approval', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const bodySchema = z.object({
       token: z.string().min(20),
       copyId: z.string().uuid(),
@@ -3546,13 +3563,16 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
 
   app.delete('/edro/schedules/:scheduleId', async (request, reply) => {
     const { scheduleId } = z.object({ scheduleId: z.string().uuid() }).parse(request.params);
+    const tenantId: string = (request.user as any)?.tenant_id;
 
-    await query(
+    const { rowCount } = await query(
       `UPDATE edro_publish_schedule SET status = 'cancelled', updated_at = NOW()
-       WHERE id = $1 AND status = 'scheduled'`,
-      [scheduleId]
+       WHERE id = $1 AND status = 'scheduled'
+         AND briefing_id IN (SELECT id FROM edro_briefings WHERE tenant_id = $2)`,
+      [scheduleId, tenantId]
     );
 
+    if (!rowCount) return reply.status(404).send({ success: false, error: 'Schedule não encontrado.' });
     return reply.send({ success: true });
   });
 
@@ -3564,6 +3584,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
     });
 
     const query_params = querySchema.parse(request.query);
+    const exportTenantId: string = (request.user as any)?.tenant_id;
 
     try {
       let sql = `
@@ -3584,8 +3605,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         LEFT JOIN edro_tasks t ON t.briefing_id = b.id
       `;
 
-      const params: any[] = [];
-      const conditions: string[] = [];
+      const params: any[] = [exportTenantId];
+      const conditions: string[] = ['b.tenant_id = $1'];
 
       if (query_params.startDate) {
         conditions.push(`b.created_at >= $${params.length + 1}`);
@@ -3597,13 +3618,20 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         params.push(query_params.endDate);
       }
 
-      if (conditions.length > 0) {
-        sql += ` WHERE ${conditions.join(' AND ')}`;
-      }
-
+      sql += ` WHERE ${conditions.join(' AND ')}`;
       sql += ` GROUP BY b.id ORDER BY b.created_at DESC`;
 
       const { rows } = await query<any>(sql, params);
+
+      audit({
+        actor_user_id: (request.user as any)?.sub ?? null,
+        actor_email: (request.user as any)?.email ?? null,
+        action: 'BRIEFINGS_EXPORTED',
+        entity_type: 'edro_briefings',
+        entity_id: exportTenantId,
+        after: { format: query_params.format, startDate: query_params.startDate, endDate: query_params.endDate, row_count: rows.length },
+        ip: request.ip,
+      }).catch(() => {});
 
       if (query_params.format === 'json') {
         return reply.send({ success: true, data: rows });
@@ -4909,13 +4937,13 @@ Retorne APENAS JSON válido (sem markdown):
     const tenantId: string = request.user?.tenant_id;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Unauthorized' });
 
-    // Load briefing + latest copy
+    // Load briefing + latest copy (tenant-scoped to prevent IDOR)
     const briefingRes = await query<any>(
       `SELECT b.id, b.title, b.status, b.source, b.main_client_id,
               (b.payload->>'platform') AS platform
        FROM edro_briefings b
-       WHERE b.id = $1`,
-      [id],
+       WHERE b.id = $1 AND b.tenant_id = $2`,
+      [id, tenantId],
     );
     const briefing = briefingRes.rows[0];
     if (!briefing) return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
@@ -4945,10 +4973,10 @@ Retorne APENAS JSON válido (sem markdown):
 
     const platform = briefing.platform ?? 'instagram';
 
-    // Mark briefing approved
+    // Mark briefing approved (tenant-scoped)
     await query(
-      `UPDATE edro_briefings SET status = 'approved', updated_at = NOW() WHERE id = $1`,
-      [id],
+      `UPDATE edro_briefings SET status = 'approved', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId],
     );
 
     // Insert into scheduled_publications

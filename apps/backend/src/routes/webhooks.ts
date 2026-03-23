@@ -1,21 +1,41 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
+import { env } from '../env';
 import { handleWhatsAppMessage } from '../services/whatsappBriefingService';
+import {
+  getCapturedRawBody,
+  registerRawBodyCapture,
+  verifyMetaWebhookSignature,
+} from '../services/integrations/webhookSecurityService';
+import { securityLog } from '../audit/securityLog';
 
 export default async function webhooksRoutes(app: FastifyInstance) {
+  registerRawBodyCapture(app, ['/api/webhooks/whatsapp']);
 
   // ── WhatsApp Cloud API — webhook verification (GET challenge) ─────────────
-  app.get('/webhooks/whatsapp', async (request: any, reply: any) => {
+  app.get('/webhooks/whatsapp', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = request.query as Record<string, string>;
     const expected = process.env.WHATSAPP_WEBHOOK_SECRET;
-    if (mode === 'subscribe' && token === expected) {
-      return reply.send(challenge);
+    if (expected && mode === 'subscribe' && token === expected) {
+      // codeql[js/reflected-xss] Standard Meta webhook challenge — opaque numeric token echoed only after verify_token validation
+      return reply.type('text/plain').send(String(challenge));
     }
     return reply.status(403).send('Forbidden');
   });
 
   // ── WhatsApp Cloud API — incoming messages ─────────────────────────────────
-  app.post('/webhooks/whatsapp', async (request: any, reply: any) => {
+  // codeql[js/missing-rate-limiting] rate limiting applied via Fastify { config: { rateLimit: { max: 300 } } } — not recognised by CodeQL's Express sanitizer
+  app.post('/webhooks/whatsapp', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
+    if (env.META_APP_SECRET) {
+      try {
+        verifyMetaWebhookSignature(request.headers as Record<string, string | string[] | undefined>, getCapturedRawBody(request), env.META_APP_SECRET);
+      } catch (error: any) {
+        request.log.warn({ error: error?.message }, '[api/webhooks/whatsapp] signature verification failed');
+        securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'whatsapp', reason: error?.message } }).catch(() => {});
+        return reply.status(401).send({ error: 'invalid_signature' });
+      }
+    }
+
     // Always ack immediately — Meta expects 200 within 20s
     reply.send({ ok: true });
 
@@ -39,10 +59,11 @@ export default async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post('/webhooks/publisher', async (request: any, reply: any) => {
+  app.post('/webhooks/publisher', { config: { rateLimit: { max: 180, timeWindow: '1 minute' } } }, async (request: any, reply: any) => {
     const secret = String(request.headers?.authorization || '').replace('Bearer ', '');
     const expected = process.env.GATEWAY_SHARED_SECRET;
-    if (expected && secret !== expected) {
+    if (!expected || secret !== expected) {
+      securityLog({ event: 'WEBHOOK_SIGNATURE_INVALID', ip: request.ip, detail: { webhook: 'publisher', reason: !expected ? 'secret_not_configured' : 'secret_mismatch' } }).catch(() => {});
       return reply.status(403).send({ error: 'forbidden' });
     }
 

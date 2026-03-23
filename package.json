@@ -30,6 +30,16 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "pnpm": {
+    "overrides": {
+      "fast-xml-parser": ">=5.3.5",
+      "minimatch": ">=9.0.7",
+      "rollup": ">=4.59.0",
+      "flatted": ">=3.4.2",
+      "undici": ">=7.24.0",
+      "underscore": ">=1.13.8"
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@vitest/coverage-v8": "^4.0.18",

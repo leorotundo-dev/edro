@@ -2205,7 +2205,7 @@ export default function MeetingsDashboardClient() {
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               void apiGet<{ url: string }>(`/meetings/${m.id}/recording`)
-                                                .then((res) => window.open(res.url, '_blank'))
+                                                .then((res) => window.open(res.url, '_blank', 'noopener'))
                                                 .catch(() => {});
                                             }}
                                             sx={{ color: EDRO_ORANGE }}
@@ -2221,7 +2221,7 @@ export default function MeetingsDashboardClient() {
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               void apiGet<{ url: string }>(`/meetings/${m.id}/audio`)
-                                                .then((res) => window.open(res.url, '_blank'))
+                                                .then((res) => window.open(res.url, '_blank', 'noopener'))
                                                 .catch(() => {});
                                             }}
                                             sx={{ color: '#666' }}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { setToken, apiPost } from '@/lib/api';
+import { clearToken } from '@/lib/api';
 
 const FEATURES = [
   'Aprovacoes centralizadas',
@@ -22,7 +22,12 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await apiPost('/auth/magic-link', { email, role: 'client' });
+      const res = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role: 'client' }),
+      });
+      if (!res.ok) throw new Error(await res.text());
       setSent(true);
     } catch (err: any) {
       setError(err.message ?? 'Erro ao enviar link');
@@ -36,8 +41,13 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await apiPost<{ token: string }>('/auth/magic-link/verify', { email, code: token, role: 'client' });
-      setToken(data.token);
+      const res = await fetch('/api/auth/magic-link/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: token, role: 'client' }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      clearToken();
       window.location.href = '/';
     } catch (err: any) {
       setError(err.message ?? 'Token invalido ou expirado');

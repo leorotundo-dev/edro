@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
-import { apiPost } from '@/lib/api';
+import { apiPost, apiPostFormData } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -76,16 +76,7 @@ export default function EventImportPage() {
     try {
       const formData = new FormData();
       formData.append('file', csvFile);
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'}/events/import/csv`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-        },
-        body: formData,
-      });
-
-      const data = await response.json();
+      const data = await apiPostFormData<ImportResult>('/events/import/csv', formData);
       setResult(data);
 
       if (data.success) {
