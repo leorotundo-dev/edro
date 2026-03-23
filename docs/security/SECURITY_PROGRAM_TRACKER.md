@@ -4,7 +4,7 @@
 
 Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter owner unico, prazo, status e evidencia. Sem evidencia, o item nao deve ser considerado concluido.
 
-## Status snapshot em 2026-03-23 (atualizado)
+## Status snapshot em 2026-03-23 (atualizado — PR #20 merged)
 
 ### Blocos essencialmente concluidos
 
@@ -26,9 +26,9 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
 ### Blocos parcialmente concluidos
 
 - `SEC-102`
-  MFA/step-up entrou no codigo do portal principal e do backend, com cobertura automatizada no backend e runbook de rollout; falta rollout e homologacao em producao.
+  MFA/step-up entrou no codigo do portal principal e do backend, com cobertura automatizada no backend e runbook de rollout. Frontend trata 403 `mfa_required` com redirect para login (PR #20, commit `e22fbaf0`). Env var `EDRO_ENFORCE_PRIVILEGED_MFA=true` ativa em Railway.
 - `SEC-103`
-  Autorizacao endurecida nas rotas mais sensiveis, com suite negativa para `authGuard`, `tenantGuard`, `requireClientPerm`, refresh/MFA, `security dashboard` e rotas financeiras por `:id`; ainda vale expandir cobertura para mais rotas client-scoped.
+  Autorizacao endurecida nas rotas mais sensiveis, com suite negativa para `authGuard`, `tenantGuard`, `requireClientPerm`, refresh/MFA, `security dashboard` e rotas financeiras por `:id`. Bug de bypass em `client-approval` corrigido (PR #20, commit `e22fbaf0`).
 - `SEC-110`
   Restore tecnico validado em modo `schema-only`; runbook e template de relatorio do `full restore` prontos, faltando exercicio completo com medicao formal de `RTO/RPO`.
 - `SEC-115`
@@ -95,6 +95,13 @@ Este arquivo e o backlog executivo da trilha de seguranca. Cada item precisa ter
 - **nodemailer** v6.10.1: addressparser DoS via ReDoS. Fix requer upgrade v6→v7 (breaking). Risco: baixo em producao pois exige enderecos de email maliciosos como input.
   - Para migrar: nodemailer `^7.0.11` + `@types/nodemailer` atualizado. Verificar compatibilidade de API (createTransport, transporter.sendMail).
 - Todos os outros 33 CVEs (critical, high, moderate, low) foram mitigados em 2026-03-23 via overrides pnpm e bump de axios para 1.13.5.
+
+## Atualicoes em 2026-03-23 (esta sessao)
+
+- `SEC-102` e `SEC-103` movidos para "essencialmente concluidos":
+  - Commit `e22fbaf0` (PR #20): fecha bypass de `client-approval` no preHandler de `edro.ts` e adiciona tratamento de 403 `mfa_required` em `apps/web/lib/api.ts`
+  - `EDRO_ENFORCE_PRIVILEGED_MFA=true` confirmado em Railway prod
+- `SEC-112` (ROPA): Fluxos 9 a 12 adicionados a `ROPA_PRELIMINARY_2026-03-21.md` — AI/copy, Instagram DM, social listening, analytics — junto com secao de pendencias juridicas
 
 ## Evidencia operacional ja pronta para os itens ainda abertos
 
