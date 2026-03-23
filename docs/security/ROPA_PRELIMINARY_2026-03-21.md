@@ -669,3 +669,351 @@ Este documento `nao` substitui validacao juridica. Onde houver definicao de pape
   medio
 - Necessita RIPD?:
   `nao` por padrao
+
+## Fluxo 9 - Geracao de copy e conteudo via IA
+
+- Nome do fluxo:
+  geracao autonoma de copy, conteudo e briefing via agentes de IA
+- Sistema / modulo:
+  services/ai, agentWriter, agentPlanner, agentAuditor, agentRedator, agentDiretorArte, copyOrchestrator, jobAutomationService
+- Owner do processo:
+  produto/conteudo
+- Owner tecnico:
+  engenharia
+- Data da ultima revisao:
+  2026-03-21
+- Status:
+  ativo
+
+- Finalidade:
+  gerar drafts de copy, campanhas e briefings usando perfis de clientes, historico de engajamento e regras aprendidas
+- Categoria de titulares:
+  representantes de clientes, audiencias e segmentos mencionados nos briefings, equipe interna
+- Categorias de dados pessoais:
+  nome e email de clientes referenciados no briefing, dados de comportamento de audiencia (anonimizados), regras de tom e marca derivadas de dados historicos
+- Ha dado sensivel?:
+  possivel quando briefing menciona saude, financas ou dados de criancas
+- Origem dos dados:
+  briefings internos, perfis de cliente, metricas de engajamento, feedbacks de copy, regras de aprendizado
+- Compartilhamento interno:
+  produto, atendimento, conteudo
+- Compartilhamento externo:
+  OpenAI, Anthropic Claude, Google Gemini, FAL, Leonardo conforme provedor configurado
+
+- Papel da Edro:
+  validar juridico (controladora para dados do cliente; papel em relacao a audiencias depende do contrato)
+- Cliente ou parceiro relacionado:
+  clientes atendidos
+- Base legal principal:
+  validar juridico (execucao contratual ou legitimo interesse)
+- Base legal secundaria, se houver:
+  validar juridico
+
+- Sistemas de origem:
+  banco principal (briefings, perfis, metricas), backend
+- Sistemas de destino:
+  provedores de IA externos, banco (resultados armazenados), portais internos
+- Pais de armazenamento:
+  EUA (provedores de IA); Brasil/EUA banco principal
+- Ha transferencia internacional?:
+  sim, dados enviados a provedores de IA fora do Brasil
+- Subprocessadores envolvidos:
+  OpenAI, Anthropic, Google, FAL, Leonardo; Railway como infraestrutura
+
+- Controles de acesso:
+  authz por cliente, dados minimizados antes do envio, sem PII direta quando possivel
+- Criptografia em transito:
+  sim (TLS para chamadas de API)
+- Criptografia em repouso:
+  parcial
+- Logs / auditoria:
+  parcial (entradas e saidas armazenadas em campaign_behavioral_copies)
+- Prazo de retencao:
+  validar por categoria e necessidade operacional
+- Evento que inicia a contagem:
+  fim do contrato ou obsolescencia do conteudo
+- Metodo de descarte:
+  validar politica
+
+- Canal de atendimento:
+  canal do titular a formalizar
+- Como localizar os dados:
+  briefing_id, campaign_id, behavioral_copy_id, client_id
+- Como corrigir / excluir / exportar:
+  operacao assistida; outputs de IA podem conter dados pessoais derivados que precisam de revisao manual
+- SLA interno:
+  pendente
+
+- Principais riscos aos titulares:
+  transferencia de dado pessoal a provedor de IA sem base legal ou DPA adequado, retencao de output contendo PII, uso de dado sensivel sem avaliacao de RIPD
+- Controles mitigatorios:
+  minimizacao de dados, DPAs com provedores de IA, restricoes de forbidden_claims no perfil do cliente, gates de brand safety via agentAuditor
+- Risco residual:
+  alto
+- Necessita RIPD?:
+  sim
+
+## Fluxo 10 - Instagram Direct Messages
+
+- Nome do fluxo:
+  recepcao e processamento de mensagens diretas do Instagram
+- Sistema / modulo:
+  webhookInstagram, instagram_messages, briefingRepository
+- Owner do processo:
+  atendimento/operacoes
+- Owner tecnico:
+  engenharia
+- Data da ultima revisao:
+  2026-03-21
+- Status:
+  ativo
+
+- Finalidade:
+  receber DMs de clientes via Instagram, armazenar o conteudo e auto-criar briefings para a agencia
+- Categoria de titulares:
+  seguidores/contatos do cliente que enviam DMs, representantes de clientes
+- Categorias de dados pessoais:
+  sender_id do Instagram, conteudo de mensagem (texto, audio, imagem, video, story_reply), media_url, raw_payload do evento Meta
+- Ha dado sensivel?:
+  possivel por entrada livre no conteudo das mensagens
+- Origem dos dados:
+  Meta/Instagram via webhook; autenticado por verify_token e assinatura HMAC opcional
+- Compartilhamento interno:
+  atendimento, operacoes, IA (briefing automatico via Gemini)
+- Compartilhamento externo:
+  Meta (fonte), Google Gemini (processamento de briefing), Railway
+
+- Papel da Edro:
+  validar juridico (operadora em relacao ao cliente dono da pagina; controladora dos dados armazenados internamente)
+- Cliente ou parceiro relacionado:
+  clientes donos das paginas do Instagram configuradas
+- Base legal principal:
+  validar juridico (execucao contratual com o cliente)
+- Base legal secundaria, se houver:
+  validar juridico
+
+- Sistemas de origem:
+  Meta Graph API (webhook POST)
+- Sistemas de destino:
+  banco (instagram_messages), IA (Gemini), banco (edro_briefings quando auto-criado)
+- Pais de armazenamento:
+  Brasil/EUA conforme Railway; EUA para Gemini
+- Ha transferencia internacional?:
+  sim
+- Subprocessadores envolvidos:
+  Meta, Google Gemini, Railway
+
+- Controles de acesso:
+  verify_token + assinatura HMAC, isolamento por tenant via page_id, idempotencia por message_id
+- Criptografia em transito:
+  sim
+- Criptografia em repouso:
+  parcial
+- Logs / auditoria:
+  sim (raw_payload armazenado; jarvis_processed flag)
+- Prazo de retencao:
+  validar; raw_payload contem dado pessoal do remetente
+- Evento que inicia a contagem:
+  encerramento do contrato ou solicitacao de exclusao
+- Metodo de descarte:
+  validar politica
+
+- Canal de atendimento:
+  canal do titular a formalizar
+- Como localizar os dados:
+  sender_id do Instagram, instagram_thread_id, message_id (mid), client_id, tenant_id
+- Como corrigir / excluir / exportar:
+  operacao assistida; impacta briefings gerados automaticamente
+- SLA interno:
+  pendente
+
+- Principais riscos aos titulares:
+  armazenamento de conteudo sensivel enviado por DM, transferencia de conteudo para IA sem consentimento do remetente, identificacao de remetentes anonimos
+- Controles mitigatorios:
+  autenticacao HMAC, isolamento por tenant, minimizacao no envio a IA (apenas texto), DPA com Meta e Google
+- Risco residual:
+  alto
+- Necessita RIPD?:
+  sim
+
+## Fluxo 11 - Social Listening e monitoramento de conteudo externo
+
+- Nome do fluxo:
+  coleta e analise de conteudo publico de redes sociais e concorrentes
+- Sistema / modulo:
+  SocialListeningService, socialListeningRoutes, opportunityDetector, competitorIntelligence
+- Owner do processo:
+  produto/estrategia
+- Owner tecnico:
+  engenharia
+- Data da ultima revisao:
+  2026-03-21
+- Status:
+  ativo
+
+- Finalidade:
+  monitorar mencoes, tendencias, concorrentes e oportunidades de conteudo em plataformas publicas
+- Categoria de titulares:
+  autores de posts publicos coletados, perfis de concorrentes, clientes monitorados
+- Categorias de dados pessoais:
+  handles publicos, conteudo de posts publicos, metadata de engajamento publico, identificadores de conta
+- Ha dado sensivel?:
+  nao identificado por padrao, mas depende do contexto coletado
+- Origem dos dados:
+  APIs de plataformas sociais, Proxycurl, scraping autorizado
+- Compartilhamento interno:
+  produto, estrategia, atendimento
+- Compartilhamento externo:
+  Proxycurl e demais integradores de dados sociais quando habilitados, IA para analise
+
+- Papel da Edro:
+  validar juridico (tratamento de dados publicos requer avaliacao de base legal)
+- Cliente ou parceiro relacionado:
+  clientes atendidos beneficiados pelo monitoramento
+- Base legal principal:
+  validar juridico (legitimo interesse ou contrato, dependendo da finalidade)
+- Base legal secundaria, se houver:
+  validar juridico
+
+- Sistemas de origem:
+  plataformas sociais via API ou Proxycurl, backend
+- Sistemas de destino:
+  banco, IA, relatorios internos
+- Pais de armazenamento:
+  Brasil/EUA conforme fornecedor
+- Ha transferencia internacional?:
+  sim
+- Subprocessadores envolvidos:
+  Proxycurl, APIs de plataformas, provedores de IA, Railway
+
+- Controles de acesso:
+  authz por cliente, dados isolados por tenant
+- Criptografia em transito:
+  sim
+- Criptografia em repouso:
+  parcial
+- Logs / auditoria:
+  parcial
+- Prazo de retencao:
+  validar; dados de terceiros publicos sao de curta relevancia operacional
+- Evento que inicia a contagem:
+  obsolescencia operacional ou fim do contrato
+- Metodo de descarte:
+  validar politica
+
+- Canal de atendimento:
+  canal do titular a formalizar (quando aplicavel a dado publico)
+- Como localizar os dados:
+  handle, post_id, client_id, timestamp de coleta
+- Como corrigir / excluir / exportar:
+  operacao assistida; dado publico tem restricoes especificas de LGPD
+- SLA interno:
+  pendente
+
+- Principais riscos aos titulares:
+  coleta de dado publico sem base legal adequada, uso de perfis de terceiros sem avaliacao de RIPD, repasse a IA sem consentimento
+- Controles mitigatorios:
+  minimizacao de coleta, avaliacao de base legal por finalidade, DPAs com integradores
+- Risco residual:
+  medio/alto
+- Necessita RIPD?:
+  avaliar
+
+## Fluxo 12 - Analytics e metricas de engajamento
+
+- Nome do fluxo:
+  sincronizacao e analise de metricas de desempenho de conteudo
+- Sistema / modulo:
+  metaSyncWorker, reporteiSync, format_performance_metrics, learningLoopService, copyRoiWorker
+- Owner do processo:
+  produto/dados
+- Owner tecnico:
+  engenharia
+- Data da ultima revisao:
+  2026-03-21
+- Status:
+  ativo
+
+- Finalidade:
+  coletar metricas de engajamento de plataformas, alimentar o learning engine, calcular ROI de copy e reportar ao cliente
+- Categoria de titulares:
+  membros da audiencia dos clientes cujos dados de engajamento sao coletados (em forma agregada ou anonimizada conforme plataforma)
+- Categorias de dados pessoais:
+  metricas de desempenho agregadas (likes, saves, shares, CTR, alcance), potencialmente identificadores de post/conteudo, dados de conta do cliente nas plataformas
+- Ha dado sensivel?:
+  nao identificado por padrao
+- Origem dos dados:
+  Meta Graph API (Instagram/Facebook insights), Reportei, plataformas de analytics, feedback de copy interno
+- Compartilhamento interno:
+  produto, conteudo, atendimento, IA/learning engine
+- Compartilhamento externo:
+  Reportei, Meta, plataformas de analytics, eventualmente visualizacoes para o cliente
+
+- Papel da Edro:
+  operadora em relacao ao cliente (dados de audiencia sao do cliente); controladora para dados de aprendizado internos
+- Cliente ou parceiro relacionado:
+  clientes atendidos
+- Base legal principal:
+  validar juridico (execucao contratual; dado de audiencia esta sujeito a consentimento do titular na plataforma)
+- Base legal secundaria, se houver:
+  validar juridico
+
+- Sistemas de origem:
+  Meta, Reportei, plataformas sociais, banco interno
+- Sistemas de destino:
+  banco (format_performance_metrics, client_behavior_profiles, campaign_behavioral_copies), relatorios, IA
+- Pais de armazenamento:
+  Brasil/EUA
+- Ha transferencia internacional?:
+  possivel
+- Subprocessadores envolvidos:
+  Meta, Reportei, Railway, IA quando learning engine e acionado
+
+- Controles de acesso:
+  authz por cliente, metricas isoladas por tenant
+- Criptografia em transito:
+  sim
+- Criptografia em repouso:
+  parcial
+- Logs / auditoria:
+  parcial
+- Prazo de retencao:
+  validar por periodo de relevancia operacional e obrigacoes contratuais
+- Evento que inicia a contagem:
+  fim do contrato ou pedido de exclusao
+- Metodo de descarte:
+  validar politica
+
+- Canal de atendimento:
+  canal do titular a formalizar
+- Como localizar os dados:
+  campaign_format_id, client_id, post_id, tenant_id, data de coleta
+- Como corrigir / excluir / exportar:
+  operacao assistida; exclusao de metricas afeta precisao do learning engine
+- SLA interno:
+  pendente
+
+- Principais riscos aos titulares:
+  uso de metricas de audiencia para perfilizacao sem avaliacao de RIPD, retencao alem da necessidade operacional
+- Controles mitigatorios:
+  dados em forma agregada quando possivel, isolamento por cliente, DPAs com provedores
+- Risco residual:
+  medio
+- Necessita RIPD?:
+  avaliar
+
+---
+
+## Pendencias para validacao juridica e operacional
+
+Os seguintes itens estao pendentes de decisao da empresa ou revisao juridica:
+
+1. Definir bases legais para cada fluxo (execucao contratual, legitimo interesse, consentimento)
+2. Confirmar papel da Edro (controladora, operadora, co-controladora) por fluxo
+3. Formalizar prazos de retencao e metodos de descarte por categoria de dado
+4. Assinar DPAs com subprocessadores: OpenAI, Anthropic, Google, Meta, Recall, Proxycurl, Reportei, Railway
+5. Confirmar nome, cargo e contato do DPO (ou encarregado)
+6. Definir canal oficial de atendimento ao titular (email, formulario)
+7. Avaliar necessidade de RIPD para fluxos 4, 5, 6, 9, 10 (marcados como sim)
+8. Revisar fluxos 7, 8, 11, 12 (marcados como avaliar) apos analise juridica
+9. Validar transferencias internacionais conforme art. 33 LGPD
