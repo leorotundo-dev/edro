@@ -3,13 +3,78 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { requestLoginCode, verifyLoginCode } from '../services/authService';
 import { findUserByEmail, findUserById, createLoginCode, consumeLoginCode, upsertUser } from '../repositories/edroUserRepository';
+import {
+  findUserMfaByUserId,
+  savePendingUserMfaSecret,
+  enableUserMfa,
+  markUserMfaVerified,
+  consumeUserRecoveryCode,
+} from '../repositories/edroUserMfaRepository';
+import {
+  generateMfaSecret,
+  buildMfaOtpAuthUrl,
+  verifyMfaCode,
+  generateRecoveryCodes,
+  hashRecoveryCode,
+  isRecoveryCodeFormat,
+  encryptMfaSecret,
+  decryptMfaSecret,
+} from '../services/mfaService';
 import { issueRefreshToken, rotateRefreshToken, revokeAllRefresh } from '../auth/refresh';
 import { ensureTenantForDomain, ensureTenantMembership, getPrimaryTenantForUser, mapRoleToTenantRole } from '../repos/tenantRepo';
-import { authGuard } from '../auth/rbac';
+import { authGuard, shouldEnforcePrivilegedMfa } from '../auth/rbac';
 import { sendEmail } from '../services/emailService';
 import { makeHash } from '../utils/hash';
 import { pool } from '../db';
 import { allowUnsafeLocalAuthHelpers, env, portalLoginSecret } from '../env';
+import { securityLog } from '../audit/securityLog';
+
+// ── Pending-MFA token helpers ──────────────────────────────────────────────────
+// A pending token is a short-lived JWT that identifies a user who has passed
+// the first authentication step but still needs to complete MFA. It cannot be
+// used to access protected API routes (no `mfa` claim set to true).
+
+const PENDING_MFA_EXPIRY = '10m';
+
+export function issuePendingMfaToken(
+  app: FastifyInstance,
+  params: {
+    userId: string;
+    email: string;
+    role: string;
+    tenantId: string;
+    purpose: 'mfa_challenge' | 'mfa_setup';
+  },
+): string {
+  return app.jwt.sign(
+    {
+      sub: params.userId,
+      email: params.email,
+      role: params.role,
+      tenant_id: params.tenantId,
+      kind: 'pending_mfa',
+      purpose: params.purpose,
+    },
+    { expiresIn: PENDING_MFA_EXPIRY },
+  );
+}
+
+function verifyPendingMfaToken(app: FastifyInstance, token: string) {
+  try {
+    const payload = app.jwt.verify<{
+      sub: string;
+      email: string;
+      role: string;
+      tenant_id: string;
+      kind: string;
+      purpose: string;
+    }>(token);
+    if (payload.kind !== 'pending_mfa') return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 export default async function authRoutes(app: FastifyInstance) {
   app.post('/auth/request', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
@@ -51,12 +116,28 @@ export default async function authRoutes(app: FastifyInstance) {
         role: tenantRole,
       });
 
+      // If MFA enforcement is active for this role, issue a pending token instead
+      if (shouldEnforcePrivilegedMfa(tenantRole)) {
+        const mfaRecord = await findUserMfaByUserId(user.id);
+        const mfaEnabled = Boolean(mfaRecord?.enabled_at && mfaRecord?.secret_enc);
+        const purpose = mfaEnabled ? 'mfa_challenge' : 'mfa_setup';
+        const pendingToken = issuePendingMfaToken(app, {
+          userId: user.id,
+          email: user.email,
+          role: tenantRole,
+          tenantId: tenant.id,
+          purpose,
+        });
+        return reply.send({ success: true, pendingToken, mfaRequired: true, kind: purpose });
+      }
+
       const accessToken = app.jwt.sign(
         {
           sub: user.id,
           email: user.email,
           role: tenantRole,
           tenant_id: tenant.id,
+          mfa: false,
         },
         { expiresIn: '30m' }
       );
@@ -308,5 +389,144 @@ export default async function authRoutes(app: FastifyInstance) {
       { expiresIn: '7d' },
     );
     return reply.send({ token });
+  });
+
+  // ── MFA routes ──────────────────────────────────────────────────────────────
+
+  // POST /auth/mfa/pending — validate a pending MFA token; returns kind + email
+  app.post('/auth/mfa/pending', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request: any, reply) => {
+    const { pendingToken } = z.object({ pendingToken: z.string().min(10) }).parse(request.body);
+    const payload = verifyPendingMfaToken(app, pendingToken);
+    if (!payload) {
+      return reply.status(401).send({ error: 'invalid_pending_token' });
+    }
+    return reply.send({ ok: true, kind: payload.purpose, email: payload.email });
+  });
+
+  // POST /auth/mfa/enroll/start — generate TOTP secret and return QR code URL
+  app.post('/auth/mfa/enroll/start', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: any, reply) => {
+    const { pendingToken } = z.object({ pendingToken: z.string().min(10) }).parse(request.body);
+    const payload = verifyPendingMfaToken(app, pendingToken);
+    if (!payload || payload.purpose !== 'mfa_setup') {
+      return reply.status(401).send({ error: 'invalid_pending_token' });
+    }
+
+    const secret = generateMfaSecret();
+    const secretEnc = encryptMfaSecret(secret);
+    await savePendingUserMfaSecret(payload.sub, secretEnc);
+
+    const otpAuthUrl = buildMfaOtpAuthUrl({ accountName: payload.email, secret });
+
+    securityLog({
+      event: 'MFA_ENROLLED',
+      email: payload.email,
+      user_id: payload.sub,
+      tenant_id: payload.tenant_id,
+      detail: { stage: 'start' },
+    }).catch(() => {});
+
+    return reply.send({ ok: true, otpAuthUrl, secret });
+  });
+
+  // POST /auth/mfa/enroll/confirm — verify first TOTP code and activate MFA
+  app.post('/auth/mfa/enroll/confirm', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: any, reply) => {
+    const { pendingToken, code } = z.object({
+      pendingToken: z.string().min(10),
+      code: z.string().min(6).max(8),
+    }).parse(request.body);
+
+    const payload = verifyPendingMfaToken(app, pendingToken);
+    if (!payload || payload.purpose !== 'mfa_setup') {
+      return reply.status(401).send({ error: 'invalid_pending_token' });
+    }
+
+    const mfaRecord = await findUserMfaByUserId(payload.sub);
+    if (!mfaRecord?.pending_secret_enc) {
+      return reply.status(400).send({ error: 'no_pending_enrollment' });
+    }
+
+    const secret = decryptMfaSecret(mfaRecord.pending_secret_enc);
+    if (!verifyMfaCode(secret, code)) {
+      securityLog({ event: 'MFA_VERIFY_FAILED', email: payload.email, user_id: payload.sub, tenant_id: payload.tenant_id, detail: { stage: 'enroll_confirm' } }).catch(() => {});
+      return reply.status(401).send({ error: 'invalid_mfa_code' });
+    }
+
+    const recoveryCodes = generateRecoveryCodes();
+    await enableUserMfa({
+      userId: payload.sub,
+      secretEnc: mfaRecord.pending_secret_enc,
+      recoveryCodeHashes: recoveryCodes.map(hashRecoveryCode),
+    });
+
+    securityLog({ event: 'MFA_ENROLLED', email: payload.email, user_id: payload.sub, tenant_id: payload.tenant_id, detail: { stage: 'confirmed' } }).catch(() => {});
+
+    const accessToken = app.jwt.sign(
+      { sub: payload.sub, email: payload.email, role: payload.role, tenant_id: payload.tenant_id, mfa: true },
+      { expiresIn: '30m' },
+    );
+    const refreshToken = crypto.randomBytes(48).toString('hex');
+    const refreshExpiresAt = await issueRefreshToken(payload.sub, refreshToken, 14);
+    const user = await findUserById(payload.sub);
+
+    return reply.send({
+      ok: true,
+      accessToken,
+      token: accessToken,
+      refreshToken,
+      refreshExpiresAt,
+      recoveryCodes,
+      user: { id: payload.sub, email: payload.email, role: payload.role, tenant_id: payload.tenant_id },
+    });
+  });
+
+  // POST /auth/mfa/verify — verify TOTP (or recovery code) and issue session
+  app.post('/auth/mfa/verify', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: any, reply) => {
+    const { pendingToken, code } = z.object({
+      pendingToken: z.string().min(10),
+      code: z.string().min(6).max(12),
+    }).parse(request.body);
+
+    const payload = verifyPendingMfaToken(app, pendingToken);
+    if (!payload || payload.purpose !== 'mfa_challenge') {
+      return reply.status(401).send({ error: 'invalid_pending_token' });
+    }
+
+    const mfaRecord = await findUserMfaByUserId(payload.sub);
+    if (!mfaRecord?.enabled_at || !mfaRecord?.secret_enc) {
+      return reply.status(400).send({ error: 'mfa_not_configured' });
+    }
+
+    let verified = false;
+    if (isRecoveryCodeFormat(code)) {
+      const hash = hashRecoveryCode(code);
+      verified = await consumeUserRecoveryCode(payload.sub, hash);
+    } else {
+      const secret = decryptMfaSecret(mfaRecord.secret_enc);
+      verified = verifyMfaCode(secret, code);
+    }
+
+    if (!verified) {
+      securityLog({ event: 'MFA_VERIFY_FAILED', email: payload.email, user_id: payload.sub, tenant_id: payload.tenant_id }).catch(() => {});
+      return reply.status(401).send({ error: 'invalid_mfa_code' });
+    }
+
+    await markUserMfaVerified(payload.sub);
+    securityLog({ event: 'MFA_VERIFY_SUCCESS', email: payload.email, user_id: payload.sub, tenant_id: payload.tenant_id }).catch(() => {});
+
+    const accessToken = app.jwt.sign(
+      { sub: payload.sub, email: payload.email, role: payload.role, tenant_id: payload.tenant_id, mfa: true },
+      { expiresIn: '30m' },
+    );
+    const refreshToken = crypto.randomBytes(48).toString('hex');
+    const refreshExpiresAt = await issueRefreshToken(payload.sub, refreshToken, 14);
+
+    return reply.send({
+      ok: true,
+      accessToken,
+      token: accessToken,
+      refreshToken,
+      refreshExpiresAt,
+      user: { id: payload.sub, email: payload.email, role: payload.role, tenant_id: payload.tenant_id },
+    });
   });
 }

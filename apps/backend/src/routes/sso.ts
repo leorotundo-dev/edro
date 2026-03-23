@@ -4,6 +4,8 @@ import * as oidcClient from 'openid-client';
 import { findUserByEmail, upsertUser } from '../repositories/edroUserRepository';
 import { findUserMfaByUserId } from '../repositories/edroUserMfaRepository';
 import { ensureTenantForDomain, ensureTenantMembership, mapRoleToTenantRole } from '../repos/tenantRepo';
+import { shouldEnforcePrivilegedMfa } from '../auth/rbac';
+import { issuePendingMfaToken } from './auth';
 import { env } from '../env';
 
 const SSO_STATE_COOKIE = 'edro_sso_state';
