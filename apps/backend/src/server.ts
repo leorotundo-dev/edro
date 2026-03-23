@@ -6,7 +6,7 @@ import { env } from './env';
 import { registerRoutes } from './routes';
 import { runMonthlyFlow } from './flow/monthlyFlow';
 import { RETAIL_BR_EVENTS } from './services/calendarTotal';
-import { initRedis, redis } from './cache/redis';
+import { initRedis } from './cache/redis';
 import { listClients, listCalendars, listFlowRuns } from './repos/readRepo';
 import { createMonthlyCalendar, createFlowRun } from './repos/calendarRepo';
 import { createPostAssetsFromCalendar, setPostStatus, listPostAssets } from './repos/governanceRepo';
@@ -100,11 +100,10 @@ export async function buildServer() {
   });
 
   // Global rate limit baseline — per-route overrides applied via config.rateLimit
+  // Note: @fastify/rate-limit v8 requires ioredis; node-redis v4 is incompatible with its RedisStore.
   await app.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
-    // Use Redis store when available so limits are shared across Railway replicas
-    ...(redis.isOpen ? { redis } : {}),
     keyGenerator: (request) => {
       // Prefer forwarded IP (Railway sets X-Forwarded-For)
       const forwarded = request.headers['x-forwarded-for'];
