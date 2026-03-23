@@ -93,7 +93,7 @@ A seção 10 do template foi preenchida com base na implementação real:
 
 1. ✅ Todos os campos da Edro preenchidos (dados legais, canal de privacidade, signatário)
 2. ✅ Canal do titular definido: privacidade@edro.digital
-3. Criar a caixa de e-mail `privacidade@edro.digital` se ainda não existir
+3. ✅ Caixa de e-mail `privacidade@edro.digital` criada (2026-03-23)
 4. Enviar DPA e Aviso para revisão jurídica com estas notas
 5. Após aprovação jurídica: publicar Aviso de Privacidade na plataforma
 6. Incluir DPA como anexo padrão nos contratos de clientes enterprise
