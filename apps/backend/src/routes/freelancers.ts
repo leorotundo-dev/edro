@@ -1598,7 +1598,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (clean.length !== 14) return reply.status(400).send({ error: 'CNPJ inválido' });
 
     try {
-      // lgtm[js/request-forgery] URL is hardcoded to brasilapi.com.br; only CNPJ digits (validated to 14 chars) appear in path
+      // lgtm[js/request-forgery] domain hardcoded to brasilapi.com.br; ${clean} is digits-only, validated to exactly 14 chars
       const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
       if (!res.ok) return reply.status(404).send({ error: 'CNPJ não encontrado na Receita Federal' });
       const data = await res.json() as any;
