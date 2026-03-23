@@ -21,9 +21,9 @@ Disponibilizar uma versao `compartilhavel` do registro de subprocessadores da Ed
 | Meta | WhatsApp, Instagram, webhooks e OAuth | sim | sim | telefone, identificadores, conteudo de mensagem, metadata social | sim | validar app/business e termos aplicaveis |
 | Recall.ai | reunioes, gravacoes e transcricoes | sim | indireto | metadata de reuniao, participantes, gravacoes, transcricoes | sim | validar contrato e politica do fornecedor |
 | Evolution API | integracao operacional de WhatsApp | sim | indireto | telefone, nome, JID, mensagens e metadata de grupo | validar hospedagem real | validar hospedagem e acordo aplicavel |
-| OpenAI | IA generativa, transcricao e enriquecimento | suportado pelo ambiente, validar fluxos ativos por cliente | indireto | prompts, texto, transcricoes, contexto operacional | sim | validar escopo contratual e opt-outs aplicaveis |
-| Anthropic | IA generativa | suportado pelo ambiente | indireto | prompts, texto, contexto operacional | sim | validar uso ativo e clausulas |
-| Google Gemini | IA generativa | suportado pelo ambiente | indireto | prompts, texto, contexto operacional | sim | validar uso ativo e clausulas |
+| OpenAI | IA generativa, transcricao e enriquecimento | sim (API key em producao) | indireto | prompts, texto, transcricoes, contexto operacional | sim (EUA) | DPA incorporado ao OpenAI Services Agreement para uso de API — nao requer aceite separado. Ref: openai.com/policies/data-processing-addendum |
+| Anthropic | IA generativa | sim (API key em producao) | indireto | prompts, texto, contexto operacional | sim (EUA) | DPA incorporado ao Anthropic Commercial Terms of Service para uso de API. Ref: anthropic.com/legal/dpa |
+| Google Gemini | IA generativa | sim (API key em producao) | indireto | prompts, texto, contexto operacional | sim (EUA) | DPA coberto pelo Google Cloud Data Processing Addendum ao usar Vertex AI / Gemini API via Google Cloud. Ref: cloud.google.com/terms/data-processing-addendum |
 | FAL.ai | geracao/transformacao de imagem | suportado pelo ambiente | indireto | imagens, prompts, referencias visuais | sim | validar uso ativo e clausulas |
 | Leonardo AI | geracao de imagem | suportado pelo ambiente | indireto | imagens, prompts, referencias visuais | sim | validar uso ativo e clausulas |
 | Serper | pesquisa web | suportado pelo ambiente | indireto | termos de busca, contexto de pesquisa | sim | validar uso ativo e clausulas |
