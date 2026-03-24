@@ -8,6 +8,10 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -28,9 +32,11 @@ import {
   IconChartBar,
   IconCheck,
   IconClock,
+  IconCopy,
   IconDeviceLaptop,
   IconEdit,
   IconFlame,
+  IconKey,
   IconLanguage,
   IconLink,
   IconRobot,
@@ -41,7 +47,7 @@ import {
   IconUserCheck,
   IconX,
 } from '@tabler/icons-react';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +106,14 @@ type FreelancerStats = {
     sampleCount: number;
     driftPercent: number;
   } | null;
+};
+
+type PortalAccessCodeResponse = {
+  ok: true;
+  email: string;
+  code: string;
+  ttlMinutes: number;
+  expiresAt: string;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -276,6 +290,10 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
   const router = useRouter();
   const [data, setData] = useState<FreelancerStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [portalAccess, setPortalAccess] = useState<PortalAccessCodeResponse | null>(null);
+  const [portalAccessBusy, setPortalAccessBusy] = useState(false);
+  const [portalAccessError, setPortalAccessError] = useState<string | null>(null);
+  const [portalAccessCopied, setPortalAccessCopied] = useState(false);
 
   useEffect(() => {
     apiGet<FreelancerStats>(`/freelancers/${id}/stats`)
@@ -283,6 +301,26 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleGeneratePortalAccessCode = async () => {
+    setPortalAccessBusy(true);
+    setPortalAccessError(null);
+    setPortalAccessCopied(false);
+    try {
+      const response = await apiPost<PortalAccessCodeResponse>(`/freelancers/${id}/portal-access-code`, {});
+      setPortalAccess(response);
+    } catch (error: any) {
+      setPortalAccessError(error?.message || 'Não foi possível gerar o código de acesso.');
+    } finally {
+      setPortalAccessBusy(false);
+    }
+  };
+
+  const handleCopyPortalCode = async () => {
+    if (!portalAccess?.code || typeof navigator === 'undefined' || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(portalAccess.code);
+    setPortalAccessCopied(true);
+  };
 
   if (loading) {
     return (
@@ -428,12 +466,28 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
                 >
                   Ver demandas
                 </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="warning"
+                  startIcon={<IconKey size={13} />}
+                  onClick={handleGeneratePortalAccessCode}
+                  disabled={portalAccessBusy}
+                  sx={{ fontSize: '0.7rem', py: 0.25 }}
+                >
+                  {portalAccessBusy ? 'Gerando código...' : 'Gerar código do portal'}
+                </Button>
                 <Button size="small" startIcon={<IconEdit size={13} />}
                   onClick={() => router.push('/admin/equipe')}
                   sx={{ fontSize: '0.7rem', py: 0.25 }}>
                   Editar
                 </Button>
               </Stack>
+              {portalAccessError && (
+                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: '#dc2626', fontWeight: 700 }}>
+                  {portalAccessError}
+                </Typography>
+              )}
             </Box>
 
             {/* Overall score ring */}
@@ -788,6 +842,46 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
             </Stack>
           </Grid>
         </Grid>
+
+        <Dialog open={Boolean(portalAccess)} onClose={() => setPortalAccess(null)} maxWidth="xs" fullWidth>
+          <DialogTitle>Código do portal freelancer</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2}>
+              <Typography variant="body2" color="text.secondary">
+                Use este código no login do portal freelancer para <strong>{portalAccess?.email}</strong>.
+              </Typography>
+              <Paper
+                variant="outlined"
+                sx={{
+                  py: 2,
+                  px: 2.5,
+                  textAlign: 'center',
+                  borderRadius: 3,
+                  bgcolor: 'action.hover',
+                  borderStyle: 'dashed',
+                }}
+              >
+                <Typography sx={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '0.24em', fontFamily: 'monospace' }}>
+                  {portalAccess?.code}
+                </Typography>
+              </Paper>
+              <Typography variant="caption" color="text.secondary">
+                Expira em {portalAccess ? new Date(portalAccess.expiresAt).toLocaleString('pt-BR') : '—'}.
+              </Typography>
+              {portalAccessCopied && (
+                <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 700 }}>
+                  Código copiado.
+                </Typography>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button onClick={() => setPortalAccess(null)}>Fechar</Button>
+            <Button startIcon={<IconCopy size={15} />} variant="contained" onClick={handleCopyPortalCode}>
+              Copiar código
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </AppShell>
   );

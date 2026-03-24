@@ -7,6 +7,7 @@ import { securityLog } from '../audit/securityLog';
 import { findTenantBySlug, getPrimaryTenantForUser } from '../repos/tenantRepo';
 
 const DEFAULT_CODE_TTL_MINUTES = 10;
+const DEFAULT_PORTAL_CODE_TTL_MINUTES = 15;
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -21,6 +22,9 @@ const adminEmails = parseList(env.EDRO_ADMIN_EMAILS || '');
 
 const buildCodeHash = (email: string, code: string) =>
   makeHash(`${portalLoginSecret}:${email}:${code}`);
+
+export const buildPortalCodeHash = (email: string, code: string) =>
+  makeHash(`portal:${portalLoginSecret}:${email}:${code}`);
 
 const generateCode = () =>
   crypto.randomInt(0, 1000000).toString().padStart(6, '0');
@@ -86,6 +90,29 @@ export async function requestLoginCode(emailInput: string, meta?: { ip?: string;
   securityLog({ event: 'LOGIN_FAILED_EMAIL_DELIVERY', email, ip: meta?.ip ?? null }).catch(() => {});
   console.warn('[auth] email delivery failed', delivery.error);
   throw new Error('email_failed');
+}
+
+export async function issuePortalLoginCode(
+  emailInput: string,
+  options?: { ttlMinutes?: number },
+) {
+  const email = normalizeEmail(emailInput);
+  const code = generateCode();
+  const ttlMinutes = options?.ttlMinutes ?? DEFAULT_PORTAL_CODE_TTL_MINUTES;
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+  await createLoginCode({
+    email,
+    codeHash: buildPortalCodeHash(email, code),
+    expiresAt,
+  });
+
+  return {
+    email,
+    code,
+    ttlMinutes,
+    expiresAt,
+  };
 }
 
 export async function verifyLoginCode(emailInput: string, code: string, meta?: { ip?: string; userAgent?: string }) {
