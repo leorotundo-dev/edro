@@ -274,6 +274,14 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       });
     }
 
+    for (const service of services) {
+      if (!service.configured || fallbacks.has(service.service)) continue;
+      fallbacks.set(service.service, {
+        status: 'ok',
+        last_event: 'configured',
+      });
+    }
+
     const mergedServices = services.map((service) => {
       if (service.last_activity) return service;
       const fallback = fallbacks.get(service.service);

@@ -113,6 +113,7 @@ function monitorEventLabel(service: string, event?: string | null) {
   if (!event) return null;
   const generic: Record<string, string> = {
     sync: 'sync',
+    configured: 'configurado',
     connected: 'conectado',
     watch_renewed: 'watch renovado',
     watch_error: 'erro no watch',
