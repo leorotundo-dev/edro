@@ -19,6 +19,45 @@ function has(key: string): boolean {
   return Boolean(v && v.trim().length > 0);
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+
+const STALE_ACTIVITY_WINDOW_MS: Partial<Record<IntegrationService, number>> = {
+  trello: 48 * HOUR_MS,
+  whatsapp: 72 * HOUR_MS,
+  evolution: 72 * HOUR_MS,
+  recall: 72 * HOUR_MS,
+  resend: 72 * HOUR_MS,
+  d4sign: 14 * 24 * HOUR_MS,
+  openai: 7 * 24 * HOUR_MS,
+  gmail: 24 * HOUR_MS,
+  google_calendar: 24 * HOUR_MS,
+  instagram: 72 * HOUR_MS,
+};
+
+function applyStaleMonitorStatus(service: ServiceMonitorStatus, nowMs: number): ServiceMonitorStatus {
+  if (service.status !== 'ok' || !service.last_activity) return service;
+
+  const staleWindowMs = STALE_ACTIVITY_WINDOW_MS[service.service];
+  if (!staleWindowMs) return service;
+
+  const lastActivityMs = new Date(service.last_activity).getTime();
+  if (!Number.isFinite(lastActivityMs)) return service;
+
+  const ageMs = nowMs - lastActivityMs;
+  if (ageMs <= staleWindowMs) return service;
+
+  return {
+    ...service,
+    status: 'degraded',
+    meta: {
+      ...(service.meta ?? {}),
+      stale: true,
+      stale_age_hours: Math.floor(ageMs / HOUR_MS),
+      stale_window_hours: Math.floor(staleWindowMs / HOUR_MS),
+    },
+  };
+}
+
 export default async function integrationHealthRoutes(app: FastifyInstance) {
   app.get('/admin/integrations/health', {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
@@ -286,7 +325,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       if (service.last_activity) return service;
       const fallback = fallbacks.get(service.service);
       return fallback ? { ...service, ...fallback } : service;
-    });
+    }).map((service) => applyStaleMonitorStatus(service, now));
 
     return reply.send({ services: mergedServices });
   });
