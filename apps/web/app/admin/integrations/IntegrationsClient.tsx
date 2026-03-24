@@ -75,6 +75,7 @@ type IntegrationHealth = {
   google:             { client_id: boolean; client_secret: boolean; pubsub_topic: boolean; calendar_webhook: boolean };
   ai:                 { gemini: boolean; openai: boolean };
   search:             { serper: boolean; tavily: boolean; google_trends: boolean };
+  meta:               { app_id: boolean; app_secret: boolean; redirect_uri: boolean; verify_token: boolean };
   whatsapp_evolution: { api_key: boolean; api_url: boolean };
   whatsapp_meta:      { token: boolean; phone_id: boolean; verify_token: boolean };
   recall:             { api_key: boolean; webhook_secret: boolean; google_login_group: boolean };

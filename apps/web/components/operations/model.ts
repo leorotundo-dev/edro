@@ -21,6 +21,8 @@ export type OperationsJob = {
   owner_id?: string | null;
   owner_name?: string | null;
   owner_email?: string | null;
+  assignees?: Array<{ user_id: string; name: string; email: string }>;
+  external_link?: string | null;
   deadline_at?: string | null;
   estimated_minutes?: number | null;
   actual_minutes?: number | null;

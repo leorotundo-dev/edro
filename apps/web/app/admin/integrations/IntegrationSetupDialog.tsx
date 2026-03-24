@@ -60,6 +60,7 @@ type IntegrationHealth = {
   google: { client_id: boolean; client_secret: boolean; pubsub_topic: boolean; calendar_webhook: boolean };
   ai: { gemini: boolean; openai: boolean };
   search: { serper: boolean; tavily: boolean; google_trends: boolean };
+  meta: { app_id: boolean; app_secret: boolean; redirect_uri: boolean; verify_token: boolean };
   whatsapp_evolution: { api_key: boolean; api_url: boolean };
   whatsapp_meta: { token: boolean; phone_id: boolean; verify_token: boolean };
   recall: { api_key: boolean; webhook_secret: boolean; google_login_group: boolean };
@@ -575,7 +576,7 @@ function RecallSetup({ health }: { health: IntegrationHealth | null }) {
 // ── Instagram dialog ─────────────────────────────────────────────────────────
 
 function InstagramSetup({ health, hints }: { health: IntegrationHealth | null; hints: ConfigHints | null }) {
-  const verifyTokenOk = health?.whatsapp_meta.verify_token;
+  const verifyTokenOk = health?.meta.verify_token;
   const webhookUrl = hints ? `${hints.webhook_base_url}/webhook/instagram` : 'https://api.edro.digital/webhook/instagram';
 
   return (
@@ -595,14 +596,14 @@ function InstagramSetup({ health, hints }: { health: IntegrationHealth | null; h
         <Step n={2} label="Configurar webhook no Meta for Developers" done={false}>
           <Stack spacing={1}>
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
-              Vá em: App → WhatsApp → Configuration → Webhooks. Adicione:
+              Vá em: App → Webhooks → Instagram. Adicione:
             </Typography>
             <CopyField label="Callback URL" value={webhookUrl} />
             <Typography variant="caption" color="text.secondary">
               Verify Token: o mesmo valor que você definiu em <code>META_VERIFY_TOKEN</code> acima.
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Subscribe: <strong>messages</strong>
+              Subscribe: <strong>messages</strong> e, se disponível, <strong>messaging_postbacks</strong>
             </Typography>
           </Stack>
         </Step>

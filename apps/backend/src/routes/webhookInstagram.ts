@@ -84,16 +84,20 @@ export default async function webhookInstagramRoutes(app: FastifyInstance) {
 
 // ── Resolve tenant + client from Instagram page ID ────────────────────────
 
-async function resolveTenantFromPage(pageId: string): Promise<{
+export async function resolveTenantFromPage(pageId: string): Promise<{
   tenantId: string;
   clientId: string | null;
 } | null> {
-  // connectors table stores instagram_page_id in secrets_meta JSONB
+  // The Meta OAuth flow stores page metadata in connector payload.
+  // Keep a secrets_meta fallback for legacy rows created before the payload normalization.
   const { rows } = await query(
     `SELECT c.tenant_id, c.client_id
      FROM connectors c
-     WHERE c.type = 'instagram'
-       AND c.secrets_meta->>'page_id' = $1
+     WHERE c.provider = 'meta'
+       AND (
+         c.payload->>'page_id' = $1
+         OR c.secrets_meta->>'page_id' = $1
+       )
      LIMIT 1`,
     [pageId],
   );

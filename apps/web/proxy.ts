@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const COOKIE_NAME = 'edro_session';
-const PUBLIC_PATHS = new Set(['/login']);
+const PUBLIC_PATHS = new Set([
+  '/login',
+  '/privacidade',
+  '/politica-de-privacidade',
+  '/exclusao-de-dados',
+  '/termos-de-uso',
+]);
 const PUBLIC_PREFIXES = ['/calendar', '/edro/aprovacao-externa', '/proposta', '/portal', '/portal/approval'];
 
 function hasValidSessionToken(token?: string) {

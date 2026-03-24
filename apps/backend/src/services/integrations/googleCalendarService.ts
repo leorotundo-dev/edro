@@ -28,6 +28,14 @@ type ResolvedCalendarClient = {
   matchSource: string;
 };
 
+type CalendarChannelRow = {
+  channel_id: string | null;
+  resource_id: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  token_expiry: string | null;
+};
+
 // ── OAuth state helpers (signed to prevent forgery) ───────────────────────
 
 function signOAuthState(payload: object): string {
@@ -154,19 +162,27 @@ export async function watchCalendar(tenantId: string): Promise<void> {
   const webhookUrl = env.GOOGLE_CALENDAR_WEBHOOK_URL;
   if (!webhookUrl) throw new Error('GOOGLE_CALENDAR_WEBHOOK_URL não configurado.');
 
-  const { rows } = await query(
-    `SELECT channel_id, access_token, refresh_token, token_expiry FROM google_calendar_channels WHERE tenant_id = $1`,
+  const { rows } = await query<CalendarChannelRow>(
+    `SELECT channel_id, resource_id, access_token, refresh_token, token_expiry
+       FROM google_calendar_channels
+      WHERE tenant_id = $1`,
     [tenantId],
   );
   if (!rows.length) throw new Error('Calendário não configurado para este tenant.');
 
   const accessToken = await getCalendarAccessToken(tenantId);
-  const channelId = rows[0].channel_id;
+  const currentChannelId = rows[0].channel_id;
+  const currentResourceId = rows[0].resource_id;
+  const nextChannelId = crypto.randomUUID();
 
   // Calendar watch expires after 1 week max
   const expiration = Date.now() + 6 * 24 * 60 * 60 * 1000; // 6 days
 
   try {
+    // Google Calendar rejects reused channel IDs while an older watch is still alive.
+    // Stop the previous channel best-effort, then create a fresh one for every renewal.
+    await stopCalendarChannel(accessToken, currentChannelId, currentResourceId);
+
     const res = await fetch(`${CALENDAR_API}/calendars/primary/events/watch`, {
       method: 'POST',
       headers: {
@@ -174,7 +190,7 @@ export async function watchCalendar(tenantId: string): Promise<void> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        id: channelId,
+        id: nextChannelId,
         type: 'web_hook',
         address: webhookUrl,
         expiration: expiration.toString(),
@@ -191,19 +207,40 @@ export async function watchCalendar(tenantId: string): Promise<void> {
 
     await query(
       `UPDATE google_calendar_channels
-          SET resource_id = $1,
-              expires_at = $2,
+          SET channel_id = $1,
+              resource_id = $2,
+              expires_at = $3,
               last_watch_renewed_at = now(),
               last_watch_error = NULL,
               watch_status = 'active',
               updated_at = now()
-        WHERE tenant_id = $3`,
-      [data.resourceId, new Date(expiration), tenantId],
+        WHERE tenant_id = $4`,
+      [nextChannelId, data.resourceId, new Date(expiration), tenantId],
     );
   } catch (error: any) {
     await markCalendarWatchFailure(tenantId, error?.message ?? 'calendar_watch_failed').catch(() => {});
     throw error;
   }
+}
+
+export async function disconnectCalendar(tenantId: string): Promise<void> {
+  try {
+    const accessToken = await getCalendarAccessToken(tenantId);
+    const { rows } = await query<CalendarChannelRow>(
+      `SELECT channel_id, resource_id
+         FROM google_calendar_channels
+        WHERE tenant_id = $1`,
+      [tenantId],
+    );
+
+    if (rows[0]) {
+      await stopCalendarChannel(accessToken, rows[0].channel_id, rows[0].resource_id);
+    }
+  } catch (error: any) {
+    console.warn('[googleCalendarService] disconnect stop failed:', error?.message);
+  }
+
+  await query(`DELETE FROM google_calendar_channels WHERE tenant_id = $1`, [tenantId]);
 }
 
 // ── Process calendar notification ─────────────────────────────────────────
@@ -702,6 +739,31 @@ async function markCalendarWatchFailure(tenantId: string, message: string): Prom
       WHERE tenant_id = $1`,
     [tenantId, message.slice(0, 500)],
   ).catch(() => {});
+}
+
+async function stopCalendarChannel(
+  accessToken: string,
+  channelId: string | null,
+  resourceId: string | null,
+): Promise<void> {
+  if (!channelId || !resourceId) return;
+
+  const res = await fetch(`${CALENDAR_API}/channels/stop`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      id: channelId,
+      resourceId,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    console.warn(`[googleCalendarService] stop channel failed for ${channelId}: ${err.slice(0, 200)}`);
+  }
 }
 
 async function clientsHaveContactEmailColumn(): Promise<boolean> {

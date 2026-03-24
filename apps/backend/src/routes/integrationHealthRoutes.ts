@@ -36,6 +36,12 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         tavily:         has('TAVILY_API_KEY'),
         google_trends:  has('GOOGLE_TRENDS_SERVICE_URL'),
       },
+      meta: {
+        app_id:        has('META_APP_ID'),
+        app_secret:    has('META_APP_SECRET'),
+        redirect_uri:  has('META_REDIRECT_URI') || has('PUBLIC_API_URL'),
+        verify_token:  has('META_VERIFY_TOKEN'),
+      },
       whatsapp_evolution: {
         api_key: has('EVOLUTION_API_KEY'),
         api_url: has('EVOLUTION_API_URL'),
