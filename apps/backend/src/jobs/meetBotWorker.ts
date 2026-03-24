@@ -146,6 +146,7 @@ async function handleScheduleJob(job: any): Promise<void> {
       joinAt: scheduledAt.toISOString(),
       botName: `Edro.Studio - ${clientName}`,
       platform,
+      tenantId,
       metadata: {
         tenant_id: tenantId,
         client_id: clientId,

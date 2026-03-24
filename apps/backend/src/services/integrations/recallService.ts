@@ -1,4 +1,5 @@
 import { env } from '../../env';
+import { logActivity } from '../integrationMonitor';
 
 type RecallBotResponse = {
   id: string;
@@ -48,6 +49,7 @@ export async function createRecallBot(params: {
   botName: string;
   platform?: string;
   metadata: Record<string, string>;
+  tenantId?: string;
 }): Promise<RecallBotResponse> {
   const body: Record<string, any> = {
     meeting_url: params.meetingUrl,
@@ -81,11 +83,26 @@ export async function createRecallBot(params: {
   });
 
   if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    throw new Error(`Recall create bot failed (${res.status}): ${err.slice(0, 300)}`);
+    const errText = await res.text().catch(() => '');
+    if (params.tenantId) {
+      logActivity({
+        tenantId: params.tenantId, service: 'recall', event: 'bot_deployed',
+        status: 'error', errorMsg: `${res.status}: ${errText.slice(0, 200)}`,
+        meta: { meetingUrl: params.meetingUrl, platform: params.platform },
+      });
+    }
+    throw new Error(`Recall create bot failed (${res.status}): ${errText.slice(0, 300)}`);
   }
 
-  return res.json() as Promise<RecallBotResponse>;
+  const bot = await res.json() as RecallBotResponse;
+  if (params.tenantId) {
+    logActivity({
+      tenantId: params.tenantId, service: 'recall', event: 'bot_deployed',
+      status: 'ok', records: 1,
+      meta: { botId: bot.id, meetingUrl: params.meetingUrl, platform: params.platform, joinAt: params.joinAt },
+    });
+  }
+  return bot;
 }
 
 export async function getRecallBot(botId: string): Promise<RecallBotResponse> {
