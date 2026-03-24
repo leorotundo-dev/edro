@@ -9,6 +9,7 @@ import { enqueueJob } from '../jobs/jobQueue';
 import { ingestUrl, refreshItem } from '../clipping/ingest';
 import { scoreClippingItem } from '../clipping/scoring';
 import { computeGeoFactorWithMode, normalizeGeoMode, type GeoMode } from '../clipping/geo';
+import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 
 const parser = new Parser({
   timeout: 20_000,
@@ -2183,6 +2184,71 @@ export default async function clippingRoutes(app: FastifyInstance) {
         touched_sources: rows[0]?.touched_sources ?? 0,
       };
     }
+  );
+
+  // ── Source suggestion (AI-powered) ────────────────────────────────
+
+  app.post(
+    '/clipping/sources/suggest',
+    { preHandler: [authGuard, requirePerm('clipping:write'), tenantGuard()] },
+    async (request: any, reply) => {
+      const tenantId = request.user.tenant_id as string;
+      const { clientId } = z.object({ clientId: z.string().optional() }).parse(request.body ?? {});
+
+      if (!isTavilyConfigured()) {
+        return reply.send({ suggestions: [], reason: 'search_not_configured' });
+      }
+
+      // Load existing source URLs to avoid re-suggesting them
+      const { rows: existingRows } = await query<{ url: string }>(
+        `SELECT url FROM clipping_sources WHERE tenant_id=$1`,
+        [tenantId],
+      );
+      const existingUrls = new Set(existingRows.map((r) => r.url.toLowerCase()));
+
+      // Load client profile for context
+      let searchTerms: string[] = [];
+      if (clientId) {
+        const { rows } = await query<{ name: string; segment_primary: string | null; profile: any }>(
+          `SELECT name, segment_primary, profile FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
+          [clientId, tenantId],
+        );
+        const client = rows[0];
+        if (client) {
+          const profile = client.profile || {};
+          const kws: string[] = [
+            ...(Array.isArray(profile.keywords) ? profile.keywords : []),
+            ...(Array.isArray(profile.pillars) ? profile.pillars.map((p: any) => (typeof p === 'string' ? p : p?.title || '')) : []),
+          ].filter(Boolean).slice(0, 4);
+          searchTerms = kws.length > 0 ? kws : [client.segment_primary || client.name];
+        }
+      }
+      if (searchTerms.length === 0) searchTerms = ['negócios Brasil'];
+
+      const seen = new Set<string>();
+      const suggestions: Array<{ name: string; url: string; type: string; reason: string }> = [];
+
+      for (const term of searchTerms.slice(0, 3)) {
+        try {
+          const res = await tavilySearch(`${term} RSS feed notícias`, { maxResults: 6, searchDepth: 'basic' });
+          for (const r of res.results) {
+            if (!r.url || seen.has(r.url) || existingUrls.has(r.url.toLowerCase())) continue;
+            // Skip obvious social profiles
+            if (/instagram\.com|linkedin\.com\/in\/|facebook\.com|tiktok\.com/i.test(r.url)) continue;
+            seen.add(r.url);
+            const looksLikeRss = /\/feed|\/rss|\.xml|\/atom/i.test(r.url);
+            suggestions.push({
+              name: (r.title || r.url).slice(0, 80),
+              url: r.url,
+              type: looksLikeRss ? 'RSS' : 'URL',
+              reason: `Relevante para "${term}"`,
+            });
+          }
+        } catch { /* ignore individual search failures */ }
+      }
+
+      return reply.send({ suggestions: suggestions.slice(0, 10) });
+    },
   );
 
   // ── Diagnostics ───────────────────────────────────────────────────

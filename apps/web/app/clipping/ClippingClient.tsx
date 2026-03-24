@@ -203,6 +203,66 @@ function statusChip(status?: string | null) {
   return { label: status, color: 'default' } as const;
 }
 
+// ── Source diagnosis ─────────────────────────────────────────────────────────
+
+function getSocialPlatform(url: string): string | null {
+  if (/instagram\.com/i.test(url)) return 'Instagram';
+  if (/linkedin\.com\/(company|in)\//i.test(url)) return 'LinkedIn';
+  if (/facebook\.com/i.test(url)) return 'Facebook';
+  if (/tiktok\.com/i.test(url)) return 'TikTok';
+  if (/(?:twitter|x)\.com/i.test(url)) return 'Twitter/X';
+  return null;
+}
+
+type SourceDiagnosis = {
+  readable: string;
+  hint: string;
+  severity: 'error' | 'warning';
+  fixType?: 'try-http';
+  isSocial?: boolean;
+};
+
+function diagnoseSource(source: SourceRow): SourceDiagnosis | null {
+  const social = getSocialPlatform(source.url);
+  if (social) {
+    return {
+      readable: `Perfil ${social} não é scrapiável`,
+      hint: 'Redes sociais bloqueiam scrapers. Conecte via OAuth em Integrações.',
+      severity: 'error',
+      isSocial: true,
+    };
+  }
+  const err = (source.last_error || '').toLowerCase();
+  if (err === 'tavily_fallback') {
+    return { readable: 'Feed direto indisponível', hint: 'Conteúdo sendo recuperado via busca web (Tavily).', severity: 'warning' };
+  }
+  if (!err || source.status !== 'ERROR') return null;
+  if (err.includes('invalid character') || err.includes('not well-formed') || err.includes('entity name') || err.includes('unclosed token')) {
+    return { readable: 'Feed RSS inválido', hint: 'A URL retornou HTML em vez de XML/RSS. Tente adicionar /feed/ ou /rss ao final.', severity: 'error' };
+  }
+  if (err === 'url_no_links_found') {
+    return { readable: 'Nenhum link encontrado', hint: 'A página não tem links extraíveis. Tente adicionar /feed ou /rss ao final da URL.', severity: 'error' };
+  }
+  if (err.includes('certificate') || err.includes('ssl') || err.includes('unable to verify')) {
+    return { readable: 'Erro de certificado SSL', hint: 'Certificado inválido.', severity: 'error', fixType: 'try-http' };
+  }
+  if (err.includes('404') || err.includes('not found')) {
+    return { readable: 'Página não encontrada (404)', hint: 'A URL pode ter mudado. Atualize o endereço.', severity: 'error' };
+  }
+  if (err.includes('403') || err.includes('forbidden') || err.includes('blocked')) {
+    return { readable: 'Acesso bloqueado (403)', hint: 'O site bloqueou o scraper.', severity: 'error' };
+  }
+  if (err.includes('econnrefused') || err.includes('econnreset') || err.includes('etimedout') || err.includes('timeout')) {
+    return { readable: 'Site não responde', hint: 'Servidor instável ou fora do ar.', severity: 'error' };
+  }
+  if (err.includes('enotfound') || err.includes('getaddrinfo')) {
+    return { readable: 'Domínio não encontrado', hint: 'O site pode estar fora do ar ou o domínio mudou.', severity: 'error' };
+  }
+  return { readable: 'Erro ao buscar', hint: source.last_error || 'Erro desconhecido.', severity: 'error' };
+}
+
+type SuggestedSource = { name: string; url: string; type: string; reason: string };
+
 export default function ClippingClient({ clientId, noShell, embedded }: ClippingClientProps) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -242,6 +302,9 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [competitiveBrief, setCompetitiveBrief] = useState('');
   const [pautaLoadingId, setPautaLoadingId] = useState<string | null>(null);
   const [pautaModal, setPautaModal] = useState<{ open: boolean; suggestion: PautaSuggestion | null }>({ open: false, suggestion: null });
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestSources, setSuggestSources] = useState<SuggestedSource[]>([]);
 
   const loadClients = useCallback(async () => {
     setLoading(true);
@@ -508,6 +571,54 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
     }
   };
 
+  const handleQuickFixSsl = async (source: SourceRow) => {
+    const newUrl = source.url.replace(/^https:\/\//i, 'http://');
+    if (newUrl === source.url) return;
+    try {
+      await apiPatch(`/clipping/sources/${source.id}`, { url: newUrl });
+      await loadSources();
+      setSuccess('URL atualizada para HTTP.');
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao atualizar URL.');
+    }
+  };
+
+  const handleSuggestSources = async () => {
+    setSuggestLoading(true);
+    setSuggestSources([]);
+    setSuggestOpen(true);
+    try {
+      const effectiveClientId = (selectedClient?.id || lockedClientId || '').trim();
+      const res = await apiPost<{ suggestions: SuggestedSource[] }>('/clipping/sources/suggest', {
+        clientId: effectiveClientId || undefined,
+      });
+      setSuggestSources(res?.suggestions || []);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao sugerir fontes.');
+      setSuggestOpen(false);
+    } finally {
+      setSuggestLoading(false);
+    }
+  };
+
+  const handleAddSuggestedSource = async (s: SuggestedSource) => {
+    const effectiveClientId = (selectedClient?.id || lockedClientId || '').trim();
+    try {
+      await apiPost('/clipping/sources', {
+        name: s.name,
+        url: s.url,
+        type: s.type,
+        scope: effectiveClientId ? 'CLIENT' : 'GLOBAL',
+        clientId: effectiveClientId || undefined,
+      });
+      setSuggestSources((prev) => prev.filter((x) => x.url !== s.url));
+      void loadSources();
+      setSuccess(`"${s.name}" adicionada.`);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao adicionar.');
+    }
+  };
+
   const handleFetchAll = async () => {
     setFetchingAll(true);
     setError('');
@@ -593,7 +704,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   };
 
   const errorSourceCount = useMemo(
-    () => sources.filter((s) => s.status === 'ERROR' || s.last_error).length,
+    () => sources.filter((s) => (s.status === 'ERROR' || s.last_error) && s.last_error !== 'tavily_fallback').length,
     [sources]
   );
 
@@ -936,6 +1047,11 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                     <Chip size="small" icon={<IconAlertTriangle size={14} />} label={`${errorSourceCount} com erro`} color="error" variant="outlined" />
                   )}
                   <Chip size="small" label={`${sources.length} fontes`} color="info" variant="outlined" />
+                  {(selectedClient?.id || lockedClientId) && (
+                    <Button size="small" variant="outlined" startIcon={<IconSparkles size={14} />} onClick={handleSuggestSources} disabled={suggestLoading}>
+                      {suggestLoading ? 'Buscando...' : 'Sugerir fontes'}
+                    </Button>
+                  )}
                   <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={handleFetchAll} disabled={fetchingAll}>
                     {fetchingAll ? 'Buscando...' : 'Buscar todas'}
                   </Button>
@@ -946,10 +1062,12 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                 {sources.length ? (
                   sources.map((source) => {
                     const isEditing = editingSourceId === source.id;
-                    const hasError = source.status === 'ERROR' || !!source.last_error;
+                    const diagnosis = diagnoseSource(source);
+                    const isWarning = diagnosis?.severity === 'warning';
+                    const hasError = !isWarning && (source.status === 'ERROR' || !!source.last_error);
                     const isPaused = !source.is_active;
-                    const statusColor = isPaused ? 'default' : hasError ? 'error' : 'success';
-                    const statusLabel = isPaused ? 'Pausada' : hasError ? 'Erro' : 'OK';
+                    const statusColor = isPaused ? 'default' : hasError ? 'error' : isWarning ? 'warning' : 'success';
+                    const statusLabel = isPaused ? 'Pausada' : hasError ? 'Erro' : isWarning ? 'Atenção' : 'OK';
 
                     return (
                       <Box
@@ -1024,16 +1142,27 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
                           </Stack>
                         )}
 
-                        {hasError && source.last_error && (
-                          <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
-                            {source.last_error}
-                          </Typography>
+                        {diagnosis && (
+                          <Box sx={{ mt: 0.75, p: 1, borderRadius: 1, bgcolor: diagnosis.severity === 'warning' ? 'warning.lighter' : 'error.lighter' }}>
+                            <Typography variant="caption" fontWeight={600} color={diagnosis.severity === 'warning' ? 'warning.dark' : 'error.dark'} sx={{ display: 'block' }}>
+                              {diagnosis.readable}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {diagnosis.hint}
+                            </Typography>
+                            {diagnosis.fixType === 'try-http' && source.url.startsWith('https://') && (
+                              <Button size="small" variant="outlined" color="warning" sx={{ mt: 0.5, py: 0, fontSize: '0.7rem' }}
+                                onClick={() => handleQuickFixSsl(source)}>
+                                Tentar HTTP
+                              </Button>
+                            )}
+                          </Box>
                         )}
 
                         <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} alignItems="center">
                           <Chip size="small" label={source.scope} variant="outlined" />
                           <Typography variant="caption" color="text.secondary">
-                            Fetch: {timeAgo(source.last_fetched_at)}
+                            Último fetch: {timeAgo(source.last_fetched_at)}
                           </Typography>
                         </Stack>
                       </Box>
@@ -1102,6 +1231,66 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
           </Stack>
         </Grid>
       </Grid>
+
+      {/* ── Suggest sources dialog ── */}
+      <Dialog open={suggestOpen} onClose={() => setSuggestOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <IconSparkles size={20} />
+            <Typography variant="h6">Sugestão de fontes com IA</Typography>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {suggestLoading ? (
+            <Stack alignItems="center" spacing={2} sx={{ py: 4 }}>
+              <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary">Buscando fontes relevantes...</Typography>
+            </Stack>
+          ) : suggestSources.length === 0 ? (
+            <Stack alignItems="center" spacing={1} sx={{ py: 4 }}>
+              <Typography variant="body2" color="text.secondary">
+                Nenhuma sugestão encontrada. Adicione palavras-chave no perfil do cliente para melhorar os resultados.
+              </Typography>
+            </Stack>
+          ) : (
+            <Stack spacing={1.5}>
+              <Typography variant="caption" color="text.secondary">
+                {suggestSources.length} fontes encontradas. Clique em "Adicionar" para incluir nas fontes do cliente.
+              </Typography>
+              {suggestSources.map((s) => (
+                <Box key={s.url} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                  <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Chip size="small" label={s.type} variant="outlined" sx={{ fontSize: '0.62rem', height: 18 }} />
+                        <Typography variant="body2" fontWeight={600} noWrap>{s.name}</Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }} noWrap>
+                        {s.url}
+                      </Typography>
+                      <Typography variant="caption" color="text.disabled">{s.reason}</Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.5} flexShrink={0}>
+                      <Tooltip title="Abrir URL">
+                        <IconButton size="small" component="a" href={s.url} target="_blank" rel="noopener">
+                          <IconExternalLink size={14} />
+                        </IconButton>
+                      </Tooltip>
+                      <Button size="small" variant="contained" startIcon={<IconPlus size={14} />}
+                        onClick={() => handleAddSuggestedSource(s)}>
+                        Adicionar
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSuggestOpen(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={competitiveOpen} onClose={() => setCompetitiveOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Briefing estratégico de concorrência</DialogTitle>

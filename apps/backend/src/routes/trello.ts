@@ -123,6 +123,21 @@ export default async function trelloRoutes(app: FastifyInstance) {
     return reply.send({ boards: res.rows });
   });
 
+  // PATCH /trello/project-boards/:boardId — vincula/desvincula um board a um cliente
+  app.patch('/trello/project-boards/:boardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { boardId } = request.params as { boardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const { client_id } = request.body as { client_id?: string | null };
+
+    await query(
+      `UPDATE project_boards SET client_id = $1, updated_at = now()
+       WHERE id = $2 AND tenant_id = $3`,
+      [client_id ?? null, boardId, tenantId],
+    );
+
+    return reply.send({ ok: true });
+  });
+
   // GET /trello/project-boards/:boardId — board completo com listas + cards
   app.get('/trello/project-boards/:boardId', { preHandler: authGuard }, async (request: any, reply) => {
     const { boardId } = request.params as { boardId: string };

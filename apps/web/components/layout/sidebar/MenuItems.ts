@@ -1,7 +1,6 @@
 import {
   IconHome,
   IconLayoutDashboard,
-  IconLayoutKanban,
   IconUsers,
   IconCalendar,
   IconPalette,
@@ -66,12 +65,6 @@ const MenuItems: MenuGroupType[] = [
         icon: IconShoppingBag,
         href: '/admin/operacoes/pool',
         requiredRole: ['admin', 'manager'],
-      },
-      {
-        id: 'projetos',
-        title: 'Projetos',
-        icon: IconLayoutKanban,
-        href: '/projetos',
       },
       {
         id: 'calendar',
