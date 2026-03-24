@@ -11,7 +11,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
 import { sendWhatsAppText, isWhatsAppConfigured } from '../services/whatsappService';
 import { env } from '../env';
-import { getMonitorStatus, type IntegrationService } from '../services/integrationMonitor';
+import { getMonitorStatus, type IntegrationService, type ServiceMonitorStatus } from '../services/integrationMonitor';
 import { isEmailConfigured } from '../services/emailService';
 
 function has(key: string): boolean {
@@ -114,6 +114,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
+    const now = Date.now();
 
     const [
       trelloConnectorRes,
@@ -121,10 +122,63 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       calendarChannelRes,
       metaConnectorRes,
     ] = await Promise.all([
-      query(`SELECT 1 FROM trello_connectors WHERE tenant_id = $1 AND is_active = true LIMIT 1`, [tenantId]),
-      query(`SELECT 1 FROM gmail_connections WHERE tenant_id = $1 LIMIT 1`, [tenantId]),
-      query(`SELECT 1 FROM google_calendar_channels WHERE tenant_id = $1 LIMIT 1`, [tenantId]),
-      query(`SELECT 1 FROM connectors WHERE tenant_id = $1 AND provider = 'meta' LIMIT 1`, [tenantId]),
+      query<{
+        member_id: string | null;
+        last_synced_at: string | null;
+      }>(
+        `SELECT member_id, last_synced_at
+           FROM trello_connectors
+          WHERE tenant_id = $1
+            AND is_active = true
+          LIMIT 1`,
+        [tenantId],
+      ),
+      query<{
+        email_address: string | null;
+        watch_expiry: string | null;
+        last_sync_at: string | null;
+        last_error: string | null;
+        connected_at: string | null;
+      }>(
+        `SELECT email_address, watch_expiry, last_sync_at, last_error, connected_at
+           FROM gmail_connections
+          WHERE tenant_id = $1
+          LIMIT 1`,
+        [tenantId],
+      ),
+      query<{
+        email_address: string | null;
+        expires_at: string | null;
+        watch_status: string | null;
+        last_watch_renewed_at: string | null;
+        last_watch_error: string | null;
+        last_notification_at: string | null;
+        last_notification_state: string | null;
+      }>(
+        `SELECT email_address, expires_at, watch_status, last_watch_renewed_at, last_watch_error,
+                last_notification_at, last_notification_state
+           FROM google_calendar_channels
+          WHERE tenant_id = $1
+          LIMIT 1`,
+        [tenantId],
+      ),
+      query<{
+        client_id: string | null;
+        last_sync_at: string | null;
+        page_id: string | null;
+        instagram_business_id: string | null;
+      }>(
+        `SELECT client_id,
+                last_sync_at,
+                payload->>'page_id' AS page_id,
+                payload->>'instagram_business_id' AS instagram_business_id
+           FROM connectors
+          WHERE tenant_id = $1
+            AND provider = 'meta'
+          ORDER BY updated_at DESC
+          LIMIT 1`,
+        [tenantId],
+      ),
     ]);
 
     const configured = new Set<IntegrationService>([
@@ -141,7 +195,92 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     ]);
 
     const services = await getMonitorStatus(tenantId, configured);
-    return reply.send({ services });
+    const fallbacks = new Map<IntegrationService, Partial<ServiceMonitorStatus>>();
+
+    if (trelloConnectorRes.rows[0]) {
+      fallbacks.set('trello', {
+        status: trelloConnectorRes.rows[0].last_synced_at ? 'ok' : 'unknown',
+        last_event: trelloConnectorRes.rows[0].last_synced_at ? 'sync' : 'connected',
+        last_activity: trelloConnectorRes.rows[0].last_synced_at ?? undefined,
+        meta: {
+          member_id: trelloConnectorRes.rows[0].member_id,
+        },
+      });
+    }
+
+    if (gmailConnectionRes.rows[0]) {
+      const gmail = gmailConnectionRes.rows[0];
+      const watchExpiryMs = gmail.watch_expiry ? new Date(gmail.watch_expiry).getTime() : null;
+      const watchExpired = watchExpiryMs !== null && watchExpiryMs <= now;
+      fallbacks.set('gmail', {
+        status: gmail.last_error
+          ? 'error'
+          : watchExpired
+            ? 'degraded'
+            : 'ok',
+        last_event: gmail.last_error
+          ? 'watch_error'
+          : gmail.last_sync_at
+            ? 'sync'
+            : 'connected',
+        last_activity: gmail.last_sync_at ?? gmail.connected_at ?? undefined,
+        error_msg: gmail.last_error ?? undefined,
+        meta: {
+          email: gmail.email_address,
+          watch_expiry: gmail.watch_expiry,
+        },
+      });
+    }
+
+    if (calendarChannelRes.rows[0]) {
+      const calendar = calendarChannelRes.rows[0];
+      const expiryMs = calendar.expires_at ? new Date(calendar.expires_at).getTime() : null;
+      const expired = expiryMs !== null && expiryMs <= now;
+      const expiresSoon = expiryMs !== null && expiryMs > now && expiryMs - now < 48 * 60 * 60 * 1000;
+      fallbacks.set('google_calendar', {
+        status: calendar.watch_status === 'error' || calendar.last_watch_error
+          ? 'error'
+          : expired
+            ? 'degraded'
+            : expiresSoon
+              ? 'degraded'
+              : 'ok',
+        last_event: calendar.last_notification_at
+          ? `notification_${calendar.last_notification_state ?? 'received'}`
+          : calendar.last_watch_renewed_at
+            ? 'watch_renewed'
+            : 'connected',
+        last_activity: calendar.last_notification_at ?? calendar.last_watch_renewed_at ?? undefined,
+        error_msg: calendar.last_watch_error ?? undefined,
+        meta: {
+          email: calendar.email_address,
+          expires_at: calendar.expires_at,
+          watch_status: calendar.watch_status,
+        },
+      });
+    }
+
+    if (metaConnectorRes.rows[0]) {
+      const meta = metaConnectorRes.rows[0];
+      fallbacks.set('instagram', {
+        status: meta.page_id || meta.instagram_business_id ? 'ok' : 'unknown',
+        last_event: meta.last_sync_at ? 'sync' : 'connected',
+        last_activity: meta.last_sync_at ?? undefined,
+        meta: {
+          client_id: meta.client_id,
+          page_id: meta.page_id,
+          instagram_business_id: meta.instagram_business_id,
+        },
+      });
+    }
+
+    const mergedServices = services.map((service) => {
+      if (service.last_activity) return service;
+      const fallback = fallbacks.get(service.service);
+      return fallback ? { ...service, ...fallback } : service;
+    });
+
+    return reply.send({ services: mergedServices });
   });
 
   // GET /admin/integrations/config-hints
