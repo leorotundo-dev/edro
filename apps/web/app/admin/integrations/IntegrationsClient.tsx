@@ -109,6 +109,14 @@ function monitorStatusColor(status: ServiceMonitorStatus['status']) {
   return '#9ca3af';
 }
 
+function monitorSortRank(service: ServiceMonitorStatus) {
+  if (service.status === 'error') return 0;
+  if (service.status === 'degraded') return 1;
+  if (service.status === 'ok') return 2;
+  if (service.configured) return 3;
+  return 4;
+}
+
 function monitorEventLabel(service: string, event?: string | null) {
   if (!event) return null;
   const generic: Record<string, string> = {
@@ -270,6 +278,12 @@ export default function IntegrationsClient() {
   const gmailError = searchParams.get('gmail_error');
   const calendarConnected = searchParams.get('calendar_connected');
   const calendarError = searchParams.get('calendar_error');
+  const sortedMonitor = monitor
+    ? [...monitor].sort((a, b) => (
+        monitorSortRank(a) - monitorSortRank(b)
+        || a.label.localeCompare(b.label, 'pt-BR')
+      ))
+    : null;
 
   return (
     <AppShell title="Integrações">
@@ -306,7 +320,7 @@ export default function IntegrationsClient() {
           <Stack spacing={2}>
 
             {/* ── Monitor ao vivo ── */}
-            {monitor && (
+            {sortedMonitor && (
               <Card variant="outlined">
                 <CardContent>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -314,18 +328,18 @@ export default function IntegrationsClient() {
                       <IconPlugConnected size={18} />
                       <Typography variant="subtitle2" fontWeight={700}>Monitor ao vivo</Typography>
                       <Chip
-                        label={`${monitor.filter(s => s.status === 'ok').length} ok`}
+                        label={`${sortedMonitor.filter(s => s.status === 'ok').length} ok`}
                         size="small" color="success" variant="outlined"
                       />
-                      {monitor.filter(s => s.status === 'error').length > 0 && (
+                      {sortedMonitor.filter(s => s.status === 'error').length > 0 && (
                         <Chip
-                          label={`${monitor.filter(s => s.status === 'error').length} com erro`}
+                          label={`${sortedMonitor.filter(s => s.status === 'error').length} com erro`}
                           size="small" color="error"
                         />
                       )}
-                      {monitor.filter(s => s.status === 'degraded').length > 0 && (
+                      {sortedMonitor.filter(s => s.status === 'degraded').length > 0 && (
                         <Chip
-                          label={`${monitor.filter(s => s.status === 'degraded').length} degradado`}
+                          label={`${sortedMonitor.filter(s => s.status === 'degraded').length} degradado`}
                           size="small" color="warning"
                         />
                       )}
@@ -336,7 +350,7 @@ export default function IntegrationsClient() {
                   </Stack>
 
                   <Stack spacing={0.75}>
-                    {monitor.map((svc) => (
+                    {sortedMonitor.map((svc) => (
                       <Stack key={svc.service} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Box sx={{
@@ -354,6 +368,9 @@ export default function IntegrationsClient() {
                             <Tooltip title={svc.error_msg}>
                               <Chip label="erro" size="small" color="error" sx={{ height: 16, fontSize: '0.6rem', cursor: 'help' }} />
                             </Tooltip>
+                          )}
+                          {svc.status === 'degraded' && svc.meta?.stale && (
+                            <Chip label="sem atividade recente" size="small" color="warning" sx={{ height: 16, fontSize: '0.6rem' }} />
                           )}
                         </Stack>
                         <Stack direction="row" spacing={1.5} alignItems="center">
