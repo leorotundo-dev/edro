@@ -11,6 +11,7 @@ import { buildStageChangeEmail } from './stageNotificationTemplates';
 import { sendEmail } from './emailService';
 import { WorkflowStage, isWorkflowStage, normalizeLegacyStage } from '../utils/workflow';
 import { env } from '../env';
+import { ensureBriefingExecutionReady } from './briefingExecutionService';
 
 export type TransitionActor = { name?: string | null; email?: string | null };
 
@@ -88,6 +89,23 @@ export async function transitionBriefingStage(
 ): Promise<{ ok: boolean; error?: string }> {
   const briefing = await getBriefingById(briefingId);
   if (!briefing) return { ok: false, error: 'briefing_not_found' };
+
+  if (toStage === 'producao') {
+    const readiness = await ensureBriefingExecutionReady(briefingId, {
+      id: briefing.id,
+      title: briefing.title,
+      status: briefing.status,
+      payload: briefing.payload,
+      copy_approved_at: (briefing as any).copy_approved_at ?? null,
+      copy_approval_comment: (briefing as any).copy_approval_comment ?? null,
+    });
+    if (!readiness.ok) {
+      return {
+        ok: false,
+        error: readiness.error ?? 'briefing_not_ready_for_execution',
+      };
+    }
+  }
 
   const rawStage = briefing.status ?? 'briefing';
   const fromStage: WorkflowStage = isWorkflowStage(rawStage)

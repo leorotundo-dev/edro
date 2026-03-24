@@ -15,7 +15,6 @@ const NAV = [
   { href: '/portfolio',  label: 'Hall da Fama',icon: '🏆', match: (p: string) => p.startsWith('/portfolio') },
   { href: '/parceiros',  label: 'Parceiros',   icon: '🤝', match: (p: string) => p.startsWith('/parceiros') },
   { href: '/agenda',     label: 'Agenda',      icon: '📅', match: (p: string) => p.startsWith('/agenda') },
-  { href: '/studio',     label: 'Studio',      icon: '✦', match: (p: string) => p.startsWith('/studio') },
   { href: '/horas',      label: 'Score',       icon: '★', match: (p: string) => p.startsWith('/horas') },
   { href: '/perfil',     label: 'Perfil',      icon: '◉', match: (p: string) => p.startsWith('/perfil') },
 ];

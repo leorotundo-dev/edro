@@ -10,6 +10,11 @@ import { generateCopy } from '../services/ai/copyService';
 import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
 import { generateContractPdf } from '../services/contractTemplateService';
 import { securityLog } from '../audit/securityLog';
+import {
+  attachExecutionSnapshotToPayload,
+  isFreelancerVisibleBriefingStatus,
+  syncBriefingExecutionSnapshot,
+} from '../services/briefingExecutionService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -835,7 +840,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               NULL::numeric as fee_brl, NULL::text as job_size,
               false as pending_acceptance,
               NULL::text as delivered_link, NULL::text as adjustment_feedback,
-              NULL::timestamptz as approved_at, NULL::timestamptz as delivered_at
+              NULL::timestamptz as approved_at, NULL::timestamptz as delivered_at,
+              b.payload, b.copy_approved_at, b.copy_approval_comment
        FROM edro_briefings b
        LEFT JOIN edro_clients ec ON ec.id = b.client_id
        WHERE b.assignees @> jsonb_build_array(jsonb_build_object('user_id', $1::text))
@@ -847,7 +853,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               j.fee_brl, j.job_size,
               false as pending_acceptance,
               j.delivered_link, j.adjustment_feedback,
-              j.approved_at, j.delivered_at
+              j.approved_at, j.delivered_at,
+              NULL::jsonb as payload, NULL::timestamptz as copy_approved_at, NULL::text as copy_approval_comment
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        WHERE j.owner_id = $1::uuid
@@ -865,7 +872,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               NULL::text as job_size,
               false as pending_acceptance,
               NULL::text as delivered_link, NULL::text as adjustment_feedback,
-              NULL::timestamptz as approved_at, NULL::timestamptz as delivered_at
+              NULL::timestamptz as approved_at, NULL::timestamptz as delivered_at,
+              NULL::jsonb as payload, NULL::timestamptz as copy_approved_at, NULL::text as copy_approval_comment
        FROM project_cards pc
        JOIN project_card_members pcm ON pcm.card_id = pc.id
        JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
@@ -878,7 +886,31 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        LIMIT 100`,
       [userId],
     );
-    return reply.send({ jobs: res.rows });
+    const jobs = (await Promise.all(
+      res.rows.map(async (row: any) => {
+        if (row.source !== 'briefing') return row;
+
+        const snapshot = await syncBriefingExecutionSnapshot(row.id, {
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          payload: row.payload,
+          copy_approved_at: row.copy_approved_at,
+          copy_approval_comment: row.copy_approval_comment,
+        });
+
+        if (!isFreelancerVisibleBriefingStatus(row.status) || !snapshot?.execution_ready) {
+          return null;
+        }
+
+        return {
+          ...row,
+          payload: attachExecutionSnapshotToPayload(row.payload, snapshot),
+        };
+      }),
+    )).filter(Boolean);
+
+    return reply.send({ jobs });
   });
 
   // POST /freelancers/portal/me/jobs/:jobId/respond — aceitar ou recusar job
@@ -907,6 +939,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       const assignees: any[] = Array.isArray(b.assignees) ? b.assignees : [];
       const isAssigned = assignees.some((a: any) => a.user_id === userId);
       if (!isAssigned) return reply.status(404).send({ error: 'Job não encontrado.' });
+
+      const snapshot = await syncBriefingExecutionSnapshot(jobId);
+      if (!isFreelancerVisibleBriefingStatus(b.status) || !snapshot?.execution_ready) {
+        return reply.status(409).send({ error: 'Este briefing ainda não está pronto para execução.' });
+      }
 
       // Atualiza assignees: adiciona accepted / reason no entry do freelancer
       const updatedAssignees = assignees.map((a: any) => {
@@ -1196,7 +1233,27 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         [jobId, userId],
       );
       if (res.rows.length) {
-        return reply.send({ job: { ...res.rows[0], source: 'briefing' } });
+        const row = res.rows[0];
+        const snapshot = await syncBriefingExecutionSnapshot(jobId, {
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          payload: row.payload,
+          copy_approved_at: row.copy_approved_at,
+          copy_approval_comment: row.copy_approval_comment,
+        });
+
+        if (!isFreelancerVisibleBriefingStatus(row.status) || !snapshot?.execution_ready) {
+          return reply.status(404).send({ error: 'Job não encontrado ou ainda não está pronto para execução.' });
+        }
+
+        return reply.send({
+          job: {
+            ...row,
+            payload: attachExecutionSnapshotToPayload(row.payload, snapshot),
+            source: 'briefing',
+          },
+        });
       }
     }
 
