@@ -83,6 +83,13 @@ type ServiceMonitorStatus = {
   meta?: Record<string, any> | null;
 };
 
+type MonitorQuickAction = {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+};
+
 type IntegrationHealth = {
   google:             { client_id: boolean; client_secret: boolean; pubsub_topic: boolean; calendar_webhook: boolean };
   ai:                 { gemini: boolean; openai: boolean };
@@ -285,6 +292,49 @@ export default function IntegrationsClient() {
       ))
     : null;
 
+  const monitorQuickAction = (svc: ServiceMonitorStatus): MonitorQuickAction | null => {
+    switch (svc.service) {
+      case 'gmail':
+        return {
+          label: gmail?.configured ? 'Setup' : 'Configurar',
+          onClick: () => setSetupDialog('google-oauth'),
+        };
+      case 'google_calendar':
+        if (calendar?.configured) {
+          return {
+            label: renewingCalendar ? 'Renovando...' : 'Renovar watch',
+            onClick: handleCalendarRenew,
+            disabled: renewingCalendar,
+          };
+        }
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('google-oauth'),
+        };
+      case 'whatsapp':
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('whatsapp-meta'),
+        };
+      case 'evolution':
+        return whatsapp?.connected
+          ? { label: 'Gerenciar', href: '/admin/whatsapp-groups' }
+          : { label: 'Conectar', onClick: () => setSetupDialog('evolution-whatsapp') };
+      case 'recall':
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('recall'),
+        };
+      case 'instagram':
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('instagram'),
+        };
+      default:
+        return null;
+    }
+  };
+
   return (
     <AppShell title="Integrações">
       <Box sx={{ maxWidth: 900, mx: 'auto', py: 3, px: { xs: 2, md: 3 } }}>
@@ -350,7 +400,9 @@ export default function IntegrationsClient() {
                   </Stack>
 
                   <Stack spacing={0.75}>
-                    {sortedMonitor.map((svc) => (
+                    {sortedMonitor.map((svc) => {
+                      const action = monitorQuickAction(svc);
+                      return (
                       <Stack key={svc.service} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Box sx={{
@@ -392,9 +444,23 @@ export default function IntegrationsClient() {
                           <Typography variant="caption" color={svc.last_activity ? 'text.secondary' : 'text.disabled'}>
                             {timeAgo(svc.last_activity) ?? 'Sem atividade'}
                           </Typography>
+                          {action && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              color="inherit"
+                              href={action.href}
+                              onClick={action.onClick}
+                              disabled={action.disabled}
+                              endIcon={action.href ? <IconExternalLink size={12} /> : <IconSettings size={12} />}
+                              sx={{ minWidth: 0, px: 0.5, fontSize: '0.72rem' }}
+                            >
+                              {action.label}
+                            </Button>
+                          )}
                         </Stack>
                       </Stack>
-                    ))}
+                    )})}
                   </Stack>
                 </CardContent>
               </Card>
