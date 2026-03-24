@@ -291,6 +291,7 @@ export default function IntegrationsClient() {
         || a.label.localeCompare(b.label, 'pt-BR')
       ))
     : null;
+  const attentionMonitor = sortedMonitor?.filter((svc) => svc.status === 'error' || svc.status === 'degraded') ?? [];
 
   const monitorQuickAction = (svc: ServiceMonitorStatus): MonitorQuickAction | null => {
     switch (svc.service) {
@@ -355,6 +356,40 @@ export default function IntegrationsClient() {
         {gmailError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Gmail: {gmailError}</Alert>}
         {calendarConnected && <Alert severity="success" sx={{ mb: 2 }}>Google Calendar conectado: {calendarConnected}</Alert>}
         {calendarError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Google Calendar: {calendarError}</Alert>}
+        {attentionMonitor.length > 0 && (
+          <Alert severity={attentionMonitor.some((svc) => svc.status === 'error') ? 'error' : 'warning'} sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>
+              {attentionMonitor.filter((svc) => svc.status === 'error').length > 0
+                ? `${attentionMonitor.filter((svc) => svc.status === 'error').length} integração(ões) com erro e ${attentionMonitor.filter((svc) => svc.status === 'degraded').length} degradada(s)`
+                : `${attentionMonitor.length} integração(ões) degradada(s) exigem atenção`}
+            </Typography>
+            <Typography variant="caption" color="inherit" sx={{ display: 'block', mb: 1 }}>
+              {attentionMonitor.slice(0, 4).map((svc) => svc.label).join(' • ')}
+              {attentionMonitor.length > 4 ? ` • +${attentionMonitor.length - 4}` : ''}
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {attentionMonitor.slice(0, 3).map((svc) => {
+                const action = monitorQuickAction(svc);
+                if (!action) return null;
+                return (
+                  <Button
+                    key={`attention-${svc.service}`}
+                    size="small"
+                    variant="outlined"
+                    color="inherit"
+                    href={action.href}
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                    endIcon={action.href ? <IconExternalLink size={12} /> : <IconSettings size={12} />}
+                    sx={{ minWidth: 0 }}
+                  >
+                    {svc.label}: {action.label}
+                  </Button>
+                );
+              })}
+            </Stack>
+          </Alert>
+        )}
 
         <IntegrationSetupDialog
           open={Boolean(setupDialog)}
