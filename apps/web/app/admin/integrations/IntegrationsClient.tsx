@@ -317,7 +317,7 @@ export default function IntegrationsClient() {
                             {svc.label}
                           </Typography>
                           {!svc.configured && (
-                            <Chip label="sem chave" size="small" color="default" sx={{ height: 16, fontSize: '0.6rem' }} />
+                            <Chip label="não configurado" size="small" color="default" sx={{ height: 16, fontSize: '0.6rem' }} />
                           )}
                           {svc.error_msg && (
                             <Tooltip title={svc.error_msg}>
