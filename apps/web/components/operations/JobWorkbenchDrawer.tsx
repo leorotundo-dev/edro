@@ -78,6 +78,8 @@ type JobDraft = {
   dependency_level: number;
   required_skill: string | null;
   owner_id: string | null;
+  assignee_ids: string[];
+  external_link: string;
   deadline_at: string;
   is_urgent: boolean;
   urgency_reason: string;
@@ -505,6 +507,8 @@ function buildDraft(job: OperationsJob | null, lookups: { jobTypes: OperationsLo
     dependency_level: job?.dependency_level ?? 2,
     required_skill: job?.required_skill || null,
     owner_id: job?.owner_id || null,
+    assignee_ids: job?.assignees?.map((a) => a.user_id) ?? (job?.owner_id ? [job.owner_id] : []),
+    external_link: job?.external_link || '',
     deadline_at: toInputDateTime(job?.deadline_at),
     is_urgent: Boolean(job?.is_urgent),
     urgency_reason: job?.urgency_reason || '',
@@ -850,6 +854,8 @@ export default function JobWorkbenchDrawer({
     dependency_level: form.dependency_level,
     required_skill: form.required_skill,
     owner_id: form.owner_id,
+    assignee_ids: form.assignee_ids,
+    external_link: form.external_link.trim() || null,
     deadline_at: toIsoDateTime(form.deadline_at),
     is_urgent: form.is_urgent,
     urgency_reason: form.is_urgent ? form.urgency_reason.trim() || null : null,
@@ -1102,9 +1108,15 @@ export default function JobWorkbenchDrawer({
                 <Autocomplete
                   options={owners}
                   value={selectedOwner}
-                  onChange={(_event, value) => handleChange('owner_id', value?.id || null)}
+                  onChange={(_event, value) => {
+                    const newOwnerId = value?.id || null;
+                    handleChange('owner_id', newOwnerId);
+                    if (newOwnerId && !form.assignee_ids.includes(newOwnerId)) {
+                      handleChange('assignee_ids', [...form.assignee_ids, newOwnerId]);
+                    }
+                  }}
                   getOptionLabel={(option) => option.name}
-                  renderInput={(params) => <TextField {...params} label="Responsável" />}
+                  renderInput={(params) => <TextField {...params} label="Responsável principal" />}
                   renderOption={(props, option) => (
                     <Box component="li" {...props}>
                       <Stack spacing={0.3}>
@@ -1115,6 +1127,35 @@ export default function JobWorkbenchDrawer({
                       </Stack>
                     </Box>
                   )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <Autocomplete
+                  multiple
+                  options={owners}
+                  value={owners.filter((o) => form.assignee_ids.includes(o.id))}
+                  onChange={(_event, value) => handleChange('assignee_ids', value.map((v) => v.id))}
+                  getOptionLabel={(option) => option.name}
+                  renderInput={(params) => <TextField {...params} label="Todos os responsáveis" placeholder="Adicionar responsável…" />}
+                  renderTags={(value, getTagProps) =>
+                    value.map((option, index) => (
+                      <Chip
+                        key={option.id}
+                        label={option.name}
+                        size="small"
+                        {...getTagProps({ index })}
+                      />
+                    ))
+                  }
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  label="Link externo (Trello, Drive, Notion…)"
+                  value={form.external_link}
+                  onChange={(event) => handleChange('external_link', event.target.value)}
+                  placeholder="https://"
                 />
               </Grid>
               {/* ── Allocation proposals panel ── */}

@@ -124,10 +124,11 @@ export default function OperationsJobsClient() {
       .filter((job) => !statusFilter || job.status === statusFilter)
       .filter((job) => !priorityFilter || job.priority_band === priorityFilter)
       .filter((job) => !clientFilter || job.client_id === clientFilter)
-      .filter((job) => !ownerFilter || job.owner_id === ownerFilter)
+      .filter((job) => !ownerFilter || job.owner_id === ownerFilter || job.assignees?.some((a) => a.user_id === ownerFilter))
       .filter((job) => {
         if (quickFilter === 'urgent') return Boolean(job.is_urgent);
-        if (quickFilter === 'unassigned') return !job.owner_id;
+        if (quickFilter === 'unassigned') return !job.owner_id && !job.assignees?.length;
+        if (quickFilter === 'mine') return job.owner_id === currentUserId || job.assignees?.some((a) => a.user_id === currentUserId);
         return true;
       })
       .filter((job) => {
@@ -296,6 +297,9 @@ export default function OperationsJobsClient() {
                 {/* Quick filters */}
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: 1.25 }}>
                   <ToggleButtonGroup value={quickFilter} exclusive onChange={(_e, v) => setQuickFilter(v)} size="small">
+                    <ToggleButton value="mine" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#4f46e5', borderColor: '#4f46e540' } }}>
+                      <IconUsers size={14} style={{ marginRight: 4 }} /> Minha pauta
+                    </ToggleButton>
                     <ToggleButton value="urgent" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
                       <IconUrgent size={14} style={{ marginRight: 4 }} /> Urgentes
                     </ToggleButton>

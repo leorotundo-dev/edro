@@ -114,6 +114,8 @@ const baseJobSchema = z.object({
   dependency_level: z.number().int().min(0).max(5).optional().nullable(),
   required_skill: z.string().trim().optional().nullable(),
   owner_id: z.string().uuid().optional().nullable(),
+  assignee_ids: z.array(z.string().uuid()).optional().nullable(),
+  external_link: z.string().max(2000).optional().nullable(),
   deadline_at: z.string().datetime().optional().nullable(),
   estimated_minutes: z.number().int().positive().optional().nullable(),
   is_urgent: z.boolean().optional(),
@@ -163,6 +165,23 @@ function isIntakeComplete(body: {
 
 function deriveBlocked(status: string) {
   return status === 'blocked' || status === 'awaiting_approval';
+}
+
+/** Sync job_assignees for a job. Replaces all current assignees with the given list. */
+async function syncAssignees(jobId: string, assigneeIds: string[], assignedBy: string | null) {
+  await query(`DELETE FROM job_assignees WHERE job_id = $1`, [jobId]);
+  if (!assigneeIds.length) return;
+  const values: any[] = [];
+  const placeholders = assigneeIds.map((uid, i) => {
+    values.push(jobId, uid, assignedBy);
+    const base = i * 3;
+    return `($${base + 1}, $${base + 2}, $${base + 3})`;
+  });
+  await query(
+    `INSERT INTO job_assignees (job_id, user_id, assigned_by) VALUES ${placeholders.join(', ')}
+     ON CONFLICT (job_id, user_id) DO NOTHING`,
+    values
+  );
 }
 
 function canTransition(fromStatus: string, toStatus: string, row: any) {
@@ -373,6 +392,10 @@ export default async function jobsRoutes(app: FastifyInstance) {
       values.push(params.owner_id);
       where.push(`j.owner_id = $${values.length}`);
     }
+    if (params.assignee_id) {
+      values.push(params.assignee_id);
+      where.push(`EXISTS (SELECT 1 FROM job_assignees jassign WHERE jassign.job_id = j.id AND jassign.user_id = $${values.length})`);
+    }
     if (params.client_id) {
       values.push(params.client_id);
       where.push(`j.client_id = $${values.length}`);
@@ -381,7 +404,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
       where.push(`j.is_urgent = true`);
     }
     if (params.unassigned === 'true') {
-      where.push(`j.owner_id IS NULL`);
+      where.push(`j.owner_id IS NULL AND NOT EXISTS (SELECT 1 FROM job_assignees jassign WHERE jassign.job_id = j.id)`);
     }
     if (params.active !== 'false') {
       where.push(`j.status <> 'archived'`);
@@ -396,7 +419,18 @@ export default async function jobsRoutes(app: FastifyInstance) {
          COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
          u.email AS owner_email,
          ja.estimated_delivery_at,
-         ja.queue_position
+         ja.queue_position,
+         COALESCE(
+           (SELECT jsonb_agg(jsonb_build_object(
+             'user_id', eu.id,
+             'name', COALESCE(NULLIF(eu.name,''), split_part(eu.email,'@',1)),
+             'email', eu.email
+           ) ORDER BY jassign.assigned_at)
+           FROM job_assignees jassign
+           JOIN edro_users eu ON eu.id = jassign.user_id
+           WHERE jassign.job_id = j.id),
+           '[]'::jsonb
+         ) AS assignees
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        LEFT JOIN edro_users u ON u.id = j.owner_id
@@ -428,7 +462,18 @@ export default async function jobsRoutes(app: FastifyInstance) {
          c.profile->>'logo_url' AS client_logo_url,
          c.profile->'brand_colors'->>0 AS client_brand_color,
          COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
-         u.email AS owner_email
+         u.email AS owner_email,
+         COALESCE(
+           (SELECT jsonb_agg(jsonb_build_object(
+             'user_id', eu.id,
+             'name', COALESCE(NULLIF(eu.name,''), split_part(eu.email,'@',1)),
+             'email', eu.email
+           ) ORDER BY jassign.assigned_at)
+           FROM job_assignees jassign
+           JOIN edro_users eu ON eu.id = jassign.user_id
+           WHERE jassign.job_id = j.id),
+           '[]'::jsonb
+         ) AS assignees
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        LEFT JOIN edro_users u ON u.id = j.owner_id
@@ -531,9 +576,10 @@ export default async function jobsRoutes(app: FastifyInstance) {
          urgency_approved_by,
          definition_of_done,
          created_by,
-         metadata
+         metadata,
+         external_link
        ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24
        )
        RETURNING *`,
       [
@@ -560,8 +606,17 @@ export default async function jobsRoutes(app: FastifyInstance) {
         definitionOfDone,
         userId,
         JSON.stringify(body.metadata || {}),
+        body.external_link ?? null,
       ]
     );
+
+    // Sync multiple assignees
+    const assigneeIds = body.assignee_ids?.length
+      ? body.assignee_ids
+      : body.owner_id ? [body.owner_id] : [];
+    if (assigneeIds.length) {
+      await syncAssignees(rows[0].id, assigneeIds, userId);
+    }
 
     await query(
       `INSERT INTO job_status_history (job_id, from_status, to_status, changed_by, reason)
@@ -666,7 +721,8 @@ export default async function jobsRoutes(app: FastifyInstance) {
               urgency_reason = $19,
               urgency_approved_by = $20,
               definition_of_done = $21,
-              metadata = $22::jsonb
+              metadata = $22::jsonb,
+              external_link = $23
         WHERE tenant_id = $1 AND id = $2
         RETURNING *`,
       [
@@ -692,8 +748,19 @@ export default async function jobsRoutes(app: FastifyInstance) {
         merged.urgency_approved_by ?? null,
         definitionOfDone,
         JSON.stringify(merged.metadata || {}),
+        merged.external_link ?? null,
       ]
     );
+
+    // Sync assignees if explicitly provided in the patch
+    if (patch.assignee_ids !== undefined) {
+      const patchUserId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
+      const assigneeIds = patch.assignee_ids?.length
+        ? patch.assignee_ids
+        : merged.owner_id ? [merged.owner_id] : [];
+      await syncAssignees(jobId, assigneeIds, patchUserId);
+    }
+
     await syncOperationalRuntimeForJob(tenantId, jobId);
 
     // Notify new owner via in-app + WhatsApp when assignment changes
