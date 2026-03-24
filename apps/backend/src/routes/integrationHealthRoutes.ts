@@ -8,6 +8,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
+import { query } from '../db';
 import { sendWhatsAppText, isWhatsAppConfigured } from '../services/whatsappService';
 import { env } from '../env';
 import { getMonitorStatus, type IntegrationService } from '../services/integrationMonitor';
@@ -114,16 +115,29 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
+    const [
+      trelloConnectorRes,
+      gmailConnectionRes,
+      calendarChannelRes,
+      metaConnectorRes,
+    ] = await Promise.all([
+      query(`SELECT 1 FROM trello_connectors WHERE tenant_id = $1 AND is_active = true LIMIT 1`, [tenantId]),
+      query(`SELECT 1 FROM gmail_connections WHERE tenant_id = $1 LIMIT 1`, [tenantId]),
+      query(`SELECT 1 FROM google_calendar_channels WHERE tenant_id = $1 LIMIT 1`, [tenantId]),
+      query(`SELECT 1 FROM connectors WHERE tenant_id = $1 AND provider = 'meta' LIMIT 1`, [tenantId]),
+    ]);
+
     const configured = new Set<IntegrationService>([
-      ...(has('TRELLO_API_KEY') || has('TRELLO_TOKEN') ? ['trello' as const] : []),
+      ...(trelloConnectorRes.rows.length || has('TRELLO_API_KEY') || has('TRELLO_TOKEN') ? ['trello' as const] : []),
       ...(has('WHATSAPP_TOKEN') ? ['whatsapp' as const] : []),
       ...(has('EVOLUTION_API_KEY') ? ['evolution' as const] : []),
       ...(has('RECALL_API_KEY') ? ['recall' as const] : []),
       ...(isEmailConfigured() ? ['resend' as const] : []),
       ...(has('D4SIGN_TOKEN_API') ? ['d4sign' as const] : []),
       ...(has('OPENAI_API_KEY') ? ['openai' as const] : []),
-      ...(has('GOOGLE_CLIENT_ID') ? ['gmail' as const, 'google_calendar' as const] : []),
-      ...(has('META_APP_ID') ? ['instagram' as const] : []),
+      ...(gmailConnectionRes.rows.length || has('GOOGLE_CLIENT_ID') ? ['gmail' as const] : []),
+      ...(calendarChannelRes.rows.length || has('GOOGLE_CLIENT_ID') ? ['google_calendar' as const] : []),
+      ...(metaConnectorRes.rows.length || has('META_APP_ID') ? ['instagram' as const] : []),
     ]);
 
     const services = await getMonitorStatus(tenantId, configured);
