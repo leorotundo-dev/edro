@@ -301,6 +301,71 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // GET /clients/overview — clients with their linked boards + unlinked boards list
+  app.get(
+    '/clients/overview',
+    { preHandler: [requirePerm('clients:read')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id;
+
+      const [clientsRes, unlinkedRes] = await Promise.all([
+        query<any>(
+          `SELECT
+             c.id, c.name, c.segment_primary, c.country, c.uf, c.city, c.status,
+             c.pending_posts, c.approval_rate, c.urgent_tasks, c.intelligence_score,
+             c.updated_at, c.logo_url, c.profile,
+             hs.score     AS health_score,
+             hs.trend     AS health_trend,
+             pb.id        AS board_id,
+             pb.name      AS board_name,
+             pb.trello_board_id AS board_trello_id,
+             pb.last_synced_at  AS board_synced_at,
+             COALESCE(pb.card_count, 0)::int AS board_card_count
+           FROM clients c
+           LEFT JOIN LATERAL (
+             SELECT score, trend
+             FROM client_health_scores
+             WHERE client_id = c.id
+             ORDER BY period_date DESC
+             LIMIT 1
+           ) hs ON true
+           LEFT JOIN LATERAL (
+             SELECT b.id, b.name, b.trello_board_id, b.last_synced_at,
+                    COUNT(cards.id)::int AS card_count
+             FROM project_boards b
+             LEFT JOIN project_cards cards ON cards.board_id = b.id AND cards.is_archived = false
+             WHERE b.client_id = c.id::text
+               AND b.tenant_id = $1
+               AND b.is_archived = false
+             GROUP BY b.id
+             ORDER BY b.updated_at DESC
+             LIMIT 1
+           ) pb ON true
+           WHERE c.tenant_id = $1
+           ORDER BY c.updated_at DESC NULLS LAST, c.name ASC`,
+          [tenantId],
+        ),
+        query<any>(
+          `SELECT b.id, b.name, b.description, b.trello_board_id, b.last_synced_at,
+                  COUNT(cards.id)::int AS card_count
+           FROM project_boards b
+           LEFT JOIN project_cards cards ON cards.board_id = b.id AND cards.is_archived = false
+           WHERE b.tenant_id = $1
+             AND (b.client_id IS NULL OR b.client_id = '')
+             AND b.is_archived = false
+           GROUP BY b.id
+           ORDER BY b.updated_at DESC`,
+          [tenantId],
+        ),
+      ]);
+
+      return reply.send({
+        clients: clientsRes.rows,
+        unlinked_boards: unlinkedRes.rows,
+      });
+    }
+  );
+
   app.get(
     '/clients/:id',
     { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },

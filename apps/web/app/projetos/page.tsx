@@ -1,12 +1,5 @@
-import { Suspense } from 'react';
-import ProjetosClient from './ProjetosClient';
-
-export const metadata = { title: 'Projetos | Edro' };
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return (
-    <Suspense>
-      <ProjetosClient />
-    </Suspense>
-  );
+  redirect('/clients');
 }
