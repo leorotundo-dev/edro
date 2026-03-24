@@ -8,6 +8,16 @@ vi.mock('../db', () => ({
   query: (...args: any[]) => mockQuery(...args),
 }));
 
+vi.mock('../env', () => ({
+  env: {
+    DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/edro_test',
+    JWT_SECRET: 'test-jwt-secret',
+    META_VERIFY_TOKEN: 'test-meta-verify-token',
+    META_APP_SECRET: 'test-meta-app-secret',
+    WHATSAPP_WEBHOOK_SECRET: 'test-whatsapp-webhook-secret',
+  },
+}));
+
 import { resolveTenantFromPage } from './webhookInstagram';
 
 describe('webhookInstagram.resolveTenantFromPage', () => {

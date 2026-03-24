@@ -85,14 +85,16 @@ describe('googleCalendarService.watchCalendar', () => {
     expect(watchBody.id).not.toBe('old-channel-id');
     expect(watchBody.address).toBe('https://example.com/webhook/google-calendar');
 
-    expect(mockQuery).toHaveBeenLastCalledWith(
-      expect.stringContaining('SET channel_id = $1'),
-      [
-        expect.any(String),
-        'new-resource-id',
-        expect.any(Date),
-        'tenant-1',
-      ],
+    const updateCall = mockQuery.mock.calls.find(([sql]) =>
+      typeof sql === 'string' && sql.includes('SET channel_id = $1'),
     );
+
+    expect(updateCall).toBeDefined();
+    expect(updateCall?.[1]).toEqual([
+      expect.any(String),
+      'new-resource-id',
+      expect.any(Date),
+      'tenant-1',
+    ]);
   });
 });

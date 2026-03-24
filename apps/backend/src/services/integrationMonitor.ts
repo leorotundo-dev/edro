@@ -27,14 +27,22 @@ export interface LogActivityParams {
 /** Fire-and-forget: log one integration activity event. */
 export function logActivity(params: LogActivityParams): void {
   const { tenantId, service, event, status = 'ok', records, errorMsg, meta } = params;
-  query(
-    `INSERT INTO integration_activity_log
-       (tenant_id, service, event, status, records, error_msg, meta)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-    [tenantId, service, event, status, records ?? null, errorMsg ?? null, JSON.stringify(meta ?? {})],
-  ).catch((err) => {
+  try {
+    const maybePromise = query(
+      `INSERT INTO integration_activity_log
+         (tenant_id, service, event, status, records, error_msg, meta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+      [tenantId, service, event, status, records ?? null, errorMsg ?? null, JSON.stringify(meta ?? {})],
+    );
+
+    if (maybePromise && typeof (maybePromise as Promise<unknown>).catch === 'function') {
+      void (maybePromise as Promise<unknown>).catch((err) => {
+        console.error('[integrationMonitor] failed to log activity:', err?.message);
+      });
+    }
+  } catch (err: any) {
     console.error('[integrationMonitor] failed to log activity:', err?.message);
-  });
+  }
 }
 
 export interface ServiceMonitorStatus {
