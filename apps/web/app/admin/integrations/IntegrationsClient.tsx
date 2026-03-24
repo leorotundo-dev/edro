@@ -109,6 +109,36 @@ function monitorStatusColor(status: ServiceMonitorStatus['status']) {
   return '#9ca3af';
 }
 
+function monitorEventLabel(service: string, event?: string | null) {
+  if (!event) return null;
+  const generic: Record<string, string> = {
+    sync: 'sync',
+    connected: 'conectado',
+    watch_renewed: 'watch renovado',
+    watch_error: 'erro no watch',
+    briefing_created: 'briefing criado',
+    message_received: 'mensagem recebida',
+    messages_upsert: 'mensagens',
+    connection_update: 'conexão',
+    contract_sent: 'contrato enviado',
+    contract_signed: 'contrato assinado',
+    contract_cancelled: 'contrato cancelado',
+    email_sent: 'email enviado',
+    email_sent_fallback: 'email fallback',
+    history_cursor_initialized: 'cursor iniciado',
+    test_send: 'teste de envio',
+  };
+
+  if (event.startsWith('notification_')) {
+    return event.replace('notification_', 'notificação ');
+  }
+
+  if (service === 'openai' && event === 'generation') return 'geração';
+  if (service === 'openai' && event === 'speech') return 'áudio';
+
+  return generic[event] ?? event;
+}
+
 function timeAgo(iso?: string | null) {
   if (!iso) return null;
   const diff = Date.now() - new Date(iso).getTime();
@@ -328,7 +358,7 @@ export default function IntegrationsClient() {
                         <Stack direction="row" spacing={1.5} alignItems="center">
                           {svc.last_event && (
                             <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                              {svc.last_event}
+                              {monitorEventLabel(svc.service, svc.last_event)}
                             </Typography>
                           )}
                           {svc.service === 'resend' && typeof svc.meta?.provider === 'string' && (
