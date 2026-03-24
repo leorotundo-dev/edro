@@ -185,7 +185,7 @@ export async function transitionBriefingStage(
       });
 
       for (const to of allEmails) {
-        await sendEmail({ to, subject, text, html }).catch(() => {});
+        await sendEmail({ to, subject, text, html, tenantId }).catch(() => {});
       }
     } catch (err) {
       console.warn('[stageTransition] Email notification failed:', err);
@@ -240,7 +240,8 @@ export async function sendClientApprovalEmail(
   briefingId: string,
   clientEmail: string,
   briefingTitle: string,
-  clientName?: string | null
+  clientName?: string | null,
+  tenantId?: string | null,
 ): Promise<void> {
   const token = generateClientApprovalToken(briefingId);
   const baseUrl = env.WEB_URL ?? '';
@@ -281,5 +282,5 @@ export async function sendClientApprovalEmail(
 
   const text = `Olá${clientName ? `, ${clientName}` : ''}!\n\nO conteúdo "${briefingTitle}" está pronto para aprovação.\n\nAcesse: ${approvalUrl}\n\nLink válido por 30 dias.`;
 
-  await sendEmail({ to: clientEmail, subject, text, html });
+  await sendEmail({ to: clientEmail, subject, text, html, tenantId: tenantId ?? undefined });
 }

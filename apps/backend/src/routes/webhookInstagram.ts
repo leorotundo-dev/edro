@@ -22,6 +22,7 @@ import {
   registerRawBodyCapture,
   verifyMetaWebhookSignature,
 } from '../services/integrations/webhookSecurityService';
+import { logActivity } from '../services/integrationMonitor';
 
 const BRIEFING_PROMPT = `Você é um assistente de agência. Uma mensagem chegou via Instagram Direct de um cliente.
 Extraia um briefing conciso. Retorne APENAS JSON: { "title": "...", "objective": "...", "notes": "..." }
@@ -151,6 +152,19 @@ async function processInstagramMessage(pageId: string, messaging: any) {
   );
   const msgRow = inserted[0];
 
+  logActivity({
+    tenantId,
+    service: 'instagram',
+    event: 'message_received',
+    status: 'ok',
+    records: 1,
+    meta: {
+      client_id: clientId,
+      message_id: messageId ?? null,
+      message_type: type,
+    },
+  });
+
   if (!clientId || !content || content.length < MIN_TEXT_LENGTH) return;
 
   // Create briefing via Jarvis
@@ -235,6 +249,19 @@ async function autoCreateBriefingFromInstagram(params: {
       instagram_message_db_id: messageDbId,
     },
     createdBy: 'jarvis-instagram',
+  });
+
+  logActivity({
+    tenantId,
+    service: 'instagram',
+    event: 'briefing_created',
+    status: 'ok',
+    records: 1,
+    meta: {
+      client_id: clientId,
+      briefing_id: briefing.id,
+      sender_id: senderId,
+    },
   });
 
   await query(

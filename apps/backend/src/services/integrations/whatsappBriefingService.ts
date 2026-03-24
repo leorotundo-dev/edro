@@ -19,6 +19,7 @@ import { decryptJSON } from '../../security/secrets';
 import { env } from '../../env';
 import { persistWhatsAppMessageMemory } from '../whatsappClientMemoryService';
 import { resolveOrCreatePerson } from '../../repos/peopleRepo';
+import { logActivity } from '../integrationMonitor';
 
 const GRAPH_API = 'https://graph.facebook.com/v18.0';
 
@@ -211,6 +212,20 @@ export async function processWhatsAppMessage(
   let rawText = '';
 
   try {
+    logActivity({
+      tenantId,
+      service: 'whatsapp',
+      event: 'message_received',
+      status: 'ok',
+      records: 1,
+      meta: {
+        channel: 'connector_webhook',
+        phone_number_id: phoneNumberId,
+        client_id: clientId,
+        message_type: message.type,
+      },
+    });
+
     if (message.type === 'text' && message.text?.body) {
       rawText = message.text.body;
     } else if (message.type === 'audio' && message.audio?.id) {
@@ -291,6 +306,20 @@ export async function processWhatsAppMessage(
       ],
     );
 
+    logActivity({
+      tenantId,
+      service: 'whatsapp',
+      event: 'briefing_created',
+      status: 'ok',
+      records: 1,
+      meta: {
+        channel: 'connector_webhook',
+        phone_number_id: phoneNumberId,
+        client_id: clientId,
+        title,
+      },
+    });
+
     // Send confirmation to client
     await sendWhatsAppText(
       phoneNumberId,
@@ -300,6 +329,19 @@ export async function processWhatsAppMessage(
     );
   } catch (err: any) {
     console.error(`[whatsapp] Error processing message from ${senderPhone}:`, err?.message);
+    logActivity({
+      tenantId,
+      service: 'whatsapp',
+      event: 'message_processing_failed',
+      status: 'error',
+      errorMsg: err?.message || 'message_processing_failed',
+      meta: {
+        channel: 'connector_webhook',
+        phone_number_id: phoneNumberId,
+        client_id: clientId,
+        message_type: message.type,
+      },
+    });
     // Try to send error reply (best-effort)
     await sendWhatsAppText(
       phoneNumberId,

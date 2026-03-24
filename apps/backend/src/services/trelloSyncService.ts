@@ -8,6 +8,7 @@
  */
 
 import { query, pool } from '../db';
+import { logActivity } from './integrationMonitor';
 
 const TRELLO_BASE = 'https://api.trello.com/1';
 
@@ -415,6 +416,7 @@ export async function syncTrelloBoard(
 
     await client.query('COMMIT');
     console.log(`[trelloSync] Board "${board.name}" (${trelloBoardId}): ${cardsSync} cards, ${actionsSync} actions (${actions.length} fetched)`);
+    logActivity({ tenantId, service: 'trello', event: 'sync', status: 'ok', records: cardsSync, meta: { board_name: board.name, trello_board_id: trelloBoardId, actions_sync: actionsSync } });
     return { boardId, cardsSync, actionsSync };
 
   } catch (err: any) {
@@ -423,6 +425,7 @@ export async function syncTrelloBoard(
       `UPDATE trello_sync_log SET status = 'error', error_message = $1, finished_at = now() WHERE id = $2`,
       [err?.message ?? 'Unknown error', logId],
     );
+    logActivity({ tenantId, service: 'trello', event: 'sync', status: 'error', errorMsg: err?.message ?? 'Unknown error' });
     throw err;
   } finally {
     client.release();

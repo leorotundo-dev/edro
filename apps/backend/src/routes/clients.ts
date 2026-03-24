@@ -143,7 +143,7 @@ function detectMissingFields(payload: PlanExtraction) {
   return missing;
 }
 
-async function analyzePlanText(text: string): Promise<PlanExtraction> {
+async function analyzePlanText(text: string, tenantId?: string): Promise<PlanExtraction> {
   const systemPrompt = `
 Você é um analista estratégico. Extraia informações de um planejamento estratégico de cliente.
 Responda SOMENTE em JSON válido (sem markdown) com as chaves:
@@ -160,6 +160,7 @@ Quando não encontrar um valor, use null ou lista vazia.`;
     systemPrompt,
     temperature: 0.2,
     maxTokens: 1200,
+    monitor: tenantId ? { tenantId, feature: 'client_plan_analysis' } : undefined,
   });
 
   const parsed = safeJsonParse(raw?.text || '') || {};
@@ -746,7 +747,8 @@ export default async function clientsRoutes(app: FastifyInstance) {
       const excerpt = trimmed.slice(0, 12000);
 
       try {
-        const extracted = await analyzePlanText(excerpt);
+        const tenantId = (request.user as any).tenant_id as string | undefined;
+        const extracted = await analyzePlanText(excerpt, tenantId);
         const missing = detectMissingFields(extracted);
         return reply.send({
           extracted,
@@ -1123,6 +1125,7 @@ Responda SOMENTE com JSON válido (array com exatamente 3 personas):
           systemPrompt,
           temperature: 0.7,
           maxTokens: 1200,
+          monitor: { tenantId, feature: 'client_personas_generate', metadata: { client_id: id } },
         });
         const text = (raw?.text || '').trim();
         const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -1292,6 +1295,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
           systemPrompt,
           temperature: 0.1,
           maxTokens: 600,
+          monitor: { tenantId, feature: 'prospect_research_extract', metadata: { company_name: name } },
         });
         const text = (raw?.text || '').trim();
         const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -1405,6 +1409,7 @@ Omita campos que não encontrou informação confiável. Para segment_primary, s
           <p style="color:#475569"><a href="${portalUrl}" style="color:#E85219;font-weight:600">Acessar Portal →</a></p>
           <p style="color:#94a3b8;font-size:.875rem">Expira em 15 minutos.</p>
         </div>`,
+        tenantId,
       });
 
       return reply.send({ ok: true, user_id: user.id });

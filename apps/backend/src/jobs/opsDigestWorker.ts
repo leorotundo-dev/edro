@@ -184,7 +184,7 @@ async function runOpsDigest() {
         : `☀️ Digest Ops — ${digest.buckets.total} demandas ativas, sem críticos`;
 
       for (const r of recipients) {
-        await sendEmail({ to: r.email, subject, html, text: subject }).catch(() => {});
+        await sendEmail({ to: r.email, subject, html, text: subject, tenantId }).catch(() => {});
       }
     } catch (e: any) {
       console.error('[opsDigest] tenant failed:', tenantId, e?.message);

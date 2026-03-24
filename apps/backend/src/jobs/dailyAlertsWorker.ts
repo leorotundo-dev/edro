@@ -10,7 +10,7 @@
 
 import { query } from '../db';
 import { sendEmail } from '../services/emailService';
-import { OpenAIService } from '../services/ai/openaiService';
+import { OpenAIService, type OpenAiMonitorContext } from '../services/ai/openaiService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
 import { GeminiService } from '../services/ai/geminiService';
 import { ClaudeService } from '../services/ai/claudeService';
@@ -40,9 +40,14 @@ function isDayOne() {
   return new Date().getDate() === 1;
 }
 
-async function runAi(preferred: CopyProvider, prompt: string, maxTokens = 600): Promise<string> {
+async function runAi(
+  preferred: CopyProvider,
+  prompt: string,
+  maxTokens = 600,
+  monitor?: OpenAiMonitorContext,
+): Promise<string> {
   const provider = getFallbackProvider(preferred);
-  const params = { prompt, temperature: 0.4, maxTokens };
+  const params = { prompt, temperature: 0.4, maxTokens, monitor };
   switch (provider) {
     case 'gemini':  return (await GeminiService.generateCompletion(params)).text;
     case 'openai':  return (await OpenAIService.generateCompletion(params)).text;
@@ -226,6 +231,7 @@ async function runBottleneckAlertsJob() {
         to: tenant.admin_email,
         subject: `⚠️ ${criticalOrHigh.length} briefing(s) travado(s) em ${client.name}`,
         html: bottleneckEmailHtml({ clientName: client.name, alerts, panelUrl }),
+        tenantId: tenant.tenant_id,
       });
 
       console.log(`[dailyAlerts] sent bottleneck alert for ${client.name} to ${tenant.admin_email} (${alerts.length} alerts)`);
@@ -313,7 +319,8 @@ async function runMonthlyPovJob() {
       try {
         const aiNarrative = await runAi('openai',
           `Escreva 3 frases executivas sobre os resultados da agência Edro Studio para ${client.name} em ${monthLabel}: ${totalBriefings} briefings (${completionRate}% conclusão), ${totalCopies} peças produzidas, ~${Math.round(estimatedHours)}h de trabalho.${sectorContext} Tom profissional e orientado a valor. Máximo 120 palavras.`,
-          200
+          200,
+          { tenantId: tenant.tenant_id, feature: 'daily_alerts_pov', metadata: { client_id: client.id } },
         );
         if (aiNarrative.length > 20) narrative = aiNarrative;
       } catch { /* use default narrative */ }
@@ -331,6 +338,7 @@ async function runMonthlyPovJob() {
           panelUrl,
           month: monthLabel,
         }),
+        tenantId: tenant.tenant_id,
       });
 
       console.log(`[dailyAlerts] sent PoV for ${client.name} to ${recipientEmail}`);

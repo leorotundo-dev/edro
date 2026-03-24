@@ -139,7 +139,14 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
       const client = rows[0];
       if (!client.whatsapp_phone) return reply.code(400).send({ error: 'client_has_no_whatsapp_phone', hint: 'Configure o número do WhatsApp do cliente no perfil.' });
 
-      const result = await sendWhatsAppText(client.whatsapp_phone, message);
+      const result = await sendWhatsAppText(client.whatsapp_phone, message, {
+        tenantId,
+        event: 'manual_message_sent',
+        meta: {
+          channel: 'admin_inbox',
+          client_id,
+        },
+      });
       if (!result.ok) return reply.code(500).send({ error: result.error });
 
       const phoneId = env.WHATSAPP_PHONE_ID || 'outbound';

@@ -5,7 +5,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { requireClientPerm } from '../auth/clientPerms';
 import { buildContentIntelligenceReport } from '../services/contentIntelligenceService';
 import { GeminiService } from '../services/ai/geminiService';
-import { OpenAIService } from '../services/ai/openaiService';
+import { OpenAIService, type OpenAiMonitorContext } from '../services/ai/openaiService';
 import { ClaudeService } from '../services/ai/claudeService';
 import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
@@ -13,7 +13,13 @@ import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrche
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-type CompletionParams = { prompt: string; systemPrompt?: string; temperature?: number; maxTokens?: number };
+type CompletionParams = {
+  prompt: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  monitor?: OpenAiMonitorContext;
+};
 
 async function runAi(preferred: CopyProvider, params: CompletionParams) {
   const provider = getFallbackProvider(preferred);
@@ -312,6 +318,7 @@ Seja objetivo, use dados concretos, tom consultivo e profissional. Máximo 400 p
       systemPrompt: 'Você é um consultor de marketing sênior. Escreva relatórios claros, orientados a resultados e com linguagem de negócios.',
       temperature: 0.5,
       maxTokens: 800,
+      monitor: { tenantId, feature: 'proof_of_value', metadata: { client_id: clientId } },
     });
     const durationMs = Date.now() - t0;
 
@@ -398,6 +405,7 @@ Retorne JSON com exatamente esta estrutura:
       systemPrompt: 'Você é um especialista em branding e linguagem de marca. Analise padrões de comunicação e retorne JSON estruturado.',
       temperature: 0.2,
       maxTokens: 1200,
+      monitor: { tenantId, feature: 'brand_voice_dna', metadata: { client_id: clientId, copies_analyzed: copyRows.length } },
     });
     const durationMs = Date.now() - t0;
 
@@ -748,6 +756,7 @@ Identifique os 5 maiores GAPS de conteúdo e retorne JSON:
       prompt: structurePrompt,
       temperature: 0.3,
       maxTokens: 800,
+      monitor: { tenantId, feature: 'content_gap_analysis', metadata: { client_id: clientId } },
     });
 
     let gaps: any[] = [];
@@ -906,6 +915,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       systemPrompt: 'Você é um estrategista de marketing sênior da Edro Studio. Entregue planejamentos concisos, acionáveis e orientados a resultados. Use formatação markdown.',
       temperature: 0.6,
       maxTokens: 2000,
+      monitor: { tenantId, feature: 'strategic_brief', metadata: { client_id: clientId, month: targetMonth, year: targetYear } },
     });
     const durationMs = Date.now() - t0;
 

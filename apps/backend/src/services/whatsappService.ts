@@ -7,6 +7,8 @@
  *   WHATSAPP_API_VERSION   – Graph API version (default v21.0)
  */
 
+import { logActivity } from './integrationMonitor';
+
 const BASE_URL = 'https://graph.facebook.com';
 
 function getConfig() {
@@ -32,13 +34,39 @@ function normalizePhone(raw: string): string {
 
 type SendTextResult = { ok: boolean; messageId?: string; error?: string };
 
-export async function sendWhatsAppText(to: string, text: string): Promise<SendTextResult> {
+type SendWhatsAppTextOptions = {
+  tenantId?: string | null;
+  event?: string;
+  meta?: Record<string, any>;
+};
+
+export async function sendWhatsAppText(
+  to: string,
+  text: string,
+  options?: SendWhatsAppTextOptions,
+): Promise<SendTextResult> {
   const config = getConfig();
+  const tenantId = options?.tenantId ?? null;
+  const event = options?.event ?? 'message_sent';
+  const phone = normalizePhone(to);
   if (!config) {
+    if (tenantId) {
+      logActivity({
+        tenantId,
+        service: 'whatsapp',
+        event,
+        status: 'error',
+        errorMsg: 'whatsapp_not_configured',
+        meta: {
+          provider: 'meta_cloud_api',
+          to: phone,
+          ...(options?.meta ?? {}),
+        },
+      });
+    }
     return { ok: false, error: 'whatsapp_not_configured' };
   }
 
-  const phone = normalizePhone(to);
   const url = `${BASE_URL}/${config.version}/${config.phoneId}/messages`;
 
   try {
@@ -65,9 +93,40 @@ export async function sendWhatsAppText(to: string, text: string): Promise<SendTe
     }
 
     const messageId = data?.messages?.[0]?.id;
+    if (tenantId) {
+      logActivity({
+        tenantId,
+        service: 'whatsapp',
+        event,
+        status: 'ok',
+        records: 1,
+        meta: {
+          provider: 'meta_cloud_api',
+          phone_number_id: config.phoneId,
+          to: phone,
+          message_id: messageId ?? null,
+          ...(options?.meta ?? {}),
+        },
+      });
+    }
     return { ok: true, messageId };
   } catch (err: any) {
     console.error('[whatsapp] fetch failed:', err?.message);
+    if (tenantId) {
+      logActivity({
+        tenantId,
+        service: 'whatsapp',
+        event,
+        status: 'error',
+        errorMsg: err?.message || 'fetch_failed',
+        meta: {
+          provider: 'meta_cloud_api',
+          phone_number_id: config.phoneId,
+          to: phone,
+          ...(options?.meta ?? {}),
+        },
+      });
+    }
     return { ok: false, error: err?.message || 'fetch_failed' };
   }
 }

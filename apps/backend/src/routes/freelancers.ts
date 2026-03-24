@@ -9,6 +9,7 @@ import { syncFreelancerPerson } from '../repos/peopleRepo';
 import { generateCopy } from '../services/ai/copyService';
 import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
 import { generateContractPdf } from '../services/contractTemplateService';
+import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
 import {
   attachExecutionSnapshotToPayload,
@@ -1135,7 +1136,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
           const text = `${flName} marcou o job "${b.title}" como concluído.\n\nPróxima etapa: Aprovação Interna.\n\nAcessar: ${briefingUrl}${notes ? `\n\nNotas: ${notes}` : ''}`;
 
           for (const to of notifyEmails) {
-            await sendEmail({ to, subject, text }).catch(() => {});
+            await sendEmail({ to, subject, text, tenantId }).catch(() => {});
           }
         } catch (err) {
           console.warn('[freelancers/complete] Email notification failed:', err);
@@ -2767,6 +2768,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       filename,
       freelancerEmail: userEmail,
       freelancerName: prof.representante_nome ?? prof.razao_social,
+      tenantId,
       agencyEmail: cfg.agency_email ?? undefined,
       agencyName: cfg.agency_name ?? 'Edro Studio',
     });
@@ -2874,6 +2876,20 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         [prof.user_id, prof.tenant_id, uuid, JSON.stringify({ pdf_url: pdfUrl, email: payload.email })],
       );
 
+      logActivity({
+        tenantId: prof.tenant_id,
+        service: 'd4sign',
+        event: 'contract_signed',
+        status: 'ok',
+        records: 1,
+        meta: {
+          d4sign_uuid: uuid,
+          user_id: prof.user_id,
+          pdf_url: pdfUrl,
+          email: payload.email,
+        },
+      });
+
     } else if (type_post === 'cancelled') {
       await pool.query(
         `UPDATE freelancer_profiles
@@ -2888,6 +2904,19 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          VALUES ($1, $2, 'cancelled', $3, $4)`,
         [prof.user_id, prof.tenant_id, uuid, JSON.stringify(payload)],
       );
+
+      logActivity({
+        tenantId: prof.tenant_id,
+        service: 'd4sign',
+        event: 'contract_cancelled',
+        status: 'degraded',
+        records: 1,
+        meta: {
+          d4sign_uuid: uuid,
+          user_id: prof.user_id,
+          email: payload.email,
+        },
+      });
     }
 
     return reply.send({ ok: true });

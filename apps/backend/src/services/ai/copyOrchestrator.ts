@@ -4,6 +4,7 @@ import { GeminiService } from './geminiService';
 import { ClaudeService } from './claudeService';
 import type { AiCompletionResult } from './claudeService';
 import { logAiUsage } from './aiUsageLogger';
+import { logActivity } from '../integrationMonitor';
 
 export type CopyProvider = 'openai' | 'gemini' | 'claude';
 
@@ -115,6 +116,47 @@ async function callProvider(
 
 export type UsageContext = { tenant_id: string; feature: string; metadata?: Record<string, any> };
 
+function logOpenAiMonitorSuccess(
+  ctx: UsageContext,
+  result: AiCompletionResult,
+  durationMs?: number,
+) {
+  logActivity({
+    tenantId: ctx.tenant_id,
+    service: 'openai',
+    event: ctx.feature || 'completion',
+    status: 'ok',
+    meta: {
+      provider: 'openai',
+      model: result.model,
+      input_tokens: result.usage.input_tokens,
+      output_tokens: result.usage.output_tokens,
+      duration_ms: durationMs,
+      ...(ctx.metadata ?? {}),
+    },
+  });
+}
+
+function logOpenAiMonitorError(
+  ctx: UsageContext,
+  error: unknown,
+  durationMs?: number,
+) {
+  const errorMsg = error instanceof Error ? error.message : String(error ?? 'openai_failed');
+  logActivity({
+    tenantId: ctx.tenant_id,
+    service: 'openai',
+    event: ctx.feature || 'completion',
+    status: 'error',
+    errorMsg,
+    meta: {
+      provider: 'openai',
+      duration_ms: durationMs,
+      ...(ctx.metadata ?? {}),
+    },
+  });
+}
+
 export function fireAndForgetLog(ctx: UsageContext | undefined, provider: string, result: AiCompletionResult, durationMs?: number) {
   if (!ctx) return;
   logAiUsage({
@@ -127,6 +169,28 @@ export function fireAndForgetLog(ctx: UsageContext | undefined, provider: string
     duration_ms: durationMs,
     metadata: ctx.metadata,
   }).catch(() => {});
+  if (provider === 'openai') {
+    logOpenAiMonitorSuccess(ctx, result, durationMs);
+  }
+}
+
+async function callProviderTracked(
+  provider: CopyProvider,
+  params: CompletionParams,
+  usageContext?: UsageContext,
+): Promise<{ result: AiCompletionResult; durationMs: number }> {
+  const startedAt = Date.now();
+  try {
+    const result = await callProvider(provider, params);
+    const durationMs = Date.now() - startedAt;
+    fireAndForgetLog(usageContext, provider, result, durationMs);
+    return { result, durationMs };
+  } catch (error) {
+    if (usageContext && provider === 'openai') {
+      logOpenAiMonitorError(usageContext, error, Date.now() - startedAt);
+    }
+    throw error;
+  }
 }
 
 export async function orchestrate(
@@ -137,9 +201,7 @@ export async function orchestrate(
   const routing = TASK_ROUTING[taskType];
   const provider = getFallbackProvider(routing.provider);
 
-  const t = Date.now();
-  const result = await callProvider(provider, params);
-  fireAndForgetLog(usageContext, provider, result, Date.now() - t);
+  const { result } = await callProviderTracked(provider, params, usageContext);
 
   return {
     output: result.text,
@@ -157,9 +219,7 @@ export async function generateWithProvider(
 ): Promise<OrchestrationResult> {
   const actualProvider = getFallbackProvider(provider);
 
-  const t = Date.now();
-  const result = await callProvider(actualProvider, params);
-  fireAndForgetLog(usageContext, actualProvider, result, Date.now() - t);
+  const { result } = await callProviderTracked(actualProvider, params, usageContext);
 
   return {
     output: result.text,
@@ -294,20 +354,17 @@ export async function runCollaborativePipeline(params: {
 
   // --- Etapa 1: Analysis (Gemini preferred) ---
   const analystProvider = getFallbackProvider('gemini');
-  const t1 = Date.now();
-  const analysisResult = await callProvider(analystProvider, {
+  const { result: analysisResult, durationMs: d1 } = await callProviderTracked(analystProvider, {
     prompt: params.analysisPrompt,
     temperature: params.temperature?.analysis ?? 0.3,
     maxTokens: params.maxTokens?.analysis ?? 1200,
-  });
-  const d1 = Date.now() - t1;
+  }, params.usageContext);
   stages.push({
     provider: analystProvider,
     role: 'analyst',
     model: `${analystProvider}:${analysisResult.model}`,
     duration_ms: d1,
   });
-  fireAndForgetLog(params.usageContext, analystProvider, analysisResult, d1);
 
   const analysisOutput = analysisResult.text;
 
@@ -340,20 +397,17 @@ export async function runCollaborativePipeline(params: {
       ? params.creativePrompt(analysisOutput)
       : `${params.creativePrompt(analysisOutput)}\n\nINSTRUÇÃO DE MELHORIA (revisão ${cycleCount}): ${revisionInstruction}\n\nReescreva o copy aplicando esta instrução específica.`;
 
-    const t2 = Date.now();
-    const creativeResult = await callProvider(creatorProvider, {
+    const { result: creativeResult, durationMs: d2 } = await callProviderTracked(creatorProvider, {
       prompt: creativePromptText,
       temperature: params.temperature?.creative ?? 0.7,
       maxTokens: params.maxTokens?.creative ?? 2000,
-    });
-    const d2 = Date.now() - t2;
+    }, params.usageContext);
     stages.push({
       provider: creatorProvider,
       role: 'creator',
       model: `${creatorProvider}:${creativeResult.model}`,
       duration_ms: d2,
     });
-    fireAndForgetLog(params.usageContext, creatorProvider, creativeResult, d2);
     creativeOutput = creativeResult.text;
 
     // Etapa 3: Editorial Review com scoring JSON
@@ -373,20 +427,17 @@ Após revisar, retorne APENAS o seguinte JSON (sem qualquer texto antes ou depoi
   "revision_instruction": "<instrução específica e acionável para melhorar o copy — obrigatório se needs_revision for true, senão string vazia>"
 }`;
 
-    const t3 = Date.now();
-    const reviewResult = await callProvider(editorProvider, {
+    const { result: reviewResult, durationMs: d3 } = await callProviderTracked(editorProvider, {
       prompt: baseReviewPrompt + scoringInstruction,
       temperature: params.temperature?.review ?? 0.4,
       maxTokens: params.maxTokens?.review ?? 2500,
-    });
-    const d3 = Date.now() - t3;
+    }, params.usageContext);
     stages.push({
       provider: editorProvider,
       role: 'editor',
       model: `${editorProvider}:${reviewResult.model}`,
       duration_ms: d3,
     });
-    fireAndForgetLog(params.usageContext, editorProvider, reviewResult, d3);
 
     // Parsear JSON de qualidade
     const parsed = safeParseJson(reviewResult.text);
@@ -484,15 +535,12 @@ export async function runCollaborativePipelineWithLoop(params: {
 
   // Stage 1: Gemini analysis
   const analystProvider = getFallbackProvider('gemini');
-  const t1 = Date.now();
-  const analysisResult = await callProvider(analystProvider, {
+  const { result: analysisResult, durationMs: d1 } = await callProviderTracked(analystProvider, {
     prompt: params.analysisPrompt,
     temperature: 0.3,
     maxTokens: 1400,
-  });
-  const d1 = Date.now() - t1;
+  }, params.usageContext);
   stages.push({ provider: analystProvider, role: 'analyst', model: `${analystProvider}:${analysisResult.model}`, duration_ms: d1 });
-  fireAndForgetLog(params.usageContext, analystProvider, analysisResult, d1);
   const analysisOutput = analysisResult.text;
 
   // Parse checklist from analysis
@@ -513,28 +561,22 @@ export async function runCollaborativePipelineWithLoop(params: {
 
   // Stage 2: GPT-4 creative
   const creatorProvider = getFallbackProvider('openai');
-  const t2 = Date.now();
-  const creativeResult = await callProvider(creatorProvider, {
+  const { result: creativeResult, durationMs: d2 } = await callProviderTracked(creatorProvider, {
     prompt: params.creativePrompt(analysisOutput),
     temperature: 0.75,
     maxTokens: 2000,
-  });
-  const d2 = Date.now() - t2;
+  }, params.usageContext);
   stages.push({ provider: creatorProvider, role: 'creator', model: `${creatorProvider}:${creativeResult.model}`, duration_ms: d2 });
-  fireAndForgetLog(params.usageContext, creatorProvider, creativeResult, d2);
   let creativeOutput = creativeResult.text;
 
   // Stage 3: Claude quality gate (returns JSON with per-variation scores)
   const editorProvider = getFallbackProvider('claude');
-  const t3 = Date.now();
-  const reviewResult = await callProvider(editorProvider, {
+  const { result: reviewResult, durationMs: d3 } = await callProviderTracked(editorProvider, {
     prompt: params.reviewPrompt(analysisOutput, creativeOutput),
     temperature: 0.3,
     maxTokens: 2500,
-  });
-  const d3 = Date.now() - t3;
+  }, params.usageContext);
   stages.push({ provider: editorProvider, role: 'editor', model: `${editorProvider}:${reviewResult.model}`, duration_ms: d3 });
-  fireAndForgetLog(params.usageContext, editorProvider, reviewResult, d3);
 
   let qualityData = parseVariationQualityScores(reviewResult.text);
   let bestIdx = qualityData?.best_variation_index ?? 0;
@@ -547,29 +589,23 @@ export async function runCollaborativePipelineWithLoop(params: {
     const issues = qualityData.quality_scores[bestIdx]?.issues ?? [];
 
     // Stage 2b: GPT-4 surgical revision
-    const t2b = Date.now();
-    const revisedResult = await callProvider(creatorProvider, {
+    const { result: revisedResult, durationMs: d2b } = await callProviderTracked(creatorProvider, {
       prompt: params.revisionPrompt(currentBest, issues),
       temperature: 0.5,
       maxTokens: 1200,
-    });
-    const d2b = Date.now() - t2b;
+    }, params.usageContext);
     stages.push({ provider: creatorProvider, role: 'creator', model: `${creatorProvider}:${revisedResult.model}`, duration_ms: d2b });
-    fireAndForgetLog(params.usageContext, creatorProvider, revisedResult, d2b);
     const revisedOutput = revisedResult.text;
 
     const scoreBefore = qualityData.quality_scores[bestIdx]?.overall ?? 0;
 
     // Stage 3b: Claude final approval
-    const t3b = Date.now();
-    const finalReviewResult = await callProvider(editorProvider, {
+    const { result: finalReviewResult, durationMs: d3b } = await callProviderTracked(editorProvider, {
       prompt: params.finalReviewPrompt(revisedOutput, qualityData.quality_scores[bestIdx]),
       temperature: 0.3,
       maxTokens: 800,
-    });
-    const d3b = Date.now() - t3b;
+    }, params.usageContext);
     stages.push({ provider: editorProvider, role: 'editor', model: `${editorProvider}:${finalReviewResult.model}`, duration_ms: d3b });
-    fireAndForgetLog(params.usageContext, editorProvider, finalReviewResult, d3b);
 
     const updatedData = parseVariationQualityScores(finalReviewResult.text);
     revisionHistory.push({

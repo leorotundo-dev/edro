@@ -10,6 +10,7 @@
  */
 
 import { env } from '../env';
+import { logActivity } from './integrationMonitor';
 
 const BASE_URL = env.D4SIGN_SANDBOX
   ? 'https://sandbox.d4sign.com.br/api/v1'
@@ -156,34 +157,67 @@ export async function createAndSendContract(params: {
   filename: string;
   freelancerEmail: string;
   freelancerName: string;
+  tenantId?: string | null;
   /** Optional: add Edro as second signer/observer */
   agencyEmail?: string;
   agencyName?: string;
 }): Promise<string> {
-  const docUuid = await uploadDocument(params.pdfBuffer, params.filename);
+  try {
+    const docUuid = await uploadDocument(params.pdfBuffer, params.filename);
 
-  const signers: D4SignSigner[] = [
-    {
-      email: params.freelancerEmail,
-      display_name: params.freelancerName,
-      act: '1',
-    },
-  ];
+    const signers: D4SignSigner[] = [
+      {
+        email: params.freelancerEmail,
+        display_name: params.freelancerName,
+        act: '1',
+      },
+    ];
 
-  if (params.agencyEmail) {
-    signers.push({
-      email: params.agencyEmail,
-      display_name: params.agencyName ?? 'Edro Studio',
-      act: '3', // observer (cc) — or '1' if agency also needs to sign
+    if (params.agencyEmail) {
+      signers.push({
+        email: params.agencyEmail,
+        display_name: params.agencyName ?? 'Edro Studio',
+        act: '3', // observer (cc) — or '1' if agency also needs to sign
+      });
+    }
+
+    await addSigners(docUuid, signers);
+    await sendToSigners(docUuid, {
+      message: `Olá, ${params.freelancerName}! Seu contrato de prestação de serviços como Fornecedor PJ está pronto para assinatura.`,
     });
+
+    if (params.tenantId) {
+      logActivity({
+        tenantId: params.tenantId,
+        service: 'd4sign',
+        event: 'contract_sent',
+        status: 'ok',
+        records: 1,
+        meta: {
+          document_uuid: docUuid,
+          filename: params.filename,
+          freelancer_email: params.freelancerEmail,
+        },
+      });
+    }
+
+    return docUuid;
+  } catch (err: any) {
+    if (params.tenantId) {
+      logActivity({
+        tenantId: params.tenantId,
+        service: 'd4sign',
+        event: 'contract_sent',
+        status: 'error',
+        errorMsg: err?.message || 'contract_send_failed',
+        meta: {
+          filename: params.filename,
+          freelancer_email: params.freelancerEmail,
+        },
+      });
+    }
+    throw err;
   }
-
-  await addSigners(docUuid, signers);
-  await sendToSigners(docUuid, {
-    message: `Olá, ${params.freelancerName}! Seu contrato de prestação de serviços como Fornecedor PJ está pronto para assinatura.`,
-  });
-
-  return docUuid;
 }
 
 // ── Webhook payload parser ────────────────────────────────────────────────────

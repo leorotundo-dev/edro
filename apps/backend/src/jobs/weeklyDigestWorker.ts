@@ -248,6 +248,7 @@ export async function runWeeklyDigestOnce(): Promise<void> {
         subject: `Edro Intelligence — Resumo da semana (${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })})`,
         html,
         text: `Resumo da semana:\n- ${data.auto_briefings.length} briefings gerados\n- ${data.fatigue_count} fadigas detectadas\n- ${data.opportunities.length} oportunidades\n- ${data.churn_alerts.length} riscos de churn\n\nAcesse: ${webBase}/admin/intelligence`,
+        tenantId: row.tenant_id,
       });
 
       sent++;

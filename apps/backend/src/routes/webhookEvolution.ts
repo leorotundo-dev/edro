@@ -18,6 +18,7 @@ import { env } from '../env';
 import { resolveOrCreatePerson } from '../repos/peopleRepo';
 import { verifySharedWebhookSecret } from '../services/integrations/webhookSecurityService';
 import { securityLog } from '../audit/securityLog';
+import { logActivity } from '../services/integrationMonitor';
 
 const BRIEFING_TRIGGER = /\b(brief(ing)?|pauta|post|conteúdo|campanha|cria|criar|precisamos)\b/i;
 const URGENT_KEYWORDS = /\b(urgente|deadline|amanhã|hoje|cancelar|problema|erro|bug|reclamação|atraso|emergência|prazo)\b/i;
@@ -79,6 +80,12 @@ async function handleConnectionUpdate(instanceNameStr: string | undefined, data:
   const state = data?.state ?? data?.connection;
   if (!state) return;
 
+  const { rows } = await query<{ tenant_id: string }>(
+    `SELECT tenant_id FROM evolution_instances WHERE instance_name = $1 LIMIT 1`,
+    [instanceNameStr],
+  );
+  const tenantId = rows[0]?.tenant_id ?? null;
+
   const status = state === 'open' ? 'connected' : state === 'connecting' ? 'connecting' : 'disconnected';
   await query(
     `UPDATE evolution_instances
@@ -88,6 +95,19 @@ async function handleConnectionUpdate(instanceNameStr: string | undefined, data:
      WHERE instance_name = $2`,
     [status, instanceNameStr],
   ).catch(() => {});
+
+  if (tenantId) {
+    logActivity({
+      tenantId,
+      service: 'evolution',
+      event: 'connection_update',
+      status: state === 'open' ? 'ok' : state === 'connecting' ? 'degraded' : 'error',
+      meta: {
+        instance_name: instanceNameStr,
+        state,
+      },
+    });
+  }
 }
 
 // ── Messages upsert ────────────────────────────────────────────────────────
@@ -104,14 +124,28 @@ async function handleMessagesUpsert(instanceNameStr: string | undefined, data: a
   const { id: instanceId, tenant_id: tenantId } = instRows[0];
 
   const messages = Array.isArray(data) ? data : [data];
+  let processedCount = 0;
 
   for (const msg of messages) {
     try {
       await processMessage(msg, instanceId, tenantId);
+      processedCount += 1;
     } catch (err: any) {
       console.error(`[webhookEvolution] processMessage failed: ${err.message}`);
     }
   }
+
+  logActivity({
+    tenantId,
+    service: 'evolution',
+    event: 'messages_upsert',
+    status: 'ok',
+    records: processedCount,
+    meta: {
+      instance_id: instanceId,
+      instance_name: instanceNameStr,
+    },
+  });
 }
 
 async function processMessage(msg: any, instanceId: string, tenantId: string) {

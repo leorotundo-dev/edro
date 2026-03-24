@@ -71,6 +71,18 @@ type WhatsAppStatus = {
   instanceName?: string;
 };
 
+type ServiceMonitorStatus = {
+  service: string;
+  label: string;
+  configured: boolean;
+  status: 'ok' | 'error' | 'degraded' | 'unknown';
+  last_event?: string;
+  last_activity?: string;
+  records?: number | null;
+  error_msg?: string | null;
+  meta?: Record<string, any> | null;
+};
+
 type IntegrationHealth = {
   google:             { client_id: boolean; client_secret: boolean; pubsub_topic: boolean; calendar_webhook: boolean };
   ai:                 { gemini: boolean; openai: boolean };
@@ -89,6 +101,24 @@ type OAuthStartResponse = {
   url: string;
 };
 
+
+function monitorStatusColor(status: ServiceMonitorStatus['status']) {
+  if (status === 'ok') return '#16a34a';
+  if (status === 'error') return '#dc2626';
+  if (status === 'degraded') return '#d97706';
+  return '#9ca3af';
+}
+
+function timeAgo(iso?: string | null) {
+  if (!iso) return null;
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2) return 'agora';
+  if (mins < 60) return `${mins}m atrás`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h atrás`;
+  return `${Math.floor(hrs / 24)}d atrás`;
+}
 
 function fmtDateTime(value?: string | null) {
   if (!value) return '—';
@@ -122,20 +152,23 @@ export default function IntegrationsClient() {
   const [waTestSending, setWaTestSending] = useState(false);
   const [waTestResult, setWaTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [setupDialog, setSetupDialog] = useState<IntegrationType | null>(null);
+  const [monitor, setMonitor] = useState<ServiceMonitorStatus[] | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [gmailRes, calRes, waRes, healthRes] = await Promise.all([
+      const [gmailRes, calRes, waRes, healthRes, monitorRes] = await Promise.all([
         apiGet<GmailStatus>('/gmail/status').catch(() => ({ configured: false } as GmailStatus)),
         apiGet<CalendarStatus>('/calendar/watch-status').catch(() => ({ configured: false } as CalendarStatus)),
         apiGet<WhatsAppStatus>('/whatsapp-groups/status').catch(() => ({ connected: false } as WhatsAppStatus)),
         apiGet<IntegrationHealth>('/admin/integrations/health').catch(() => null),
+        apiGet<{ services: ServiceMonitorStatus[] }>('/admin/integrations/monitor').catch(() => null),
       ]);
       setGmail(gmailRes ?? { configured: false });
       setCalendar(calRes ?? { configured: false });
       setWhatsapp(waRes ?? { connected: false });
       setHealth(healthRes ?? null);
+      setMonitor(monitorRes?.services ?? null);
     } finally {
       setLoading(false);
     }
@@ -240,6 +273,84 @@ export default function IntegrationsClient() {
           <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
         ) : (
           <Stack spacing={2}>
+
+            {/* ── Monitor ao vivo ── */}
+            {monitor && (
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <IconPlugConnected size={18} />
+                      <Typography variant="subtitle2" fontWeight={700}>Monitor ao vivo</Typography>
+                      <Chip
+                        label={`${monitor.filter(s => s.status === 'ok').length} ok`}
+                        size="small" color="success" variant="outlined"
+                      />
+                      {monitor.filter(s => s.status === 'error').length > 0 && (
+                        <Chip
+                          label={`${monitor.filter(s => s.status === 'error').length} com erro`}
+                          size="small" color="error"
+                        />
+                      )}
+                      {monitor.filter(s => s.status === 'degraded').length > 0 && (
+                        <Chip
+                          label={`${monitor.filter(s => s.status === 'degraded').length} degradado`}
+                          size="small" color="warning"
+                        />
+                      )}
+                    </Stack>
+                    <Button size="small" startIcon={<IconRefresh size={14} />} onClick={load}>
+                      Atualizar
+                    </Button>
+                  </Stack>
+
+                  <Stack spacing={0.75}>
+                    {monitor.map((svc) => (
+                      <Stack key={svc.service} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Box sx={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            bgcolor: monitorStatusColor(svc.status),
+                            flexShrink: 0,
+                          }} />
+                          <Typography variant="body2" fontWeight={600} sx={{ minWidth: 160 }}>
+                            {svc.label}
+                          </Typography>
+                          {!svc.configured && (
+                            <Chip label="sem chave" size="small" color="default" sx={{ height: 16, fontSize: '0.6rem' }} />
+                          )}
+                          {svc.error_msg && (
+                            <Tooltip title={svc.error_msg}>
+                              <Chip label="erro" size="small" color="error" sx={{ height: 16, fontSize: '0.6rem', cursor: 'help' }} />
+                            </Tooltip>
+                          )}
+                        </Stack>
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                          {svc.last_event && (
+                            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                              {svc.last_event}
+                            </Typography>
+                          )}
+                          {svc.service === 'resend' && typeof svc.meta?.provider === 'string' && (
+                            <Typography variant="caption" color="text.secondary">
+                              via {svc.meta.provider}
+                            </Typography>
+                          )}
+                          {svc.records != null && (
+                            <Typography variant="caption" color="text.secondary">
+                              {svc.records} registros
+                            </Typography>
+                          )}
+                          <Typography variant="caption" color={svc.last_activity ? 'text.secondary' : 'text.disabled'}>
+                            {timeAgo(svc.last_activity) ?? 'Sem atividade'}
+                          </Typography>
+                        </Stack>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── Gmail ── */}
             <Card variant="outlined" sx={{ cursor: !gmail?.configured ? 'pointer' : 'default', '&:hover': !gmail?.configured ? { boxShadow: 2 } : {} }}

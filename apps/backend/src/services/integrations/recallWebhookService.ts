@@ -6,6 +6,7 @@ import { env } from '../../env';
 import { enqueueJob } from '../../jobs/jobQueue';
 import { getRecallBotTranscript } from './recallService';
 import { recordMeetingEvent, saveMeetingTranscript, updateMeetingState } from '../meetingService';
+import { logActivity } from '../integrationMonitor';
 
 type RecallWebhookPayload = {
   event?: string;
@@ -147,9 +148,11 @@ export async function processRecallWebhookEvent(webhookEventId: string): Promise
   const { rows } = await query<{
     id: string;
     event_type: string;
+    tenant_id: string | null;
+    client_id: string | null;
     payload: RecallWebhookPayload;
   }>(
-    `SELECT id, event_type, payload
+    `SELECT id, event_type, tenant_id, client_id, payload
        FROM recall_webhook_events
       WHERE id = $1
       LIMIT 1`,
@@ -164,13 +167,52 @@ export async function processRecallWebhookEvent(webhookEventId: string): Promise
     const context = await resolveMeetingContext(payload);
     if (!context) {
       await markWebhookEvent(webhookEventId, 'ignored', 'meeting_not_found');
+      if (stored.tenant_id) {
+        logActivity({
+          tenantId: stored.tenant_id,
+          service: 'recall',
+          event: stored.event_type || 'webhook_ignored',
+          status: 'degraded',
+          errorMsg: 'meeting_not_found',
+          meta: {
+            webhook_event_id: webhookEventId,
+            client_id: stored.client_id,
+          },
+        });
+      }
       return;
     }
 
     await applyRecallWebhookToMeeting(context, payload);
     await markWebhookEvent(webhookEventId, 'processed', null);
+    logActivity({
+      tenantId: context.tenantId,
+      service: 'recall',
+      event: stored.event_type || 'webhook_processed',
+      status: 'ok',
+      records: 1,
+      meta: {
+        webhook_event_id: webhookEventId,
+        client_id: context.clientId,
+        meeting_id: context.meetingId,
+        bot_id: context.botId,
+      },
+    });
   } catch (error: any) {
     await markWebhookEvent(webhookEventId, 'failed', error?.message ?? 'recall_webhook_processing_failed');
+    if (stored.tenant_id) {
+      logActivity({
+        tenantId: stored.tenant_id,
+        service: 'recall',
+        event: stored.event_type || 'webhook_failed',
+        status: 'error',
+        errorMsg: error?.message ?? 'recall_webhook_processing_failed',
+        meta: {
+          webhook_event_id: webhookEventId,
+          client_id: stored.client_id,
+        },
+      });
+    }
     throw error;
   }
 }
