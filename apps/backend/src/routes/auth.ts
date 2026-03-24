@@ -1,8 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { requestLoginCode, verifyLoginCode } from '../services/authService';
-import { findUserByEmail, findUserById, createLoginCode, consumeLoginCode, upsertUser } from '../repositories/edroUserRepository';
+import { buildPortalCodeHash, issuePortalLoginCode, requestLoginCode, verifyLoginCode } from '../services/authService';
+import { findUserByEmail, findUserById, consumeLoginCode, upsertUser } from '../repositories/edroUserRepository';
 import {
   findUserMfaByUserId,
   savePendingUserMfaSecret,
@@ -24,9 +24,8 @@ import { issueRefreshToken, rotateRefreshToken, revokeAllRefresh } from '../auth
 import { ensureTenantForDomain, ensureTenantMembership, getPrimaryTenantForUser, mapRoleToTenantRole } from '../repos/tenantRepo';
 import { authGuard, shouldEnforcePrivilegedMfa } from '../auth/rbac';
 import { sendEmail } from '../services/emailService';
-import { makeHash } from '../utils/hash';
 import { pool } from '../db';
-import { allowUnsafeLocalAuthHelpers, env, portalLoginSecret } from '../env';
+import { allowUnsafeLocalAuthHelpers, env } from '../env';
 import { securityLog } from '../audit/securityLog';
 
 // ── Pending-MFA token helpers ──────────────────────────────────────────────────
@@ -305,9 +304,6 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // ── Portal magic-link auth (client + freelancer portals) ──────────────────
 
-  const buildPortalHash = (email: string, code: string) =>
-    makeHash(`portal:${portalLoginSecret}:${email}:${code}`);
-
   // POST /auth/magic-link — generate OTP, send via email (bypasses domain check)
   app.post('/auth/magic-link', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { email, role } = z.object({
@@ -315,10 +311,7 @@ export default async function authRoutes(app: FastifyInstance) {
       role: z.enum(['client', 'staff']).optional(),
     }).parse(request.body);
 
-    const normalized = email.trim().toLowerCase();
-    const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    await createLoginCode({ email: normalized, codeHash: buildPortalHash(normalized, code), expiresAt });
+    const { email: normalized, code } = await issuePortalLoginCode(email, { ttlMinutes: 15 });
 
     const portalName = role === 'client' ? 'Portal do Cliente' : 'Portal Freelancer';
     const delivery = await sendEmail({
@@ -360,7 +353,7 @@ export default async function authRoutes(app: FastifyInstance) {
     }).parse(request.body);
 
     const normalized = email.trim().toLowerCase();
-    const codeHash = buildPortalHash(normalized, code);
+    const codeHash = buildPortalCodeHash(normalized, code);
     const consumed = await consumeLoginCode({ email: normalized, codeHash });
     if (!consumed) {
       return reply.status(401).send({ error: 'Código inválido ou expirado.' });
