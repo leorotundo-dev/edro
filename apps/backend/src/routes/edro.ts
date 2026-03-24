@@ -70,6 +70,7 @@ import { buildPersonaBlock, buildAMDBlock, buildBehaviorIntentBlock } from '../s
 import { tagCopy } from '../services/ai/agentTagger';
 import { autoCreateJobFromBriefing } from '../services/jobs/briefingToJobService';
 import { runPolicyCheck } from '../services/ai/policyChecker';
+import { ensureBriefingExecutionReady } from '../services/briefingExecutionService';
 import {
   createABTest,
   listABTests,
@@ -611,6 +612,12 @@ async function promoteStageIfPending(
   const stages = await listBriefingStages(briefingId);
   const target = stages.find((item) => item.stage === stage);
   if (target && target.status === 'pending') {
+    if (stage === 'producao') {
+      const readiness = await ensureBriefingExecutionReady(briefingId);
+      if (!readiness.ok) {
+        return { ok: false, error: readiness.error ?? 'briefing_not_ready_for_execution' };
+      }
+    }
     await updateBriefingStageStatus({
       briefingId,
       stage,
@@ -618,6 +625,7 @@ async function promoteStageIfPending(
       updatedBy: updatedBy ?? null,
     });
   }
+  return { ok: true };
 }
 
 async function createTaskNotifications(params: {
@@ -1489,6 +1497,15 @@ export default async function edroRoutes(app: FastifyInstance) {
           continue;
         }
 
+        const next = getNextStage(current.stage as WorkflowStage);
+        if (next === 'producao') {
+          const readiness = await ensureBriefingExecutionReady(briefingId);
+          if (!readiness.ok) {
+            results.push({ id: briefingId, ok: false, error: readiness.error ?? 'briefing_not_ready_for_execution' });
+            continue;
+          }
+        }
+
         await updateBriefingStageStatus({
           briefingId,
           stage: current.stage as WorkflowStage,
@@ -1496,9 +1513,12 @@ export default async function edroRoutes(app: FastifyInstance) {
           updatedBy: user.email ?? null,
         });
 
-        const next = getNextStage(current.stage as WorkflowStage);
         if (next) {
-          await promoteStageIfPending(briefingId, next, user.email ?? null);
+          const promoted = await promoteStageIfPending(briefingId, next, user.email ?? null);
+          if (!promoted.ok) {
+            results.push({ id: briefingId, ok: false, error: promoted.error });
+            continue;
+          }
           notifyStageChange({
             briefingId,
             fromStage: current.stage as WorkflowStage,
@@ -1599,6 +1619,17 @@ export default async function edroRoutes(app: FastifyInstance) {
       });
     }
 
+    const nextStage = body.status === 'done' ? getNextStage(params.stage) : null;
+    if (nextStage === 'producao') {
+      const readiness = await ensureBriefingExecutionReady(params.id);
+      if (!readiness.ok) {
+        return reply.status(409).send({
+          success: false,
+          error: readiness.error ?? 'briefing_not_ready_for_execution',
+        });
+      }
+    }
+
     const updatedStage = await updateBriefingStageStatus({
       briefingId: params.id,
       stage: params.stage,
@@ -1612,9 +1643,14 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     if (body.status === 'done') {
-      const nextStage = getNextStage(params.stage);
       if (nextStage) {
-        await promoteStageIfPending(params.id, nextStage, user.email);
+        const promoted = await promoteStageIfPending(params.id, nextStage, user.email);
+        if (!promoted.ok) {
+          return reply.status(409).send({
+            success: false,
+            error: promoted.error ?? 'briefing_not_ready_for_execution',
+          });
+        }
         notifyStageChange({
           briefingId: params.id,
           fromStage: params.stage as WorkflowStage,
@@ -2738,10 +2774,27 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       });
     }
 
+    const readiness = await ensureBriefingExecutionReady(briefing.id, {
+      id: briefing.id,
+      title: briefing.title,
+      status: briefing.status,
+      payload: briefing.payload,
+      copy_approved_at: (briefing as any).copy_approved_at ?? null,
+      copy_approval_comment: (briefing as any).copy_approval_comment ?? null,
+    });
+    if (!readiness.ok) {
+      return reply.status(409).send({
+        success: false,
+        error: readiness.error ?? 'briefing_not_ready_for_execution',
+      });
+    }
+
     const copies = await listCopyVersions(briefing.id);
     const selectedCopy = body.copy_version_id
       ? copies.find((copy) => copy.id === body.copy_version_id) || null
-      : copies[0] ?? null;
+      : copies.find((copy: any) => ['selected', 'approved'].includes(String(copy.status ?? '').toLowerCase()))
+        || copies[0]
+        || null;
 
     const channels = body.channels ?? DEFAULT_DESIGN_CHANNELS;
     const taskPayload: Record<string, any> = {
@@ -2779,7 +2832,13 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       });
     }
 
-    await promoteStageIfPending(briefing.id, 'producao', user.email);
+    const promoted = await promoteStageIfPending(briefing.id, 'producao', user.email);
+    if (!promoted.ok) {
+      return reply.status(409).send({
+        success: false,
+        error: promoted.error ?? 'briefing_not_ready_for_execution',
+      });
+    }
 
     await refreshBriefingStatus(briefing.id);
 

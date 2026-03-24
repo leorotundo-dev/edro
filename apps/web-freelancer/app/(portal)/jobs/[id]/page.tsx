@@ -32,6 +32,28 @@ type Briefing = {
   source: 'briefing';
 };
 
+type BriefingExecutionSnapshot = {
+  execution_ready: boolean;
+  execution_ready_at: string | null;
+  blocking_reasons: string[];
+  job_mode: 'copy_ready' | 'visual_only';
+  requires_copy: boolean;
+  objective: string | null;
+  format: string | null;
+  platform: string | null;
+  references: string[];
+  visual_instructions: string[];
+  mandatory_elements: string[];
+  restrictions: string[];
+  definition_of_done: string[];
+  approved_copy: {
+    text: string;
+    source: 'execution_snapshot' | 'copy_version' | 'payload';
+    approved_at: string | null;
+    comment: string | null;
+  } | null;
+};
+
 type ChecklistItem = {
   trello_id?: string;
   text: string;
@@ -124,6 +146,178 @@ function useElapsed(startedAt: string | null) {
   const pad = (n: number) => String(n).padStart(2, '0');
   const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+function formatPayloadLabel(key: string) {
+  return key.replace(/_/g, ' ');
+}
+
+function renderSnapshotList(items: string[]) {
+  if (!items.length) return null;
+  return (
+    <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`} className="portal-card-subtitle" style={{ lineHeight: 1.6 }}>
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BriefingExecutionView({
+  briefing,
+  snapshot,
+}: {
+  briefing: Briefing;
+  snapshot: BriefingExecutionSnapshot | null;
+}) {
+  const payload = briefing.payload ?? {};
+  const fallbackEntries = Object.entries(payload)
+    .filter(([key, value]) => key !== 'execution_snapshot' && value && String(value).length > 0)
+    .slice(0, 12);
+
+  return (
+    <div className="portal-page" style={{ gap: 16 }}>
+      {snapshot && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className={`portal-pill ${snapshot.job_mode === 'copy_ready' ? 'portal-pill-success' : 'portal-pill-neutral'}`}>
+            {snapshot.job_mode === 'copy_ready' ? 'Com copy pronta' : 'Visual sem copy'}
+          </span>
+          {snapshot.execution_ready_at && (
+            <span className="portal-pill portal-pill-neutral">
+              Pronto para execução desde {new Date(snapshot.execution_ready_at).toLocaleDateString('pt-BR')}
+            </span>
+          )}
+        </div>
+      )}
+
+      {snapshot?.approved_copy?.text && (
+        <div
+          style={{
+            background: 'rgba(19, 222, 185, 0.08)',
+            border: '1px solid rgba(19, 222, 185, 0.24)',
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div className="portal-section-head" style={{ marginBottom: 10 }}>
+            <div>
+              <h3 className="portal-section-title">Copy aprovada</h3>
+              <p className="portal-card-subtitle">
+                {snapshot.approved_copy.approved_at
+                  ? `Pronta desde ${new Date(snapshot.approved_copy.approved_at).toLocaleDateString('pt-BR')}`
+                  : 'Copy consolidada para execução'}
+              </p>
+            </div>
+          </div>
+          <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, color: 'var(--portal-text)' }}>
+            {snapshot.approved_copy.text}
+          </p>
+          {snapshot.approved_copy.comment && (
+            <p className="portal-card-subtitle" style={{ marginTop: 12 }}>
+              Observação da aprovação: {snapshot.approved_copy.comment}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="portal-profile-grid">
+        {(snapshot?.objective || payload.objective) && (
+          <div className="portal-profile-field">
+            <span className="portal-profile-label">Objetivo</span>
+            <span className="portal-profile-value">{snapshot?.objective || String(payload.objective)}</span>
+          </div>
+        )}
+        {(snapshot?.format || payload.format) && (
+          <div className="portal-profile-field">
+            <span className="portal-profile-label">Formato</span>
+            <span className="portal-profile-value">{snapshot?.format || String(payload.format)}</span>
+          </div>
+        )}
+        {(snapshot?.platform || payload.platform) && (
+          <div className="portal-profile-field">
+            <span className="portal-profile-label">Plataforma</span>
+            <span className="portal-profile-value">{snapshot?.platform || String(payload.platform)}</span>
+          </div>
+        )}
+        {briefing.copy_approved_at && (
+          <div className="portal-profile-field">
+            <span className="portal-profile-label">Última aprovação de copy</span>
+            <span className="portal-profile-value">{new Date(briefing.copy_approved_at).toLocaleDateString('pt-BR')}</span>
+          </div>
+        )}
+      </div>
+
+      {snapshot?.visual_instructions?.length ? (
+        <div>
+          <span className="portal-profile-label" style={{ display: 'block', marginBottom: 8 }}>
+            Instruções visuais
+          </span>
+          {renderSnapshotList(snapshot.visual_instructions)}
+        </div>
+      ) : null}
+
+      {snapshot?.mandatory_elements?.length ? (
+        <div>
+          <span className="portal-profile-label" style={{ display: 'block', marginBottom: 8 }}>
+            Elementos obrigatórios
+          </span>
+          {renderSnapshotList(snapshot.mandatory_elements)}
+        </div>
+      ) : null}
+
+      {snapshot?.restrictions?.length ? (
+        <div>
+          <span className="portal-profile-label" style={{ display: 'block', marginBottom: 8 }}>
+            Restrições
+          </span>
+          {renderSnapshotList(snapshot.restrictions)}
+        </div>
+      ) : null}
+
+      {snapshot?.definition_of_done?.length ? (
+        <div>
+          <span className="portal-profile-label" style={{ display: 'block', marginBottom: 8 }}>
+            Definition of done
+          </span>
+          {renderSnapshotList(snapshot.definition_of_done)}
+        </div>
+      ) : null}
+
+      {snapshot?.references?.length ? (
+        <div>
+          <span className="portal-profile-label" style={{ display: 'block', marginBottom: 8 }}>
+            Referências
+          </span>
+          {renderSnapshotList(snapshot.references)}
+        </div>
+      ) : null}
+
+      {fallbackEntries.length > 0 && (
+        <div>
+          <span className="portal-profile-label" style={{ display: 'block', marginBottom: 8 }}>
+            Contexto adicional do briefing
+          </span>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {fallbackEntries.map(([key, value]) => (
+              <div key={key}>
+                <span
+                  className="portal-profile-label"
+                  style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                >
+                  {formatPayloadLabel(key)}
+                </span>
+                <p className="portal-card-subtitle" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                  {String(value)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Trello Card View ──────────────────────────────────────────────────────────
@@ -709,6 +903,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const isOps = job.source === 'ops_job';
   const opsJob = isOps ? (job as OpsJob) : null;
   const briefing = !isOps ? (job as Briefing) : null;
+  const executionSnapshot = !isOps
+    ? ((briefing?.payload?.execution_snapshot as BriefingExecutionSnapshot | undefined) ?? null)
+    : null;
 
   const deadline = isOps ? opsJob!.deadline_at : briefing!.due_at;
   const statusLabel = isOps ? (OPS_STATUS_LABELS[job.status] ?? job.status) : (BRIEFING_STATUS_LABELS[job.status] ?? job.status);
@@ -775,12 +972,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               )}
             </>
           )}
-          {!isOps && briefing?.copy_approved_at && (
-            <div className="portal-profile-field">
-              <span className="portal-profile-label">Copy aprovada em</span>
-              <span className="portal-profile-value">{new Date(briefing.copy_approved_at).toLocaleDateString('pt-BR')}</span>
-            </div>
-          )}
         </div>
         {isOps && opsJob?.notes && (
           <div style={{ marginTop: 16 }}>
@@ -788,16 +979,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <p className="portal-card-subtitle" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{opsJob.notes}</p>
           </div>
         )}
-        {!isOps && briefing?.payload && typeof briefing.payload === 'object' && (
+        {!isOps && briefing && (
           <div style={{ marginTop: 16 }}>
-            {Object.entries(briefing.payload).filter(([, v]) => v && String(v).length > 0).slice(0, 12).map(([key, value]) => (
-              <div key={key} style={{ marginBottom: 12 }}>
-                <span className="portal-profile-label" style={{ display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {key.replace(/_/g, ' ')}
-                </span>
-                <p className="portal-card-subtitle" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{String(value)}</p>
-              </div>
-            ))}
+            <BriefingExecutionView briefing={briefing} snapshot={executionSnapshot} />
           </div>
         )}
       </section>

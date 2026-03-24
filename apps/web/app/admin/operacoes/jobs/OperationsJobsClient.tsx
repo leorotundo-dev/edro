@@ -63,7 +63,7 @@ import {
   sortByOperationalPriority,
   type GroupedSection,
 } from '@/components/operations/derived';
-import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, groupBy, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
+import { formatSkillLabel, formatSourceLabel, getDeliveryStatus, getNextAction, getRisk, groupBy, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -99,6 +99,7 @@ export default function OperationsJobsClient() {
   const [ownerFilter, setOwnerFilter] = useState('');
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [deadlineFilter, setDeadlineFilter] = useState<string | null>(null);
+  const [deliveryFilter, setDeliveryFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   const rawGroup = searchParams.get('group');
@@ -144,8 +145,21 @@ export default function OperationsJobsClient() {
         return [job.title, job.summary, job.client_name, job.owner_name, job.required_skill]
           .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
       })
+      .filter((job) => {
+        if (!deliveryFilter) return true;
+        return getDeliveryStatus(job).label === deliveryFilter;
+      })
       .sort(sortByOperationalPriority);
-  }, [jobs, statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter, query]);
+  }, [jobs, statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter, deliveryFilter, query]);
+
+  const deliveryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const job of jobs) {
+      const label = getDeliveryStatus(job).label;
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+    return counts;
+  }, [jobs]);
 
   const grouped = useMemo(() => groupBy(filteredJobs, (job) => job.status), [filteredJobs]);
 
@@ -219,8 +233,8 @@ export default function OperationsJobsClient() {
   };
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
-  const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter || deadlineFilter);
-  const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter].filter(Boolean).length;
+  const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter || deadlineFilter || deliveryFilter);
+  const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter, deliveryFilter].filter(Boolean).length;
 
   return (
     <OperationsShell
@@ -294,6 +308,46 @@ export default function OperationsJobsClient() {
                   </IconButton>
                 </Stack>
 
+                {/* Delivery status summary strip */}
+                <Stack direction="row" spacing={0.5} sx={{ px: 2, pb: 1, flexWrap: 'wrap' }} useFlexGap>
+                  {[
+                    { label: 'Atrasado', emoji: '🔴' },
+                    { label: 'Máxima', emoji: '🔥' },
+                    { label: 'Stand-by', emoji: '🟡' },
+                    { label: 'No prazo', emoji: '🟢' },
+                    { label: 'Entregue', emoji: '✅' },
+                  ].map(({ label, emoji }) => {
+                    const count = deliveryCounts[label] ?? 0;
+                    if (!count) return null;
+                    const active = deliveryFilter === label;
+                    return (
+                      <Box
+                        key={label}
+                        onClick={() => setDeliveryFilter(active ? null : label)}
+                        sx={{
+                          cursor: 'pointer',
+                          px: 1, py: 0.35,
+                          borderRadius: 1.5,
+                          border: '1px solid',
+                          borderColor: active ? 'primary.main' : 'divider',
+                          bgcolor: active ? 'primary.main' : 'action.hover',
+                          display: 'flex', alignItems: 'center', gap: 0.5,
+                          '&:hover': { borderColor: 'primary.main' },
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <Typography sx={{ fontSize: '0.75rem', lineHeight: 1 }}>{emoji}</Typography>
+                        <Typography variant="caption" fontWeight={700} sx={{ color: active ? '#fff' : 'text.primary', fontSize: '0.7rem' }}>
+                          {label}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: active ? 'rgba(255,255,255,0.8)' : 'text.secondary', fontSize: '0.7rem' }}>
+                          {count}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+
                 {/* Quick filters */}
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: 1.25 }}>
                   <ToggleButtonGroup value={quickFilter} exclusive onChange={(_e, v) => setQuickFilter(v)} size="small">
@@ -319,7 +373,7 @@ export default function OperationsJobsClient() {
                     </ToggleButton>
                   </ToggleButtonGroup>
                   {hasActiveFilters && (
-                    <Button size="small" onClick={() => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); setDeadlineFilter(null); }}
+                    <Button size="small" onClick={() => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); setDeadlineFilter(null); setDeliveryFilter(null); }}
                       sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}>
                       Limpar filtros
                     </Button>
