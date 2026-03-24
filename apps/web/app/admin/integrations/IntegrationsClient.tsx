@@ -93,6 +93,15 @@ type MonitorQuickAction = {
   disabled?: boolean;
 };
 
+type MonitorHistoryItem = {
+  event: string;
+  status: 'ok' | 'error' | 'degraded';
+  records?: number | null;
+  error_msg?: string | null;
+  meta?: Record<string, any> | null;
+  created_at: string;
+};
+
 type IntegrationHealth = {
   google:             { client_id: boolean; client_secret: boolean; pubsub_topic: boolean; calendar_webhook: boolean };
   ai:                 { gemini: boolean; openai: boolean };
@@ -254,6 +263,8 @@ export default function IntegrationsClient() {
   const [setupDialog, setSetupDialog] = useState<IntegrationType | null>(null);
   const [monitor, setMonitor] = useState<ServiceMonitorStatus[] | null>(null);
   const [monitorDetail, setMonitorDetail] = useState<ServiceMonitorStatus | null>(null);
+  const [monitorHistory, setMonitorHistory] = useState<MonitorHistoryItem[]>([]);
+  const [monitorHistoryLoading, setMonitorHistoryLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -276,6 +287,31 @@ export default function IntegrationsClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!monitorDetail) {
+      setMonitorHistory([]);
+      setMonitorHistoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setMonitorHistoryLoading(true);
+    apiGet<{ events: MonitorHistoryItem[] }>(`/admin/integrations/monitor/${monitorDetail.service}/history?limit=8`)
+      .then((res) => {
+        if (!cancelled) setMonitorHistory(res?.events ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMonitorHistory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMonitorHistoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [monitorDetail]);
 
   const redirectToOAuth = async (path: string) => {
     try {
@@ -491,6 +527,57 @@ export default function IntegrationsClient() {
                     </Stack>
                   </>
                 )}
+                <Divider />
+                <Box>
+                  <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>
+                    Histórico recente
+                  </Typography>
+                  {monitorHistoryLoading ? (
+                    <Stack alignItems="center" py={2}>
+                      <CircularProgress size={20} />
+                    </Stack>
+                  ) : monitorHistory.length === 0 ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Sem eventos recentes registrados para este serviço.
+                    </Typography>
+                  ) : (
+                    <Stack spacing={1}>
+                      {monitorHistory.map((item, index) => (
+                        <Box key={`${item.created_at}-${item.event}-${index}`} sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap="wrap">
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Chip label={monitorEventLabel(monitorDetail.service, item.event) ?? item.event} size="small" variant="outlined" />
+                              <Chip label={item.status} size="small" color={monitorStatusChipColor(item.status)} />
+                              {item.records != null && (
+                                <Chip label={`${item.records} registros`} size="small" variant="outlined" />
+                              )}
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary">
+                              {fmtDateTime(item.created_at)}
+                            </Typography>
+                          </Stack>
+                          {item.error_msg && (
+                            <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.75 }}>
+                              {item.error_msg}
+                            </Typography>
+                          )}
+                          {monitorMetaEntries(item.meta).length > 0 && (
+                            <Stack spacing={0.5} sx={{ mt: 0.75 }}>
+                              {monitorMetaEntries(item.meta).slice(0, 4).map((entry) => (
+                                <Stack key={`${item.created_at}-${entry.key}`} direction="row" justifyContent="space-between" gap={2}>
+                                  <Typography variant="caption" color="text.secondary">{entry.label}</Typography>
+                                  <Typography variant="caption" sx={{ fontFamily: 'monospace', textAlign: 'right' }}>
+                                    {entry.value}
+                                  </Typography>
+                                </Stack>
+                              ))}
+                            </Stack>
+                          )}
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
                 <Stack direction="row" justifyContent="flex-end">
                   <Button size="small" onClick={() => setMonitorDetail(null)}>Fechar</Button>
                 </Stack>

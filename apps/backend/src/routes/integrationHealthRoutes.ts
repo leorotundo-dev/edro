@@ -330,6 +330,49 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     return reply.send({ services: mergedServices });
   });
 
+  app.get('/admin/integrations/monitor/:service/history', {
+    preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const params = z.object({
+      service: z.enum([
+        'trello',
+        'whatsapp',
+        'recall',
+        'resend',
+        'd4sign',
+        'openai',
+        'gmail',
+        'google_calendar',
+        'instagram',
+        'evolution',
+      ]),
+    }).parse(request.params);
+    const querystring = z.object({
+      limit: z.coerce.number().int().min(1).max(20).optional(),
+    }).parse(request.query ?? {});
+    const limit = querystring.limit ?? 8;
+
+    const { rows } = await query<{
+      event: string;
+      status: 'ok' | 'error' | 'degraded';
+      records: number | null;
+      error_msg: string | null;
+      meta: Record<string, any> | null;
+      created_at: string;
+    }>(
+      `SELECT event, status, records, error_msg, meta, created_at
+         FROM integration_activity_log
+        WHERE tenant_id = $1
+          AND service = $2
+        ORDER BY created_at DESC
+        LIMIT $3`,
+      [tenantId, params.service, limit],
+    );
+
+    return reply.send({ events: rows });
+  });
+
   // GET /admin/integrations/config-hints
   app.get('/admin/integrations/config-hints', {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
