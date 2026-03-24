@@ -6,21 +6,24 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clearToken, apiGet } from '@/lib/api';
 import clsx from 'clsx';
 
-const NAV = [
-  { href: '/',           label: 'Dashboard',   icon: '⊞', match: (p: string) => p === '/' },
-  { href: '/jobs',       label: 'Escopos',     icon: '◈', match: (p: string) => p.startsWith('/jobs') },
-  { href: '/pagamentos', label: 'Honorários',  icon: '◎', match: (p: string) => p.startsWith('/pagamentos') },
-  { href: '/analytics',  label: 'Analytics',   icon: '📊', match: (p: string) => p.startsWith('/analytics') },
-  { href: '/radar',      label: 'Radar',       icon: '🔮', match: (p: string) => p.startsWith('/radar') },
-  { href: '/portfolio',  label: 'Hall da Fama',icon: '🏆', match: (p: string) => p.startsWith('/portfolio') },
-  { href: '/parceiros',  label: 'Parceiros',   icon: '🤝', match: (p: string) => p.startsWith('/parceiros') },
-  { href: '/agenda',     label: 'Agenda',      icon: '📅', match: (p: string) => p.startsWith('/agenda') },
-  { href: '/horas',      label: 'Score',       icon: '★', match: (p: string) => p.startsWith('/horas') },
-  { href: '/perfil',     label: 'Perfil',      icon: '◉', match: (p: string) => p.startsWith('/perfil') },
+const NAV_ITEMS = [
+  { href: '/',           label: 'Dashboard',   icon: '⊞', visible: true,  match: (p: string) => p === '/' },
+  { href: '/jobs',       label: 'Escopos',     icon: '◈', visible: true,  match: (p: string) => p.startsWith('/jobs') },
+  { href: '/pagamentos', label: 'Honorários',  icon: '◎', visible: true,  match: (p: string) => p.startsWith('/pagamentos') },
+  { href: '/agenda',     label: 'Agenda',      icon: '📅', visible: true,  match: (p: string) => p.startsWith('/agenda') },
+  { href: '/horas',      label: 'Score SLA',   icon: '★', visible: true,  match: (p: string) => p.startsWith('/horas') },
+  { href: '/perfil',     label: 'Perfil',      icon: '◉', visible: true,  match: (p: string) => p.startsWith('/perfil') },
+  { href: '/analytics',  label: 'Analytics',   icon: '📊', visible: false, match: (p: string) => p.startsWith('/analytics') },
+  { href: '/radar',      label: 'Radar',       icon: '🔮', visible: false, match: (p: string) => p.startsWith('/radar') },
+  { href: '/portfolio',  label: 'Hall da Fama',icon: '🏆', visible: false, match: (p: string) => p.startsWith('/portfolio') },
+  { href: '/parceiros',  label: 'Parceiros',   icon: '🤝', visible: false, match: (p: string) => p.startsWith('/parceiros') },
+  { href: '/studio',     label: 'Studio',      icon: '✦', visible: false, match: (p: string) => p.startsWith('/studio') },
 ];
 
+const NAV = NAV_ITEMS.filter((item) => item.visible);
+
 // Mobile nav shows only most-used items
-const MOBILE_NAV = NAV.filter(n => ['/', '/jobs', '/pagamentos', '/analytics', '/portfolio'].includes(n.href));
+const MOBILE_NAV = NAV.filter(n => ['/', '/jobs', '/pagamentos', '/agenda', '/perfil'].includes(n.href));
 
 function initials(value: string) {
   return value.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || 'FR';
@@ -67,7 +70,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     return () => { cancelled = true; };
   }, [router]);
 
-  const activeLabel = useMemo(() => NAV.find(n => n.match(pathname))?.label ?? '', [pathname]);
+  const activeLabel = useMemo(() => NAV_ITEMS.find(n => n.match(pathname))?.label ?? '', [pathname]);
 
   return (
     <div className="ps-layout">

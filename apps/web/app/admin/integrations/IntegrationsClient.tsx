@@ -15,6 +15,9 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
@@ -83,6 +86,22 @@ type ServiceMonitorStatus = {
   meta?: Record<string, any> | null;
 };
 
+type MonitorQuickAction = {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+};
+
+type MonitorHistoryItem = {
+  event: string;
+  status: 'ok' | 'error' | 'degraded';
+  records?: number | null;
+  error_msg?: string | null;
+  meta?: Record<string, any> | null;
+  created_at: string;
+};
+
 type IntegrationHealth = {
   google:             { client_id: boolean; client_secret: boolean; pubsub_topic: boolean; calendar_webhook: boolean };
   ai:                 { gemini: boolean; openai: boolean };
@@ -109,10 +128,26 @@ function monitorStatusColor(status: ServiceMonitorStatus['status']) {
   return '#9ca3af';
 }
 
+function monitorStatusChipColor(status: ServiceMonitorStatus['status']): 'success' | 'error' | 'warning' | 'default' {
+  if (status === 'ok') return 'success';
+  if (status === 'error') return 'error';
+  if (status === 'degraded') return 'warning';
+  return 'default';
+}
+
+function monitorSortRank(service: ServiceMonitorStatus) {
+  if (service.status === 'error') return 0;
+  if (service.status === 'degraded') return 1;
+  if (service.status === 'ok') return 2;
+  if (service.configured) return 3;
+  return 4;
+}
+
 function monitorEventLabel(service: string, event?: string | null) {
   if (!event) return null;
   const generic: Record<string, string> = {
     sync: 'sync',
+    configured: 'configurado',
     connected: 'conectado',
     watch_renewed: 'watch renovado',
     watch_error: 'erro no watch',
@@ -160,6 +195,50 @@ function shortValue(value?: string | null, limit = 28) {
   return value.length > limit ? `${value.slice(0, limit - 10)}...${value.slice(-7)}` : value;
 }
 
+function humanizeMonitorMetaKey(key: string) {
+  const labels: Record<string, string> = {
+    provider: 'Provider',
+    email: 'Email',
+    watch_expiry: 'Watch expira em',
+    expires_at: 'Expira em',
+    watch_status: 'Status do watch',
+    member_id: 'Member ID',
+    client_id: 'Client ID',
+    page_id: 'Page ID',
+    instagram_business_id: 'Instagram Business ID',
+    stale_age_hours: 'Sem atividade há',
+    stale_window_hours: 'Janela de alerta',
+  };
+  return labels[key] ?? key.replace(/_/g, ' ');
+}
+
+function formatMonitorMetaValue(key: string, value: unknown) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string') {
+    if ((key.includes('expiry') || key.includes('expires') || key.endsWith('_at')) && !Number.isNaN(Date.parse(value))) {
+      return fmtDateTime(value);
+    }
+    return value;
+  }
+  if (typeof value === 'number' && key.endsWith('_hours')) {
+    return `${value}h`;
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'Sim' : 'Não';
+  }
+  return JSON.stringify(value);
+}
+
+function monitorMetaEntries(meta?: Record<string, any> | null) {
+  return Object.entries(meta ?? {})
+    .map(([key, value]) => {
+      const formattedValue = formatMonitorMetaValue(key, value);
+      if (!formattedValue) return null;
+      return { key, label: humanizeMonitorMetaKey(key), value: formattedValue };
+    })
+    .filter((entry): entry is { key: string; label: string; value: string } => Boolean(entry));
+}
+
 function watchChip(calendar: CalendarStatus | null) {
   if (!calendar?.configured) return <Chip label="Desconectado" size="small" color="default" />;
   if (calendar.expired) return <Chip label="Watch expirado" size="small" color="error" />;
@@ -183,6 +262,9 @@ export default function IntegrationsClient() {
   const [waTestResult, setWaTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [setupDialog, setSetupDialog] = useState<IntegrationType | null>(null);
   const [monitor, setMonitor] = useState<ServiceMonitorStatus[] | null>(null);
+  const [monitorDetail, setMonitorDetail] = useState<ServiceMonitorStatus | null>(null);
+  const [monitorHistory, setMonitorHistory] = useState<MonitorHistoryItem[]>([]);
+  const [monitorHistoryLoading, setMonitorHistoryLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,6 +287,31 @@ export default function IntegrationsClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!monitorDetail) {
+      setMonitorHistory([]);
+      setMonitorHistoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setMonitorHistoryLoading(true);
+    apiGet<{ events: MonitorHistoryItem[] }>(`/admin/integrations/monitor/${monitorDetail.service}/history?limit=8`)
+      .then((res) => {
+        if (!cancelled) setMonitorHistory(res?.events ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMonitorHistory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMonitorHistoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [monitorDetail]);
 
   const redirectToOAuth = async (path: string) => {
     try {
@@ -269,6 +376,56 @@ export default function IntegrationsClient() {
   const gmailError = searchParams.get('gmail_error');
   const calendarConnected = searchParams.get('calendar_connected');
   const calendarError = searchParams.get('calendar_error');
+  const sortedMonitor = monitor
+    ? [...monitor].sort((a, b) => (
+        monitorSortRank(a) - monitorSortRank(b)
+        || a.label.localeCompare(b.label, 'pt-BR')
+      ))
+    : null;
+  const attentionMonitor = sortedMonitor?.filter((svc) => svc.status === 'error' || svc.status === 'degraded') ?? [];
+
+  const monitorQuickAction = (svc: ServiceMonitorStatus): MonitorQuickAction | null => {
+    switch (svc.service) {
+      case 'gmail':
+        return {
+          label: gmail?.configured ? 'Setup' : 'Configurar',
+          onClick: () => setSetupDialog('google-oauth'),
+        };
+      case 'google_calendar':
+        if (calendar?.configured) {
+          return {
+            label: renewingCalendar ? 'Renovando...' : 'Renovar watch',
+            onClick: handleCalendarRenew,
+            disabled: renewingCalendar,
+          };
+        }
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('google-oauth'),
+        };
+      case 'whatsapp':
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('whatsapp-meta'),
+        };
+      case 'evolution':
+        return whatsapp?.connected
+          ? { label: 'Gerenciar', href: '/admin/whatsapp-groups' }
+          : { label: 'Conectar', onClick: () => setSetupDialog('evolution-whatsapp') };
+      case 'recall':
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('recall'),
+        };
+      case 'instagram':
+        return {
+          label: 'Configurar',
+          onClick: () => setSetupDialog('instagram'),
+        };
+      default:
+        return null;
+    }
+  };
 
   return (
     <AppShell title="Integrações">
@@ -290,6 +447,40 @@ export default function IntegrationsClient() {
         {gmailError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Gmail: {gmailError}</Alert>}
         {calendarConnected && <Alert severity="success" sx={{ mb: 2 }}>Google Calendar conectado: {calendarConnected}</Alert>}
         {calendarError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Google Calendar: {calendarError}</Alert>}
+        {attentionMonitor.length > 0 && (
+          <Alert severity={attentionMonitor.some((svc) => svc.status === 'error') ? 'error' : 'warning'} sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>
+              {attentionMonitor.filter((svc) => svc.status === 'error').length > 0
+                ? `${attentionMonitor.filter((svc) => svc.status === 'error').length} integração(ões) com erro e ${attentionMonitor.filter((svc) => svc.status === 'degraded').length} degradada(s)`
+                : `${attentionMonitor.length} integração(ões) degradada(s) exigem atenção`}
+            </Typography>
+            <Typography variant="caption" color="inherit" sx={{ display: 'block', mb: 1 }}>
+              {attentionMonitor.slice(0, 4).map((svc) => svc.label).join(' • ')}
+              {attentionMonitor.length > 4 ? ` • +${attentionMonitor.length - 4}` : ''}
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {attentionMonitor.slice(0, 3).map((svc) => {
+                const action = monitorQuickAction(svc);
+                if (!action) return null;
+                return (
+                  <Button
+                    key={`attention-${svc.service}`}
+                    size="small"
+                    variant="outlined"
+                    color="inherit"
+                    href={action.href}
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                    endIcon={action.href ? <IconExternalLink size={12} /> : <IconSettings size={12} />}
+                    sx={{ minWidth: 0 }}
+                  >
+                    {svc.label}: {action.label}
+                  </Button>
+                );
+              })}
+            </Stack>
+          </Alert>
+        )}
 
         <IntegrationSetupDialog
           open={Boolean(setupDialog)}
@@ -298,6 +489,102 @@ export default function IntegrationsClient() {
           onClose={() => setSetupDialog(null)}
           onRefresh={load}
         />
+        <Dialog open={Boolean(monitorDetail)} onClose={() => setMonitorDetail(null)} maxWidth="sm" fullWidth>
+          <DialogTitle>{monitorDetail?.label ?? 'Detalhes da integração'}</DialogTitle>
+          <DialogContent dividers>
+            {monitorDetail && (
+              <Stack spacing={1.5}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={monitorDetail.configured ? 'Configurado' : 'Não configurado'} size="small" color={monitorDetail.configured ? 'success' : 'default'} />
+                  <Chip label={monitorDetail.status} size="small" color={monitorStatusChipColor(monitorDetail.status)} />
+                  {monitorDetail.last_event && (
+                    <Chip label={monitorEventLabel(monitorDetail.service, monitorDetail.last_event) ?? monitorDetail.last_event} size="small" variant="outlined" />
+                  )}
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  Última atividade: {monitorDetail.last_activity ? fmtDateTime(monitorDetail.last_activity) : 'Sem atividade registrada'}
+                </Typography>
+                {monitorDetail.records != null && (
+                  <Typography variant="body2" color="text.secondary">
+                    Registros: {monitorDetail.records}
+                  </Typography>
+                )}
+                {monitorDetail.error_msg && (
+                  <Alert severity="error">{monitorDetail.error_msg}</Alert>
+                )}
+                {monitorMetaEntries(monitorDetail.meta).length > 0 && (
+                  <>
+                    <Divider />
+                    <Stack spacing={1}>
+                      {monitorMetaEntries(monitorDetail.meta).map((entry) => (
+                        <Stack key={entry.key} direction="row" justifyContent="space-between" gap={2}>
+                          <Typography variant="caption" color="text.secondary">{entry.label}</Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', textAlign: 'right' }}>
+                            {entry.value}
+                          </Typography>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </>
+                )}
+                <Divider />
+                <Box>
+                  <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>
+                    Histórico recente
+                  </Typography>
+                  {monitorHistoryLoading ? (
+                    <Stack alignItems="center" py={2}>
+                      <CircularProgress size={20} />
+                    </Stack>
+                  ) : monitorHistory.length === 0 ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Sem eventos recentes registrados para este serviço.
+                    </Typography>
+                  ) : (
+                    <Stack spacing={1}>
+                      {monitorHistory.map((item, index) => (
+                        <Box key={`${item.created_at}-${item.event}-${index}`} sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap="wrap">
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Chip label={monitorEventLabel(monitorDetail.service, item.event) ?? item.event} size="small" variant="outlined" />
+                              <Chip label={item.status} size="small" color={monitorStatusChipColor(item.status)} />
+                              {item.records != null && (
+                                <Chip label={`${item.records} registros`} size="small" variant="outlined" />
+                              )}
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary">
+                              {fmtDateTime(item.created_at)}
+                            </Typography>
+                          </Stack>
+                          {item.error_msg && (
+                            <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.75 }}>
+                              {item.error_msg}
+                            </Typography>
+                          )}
+                          {monitorMetaEntries(item.meta).length > 0 && (
+                            <Stack spacing={0.5} sx={{ mt: 0.75 }}>
+                              {monitorMetaEntries(item.meta).slice(0, 4).map((entry) => (
+                                <Stack key={`${item.created_at}-${entry.key}`} direction="row" justifyContent="space-between" gap={2}>
+                                  <Typography variant="caption" color="text.secondary">{entry.label}</Typography>
+                                  <Typography variant="caption" sx={{ fontFamily: 'monospace', textAlign: 'right' }}>
+                                    {entry.value}
+                                  </Typography>
+                                </Stack>
+                              ))}
+                            </Stack>
+                          )}
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+                <Stack direction="row" justifyContent="flex-end">
+                  <Button size="small" onClick={() => setMonitorDetail(null)}>Fechar</Button>
+                </Stack>
+              </Stack>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {loading ? (
           <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -305,7 +592,7 @@ export default function IntegrationsClient() {
           <Stack spacing={2}>
 
             {/* ── Monitor ao vivo ── */}
-            {monitor && (
+            {sortedMonitor && (
               <Card variant="outlined">
                 <CardContent>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -313,18 +600,18 @@ export default function IntegrationsClient() {
                       <IconPlugConnected size={18} />
                       <Typography variant="subtitle2" fontWeight={700}>Monitor ao vivo</Typography>
                       <Chip
-                        label={`${monitor.filter(s => s.status === 'ok').length} ok`}
+                        label={`${sortedMonitor.filter(s => s.status === 'ok').length} ok`}
                         size="small" color="success" variant="outlined"
                       />
-                      {monitor.filter(s => s.status === 'error').length > 0 && (
+                      {sortedMonitor.filter(s => s.status === 'error').length > 0 && (
                         <Chip
-                          label={`${monitor.filter(s => s.status === 'error').length} com erro`}
+                          label={`${sortedMonitor.filter(s => s.status === 'error').length} com erro`}
                           size="small" color="error"
                         />
                       )}
-                      {monitor.filter(s => s.status === 'degraded').length > 0 && (
+                      {sortedMonitor.filter(s => s.status === 'degraded').length > 0 && (
                         <Chip
-                          label={`${monitor.filter(s => s.status === 'degraded').length} degradado`}
+                          label={`${sortedMonitor.filter(s => s.status === 'degraded').length} degradado`}
                           size="small" color="warning"
                         />
                       )}
@@ -335,7 +622,9 @@ export default function IntegrationsClient() {
                   </Stack>
 
                   <Stack spacing={0.75}>
-                    {monitor.map((svc) => (
+                    {sortedMonitor.map((svc) => {
+                      const action = monitorQuickAction(svc);
+                      return (
                       <Stack key={svc.service} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Box sx={{
@@ -353,6 +642,9 @@ export default function IntegrationsClient() {
                             <Tooltip title={svc.error_msg}>
                               <Chip label="erro" size="small" color="error" sx={{ height: 16, fontSize: '0.6rem', cursor: 'help' }} />
                             </Tooltip>
+                          )}
+                          {svc.status === 'degraded' && svc.meta?.stale && (
+                            <Chip label="sem atividade recente" size="small" color="warning" sx={{ height: 16, fontSize: '0.6rem' }} />
                           )}
                         </Stack>
                         <Stack direction="row" spacing={1.5} alignItems="center">
@@ -374,9 +666,32 @@ export default function IntegrationsClient() {
                           <Typography variant="caption" color={svc.last_activity ? 'text.secondary' : 'text.disabled'}>
                             {timeAgo(svc.last_activity) ?? 'Sem atividade'}
                           </Typography>
+                          {action && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              color="inherit"
+                              href={action.href}
+                              onClick={action.onClick}
+                              disabled={action.disabled}
+                              endIcon={action.href ? <IconExternalLink size={12} /> : <IconSettings size={12} />}
+                              sx={{ minWidth: 0, px: 0.5, fontSize: '0.72rem' }}
+                            >
+                              {action.label}
+                            </Button>
+                          )}
+                          <Button
+                            size="small"
+                            variant="text"
+                            color="inherit"
+                            onClick={() => setMonitorDetail(svc)}
+                            sx={{ minWidth: 0, px: 0.5, fontSize: '0.72rem' }}
+                          >
+                            Detalhes
+                          </Button>
                         </Stack>
                       </Stack>
-                    ))}
+                    )})}
                   </Stack>
                 </CardContent>
               </Card>

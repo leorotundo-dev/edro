@@ -19,6 +19,45 @@ function has(key: string): boolean {
   return Boolean(v && v.trim().length > 0);
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+
+const STALE_ACTIVITY_WINDOW_MS: Partial<Record<IntegrationService, number>> = {
+  trello: 48 * HOUR_MS,
+  whatsapp: 72 * HOUR_MS,
+  evolution: 72 * HOUR_MS,
+  recall: 72 * HOUR_MS,
+  resend: 72 * HOUR_MS,
+  d4sign: 14 * 24 * HOUR_MS,
+  openai: 7 * 24 * HOUR_MS,
+  gmail: 24 * HOUR_MS,
+  google_calendar: 24 * HOUR_MS,
+  instagram: 72 * HOUR_MS,
+};
+
+function applyStaleMonitorStatus(service: ServiceMonitorStatus, nowMs: number): ServiceMonitorStatus {
+  if (service.status !== 'ok' || !service.last_activity) return service;
+
+  const staleWindowMs = STALE_ACTIVITY_WINDOW_MS[service.service];
+  if (!staleWindowMs) return service;
+
+  const lastActivityMs = new Date(service.last_activity).getTime();
+  if (!Number.isFinite(lastActivityMs)) return service;
+
+  const ageMs = nowMs - lastActivityMs;
+  if (ageMs <= staleWindowMs) return service;
+
+  return {
+    ...service,
+    status: 'degraded',
+    meta: {
+      ...(service.meta ?? {}),
+      stale: true,
+      stale_age_hours: Math.floor(ageMs / HOUR_MS),
+      stale_window_hours: Math.floor(staleWindowMs / HOUR_MS),
+    },
+  };
+}
+
 export default async function integrationHealthRoutes(app: FastifyInstance) {
   app.get('/admin/integrations/health', {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
@@ -195,7 +234,6 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     ]);
 
     const services = await getMonitorStatus(tenantId, configured);
-
     const fallbacks = new Map<IntegrationService, Partial<ServiceMonitorStatus>>();
 
     if (trelloConnectorRes.rows[0]) {
@@ -275,12 +313,64 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       });
     }
 
+    for (const service of services) {
+      if (!service.configured || fallbacks.has(service.service)) continue;
+      fallbacks.set(service.service, {
+        status: 'ok',
+        last_event: 'configured',
+      });
+    }
+
     const mergedServices = services.map((service) => {
       if (service.last_activity) return service;
       const fallback = fallbacks.get(service.service);
       return fallback ? { ...service, ...fallback } : service;
-    });
+    }).map((service) => applyStaleMonitorStatus(service, now));
+
     return reply.send({ services: mergedServices });
+  });
+
+  app.get('/admin/integrations/monitor/:service/history', {
+    preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const params = z.object({
+      service: z.enum([
+        'trello',
+        'whatsapp',
+        'recall',
+        'resend',
+        'd4sign',
+        'openai',
+        'gmail',
+        'google_calendar',
+        'instagram',
+        'evolution',
+      ]),
+    }).parse(request.params);
+    const querystring = z.object({
+      limit: z.coerce.number().int().min(1).max(20).optional(),
+    }).parse(request.query ?? {});
+    const limit = querystring.limit ?? 8;
+
+    const { rows } = await query<{
+      event: string;
+      status: 'ok' | 'error' | 'degraded';
+      records: number | null;
+      error_msg: string | null;
+      meta: Record<string, any> | null;
+      created_at: string;
+    }>(
+      `SELECT event, status, records, error_msg, meta, created_at
+         FROM integration_activity_log
+        WHERE tenant_id = $1
+          AND service = $2
+        ORDER BY created_at DESC
+        LIMIT $3`,
+      [tenantId, params.service, limit],
+    );
+
+    return reply.send({ events: rows });
   });
 
   // GET /admin/integrations/config-hints

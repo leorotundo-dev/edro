@@ -11,6 +11,7 @@ import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../se
 import { generateContractPdf } from '../services/contractTemplateService';
 import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
+import { issuePortalLoginCode } from '../services/authService';
 import {
   attachExecutionSnapshotToPayload,
   isFreelancerVisibleBriefingStatus,
@@ -408,6 +409,51 @@ export default async function freelancersRoutes(app: FastifyInstance) {
           ? Math.round(((acc.avg_actual - acc.avg_estimated) / acc.avg_estimated) * 100)
           : 0,
       } : null,
+    });
+  });
+
+  app.post('/freelancers/:id/portal-access-code', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId = (request as any).user?.tenant_id;
+
+    const profileRes = await pool.query<{ id: string; email: string; display_name: string | null; user_id: string }>(
+      `SELECT fp.id, fp.user_id, fp.display_name, eu.email
+         FROM freelancer_profiles fp
+         JOIN edro_users eu ON eu.id = fp.user_id
+         JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $2
+        WHERE fp.id = $1
+        LIMIT 1`,
+      [id, tenantId],
+    );
+
+    if (!profileRes.rows.length) {
+      return reply.status(404).send({ error: 'Freelancer não encontrado neste tenant.' });
+    }
+
+    const profile = profileRes.rows[0];
+    const issued = await issuePortalLoginCode(profile.email, { ttlMinutes: 15 });
+
+    securityLog({
+      event: 'LOGIN_CODE_REQUESTED',
+      email: profile.email,
+      user_id: profile.user_id,
+      tenant_id: tenantId,
+      ip: request.ip,
+      user_agent: request.headers['user-agent'] as string | undefined,
+      detail: {
+        delivery: 'admin_portal_code',
+        role: 'staff',
+        freelancer_id: profile.id,
+        expires_at: issued.expiresAt.toISOString(),
+      },
+    }).catch(() => {});
+
+    return reply.send({
+      ok: true,
+      email: issued.email,
+      code: issued.code,
+      ttlMinutes: issued.ttlMinutes,
+      expiresAt: issued.expiresAt.toISOString(),
     });
   });
 

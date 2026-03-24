@@ -268,13 +268,9 @@ export default function DashboardPage() {
         {[
           { href: '/jobs',       emoji: '◈',  label: 'Escopos',    color: '#e85219' },
           { href: '/pagamentos', emoji: '💰', label: 'Pagamentos', color: '#F8A800' },
-          { href: '/analytics',  emoji: '📊', label: 'Analytics',  color: '#13DEB9' },
-          { href: '/radar',      emoji: '🔮', label: 'Radar',      color: '#A78BFA' },
-          { href: '/portfolio',  emoji: '🏆', label: 'Hall da Fama', color: '#FA896B' },
-          { href: '/parceiros',  emoji: '🤝', label: 'Parceiros',  color: '#5D87FF' },
           { href: '/agenda',     emoji: '📅', label: 'Agenda',     color: '#5D87FF' },
-          { href: '/studio',     emoji: '✦',  label: 'Studio',     color: '#A855F7' },
-          { href: '/horas',      emoji: '◷',  label: 'Horas',      color: '#13DEB9' },
+          { href: '/horas',      emoji: '★',  label: 'Score SLA',  color: '#13DEB9' },
+          { href: '/perfil',     emoji: '◉',  label: 'Perfil',     color: '#A78BFA' },
         ].map(item => (
           <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
             <div style={{
