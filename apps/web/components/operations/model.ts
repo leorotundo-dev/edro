@@ -453,6 +453,26 @@ export function getNextStatus(job: Partial<OperationsJob>): string | null {
   return STATUS_ADVANCE[job.status || ''] || null;
 }
 
+export type DeliveryStatus = {
+  emoji: string;
+  label: string;
+  color: string;
+};
+
+/** Maps a job to the planilha-style STATUS DA ENTREGA: 🔥🔴🟢🟡✅ */
+export function getDeliveryStatus(job: Partial<OperationsJob>): DeliveryStatus {
+  const done = ['published', 'done'].includes(job.status || '');
+  const standby = ['blocked', 'awaiting_approval', 'planned'].includes(job.status || '');
+  const deadline = job.deadline_at ? new Date(job.deadline_at) : null;
+  const overdue = deadline && deadline < new Date() && !done;
+
+  if (done) return { emoji: '✅', label: 'Entregue', color: '#16a34a' };
+  if (job.is_urgent || job.priority_band === 'p0') return { emoji: '🔥', label: 'Máxima', color: '#dc2626' };
+  if (overdue) return { emoji: '🔴', label: 'Atrasado', color: '#dc2626' };
+  if (standby) return { emoji: '🟡', label: 'Stand-by', color: '#d97706' };
+  return { emoji: '🟢', label: 'No prazo', color: '#16a34a' };
+}
+
 export function groupBy<T>(list: T[], keyFn: (item: T) => string) {
   return list.reduce<Record<string, T[]>>((acc, item) => {
     const key = keyFn(item);

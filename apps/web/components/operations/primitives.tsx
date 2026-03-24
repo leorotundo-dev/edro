@@ -67,6 +67,7 @@ import {
   getNextAction,
   getNextStatus,
   getRisk,
+  getDeliveryStatus,
   getStageIndex,
   PRIORITY_LABELS,
   STAGE_FLOW,
@@ -863,6 +864,16 @@ export function OpsJobRow({
               <Chip size="small" color="error" label="!" sx={{ height: 20, minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />
             ) : null}
             <PriorityPill priorityBand={job.priority_band} />
+            {(() => {
+              const ds = getDeliveryStatus(job);
+              return (
+                <Tooltip title={ds.label} arrow>
+                  <Typography component="span" sx={{ fontSize: '0.85rem', lineHeight: 1, cursor: 'default' }}>
+                    {ds.emoji}
+                  </Typography>
+                </Tooltip>
+              );
+            })()}
           </Stack>
 
           <Stack spacing={0.25} alignItems="flex-end" sx={{ flexShrink: 0, minWidth: 72 }}>
