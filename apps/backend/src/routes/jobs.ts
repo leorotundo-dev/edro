@@ -43,7 +43,15 @@ async function notifyClientApprovalNeeded(
     deadline ? `⏰ Prazo: ${deadline}` : null,
   ].filter(Boolean) as string[];
 
-  await sendWhatsAppText(contact.whatsapp_jid, lines.join('\n'));
+  await sendWhatsAppText(contact.whatsapp_jid, lines.join('\n'), {
+    tenantId,
+    event: 'approval_requested',
+    meta: {
+      channel: 'client_approval',
+      client_id: clientId,
+      job_title: jobTitle,
+    },
+  });
 }
 
 /** Look up owner's WhatsApp JID + email, then fire job_assigned notification. */

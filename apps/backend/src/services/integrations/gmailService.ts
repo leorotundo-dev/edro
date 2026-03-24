@@ -22,6 +22,7 @@ import { query } from '../../db';
 import { generateWithProvider } from '../ai/copyOrchestrator';
 import { createBriefing } from '../../repositories/edroBriefingRepository';
 import { env } from '../../env';
+import { logActivity } from '../integrationMonitor';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -155,32 +156,54 @@ export async function watchGmailInbox(tenantId: string): Promise<void> {
   const pubsubTopic = env.GOOGLE_PUBSUB_TOPIC;
   if (!pubsubTopic) throw new Error('GOOGLE_PUBSUB_TOPIC não configurado.');
 
-  const accessToken = await getValidAccessToken(tenantId);
+  try {
+    const accessToken = await getValidAccessToken(tenantId);
 
-  const res = await fetch(`${GMAIL_API}/users/me/watch`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      topicName: pubsubTopic,
-      labelIds: ['INBOX'],
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gmail watch failed: ${err.slice(0, 200)}`);
+    const res = await fetch(`${GMAIL_API}/users/me/watch`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        topicName: pubsubTopic,
+        labelIds: ['INBOX'],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gmail watch failed: ${err.slice(0, 200)}`);
+    }
+    const data = await res.json() as { historyId: string; expiration: string };
+
+    const watchExpiry = new Date(parseInt(data.expiration));
+    await query(
+      `UPDATE gmail_connections
+       SET watch_expiry = $1, history_id = $2
+       WHERE tenant_id = $3`,
+      [watchExpiry, data.historyId, tenantId],
+    );
+
+    logActivity({
+      tenantId,
+      service: 'gmail',
+      event: 'watch_renewed',
+      status: 'ok',
+      meta: {
+        history_id: data.historyId,
+        watch_expiry: watchExpiry.toISOString(),
+      },
+    });
+  } catch (error: any) {
+    logActivity({
+      tenantId,
+      service: 'gmail',
+      event: 'watch_renewed',
+      status: 'error',
+      errorMsg: error?.message ?? 'gmail_watch_failed',
+    });
+    throw error;
   }
-  const data = await res.json() as { historyId: string; expiration: string };
-
-  const watchExpiry = new Date(parseInt(data.expiration));
-  await query(
-    `UPDATE gmail_connections
-     SET watch_expiry = $1, history_id = $2
-     WHERE tenant_id = $3`,
-    [watchExpiry, data.historyId, tenantId],
-  );
 }
 
 // ── Process Gmail history (incremental sync) ──────────────────────────────
@@ -196,36 +219,75 @@ export async function processGmailHistory(tenantId: string, newHistoryId: string
   if (!startHistoryId) {
     // First time — just save historyId for next time
     await query(`UPDATE gmail_connections SET history_id = $1 WHERE tenant_id = $2`, [newHistoryId, tenantId]);
+    logActivity({
+      tenantId,
+      service: 'gmail',
+      event: 'history_cursor_initialized',
+      status: 'ok',
+      meta: {
+        history_id: newHistoryId,
+      },
+    });
     return;
   }
 
-  const accessToken = await getValidAccessToken(tenantId);
+  try {
+    const accessToken = await getValidAccessToken(tenantId);
 
-  // Fetch history since last known historyId
-  const historyRes = await fetch(
-    `${GMAIL_API}/users/me/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded&labelId=INBOX`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
-  if (!historyRes.ok) return;
-  const historyData = await historyRes.json() as { history?: any[] };
-
-  const messages: any[] = [];
-  for (const h of historyData.history ?? []) {
-    for (const ma of h.messagesAdded ?? []) {
-      messages.push(ma.message);
+    // Fetch history since last known historyId
+    const historyRes = await fetch(
+      `${GMAIL_API}/users/me/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded&labelId=INBOX`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!historyRes.ok) {
+      const err = await historyRes.text().catch(() => '');
+      throw new Error(`gmail_history_fetch_failed: ${err.slice(0, 200)}`);
     }
-  }
+    const historyData = await historyRes.json() as { history?: any[] };
 
-  // Update historyId
-  await query(`UPDATE gmail_connections SET history_id = $1 WHERE tenant_id = $2`, [newHistoryId, tenantId]);
-
-  // Process each new message
-  for (const msg of messages) {
-    try {
-      await processGmailMessage(tenantId, agencyEmail, msg.id, accessToken);
-    } catch (err: any) {
-      console.error('[gmailService] processMessage failed:', err?.message);
+    const messages: any[] = [];
+    for (const h of historyData.history ?? []) {
+      for (const ma of h.messagesAdded ?? []) {
+        messages.push(ma.message);
+      }
     }
+
+    // Update historyId
+    await query(`UPDATE gmail_connections SET history_id = $1 WHERE tenant_id = $2`, [newHistoryId, tenantId]);
+
+    // Process each new message
+    for (const msg of messages) {
+      try {
+        await processGmailMessage(tenantId, agencyEmail, msg.id, accessToken);
+      } catch (err: any) {
+        console.error('[gmailService] processMessage failed:', err?.message);
+      }
+    }
+
+    logActivity({
+      tenantId,
+      service: 'gmail',
+      event: 'sync',
+      status: 'ok',
+      records: messages.length,
+      meta: {
+        history_id: newHistoryId,
+        email: agencyEmail,
+      },
+    });
+  } catch (error: any) {
+    logActivity({
+      tenantId,
+      service: 'gmail',
+      event: 'sync',
+      status: 'error',
+      errorMsg: error?.message ?? 'gmail_sync_failed',
+      meta: {
+        history_id: newHistoryId,
+        email: agencyEmail,
+      },
+    });
+    throw error;
   }
 }
 

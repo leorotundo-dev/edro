@@ -633,6 +633,7 @@ async function createTaskNotifications(params: {
   taskId: string;
   channels: string[];
   recipient: string;
+  tenantId?: string | null;
   payload: Record<string, any>;
 }) {
   const notifications = [];
@@ -650,6 +651,7 @@ async function createTaskNotifications(params: {
       id: notification.id,
       channel: notification.channel,
       recipient: notification.recipient,
+      tenantId: params.tenantId ?? null,
       payload: notification.payload ?? params.payload,
     });
   }
@@ -661,6 +663,7 @@ async function notifyStageChange(params: {
   briefingId: string;
   fromStage: WorkflowStage;
   toStage: WorkflowStage;
+  tenantId?: string | null;
   updatedBy?: string | null;
 }) {
   try {
@@ -700,6 +703,7 @@ async function notifyStageChange(params: {
         id: notification.id,
         channel: 'email',
         recipient,
+        tenantId: params.tenantId ?? (briefing as any).tenant_id ?? null,
         payload: {
           _email: email,
           briefing: { id: briefing.id, title: briefing.title, client_name: briefing.client_name },
@@ -1220,6 +1224,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         taskId: trafficTask.id,
         channels: trafficChannels,
         recipient: trafficRecipient,
+        tenantId: (briefing as any).tenant_id ?? (request.user as any)?.tenant_id ?? null,
         payload: {
           briefing,
           event: 'briefing_created',
@@ -1655,6 +1660,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           briefingId: params.id,
           fromStage: params.stage as WorkflowStage,
           toStage: nextStage,
+          tenantId: (request.user as any)?.tenant_id ?? null,
           updatedBy: user.email,
         });
       }
@@ -1676,6 +1682,7 @@ export default async function edroRoutes(app: FastifyInstance) {
             id: notification.id,
             channel: notification.channel,
             recipient: notification.recipient,
+            tenantId: (briefing as any)?.tenant_id ?? (request.user as any)?.tenant_id ?? null,
             payload: notification.payload ?? {},
           });
         }
@@ -2565,6 +2572,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           taskId: trafficTask.id,
           channels: trafficChannels,
           recipient: trafficRecipient,
+          tenantId: (briefing as any).tenant_id ?? (request.user as any)?.tenant_id ?? null,
           payload: {
             briefing,
             copy,
@@ -2828,6 +2836,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         id: notification.id,
         channel: notification.channel,
         recipient: notification.recipient,
+        tenantId: (request.user as any)?.tenant_id ?? (briefing as any)?.tenant_id ?? null,
         payload: notification.payload ?? taskPayload,
       });
     }
@@ -4941,6 +4950,7 @@ Retorne APENAS JSON válido (sem markdown):
         to: client_email,
         subject: `Peça para aprovação: ${briefingTitle}`,
         html: emailHtml,
+        tenantId,
       });
     } catch {
       // Email is best-effort — don't fail the request if SMTP is not configured
@@ -5169,7 +5179,7 @@ Retorne APENAS JSON válido, sem markdown, com este formato exato:
     if ((body.action === 'send_to_client' || body.action === 'approve_internal') && body.clientEmail) {
       const clientName = (briefing as any).client_name ?? (briefing.payload?.client_name as string | null) ?? null;
       setImmediate(() =>
-        sendClientApprovalEmail(id, body.clientEmail!, briefing.title, clientName).catch(
+        sendClientApprovalEmail(id, body.clientEmail!, briefing.title, clientName, (briefing as any).tenant_id ?? (request.user as any)?.tenant_id ?? null).catch(
           (err) => console.warn('[stage-action] sendClientApprovalEmail failed:', err)
         )
       );

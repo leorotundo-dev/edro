@@ -1,14 +1,25 @@
 import nodemailer from 'nodemailer';
 import { env } from '../env';
+import { logActivity } from './integrationMonitor';
 
 type EmailPayload = {
   to: string;
   subject: string;
   text?: string;
   html?: string;
+  /** When provided, activity is logged to the integration monitor. */
+  tenantId?: string;
 };
 
 type DeliveryResult = { ok: boolean; error?: string; provider?: string };
+
+export function isSmtpConfigured(): boolean {
+  return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
+}
+
+export function isEmailConfigured(): boolean {
+  return Boolean(env.RESEND_API_KEY) || isSmtpConfigured();
+}
 
 // ── Resend (REST, no extra dep) ───────────────────────────────────────────────
 
@@ -51,7 +62,7 @@ let transporter: nodemailer.Transporter | null = null;
 
 function resolveTransporter(): nodemailer.Transporter | null {
   if (transporter) return transporter;
-  if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) return null;
+  if (!isSmtpConfigured()) return null;
 
   const port = env.SMTP_PORT ?? 587;
   transporter = nodemailer.createTransport({
@@ -85,11 +96,44 @@ async function sendViaSMTP(payload: EmailPayload): Promise<DeliveryResult> {
 // ── Public API — tries Resend first, SMTP as fallback ────────────────────────
 
 export async function sendEmail(payload: EmailPayload): Promise<DeliveryResult> {
-  if (env.RESEND_API_KEY) {
-    const result = await sendViaResend(payload);
-    if (result.ok) return result;
-    console.warn('[email] Resend failed, falling back to SMTP:', result.error);
+  let result: DeliveryResult;
+  const resendEnabled = Boolean(env.RESEND_API_KEY);
+
+  if (resendEnabled) {
+    result = await sendViaResend(payload);
+    if (!result.ok) {
+      console.warn('[email] Resend failed, falling back to SMTP:', result.error);
+      result = await sendViaSMTP(payload);
+    }
+  } else {
+    result = await sendViaSMTP(payload);
   }
 
-  return sendViaSMTP(payload);
+  if (payload.tenantId) {
+    const usedProvider = result.provider ?? (resendEnabled ? 'resend' : 'smtp');
+    const usedSmtpFallback = Boolean(result.ok && resendEnabled && usedProvider === 'smtp');
+    logActivity({
+      tenantId: payload.tenantId,
+      service: 'resend',
+      event: result.ok
+        ? usedSmtpFallback
+          ? 'email_sent_fallback'
+          : 'email_sent'
+        : 'email_failed',
+      status: result.ok
+        ? usedSmtpFallback
+          ? 'degraded'
+          : 'ok'
+        : 'error',
+      errorMsg: result.ok ? undefined : result.error,
+      meta: {
+        provider: usedProvider,
+        fallback_from: usedSmtpFallback ? 'resend' : undefined,
+        to: payload.to,
+        subject: payload.subject,
+      },
+    });
+  }
+
+  return result;
 }

@@ -1,12 +1,20 @@
 import OpenAI from 'openai';
 import { env } from '../../env';
 import type { AiCompletionResult } from './claudeService';
+import { logActivity } from '../integrationMonitor';
+
+export type OpenAiMonitorContext = {
+  tenantId: string;
+  feature: string;
+  metadata?: Record<string, any>;
+};
 
 type CompletionParams = {
   prompt: string;
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  monitor?: OpenAiMonitorContext;
 };
 
 const client = new OpenAI({
@@ -27,22 +35,61 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
   messages.push({ role: 'user', content: params.prompt });
 
   const model = env.OPENAI_MODEL;
+  const startedAt = Date.now();
 
-  const response = await client.chat.completions.create({
-    model,
-    messages,
-    temperature: params.temperature ?? 0.6,
-    max_tokens: params.maxTokens ?? 1500,
-  });
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages,
+      temperature: params.temperature ?? 0.6,
+      max_tokens: params.maxTokens ?? 1500,
+    });
 
-  return {
-    text: response.choices[0]?.message?.content?.trim() || '',
-    usage: {
-      input_tokens: response.usage?.prompt_tokens || 0,
-      output_tokens: response.usage?.completion_tokens || 0,
-    },
-    model: response.model || model,
-  };
+    const result = {
+      text: response.choices[0]?.message?.content?.trim() || '',
+      usage: {
+        input_tokens: response.usage?.prompt_tokens || 0,
+        output_tokens: response.usage?.completion_tokens || 0,
+      },
+      model: response.model || model,
+    };
+
+    if (params.monitor) {
+      logActivity({
+        tenantId: params.monitor.tenantId,
+        service: 'openai',
+        event: params.monitor.feature || 'completion',
+        status: 'ok',
+        meta: {
+          provider: 'openai',
+          model: result.model,
+          input_tokens: result.usage.input_tokens,
+          output_tokens: result.usage.output_tokens,
+          duration_ms: Date.now() - startedAt,
+          ...(params.monitor.metadata ?? {}),
+        },
+      });
+    }
+
+    return result;
+  } catch (error) {
+    if (params.monitor) {
+      const errorMsg = error instanceof Error ? error.message : String(error ?? 'openai_failed');
+      logActivity({
+        tenantId: params.monitor.tenantId,
+        service: 'openai',
+        event: params.monitor.feature || 'completion',
+        status: 'error',
+        errorMsg,
+        meta: {
+          provider: 'openai',
+          duration_ms: Date.now() - startedAt,
+          ...(params.monitor.metadata ?? {}),
+        },
+      });
+    }
+    throw error;
+  }
 }
 
 // ── Tool Use Support ───────────────────────────────────────────
@@ -117,26 +164,70 @@ export async function generateSpeech(params: {
   voice?:  TtsVoice;
   model?:  'tts-1' | 'tts-1-hd';
   speed?:  number; // 0.25–4.0, default 1.0
+  monitor?: OpenAiMonitorContext;
 }): Promise<{ audioBase64: string; durationEstimateMs: number }> {
   const text  = params.text.trim().slice(0, 4096); // OpenAI TTS limit
   const voice = params.voice ?? 'nova';
   const model = params.model ?? 'tts-1';
   const speed = params.speed ?? 1.0;
+  const startedAt = Date.now();
 
-  const response = await client.audio.speech.create({
-    model,
-    voice,
-    input: text,
-    response_format: 'mp3',
-    speed,
-  });
+  try {
+    const response = await client.audio.speech.create({
+      model,
+      voice,
+      input: text,
+      response_format: 'mp3',
+      speed,
+    });
 
-  const buffer       = Buffer.from(await response.arrayBuffer());
-  const audioBase64  = buffer.toString('base64');
+    const buffer       = Buffer.from(await response.arrayBuffer());
+    const audioBase64  = buffer.toString('base64');
 
-  // Rough duration estimate: ~150 words/min at speed 1.0
-  const wordCount          = text.split(/\s+/).length;
-  const durationEstimateMs = Math.round((wordCount / 150) * 60000 / speed);
+    // Rough duration estimate: ~150 words/min at speed 1.0
+    const wordCount          = text.split(/\s+/).length;
+    const durationEstimateMs = Math.round((wordCount / 150) * 60000 / speed);
 
-  return { audioBase64, durationEstimateMs };
+    if (params.monitor) {
+      logActivity({
+        tenantId: params.monitor.tenantId,
+        service: 'openai',
+        event: params.monitor.feature || 'tts',
+        status: 'ok',
+        meta: {
+          provider: 'openai',
+          model,
+          voice,
+          speed,
+          text_length: text.length,
+          duration_ms: Date.now() - startedAt,
+          duration_estimate_ms: durationEstimateMs,
+          ...(params.monitor.metadata ?? {}),
+        },
+      });
+    }
+
+    return { audioBase64, durationEstimateMs };
+  } catch (error) {
+    if (params.monitor) {
+      const errorMsg = error instanceof Error ? error.message : String(error ?? 'openai_tts_failed');
+      logActivity({
+        tenantId: params.monitor.tenantId,
+        service: 'openai',
+        event: params.monitor.feature || 'tts',
+        status: 'error',
+        errorMsg,
+        meta: {
+          provider: 'openai',
+          model,
+          voice,
+          speed,
+          text_length: text.length,
+          duration_ms: Date.now() - startedAt,
+          ...(params.monitor.metadata ?? {}),
+        },
+      });
+    }
+    throw error;
+  }
 }

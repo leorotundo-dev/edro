@@ -5,7 +5,7 @@ import { requireClientPerm } from '../auth/clientPerms';
 import { tenantGuard } from '../auth/tenantGuard';
 import { sendEmail } from '../services/emailService';
 import { GeminiService } from '../services/ai/geminiService';
-import { OpenAIService } from '../services/ai/openaiService';
+import { OpenAIService, type OpenAiMonitorContext } from '../services/ai/openaiService';
 import { ClaudeService } from '../services/ai/claudeService';
 import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
@@ -27,6 +27,7 @@ type CompletionParams = {
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  monitor?: OpenAiMonitorContext;
 };
 
 type CompletionResult = {
@@ -326,6 +327,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
       subject: `[Edro] ${templateLabel} — ${name} (${dateFrom} a ${dateTo})`,
       text,
       html,
+      tenantId,
     });
 
     return { success: result.ok, error: result.error };
@@ -413,6 +415,7 @@ ${assetSnapshot}`,
           'Você é analista de inteligência competitiva para agências de marketing B2B. Seja objetivo e baseado em evidência.',
         temperature: 0.2,
         maxTokens: 1800,
+        monitor: { tenantId, feature: 'competitive_intel_structuring', metadata: { client_id: client.id } },
       });
       structured = geminiResult.text;
       const d1 = Date.now() - t1;
@@ -459,6 +462,7 @@ ${assetSnapshot}`,
           'Você é estrategista de crescimento em agência de marketing. Gere recomendações práticas orientadas a resultado.',
         temperature: 0.55,
         maxTokens: 2200,
+        monitor: { tenantId, feature: 'competitive_intel_draft', metadata: { client_id: client.id } },
       });
       draft = openaiResult.text;
       const d2 = Date.now() - t2;
@@ -512,6 +516,7 @@ ${assetSnapshot}`,
           'Você é consultor sênior de inteligência competitiva em marketing. Seja pragmático, orientado a decisão e rigoroso com evidências.',
         temperature: 0.35,
         maxTokens: 2600,
+        monitor: { tenantId, feature: 'competitive_intel_final', metadata: { client_id: client.id } },
       });
       strategicBrief = claudeResult.text;
       const d3 = Date.now() - t3;
@@ -713,6 +718,7 @@ ${dataSnapshot}`,
         systemPrompt: 'Você é um analista de performance de marketing e vendas focado em cliente final. Saída estritamente em JSON válido, sem markdown e sem texto fora do JSON.',
         temperature: 0.2,
         maxTokens: 1200,
+        monitor: { tenantId, feature: 'ai_report_analysis', metadata: { client_id: client.id, template } },
       });
       structuredAnalysis = geminiResult.text;
       const d1 = Date.now() - t1;
@@ -793,6 +799,7 @@ ${dataSnapshot}`,
         systemPrompt: 'Você é um estrategista sênior de agência. Foco absoluto em resultado de negócio do cliente. Português brasileiro, tom profissional, objetivo e acionável. Máximo 650 palavras.',
         temperature: 0.6,
         maxTokens: 2000,
+        monitor: { tenantId, feature: 'ai_report_narrative', metadata: { client_id: client.id, template, is_cliente: isCliente } },
       });
       narrative = oaiResult.text;
       const d3 = Date.now() - t3;
@@ -876,6 +883,7 @@ ${marketContext ? `Contexto de mercado:\n${marketContext}` : ''}`,
           'Você é um estrategista sênior de agência, especialista em transformar dados em decisões de negócio para clientes. Seja objetivo, pragmático e rigoroso com evidências. Português brasileiro.',
         temperature: 0.4,
         maxTokens: 2200,
+        monitor: { tenantId, feature: 'ai_report_review', metadata: { client_id: client.id, template, is_cliente: isCliente } },
       });
       strategicReview = claudeResult.text;
       const d4 = Date.now() - t4;

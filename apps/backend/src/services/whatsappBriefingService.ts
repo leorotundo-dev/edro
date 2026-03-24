@@ -17,6 +17,7 @@ import { createBriefing } from '../repositories/edroBriefingRepository';
 import { generateWithProvider } from './ai/copyOrchestrator';
 import { query } from '../db/db';
 import { persistWhatsAppMessageMemory } from './whatsappClientMemoryService';
+import { logActivity } from './integrationMonitor';
 
 const WA_API_BASE = 'https://graph.facebook.com';
 const WA_VERSION  = process.env.WHATSAPP_API_VERSION || 'v21.0';
@@ -193,6 +194,20 @@ export async function handleWhatsAppMessage(message: {
   }
   const { tenantId, clientId, clientName } = resolved;
 
+  logActivity({
+    tenantId,
+    service: 'whatsapp',
+    event: 'message_received',
+    status: 'ok',
+    records: 1,
+    meta: {
+      channel: 'cloud_briefing',
+      from,
+      message_type: message.type,
+      client_id: clientId,
+    },
+  });
+
   // 2. Get raw text (or transcribe audio)
   let rawText = '';
 
@@ -202,12 +217,31 @@ export async function handleWhatsAppMessage(message: {
     const mediaId   = (message.audio?.id || message.voice?.id)!;
     const mimeType  = message.audio?.mime_type || message.voice?.mime_type || 'audio/ogg';
     try {
-      await sendWhatsAppText(from, `🎤 Recebi seu áudio! Transcrevendo... aguarde um momento.`);
+      await sendWhatsAppText(from, `🎤 Recebi seu áudio! Transcrevendo... aguarde um momento.`, {
+        tenantId,
+        event: 'message_acknowledged',
+        meta: { channel: 'cloud_briefing', client_id: clientId },
+      });
       const { buffer } = await downloadWhatsAppMedia(mediaId);
       rawText = await transcribeAudio(buffer, mimeType);
       if (!rawText.trim()) throw new Error('Transcrição vazia');
     } catch (err: any) {
-      await sendWhatsAppText(from, `❌ Não consegui transcrever o áudio: ${err?.message || 'erro desconhecido'}.\n\nTente enviar sua solicitação por texto.`);
+      await sendWhatsAppText(from, `❌ Não consegui transcrever o áudio: ${err?.message || 'erro desconhecido'}.\n\nTente enviar sua solicitação por texto.`, {
+        tenantId,
+        event: 'transcription_failed_reply',
+        meta: { channel: 'cloud_briefing', client_id: clientId },
+      });
+      logActivity({
+        tenantId,
+        service: 'whatsapp',
+        event: 'audio_transcription_failed',
+        status: 'error',
+        errorMsg: err?.message || 'transcription_failed',
+        meta: {
+          channel: 'cloud_briefing',
+          client_id: clientId,
+        },
+      });
       return;
     }
   } else {
@@ -217,6 +251,11 @@ export async function handleWhatsAppMessage(message: {
       '• Uma mensagem de texto descrevendo a demanda, ou\n' +
       '• Um áudio explicando o que precisa.\n\n' +
       'Inclua: objetivo, público-alvo, plataforma e prazo.',
+      {
+        tenantId,
+        event: 'unsupported_message_reply',
+        meta: { channel: 'cloud_briefing', client_id: clientId, message_type: message.type },
+      },
     );
     return;
   }
@@ -235,7 +274,11 @@ export async function handleWhatsAppMessage(message: {
   }).catch((err: any) => console.error('[whatsapp-briefing] persistMemory failed:', err?.message));
 
   if (rawText.length < 10) {
-    await sendWhatsAppText(from, '🤖 Mensagem muito curta. Descreva melhor o que você precisa para que eu possa criar o briefing.');
+    await sendWhatsAppText(from, '🤖 Mensagem muito curta. Descreva melhor o que você precisa para que eu possa criar o briefing.', {
+      tenantId,
+      event: 'message_too_short_reply',
+      meta: { channel: 'cloud_briefing', client_id: clientId },
+    });
     return;
   }
 
@@ -262,9 +305,30 @@ export async function handleWhatsAppMessage(message: {
     createdBy: `whatsapp:${from}`,
   });
 
+  logActivity({
+    tenantId,
+    service: 'whatsapp',
+    event: 'briefing_created',
+    status: 'ok',
+    records: 1,
+    meta: {
+      channel: 'cloud_briefing',
+      client_id: clientId,
+      briefing_id: briefing.id,
+    },
+  });
+
   // 5. Send confirmation
   const replyText = buildReply(fields, briefing.id);
-  await sendWhatsAppText(from, replyText);
+  await sendWhatsAppText(from, replyText, {
+    tenantId,
+    event: 'briefing_confirmed',
+    meta: {
+      channel: 'cloud_briefing',
+      client_id: clientId,
+      briefing_id: briefing.id,
+    },
+  });
 
   console.log(`[whatsapp-briefing] Created briefing ${briefing.id} for client ${clientName} (${clientId}) from phone ${from}`);
 }

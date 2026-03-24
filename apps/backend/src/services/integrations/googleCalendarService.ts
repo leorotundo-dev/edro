@@ -21,6 +21,7 @@ import { enqueueJob } from '../../jobs/jobQueue';
 import { ensureInternalClient } from '../../repos/clientsRepo';
 import { syncMeetingParticipantsFromCalendarPayload } from '../../repos/meetingParticipantsRepo';
 import { env } from '../../env';
+import { logActivity } from '../integrationMonitor';
 
 type ResolvedCalendarClient = {
   id: string;
@@ -217,8 +218,27 @@ export async function watchCalendar(tenantId: string): Promise<void> {
         WHERE tenant_id = $4`,
       [nextChannelId, data.resourceId, new Date(expiration), tenantId],
     );
+
+    logActivity({
+      tenantId,
+      service: 'google_calendar',
+      event: 'watch_renewed',
+      status: 'ok',
+      meta: {
+        channel_id: nextChannelId,
+        resource_id: data.resourceId,
+        expires_at: new Date(expiration).toISOString(),
+      },
+    });
   } catch (error: any) {
     await markCalendarWatchFailure(tenantId, error?.message ?? 'calendar_watch_failed').catch(() => {});
+    logActivity({
+      tenantId,
+      service: 'google_calendar',
+      event: 'watch_renewed',
+      status: 'error',
+      errorMsg: error?.message ?? 'calendar_watch_failed',
+    });
     throw error;
   }
 }
@@ -263,32 +283,63 @@ export async function processCalendarNotification(channelId: string, resourceSta
     [tenantId, resourceState ?? null],
   ).catch(() => {});
 
-  const accessToken = await getCalendarAccessToken(tenantId);
+  try {
+    const accessToken = await getCalendarAccessToken(tenantId);
 
-  // Fetch events in the next 48 hours
-  const now = new Date();
-  const tomorrow48 = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    // Fetch events in the next 48 hours
+    const now = new Date();
+    const tomorrow48 = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-  const eventsRes = await fetch(
-    `${CALENDAR_API}/calendars/primary/events?` +
-    new URLSearchParams({
-      timeMin: now.toISOString(),
-      timeMax: tomorrow48.toISOString(),
-      singleEvents: 'true',
-      orderBy: 'startTime',
-    }),
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
-  if (!eventsRes.ok) return;
-
-  const eventsData = await eventsRes.json() as { items?: any[] };
-
-  for (const event of eventsData.items ?? []) {
-    try {
-      await processCalendarEvent(tenantId, event);
-    } catch (err: any) {
-      console.error('[googleCalendarService] processEvent failed:', err?.message);
+    const eventsRes = await fetch(
+      `${CALENDAR_API}/calendars/primary/events?` +
+      new URLSearchParams({
+        timeMin: now.toISOString(),
+        timeMax: tomorrow48.toISOString(),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+      }),
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!eventsRes.ok) {
+      const err = await eventsRes.text().catch(() => '');
+      throw new Error(`calendar_notification_fetch_failed: ${err.slice(0, 200)}`);
     }
+
+    const eventsData = await eventsRes.json() as { items?: any[] };
+    const events = eventsData.items ?? [];
+
+    for (const event of events) {
+      try {
+        await processCalendarEvent(tenantId, event);
+      } catch (err: any) {
+        console.error('[googleCalendarService] processEvent failed:', err?.message);
+      }
+    }
+
+    logActivity({
+      tenantId,
+      service: 'google_calendar',
+      event: 'sync',
+      status: 'ok',
+      records: events.length,
+      meta: {
+        channel_id: channelId,
+        resource_state: resourceState ?? null,
+      },
+    });
+  } catch (error: any) {
+    logActivity({
+      tenantId,
+      service: 'google_calendar',
+      event: 'sync',
+      status: 'error',
+      errorMsg: error?.message ?? 'calendar_sync_failed',
+      meta: {
+        channel_id: channelId,
+        resource_state: resourceState ?? null,
+      },
+    });
+    throw error;
   }
 }
 

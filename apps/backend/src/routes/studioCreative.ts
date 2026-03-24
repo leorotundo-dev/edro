@@ -1142,6 +1142,11 @@ Retorne SOMENTE um JSON válido:
         voice: body.voice,
         model: body.model,
         speed: body.speed,
+        monitor: {
+          tenantId: request.tenantId as string,
+          feature: 'studio_voiceover',
+          metadata: { voice: body.voice, model: body.model },
+        },
       });
       return reply.send({ success: true, audioBase64: result.audioBase64, durationEstimateMs: result.durationEstimateMs });
     } catch (e: any) {

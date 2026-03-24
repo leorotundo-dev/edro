@@ -7,6 +7,7 @@ export type DispatchNotificationInput = {
   id: string;
   channel: string;
   recipient: string;
+  tenantId?: string | null;
   payload?: Record<string, any> | null;
 };
 
@@ -68,6 +69,7 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
       subject,
       text,
       html,
+      tenantId: input.tenantId ?? undefined,
     });
 
     if (result.ok) {
@@ -89,7 +91,13 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
 
   if (input.channel === 'whatsapp') {
     const text = buildEmailText(input.payload ?? null);
-    const result = await sendWhatsAppText(input.recipient, text);
+    const result = await sendWhatsAppText(input.recipient, text, {
+      tenantId: input.tenantId ?? undefined,
+      event: 'notification_sent',
+      meta: {
+        channel: 'notification',
+      },
+    });
 
     if (result.ok) {
       await updateNotificationStatus({
@@ -247,6 +255,7 @@ export async function notifyEvent(input: NotifyEventInput) {
         id: notif.id,
         channel: 'email',
         recipient: input.recipientEmail,
+        tenantId: input.tenantId,
         payload: notif.payload,
       });
     } catch (err) {
@@ -266,6 +275,7 @@ export async function notifyEvent(input: NotifyEventInput) {
         id: notif.id,
         channel: 'whatsapp',
         recipient: input.recipientPhone,
+        tenantId: input.tenantId,
         payload: notif.payload,
       });
     } catch (err) {

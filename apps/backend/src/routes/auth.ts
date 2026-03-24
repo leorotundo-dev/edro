@@ -77,12 +77,49 @@ function verifyPendingMfaToken(app: FastifyInstance, token: string) {
 }
 
 export default async function authRoutes(app: FastifyInstance) {
+  const resolvePortalAuthTenantId = async (email: string, role?: 'client' | 'staff') => {
+    const normalized = email.trim().toLowerCase();
+    const scopes: Array<'client' | 'staff'> = role ? [role] : ['client', 'staff'];
+
+    for (const scope of scopes) {
+      if (scope === 'client') {
+        const { rows } = await pool.query<{ tenant_id: string }>(
+          `SELECT c.tenant_id
+             FROM edro_users eu
+             JOIN clients c ON c.portal_user_id = eu.id
+            WHERE eu.email = $1
+            LIMIT 1`,
+          [normalized],
+        );
+        if (rows[0]?.tenant_id) return rows[0].tenant_id;
+      }
+
+      if (scope === 'staff') {
+        const { rows } = await pool.query<{ tenant_id: string }>(
+          `SELECT tu.tenant_id
+             FROM edro_users eu
+             JOIN freelancer_profiles fp ON fp.user_id = eu.id
+             JOIN tenant_users tu ON tu.user_id = eu.id
+            WHERE eu.email = $1
+            LIMIT 1`,
+          [normalized],
+        );
+        if (rows[0]?.tenant_id) return rows[0].tenant_id;
+      }
+    }
+
+    return undefined;
+  };
+
   app.post('/auth/request', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const bodySchema = z.object({ email: z.string().email() });
     const body = bodySchema.parse(request.body);
 
     try {
-      const result = await requestLoginCode(body.email);
+      const result = await requestLoginCode(body.email, {
+        ip: (request as any).ip,
+        userAgent: request.headers['user-agent'] as string | undefined,
+      });
       return reply.send({ success: true, ...result });
     } catch (error: any) {
       const message = error?.message === 'domain_not_allowed'
@@ -101,7 +138,10 @@ export default async function authRoutes(app: FastifyInstance) {
     const body = bodySchema.parse(request.body);
 
     try {
-      const user = await verifyLoginCode(body.email, body.code);
+      const user = await verifyLoginCode(body.email, body.code, {
+        ip: (request as any).ip,
+        userAgent: request.headers['user-agent'] as string | undefined,
+      });
 
       const domain = user.email.split('@')[1] || '';
       const tenant = await ensureTenantForDomain(domain, true);
@@ -291,6 +331,7 @@ export default async function authRoutes(app: FastifyInstance) {
         <div style="font-size:2rem;font-weight:700;letter-spacing:.3em;background:#f1f5f9;border-radius:12px;padding:16px 24px;text-align:center;margin:24px 0;color:#0f172a">${code}</div>
         <p style="color:#94a3b8;font-size:.875rem">Expira em 15 minutos. Não compartilhe este código.</p>
       </div>`,
+      tenantId: await resolvePortalAuthTenantId(normalized, role),
     });
 
     if (!delivery.ok) {

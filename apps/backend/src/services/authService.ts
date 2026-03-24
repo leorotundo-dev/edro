@@ -1,9 +1,10 @@
 import crypto from 'crypto';
 import { allowUnsafeLocalAuthHelpers, env, portalLoginSecret } from '../env';
 import { makeHash } from '../utils/hash';
-import { createLoginCode, consumeLoginCode, upsertUser } from '../repositories/edroUserRepository';
+import { createLoginCode, consumeLoginCode, findUserByEmail, upsertUser } from '../repositories/edroUserRepository';
 import { sendEmail } from './emailService';
 import { securityLog } from '../audit/securityLog';
+import { findTenantBySlug, getPrimaryTenantForUser } from '../repos/tenantRepo';
 
 const DEFAULT_CODE_TTL_MINUTES = 10;
 
@@ -26,6 +27,20 @@ const generateCode = () =>
 
 const resolveRole = (email: string) =>
   adminEmails.includes(email) ? 'gestor' : null;
+
+async function resolveAuthTenantId(email: string): Promise<string | undefined> {
+  const user = await findUserByEmail(email);
+  if (user?.id) {
+    const membership = await getPrimaryTenantForUser(user.id);
+    if (membership?.tenant_id) return membership.tenant_id;
+  }
+
+  const domain = email.split('@')[1] || '';
+  if (!domain) return undefined;
+
+  const tenant = await findTenantBySlug(domain.toLowerCase());
+  return tenant?.id;
+}
 
 export function isAllowedEmail(email: string) {
   if (!allowedDomains.length) return true;
@@ -54,6 +69,7 @@ export async function requestLoginCode(emailInput: string, meta?: { ip?: string;
     to: email,
     subject,
     text,
+    tenantId: await resolveAuthTenantId(email),
   });
 
   if (delivery.ok) {

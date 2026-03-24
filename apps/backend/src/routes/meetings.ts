@@ -1492,6 +1492,7 @@ export default async function meetingRoutes(app: FastifyInstance) {
                   subject: `Convite: ${body.title} — ${fmtDate} ${fmtTime}`,
                   text: finalEmailText,
                   html: finalEmailHtml,
+                  tenantId,
                 });
                 inviteResults.push({ name: contact.name, channel: 'email', ok: true });
               } catch (err: any) {

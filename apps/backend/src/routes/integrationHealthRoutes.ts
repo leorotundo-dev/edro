@@ -10,6 +10,8 @@ import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { sendWhatsAppText, isWhatsAppConfigured } from '../services/whatsappService';
 import { env } from '../env';
+import { getMonitorStatus, type IntegrationService } from '../services/integrationMonitor';
+import { isEmailConfigured } from '../services/emailService';
 
 function has(key: string): boolean {
   const v = process.env[key];
@@ -92,11 +94,40 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       return reply.status(503).send({ error: 'WHATSAPP_TOKEN ou WHATSAPP_PHONE_ID não configurados.' });
     }
 
-    const result = await sendWhatsAppText(phone, '✅ Teste Edro.Digital — mensagem enviada com sucesso pelo sistema de notificações.');
+    const tenantId = (request.user as any).tenant_id as string;
+    const result = await sendWhatsAppText(phone, '✅ Teste Edro.Digital — mensagem enviada com sucesso pelo sistema de notificações.', {
+      tenantId,
+      event: 'test_send',
+      meta: {
+        channel: 'admin_integration_test',
+      },
+    });
     if (!result.ok) {
       return reply.status(502).send({ error: result.error || 'Falha ao enviar mensagem.' });
     }
     return { ok: true, messageId: result.messageId };
+  });
+
+  // GET /admin/integrations/monitor — live activity status per service
+  app.get('/admin/integrations/monitor', {
+    preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+
+    const configured = new Set<IntegrationService>([
+      ...(has('TRELLO_API_KEY') || has('TRELLO_TOKEN') ? ['trello' as const] : []),
+      ...(has('WHATSAPP_TOKEN') ? ['whatsapp' as const] : []),
+      ...(has('EVOLUTION_API_KEY') ? ['evolution' as const] : []),
+      ...(has('RECALL_API_KEY') ? ['recall' as const] : []),
+      ...(isEmailConfigured() ? ['resend' as const] : []),
+      ...(has('D4SIGN_TOKEN_API') ? ['d4sign' as const] : []),
+      ...(has('OPENAI_API_KEY') ? ['openai' as const] : []),
+      ...(has('GOOGLE_CLIENT_ID') ? ['gmail' as const, 'google_calendar' as const] : []),
+      ...(has('META_APP_ID') ? ['instagram' as const] : []),
+    ]);
+
+    const services = await getMonitorStatus(tenantId, configured);
+    return reply.send({ services });
   });
 
   // GET /admin/integrations/config-hints
