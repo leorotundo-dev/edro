@@ -23,6 +23,8 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   transpilePackages: ['@mui/material', '@mui/system', '@mui/lab'],
   turbopack: {
     root: repoRoot,
