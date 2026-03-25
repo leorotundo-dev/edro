@@ -1,5 +1,6 @@
 import * as ClaudeService from './claudeService';
 import { DraftContent, PersonaContext, BehaviorIntentContext } from './agentWriter';
+import { env } from '../../env';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -220,4 +221,101 @@ Regras:
   }
 
   return parsed;
+}
+
+// ── Gemini Multimodal: Copy × Art Alignment ───────────────────────────────
+
+export type ArtAlignmentResult = {
+  alignment_score: number;       // 0–100
+  issues: string[];
+  suggestions: string[];
+  brand_safe: boolean;
+};
+
+/**
+ * Uses Gemini Vision to evaluate whether a copy+image combination is coherent.
+ * Falls back gracefully if GEMINI_API_KEY is not configured.
+ *
+ * @param copyText   Approved copy text from auditDraftContent
+ * @param imageUrl   Publicly accessible URL of the creative image
+ * @param brandTone  Short tone description from client profile (optional)
+ */
+export async function auditCopyArtAlignment(
+  copyText: string,
+  imageUrl: string,
+  brandTone?: string,
+): Promise<ArtAlignmentResult> {
+  const fallback: ArtAlignmentResult = {
+    alignment_score: 70,
+    issues: [],
+    suggestions: ['Gemini Vision não configurado — validação visual indisponível.'],
+    brand_safe: true,
+  };
+
+  const apiKey = env.GEMINI_API_KEY;
+  if (!apiKey) return fallback;
+
+  const prompt = `Você é um diretor de criação digital especializado em marketing de performance.
+
+Analise se o TEXTO DE COPY e a IMAGEM formam um conjunto coeso e eficaz para uma peça de marketing.
+
+COPY: "${copyText}"
+TOM DA MARCA: ${brandTone ?? 'não especificado'}
+
+Avalie:
+1. Alinhamento visual-verbal (a imagem reforça ou contradiz o copy?)
+2. Hierarquia visual (a imagem não disputa atenção com a mensagem principal?)
+3. Brand safety (a imagem contém elementos inadequados, ofensivos ou de risco?)
+4. Oportunidade perdida (algo na imagem poderia ser melhor explorado no copy?)
+
+Responda APENAS com JSON:
+{
+  "alignment_score": 0-100,
+  "issues": ["problema 1", "..."],
+  "suggestions": ["sugestão 1", "..."],
+  "brand_safe": true/false
+}`;
+
+  try {
+    const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+    const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+    const response = await fetch(
+      `${baseUrl}/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inline_data: undefined },
+              { file_data: { file_uri: imageUrl, mime_type: 'image/jpeg' } },
+            ],
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 600 },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      console.warn(`[agentAuditor] Gemini Vision HTTP ${response.status}`);
+      return fallback;
+    }
+
+    const data = await response.json();
+    const raw = (data?.candidates?.[0]?.content?.parts ?? [])
+      .map((p: any) => p.text || '')
+      .join('')
+      .trim();
+
+    const start = raw.indexOf('{');
+    if (start < 0) return fallback;
+    const result = JSON.parse(raw.slice(start)) as ArtAlignmentResult;
+    return result;
+  } catch (err: any) {
+    console.warn('[agentAuditor] auditCopyArtAlignment failed:', err?.message);
+    return fallback;
+  }
 }

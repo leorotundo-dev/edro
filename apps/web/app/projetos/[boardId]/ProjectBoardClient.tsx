@@ -49,6 +49,7 @@ type ProjectCard = {
   trello_url?: string | null;
   members: CardMember[];
   position: number;
+  updated_at?: string | null;
 };
 
 type ProjectList = {
@@ -100,12 +101,50 @@ function isDueOverdue(due?: string | null, complete?: boolean) {
   return new Date(due) < new Date();
 }
 
+function isDueSoon(due?: string | null, complete?: boolean, hoursThreshold = 24) {
+  if (!due || complete) return false;
+  const diff = new Date(due).getTime() - Date.now();
+  return diff > 0 && diff < hoursThreshold * 3_600_000;
+}
+
+function hoursSince(iso?: string | null): number | null {
+  if (!iso) return null;
+  return (Date.now() - new Date(iso).getTime()) / 3_600_000;
+}
+
+type JarvisAction = { label: string; color: 'error' | 'warning' | 'info' | 'secondary' };
+
+function getJarvisAction(card: ProjectCard, listName: string): JarvisAction | null {
+  const listUpper = listName.toUpperCase();
+  const staleSince = hoursSince(card.updated_at);
+
+  if (card.members.length === 0)
+    return { label: 'Alocar', color: 'secondary' };
+
+  if (isDueOverdue(card.due_date, card.due_complete))
+    return { label: 'Atrasado', color: 'error' };
+
+  if (isDueSoon(card.due_date, card.due_complete))
+    return { label: 'Priorizar', color: 'warning' };
+
+  const isAwaitingClient = listUpper.includes('APROVAÇÃO') || listUpper.includes('AGUARDANDO');
+  if (isAwaitingClient && staleSince != null && staleSince > 48)
+    return { label: 'Acionar', color: 'warning' };
+
+  const isInProgress = listUpper.includes('ANDAMENTO') || listUpper.includes('PRODUÇÃO');
+  if (isInProgress && staleSince != null && staleSince > 48)
+    return { label: 'Verificar', color: 'info' };
+
+  return null;
+}
+
 // ─── KanbanCard ───────────────────────────────────────────────────────────────
 
 function KanbanCard({
-  card, index, onClick,
-}: { card: ProjectCard; index: number; onClick: () => void }) {
+  card, index, listName, onClick,
+}: { card: ProjectCard; index: number; listName: string; onClick: () => void }) {
   const overdue = isDueOverdue(card.due_date, card.due_complete);
+  const jarvisAction = getJarvisAction(card, listName);
 
   return (
     <Draggable draggableId={card.id} index={index}>
@@ -150,6 +189,15 @@ function KanbanCard({
               />
             )}
             <Box flex={1} />
+            {jarvisAction && (
+              <Chip
+                label={jarvisAction.label}
+                size="small"
+                color={jarvisAction.color}
+                sx={{ height: 18, fontSize: 10, fontWeight: 700, mr: 0.5, cursor: 'pointer' }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
             {card.members?.length > 0 && (
               <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 22, height: 22, fontSize: 10 } }}>
                 {card.members.map((m) => (
@@ -220,7 +268,7 @@ function AddCardForm({ onAdd, onCancel }: { onAdd: (title: string) => Promise<vo
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function ProjectBoardClient({ boardId }: { boardId: string }) {
+export default function ProjectBoardClient({ boardId, noShell }: { boardId: string; noShell?: boolean }) {
   const [lists, setLists] = useState<ProjectList[]>([]);
   const [board, setBoard] = useState<ProjectBoard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -336,26 +384,28 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
+  const Shell = noShell ? Box : ({ children }: { children: React.ReactNode }) => <AppShell title="Projetos" fullBleed>{children}</AppShell>;
+
   if (loading) return (
-    <AppShell title="Projetos" fullBleed>
+    <Shell>
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
         <CircularProgress />
       </Box>
-    </AppShell>
+    </Shell>
   );
 
   if (error) return (
-    <AppShell title="Projetos" fullBleed>
+    <Shell>
       <Box sx={{ p: 4 }}>
         <Alert severity="error">{error}</Alert>
       </Box>
-    </AppShell>
+    </Shell>
   );
 
   const visibleLists = lists.filter((l) => !l.cards?.every((c) => c.is_archived));
 
   return (
-    <AppShell title={board?.name ?? 'Projetos'} fullBleed>
+    <Shell>
       {/* Header */}
       <Stack
         direction="row" alignItems="center" spacing={1.5}
@@ -424,6 +474,7 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
                             key={card.id}
                             card={card}
                             index={index}
+                            listName={list.name}
                             onClick={() => openCard(card)}
                           />
                         ))}
@@ -589,6 +640,6 @@ export default function ProjectBoardClient({ boardId }: { boardId: string }) {
           </Box>
         )}
       </Drawer>
-    </AppShell>
+    </Shell>
   );
 }

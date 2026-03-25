@@ -1,4 +1,4 @@
-import OverviewClient from './OverviewClient';
+import { redirect } from 'next/navigation';
 
 type ClientPageProps = {
   params: Promise<{ id: string }>;
@@ -6,5 +6,5 @@ type ClientPageProps = {
 
 export default async function Page({ params }: ClientPageProps) {
   const { id } = await params;
-  return <OverviewClient clientId={id} />;
+  redirect(`/clients/${id}/operacao`);
 }

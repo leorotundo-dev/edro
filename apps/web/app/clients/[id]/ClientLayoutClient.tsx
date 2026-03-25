@@ -85,17 +85,11 @@ type AnalysisResult = {
 };
 
 const CLIENT_TABS = [
-  { label: 'Overview',       path: '' },
-  { label: 'Conteúdo',      path: '/conteudo' },
-  { label: 'Monitoramento',  path: '/monitoramento' },
+  { label: 'Operação',      path: '/operacao' },
+  { label: 'Radar',         path: '/radar' },
   { label: 'Inteligência',  path: '/inteligencia' },
-  { label: 'Concorrentes', path: '/concorrentes' },
-  { label: 'Métricas',      path: '/metricas' },
-  { label: 'Reuniões',      path: '/meetings' },
-  { label: 'Demandas',      path: '/demandas' },
-  { label: 'Financeiro',    path: '/financeiro' },
-  { label: 'WhatsApp',      path: '/whatsapp' },
-  { label: 'Perfil',        path: '/perfil' },
+  { label: 'Resultado',     path: '/resultado' },
+  { label: 'Identidade',    path: '/identidade' },
 ];
 
 function formatMarkdown(text: string): string {
@@ -252,12 +246,12 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
 
   const getActiveTab = () => {
     const currentPath = pathname.replace(basePath, '');
-    if (!currentPath || currentPath === '/') return '';
-    return currentPath;
+    // Match the territory prefix (e.g. /operacao matches /operacao?sub=board)
+    const territory = CLIENT_TABS.find((t) => currentPath === t.path || currentPath.startsWith(t.path + '/') || currentPath.startsWith(t.path + '?'));
+    return territory?.path ?? '/operacao';
   };
 
   const activeTab = getActiveTab();
-  const tabValue = activeTab || 'overview';
 
   const clientName = client?.name || 'Cliente';
   const location = [client?.city, client?.uf, client?.country].filter(Boolean).join(', ');
@@ -396,10 +390,9 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
           </Stack>
 
           <Tabs
-            value={tabValue}
+            value={activeTab}
             onChange={(_, value) => {
-              const target = value === 'overview' ? '' : value;
-              router.push(`${basePath}${target}`);
+              router.push(`${basePath}${value}`);
             }}
             sx={{
               mt: 2,
@@ -413,7 +406,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
               <Tab
                 key={tab.label}
                 label={tab.label}
-                value={tab.path || 'overview'}
+                value={tab.path}
               />
             ))}
           </Tabs>

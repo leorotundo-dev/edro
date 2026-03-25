@@ -37,6 +37,7 @@ import {
 import { formatSourceLabel, getNextAction, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
+import JarvisAlertsSectionClient from '@/components/operations/JarvisAlertsSectionClient';
 
 export default function OperationsRadarClient() {
   const theme = useTheme();
@@ -296,6 +297,9 @@ export default function OperationsRadarClient() {
                   )}
                 </Box>
               )}
+
+              {/* ── Jarvis Cross-Source Alerts ──────────────────────── */}
+              <JarvisAlertsSectionClient />
 
               <OpsSection
                 eyebrow="Pontos de atenção"

@@ -6,6 +6,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import HealthScoreSection from '../analytics/sections/HealthScoreSection';
 import GargalosSection from '../analytics/sections/GargalosSection';
+import TrelloHistorySection from '../analytics/sections/TrelloHistorySection';
 import ClientJobsPanel from './ClientJobsPanel';
 
 type OperacionalPageProps = {
@@ -30,6 +31,8 @@ export default function OperacionalPage({ clientId }: OperacionalPageProps) {
       <HealthScoreSection clientId={clientId} />
       <Divider />
       <GargalosSection clientId={clientId} />
+      <Divider />
+      <TrelloHistorySection clientId={clientId} />
     </Stack>
   );
 }

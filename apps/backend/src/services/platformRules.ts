@@ -206,6 +206,179 @@ const PLATFORM_RULES: Record<string, PlatformRule> = {
       'TOM: educativo, aprofundado, com autoridade. Mais formal que redes sociais.',
     ],
   },
+
+  // ── OOH / OUTDOOR ──────────────────────────────────────────────────────────
+  ooh: {
+    label: 'OOH / Outdoor',
+    directives: [
+      'LEI DAS 7 PALAVRAS: máximo absoluto de 7 palavras no headline. Lido a 80km/h em 3 segundos.',
+      'VERBO IMPERATIVO: comece com ação — Descubra, Venha, Experimente, Imagine. Sem introduções.',
+      'ZERO SUBORDINAÇÃO: uma única ideia por peça. Sem "que", "porque", "enquanto".',
+      'IMPACTO VISUAL > TEXTO: o texto existe para amplificar a imagem, não substituí-la.',
+      'FONTE GIGANTE: mínimo 1/6 da altura total do outdoor. Se não lê a 100m, refaça.',
+      'CTA SIMPLES: URL curta ou telefone. QR code apenas se o outdoor for em pedestres.',
+      'SEM IRONIA IMPLÍCITA: lido sem contexto — a mensagem deve funcionar isolada.',
+    ],
+  },
+
+  // ── DOOH ───────────────────────────────────────────────────────────────────
+  dooh: {
+    label: 'DOOH (Digital Out-of-Home)',
+    directives: [
+      'TIMING RÍGIDO: 5–8 segundos de exposição. Cada palavra conta como 1 segundo de leitura.',
+      'LOOP VISUAL: a animação deve chamar atenção no estado idle, antes do texto aparecer.',
+      'FRASE + LOGO: máximo 1 frase de impacto + logo. Sem copy secundário.',
+      'SEM CTA DE CLIQUE: não tem "acesse", "clique" ou "arraste". Apenas "venha" ou "ligue".',
+      'CONTRASTE ALTO: legível a pleno sol e à noite. Fundo escuro + texto claro ou vice-versa.',
+    ],
+  },
+
+  // ── REVISTA / PRINT ────────────────────────────────────────────────────────
+  revista: {
+    label: 'Revista / Print',
+    directives: [
+      'HEADLINE SOBERANO: o headline faz 80% do trabalho. Deve funcionar sozinho sem o visual.',
+      'BODY COPY: 100–150 palavras máximo. Parágrafos de 3-4 linhas. Ritmo jornalístico.',
+      'TAGLINE: 1 frase final que condensa a promessa da marca. Memorável e rítmica.',
+      'HIERARQUIA VISUAL: Headline → Subhead → Body → Tagline → Logo. Sem inverter.',
+      'TOM: pode ser mais elaborado que digital. Leitor tem 30s de atenção plena.',
+      'LAYOUT IMPORTA: deixe respiro entre elementos. Nunca encha 100% do espaço.',
+    ],
+  },
+
+  // ── JORNAL ─────────────────────────────────────────────────────────────────
+  jornal: {
+    label: 'Jornal',
+    directives: [
+      'HEADLINE JORNALÍSTICO: começa com informação, não com pergunta. Dado concreto na 1ª linha.',
+      'URGÊNCIA: o contexto do jornal é temporal — anchore em "hoje", "agora", "esta semana".',
+      'PRETO E BRANCO: escreva pensando que a impressão pode ser monocromática.',
+      'DENSIDADE DE INFO: leitor de jornal quer fatos. Inclua números, datas, nomes reais.',
+      'CREDIBILIDADE: tom sóbrio. Zero superlativo vazio ("o melhor", "incrível").',
+    ],
+  },
+
+  // ── RÁDIO 30s ──────────────────────────────────────────────────────────────
+  radio: {
+    label: 'Rádio (30s)',
+    directives: [
+      'CONTAGEM: 30 segundos = 75–80 palavras em ritmo normal. Escreva o script COM TIMING.',
+      'FORMATO: LOCUÇÃO / SFX / JINGLE — indique cada elemento entre colchetes: [TRILHA], [SFX], [VOZ].',
+      'HOOK AUDITIVO: os 3 primeiros segundos definem se o ouvinte presta atenção. Comece com som ou pergunta.',
+      'SÓ ÁUDIO: nenhuma informação pode depender de visual. Tudo deve ser compreensível só pelo som.',
+      'CTA REPETIDO: o número de telefone ou URL aparecem 2x (início + fim).',
+      'PRONÚNCIA: evite palavras difíceis de pronunciar em velocidade de locução comercial.',
+    ],
+    formats: {
+      '15s': ['Máximo 40 palavras. Apenas 1 mensagem. Sem desenvolvimento — vai direto ao CTA.'],
+      '60s': ['Pode incluir storytelling curto. 150–160 palavras. 2-3 beats narrativos.'],
+    },
+  },
+
+  // ── TV ─────────────────────────────────────────────────────────────────────
+  tv: {
+    label: 'TV',
+    directives: [
+      'FORMATO PROFISSIONAL: CENA / V.O. (voz off) / SFX / SUPER (texto na tela). Um elemento por linha.',
+      'SHOW DON\'T TELL: a imagem comunica, o áudio amplifica. Nunca duplique a mesma informação.',
+      'TIMING EXATO: escreva o roteiro com marcações de tempo em segundos: [0-5s] [5-12s] [12-28s] [28-30s].',
+      'SUPER: texto na tela em letras maiúsculas. Máximo 4 palavras. Aparece no pico emocional.',
+      'PACTO NARRATIVO: começo (problema/situação) → meio (marca entra) → fim (transformação/CTA).',
+    ],
+    formats: {
+      '15s': ['Sem desenvolvimento. 1 cena + 1 super + logo. Impacto visual imediato.'],
+      '30s': ['3-4 cenas. Narrativa completa. CTA no último terço. Logo + tagline no final.'],
+    },
+  },
+
+  // ── CINEMA ─────────────────────────────────────────────────────────────────
+  cinema: {
+    label: 'Cinema',
+    directives: [
+      'NARRATIVA EMOCIONAL: cinema permite storytelling de 60–90s. Construa tensão e resolução.',
+      'ABERTURA DE IMPACTO: os 10 primeiros segundos definem a atenção da sala inteira.',
+      'SEM LOGO NO INÍCIO: a marca aparece apenas na resolução. Mantenha suspense sobre quem fala.',
+      'SILÊNCIO É TOOL: pausas dramáticas e silêncio têm poder. Use-os intencionalmente.',
+      'TAGLINE FINAL: última imagem é logo + tagline. Deve ser a cena mais forte visualmente.',
+      'ÁUDIO 5.1: descreva experiência de som surround — sons que vêm de lados diferentes.',
+    ],
+  },
+
+  // ── SMS ────────────────────────────────────────────────────────────────────
+  sms: {
+    label: 'SMS',
+    directives: [
+      'LIMITE DURO: 160 caracteres incluindo URL. Conte os caracteres antes de finalizar.',
+      'PERSONALIZAÇÃO: comece com o nome se disponível: "João, sua oferta especial..."',
+      'CTA IMEDIATO: o SMS é lido em 3 minutos ou nunca. O link deve ser o último elemento.',
+      'URL CURTA: use encurtador. Nunca URLs longas em SMS.',
+      'ZERO AMBIGUIDADE: quem está mandando deve estar claro nos primeiros 10 caracteres.',
+      'SEM EMOJI: emojis podem não renderizar em todos os aparelhos. Texto puro.',
+    ],
+  },
+
+  // ── PUSH NOTIFICATION ──────────────────────────────────────────────────────
+  push: {
+    label: 'Push Notification',
+    directives: [
+      'TÍTULO: máximo 40 caracteres. Deve funcionar como headline sozinho.',
+      'BODY: máximo 100 caracteres. Complementa o título, não repete.',
+      'URGÊNCIA REAL: só use "urgente" ou "agora" se for verdadeiro. Abuso derruba CTR.',
+      'PERSONALIZAÇÃO: use dados de contexto — nome, última compra, localização.',
+      'SEM CLICKBAIT: o conteúdo da notificação deve entregar o que o título prometeu.',
+      'HORÁRIO IMPORTA: mesmo horário em diferentes fusos. Escreva para o contexto do momento.',
+    ],
+  },
+
+  // ── GOOGLE ADS SEARCH ──────────────────────────────────────────────────────
+  google_ads: {
+    label: 'Google Ads Search (RSA)',
+    directives: [
+      'RSA STRUCTURE: gere 15 headlines (max 30 chars cada) + 4 descriptions (max 90 chars cada).',
+      'HEADLINES: variar ângulos — benefício, urgência, social proof, feature, pergunta, comparação.',
+      'KEYWORDS NO HEADLINE: inclua a keyword principal em pelo menos 3 dos 15 headlines.',
+      'DESCRIPTIONS: complete o headline — elabore o benefício, adicione CTA, mencione diferencial.',
+      'FORMATO DE ENTREGA: use marcadores --- HEADLINE 1: texto (Xc) --- para facilitar parsing.',
+      'ZERO EXCLAMAÇÃO EM HEADLINES: Google rejeita headlines com ponto de exclamação.',
+    ],
+  },
+
+  // ── META ADS ───────────────────────────────────────────────────────────────
+  meta_ads: {
+    label: 'Meta Ads (Facebook/Instagram)',
+    directives: [
+      'ESTRUTURA OBRIGATÓRIA: PRIMARY TEXT (125 chars visíveis) + HEADLINE (27 chars) + DESCRIPTION (27 chars).',
+      'PRIMARY TEXT: os primeiros 125 chars são o "ver mais". Hook imediato, sem introdução.',
+      'HEADLINE: o que aparece abaixo da imagem. Deve funcionar isolado como promessa ou CTA.',
+      'DESCRIPTION: complemento do headline. Urgência, prova social ou feature adicional.',
+      'RETARGETING: se o público já viu a marca, assuma conhecimento. Skip a apresentação.',
+      'PROSPECTING: se é público frio, inclua prova social e credenciais nos primeiros 3 segundos.',
+    ],
+  },
+
+  // ── THREADS ────────────────────────────────────────────────────────────────
+  threads: {
+    label: 'Threads',
+    directives: [
+      'TOM: conversacional, opinativo, com personalidade. Marca que parece pessoa real.',
+      'LIMITE: 500 caracteres por post. Threads usa threads (encadeamento) para mais conteúdo.',
+      'HOOK: primeira linha deve gerar reação imediata — concordância, discordância ou curiosidade.',
+      'SEM HASHTAG OBRIGATÓRIA: hashtags têm pouco peso no Threads. Foque no texto.',
+      'THREAD FORMAT: se o conteúdo for longo, entregue como sequência numerada: 1/ 2/ 3/',
+    ],
+  },
+
+  // ── PINTEREST ──────────────────────────────────────────────────────────────
+  pinterest: {
+    label: 'Pinterest',
+    directives: [
+      'VISUAL FIRST: Pinterest é mecanismo de busca visual. A copy complementa, não lidera.',
+      'TÍTULO SEO: o título do Pin é indexado. Use palavras-chave de intenção de busca reais.',
+      'DESCRIÇÃO: 100–500 palavras. Pode ser detalhada — usuários do Pinterest leem descrições.',
+      'CTA TRANSACIONAL: Pinterest tem alta intenção de compra. "Compre", "Faça", "Baixe".',
+      'VIBE ASPIRACIONAL: conteúdo de inspiração, tutorial, lista. Tom: "Como fazer", "Ideias de".',
+    ],
+  },
 };
 
 /**

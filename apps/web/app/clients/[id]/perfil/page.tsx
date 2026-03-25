@@ -52,6 +52,7 @@ import ManualFieldsChecklist from './ManualFieldsChecklist';
 import ContactsManager from './ContactsManager';
 import SectionEnrichmentCard from './SectionEnrichmentCard';
 import VisualStyleCard from './VisualStyleCard';
+import { isReporteiConfigured } from '@/lib/reportei';
 
 type SocialProfiles = {
   instagram?: string;
@@ -339,7 +340,7 @@ export default function PerfilPage() {
 
   const reporteiConnector = connectors.find((c) => c.provider === 'reportei') || null;
   const reporteiPayload = (reporteiConnector?.payload as Record<string, unknown>) || {};
-  const reporteiConfigured = Boolean(reporteiPayload?.embed_url || reporteiPayload?.dashboard_url);
+  const reporteiConfigured = isReporteiConfigured(reporteiPayload);
 
   const metaConnector = connectors.find((c) => c.provider === 'meta') || null;
   const metaPayload = (metaConnector?.payload as Record<string, unknown>) || {};

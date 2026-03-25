@@ -583,6 +583,102 @@ Retorne SOMENTE um JSON válido:
     }
   });
 
+  // ── POST /studio/creative/conceito — gera conceitos criativos antes da copy ──
+  app.post('/studio/creative/conceito', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const body = request.body as {
+      briefing?: { title?: string; objective?: string; context?: string };
+      clientProfile?: any;
+      clientId?: string;
+      platform?: string;
+      conceptCount?: number;
+    };
+    try {
+      const { runAgentConceito } = await import('../services/ai/agentConceito') as any;
+
+      let cultureBlock: string | null = null;
+      if (body.clientId) {
+        try {
+          const { buildCultureBriefing } = await import('../services/cultureBriefingService') as any;
+          const tenantId = (request as any).user?.tenant_id as string;
+          const segmentKw = body.clientProfile?.segment_primary ? [body.clientProfile.segment_primary] : [];
+          const cb = await buildCultureBriefing(body.clientId, tenantId, segmentKw);
+          cultureBlock = cb.culture_block || null;
+        } catch { /* culture block is optional */ }
+      }
+
+      const result = await runAgentConceito({
+        briefing:      body.briefing,
+        clientProfile: body.clientProfile,
+        platform:      body.platform,
+        cultureBlock,
+        conceptCount:  body.conceptCount,
+      });
+
+      return reply.send({ success: true, data: result });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── POST /studio/creative/sequence — gera plano de campanha sequencial ──
+  app.post('/studio/creative/sequence', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const body = request.body as {
+      objective: string;
+      clientProfile?: any;
+      clientId?: string;
+      platform?: string;
+      phases?: number;
+      concept?: any;
+    };
+    try {
+      const { generateSequencePlan } = await import('../services/ai/agentConceito');
+
+      let cultureBlock: string | null = null;
+      if (body.clientId) {
+        try {
+          const { buildCultureBriefing } = await import('../services/cultureBriefingService') as any;
+          const tenantId = (request as any).user?.tenant_id as string;
+          const cb = await buildCultureBriefing(body.clientId, tenantId, []);
+          cultureBlock = cb.culture_block || null;
+        } catch { /* optional */ }
+      }
+
+      const plan = await generateSequencePlan(
+        {
+          objective: body.objective,
+          clientProfile: body.clientProfile,
+          platform: body.platform,
+          phases: body.phases,
+          cultureBlock,
+        },
+        body.concept ?? null,
+      );
+
+      return reply.send({ success: true, data: plan });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── POST /studio/creative/audit-alignment — Gemini multimodal copy+art check ──
+  app.post('/studio/creative/audit-alignment', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { copy_text, image_url, brand_tone } = request.body as {
+      copy_text: string;
+      image_url: string;
+      brand_tone?: string;
+    };
+    if (!copy_text || !image_url) {
+      return reply.status(400).send({ success: false, error: 'copy_text and image_url are required' });
+    }
+    try {
+      const { auditCopyArtAlignment } = await import('../services/ai/agentAuditor');
+      const result = await auditCopyArtAlignment(copy_text, image_url, brand_tone);
+      return reply.send({ success: true, data: result });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Design Agent — parse natural language brief into structured params ────
   const parseBriefSchema = z.object({
     text: z.string().min(5),

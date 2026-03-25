@@ -1286,9 +1286,20 @@ export default function EquipePage() {
             <IconUserCheck size={22} />
             <Typography variant="h5" fontWeight={700}>Equipe</Typography>
           </Stack>
-          <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={openNew} size="small">
-            Novo Freelancer
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<IconCurrencyDollar size={16} />}
+              href="/admin/equipe/billing"
+              component="a"
+            >
+              Cobrança
+            </Button>
+            <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={openNew} size="small">
+              Novo Freelancer
+            </Button>
+          </Stack>
         </Stack>
 
         {/* Summary cards */}

@@ -15,6 +15,7 @@ import { proposeAllocations, updateFreelancerScores } from '../services/allocati
 import { generateCalibrationReport, getCalibratedEstimate } from '../services/jobs/calibrationService';
 import { notifyJobBlocked, notifyJobAssigned } from '../services/jobs/opsNotificationService';
 import { audit } from '../audit/audit';
+import { createBillingEntryForJob, consumeCapacitySlot, releaseCapacitySlot } from '../services/daBillingService';
 
 /** Send approval request directly to the client's primary WhatsApp contact. */
 async function notifyClientApprovalNeeded(
@@ -460,6 +461,28 @@ export default async function jobsRoutes(app: FastifyInstance) {
     return { data: rows };
   });
 
+  // GET /jobs/mine — jobs assigned to the current user (DA portal)
+  app.get('/jobs/mine', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId   = (request.user as any)?.id ?? (request.user as any)?.sub as string;
+    if (!userId) return reply.status(401).send({ success: false });
+
+    const { rows } = await query<any>(
+      `SELECT j.id, j.title, c.name AS client_name, j.status, j.job_size,
+              j.deadline_at, j.estimated_minutes, j.created_at
+         FROM jobs j
+         LEFT JOIN clients c ON c.id = j.client_id
+        WHERE j.tenant_id = $1
+          AND j.owner_id  = $2
+        ORDER BY
+          CASE WHEN j.status IN ('done','archived') THEN 1 ELSE 0 END,
+          j.deadline_at ASC NULLS LAST,
+          j.created_at DESC`,
+      [tenantId, userId],
+    );
+    return reply.send({ success: true, data: rows });
+  });
+
   app.get('/jobs/:jobId', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { jobId } = request.params as { jobId: string };
@@ -874,6 +897,21 @@ export default async function jobsRoutes(app: FastifyInstance) {
       updateFreelancerScores(tenantId, jobId, { wasLate, wasRevised }).catch((e: any) =>
         console.error('[jobs] updateFreelancerScores failed:', e?.message),
       );
+
+      // ── DA Billing: auto-create billing entry when job is completed ──
+      if (current.job_size) {
+        createBillingEntryForJob(tenantId, jobId, current.owner_id, current.job_size).catch(
+          (e: any) => console.error('[jobs] createBillingEntry failed:', e?.message),
+        );
+      }
+    }
+
+    // ── Capacity: consume slot when a job is assigned; release if cancelled ──
+    if (body.status === 'allocated' && current.owner_id) {
+      consumeCapacitySlot(tenantId, current.owner_id).catch(() => {});
+    }
+    if (body.status === 'archived' && current.status === 'allocated' && current.owner_id) {
+      releaseCapacitySlot(tenantId, current.owner_id).catch(() => {});
     }
 
     // ── Automation hook: when job is done, auto-pull next for owner + recalc ETAs ──

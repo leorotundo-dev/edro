@@ -306,7 +306,7 @@ export async function generateJobCopy(tenantId: string, jobId: string): Promise<
         fogg_score: audit.fogg_score,
         model_used: 'claude',
         prompt_used: pieceInstruction,
-      });
+      }, briefing?.id);
     }
 
     await setAutomationStatus(tenantId, jobId, 'copy_done');
@@ -639,18 +639,19 @@ async function insertDraft(
   draftType: string,
   status: string,
   data: Record<string, any>,
+  briefingId?: string | null,
 ) {
   await query(
     `INSERT INTO job_creative_drafts (
        tenant_id, job_id, draft_type, status,
        hook_text, content_text, cta_text, copy_approval_status, fogg_score,
        image_url, image_urls, layout, art_direction,
-       prompt_used, model_used, error_message, generated_at
+       prompt_used, model_used, error_message, briefing_id, generated_at
      ) VALUES (
        $1, $2, $3, $4,
        $5, $6, $7, $8, $9::jsonb,
        $10, $11, $12::jsonb, $13::jsonb,
-       $14, $15, $16, ${status === 'done' ? 'now()' : 'NULL'}
+       $14, $15, $16, $17, ${status === 'done' ? 'now()' : 'NULL'}
      )`,
     [
       tenantId,
@@ -669,6 +670,7 @@ async function insertDraft(
       data.prompt_used ?? null,
       data.model_used ?? null,
       data.error_message ?? null,
+      briefingId ?? null,
     ],
   );
 }

@@ -12,6 +12,7 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { IconExternalLink, IconPlugConnected, IconSettings } from '@tabler/icons-react';
+import { getReporteiEmbedUrl, isReporteiConfigured } from '@/lib/reportei';
 
 type ClientPerformanceClientProps = {
   clientId: string;
@@ -19,6 +20,7 @@ type ClientPerformanceClientProps = {
 
 export default function ClientPerformanceClient({ clientId }: ClientPerformanceClientProps) {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [connectorConfigured, setConnectorConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadConnector = useCallback(async () => {
@@ -26,14 +28,11 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
       const res = await apiGet<{ payload?: Record<string, any> } | null>(
         `/clients/${clientId}/connectors/reportei`
       );
-      let url = res?.payload?.embed_url || null;
-      // Extract URL from iframe tag if user pasted the full embed code
-      if (url && url.includes('<iframe')) {
-        const match = url.match(/src="([^"]+)"/);
-        if (match?.[1]) url = match[1];
-      }
-      setEmbedUrl(url);
+      const payload = res?.payload || null;
+      setConnectorConfigured(isReporteiConfigured(payload));
+      setEmbedUrl(getReporteiEmbedUrl(payload) || null);
     } catch {
+      setConnectorConfigured(false);
       setEmbedUrl(null);
     } finally {
       setLoading(false);
@@ -61,9 +60,13 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
         <CardContent>
           <Stack alignItems="center" spacing={2} sx={{ py: 6 }}>
             <IconPlugConnected size={40} stroke={1.5} color="#94a3b8" />
-            <Typography variant="h6">Reportei não configurado</Typography>
+            <Typography variant="h6">
+              {connectorConfigured ? 'Dashboard do Reportei indisponível' : 'Reportei não configurado'}
+            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 380 }}>
-              Para visualizar o dashboard de performance, configure a integração com o Reportei na página de conectores e preencha o campo Embed URL.
+              {connectorConfigured
+                ? 'O conector Reportei está ativo, mas este cliente ainda não tem um link de dashboard/embed salvo. As métricas continuam acessíveis pela aba de métricas.'
+                : 'Para visualizar o dashboard de performance, configure a integração com o Reportei na página de conectores e preencha o campo Embed URL.'}
             </Typography>
             <Button
               variant="contained"

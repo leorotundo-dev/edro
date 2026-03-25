@@ -38,6 +38,7 @@ import { runWeeklyDigestOnce } from './weeklyDigestWorker';
 import { runCompetitorIntelligenceWorkerOnce } from './competitorIntelligenceWorker';
 import { runOpportunityDetectorWorkerOnce } from './opportunityDetectorWorker';
 import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
+import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -152,4 +153,6 @@ export function startJobsRunner() {
   startWorkerLoop('opportunityDetector', runOpportunityDetectorWorkerOnce, 19000, 600_000);
   // Trello Sync — every 30min, keeps Edro boards in sync with Trello during migration
   startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 300_000);
+  // Jarvis Alert Engine — 2x/day, cross-source alerts (stalled cards, no-reply, expiring contracts, market opportunities)
+  startWorkerLoop('jarvisAlerts', runJarvisAlertWorkerOnce, 20000, 120_000);
 }

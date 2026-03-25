@@ -19,6 +19,7 @@ import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Chart from '@/components/charts/Chart';
+import { getReporteiEmbedUrl, isReporteiConfigured } from '@/lib/reportei';
 import {
   IconAlertTriangle,
   IconAntenna,
@@ -566,8 +567,8 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
 
   const reporteiConnector = connectors.find((c) => c.provider === 'reportei') || null;
   const reporteiPayload = (reporteiConnector?.payload as any) || {};
-  const reporteiEmbedUrl = reporteiPayload?.embed_url || reporteiPayload?.dashboard_url || null;
-  const reporteiConfigured = Boolean(reporteiEmbedUrl);
+  const reporteiEmbedUrl = getReporteiEmbedUrl(reporteiPayload) || null;
+  const reporteiConfigured = isReporteiConfigured(reporteiPayload);
 
   const metaConnector = connectors.find((c) => c.provider === 'meta') || null;
   const metaPayload = (metaConnector?.payload as any) || {};
