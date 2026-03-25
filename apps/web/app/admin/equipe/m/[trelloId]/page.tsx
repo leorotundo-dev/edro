@@ -2,6 +2,7 @@ import TrelloMemberProfileClient from './TrelloMemberProfileClient';
 
 export const dynamic = 'force-dynamic';
 
-export default function TrelloMemberProfilePage({ params }: { params: { trelloId: string } }) {
-  return <TrelloMemberProfileClient trelloId={params.trelloId} />;
+export default async function TrelloMemberProfilePage({ params }: { params: Promise<{ trelloId: string }> }) {
+  const { trelloId } = await params;
+  return <TrelloMemberProfileClient trelloId={trelloId} />;
 }

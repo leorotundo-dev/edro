@@ -2,6 +2,7 @@ import FreelancerProfileClient from './FreelancerProfileClient';
 
 export const dynamic = 'force-dynamic';
 
-export default function FreelancerProfilePage({ params }: { params: { id: string } }) {
-  return <FreelancerProfileClient id={params.id} />;
+export default async function FreelancerProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <FreelancerProfileClient id={id} />;
 }
