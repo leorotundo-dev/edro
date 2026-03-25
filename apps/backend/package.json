@@ -14,7 +14,8 @@
     "calendar:import": "ts-node --transpile-only src/scripts/importCalendarCsv.ts",
     "calendar:sanitize": "ts-node --transpile-only src/scripts/sanitizeCalendarCsv.ts",
     "calendar:recalc": "ts-node --transpile-only src/scripts/recalcCalendarRelevance.ts",
-    "whatsapp:memory:backfill": "ts-node --transpile-only src/scripts/backfillWhatsAppMemory.ts"
+    "whatsapp:memory:backfill": "ts-node --transpile-only src/scripts/backfillWhatsAppMemory.ts",
+    "reportei:connectors:upsert": "ts-node --transpile-only src/scripts/upsertReporteiConnectors.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",
@@ -23,7 +24,7 @@
     "@fastify/jwt": "^6.0.0",
     "@fastify/multipart": "^8.2.0",
     "@fastify/rate-limit": "^8.1.0",
-    "@mozilla/readability": "^0.5.0",
+    "@mozilla/readability": "^0.6.0",
     "axios": "^1.13.5",
     "cheerio": "^1.0.0-rc.12",
     "csv-parse": "^5.6.0",
@@ -33,7 +34,7 @@
     "libsodium-wrappers": "^0.7.13",
     "mammoth": "^1.8.0",
     "mime-types": "^2.1.35",
-    "nodemailer": "^6.9.15",
+    "nodemailer": "^7.0.11",
     "openai": "^4.52.0",
     "openid-client": "^6.0.0",
     "pdf-parse": "^1.1.1",
@@ -50,7 +51,7 @@
     "@types/cheerio": "^0.22.35",
     "@types/jsdom": "^21.1.6",
     "@types/node": "^20.0.0",
-    "@types/nodemailer": "^6.4.14",
+    "@types/nodemailer": "^7.0.11",
     "@types/pdfkit": "^0.13.9",
     "@types/pg": "^8.15.6",
     "ts-node-dev": "^2.0.0"

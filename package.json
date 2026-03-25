@@ -37,7 +37,10 @@
       "rollup": ">=4.59.0",
       "flatted": ">=3.4.2",
       "undici": ">=7.24.0",
-      "underscore": ">=1.13.8"
+      "underscore": ">=1.13.8",
+      "bn.js": ">=4.12.3",
+      "ajv": ">=8.18.0",
+      "diff": ">=4.0.4"
     }
   },
   "devDependencies": {
