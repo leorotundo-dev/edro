@@ -84,8 +84,11 @@ export async function sendOutboundMessage(params: {
     const formatted = formatJarvisMessage(messageText);
     await sendGroupMessage(tenantId, groupJid, formatted);
   } catch (err: any) {
-    console.error(`[groupOutbound] Send failed (${scenario}): ${err.message}`);
-    return { sent: false, reason: `send_error: ${err.message}` };
+    const msg: string = err.message ?? '';
+    if (!msg.includes('No sessions') && !msg.includes('SessionError')) {
+      console.warn(`[groupOutbound] Send failed (${scenario}): ${msg}`);
+    }
+    return { sent: false, reason: `send_error: ${msg}` };
   }
 
   // 6. Log + update rate counter
@@ -109,7 +112,7 @@ export async function sendOutboundMessage(params: {
       messageType: 'text',
       channel: 'group',
     }).catch((err: any) => {
-      console.error(`[groupOutbound] persistWhatsAppMessageMemory failed: ${err.message}`);
+      console.warn(`[groupOutbound] persistWhatsAppMessageMemory failed: ${err.message}`);
     });
   }
 
