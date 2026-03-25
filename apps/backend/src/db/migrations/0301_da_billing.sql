@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS da_billing_entries (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id     TEXT NOT NULL,
   freelancer_id UUID NOT NULL REFERENCES edro_users(id) ON DELETE CASCADE,
-  job_id        UUID NOT NULL REFERENCES edro_jobs(id) ON DELETE CASCADE,
+  job_id        UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   job_size      TEXT NOT NULL CHECK (job_size IN ('P', 'M', 'G')),
   rate_cents    INT NOT NULL,
   currency      TEXT NOT NULL DEFAULT 'BRL',

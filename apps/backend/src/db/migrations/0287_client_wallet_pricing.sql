@@ -28,6 +28,7 @@ END
 WHERE job_points IS NULL AND job_size IS NOT NULL;
 
 -- ── 3. Indexes ─────────────────────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_jobs_client_month
-  ON jobs (client_id, date_trunc('month', created_at))
+-- NOTE: date_trunc is not IMMUTABLE, so we index by client_id + created_at instead
+CREATE INDEX IF NOT EXISTS idx_jobs_client_created
+  ON jobs (client_id, created_at DESC)
   WHERE status NOT IN ('archived', 'cancelled');
