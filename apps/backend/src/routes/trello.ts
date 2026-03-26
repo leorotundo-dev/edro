@@ -676,10 +676,148 @@ export default async function trelloRoutes(app: FastifyInstance) {
     return { band: 'p3', score: 6 };
   }
 
+  // GET /trello/health — sync health per board + unmapped lists
+  app.get('/trello/health', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+
+    const [boardsRes, listsRes, membersRes] = await Promise.all([
+      query<{
+        id: string; name: string; trello_board_id: string | null;
+        client_id: string | null; client_name: string | null;
+        last_synced_at: string | null; sync_age_hours: number | null;
+        last_sync_status: string | null; last_sync_error: string | null;
+        last_cards_synced: number | null; active_cards: number;
+      }>(`
+        SELECT pb.id, pb.name, pb.trello_board_id,
+          pb.client_id, cl.name as client_name,
+          pb.last_synced_at,
+          EXTRACT(EPOCH FROM (now() - pb.last_synced_at)) / 3600 as sync_age_hours,
+          sl.status as last_sync_status,
+          sl.error_message as last_sync_error,
+          sl.cards_synced as last_cards_synced,
+          (SELECT COUNT(*)::int FROM project_cards pc WHERE pc.board_id = pb.id AND pc.is_archived = false) as active_cards
+        FROM project_boards pb
+        LEFT JOIN clients cl ON cl.id::text = pb.client_id
+        LEFT JOIN LATERAL (
+          SELECT status, error_message, cards_synced
+          FROM trello_sync_log tsl
+          WHERE tsl.trello_board_id = pb.trello_board_id
+          ORDER BY started_at DESC LIMIT 1
+        ) sl ON true
+        WHERE pb.tenant_id = $1 AND pb.is_archived = false
+        ORDER BY pb.name
+      `, [tenantId]),
+      query<{
+        list_id: string; list_name: string; board_id: string; board_name: string;
+        card_count: number; has_override: boolean;
+      }>(`
+        SELECT pl.id as list_id, pl.name as list_name, pl.board_id, pb.name as board_name,
+          (SELECT COUNT(*)::int FROM project_cards pc WHERE pc.list_id = pl.id AND pc.is_archived = false) as card_count,
+          EXISTS(SELECT 1 FROM trello_list_status_map m WHERE m.list_id = pl.id AND m.tenant_id = $1) as has_override
+        FROM project_lists pl
+        JOIN project_boards pb ON pb.id = pl.board_id
+        WHERE pl.tenant_id = $1 AND pl.is_archived = false
+        ORDER BY pb.name, pl.position
+      `, [tenantId]),
+      query<{ count: number }>(`
+        SELECT COUNT(DISTINCT pcm.trello_member_id)::int as count
+        FROM project_card_members pcm
+        JOIN project_cards pc ON pc.id = pcm.card_id
+        JOIN project_boards pb ON pb.id = pc.board_id
+        WHERE pb.tenant_id = $1 AND pcm.email IS NULL
+      `, [tenantId]),
+    ]);
+
+    const boards = boardsRes.rows.map((b) => {
+      const ageH = Number(b.sync_age_hours ?? Infinity);
+      let sync_status: 'ok' | 'stale' | 'error' | 'never';
+      if (!b.last_synced_at) sync_status = 'never';
+      else if (b.last_sync_status === 'error') sync_status = 'error';
+      else if (ageH > 2) sync_status = 'stale';
+      else sync_status = 'ok';
+      return { ...b, sync_status };
+    });
+
+    const unmappedLists = listsRes.rows.filter(
+      (l) => !l.has_override && l.card_count > 0 && listNameToOpsStatus(l.list_name) === 'intake',
+    );
+
+    const summary = {
+      total_boards: boards.length,
+      ok_count: boards.filter((b) => b.sync_status === 'ok').length,
+      stale_count: boards.filter((b) => b.sync_status === 'stale').length,
+      error_count: boards.filter((b) => b.sync_status === 'error').length,
+      never_count: boards.filter((b) => b.sync_status === 'never').length,
+      unlinked_count: boards.filter((b) => !b.client_id).length,
+      unmapped_list_count: unmappedLists.length,
+      members_without_email: membersRes.rows[0]?.count ?? 0,
+    };
+
+    return reply.send({ boards, unmappedLists, summary });
+  });
+
+  // GET /trello/list-status-map/:boardId — all lists with current effective status
+  app.get('/trello/list-status-map/:boardId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const { boardId } = request.params as { boardId: string };
+
+    const { rows } = await query<{
+      list_id: string; list_name: string; position: number; card_count: number;
+      override_status: string | null;
+    }>(`
+      SELECT pl.id as list_id, pl.name as list_name, pl.position,
+        (SELECT COUNT(*)::int FROM project_cards pc WHERE pc.list_id = pl.id AND pc.is_archived = false) as card_count,
+        m.ops_status as override_status
+      FROM project_lists pl
+      LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
+      WHERE pl.board_id = $2 AND pl.is_archived = false
+      ORDER BY pl.position
+    `, [tenantId, boardId]);
+
+    const lists = rows.map((r) => ({
+      ...r,
+      detected_status: listNameToOpsStatus(r.list_name),
+      effective_status: r.override_status ?? listNameToOpsStatus(r.list_name),
+    }));
+
+    return reply.send({ lists });
+  });
+
+  // POST /trello/list-status-map/:boardId — save explicit status overrides for lists
+  app.post('/trello/list-status-map/:boardId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const { boardId } = request.params as { boardId: string };
+    const { mappings } = request.body as { mappings: Array<{ list_id: string; ops_status: string | null }> };
+
+    const VALID = new Set(['intake', 'planned', 'allocated', 'in_progress', 'in_review',
+      'awaiting_approval', 'approved', 'ready', 'done', 'published', 'blocked']);
+
+    for (const m of (mappings ?? [])) {
+      if (m.ops_status === null) {
+        await query(`DELETE FROM trello_list_status_map WHERE tenant_id = $1 AND list_id = $2::uuid`, [tenantId, m.list_id]);
+      } else if (VALID.has(m.ops_status)) {
+        await query(`
+          INSERT INTO trello_list_status_map (tenant_id, board_id, list_id, ops_status)
+          VALUES ($1, $2::uuid, $3::uuid, $4)
+          ON CONFLICT (tenant_id, list_id) DO UPDATE SET ops_status = $4, updated_at = now()
+        `, [tenantId, boardId, m.list_id, m.ops_status]);
+      }
+    }
+
+    return reply.send({ ok: true });
+  });
+
   // GET /trello/ops-feed — all active cards mapped to OperationsJob format
   app.get('/trello/ops-feed', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const activeOnly = ['1', 'true', 'yes'].includes(String((request.query as any)?.active ?? ''));
+
+    // Load explicit list-status overrides for this tenant
+    const { rows: overrideRows } = await query<{ list_id: string; ops_status: string }>(
+      `SELECT list_id::text, ops_status FROM trello_list_status_map WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    const listStatusOverrides = new Map(overrideRows.map((r) => [r.list_id, r.ops_status]));
 
     const { rows: cards } = await query<{
       id: string; title: string; description: string | null;
@@ -717,7 +855,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     const jobs = cards.flatMap((c) => {
       const { band, score } = computePriorityBand(c.due_date, c.due_complete);
-      const status = listNameToOpsStatus(c.list_name);
+      const status = listStatusOverrides.get(c.list_id) ?? listNameToOpsStatus(c.list_name);
       if (activeOnly && INACTIVE_STATUSES.has(status)) return [];
       const labels: { color: string; name: string }[] = Array.isArray(c.labels) ? c.labels : [];
       const labelNames = labels.map((l) => l.name?.toLowerCase() ?? '').join(' ');
