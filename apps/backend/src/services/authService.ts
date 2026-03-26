@@ -17,7 +17,7 @@ const parseList = (value?: string | null) =>
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 
-const allowedDomains = parseList(env.EDRO_ALLOWED_DOMAINS || 'edro.digital');
+const allowedDomains = parseList(env.EDRO_ALLOWED_DOMAINS ?? '');
 const adminEmails = parseList(env.EDRO_ADMIN_EMAILS || '');
 
 const buildCodeHash = (email: string, code: string) =>
