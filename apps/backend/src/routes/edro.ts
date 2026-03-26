@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
-import multipart from '@fastify/multipart';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
@@ -717,7 +716,6 @@ async function notifyStageChange(params: {
 }
 
 export default async function edroRoutes(app: FastifyInstance) {
-  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
   const ensureTenantMembership = tenantGuard();
 
   app.addHook('preHandler', async (request, reply) => {

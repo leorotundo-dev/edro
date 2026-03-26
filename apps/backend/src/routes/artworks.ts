@@ -14,7 +14,6 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import multipart from '@fastify/multipart';
 import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
@@ -36,7 +35,6 @@ function getPortalClientId(request: any): string | null {
 // ── Admin routes ──────────────────────────────────────────────────────────────
 
 export default async function artworksRoutes(app: FastifyInstance) {
-  await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
 
   // ── Admin: upload ──────────────────────────────────────────────────────────
   app.post(

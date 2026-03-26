@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { requireClientPerm } from '../auth/clientPerms';
-import multipart from '@fastify/multipart';
 import { extractText } from '../library/extract';
 import { transcribeAudioBuffer } from '../services/meetingService';
 import mime from 'mime-types';
@@ -680,7 +679,6 @@ export default async function planningRoutes(app: FastifyInstance) {
   });
 
   // ── Jarvis file upload — synchronous text extraction, no DB write ────────
-  await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 } });
 
   app.post<{ Params: { clientId: string } }>('/clients/:clientId/jarvis/upload', {
     preHandler: planningClientWriteGuards,

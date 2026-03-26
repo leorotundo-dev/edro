@@ -1,6 +1,7 @@
 import fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { env } from './env';
 import { registerRoutes } from './routes';
@@ -111,6 +112,9 @@ export async function buildServer() {
       return ip;
     },
   });
+
+  // Global multipart — registered once here; route files must NOT re-register it (fastify v5 throws FST_ERR_PLUGIN_ALREADY_REGISTERED)
+  await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } }); // 200 MB covers meetings/video uploads
 
   // Per-route rate limit overrides — runs once at startup, zero overhead at runtime
   app.addHook('onRoute', (routeOptions) => {

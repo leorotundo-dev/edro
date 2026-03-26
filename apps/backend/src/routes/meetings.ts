@@ -8,7 +8,6 @@ import { z } from 'zod';
 import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
-import multipart from '@fastify/multipart';
 import mime from 'mime-types';
 import {
   transcribeAudioBuffer,
@@ -151,7 +150,6 @@ function requireMeetingActionPerm(perm: ClientScopePerm) {
 
 export default async function meetingRoutes(app: FastifyInstance) {
   await ensureMeetingTables();
-  await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } }); // 200 MB
 
   const meetingReadGuards = [authGuard, tenantGuard(), requirePerm('meetings:read')];
   const meetingWriteGuards = [authGuard, tenantGuard(), requirePerm('meetings:write')];

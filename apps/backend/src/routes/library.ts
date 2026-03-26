@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import multipart from '@fastify/multipart';
 import { z } from 'zod';
 import mime from 'mime-types';
 import { tenantGuard } from '../auth/tenantGuard';
@@ -125,12 +124,6 @@ async function ensureLibraryTables() {
 }
 
 export default async function libraryRoutes(app: FastifyInstance) {
-  await app.register(multipart, {
-    limits: {
-      fileSize: 50 * 1024 * 1024, // 50 MB
-      files: 1,
-    },
-  });
 
   app.get(
     '/clients/:clientId/library',
