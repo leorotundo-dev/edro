@@ -12,7 +12,7 @@ import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
-import { IconAlertTriangle, IconBolt, IconCheckbox, IconTrendingUp, IconX, IconBellOff } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBolt, IconCheckbox, IconChartBar, IconTrendingUp, IconX, IconBellOff } from '@tabler/icons-react';
 
 type BoardInsightsSummary = {
   summary: {
@@ -175,6 +175,7 @@ type Props = { boardId: string; clientId?: string };
 export default function OperacaoRadarSection({ boardId, clientId }: Props) {
   const [data, setData] = useState<BoardInsightsSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -188,6 +189,16 @@ export default function OperacaoRadarSection({ boardId, clientId }: Props) {
   }, [boardId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleAnalyze = useCallback(async () => {
+    setAnalyzing(true);
+    try {
+      await apiPost(`/trello/project-boards/${boardId}/analyze`, {});
+      setTimeout(() => { load().finally(() => setAnalyzing(false)); }, 8000);
+    } catch {
+      setAnalyzing(false);
+    }
+  }, [boardId, load]);
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}><CircularProgress size={24} /></Box>;
   if (!data) return null;
@@ -256,6 +267,21 @@ export default function OperacaoRadarSection({ boardId, clientId }: Props) {
         )}
       </Grid>
     </Grid>
+
+    {(summary.pct_on_time == null || cycle_times.median_hours == null) && (
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={handleAnalyze}
+          disabled={analyzing}
+          startIcon={analyzing ? <CircularProgress size={13} color="inherit" /> : <IconChartBar size={14} />}
+          sx={{ fontSize: 12, textTransform: 'none', borderRadius: 1.5 }}
+        >
+          {analyzing ? 'Calculando métricas...' : 'Calcular métricas do board'}
+        </Button>
+      </Box>
+    )}
     </>
   );
 }
