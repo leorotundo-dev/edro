@@ -388,6 +388,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       calendarChannelRes,
       metaConnectorRes,
       trelloBoardsRes,
+      metaFailingRes,
     ] = await Promise.all([
       query<{ last_synced_at: string | null; is_active: boolean }>(
         `SELECT last_synced_at, is_active FROM trello_connectors WHERE tenant_id = $1 LIMIT 1`,
@@ -401,8 +402,8 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         `SELECT email_address, expires_at, watch_status, last_watch_error FROM google_calendar_channels WHERE tenant_id = $1 LIMIT 1`,
         [tenantId],
       ),
-      query<{ last_sync_at: string | null; page_id: string | null }>(
-        `SELECT last_sync_at, payload->>'page_id' AS page_id
+      query<{ last_sync_at: string | null; page_id: string | null; last_sync_ok: boolean | null; last_error: string | null; last_error_at: string | null }>(
+        `SELECT last_sync_at, payload->>'page_id' AS page_id, last_sync_ok, last_error, last_error_at
          FROM connectors WHERE tenant_id = $1 AND provider = 'meta' ORDER BY updated_at DESC LIMIT 1`,
         [tenantId],
       ),
@@ -415,6 +416,19 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
            COUNT(*) FILTER (WHERE client_id IS NULL)::int as unlinked,
            COUNT(*)::int as total
          FROM project_boards WHERE tenant_id = $1 AND is_archived = false`,
+        [tenantId],
+      ),
+      // Meta connectors failing > 24h (across all clients)
+      query<{ count: number; client_names: string }>(
+        `SELECT
+           COUNT(*)::int as count,
+           STRING_AGG(cl.name, ', ' ORDER BY cl.name) AS client_names
+         FROM connectors c
+         JOIN clients cl ON cl.id = c.client_id
+         WHERE c.tenant_id = $1
+           AND c.provider = 'meta'
+           AND c.last_sync_ok = false
+           AND c.last_error_at < now() - interval '24 hours'`,
         [tenantId],
       ),
     ]);
@@ -479,6 +493,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     const calendar = calendarChannelRes.rows[0];
     const meta = metaConnectorRes.rows[0];
     const tb = trelloBoardsRes.rows[0];
+    const metaFailing = metaFailingRes.rows[0];
 
     const calendarExpiry = calendar?.expires_at ? new Date(calendar.expires_at).getTime() : null;
     const calendarExpired = calendarExpiry !== null && calendarExpiry <= now;
@@ -503,10 +518,14 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         label: 'Meta / Instagram',
         icon: 'meta',
         configured: Boolean(meta?.page_id),
-        status: !meta ? 'disconnected' : ageHours(meta.last_sync_at) !== null && ageHours(meta.last_sync_at)! > 26 ? 'stale' : 'ok',
+        status: !meta ? 'disconnected'
+          : meta.last_sync_ok === false ? 'error'
+          : ageHours(meta.last_sync_at) !== null && ageHours(meta.last_sync_at)! > 26 ? 'stale'
+          : 'ok',
         last_activity: meta?.last_sync_at ?? null,
         details: meta ? `Page ID: ${meta.page_id ?? 'não vinculado'}` : 'Não conectado',
         action_url: '/admin/integrations',
+        warning: meta?.last_sync_ok === false ? `Último erro: ${meta.last_error ?? 'desconhecido'}` : null,
       },
       {
         key: 'google_calendar',
@@ -547,9 +566,9 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         configured: has('REPORTEI_TOKEN'),
         status: !has('REPORTEI_TOKEN') ? 'disconnected' : ageHours(fr.last_learning_rules) !== null && ageHours(fr.last_learning_rules)! > 200 ? 'stale' : 'ok',
         last_activity: fr.last_learning_rules ?? null,
-        details: has('REPORTEI_TOKEN') ? 'Sync às segundas — dados podem ter até 6 dias' : 'Não configurado',
+        details: has('REPORTEI_TOKEN') ? 'Sync seg/qua/sex — dados com até 2 dias de defasagem' : 'Não configurado',
         action_url: '/admin/reportei',
-        warning: has('REPORTEI_TOKEN') ? 'Sync semanal (segundas): dados podem ter até 6 dias de defasagem' : null,
+        warning: null,
       },
       {
         key: 'recall',
@@ -575,8 +594,18 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     if ((tb?.stale ?? 0) > 0) alerts.push({ severity: 'warning', title: `${tb?.stale} board(s) Trello desatualizados`, message: 'Dados do Trello estão com mais de 2h sem sync. A Central de Operações pode estar mostrando informações antigas.', action_label: 'Ver boards', action_url: '/admin/trello' });
     if ((tb?.unlinked ?? 0) > 0) alerts.push({ severity: 'info', title: `${tb?.unlinked} board(s) sem cliente vinculado`, message: 'Cards desses boards aparecem sem contexto de cliente na Central de Operações.', action_label: 'Vincular', action_url: '/admin/trello' });
 
+    if ((metaFailing?.count ?? 0) > 0) {
+      alerts.push({
+        severity: 'warning',
+        title: `${metaFailing.count} conector(es) Meta com falha há > 24h`,
+        message: `Os seguintes clientes estão sem sync Meta: ${metaFailing.client_names ?? '—'}. Verifique os tokens de acesso.`,
+        action_label: 'Ver integrações',
+        action_url: '/admin/integrations',
+      });
+    }
+
     if (has('REPORTEI_TOKEN') && ageHours(fr.last_learning_rules) !== null && ageHours(fr.last_learning_rules)! > 200) {
-      alerts.push({ severity: 'warning', title: 'Insights de performance desatualizados', message: `Regras de aprendizado com ${ageHours(fr.last_learning_rules)}h de defasagem. Reportei só sincroniza às segundas.`, action_label: 'Ver configuração', action_url: '/admin/reportei' });
+      alerts.push({ severity: 'warning', title: 'Insights de performance desatualizados', message: `Regras de aprendizado com ${ageHours(fr.last_learning_rules)}h de defasagem. Próximo sync: seg/qua/sex.`, action_label: 'Ver configuração', action_url: '/admin/reportei' });
     }
 
     const criticalDomains = domains.filter((d) => d.freshness === 'critical');

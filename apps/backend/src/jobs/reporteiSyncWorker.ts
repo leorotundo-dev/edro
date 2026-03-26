@@ -1,7 +1,7 @@
 /**
  * Reportei Sync Worker — FASE 1
  *
- * Roda toda segunda-feira às 03h e também via trigger manual.
+ * Roda segunda, quarta e sexta-feira (3×/semana) e também via trigger manual.
  * Para cada cliente com connector 'reportei' configurado:
  *   1. Sincroniza insights de performance (7d, 30d, 90d) → learned_insights
  *   2. Sincroniza métricas de briefings entregues → briefing_post_metrics
@@ -132,14 +132,15 @@ async function tryRefreshPlatformId(
 let running = false;
 let lastRunDate = '';
 
-function isMonday(): boolean {
-  return new Date().getDay() === 1;
+function isSyncDay(): boolean {
+  // Monday=1, Wednesday=3, Friday=5
+  return [1, 3, 5].includes(new Date().getDay());
 }
 
 function shouldRunToday(): boolean {
-  // Run every Monday — OR if forced via env
+  // Run Mon/Wed/Fri — OR if forced via env
   if (process.env.REPORTEI_SYNC_FORCE === 'true') return true;
-  return isMonday();
+  return isSyncDay();
 }
 
 function windowToDates(window: string): { start: string; end: string; compStart: string; compEnd: string } {
