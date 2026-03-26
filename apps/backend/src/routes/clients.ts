@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import multipart from '@fastify/multipart';
 import { z } from 'zod';
 import mime from 'mime-types';
 import { authGuard, requirePerm } from '../auth/rbac';
@@ -287,7 +286,6 @@ async function syncCopyExamplesToProfile(clientId: string, tenantId: string): Pr
 }
 
 export default async function clientsRoutes(app: FastifyInstance) {
-  await app.register(multipart);
   app.addHook('preHandler', authGuard);
   app.addHook('preHandler', tenantGuard());
 

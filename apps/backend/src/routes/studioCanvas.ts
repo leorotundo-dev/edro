@@ -4,7 +4,6 @@
  */
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import multipart from '@fastify/multipart';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { generateCompletion } from '../services/ai/claudeService';
@@ -878,7 +877,6 @@ export default async function studioCanvasRoutes(app: FastifyInstance) {
   /**
    * POST /studio/canvas/upload — upload an image asset and return a public URL
    */
-  await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 } });
   app.post('/studio/canvas/upload', { preHandler: [authGuard, tenantGuard()] }, async (request: any, reply) => {
     const tenantId = request.user.tenant_id;
     const data = await request.file();
