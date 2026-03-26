@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiDelete, apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -87,6 +87,7 @@ export default function TrelloAdminClient() {
 
   // Import dialog state
   const [importing, setImporting] = useState<string | null>(null); // trelloBoardId being imported
+  const [savingBoardId, setSavingBoardId] = useState<string | null>(null);
   const [importClientId, setImportClientId] = useState<Record<string, string>>({});
   const [importResult, setImportResult] = useState<Record<string, string>>({});
 
@@ -153,8 +154,10 @@ export default function TrelloAdminClient() {
     setImporting(trelloBoardId);
     setImportResult((prev) => ({ ...prev, [trelloBoardId]: '' }));
     try {
+      const existingBoard = projectBoards.find((board) => board.trello_board_id === trelloBoardId);
+      const selectedClientId = importClientId[trelloBoardId] || existingBoard?.client_id || undefined;
       const res = await apiPost(`/trello/boards/${trelloBoardId}/sync`, {
-        client_id: importClientId[trelloBoardId] || undefined,
+        client_id: selectedClientId,
       });
       setImportResult((prev) => ({
         ...prev,
@@ -171,6 +174,26 @@ export default function TrelloAdminClient() {
   async function handleSyncAll() {
     await apiPost('/trello/sync-all', {});
     setTimeout(loadProjectBoards, 3000);
+  }
+
+  async function handleAssignProjectBoard(boardId: string, fallbackClientId: string | null) {
+    setSavingBoardId(boardId);
+    setImportResult((prev) => ({ ...prev, [boardId]: '' }));
+    try {
+      const nextClientId = importClientId[boardId] ?? fallbackClientId ?? '';
+      await apiPatch(`/trello/project-boards/${boardId}`, {
+        client_id: nextClientId || null,
+      });
+      setImportResult((prev) => ({
+        ...prev,
+        [boardId]: nextClientId ? '✓ Cliente vinculado ao board' : '✓ Board desvinculado do cliente',
+      }));
+      await loadProjectBoards();
+    } catch (err: any) {
+      setImportResult((prev) => ({ ...prev, [boardId]: `Erro: ${err?.message ?? 'Falha ao vincular board.'}` }));
+    } finally {
+      setSavingBoardId(null);
+    }
   }
 
   const isConnected = connector?.connected && connector.is_active;
@@ -283,6 +306,7 @@ export default function TrelloAdminClient() {
 
               {trelloBoards.map((board) => {
                 const alreadyImported = projectBoards.find((b) => b.trello_board_id === board.id);
+                const selectedClientId = importClientId[board.id] ?? alreadyImported?.client_id ?? '';
                 const result = importResult[board.id];
                 return (
                   <Box
@@ -316,7 +340,7 @@ export default function TrelloAdminClient() {
                         select
                         size="small"
                         label="Cliente (opcional)"
-                        value={importClientId[board.id] ?? ''}
+                        value={selectedClientId}
                         onChange={(e) => setImportClientId((prev) => ({ ...prev, [board.id]: e.target.value }))}
                         sx={{ minWidth: 160 }}
                       >
@@ -362,29 +386,68 @@ export default function TrelloAdminClient() {
                 Boards no Edro ({projectBoards.length})
               </Typography>
               <Stack spacing={1}>
-                {projectBoards.map((board) => (
-                  <Stack
-                    key={board.id}
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}
-                  >
-                    <Box>
-                      <Typography variant="body2" fontWeight={600}>{board.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {board.card_count} cards · sync {fmtDate(board.last_synced_at)}
-                      </Typography>
+                {projectBoards.map((board) => {
+                  const selectedClientId = importClientId[board.id] ?? board.client_id ?? '';
+                  const clientName = clients.find((client) => client.id === (board.client_id ?? ''))?.name;
+                  const result = importResult[board.id];
+                  return (
+                    <Box key={board.id}>
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}
+                      >
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>{board.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {board.card_count} cards · sync {fmtDate(board.last_synced_at)}
+                            {clientName ? ` · cliente ${clientName}` : ' · sem cliente vinculado'}
+                          </Typography>
+                        </Box>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                          <TextField
+                            select
+                            size="small"
+                            label="Cliente"
+                            value={selectedClientId}
+                            onChange={(e) => setImportClientId((prev) => ({ ...prev, [board.id]: e.target.value }))}
+                            sx={{ minWidth: 180 }}
+                          >
+                            <MenuItem value="">Nenhum / Interno</MenuItem>
+                            {clients.map((c) => (
+                              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                            ))}
+                          </TextField>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => handleAssignProjectBoard(board.id, board.client_id)}
+                            disabled={savingBoardId === board.id}
+                          >
+                            {savingBoardId === board.id ? 'Salvando...' : 'Salvar vínculo'}
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            href={`/projetos/${board.id}`}
+                          >
+                            Abrir kanban
+                          </Button>
+                        </Stack>
+                      </Stack>
+                      {result && (
+                        <Typography
+                          variant="caption"
+                          color={result.startsWith('Erro') ? 'error' : 'success.main'}
+                          sx={{ mt: 0.5, display: 'block' }}
+                        >
+                          {result}
+                        </Typography>
+                      )}
                     </Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      href={`/projetos/${board.id}`}
-                    >
-                      Abrir kanban
-                    </Button>
-                  </Stack>
-                ))}
+                  );
+                })}
               </Stack>
             </CardContent>
           </Card>
