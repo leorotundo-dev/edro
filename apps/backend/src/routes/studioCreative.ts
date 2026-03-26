@@ -19,6 +19,7 @@ import {
   discoverArtDirectionReferences,
   getArtDirectionMemoryStats,
   getPrimaryArtDirectionReferenceId,
+  listArtDirectionCanons,
   listArtDirectionReferenceSources,
   listArtDirectionReferences,
   listArtDirectionTrendSignals,
@@ -467,7 +468,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         });
       }
 
-      const [references, pendingReferences, rejectedReferences, sources, trends] = await Promise.all([
+      const [references, pendingReferences, rejectedReferences, sources, trends, canons] = await Promise.all([
         listRelevantArtDirectionReferences({
           tenantId,
           clientId: input.client_id,
@@ -501,6 +502,11 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
           segment: input.segment,
           limit: input.trend_limit ?? 6,
         }),
+        listArtDirectionCanons({
+          tenantId,
+          includeEntries: true,
+          limitEntriesPerCanon: 24,
+        }).catch(() => []),
       ]);
 
       const stats = await getArtDirectionMemoryStats({
@@ -510,7 +516,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         segment: input.segment,
       });
 
-      return reply.send({ success: true, memory, concepts, references, pendingReferences, rejectedReferences, sources, trends, stats });
+      return reply.send({ success: true, memory, concepts, canons, references, pendingReferences, rejectedReferences, sources, trends, stats });
     } catch (error: any) {
       request.log.error({ error }, '[studio/creative/da-memory] failed');
       const message = String(error?.message || '');
@@ -531,6 +537,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
             critiqueBlock: '',
           },
           concepts: [],
+          canons: [],
           references: [],
           pendingReferences: [],
           rejectedReferences: [],

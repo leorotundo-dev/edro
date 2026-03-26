@@ -111,6 +111,36 @@ export type ArtDirectionMemoryContext = {
   critiqueBlock: string;
 };
 
+export type ArtDirectionCanonEntrySummary = {
+  id: string;
+  canon_id: string;
+  canon_slug: string;
+  canon_title: string;
+  slug: string;
+  title: string;
+  summary_short: string | null;
+  definition: string;
+  heuristics: string[];
+  critique_checks: string[];
+  examples: string[];
+  status: 'active' | 'draft' | 'archived';
+  source_confidence: number;
+};
+
+export type ArtDirectionCanonSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: 'active' | 'draft' | 'archived';
+  sort_order: number;
+  total_entries: number;
+  active_entries: number;
+  draft_entries: number;
+  archived_entries: number;
+  entries: ArtDirectionCanonEntrySummary[];
+};
+
 export type ArtDirectionMemoryStats = {
   concepts: {
     active: number;
@@ -1488,6 +1518,174 @@ export async function listRelevantArtDirectionConcepts(params: {
   }));
 }
 
+export async function listArtDirectionCanons(params: {
+  tenantId?: string | null;
+  includeEntries?: boolean;
+  limitEntriesPerCanon?: number;
+}): Promise<ArtDirectionCanonSummary[]> {
+  const values: any[] = [];
+  const where: string[] = [];
+
+  if (params.tenantId) {
+    values.push(params.tenantId);
+    where.push(`(c.tenant_id = $${values.length} OR c.tenant_id IS NULL)`);
+  } else {
+    where.push(`c.tenant_id IS NULL`);
+  }
+
+  const { rows } = await query<{
+    id: string;
+    slug: string;
+    title: string;
+    description: string | null;
+    status: 'active' | 'draft' | 'archived';
+    sort_order: number;
+    total_entries: number;
+    active_entries: number;
+    draft_entries: number;
+    archived_entries: number;
+  }>(
+    `SELECT
+       c.id,
+       c.slug,
+       c.title,
+       c.description,
+       c.status,
+       c.sort_order,
+       COUNT(e.id)::int AS total_entries,
+       COUNT(e.id) FILTER (WHERE e.status = 'active')::int AS active_entries,
+       COUNT(e.id) FILTER (WHERE e.status = 'draft')::int AS draft_entries,
+       COUNT(e.id) FILTER (WHERE e.status = 'archived')::int AS archived_entries
+     FROM da_canons c
+     LEFT JOIN da_canon_entries e ON e.canon_id = c.id
+     WHERE ${where.join(' AND ')}
+     GROUP BY c.id, c.slug, c.title, c.description, c.status, c.sort_order
+     ORDER BY c.sort_order ASC, c.title ASC`,
+    values,
+  );
+
+  const canons: ArtDirectionCanonSummary[] = rows.map((row) => ({
+    ...row,
+    entries: [],
+  }));
+
+  if (!params.includeEntries || !canons.length) {
+    return canons;
+  }
+
+  const canonIds = canons.map((canon) => canon.id);
+  const entryValues: any[] = [canonIds];
+  const entryWhere = [`e.canon_id = ANY($1::uuid[])`];
+
+  if (params.tenantId) {
+    entryValues.push(params.tenantId);
+    entryWhere.push(`(e.tenant_id = $${entryValues.length} OR e.tenant_id IS NULL)`);
+  } else {
+    entryWhere.push(`e.tenant_id IS NULL`);
+  }
+
+  const { rows: entryRows } = await query<ArtDirectionCanonEntrySummary>(
+    `SELECT
+       e.id,
+       e.canon_id,
+       c.slug AS canon_slug,
+       c.title AS canon_title,
+       e.slug,
+       e.title,
+       e.summary_short,
+       e.definition,
+       COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
+       COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
+       COALESCE(e.examples, '[]'::jsonb) AS examples,
+       e.status,
+       e.source_confidence
+     FROM da_canon_entries e
+     JOIN da_canons c ON c.id = e.canon_id
+     WHERE ${entryWhere.join(' AND ')}
+     ORDER BY
+       c.sort_order ASC,
+       CASE e.status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END,
+       e.title ASC`,
+    entryValues,
+  );
+
+  const grouped = new Map<string, ArtDirectionCanonEntrySummary[]>();
+  for (const row of entryRows) {
+    const current = grouped.get(row.canon_id) ?? [];
+    if (current.length < Math.max(1, Math.min(params.limitEntriesPerCanon ?? 12, 50))) {
+      current.push({
+        ...row,
+        heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
+        critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
+        examples: Array.isArray(row.examples) ? row.examples : [],
+      });
+    }
+    grouped.set(row.canon_id, current);
+  }
+
+  return canons.map((canon) => ({
+    ...canon,
+    entries: grouped.get(canon.id) ?? [],
+  }));
+}
+
+export async function listRelevantArtDirectionCanonEntries(params: {
+  tenantId?: string | null;
+  canonSlugs?: string[] | null;
+  limit?: number;
+}): Promise<ArtDirectionCanonEntrySummary[]> {
+  const values: any[] = [];
+  const where: string[] = [`e.status = 'active'`];
+
+  if (params.tenantId) {
+    values.push(params.tenantId);
+    where.push(`(e.tenant_id = $${values.length} OR e.tenant_id IS NULL)`);
+  } else {
+    where.push(`e.tenant_id IS NULL`);
+  }
+
+  if (params.canonSlugs?.length) {
+    values.push(params.canonSlugs);
+    where.push(`c.slug = ANY($${values.length}::text[])`);
+  }
+
+  values.push(Math.min(params.limit ?? 8, 20));
+
+  const { rows } = await query<ArtDirectionCanonEntrySummary>(
+    `SELECT
+       e.id,
+       e.canon_id,
+       c.slug AS canon_slug,
+       c.title AS canon_title,
+       e.slug,
+       e.title,
+       e.summary_short,
+       e.definition,
+       COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
+       COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
+       COALESCE(e.examples, '[]'::jsonb) AS examples,
+       e.status,
+       e.source_confidence
+     FROM da_canon_entries e
+     JOIN da_canons c ON c.id = e.canon_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY
+       c.sort_order ASC,
+       e.source_confidence DESC,
+       e.updated_at DESC,
+       e.title ASC
+     LIMIT $${values.length}`,
+    values,
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
+    critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
+    examples: Array.isArray(row.examples) ? row.examples : [],
+  }));
+}
+
 export async function listArtDirectionTrendSignals(params: {
   tenantId: string;
   clientId?: string | null;
@@ -1679,10 +1877,15 @@ export async function buildArtDirectionMemoryContext(params: {
     return { concepts: [], references: [], trends: [], promptBlock: '', critiqueBlock: '' };
   }
 
-  const [concepts, references, trends] = await Promise.all([
+  const [concepts, canonEntries, references, trends] = await Promise.all([
     listRelevantArtDirectionConcepts({
       tenantId: params.tenantId,
       categories: params.conceptCategories,
+      limit: params.conceptLimit ?? 5,
+    }).catch(() => []),
+    listRelevantArtDirectionCanonEntries({
+      tenantId: params.tenantId,
+      canonSlugs: params.conceptCategories ?? undefined,
       limit: params.conceptLimit ?? 5,
     }).catch(() => []),
     listRelevantArtDirectionReferences({
@@ -1700,6 +1903,12 @@ export async function buildArtDirectionMemoryContext(params: {
       limit: params.trendLimit ?? 4,
     }).catch(() => []),
   ]);
+
+  const canonLines = canonEntries.map((entry) => {
+    const heuristics = entry.heuristics.length ? `heurísticas: ${formatList(entry.heuristics, 2)}` : '';
+    const checks = entry.critique_checks.length ? `checks: ${formatList(entry.critique_checks, 2)}` : '';
+    return `- ${entry.title} [${entry.canon_title}]: ${entry.definition}${heuristics || checks ? ` | ${[heuristics, checks].filter(Boolean).join(' | ')}` : ''}`;
+  });
 
   const conceptLines = concepts.map((concept) => {
     const heuristics = concept.heuristics.length ? `heurísticas: ${formatList(concept.heuristics, 2)}` : '';
@@ -1721,13 +1930,19 @@ export async function buildArtDirectionMemoryContext(params: {
   );
 
   const promptSections = [
-    conceptLines.length ? `DESIGN CANON RELEVANTE:\n${conceptLines.join('\n')}` : '',
+    canonLines.length
+      ? `BIBLIOTECA DE CONHECIMENTO DA EDRO:\n${canonLines.join('\n')}`
+      : conceptLines.length
+      ? `DESIGN CANON RELEVANTE:\n${conceptLines.join('\n')}`
+      : '',
     trendLines.length ? `TENDÊNCIAS DETECTADAS:\n${trendLines.join('\n')}` : '',
     referenceLines.length ? `REFERÊNCIAS RECENTES DA MEMÓRIA:\n${referenceLines.join('\n')}` : '',
   ].filter(Boolean);
 
   const critiqueSections = [
-    concepts.length
+    canonEntries.length
+      ? `REGRAS EXTRAS DE CRÍTICA DA BIBLIOTECA:\n${canonEntries.map((entry) => `- ${entry.title}: ${formatList(entry.critique_checks, 3) || formatList(entry.heuristics, 2)}`).join('\n')}`
+      : concepts.length
       ? `REGRAS EXTRAS DE CRÍTICA:\n${concepts.map((concept) => `- ${concept.title}: ${formatList(concept.critique_checks, 3) || formatList(concept.heuristics, 2)}`).join('\n')}`
       : '',
     trends.length
