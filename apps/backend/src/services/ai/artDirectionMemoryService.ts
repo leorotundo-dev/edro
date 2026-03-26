@@ -25,6 +25,7 @@ export type ArtDirectionReferenceSummary = {
   id: string;
   title: string;
   source_url: string;
+  image_url: string | null;
   platform: string | null;
   format: string | null;
   segment: string | null;
@@ -50,6 +51,19 @@ export type ArtDirectionReferenceRecord = ArtDirectionReferenceSummary & {
   source_type: string | null;
   snippet: string | null;
   analyzed_at: string | null;
+};
+
+export type ArtDirectionReferencePreview = {
+  id: string;
+  title: string | null;
+  source_url: string;
+  image_url: string | null;
+  preview_excerpt: string | null;
+  preview_site_name: string | null;
+  curated: boolean;
+  source_name: string | null;
+  source_type: string | null;
+  domain: string | null;
 };
 
 export type ArtDirectionTrendSignal = {
@@ -338,6 +352,81 @@ function uniq(values: string[]): string[] {
     }
   }
   return out;
+}
+
+function extractMetaContent(html: string, selectors: string[]): string | null {
+  for (const selector of selectors) {
+    const pattern = new RegExp(
+      `<meta[^>]+(?:property|name)=["']${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+      'i',
+    );
+    const match = html.match(pattern);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return null;
+}
+
+function extractTitleTag(html: string): string | null {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return match?.[1]?.trim() || null;
+}
+
+function resolvePreviewUrl(rawUrl: string | null | undefined, sourceUrl: string): string | null {
+  const value = String(rawUrl || '').trim();
+  if (!value) return null;
+  try {
+    return new URL(value, sourceUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOpenGraphPreview(sourceUrl: string): Promise<{
+  imageUrl: string | null;
+  excerpt: string | null;
+  siteName: string | null;
+  title: string | null;
+}> {
+  try {
+    const res = await fetch(sourceUrl, {
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 (compatible; EdroDABot/1.0; +https://edro.digital)',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      return {
+        imageUrl: null,
+        excerpt: null,
+        siteName: null,
+        title: null,
+      };
+    }
+
+    const html = (await res.text()).slice(0, 250000);
+    const imageUrl = resolvePreviewUrl(
+      extractMetaContent(html, ['og:image', 'twitter:image', 'twitter:image:src']),
+      sourceUrl,
+    );
+    const excerpt =
+      extractMetaContent(html, ['og:description', 'description', 'twitter:description']) || null;
+    const siteName = extractMetaContent(html, ['og:site_name']) || null;
+    const title =
+      extractMetaContent(html, ['og:title', 'twitter:title']) ||
+      extractTitleTag(html) ||
+      null;
+
+    return { imageUrl, excerpt, siteName, title };
+  } catch {
+    return {
+      imageUrl: null,
+      excerpt: null,
+      siteName: null,
+      title: null,
+    };
+  }
 }
 
 function asRecord(value: any): Record<string, any> {
@@ -986,6 +1075,7 @@ async function fetchArtDirectionReferenceRecord(
        r.id,
        r.title,
        r.source_url,
+       r.image_url,
        r.platform,
        r.format,
        r.segment,
@@ -1024,6 +1114,90 @@ async function fetchArtDirectionReferenceRecord(
     style_tags: Array.isArray(rows[0].style_tags) ? rows[0].style_tags : [],
     composition_tags: Array.isArray(rows[0].composition_tags) ? rows[0].composition_tags : [],
     typography_tags: Array.isArray(rows[0].typography_tags) ? rows[0].typography_tags : [],
+  };
+}
+
+export async function getArtDirectionReferencePreview(params: {
+  tenantId: string;
+  id: string;
+}): Promise<ArtDirectionReferencePreview | null> {
+  const { rows } = await query<{
+    id: string;
+    title: string | null;
+    source_url: string;
+    image_url: string | null;
+    snippet: string | null;
+    domain: string | null;
+    metadata: any;
+    source_name: string | null;
+    source_type: string | null;
+  }>(
+    `SELECT
+       r.id,
+       r.title,
+       r.source_url,
+       r.image_url,
+       r.snippet,
+       r.domain,
+       COALESCE(r.metadata, '{}'::jsonb) AS metadata,
+       src.name AS source_name,
+       src.source_type
+     FROM da_references r
+     LEFT JOIN da_reference_sources src ON src.id = r.source_id
+    WHERE r.tenant_id = $1
+      AND r.id = $2
+    LIMIT 1`,
+    [params.tenantId, params.id],
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const metadata = asRecord(row.metadata);
+  let imageUrl = row.image_url || null;
+  let previewExcerpt = String(metadata.preview_excerpt || '').trim() || row.snippet || null;
+  let previewSiteName = String(metadata.preview_site_name || '').trim() || row.source_name || null;
+  let previewTitle = String(metadata.preview_title || '').trim() || row.title || null;
+
+  if (!imageUrl || !previewExcerpt || !previewSiteName) {
+    const preview = await fetchOpenGraphPreview(row.source_url);
+    imageUrl = imageUrl || preview.imageUrl || null;
+    previewExcerpt = previewExcerpt || preview.excerpt || null;
+    previewSiteName = previewSiteName || preview.siteName || null;
+    previewTitle = previewTitle || preview.title || null;
+
+    await query(
+      `UPDATE da_references
+          SET image_url = COALESCE($3, image_url),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
+              updated_at = now()
+        WHERE tenant_id = $1
+          AND id = $2`,
+      [
+        params.tenantId,
+        params.id,
+        imageUrl,
+        JSON.stringify({
+          preview_excerpt: previewExcerpt,
+          preview_site_name: previewSiteName,
+          preview_title: previewTitle,
+          preview_fetched_at: new Date().toISOString(),
+        }),
+      ],
+    ).catch(() => {});
+  }
+
+  return {
+    id: row.id,
+    title: previewTitle,
+    source_url: row.source_url,
+    image_url: imageUrl,
+    preview_excerpt: previewExcerpt,
+    preview_site_name: previewSiteName,
+    curated: row.source_type === 'site' || row.source_type === 'library',
+    source_name: row.source_name,
+    source_type: row.source_type,
+    domain: row.domain,
   };
 }
 
@@ -1370,7 +1544,7 @@ export async function listRelevantArtDirectionReferences(params: {
   values.push(Math.min(params.limit ?? 8, 20));
 
   const { rows } = await query(
-    `SELECT id, title, source_url, platform, format, segment, visual_intent, creative_direction,
+    `SELECT id, title, source_url, image_url, platform, format, segment, visual_intent, creative_direction,
             mood_words, style_tags, composition_tags, typography_tags, trend_score, confidence_score,
             rationale, discovered_at
        FROM da_references
@@ -1421,6 +1595,7 @@ export async function listArtDirectionReferences(params: {
        r.id,
        r.title,
        r.source_url,
+       r.image_url,
        r.platform,
        r.format,
        r.segment,

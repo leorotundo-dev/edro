@@ -18,6 +18,7 @@ import {
   createManualArtDirectionReference,
   discoverArtDirectionReferences,
   getArtDirectionMemoryStats,
+  getArtDirectionReferencePreview,
   getPrimaryArtDirectionReferenceId,
   listArtDirectionCanons,
   listArtDirectionReferenceSources,
@@ -148,6 +149,10 @@ const daReferenceListSchema = z.object({
   segment: z.string().optional(),
   statuses: z.array(daReferenceStatuses).max(4).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const daReferenceParamsSchema = z.object({
+  referenceId: z.string().uuid(),
 });
 
 const daReferenceCreateSchema = z.object({
@@ -588,6 +593,23 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     return reply.send({ success: true, references });
   });
 
+  app.get('/studio/creative/da-memory/references/:referenceId/preview', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const params = daReferenceParamsSchema.parse(request.params || {});
+    const preview = await getArtDirectionReferencePreview({
+      tenantId,
+      id: params.referenceId,
+    });
+
+    if (!preview) {
+      return reply.status(404).send({ success: false, error: 'Referência não encontrada' });
+    }
+
+    return reply.send({ success: true, preview });
+  });
+
   app.post('/studio/creative/da-memory/references', async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
@@ -624,7 +646,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
 
-    const params = z.object({ referenceId: z.string().uuid() }).parse(request.params || {});
+    const params = daReferenceParamsSchema.parse(request.params || {});
     const body = daReferenceUpdateSchema.parse(request.body || {});
     const reference = await updateArtDirectionReference({
       tenantId,

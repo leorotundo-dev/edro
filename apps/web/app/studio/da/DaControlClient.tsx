@@ -47,6 +47,7 @@ type Reference = {
   id: string;
   title: string;
   source_url: string;
+  image_url: string | null;
   platform: string | null;
   format: string | null;
   segment: string | null;
@@ -72,6 +73,19 @@ type ManagedReference = Reference & {
   source_type: string | null;
   snippet: string | null;
   analyzed_at: string | null;
+};
+
+type ReferencePreview = {
+  id: string;
+  title: string | null;
+  source_url: string;
+  image_url: string | null;
+  preview_excerpt: string | null;
+  preview_site_name: string | null;
+  curated: boolean;
+  source_name: string | null;
+  source_type: string | null;
+  domain: string | null;
 };
 
 type ReferenceSource = {
@@ -403,17 +417,40 @@ function toOptionalString(value: string) {
   return normalized || undefined;
 }
 
-function createReferenceDraft(reference: ManagedReference): ReferenceDraft {
+function getDomainLabel(url?: string | null) {
+  try {
+    return new URL(String(url || '')).hostname.replace(/^www\./, '');
+  } catch {
+    return String(url || '').trim() || 'fonte desconhecida';
+  }
+}
+
+function getReferenceSourceMeta(reference: {
+  source_url: string;
+  source_name?: string | null;
+  source_type?: string | null;
+  domain?: string | null;
+  curated?: boolean;
+}) {
+  const sourceName = reference.source_name || null;
+  const sourceType = reference.source_type || null;
+  const domain = reference.domain || getDomainLabel(reference.source_url);
+  const isCurated = typeof reference.curated === 'boolean'
+    ? reference.curated
+    : sourceType === 'site' || sourceType === 'library';
+
+  if (isCurated) {
+    return {
+      label: sourceName || domain,
+      helper: 'fonte curada da Edro',
+      color: 'success' as const,
+    };
+  }
+
   return {
-    title: reference.title || '',
-    source_url: reference.source_url || '',
-    platform: reference.platform || '',
-    format: reference.format || '',
-    segment: reference.segment || '',
-    visual_intent: reference.visual_intent || '',
-    creative_direction: reference.creative_direction || '',
-    rationale: reference.rationale || '',
-    status: reference.status,
+    label: domain || sourceName || 'web aberta',
+    helper: 'descoberta aberta',
+    color: 'default' as const,
   };
 }
 
@@ -426,6 +463,68 @@ function createSourceDraft(source?: ReferenceSource | null): SourceDraft {
     trust_score: source ? String(source.trust_score ?? 0.7) : '0.70',
     enabled: source?.enabled ?? true,
   };
+}
+
+function ReferenceVisualPreview({
+  title,
+  imageUrl,
+  excerpt,
+}: {
+  title: string;
+  imageUrl?: string | null;
+  excerpt?: string | null;
+}) {
+  if (imageUrl) {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: 3,
+          border: '1px solid rgba(15, 23, 42, 0.08)',
+          bgcolor: 'rgba(15, 23, 42, 0.04)',
+          aspectRatio: '16 / 10',
+          mb: 1.5,
+        }}
+      >
+        <Box
+          component="img"
+          src={imageUrl}
+          alt={title}
+          sx={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        mb: 1.5,
+        borderRadius: 3,
+        bgcolor: 'rgba(15, 23, 42, 0.03)',
+        minHeight: 160,
+        display: 'flex',
+        alignItems: 'center',
+      }}
+    >
+      <Box>
+        <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
+          Preview textual
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+          {excerpt || 'Ainda não conseguimos puxar imagem dessa fonte. A referência segue visível aqui pelo trecho extraído.'}
+        </Typography>
+      </Box>
+    </Paper>
+  );
 }
 
 function renderReferenceDraftFields({
@@ -571,8 +670,7 @@ export default function DaControlClient() {
   const [category, setCategory] = useState<string>('social media');
   const [mood, setMood] = useState<string>('');
   const [data, setData] = useState<MemoryResponse | null>(null);
-  const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
-  const [referenceDrafts, setReferenceDrafts] = useState<Record<string, ReferenceDraft>>({});
+  const [previewByReferenceId, setPreviewByReferenceId] = useState<Record<string, ReferencePreview>>({});
   const [savingReferenceId, setSavingReferenceId] = useState<string | null>(null);
   const [manualReference, setManualReference] = useState<ReferenceDraft>({
     title: '',
@@ -590,7 +688,7 @@ export default function DaControlClient() {
   const [sourceDrafts, setSourceDrafts] = useState<Record<string, SourceDraft>>({});
   const [savingSourceId, setSavingSourceId] = useState<string | null>(null);
   const [newSource, setNewSource] = useState<SourceDraft>(createSourceDraft());
-  const [creatingSource, setCreatingSource] = useState(false);
+  const [canonQuery, setCanonQuery] = useState<string>('');
 
   useEffect(() => {
     const fromQuery = searchParams?.get('clientId') || '';
@@ -703,6 +801,40 @@ export default function DaControlClient() {
     }
   };
 
+  const ensureReferencePreview = useCallback(async (reference: Reference | ManagedReference) => {
+    if (previewByReferenceId[reference.id]) return;
+    if (reference.image_url) {
+      setPreviewByReferenceId((current) => ({
+        ...current,
+        [reference.id]: {
+          id: reference.id,
+          title: reference.title,
+          source_url: reference.source_url,
+          image_url: reference.image_url,
+          preview_excerpt: null,
+          preview_site_name: null,
+          curated: false,
+          source_name: null,
+          source_type: null,
+          domain: getDomainLabel(reference.source_url),
+        },
+      }));
+      return;
+    }
+
+    try {
+      const response = await apiGet<{ success: boolean; preview: ReferencePreview }>(
+        `/studio/creative/da-memory/references/${reference.id}/preview`,
+      );
+      setPreviewByReferenceId((current) => ({
+        ...current,
+        [reference.id]: response.preview,
+      }));
+    } catch {
+      // best-effort: keep card renderable without preview
+    }
+  }, [previewByReferenceId]);
+
   const patchJson = useCallback(async <T,>(path: string, body: Record<string, unknown>) => {
     const response = await fetch(`/api/proxy${path}`, {
       method: 'PATCH',
@@ -719,42 +851,6 @@ export default function DaControlClient() {
     return payload as T;
   }, []);
 
-  const beginEditReference = useCallback((reference: ManagedReference) => {
-    setEditingReferenceId(reference.id);
-    setReferenceDrafts((current) => ({
-      ...current,
-      [reference.id]: current[reference.id] || createReferenceDraft(reference),
-    }));
-  }, []);
-
-  const saveReferenceDraft = useCallback(async (referenceId: string) => {
-    const draft = referenceDrafts[referenceId];
-    if (!draft) return;
-    setSavingReferenceId(referenceId);
-    setError('');
-    setSuccess('');
-    try {
-      await patchJson<{ success: boolean; reference: ManagedReference }>(`/studio/creative/da-memory/references/${referenceId}`, {
-        title: toOptionalString(draft.title),
-        source_url: toOptionalString(draft.source_url),
-        platform: toOptionalString(draft.platform) ?? null,
-        format: toOptionalString(draft.format) ?? null,
-        segment: toOptionalString(draft.segment) ?? null,
-        visual_intent: toOptionalString(draft.visual_intent) ?? null,
-        creative_direction: toOptionalString(draft.creative_direction) ?? null,
-        rationale: toOptionalString(draft.rationale) ?? null,
-        status: draft.status,
-      });
-      setSuccess('Referência atualizada.');
-      setEditingReferenceId(null);
-      await load();
-    } catch (err: any) {
-      setError(err?.message || 'Falha ao salvar referência');
-    } finally {
-      setSavingReferenceId(null);
-    }
-  }, [load, patchJson, referenceDrafts]);
-
   const quickUpdateReferenceStatus = useCallback(async (referenceId: string, status: ManagedReference['status']) => {
     setSavingReferenceId(referenceId);
     setError('');
@@ -763,7 +859,25 @@ export default function DaControlClient() {
       await patchJson<{ success: boolean; reference: ManagedReference }>(`/studio/creative/da-memory/references/${referenceId}`, {
         status,
       });
-      setSuccess(`Referência movida para ${status}.`);
+      if (status === 'analyzed' || status === 'rejected') {
+        await apiPost('/studio/creative/da-memory/feedback', {
+          client_id: clientId || undefined,
+          reference_id: referenceId,
+          event_type: status === 'analyzed' ? 'approved' : 'rejected',
+          metadata: {
+            source: 'studio_da_training_queue',
+            platform,
+            segment,
+          },
+        }).catch(() => {});
+      }
+      setSuccess(
+        status === 'analyzed'
+          ? 'Referência aceita e incorporada ao repertório vivo.'
+          : status === 'rejected'
+          ? 'Referência rejeitada e removida da fila de treino.'
+          : `Referência movida para ${status}.`,
+      );
       await load();
     } catch (err: any) {
       setError(err?.message || 'Falha ao atualizar status da referência');
@@ -854,6 +968,7 @@ export default function DaControlClient() {
   const stats = data?.stats;
   const pendingReferences = data?.pendingReferences ?? [];
   const rejectedReferences = data?.rejectedReferences ?? [];
+  const analyzedReferences = data?.references ?? [];
   const sources = data?.sources ?? [];
   const canons = data?.canons ?? [];
   const activeSources = useMemo(() => sources.filter((source) => source.enabled).length, [sources]);
@@ -874,6 +989,40 @@ export default function DaControlClient() {
     () => canonGroups.filter((group) => (group.canon?.active_entries ?? group.concepts.length) > 0).length,
     [canonGroups],
   );
+  const filteredCanonGroups = useMemo(() => {
+    const normalizedQuery = canonQuery.trim().toLowerCase();
+    if (!normalizedQuery) return canonGroups;
+    return canonGroups
+      .map((group) => {
+        const filteredEntries = (group.canon?.entries ?? []).filter((entry) =>
+          [entry.title, entry.slug, entry.definition, ...(entry.heuristics || []), ...(entry.examples || [])]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedQuery),
+        );
+        const filteredConcepts = group.concepts.filter((concept) =>
+          [concept.title, concept.slug, concept.definition, ...(concept.heuristics || []), ...(concept.examples || [])]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedQuery),
+        );
+        const coverageMatch = group.coverage.some((item) => item.toLowerCase().includes(normalizedQuery));
+        return {
+          ...group,
+          canon: group.canon ? { ...group.canon, entries: filteredEntries } : null,
+          concepts: filteredConcepts,
+          hidden: !coverageMatch && !filteredEntries.length && !filteredConcepts.length,
+        };
+      })
+      .filter((group) => !group.hidden);
+  }, [canonGroups, canonQuery]);
+
+  useEffect(() => {
+    const candidates = [...pendingReferences.slice(0, 12), ...analyzedReferences.slice(0, 8)];
+    for (const reference of candidates) {
+      void ensureReferencePreview(reference);
+    }
+  }, [analyzedReferences, ensureReferencePreview, pendingReferences]);
 
   const nextStep = useMemo(() => {
     if (!stats) return 'Carregando status do pipeline.';
@@ -1062,7 +1211,7 @@ export default function DaControlClient() {
 
         <SectionCard
           title="Curadoria de referências"
-          subtitle="Aqui você revisa a fila descoberta, reclassifica descartes e limpa a memória antes da análise final."
+          subtitle="Aqui você vê a referência dentro da Edro e decide se ela ensina o bot ou se sai do repertório."
           eyebrow="Ingestão"
           tone="#13DEB9"
         >
@@ -1074,10 +1223,10 @@ export default function DaControlClient() {
                 <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2} mb={2}>
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                      Fila descoberta
+                      Fila para ensino
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Referências capturadas que ainda não passaram pela análise final.
+                      Referências recém-capturadas. O gesto principal aqui é binário: entra no repertório da Edro ou sai.
                     </Typography>
                   </Box>
                   <Chip color="warning" variant="outlined" label={`${pendingReferences.length} na fila`} />
@@ -1091,9 +1240,9 @@ export default function DaControlClient() {
                 ) : (
                   <Grid container spacing={2}>
                     {pendingReferences.map((reference) => {
-                      const draft = referenceDrafts[reference.id] || createReferenceDraft(reference);
-                      const isEditing = editingReferenceId === reference.id;
                       const isSaving = savingReferenceId === reference.id;
+                      const preview = previewByReferenceId[reference.id];
+                      const sourceMeta = getReferenceSourceMeta(preview || reference);
 
                       return (
                         <Grid key={reference.id} size={{ xs: 12, xl: 6 }}>
@@ -1103,15 +1252,15 @@ export default function DaControlClient() {
                                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                                   {reference.title || 'Sem título'}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {reference.source_name || reference.domain || 'fonte não classificada'}
-                                  {reference.search_query ? ` • ${reference.search_query}` : ''}
-                                  {' • '}
-                                  {timeAgo(reference.discovered_at)}
-                                </Typography>
+                                <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                                  <Chip size="small" color={sourceMeta.color} variant="outlined" label={sourceMeta.helper} />
+                                  <Chip size="small" variant="outlined" label={sourceMeta.label} />
+                                  {reference.search_query ? <Chip size="small" variant="outlined" label={reference.search_query} /> : null}
+                                  <Chip size="small" variant="outlined" label={timeAgo(reference.discovered_at)} />
+                                </Stack>
                               </Box>
                               <Stack direction="row" gap={1} flexWrap="wrap">
-                                <Chip size="small" color="warning" label={reference.status} />
+                                <Chip size="small" color="warning" label="na fila" />
                                 <Button
                                   size="small"
                                   component={Link}
@@ -1120,63 +1269,45 @@ export default function DaControlClient() {
                                   rel="noopener noreferrer"
                                   endIcon={<IconArrowUpRight size={14} />}
                                 >
-                                  Abrir
+                                  Ver fonte
                                 </Button>
                               </Stack>
                             </Stack>
 
-                            {isEditing ? (
-                              <Stack spacing={1.5}>
-                                {renderReferenceDraftFields({
-                                  draft,
-                                  compact: true,
-                                  onChange: (patch) =>
-                                    setReferenceDrafts((current) => ({
-                                      ...current,
-                                      [reference.id]: {
-                                        ...(current[reference.id] || createReferenceDraft(reference)),
-                                        ...patch,
-                                      },
-                                    })),
-                                })}
-                                <Stack direction="row" gap={1} flexWrap="wrap">
-                                  <Button
-                                    variant="contained"
-                                    size="small"
-                                    onClick={() => void saveReferenceDraft(reference.id)}
-                                    disabled={isSaving}
-                                  >
-                                    {isSaving ? 'Salvando...' : 'Salvar'}
-                                  </Button>
-                                  <Button variant="outlined" size="small" onClick={() => setEditingReferenceId(null)} disabled={isSaving}>
-                                    Cancelar
-                                  </Button>
-                                </Stack>
-                              </Stack>
-                            ) : (
-                              <>
-                                <Typography variant="body2" color="text.secondary">
-                                  {reference.snippet || reference.rationale || 'Sem snippet salvo nesta descoberta.'}
-                                </Typography>
-                                <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
-                                  <Chip size="small" label={reference.platform || 'geral'} />
-                                  {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
-                                  {reference.visual_intent ? <Chip size="small" variant="outlined" label={reference.visual_intent} /> : null}
-                                </Stack>
-                                <Divider sx={{ my: 1.5 }} />
-                                <Stack direction="row" gap={1} flexWrap="wrap">
-                                  <Button size="small" variant="outlined" onClick={() => beginEditReference(reference)}>
-                                    Editar
-                                  </Button>
-                                  <Button size="small" onClick={() => void quickUpdateReferenceStatus(reference.id, 'analyzed')} disabled={isSaving}>
-                                    Marcar analisada
-                                  </Button>
-                                  <Button size="small" color="error" onClick={() => void quickUpdateReferenceStatus(reference.id, 'rejected')} disabled={isSaving}>
-                                    Rejeitar
-                                  </Button>
-                                </Stack>
-                              </>
-                            )}
+                            <ReferenceVisualPreview
+                              title={preview?.title || reference.title || 'Referência'}
+                              imageUrl={preview?.image_url || reference.image_url}
+                              excerpt={preview?.preview_excerpt || reference.snippet || reference.rationale}
+                            />
+
+                            <Typography variant="body2" color="text.secondary">
+                              {preview?.preview_excerpt || reference.snippet || reference.rationale || 'Sem resumo salvo nesta descoberta.'}
+                            </Typography>
+                            <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
+                              <Chip size="small" label={reference.platform || 'geral'} />
+                              {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
+                              {reference.visual_intent ? <Chip size="small" variant="outlined" label={reference.visual_intent} /> : null}
+                            </Stack>
+                            <Divider sx={{ my: 1.5 }} />
+                            <Stack direction="row" gap={1} flexWrap="wrap">
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={() => void quickUpdateReferenceStatus(reference.id, 'analyzed')}
+                                disabled={isSaving}
+                              >
+                                Aceitar
+                              </Button>
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => void quickUpdateReferenceStatus(reference.id, 'rejected')}
+                                disabled={isSaving}
+                              >
+                                Rejeitar
+                              </Button>
+                            </Stack>
                           </Paper>
                         </Grid>
                       );
@@ -1555,10 +1686,20 @@ export default function DaControlClient() {
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
-              title="Biblioteca de ensino do bot"
-              subtitle="Aqui fica o conteúdo supra-cliente que ensina como o diretor de arte da Edro pensa, referencia e critica."
+              title="Teoria, estudo e canons da Edro"
+              subtitle="Esta é a biblioteca supra-cliente onde a Edro aprofunda fundamentos, tipografia, história, formatos e crítica para ensinar o bot DA."
               eyebrow="Canon"
               tone="#5D87FF"
+              action={(
+                <TextField
+                  size="small"
+                  label="Buscar na teoria"
+                  value={canonQuery}
+                  onChange={(e) => setCanonQuery(e.target.value)}
+                  placeholder="gestalt, bauhaus, tipografia..."
+                  sx={{ minWidth: { xs: 180, md: 260 } }}
+                />
+              )}
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -1578,14 +1719,28 @@ export default function DaControlClient() {
                     }}
                   >
                     <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                      Como ensinar o bot
+                      Como a Edro ensina o bot
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Primeiro a Edro define os canons. Depois o motor absorve referências, detecta tendências e só então aplica
-                      recortes de cliente. Cliente não cria canon; cliente só testa a aplicação do canon.
+                      Primeiro a Edro define teoria, critérios e repertório. Depois o motor absorve referências e tendências.
+                      Só no fim ele aplica isso a clientes específicos.
                     </Typography>
                   </Paper>
-                  {canonGroups.map((group) => (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
+                      bgcolor: 'rgba(15, 23, 42, 0.02)',
+                    }}
+                  >
+                    <Stack direction="row" gap={1} flexWrap="wrap">
+                      <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.total_entries, 0)} tópicos catalogados`} />
+                      <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.active_entries, 0)} ativos`} />
+                      <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.draft_entries, 0)} em curadoria`} />
+                    </Stack>
+                  </Paper>
+                  {filteredCanonGroups.map((group) => (
                     <Paper key={group.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
                       <Stack direction="row" justifyContent="space-between" gap={2} mb={1}>
                         <Box>
@@ -1663,6 +1818,12 @@ export default function DaControlClient() {
                       )}
                     </Paper>
                   ))}
+                  {!filteredCanonGroups.length ? (
+                    <EmptySection
+                      title="Nenhum tópico encontrado nessa busca."
+                      description="Tente buscar por um movimento, conceito ou formato para localizar onde ele está dentro dos canons da Edro."
+                    />
+                  ) : null}
                 </Stack>
               )}
             </SectionCard>
@@ -1728,7 +1889,7 @@ export default function DaControlClient() {
 
         <SectionCard
           title="Repertório analisado"
-          subtitle="Referências que o bot já absorveu e pode reutilizar como repertório vivo."
+          subtitle="Referências aceitas pela Edro e já transformadas em repertório visual reaproveitável."
           eyebrow="Memória Viva"
           tone="#13DEB9"
         >
@@ -1765,52 +1926,74 @@ export default function DaControlClient() {
             />
           ) : (
             <Grid container spacing={2}>
-              {(data?.references ?? []).map((reference) => (
-                <Grid key={reference.id} size={{ xs: 12, xl: 6 }}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
-                    <Stack direction="row" justifyContent="space-between" gap={2}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          {reference.title}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {reference.platform || 'geral'}{reference.format ? ` • ${reference.format}` : ''}{reference.segment ? ` • ${reference.segment}` : ''} • {timeAgo(reference.discovered_at)}
-                        </Typography>
-                      </Box>
-                      <Button
-                        size="small"
-                        component={Link}
-                        href={reference.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        endIcon={<IconArrowUpRight size={14} />}
-                      >
-                        Abrir
-                      </Button>
-                    </Stack>
+              {analyzedReferences.map((reference) => {
+                const preview = previewByReferenceId[reference.id];
+                const sourceMeta = getReferenceSourceMeta(preview || {
+                  ...reference,
+                  curated: false,
+                  source_name: null,
+                  source_type: null,
+                  domain: getDomainLabel(reference.source_url),
+                });
 
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      {reference.rationale || reference.creative_direction || reference.visual_intent || 'Sem racional salvo.'}
-                    </Typography>
+                return (
+                  <Grid key={reference.id} size={{ xs: 12, xl: 6 }}>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                      <Stack direction="row" justifyContent="space-between" gap={2}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            {reference.title}
+                          </Typography>
+                          <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                            <Chip size="small" color={sourceMeta.color} variant="outlined" label={sourceMeta.helper} />
+                            <Chip size="small" variant="outlined" label={sourceMeta.label} />
+                            <Chip size="small" variant="outlined" label={timeAgo(reference.discovered_at)} />
+                          </Stack>
+                        </Box>
+                        <Button
+                          size="small"
+                          component={Link}
+                          href={reference.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          endIcon={<IconArrowUpRight size={14} />}
+                        >
+                          Ver fonte
+                        </Button>
+                      </Stack>
 
-                    <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
-                      {(uniqueTags(reference)).map((tag) => (
-                        <Chip key={tag} size="small" variant="outlined" label={tag} />
-                      ))}
-                    </Stack>
+                      <ReferenceVisualPreview
+                        title={preview?.title || reference.title}
+                        imageUrl={preview?.image_url || reference.image_url}
+                        excerpt={preview?.preview_excerpt || reference.rationale}
+                      />
 
-                    <Divider sx={{ my: 1.5 }} />
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {reference.rationale || reference.creative_direction || reference.visual_intent || 'Sem racional salvo.'}
+                      </Typography>
 
-                    <Stack direction="row" gap={1} flexWrap="wrap">
-                      <Chip size="small" label={`trend ${Number(reference.trend_score || 0).toFixed(0)}`} />
-                      <Chip size="small" label={`confidence ${Number(reference.confidence_score || 0).toFixed(2)}`} />
-                      <Button size="small" onClick={() => void sendFeedback(reference.id, 'used')}>Usada</Button>
-                      <Button size="small" onClick={() => void sendFeedback(reference.id, 'approved')}>Aprovada</Button>
-                      <Button size="small" color="error" onClick={() => void sendFeedback(reference.id, 'rejected')}>Ruim</Button>
-                    </Stack>
-                  </Paper>
-                </Grid>
-              ))}
+                      <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
+                        <Chip size="small" label={reference.platform || 'geral'} />
+                        {reference.format ? <Chip size="small" variant="outlined" label={reference.format} /> : null}
+                        {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
+                        {(uniqueTags(reference)).map((tag) => (
+                          <Chip key={tag} size="small" variant="outlined" label={tag} />
+                        ))}
+                      </Stack>
+
+                      <Divider sx={{ my: 1.5 }} />
+
+                      <Stack direction="row" gap={1} flexWrap="wrap">
+                        <Chip size="small" label={`trend ${Number(reference.trend_score || 0).toFixed(0)}`} />
+                        <Chip size="small" label={`confidence ${Number(reference.confidence_score || 0).toFixed(2)}`} />
+                        <Button size="small" onClick={() => void sendFeedback(reference.id, 'used')}>Usada</Button>
+                        <Button size="small" onClick={() => void sendFeedback(reference.id, 'approved')}>Aprovada</Button>
+                        <Button size="small" color="error" onClick={() => void sendFeedback(reference.id, 'rejected')}>Ruim</Button>
+                      </Stack>
+                    </Paper>
+                  </Grid>
+                );
+              })}
             </Grid>
           )}
         </SectionCard>
