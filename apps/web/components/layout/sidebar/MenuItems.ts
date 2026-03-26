@@ -7,7 +7,6 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconUserCircle,
-  IconAddressBook,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -77,12 +76,6 @@ const MenuItems: MenuGroupType[] = [
         title: 'Financeiro',
         icon: IconCurrencyDollar,
         href: '/financeiro',
-      },
-      {
-        id: 'contatos',
-        title: 'Contatos',
-        icon: IconAddressBook,
-        href: '/contatos',
       },
       {
         id: 'equipe',
