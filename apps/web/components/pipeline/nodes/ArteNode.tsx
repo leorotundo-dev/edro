@@ -93,7 +93,7 @@ export default function ArteNode() {
   const {
     arteGenerating, artDirLayout, arteImageUrl, arteImageUrls,
     selectedArteIdx, setSelectedArteIdx, arteApproved, arteError,
-    handleGenerateArte, useArte, editArte, selectedTrigger, nodeStatus,
+    handleGenerateArte, useArte: applyArte, editArte, selectedTrigger, nodeStatus,
     addOptionalNode, activeNodeIds,
     arteChainResult, arteChainStep, handleGenerateArteChain,
     copyOptions, selectedCopyIdx,
@@ -172,7 +172,7 @@ export default function ArteNode() {
       });
       const data = await res.json();
       if (data.success && data.imageUrl) {
-        useArte(data.imageUrl);
+        applyArte(data.imageUrl);
         setShowStylePanel(false);
         setShowInpaintPanel(false);
         setInpaintPrompt('');
@@ -198,7 +198,7 @@ export default function ArteNode() {
         body: JSON.stringify({ imageUrl: currentUrl }),
       });
       const data = await res.json();
-      if (data.success && data.imageUrl) useArte(data.imageUrl);
+      if (data.success && data.imageUrl) applyArte(data.imageUrl);
       else setEditError(data.error || 'Erro ao remover fundo');
     } catch { setEditError('Erro de conexão'); }
     finally { setRemoveBgLoading(false); }
@@ -216,7 +216,7 @@ export default function ArteNode() {
         body: JSON.stringify({ imageUrl: currentUrl }),
       });
       const data = await res.json();
-      if (data.success && data.imageUrl) useArte(data.imageUrl);
+      if (data.success && data.imageUrl) applyArte(data.imageUrl);
       else setEditError(data.error || 'Erro ao fazer upscale');
     } catch { setEditError('Erro de conexão'); }
     finally { setUpscaleLoading(false); }
@@ -639,7 +639,7 @@ export default function ArteNode() {
                     {arteChainResult.multiFormat.map((mf) => (
                       <Tooltip key={mf.format} title={`Usar ${mf.format}`} placement="top">
                         <Box
-                          onClick={() => useArte(mf.imageUrl)}
+                          onClick={() => applyArte(mf.imageUrl)}
                           sx={{ borderRadius: 1.5, overflow: 'hidden', cursor: 'pointer', position: 'relative',
                             border: '1px solid #22C55E33',
                             '&:hover': { borderColor: '#22C55E', boxShadow: '0 0 0 2px #22C55E22' },
@@ -663,7 +663,7 @@ export default function ArteNode() {
                     ))}
                   </Box>
                   <Button size="small" fullWidth variant="outlined"
-                    onClick={() => useArte(arteImageUrls[selectedArteIdx] || arteChainResult!.imageUrl)}
+                    onClick={() => applyArte(arteImageUrls[selectedArteIdx] || arteChainResult!.imageUrl)}
                     sx={{ mt: 0.75, textTransform: 'none', fontSize: '0.58rem', borderColor: '#22C55E44', color: '#22C55E',
                       '&:hover': { borderColor: '#22C55E', bgcolor: 'rgba(34,197,94,0.06)' } }}
                     startIcon={<IconCheck size={11} />}
@@ -819,7 +819,7 @@ export default function ArteNode() {
                 <Stack spacing={0.5}>
                   {/* Approve */}
                   <Button variant="contained" size="small" fullWidth
-                    onClick={() => useArte(arteImageUrls[selectedArteIdx])}
+                    onClick={() => applyArte(arteImageUrls[selectedArteIdx])}
                     startIcon={<IconCheck size={11} />}
                     sx={{ bgcolor: '#13DEB9', color: '#000', fontWeight: 700, fontSize: '0.65rem',
                       textTransform: 'none', '&:hover': { bgcolor: '#0fb89e' }, justifyContent: 'flex-start', px: 1.25 }}

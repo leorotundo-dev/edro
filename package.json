@@ -39,13 +39,14 @@
       "undici": ">=7.24.0",
       "underscore": ">=1.13.8",
       "bn.js": ">=4.12.3",
-      "ajv": ">=8.18.0",
       "diff": ">=4.0.4"
     }
   },
   "devDependencies": {
+    "ajv": "^6.12.6",
     "@playwright/test": "^1.58.2",
     "@vitest/coverage-v8": "^4.0.18",
+    "cross-env": "^7.0.3",
     "vitest": "^4.0.18"
   }
 }
