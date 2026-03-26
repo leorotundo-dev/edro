@@ -41,6 +41,7 @@ import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
 import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
 import { runArtDirectionReferenceWorkerOnce } from './artDirectionReferenceWorker';
 import { runArtDirectionTrendWorkerOnce } from './artDirectionTrendWorker';
+import { runWebhookRetryWorkerOnce } from './webhookRetryWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -161,4 +162,6 @@ export function startJobsRunner() {
   startWorkerLoop('artDirectionReference', runArtDirectionReferenceWorkerOnce, 20500, 180_000);
   // Art Direction Trend Memory — opt-in, analyzes discovered references and consolidates snapshots daily
   startWorkerLoop('artDirectionTrend', runArtDirectionTrendWorkerOnce, 21000, 300_000);
+  // Webhook Retry — retries failed WhatsApp/Instagram/Recall events with exponential backoff (max 3 attempts)
+  startWorkerLoop('webhookRetry', runWebhookRetryWorkerOnce, 21500, 30_000);
 }
