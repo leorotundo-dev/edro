@@ -306,65 +306,99 @@ export default async function clientsRoutes(app: FastifyInstance) {
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id;
 
-      const [clientsRes, unlinkedRes] = await Promise.all([
-        query<any>(
-          `SELECT
-             c.id, c.name, c.segment_primary, c.country, c.uf, c.city, c.status,
-             0::int AS pending_posts,
-             NULL::numeric AS approval_rate,
-             0::int AS urgent_tasks,
-             COALESCE(c.intelligence_score, 0)::int AS intelligence_score,
-             c.updated_at,
-             c.profile->>'logo_url' AS logo_url,
-             c.profile,
-             hs.score     AS health_score,
-             hs.trend     AS health_trend,
-             pb.id        AS board_id,
-             pb.name      AS board_name,
-             pb.trello_board_id AS board_trello_id,
-             pb.last_synced_at  AS board_synced_at,
-             COALESCE(pb.card_count, 0)::int AS board_card_count
-           FROM clients c
-           LEFT JOIN LATERAL (
-             SELECT score, trend
-             FROM client_health_scores
-             WHERE client_id = c.id
-             ORDER BY period_date DESC
-             LIMIT 1
-           ) hs ON true
-           LEFT JOIN LATERAL (
-             SELECT b.id, b.name, b.trello_board_id, b.last_synced_at,
-                    COUNT(cards.id)::int AS card_count
-             FROM project_boards b
-             LEFT JOIN project_cards cards ON cards.board_id = b.id AND cards.is_archived = false
-             WHERE b.client_id = c.id::text
-               AND b.tenant_id = $1
-               AND b.is_archived = false
-             GROUP BY b.id
-             ORDER BY b.updated_at DESC
-             LIMIT 1
-           ) pb ON true
-           WHERE c.tenant_id = $1
-           ORDER BY c.updated_at DESC NULLS LAST, c.name ASC`,
-          [tenantId],
-        ),
-        query<any>(
-          `SELECT b.id, b.name, b.description, b.trello_board_id, b.last_synced_at,
+      // Full query: includes health scores + Trello board info (requires project_boards migration)
+      const fullQuery = `SELECT
+           c.id, c.name, c.segment_primary, c.country, c.uf, c.city, c.status,
+           0::int AS pending_posts,
+           NULL::numeric AS approval_rate,
+           0::int AS urgent_tasks,
+           COALESCE(c.intelligence_score, 0)::int AS intelligence_score,
+           c.updated_at,
+           c.profile->>'logo_url' AS logo_url,
+           c.profile,
+           hs.score     AS health_score,
+           hs.trend     AS health_trend,
+           pb.id        AS board_id,
+           pb.name      AS board_name,
+           pb.trello_board_id AS board_trello_id,
+           pb.last_synced_at  AS board_synced_at,
+           COALESCE(pb.card_count, 0)::int AS board_card_count
+         FROM clients c
+         LEFT JOIN LATERAL (
+           SELECT score, trend
+           FROM client_health_scores
+           WHERE client_id = c.id
+           ORDER BY period_date DESC
+           LIMIT 1
+         ) hs ON true
+         LEFT JOIN LATERAL (
+           SELECT b.id, b.name, b.trello_board_id, b.last_synced_at,
                   COUNT(cards.id)::int AS card_count
            FROM project_boards b
            LEFT JOIN project_cards cards ON cards.board_id = b.id AND cards.is_archived = false
-           WHERE b.tenant_id = $1
-             AND (b.client_id IS NULL OR b.client_id = '')
+           WHERE b.client_id = c.id::text
+             AND b.tenant_id = $1
              AND b.is_archived = false
            GROUP BY b.id
-           ORDER BY b.updated_at DESC`,
-          [tenantId],
-        ),
-      ]);
+           ORDER BY b.updated_at DESC
+           LIMIT 1
+         ) pb ON true
+         WHERE c.tenant_id = $1
+         ORDER BY c.updated_at DESC NULLS LAST, c.name ASC`;
+
+      // Fallback query: just clients, no board or health info (production-safe)
+      const simpleQuery = `SELECT
+           c.id, c.name, c.segment_primary, c.country, c.uf, c.city, c.status,
+           0::int AS pending_posts,
+           NULL::numeric AS approval_rate,
+           0::int AS urgent_tasks,
+           COALESCE(c.intelligence_score, 0)::int AS intelligence_score,
+           c.updated_at,
+           c.profile->>'logo_url' AS logo_url,
+           c.profile,
+           NULL::numeric AS health_score,
+           NULL::text AS health_trend,
+           NULL::uuid AS board_id,
+           NULL::text AS board_name,
+           NULL::text AS board_trello_id,
+           NULL::timestamptz AS board_synced_at,
+           0::int AS board_card_count
+         FROM clients c
+         WHERE c.tenant_id = $1
+         ORDER BY c.updated_at DESC NULLS LAST, c.name ASC`;
+
+      let clientRows: any[] = [];
+      let unlinkedRows: any[] = [];
+
+      try {
+        const [clientsRes, unlinkedRes] = await Promise.all([
+          query<any>(fullQuery, [tenantId]),
+          query<any>(
+            `SELECT b.id, b.name, b.description, b.trello_board_id, b.last_synced_at,
+                    COUNT(cards.id)::int AS card_count
+             FROM project_boards b
+             LEFT JOIN project_cards cards ON cards.board_id = b.id AND cards.is_archived = false
+             WHERE b.tenant_id = $1
+               AND (b.client_id IS NULL OR b.client_id = '')
+               AND b.is_archived = false
+             GROUP BY b.id
+             ORDER BY b.updated_at DESC`,
+            [tenantId],
+          ),
+        ]);
+        clientRows = clientsRes.rows;
+        unlinkedRows = unlinkedRes.rows;
+      } catch (err: any) {
+        // project_boards or client_health_scores table may not exist yet — fall back to simple query
+        request.log.warn({ err: err?.message }, '[clients/overview] full query failed, falling back to simple query');
+        const clientsRes = await query<any>(simpleQuery, [tenantId]);
+        clientRows = clientsRes.rows;
+        unlinkedRows = [];
+      }
 
       return reply.send({
-        clients: clientsRes.rows,
-        unlinked_boards: unlinkedRes.rows,
+        clients: clientRows,
+        unlinked_boards: unlinkedRows,
       });
     }
   );
