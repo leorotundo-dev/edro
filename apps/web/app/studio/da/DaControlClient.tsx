@@ -467,7 +467,6 @@ export default function DaControlClient() {
   const [error, setError] = useState<string>('');
   const [warning, setWarning] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
   const [clientId, setClientId] = useState<string>('');
   const [platform, setPlatform] = useState<string>('Instagram');
   const [segment, setSegment] = useState<string>('');
@@ -505,7 +504,6 @@ export default function DaControlClient() {
       const selected = JSON.parse(window.localStorage.getItem('edro_selected_clients') || '[]') as StoredClient[];
       const activeId = window.localStorage.getItem('edro_active_client_id') || '';
       const found = selected.find((client) => client.id === activeId) || selected[0] || null;
-      setActiveClient(found);
       if (found?.id) setClientId(found.id);
       if (found?.segment) {
         setSegment(found.segment);
@@ -763,6 +761,7 @@ export default function DaControlClient() {
   const pendingReferences = data?.pendingReferences ?? [];
   const rejectedReferences = data?.rejectedReferences ?? [];
   const sources = data?.sources ?? [];
+  const activeSources = useMemo(() => sources.filter((source) => source.enabled).length, [sources]);
 
   const nextStep = useMemo(() => {
     if (!stats) return 'Carregando status do pipeline.';
@@ -802,16 +801,16 @@ export default function DaControlClient() {
         {success ? <Alert severity="success">{success}</Alert> : null}
 
         <Grid container spacing={2.5}>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Canon ativo"
               value={data?.concepts?.length ?? 0}
-              subtitle="conceitos relevantes no recorte atual"
+              subtitle="conceitos-base do DA da Edro"
               icon={<IconBrain size={20} />}
               color="#5D87FF"
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Memória de referência"
               value={stats?.references?.analyzed ?? data?.references?.length ?? 0}
@@ -824,7 +823,7 @@ export default function DaControlClient() {
               color="#13DEB9"
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Trend radar"
               value={stats?.trends?.snapshots ?? data?.trends?.length ?? 0}
@@ -839,11 +838,11 @@ export default function DaControlClient() {
               color="#FFAE1F"
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
-              title="Cliente em foco"
-              value={activeClient?.name || (clientId ? 'Selecionado' : 'Global')}
-              subtitle={segment || activeClient?.segment || 'sem segmentação'}
+              title="Fontes ativas"
+              value={activeSources}
+              subtitle={sources.length ? `${sources.length} fontes cadastradas na Edro` : 'cadastre sites de referência da Edro'}
               icon={<IconTargetArrow size={20} />}
               color="#FA896B"
             />
@@ -1027,7 +1026,7 @@ export default function DaControlClient() {
 
         <SectionCard
           title="Controle do motor"
-          subtitle="Ajuste o recorte, force ingestão e reanalise o que o sistema já aprendeu."
+          subtitle="O cérebro é da Edro. Cliente, plataforma e segmento servem só como recorte de aplicação e pesquisa."
           action={
             <Stack direction="row" spacing={1}>
               <Button
@@ -1053,10 +1052,10 @@ export default function DaControlClient() {
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
-                label="Client ID"
+                label="Cliente opcional"
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
-                placeholder="id do cliente"
+                placeholder="id do cliente para recorte"
               />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
@@ -1110,10 +1109,11 @@ export default function DaControlClient() {
                 }}
               >
                 <Typography variant="caption" color="text.secondary">
-                  O motor combina três camadas:
+                  O motor parte do canon da Edro e aplica o recorte em cima disso:
                 </Typography>
                 <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
-                  <Chip size="small" label="Design Canon" />
+                  <Chip size="small" label="Canon Edro" />
+                  <Chip size="small" label="Estética do Cliente" />
                   <Chip size="small" label="Reference Memory" />
                   <Chip size="small" label="Trend Memory" />
                   <Chip size="small" label="Feedback Loop" />
