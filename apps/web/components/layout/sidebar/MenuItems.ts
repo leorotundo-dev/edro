@@ -8,6 +8,7 @@ import {
   IconUsersGroup,
   IconUserCircle,
   IconRadar,
+  IconChartBar,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -36,6 +37,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Operações',
         icon: IconLayoutDashboard,
         href: '/admin/operacoes',
+      },
+      {
+        id: 'insights',
+        title: 'Relatórios',
+        icon: IconChartBar,
+        href: '/admin/trello/insights',
       },
       {
         id: 'clients',

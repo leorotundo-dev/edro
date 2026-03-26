@@ -33,6 +33,7 @@ import {
   IconClockHour4,
   IconList,
   IconUsers,
+  IconChartBar,
 } from '@tabler/icons-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -366,10 +367,21 @@ export default function TrelloAdminClient() {
   return (
     <AppShell title="Integração Trello">
       <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1000, mx: 'auto' }}>
-        <Stack direction="row" alignItems="center" spacing={1.5} mb={3}>
-          <IconBrandTrello size={28} color="#0052cc" />
-          <Typography variant="h5" fontWeight={700}>Integração Trello</Typography>
-          {isConnected && <Chip label="Conectado" color="success" size="small" icon={<IconCheck size={14} />} />}
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1.5} mb={3} flexWrap="wrap" gap={1}>
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <IconBrandTrello size={28} color="#0052cc" />
+            <Typography variant="h5" fontWeight={700}>Integração Trello</Typography>
+            {isConnected && <Chip label="Conectado" color="success" size="small" icon={<IconCheck size={14} />} />}
+          </Stack>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<IconChartBar size={16} />}
+            href="/admin/trello/insights"
+            component="a"
+          >
+            Ver Relatórios
+          </Button>
         </Stack>
 
         <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
