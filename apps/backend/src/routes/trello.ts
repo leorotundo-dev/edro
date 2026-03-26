@@ -11,6 +11,22 @@ import {
 import { getBoardInsights, analyzeAllBoardsForTenant, analyzeBoardHistory } from '../services/trelloHistoryAnalyzer';
 import { query } from '../db';
 
+function normalizeBoardBindingKey(value?: string | null) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function getBoardBindingScore(clientKey: string, boardKey: string) {
+  if (!clientKey || !boardKey) return 0;
+  if (clientKey === boardKey) return 3;
+  if (boardKey.includes(clientKey) || clientKey.includes(boardKey)) return 2;
+  return 0;
+}
+
 export default async function trelloRoutes(app: FastifyInstance) {
 
   // POST /trello/connect — salva credenciais e valida
@@ -107,7 +123,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const tenantId = request.user?.tenant_id as string;
     const { client_id } = request.query as { client_id?: string };
 
-    const res = await query<any>(
+    const fetchBoards = async (linkedClientId?: string | null) => query<any>(
       `SELECT b.id, b.name, b.description, b.color, b.client_id, b.trello_board_id, b.last_synced_at,
               b.is_archived, b.created_at,
               COUNT(c.id)::int AS card_count
@@ -118,8 +134,59 @@ export default async function trelloRoutes(app: FastifyInstance) {
          AND ($2::text IS NULL OR b.client_id = $2)
        GROUP BY b.id
        ORDER BY b.updated_at DESC`,
-      [tenantId, client_id ?? null],
+      [tenantId, linkedClientId ?? null],
     );
+
+    let res = await fetchBoards(client_id ?? null);
+    if (res.rows.length || !client_id) {
+      return reply.send({ boards: res.rows });
+    }
+
+    const clientRes = await query<{ name: string }>(
+      `SELECT name FROM clients WHERE id = $1::uuid AND tenant_id = $2 LIMIT 1`,
+      [client_id, tenantId],
+    );
+    const clientName = clientRes.rows[0]?.name;
+    const clientKey = normalizeBoardBindingKey(clientName);
+
+    if (!clientKey) {
+      return reply.send({ boards: res.rows });
+    }
+
+    const unlinkedBoardsRes = await query<{ id: string; name: string }>(
+      `SELECT id, name
+       FROM project_boards
+       WHERE tenant_id = $1
+         AND is_archived = false
+         AND (client_id IS NULL OR client_id = '')`,
+      [tenantId],
+    );
+
+    const candidates = unlinkedBoardsRes.rows
+      .map((board) => ({
+        id: board.id,
+        score: getBoardBindingScore(clientKey, normalizeBoardBindingKey(board.name)),
+      }))
+      .filter((board) => board.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    const bestCandidate = candidates[0];
+    const hasTie = bestCandidate
+      ? candidates.filter((candidate) => candidate.score === bestCandidate.score).length > 1
+      : false;
+
+    if (!bestCandidate || hasTie) {
+      return reply.send({ boards: res.rows });
+    }
+
+    await query(
+      `UPDATE project_boards
+       SET client_id = $1, updated_at = now()
+       WHERE id = $2 AND tenant_id = $3 AND (client_id IS NULL OR client_id = '')`,
+      [client_id, bestCandidate.id, tenantId],
+    );
+
+    res = await fetchBoards(client_id);
     return reply.send({ boards: res.rows });
   });
 
