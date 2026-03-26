@@ -129,6 +129,36 @@ type MemoryStats = {
   };
 };
 
+type CanonEntry = {
+  id: string;
+  canon_id: string;
+  canon_slug: string;
+  canon_title: string;
+  slug: string;
+  title: string;
+  summary_short: string | null;
+  definition: string;
+  heuristics: string[];
+  critique_checks: string[];
+  examples: string[];
+  status: 'active' | 'draft' | 'archived';
+  source_confidence: number;
+};
+
+type Canon = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: 'active' | 'draft' | 'archived';
+  sort_order: number;
+  total_entries: number;
+  active_entries: number;
+  draft_entries: number;
+  archived_entries: number;
+  entries: CanonEntry[];
+};
+
 type MemoryResponse = {
   success: boolean;
   degraded?: boolean;
@@ -139,6 +169,7 @@ type MemoryResponse = {
   };
   stats: MemoryStats;
   concepts: Concept[];
+  canons: Canon[];
   references: Reference[];
   pendingReferences: ManagedReference[];
   rejectedReferences: ManagedReference[];
@@ -190,7 +221,7 @@ const CANON_GROUPS = [
     coverage: ['Bauhaus', 'Design suíço', 'Pós-modernismo', 'Retrô', 'Vanguarda', 'Pastiche'],
   },
   {
-    key: 'formatos_midias',
+    key: 'formatos_aplicacoes',
     title: 'Formatos e Aplicações',
     description: 'Como o canon desce para mídia, fotografia e direção executável.',
     coverage: ['Capas', 'Pôsteres', 'Redes sociais', 'Websites', 'Fotografia', 'UI/UX design'],
@@ -793,19 +824,25 @@ export default function DaControlClient() {
   const pendingReferences = data?.pendingReferences ?? [];
   const rejectedReferences = data?.rejectedReferences ?? [];
   const sources = data?.sources ?? [];
+  const canons = data?.canons ?? [];
   const activeSources = useMemo(() => sources.filter((source) => source.enabled).length, [sources]);
   const canonGroups = useMemo(
     () =>
       CANON_GROUPS.map((group) => ({
         ...group,
-        concepts: (data?.concepts ?? []).filter((concept) => concept.category === group.key),
+        canon: canons.find((canon) => canon.slug === group.key) ?? null,
+        concepts: (data?.concepts ?? []).filter((concept) =>
+          group.key === 'formatos_aplicacoes'
+            ? concept.category === 'formatos_aplicacoes' || concept.category === 'formatos_midias'
+            : concept.category === group.key,
+        ),
       })),
-    [data?.concepts],
+    [canons, data?.concepts],
   );
 
   const nextStep = useMemo(() => {
     if (!stats) return 'Carregando status do pipeline.';
-    if ((data?.concepts?.length ?? 0) === 0) {
+    if ((canons.length === 0) && (data?.concepts?.length ?? 0) === 0) {
       return 'O canon ainda não carregou para este recorte. Recarregue a tela; se continuar zerado, ainda há problema de setup.';
     }
     if (stats.references.discovered === 0 && stats.references.analyzed === 0) {
@@ -818,7 +855,7 @@ export default function DaControlClient() {
       return 'As referências já foram analisadas. Falta recalcular os snapshots para o Trend Radar começar a aparecer.';
     }
     return 'O pipeline está ativo. O próximo ganho vem de buscar mais referências e alimentar feedback humano nas melhores.';
-  }, [data?.concepts?.length, stats]);
+  }, [canons.length, data?.concepts?.length, stats]);
 
   return (
     <Box sx={{ maxWidth: 1440, mx: 'auto', px: { xs: 2, md: 4 }, py: 4 }}>
@@ -844,8 +881,12 @@ export default function DaControlClient() {
           <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Canon ativo"
-              value={data?.concepts?.length ?? 0}
-              subtitle="conceitos-base do DA da Edro"
+              value={canons.length ? canons.reduce((sum, canon) => sum + canon.active_entries, 0) : data?.concepts?.length ?? 0}
+              subtitle={
+                canons.length
+                  ? `${canons.length} canons da Edro estruturados`
+                  : 'conceitos-base do DA da Edro'
+              }
               icon={<IconBrain size={20} />}
               color="#5D87FF"
             />
@@ -1335,7 +1376,7 @@ export default function DaControlClient() {
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
-              ) : !(data?.concepts?.length) ? (
+              ) : !(canons.length || data?.concepts?.length) ? (
                 <EmptySection
                   title="Nenhum conceito retornou para este recorte."
                   description="O canon base deveria aparecer automaticamente. Se isso continuar zerado após o refresh, ainda há problema de provisionamento ou filtro agressivo demais."
@@ -1349,7 +1390,14 @@ export default function DaControlClient() {
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{group.title}</Typography>
                           <Typography variant="body2" color="text.secondary">{group.description}</Typography>
                         </Box>
-                        <Chip size="small" label={`${group.concepts.length} conceitos`} />
+                        <Chip
+                          size="small"
+                          label={
+                            group.canon
+                              ? `${group.canon.active_entries} ativos • ${group.canon.draft_entries} draft`
+                              : `${group.concepts.length} conceitos`
+                          }
+                        />
                       </Stack>
 
                       <Stack direction="row" gap={1} flexWrap="wrap" mb={group.concepts.length ? 1.25 : 0}>
@@ -1358,7 +1406,34 @@ export default function DaControlClient() {
                         ))}
                       </Stack>
 
-                      {group.concepts.length ? (
+                      {group.canon?.entries?.length ? (
+                        <Stack spacing={1}>
+                          {group.canon.entries.map((entry) => (
+                            <Paper key={entry.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                              <Stack direction="row" justifyContent="space-between" gap={2} mb={0.75}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{entry.title}</Typography>
+                                <Stack direction="row" gap={1} flexWrap="wrap">
+                                  <Chip size="small" label={entry.slug} />
+                                  <Chip
+                                    size="small"
+                                    color={entry.status === 'active' ? 'success' : entry.status === 'draft' ? 'warning' : 'default'}
+                                    variant="outlined"
+                                    label={entry.status}
+                                  />
+                                </Stack>
+                              </Stack>
+                              <Typography variant="body2" color="text.secondary">
+                                {entry.definition}
+                              </Typography>
+                              <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                                {entry.heuristics.slice(0, 3).map((item) => (
+                                  <Chip key={item} size="small" variant="outlined" label={item} />
+                                ))}
+                              </Stack>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      ) : group.concepts.length ? (
                         <Stack spacing={1}>
                           {group.concepts.map((concept) => (
                             <Paper key={concept.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
