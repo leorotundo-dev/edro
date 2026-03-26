@@ -23,7 +23,9 @@ import {
   recordArtDirectionFeedbackEvent,
   recomputeArtDirectionTrendSnapshots,
   resolveArtDirectionCreativeContext,
+  upsertArtDirectionConcept,
 } from '../services/ai/artDirectionMemoryService';
+import { CORE_ART_DIRECTION_CONCEPTS } from '../services/ai/artDirectionCoreConcepts';
 
 const generateSchema = z.object({
   /** Raw copy / caption text */
@@ -90,8 +92,10 @@ const refineSchema = z.object({
   image_provider: z.enum(['gemini', 'leonardo']).optional(),
 });
 
+const clientIdSchema = z.string().trim().min(1);
+
 const daMemorySchema = z.object({
-  client_id: z.string().uuid().optional(),
+  client_id: clientIdSchema.optional(),
   platform: z.string().optional(),
   segment: z.string().optional(),
   concept_categories: z.array(z.string()).max(8).optional(),
@@ -101,7 +105,7 @@ const daMemorySchema = z.object({
 });
 
 const daDiscoverSchema = z.object({
-  client_id: z.string().uuid().optional(),
+  client_id: clientIdSchema.optional(),
   platform: z.string().optional(),
   segment: z.string().optional(),
   category: z.string().min(2).optional(),
@@ -114,11 +118,11 @@ const daRefreshSchema = z.object({
   limit: z.coerce.number().int().min(1).max(30).optional(),
   window_days: z.coerce.number().int().min(14).max(180).optional(),
   recent_days: z.coerce.number().int().min(3).max(30).optional(),
-  client_id: z.string().uuid().optional(),
+  client_id: clientIdSchema.optional(),
 });
 
 const daFeedbackSchema = z.object({
-  client_id: z.string().uuid().optional(),
+  client_id: clientIdSchema.optional(),
   creative_session_id: z.string().uuid().optional(),
   reference_id: z.string().uuid().optional(),
   event_type: z.enum(['used', 'approved', 'rejected', 'edited', 'performed', 'saved']),
@@ -366,41 +370,81 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
 
-    const input = daMemorySchema.parse(request.query || {});
-    const memory = await buildArtDirectionMemoryContext({
-      tenantId,
-      clientId: input.client_id,
-      platform: input.platform,
-      segment: input.segment,
-      conceptCategories: input.concept_categories,
-      conceptLimit: input.concept_limit,
-      referenceLimit: input.reference_limit,
-      trendLimit: input.trend_limit,
-    });
+    try {
+      const input = daMemorySchema.parse(request.query || {});
+      const memory = await buildArtDirectionMemoryContext({
+        tenantId,
+        clientId: input.client_id,
+        platform: input.platform,
+        segment: input.segment,
+        conceptCategories: input.concept_categories,
+        conceptLimit: input.concept_limit,
+        referenceLimit: input.reference_limit,
+        trendLimit: input.trend_limit,
+      });
 
-    const [concepts, references, trends] = await Promise.all([
-      listRelevantArtDirectionConcepts({
+      let concepts = await listRelevantArtDirectionConcepts({
         tenantId,
         categories: input.concept_categories,
         limit: input.concept_limit ?? 6,
-      }),
-      listRelevantArtDirectionReferences({
-        tenantId,
-        clientId: input.client_id,
-        platform: input.platform,
-        segment: input.segment,
-        limit: input.reference_limit ?? 8,
-      }),
-      listArtDirectionTrendSignals({
-        tenantId,
-        clientId: input.client_id,
-        platform: input.platform,
-        segment: input.segment,
-        limit: input.trend_limit ?? 6,
-      }),
-    ]);
+      });
 
-    return reply.send({ success: true, memory, concepts, references, trends });
+      if (!concepts.length) {
+        for (const concept of CORE_ART_DIRECTION_CONCEPTS) {
+          await upsertArtDirectionConcept(concept);
+        }
+        concepts = await listRelevantArtDirectionConcepts({
+          tenantId,
+          categories: input.concept_categories,
+          limit: input.concept_limit ?? 6,
+        });
+      }
+
+      const [references, trends] = await Promise.all([
+        listRelevantArtDirectionReferences({
+          tenantId,
+          clientId: input.client_id,
+          platform: input.platform,
+          segment: input.segment,
+          limit: input.reference_limit ?? 8,
+        }),
+        listArtDirectionTrendSignals({
+          tenantId,
+          clientId: input.client_id,
+          platform: input.platform,
+          segment: input.segment,
+          limit: input.trend_limit ?? 6,
+        }),
+      ]);
+
+      return reply.send({ success: true, memory, concepts, references, trends });
+    } catch (error: any) {
+      request.log.error({ error }, '[studio/creative/da-memory] failed');
+      const message = String(error?.message || '');
+      const isSetupIssue =
+        message.includes('da_') ||
+        message.includes('relation') ||
+        message.includes('does not exist') ||
+        message.includes('foreign key') ||
+        message.includes('invalid input syntax');
+
+      if (isSetupIssue) {
+        return reply.send({
+          success: true,
+          degraded: true,
+          warning: 'da_memory_not_ready',
+          memory: {
+            promptBlock: '',
+            critiqueBlock: '',
+          },
+          concepts: [],
+          references: [],
+          trends: [],
+        });
+      }
+
+      return reply.status(500).send({ success: false, error: error?.message || 'Falha ao carregar memória de DA' });
+    }
   });
 
   app.post('/studio/creative/da-memory/discover', async (request: any, reply) => {
@@ -955,7 +999,7 @@ Regras:
     category: z.string().min(2),
     mood:     z.string().optional(),
     platform: z.string().optional().default('Instagram'),
-    client_id: z.string().uuid().optional(),
+    client_id: clientIdSchema.optional(),
   });
 
   app.post('/studio/creative/visual-insights', async (request: any, reply) => {
