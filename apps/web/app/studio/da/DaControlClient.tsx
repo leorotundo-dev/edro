@@ -82,6 +82,30 @@ type Trend = {
   segment: string | null;
 };
 
+type MemoryStats = {
+  concepts: {
+    active: number;
+  };
+  references: {
+    discovered: number;
+    analyzed: number;
+    rejected: number;
+    archived: number;
+    lastDiscoveredAt: string | null;
+    lastAnalyzedAt: string | null;
+  };
+  trends: {
+    snapshots: number;
+    lastSnapshotAt: string | null;
+  };
+  feedback: {
+    used: number;
+    approved: number;
+    rejected: number;
+    saved: number;
+  };
+};
+
 type MemoryResponse = {
   success: boolean;
   degraded?: boolean;
@@ -90,12 +114,42 @@ type MemoryResponse = {
     promptBlock: string;
     critiqueBlock: string;
   };
+  stats: MemoryStats;
   concepts: Concept[];
   references: Reference[];
   trends: Trend[];
 };
 
 const PLATFORM_OPTIONS = ['Instagram', 'LinkedIn', 'Facebook', 'TikTok', 'YouTube', 'WhatsApp', 'General'];
+
+function EmptySection({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2.5,
+        borderRadius: 2.5,
+        bgcolor: 'rgba(15, 23, 42, 0.02)',
+      }}
+    >
+      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+        {title}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+        {description}
+      </Typography>
+      {action ? <Box sx={{ mt: 1.5 }}>{action}</Box> : null}
+    </Paper>
+  );
+}
 
 function ScoreCard({
   title,
@@ -267,14 +321,15 @@ export default function DaControlClient() {
     setError('');
     setSuccess('');
     try {
-      const response = await apiPost<{ inserted: number; queries: string[] }>('/studio/creative/da-memory/discover', {
+      const response = await apiPost<{ inserted: number; queries: string[]; stats?: MemoryStats }>('/studio/creative/da-memory/discover', {
         client_id: clientId || undefined,
         platform,
         segment: segment || undefined,
         category: category || undefined,
         mood: mood || undefined,
       });
-      setSuccess(`Descoberta executada. ${response.inserted ?? 0} referências salvas.`);
+      const queued = response.stats?.references?.discovered ?? 0;
+      setSuccess(`Descoberta executada. ${response.inserted ?? 0} referências salvas. Fila atual: ${queued}.`);
       await load();
     } catch (err: any) {
       setError(err?.message || 'Falha ao buscar referências');
@@ -288,13 +343,18 @@ export default function DaControlClient() {
     setError('');
     setSuccess('');
     try {
-      const response = await apiPost<{ analyzed: number; snapshots: number }>('/studio/creative/da-memory/refresh', {
+      const response = await apiPost<{ analyzed: number; snapshots: number; stats?: MemoryStats }>('/studio/creative/da-memory/refresh', {
         client_id: clientId || undefined,
+        platform,
+        segment: segment || undefined,
         limit: 12,
         window_days: 30,
         recent_days: 7,
       });
-      setSuccess(`Memória atualizada. ${response.analyzed ?? 0} referências analisadas, ${response.snapshots ?? 0} snapshots de tendência.`);
+      const remainingQueue = response.stats?.references?.discovered ?? 0;
+      setSuccess(
+        `Memória atualizada. ${response.analyzed ?? 0} referências analisadas, ${response.snapshots ?? 0} snapshots de tendência. Fila restante: ${remainingQueue}.`,
+      );
       await load();
     } catch (err: any) {
       setError(err?.message || 'Falha ao recalcular memória');
@@ -324,6 +384,24 @@ export default function DaControlClient() {
   };
 
   const topTrend = useMemo(() => data?.trends?.[0] ?? null, [data]);
+  const stats = data?.stats;
+
+  const nextStep = useMemo(() => {
+    if (!stats) return 'Carregando status do pipeline.';
+    if ((data?.concepts?.length ?? 0) === 0) {
+      return 'O canon ainda não carregou para este recorte. Recarregue a tela; se continuar zerado, ainda há problema de setup.';
+    }
+    if (stats.references.discovered === 0 && stats.references.analyzed === 0) {
+      return 'Próximo passo: buscar referências para enfileirar repertório visual neste recorte.';
+    }
+    if (stats.references.discovered > 0 && stats.references.analyzed === 0) {
+      return 'Há referências na fila, mas nenhuma analisada ainda. Rode Recalcular para transformar descoberta em memória útil.';
+    }
+    if (stats.references.analyzed > 0 && stats.trends.snapshots === 0) {
+      return 'As referências já foram analisadas. Falta recalcular os snapshots para o Trend Radar começar a aparecer.';
+    }
+    return 'O pipeline está ativo. O próximo ganho vem de buscar mais referências e alimentar feedback humano nas melhores.';
+  }, [data?.concepts?.length, stats]);
 
   return (
     <Box sx={{ maxWidth: 1440, mx: 'auto', px: { xs: 2, md: 4 }, py: 4 }}>
@@ -358,8 +436,12 @@ export default function DaControlClient() {
           <Grid size={{ xs: 12, md: 3 }}>
             <ScoreCard
               title="Memória de referência"
-              value={data?.references?.length ?? 0}
-              subtitle="casos visuais analisados e prontos para uso"
+              value={stats?.references?.analyzed ?? data?.references?.length ?? 0}
+              subtitle={
+                stats
+                  ? `${stats.references.discovered} na fila • ${stats.references.rejected} descartadas`
+                  : 'casos visuais analisados e prontos para uso'
+              }
               icon={<IconEyeSearch size={20} />}
               color="#13DEB9"
             />
@@ -367,8 +449,14 @@ export default function DaControlClient() {
           <Grid size={{ xs: 12, md: 3 }}>
             <ScoreCard
               title="Trend radar"
-              value={data?.trends?.length ?? 0}
-              subtitle={topTrend ? `principal sinal: ${topTrend.tag}` : 'nenhum snapshot no recorte'}
+              value={stats?.trends?.snapshots ?? data?.trends?.length ?? 0}
+              subtitle={
+                topTrend
+                  ? `principal sinal: ${topTrend.tag}`
+                  : stats?.references?.analyzed
+                  ? 'aguardando snapshots no recorte'
+                  : 'nenhum snapshot no recorte'
+              }
               icon={<IconFlame size={20} />}
               color="#FFAE1F"
             />
@@ -479,6 +567,33 @@ export default function DaControlClient() {
                 </Stack>
               </Paper>
             </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.75,
+                  borderRadius: 2.5,
+                  bgcolor: 'rgba(232,82,25,0.03)',
+                }}
+              >
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={1.5}>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#E85219' }}>
+                      Próximo passo recomendado
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {nextStep}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+                    <Chip size="small" label={`Descobertas ${stats?.references.discovered ?? 0}`} />
+                    <Chip size="small" label={`Analisadas ${stats?.references.analyzed ?? 0}`} />
+                    <Chip size="small" label={`Snapshots ${stats?.trends.snapshots ?? 0}`} />
+                    <Chip size="small" label={`Feedback +${(stats?.feedback.approved ?? 0) + (stats?.feedback.used ?? 0)}`} />
+                  </Stack>
+                </Stack>
+              </Paper>
+            </Grid>
           </Grid>
         </SectionCard>
 
@@ -490,6 +605,11 @@ export default function DaControlClient() {
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+              ) : !(data?.concepts?.length) ? (
+                <EmptySection
+                  title="Nenhum conceito retornou para este recorte."
+                  description="O canon base deveria aparecer automaticamente. Se isso continuar zerado após o refresh, ainda há problema de provisionamento ou filtro agressivo demais."
+                />
               ) : (
                 <Stack spacing={1.5}>
                   {(data?.concepts ?? []).map((concept) => (
@@ -520,6 +640,25 @@ export default function DaControlClient() {
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+              ) : !(data?.trends?.length) ? (
+                <EmptySection
+                  title="Trend radar ainda vazio."
+                  description={
+                    (stats?.references.analyzed ?? 0) > 0
+                      ? 'Já existem referências analisadas, mas ainda faltam snapshots para este recorte. Rode Recalcular.'
+                      : 'O radar só aparece depois que houver referências analisadas. Primeiro busque referências e depois recalcule.'
+                  }
+                  action={
+                    <Button
+                      variant="outlined"
+                      startIcon={busy === 'refresh' ? <CircularProgress size={14} /> : <IconRefresh size={16} />}
+                      onClick={handleRefresh}
+                      disabled={busy !== null}
+                    >
+                      Recalcular agora
+                    </Button>
+                  }
+                />
               ) : (
                 <Stack spacing={1.25}>
                   {(data?.trends ?? []).map((trend) => (
@@ -556,6 +695,35 @@ export default function DaControlClient() {
         >
           {loading ? (
             <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+          ) : !(data?.references?.length) ? (
+            <EmptySection
+              title="Ainda não há referências analisadas neste recorte."
+              description={
+                (stats?.references.discovered ?? 0) > 0
+                  ? `Existem ${stats?.references.discovered ?? 0} referências descobertas na fila. Falta rodar Recalcular para analisá-las e trazê-las para a memória viva.`
+                  : 'O motor ainda não encontrou repertório para este cliente/plataforma. Use Buscar referências para começar a ingestão.'
+              }
+              action={
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <Button
+                    variant="contained"
+                    startIcon={busy === 'discover' ? <CircularProgress size={14} /> : <IconSparkles size={16} />}
+                    onClick={handleDiscover}
+                    disabled={busy !== null}
+                  >
+                    Buscar referências
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={busy === 'refresh' ? <CircularProgress size={14} /> : <IconRefresh size={16} />}
+                    onClick={handleRefresh}
+                    disabled={busy !== null}
+                  >
+                    Recalcular
+                  </Button>
+                </Stack>
+              }
+            />
           ) : (
             <Grid container spacing={2}>
               {(data?.references ?? []).map((reference) => (
@@ -617,7 +785,7 @@ export default function DaControlClient() {
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#0f172a', color: '#e2e8f0', overflowX: 'auto' }}>
                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12 }}>
-                  {data?.memory?.promptBlock || 'Sem bloco gerado ainda para este recorte.'}
+                  {data?.memory?.promptBlock || 'Sem bloco gerado ainda. Ele aparece quando o canon já carregou e houver memória de referência ou tendência suficiente para este recorte.'}
                 </pre>
               </Paper>
             </SectionCard>
@@ -630,7 +798,7 @@ export default function DaControlClient() {
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#111827', color: '#d1fae5', overflowX: 'auto' }}>
                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12 }}>
-                  {data?.memory?.critiqueBlock || 'Sem bloco crítico gerado ainda para este recorte.'}
+                  {data?.memory?.critiqueBlock || 'Sem bloco crítico gerado ainda. Ele aparece quando o sistema já consegue combinar canon, referências e sinais do recorte atual.'}
                 </pre>
               </Paper>
             </SectionCard>
