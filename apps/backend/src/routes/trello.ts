@@ -679,6 +679,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   // GET /trello/ops-feed — all active cards mapped to OperationsJob format
   app.get('/trello/ops-feed', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
+    const activeOnly = ['1', 'true', 'yes'].includes(String((request.query as any)?.active ?? ''));
 
     const { rows: cards } = await query<{
       id: string; title: string; description: string | null;
@@ -712,9 +713,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
       [tenantId],
     );
 
-    const jobs = cards.map((c) => {
+    const INACTIVE_STATUSES = new Set(['done', 'published']);
+
+    const jobs = cards.flatMap((c) => {
       const { band, score } = computePriorityBand(c.due_date, c.due_complete);
       const status = listNameToOpsStatus(c.list_name);
+      if (activeOnly && INACTIVE_STATUSES.has(status)) return [];
       const labels: { color: string; name: string }[] = Array.isArray(c.labels) ? c.labels : [];
       const labelNames = labels.map((l) => l.name?.toLowerCase() ?? '').join(' ');
       const jobType = /design|arte|artes|visual|criativo/.test(labelNames) ? 'design_static'
@@ -757,6 +761,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
           due_complete: c.due_complete,
         },
       };
+      return [job];
     });
 
     // Owners: distinct members across all boards
