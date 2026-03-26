@@ -113,6 +113,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentStep = getCurrentStep(pathname);
+  const hideStudioContextChips = pathname.startsWith('/studio/da');
   const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
   const [studioEvent, setStudioEvent] = useState<{ event: string; date: string } | null>(null);
   const [user, setUser] = useState<UserInfo>({});
@@ -387,7 +388,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                 {getCurrentLabel(pathname)}
               </Typography>
             </Stack>
-            {activeClient ? (
+            {!hideStudioContextChips && activeClient ? (
               <Stack
                 direction="row"
                 spacing={1}
@@ -444,7 +445,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
                 </IconButton>
               </Stack>
             ) : null}
-            {studioEvent ? (
+            {!hideStudioContextChips && studioEvent ? (
               <Stack
                 direction="row"
                 spacing={0.75}
