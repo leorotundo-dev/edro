@@ -61,8 +61,20 @@ Somente para produto, migração/DDL, breaking, exclusão em massa, risco alto d
 Obs: next lint está quebrado na versão atual do Next (16.1.6); preferir eslint direto no web.
 
 ## Deploy / Infra
-- railway up --service edro-backend
-- railway up --service edro-web
+- Producao padrao: workflow GitHub `Deploy Production`
+- Gatilho padrao: merge/push em `main` apos checks verdes
+- Segredo necessario no GitHub: `RAILWAY_TOKEN` (repo secret ou environment secret `production`)
+- O workflow publica:
+  - `edro-backend`
+  - `edro-web`
+  - `edro-web-cliente`
+  - `edro-web-freelancer`
+- Se o commit alterar `apps/backend/src/db/migrations/**`, o auto-deploy bloqueia; rodar migrations manualmente e depois disparar `workflow_dispatch`
+- Deploy manual via CLI fica restrito a fallback/emergencia:
+  - `railway up --service edro-backend`
+  - `railway up --service edro-web`
+  - `railway up --service edro-web-cliente`
+  - `railway up --service edro-web-freelancer`
 - Não vazar segredos/env.
 
 ## DoD
@@ -74,4 +86,3 @@ Concluir apenas com causa raiz corrigida + validação explícita + status de de
 
 ## Anti-padrões
 Sem mudança cosmética sem pedido, sem feature creep, sem encerrar sem validar.
-
