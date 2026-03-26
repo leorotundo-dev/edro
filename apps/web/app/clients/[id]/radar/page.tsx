@@ -64,7 +64,7 @@ export default function RadarPage() {
         ))}
       </Tabs>
 
-      {tab === 'clipping' && <ClientClippingClient clientId={clientId} />}
+      {tab === 'clipping' && <ClientClippingClient clientId={clientId} forceTab="clipping" />}
       {tab === 'social' && <SocialListeningClient clientId={clientId} noShell embedded />}
       {tab === 'dark_funnel' && <DarkFunnelPage />}
       {tab === 'concorrentes' && <CompetitorsClient clientId={clientId} />}
