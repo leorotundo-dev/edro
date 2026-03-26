@@ -761,7 +761,6 @@ export default async function trelloRoutes(app: FastifyInstance) {
           due_complete: c.due_complete,
         },
       };
-      return [job];
     });
 
     // Owners: distinct members across all boards
@@ -1370,8 +1369,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     // Batch all 5 scoring queries — O(5) total instead of O(5N)
 
+    // Pattern matching done lists by name (same logic as listNameToOpsStatus)
+    const DONE_LIST_PATTERN = 'conclu|done|fechad|arquivad|closed|finaliz|finish|publicad|entregue|delivered|published';
+
     const [activeRes, doneRes, slaRes, lastRes, labelRes] = await Promise.all([
-      // 1. Active non-completed cards per member
+      // 1. Active non-completed cards per member (not in done list)
       query<{ email: string; count: string }>(
         `SELECT LOWER(pcm.email) as email, COUNT(*) as count
          FROM project_card_members pcm
@@ -1380,43 +1382,44 @@ export default async function trelloRoutes(app: FastifyInstance) {
          JOIN project_boards pb ON pb.id = pc.board_id
          WHERE pb.tenant_id = $1
            AND pc.is_archived = false AND pl.is_archived = false
-           AND (pc.due_complete IS NULL OR pc.due_complete = false)
+           AND NOT (lower(pc.list_name) ~* $3)
            AND LOWER(pcm.email) = ANY($2::text[])
          GROUP BY LOWER(pcm.email)`,
-        [tenantId, emails],
+        [tenantId, emails, DONE_LIST_PATTERN],
       ),
-      // 2. Cards completed this month per member
+      // 2. Cards completed this month per member (in done list)
       query<{ email: string; count: string }>(
         `SELECT LOWER(pcm.email) as email, COUNT(*) as count
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
          WHERE pb.tenant_id = $1
-           AND pc.due_complete = true AND pc.updated_at >= $2::date
+           AND lower(pc.list_name) ~* $4
+           AND pc.updated_at >= $2::date
            AND LOWER(pcm.email) = ANY($3::text[])
          GROUP BY LOWER(pcm.email)`,
-        [tenantId, monthStart, emails],
+        [tenantId, monthStart, emails, DONE_LIST_PATTERN],
       ),
-      // 3. SLA history last 30d per member
+      // 3. SLA history last 30d per member (in done list with due_date)
       query<{ email: string; total: string; met: string; avg_variance: string }>(
         `SELECT
            LOWER(pcm.email) as email,
            COUNT(*) FILTER (WHERE pc.due_date IS NOT NULL) as total,
-           COUNT(*) FILTER (WHERE pc.due_complete = true AND pc.due_date IS NOT NULL
-             AND pc.updated_at::date <= pc.due_date) as met,
+           COUNT(*) FILTER (WHERE pc.due_date IS NOT NULL
+             AND pc.updated_at::date <= pc.due_date::date) as met,
            AVG(EXTRACT(EPOCH FROM (pc.updated_at - pc.due_date::timestamptz)) / 86400.0)
-             FILTER (WHERE pc.due_complete = true AND pc.due_date IS NOT NULL) as avg_variance
+             FILTER (WHERE pc.due_date IS NOT NULL) as avg_variance
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
          WHERE pb.tenant_id = $1
-           AND pc.due_complete = true
+           AND lower(pc.list_name) ~* $4
            AND pc.updated_at >= $2
            AND LOWER(pcm.email) = ANY($3::text[])
          GROUP BY LOWER(pcm.email)`,
-        [tenantId, thirtyDaysAgo.toISOString(), emails],
+        [tenantId, thirtyDaysAgo.toISOString(), emails, DONE_LIST_PATTERN],
       ),
-      // 4. Last completed card per member (DISTINCT ON avoids subquery per member)
+      // 4. Last completed card per member (in done list)
       query<{ email: string; updated_at: string; title: string }>(
         `SELECT DISTINCT ON (LOWER(pcm.email))
            LOWER(pcm.email) as email, pc.updated_at, pc.title
@@ -1424,10 +1427,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
          JOIN project_cards pc ON pc.id = pcm.card_id
          JOIN project_boards pb ON pb.id = pc.board_id
          WHERE pb.tenant_id = $1
-           AND pc.due_complete = true
+           AND lower(pc.list_name) ~* $3
            AND LOWER(pcm.email) = ANY($2::text[])
          ORDER BY LOWER(pcm.email), pc.updated_at DESC`,
-        [tenantId, emails],
+        [tenantId, emails, DONE_LIST_PATTERN],
       ),
       // 5. Label text aggregated per member for job type inference
       query<{ email: string; label_text: string }>(
@@ -1500,9 +1503,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
       display_name: string; email: string | null; trello_member_id: string;
       freelancer_id: string | null;
     }>(
-      `SELECT DISTINCT
-         pcm.display_name, pcm.email, pcm.trello_member_id,
-         f.id AS freelancer_id
+      `SELECT DISTINCT ON (pcm.trello_member_id)
+         pcm.display_name, pcm.email, pcm.trello_member_id, pcm.avatar_url,
+         f.id AS freelancer_id,
+         f.specialty, f.role_title, f.experience_level, f.skills, f.ai_tools, f.portfolio_url
        FROM project_card_members pcm
        JOIN project_cards pc ON pc.id = pcm.card_id
        JOIN project_boards pb ON pb.id = pc.board_id
@@ -1510,13 +1514,30 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN freelancer_profiles f ON f.user_id = fu.id
        WHERE pb.tenant_id = $1
          AND pcm.trello_member_id = $2
-       LIMIT 1`,
+       ORDER BY pcm.trello_member_id, pcm.avatar_url DESC NULLS LAST`,
       [tenantId, trelloId],
     );
     if (!memberRes.rows.length) return reply.status(404).send({ error: 'Membro não encontrado' });
     const member = memberRes.rows[0];
 
-    // Active cards (not complete, not archived)
+    // Which boards is this member active on?
+    const boardsRes = await query<{ board_id: string; board_name: string; active_count: number }>(
+      `SELECT pb.id AS board_id, pb.name AS board_name, COUNT(pc.id)::int AS active_count
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+        WHERE pb.tenant_id = $1
+          AND pcm.trello_member_id = $2
+          AND pc.is_archived = false
+          AND NOT (lower(pc.list_name) ~* $3)
+        GROUP BY pb.id, pb.name
+        ORDER BY active_count DESC`,
+      [tenantId, trelloId, 'conclu|done|fechad|arquivad|closed|finaliz|finish|publicad|entregue|delivered|published'],
+    );
+
+    const DONE_LIST_PAT = 'conclu|done|fechad|arquivad|closed|finaliz|finish|publicad|entregue|delivered|published';
+
+    // Active cards (not in a done list, not archived)
     const activeRes = await query<{
       id: string; title: string; due_date: string | null; board_name: string;
       list_name: string | null; labels: any;
@@ -1530,14 +1551,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
          JOIN project_boards pb ON pb.id = pc.board_id
         WHERE pb.tenant_id = $1
           AND pcm.trello_member_id = $2
-          AND pc.due_complete = false
           AND pc.is_archived = false
+          AND NOT (lower(pc.list_name) ~* $3)
         ORDER BY pc.due_date ASC NULLS LAST
         LIMIT 50`,
-      [tenantId, trelloId],
+      [tenantId, trelloId, DONE_LIST_PAT],
     );
 
-    // Completed cards (last 60 days)
+    // Completed cards (in a done list, last 60 days)
     const doneRes = await query<{
       id: string; title: string; due_date: string | null; updated_at: string;
       board_name: string; list_name: string | null; labels: any;
@@ -1551,11 +1572,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
          JOIN project_boards pb ON pb.id = pc.board_id
         WHERE pb.tenant_id = $1
           AND pcm.trello_member_id = $2
-          AND pc.due_complete = true
+          AND lower(pc.list_name) ~* $3
           AND pc.updated_at > now() - interval '60 days'
         ORDER BY pc.updated_at DESC
         LIMIT 40`,
-      [tenantId, trelloId],
+      [tenantId, trelloId, DONE_LIST_PAT],
     );
 
     // Score metrics
@@ -1582,6 +1603,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       member,
       activeCards: activeRes.rows,
       completedCards: doneRes.rows,
+      boards: boardsRes.rows,
       metrics: {
         score,
         active_cards: totalActive,
