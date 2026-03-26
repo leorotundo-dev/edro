@@ -1,0 +1,310 @@
+name: Deploy Production
+
+on:
+  workflow_run:
+    workflows:
+      - CodeQL
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      deploy_backend:
+        description: Deploy edro-backend
+        type: boolean
+        default: true
+      deploy_web:
+        description: Deploy edro-web
+        type: boolean
+        default: true
+      deploy_web_cliente:
+        description: Deploy edro-web-cliente
+        type: boolean
+        default: true
+      deploy_web_freelancer:
+        description: Deploy edro-web-freelancer
+        type: boolean
+        default: true
+      skip_migration_guard:
+        description: Pular bloqueio automatico para commits com migrations
+        type: boolean
+        default: false
+      reason:
+        description: Motivo do redeploy manual
+        type: string
+        required: false
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      sha: ${{ steps.context.outputs.sha }}
+      project_id: ${{ steps.railway.outputs.project_id }}
+      environment: ${{ steps.railway.outputs.environment }}
+      deploy_backend: ${{ steps.targets.outputs.deploy_backend }}
+      deploy_web: ${{ steps.targets.outputs.deploy_web }}
+      deploy_web_cliente: ${{ steps.targets.outputs.deploy_web_cliente }}
+      deploy_web_freelancer: ${{ steps.targets.outputs.deploy_web_freelancer }}
+      skip_migration_guard: ${{ steps.targets.outputs.skip_migration_guard }}
+    steps:
+      - name: Resolve target SHA
+        id: context
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate workflow_run trigger
+        if: github.event_name == 'workflow_run'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            if (run.event !== 'push') {
+              core.setFailed(`Deploy automatico ignora workflow_run do tipo ${run.event}.`);
+              return;
+            }
+            if (run.head_branch !== 'main') {
+              core.setFailed(`Deploy automatico ignora workflow_run fora da main (${run.head_branch}).`);
+              return;
+            }
+            if (run.conclusion !== 'success') {
+              core.setFailed(`CodeQL concluiu com status ${run.conclusion}.`);
+            }
+
+      - name: Validate workflow_dispatch branch
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Deploy manual em producao so e permitido a partir da branch main." >&2
+            exit 1
+          fi
+
+      - name: Wait for required workflows on target SHA
+        if: github.event_name == 'workflow_run'
+        uses: actions/github-script@v7
+        env:
+          TARGET_SHA: ${{ steps.context.outputs.sha }}
+        with:
+          script: |
+            const required = ['Security Gates', 'Secret Scan', 'CodeQL'];
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = process.env.TARGET_SHA;
+            const timeoutMs = 20 * 60 * 1000;
+            const intervalMs = 15000;
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const deadline = Date.now() + timeoutMs;
+
+            while (Date.now() < deadline) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                branch: 'main',
+                event: 'push',
+                per_page: 100,
+              });
+
+              const runs = data.workflow_runs.filter((run) => run.head_sha === sha);
+              const snapshot = {};
+
+              for (const name of required) {
+                const match = runs.find((run) => run.name === name);
+                snapshot[name] = match
+                  ? { status: match.status, conclusion: match.conclusion }
+                  : null;
+              }
+
+              core.info(`Workflow snapshot for ${sha}: ${JSON.stringify(snapshot)}`);
+
+              const missing = required.filter((name) => !snapshot[name]);
+              if (missing.length > 0) {
+                await sleep(intervalMs);
+                continue;
+              }
+
+              const pending = required.filter((name) => snapshot[name].status !== 'completed');
+              if (pending.length > 0) {
+                await sleep(intervalMs);
+                continue;
+              }
+
+              const failed = required.filter((name) => snapshot[name].conclusion !== 'success');
+              if (failed.length > 0) {
+                core.setFailed(
+                  `Deploy bloqueado: checks obrigatorios falharam para ${sha}: ${failed
+                    .map((name) => `${name}=${snapshot[name].conclusion}`)
+                    .join(', ')}`
+                );
+                return;
+              }
+
+              core.info(`Todos os checks obrigatorios passaram para ${sha}.`);
+              return;
+            }
+
+            core.setFailed(`Timeout aguardando Security Gates / Secret Scan / CodeQL para ${sha}.`);
+
+      - name: Checkout target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Load Railway target
+        id: railway
+        shell: bash
+        run: |
+          PROJECT_ID="$(node -p 'require("./.railway/config.json").projectId')"
+          ENVIRONMENT="$(node -p 'require("./.railway/config.json").environment')"
+          echo "project_id=${PROJECT_ID}" >> "$GITHUB_OUTPUT"
+          echo "environment=${ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve service targets
+        id: targets
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy_backend=${{ inputs.deploy_backend }}" >> "$GITHUB_OUTPUT"
+            echo "deploy_web=${{ inputs.deploy_web }}" >> "$GITHUB_OUTPUT"
+            echo "deploy_web_cliente=${{ inputs.deploy_web_cliente }}" >> "$GITHUB_OUTPUT"
+            echo "deploy_web_freelancer=${{ inputs.deploy_web_freelancer }}" >> "$GITHUB_OUTPUT"
+            echo "skip_migration_guard=${{ inputs.skip_migration_guard }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_backend=true" >> "$GITHUB_OUTPUT"
+            echo "deploy_web=true" >> "$GITHUB_OUTPUT"
+            echo "deploy_web_cliente=true" >> "$GITHUB_OUTPUT"
+            echo "deploy_web_freelancer=true" >> "$GITHUB_OUTPUT"
+            echo "skip_migration_guard=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure at least one service is selected
+        shell: bash
+        run: |
+          if [ "${{ steps.targets.outputs.deploy_backend }}" != "true" ] && \
+             [ "${{ steps.targets.outputs.deploy_web }}" != "true" ] && \
+             [ "${{ steps.targets.outputs.deploy_web_cliente }}" != "true" ] && \
+             [ "${{ steps.targets.outputs.deploy_web_freelancer }}" != "true" ]; then
+            echo "Nenhum servico foi selecionado para deploy." >&2
+            exit 1
+          fi
+
+      - name: Block automatic deploy when migrations changed
+        if: steps.targets.outputs.skip_migration_guard != 'true'
+        shell: bash
+        run: |
+          if git rev-parse HEAD^ >/dev/null 2>&1; then
+            CHANGED="$(git diff --name-only HEAD^ HEAD)"
+          else
+            CHANGED="$(git show --pretty='' --name-only HEAD)"
+          fi
+
+          echo "Arquivos alterados:"
+          echo "$CHANGED"
+
+          if echo "$CHANGED" | grep -q '^apps/backend/src/db/migrations/'; then
+            echo "Auto-deploy bloqueado: este commit alterou migrations." >&2
+            echo "Rode as migrations em producao e depois dispare o workflow manualmente com skip_migration_guard=true." >&2
+            exit 1
+          fi
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - name: Checkout target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Validate Railway token
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${RAILWAY_TOKEN}" ]; then
+            echo "Secret RAILWAY_TOKEN nao configurado no GitHub (repo secret ou environment secret 'production')." >&2
+            exit 1
+          fi
+
+      - name: Railway version
+        run: railway --version
+
+      - name: Deploy edro-backend
+        if: needs.prepare.outputs.deploy_backend == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service edro-backend --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+
+      - name: Deploy edro-web
+        if: needs.prepare.outputs.deploy_web == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service edro-web --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+
+      - name: Deploy edro-web-cliente
+        if: needs.prepare.outputs.deploy_web_cliente == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service edro-web-cliente --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+
+      - name: Deploy edro-web-freelancer
+        if: needs.prepare.outputs.deploy_web_freelancer == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service edro-web-freelancer --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+
+      - name: Capture deployment lock
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: pwsh -ExecutionPolicy Bypass -File scripts/railway-version-lock.ps1 -Mode set
+
+      - name: Upload deployment lock artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-deployment-lock
+          path: .railway-version-lock.json
+          if-no-files-found: error
+
+      - name: Publish deploy summary
+        shell: bash
+        run: |
+          {
+            echo "## Deploy Production"
+            echo ""
+            echo "- SHA: \`${{ needs.prepare.outputs.sha }}\`"
+            echo "- Project: \`${{ needs.prepare.outputs.project_id }}\`"
+            echo "- Environment: \`${{ needs.prepare.outputs.environment }}\`"
+            echo "- edro-backend: \`${{ needs.prepare.outputs.deploy_backend }}\`"
+            echo "- edro-web: \`${{ needs.prepare.outputs.deploy_web }}\`"
+            echo "- edro-web-cliente: \`${{ needs.prepare.outputs.deploy_web_cliente }}\`"
+            echo "- edro-web-freelancer: \`${{ needs.prepare.outputs.deploy_web_freelancer }}\`"
+            echo ""
+            echo "### Deployment lock"
+            echo '```json'
+            cat .railway-version-lock.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

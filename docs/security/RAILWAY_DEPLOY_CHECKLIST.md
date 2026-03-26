@@ -1,9 +1,68 @@
-# Railway Deploy Checklist — Branch security/bucket2-and-d4sign
+# Railway Deploy Checklist
 
-## Passo 1 — Merge do PR no GitHub
+## Fluxo padrao — Auto-deploy em producao
 
-Acesse o repositório no GitHub e crie o PR de `security/bucket2-and-d4sign` → `main`.
-O CI precisa estar verde antes de dar merge.
+1. Merge do PR em `main`
+2. GitHub roda:
+   - `Security Gates`
+   - `Secret Scan`
+   - `CodeQL`
+3. Se todos passarem, o workflow `Deploy Production` publica automaticamente:
+   - `edro-backend`
+   - `edro-web`
+   - `edro-web-cliente`
+   - `edro-web-freelancer`
+
+### Pre-requisito de infraestrutura
+
+No GitHub, configurar o secret:
+
+```bash
+RAILWAY_TOKEN=<project-token-ou-account-token-com-permissao-de-deploy>
+```
+
+Pode ser:
+- repo secret `RAILWAY_TOKEN`
+- ou environment secret `production`
+
+O workflow le `projectId` e `environment` diretamente de `.railway/config.json`.
+
+### Guard rail de migrations
+
+Se o merge alterar qualquer arquivo em:
+
+```bash
+apps/backend/src/db/migrations/**
+```
+
+o auto-deploy falha de proposito.
+
+Nesses casos:
+1. rode as migrations em producao
+2. valide o banco
+3. reexecute `Deploy Production` via `workflow_dispatch`
+4. marque `skip_migration_guard=true`
+
+---
+
+## Fallback manual — Apenas emergencia
+
+Use deploy manual so quando:
+- o GitHub Actions estiver indisponivel
+- for necessario redeploy pontual fora do fluxo normal
+- houver autorizacao explicita para sobrescrever a versao em prod
+
+Antes do deploy manual:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/railway-version-lock.ps1 -Mode check
+```
+
+Depois de um deploy manual autorizado:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/railway-version-lock.ps1 -Mode set
+```
 
 ---
 
@@ -74,11 +133,15 @@ Todas as migrations usam `IF NOT EXISTS` — são seguras para rodar mesmo se j�
 
 ## Passo 4 — Validação pós-deploy
 
-Após o deploy, verifique no Railway Logs:
+Após o deploy, verifique:
 
 - `[server] Servidor iniciado` (sem erros de `Configuração insegura de ambiente`)
 - Login normal funcionando
 - `GET /api/health` retorna 200
+
+No fluxo automatico, consulte tambem:
+- summary do workflow `Deploy Production`
+- artifact `railway-deployment-lock`
 
 Se aparecer `GATEWAY_SHARED_SECRET é obrigatório em produção/staging`, a variável não foi setada.
 
