@@ -7,6 +7,7 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconUserCircle,
+  IconRadar,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -82,6 +83,13 @@ const MenuItems: MenuGroupType[] = [
         title: 'Equipe',
         icon: IconUsersGroup,
         href: '/admin/equipe',
+      },
+      {
+        id: 'controle',
+        title: 'Central de Controle',
+        icon: IconRadar,
+        href: '/admin/controle',
+        requiredRole: ['admin'],
       },
       {
         id: 'admin-system',
