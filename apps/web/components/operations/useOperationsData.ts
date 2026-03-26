@@ -52,6 +52,7 @@ function upsertJob(list: OperationsJob[], job: OperationsJob) {
 export type SyncHealth = {
   stale_boards: number;
   unlinked_boards: number;
+  unmapped_lists: number;
   oldest_sync_hours: number | null;
   needs_attention: boolean;
 };

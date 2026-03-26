@@ -388,6 +388,8 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       calendarChannelRes,
       metaConnectorRes,
       trelloBoardsRes,
+      trelloUnmappedRes,
+      trelloMembersRes,
       metaFailingRes,
     ] = await Promise.all([
       query<{ last_synced_at: string | null; is_active: boolean }>(
@@ -416,6 +418,30 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
            COUNT(*) FILTER (WHERE client_id IS NULL)::int as unlinked,
            COUNT(*)::int as total
          FROM project_boards WHERE tenant_id = $1 AND is_archived = false`,
+        [tenantId],
+      ),
+      // Trello unmapped lists (active cards, no explicit status override → fall to 'intake')
+      query<{ count: number; board_names: string }>(
+        `SELECT
+           COUNT(DISTINCT pl.id)::int as count,
+           STRING_AGG(DISTINCT pb.name, ', ' ORDER BY pb.name) AS board_names
+         FROM project_lists pl
+         JOIN project_boards pb ON pb.id = pl.board_id
+         WHERE pl.tenant_id = $1
+           AND pl.is_archived = false
+           AND NOT EXISTS (
+             SELECT 1 FROM trello_list_status_map m WHERE m.list_id = pl.id AND m.tenant_id = $1
+           )
+           AND (SELECT COUNT(*) FROM project_cards pc WHERE pc.list_id = pl.id AND pc.is_archived = false) > 0`,
+        [tenantId],
+      ),
+      // Trello members without email (can't resolve to Edro team)
+      query<{ count: number }>(
+        `SELECT COUNT(DISTINCT pcm.trello_member_id)::int as count
+         FROM project_card_members pcm
+         JOIN project_cards pc ON pc.id = pcm.card_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE pb.tenant_id = $1 AND pcm.email IS NULL`,
         [tenantId],
       ),
       // Meta connectors failing > 24h (across all clients)
@@ -493,6 +519,8 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     const calendar = calendarChannelRes.rows[0];
     const meta = metaConnectorRes.rows[0];
     const tb = trelloBoardsRes.rows[0];
+    const trelloUnmapped = trelloUnmappedRes.rows[0];
+    const trelloMembers = trelloMembersRes.rows[0];
     const metaFailing = metaFailingRes.rows[0];
 
     const calendarExpiry = calendar?.expires_at ? new Date(calendar.expires_at).getTime() : null;
@@ -508,10 +536,18 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         label: 'Trello',
         icon: 'trello',
         configured: Boolean(trello?.is_active),
-        status: !trello ? 'disconnected' : (tb?.stale ?? 0) > 0 ? 'stale' : (tb?.err ?? 0) > 0 ? 'error' : 'ok',
+        status: !trello ? 'disconnected'
+          : (tb?.err ?? 0) > 0 ? 'error'
+          : (tb?.stale ?? 0) > 0 || (trelloUnmapped?.count ?? 0) > 0 ? 'stale'
+          : 'ok',
         last_activity: trello?.last_synced_at ?? null,
-        details: trello ? `${tb?.total ?? 0} boards · ${tb?.unlinked ?? 0} sem cliente · ${tb?.stale ?? 0} desatualizados` : 'Não conectado',
+        details: trello
+          ? `${tb?.total ?? 0} boards · ${tb?.unlinked ?? 0} sem cliente · ${tb?.stale ?? 0} desatualizados · ${trelloUnmapped?.count ?? 0} listas sem mapeamento`
+          : 'Não conectado',
         action_url: '/admin/trello',
+        warning: (trelloUnmapped?.count ?? 0) > 0
+          ? `${trelloUnmapped.count} lista(s) com cards sem status definido — podem aparecer como "Intake" incorretamente`
+          : null,
       },
       {
         key: 'meta',
@@ -593,6 +629,20 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
 
     if ((tb?.stale ?? 0) > 0) alerts.push({ severity: 'warning', title: `${tb?.stale} board(s) Trello desatualizados`, message: 'Dados do Trello estão com mais de 2h sem sync. A Central de Operações pode estar mostrando informações antigas.', action_label: 'Ver boards', action_url: '/admin/trello' });
     if ((tb?.unlinked ?? 0) > 0) alerts.push({ severity: 'info', title: `${tb?.unlinked} board(s) sem cliente vinculado`, message: 'Cards desses boards aparecem sem contexto de cliente na Central de Operações.', action_label: 'Vincular', action_url: '/admin/trello' });
+    if ((trelloUnmapped?.count ?? 0) > 0) alerts.push({
+      severity: 'warning',
+      title: `${trelloUnmapped.count} lista(s) Trello sem status mapeado`,
+      message: `Cards nessas listas aparecem como "Intake" na Central de Operações (status padrão por não ter mapeamento explícito). Boards afetados: ${trelloUnmapped.board_names ?? '—'}.`,
+      action_label: 'Mapear listas',
+      action_url: '/admin/trello?tab=mapping',
+    });
+    if ((trelloMembers?.count ?? 0) > 0) alerts.push({
+      severity: 'info',
+      title: `${trelloMembers.count} membro(s) Trello sem e-mail`,
+      message: 'Responsáveis de cards sem e-mail não podem ser vinculados à equipe Edro. Atualize os perfis no Trello.',
+      action_label: 'Ver no Trello',
+      action_url: '/admin/trello',
+    });
 
     if ((metaFailing?.count ?? 0) > 0) {
       alerts.push({

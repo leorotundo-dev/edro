@@ -935,22 +935,35 @@ export default async function trelloRoutes(app: FastifyInstance) {
     );
 
     // Sync health summary
-    const { rows: healthRows } = await query<{
-      stale_count: number; unlinked_count: number; oldest_sync_hours: number | null;
-    }>(`
-      SELECT
-        COUNT(*) FILTER (WHERE last_synced_at IS NOT NULL AND EXTRACT(EPOCH FROM (now() - last_synced_at))/3600 > 2)::int as stale_count,
-        COUNT(*) FILTER (WHERE client_id IS NULL)::int as unlinked_count,
-        MAX(EXTRACT(EPOCH FROM (now() - last_synced_at))/3600) as oldest_sync_hours
-      FROM project_boards
-      WHERE tenant_id = $1 AND is_archived = false
-    `, [tenantId]);
+    const [{ rows: healthRows }, { rows: unmappedRows }] = await Promise.all([
+      query<{
+        stale_count: number; unlinked_count: number; oldest_sync_hours: number | null;
+      }>(`
+        SELECT
+          COUNT(*) FILTER (WHERE last_synced_at IS NOT NULL AND EXTRACT(EPOCH FROM (now() - last_synced_at))/3600 > 2)::int as stale_count,
+          COUNT(*) FILTER (WHERE client_id IS NULL)::int as unlinked_count,
+          MAX(EXTRACT(EPOCH FROM (now() - last_synced_at))/3600) as oldest_sync_hours
+        FROM project_boards
+        WHERE tenant_id = $1 AND is_archived = false
+      `, [tenantId]),
+      query<{ count: number }>(`
+        SELECT COUNT(DISTINCT pl.id)::int as count
+        FROM project_lists pl
+        WHERE pl.tenant_id = $1 AND pl.is_archived = false
+          AND NOT EXISTS (
+            SELECT 1 FROM trello_list_status_map m WHERE m.list_id = pl.id AND m.tenant_id = $1
+          )
+          AND (SELECT COUNT(*) FROM project_cards pc WHERE pc.list_id = pl.id AND pc.is_archived = false) > 0
+      `, [tenantId]),
+    ]);
     const hw = healthRows[0];
+    const unmappedCount = unmappedRows[0]?.count ?? 0;
     const sync_health = {
       stale_boards: hw?.stale_count ?? 0,
       unlinked_boards: hw?.unlinked_count ?? 0,
+      unmapped_lists: unmappedCount,
       oldest_sync_hours: hw?.oldest_sync_hours != null ? Math.round(Number(hw.oldest_sync_hours)) : null,
-      needs_attention: (hw?.stale_count ?? 0) > 0 || (hw?.unlinked_count ?? 0) > 0,
+      needs_attention: (hw?.stale_count ?? 0) > 0 || (hw?.unlinked_count ?? 0) > 0 || unmappedCount > 0,
     };
 
     return reply.send({

@@ -220,7 +220,7 @@ export default function OperationsOverviewClient() {
 
       {!loading && syncHealth?.needs_attention && (
         <Alert
-          severity={syncHealth.stale_boards > 0 ? 'warning' : 'info'}
+          severity={syncHealth.stale_boards > 0 || (syncHealth.unmapped_lists ?? 0) > 0 ? 'warning' : 'info'}
           sx={{ mb: 2 }}
           action={
             <Stack direction="row" spacing={1} alignItems="center">
@@ -243,7 +243,10 @@ export default function OperationsOverviewClient() {
             <span>{syncHealth.stale_boards} board(s) com dados desatualizados{syncHealth.oldest_sync_hours != null ? ` (há ${syncHealth.oldest_sync_hours}h)` : ''}. </span>
           )}
           {syncHealth.unlinked_boards > 0 && (
-            <span>{syncHealth.unlinked_boards} board(s) sem cliente vinculado — cards aparecem sem contexto na operação. </span>
+            <span>{syncHealth.unlinked_boards} board(s) sem cliente vinculado — cards aparecem sem contexto. </span>
+          )}
+          {(syncHealth.unmapped_lists ?? 0) > 0 && (
+            <span>{syncHealth.unmapped_lists} lista(s) sem status mapeado — cards aparecem como Intake incorretamente. <a href="/admin/trello?tab=mapping" style={{ color: 'inherit', fontWeight: 600 }}>Mapear →</a></span>
           )}
         </Alert>
       )}
