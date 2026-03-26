@@ -49,7 +49,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_da_reference_sources_scope_name
 CREATE TABLE IF NOT EXISTS da_references (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id TEXT NOT NULL,
-  client_id UUID NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id TEXT NULL REFERENCES clients(id) ON DELETE CASCADE,
   source_id UUID NULL REFERENCES da_reference_sources(id) ON DELETE SET NULL,
   source_url TEXT NOT NULL,
   canonical_url TEXT NULL,
@@ -112,7 +112,7 @@ CREATE INDEX IF NOT EXISTS idx_da_references_trend_signals
 CREATE TABLE IF NOT EXISTS da_feedback_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id TEXT NOT NULL,
-  client_id UUID NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id TEXT NULL REFERENCES clients(id) ON DELETE CASCADE,
   creative_session_id UUID NULL,
   reference_id UUID NULL REFERENCES da_references(id) ON DELETE SET NULL,
   event_type TEXT NOT NULL
@@ -130,7 +130,7 @@ CREATE INDEX IF NOT EXISTS idx_da_feedback_events_lookup
 CREATE TABLE IF NOT EXISTS da_trend_snapshots (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id TEXT NOT NULL,
-  client_id UUID NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id TEXT NULL REFERENCES clients(id) ON DELETE CASCADE,
   window_key TEXT NOT NULL,
   segment TEXT NULL,
   platform TEXT NULL,

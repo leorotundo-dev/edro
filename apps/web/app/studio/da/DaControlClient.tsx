@@ -84,6 +84,8 @@ type Trend = {
 
 type MemoryResponse = {
   success: boolean;
+  degraded?: boolean;
+  warning?: string;
   memory: {
     promptBlock: string;
     critiqueBlock: string;
@@ -201,6 +203,7 @@ export default function DaControlClient() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'discover' | 'refresh' | null>(null);
   const [error, setError] = useState<string>('');
+  const [warning, setWarning] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
   const [clientId, setClientId] = useState<string>('');
@@ -234,6 +237,7 @@ export default function DaControlClient() {
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setWarning('');
     try {
       const params = new URLSearchParams();
       if (clientId) params.set('client_id', clientId);
@@ -244,6 +248,9 @@ export default function DaControlClient() {
       params.set('trend_limit', '6');
       const response = await apiGet<MemoryResponse>(`/studio/creative/da-memory?${params.toString()}`);
       setData(response);
+      if (response.degraded) {
+        setWarning('A memória de DA ainda não está totalmente provisionada. O painel abriu em modo degradado.');
+      }
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar motor de DA');
     } finally {
@@ -335,6 +342,7 @@ export default function DaControlClient() {
         </Box>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
+        {warning ? <Alert severity="warning">{warning}</Alert> : null}
         {success ? <Alert severity="success">{success}</Alert> : null}
 
         <Grid container spacing={2.5}>
@@ -407,7 +415,7 @@ export default function DaControlClient() {
                 label="Client ID"
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
-                placeholder="uuid do cliente"
+                placeholder="id do cliente"
               />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
