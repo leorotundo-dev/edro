@@ -39,6 +39,8 @@ import { runCompetitorIntelligenceWorkerOnce } from './competitorIntelligenceWor
 import { runOpportunityDetectorWorkerOnce } from './opportunityDetectorWorker';
 import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
 import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
+import { runArtDirectionReferenceWorkerOnce } from './artDirectionReferenceWorker';
+import { runArtDirectionTrendWorkerOnce } from './artDirectionTrendWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -155,4 +157,8 @@ export function startJobsRunner() {
   startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 300_000);
   // Jarvis Alert Engine — 2x/day, cross-source alerts (stalled cards, no-reply, expiring contracts, market opportunities)
   startWorkerLoop('jarvisAlerts', runJarvisAlertWorkerOnce, 20000, 120_000);
+  // Art Direction Reference Discovery — opt-in, searches curated web references every 6h
+  startWorkerLoop('artDirectionReference', runArtDirectionReferenceWorkerOnce, 20500, 180_000);
+  // Art Direction Trend Memory — opt-in, analyzes discovered references and consolidates snapshots daily
+  startWorkerLoop('artDirectionTrend', runArtDirectionTrendWorkerOnce, 21000, 300_000);
 }

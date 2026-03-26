@@ -24,13 +24,25 @@ Antes de construir qualquer feature nova, perguntar:
 
 ## CLAUDE DEPLOY SYNC NOTE (Edro.Digital)
 
-Versao de producao lockada em:
-- web: c6a3dd30-ea85-4f44-b27c-f5ba01e0b1de
-- backend: b606c16d-0ffc-494a-a977-a792b9bf67d2
+Fluxo padrao de producao:
+- push/merge em `main`
+- checks obrigatorios verdes (`Security Gates`, `Secret Scan`, `CodeQL`)
+- workflow GitHub `Deploy Production`
+- deploy automatico dos servicos Railway
 
-Antes de novo deploy, sempre rodar:
-1) powershell -ExecutionPolicy Bypass -File scripts/railway-version-lock.ps1 -Mode check
-2) So seguir deploy se o lock estiver preservado ou se houver autorizacao explicita para sobrescrever.
+Segredo obrigatorio no GitHub:
+- `RAILWAY_TOKEN` como repo secret ou environment secret `production`
+  - preferencialmente um Project Token da Railway apontado para `production`
+  - precisa conseguir deploy/logs dos servicos `edro-backend`, `edro-web`, `edro-web-cliente` e `edro-web-freelancer`
 
-Se sobrescrever, atualizar lock:
-- powershell -ExecutionPolicy Bypass -File scripts/railway-version-lock.ps1 -Mode set
+Regras de seguranca do auto-deploy:
+1. Se o merge alterar `apps/backend/src/db/migrations/**`, o workflow bloqueia o auto-deploy.
+2. Nesses casos, rodar a migration manualmente e depois disparar `Deploy Production` por `workflow_dispatch` com `skip_migration_guard=true`.
+3. O lock de deploy passa a ser emitido como artifact/summary do workflow. O arquivo `.railway-version-lock.json` do repo fica como referencia para operacao manual/emergencial.
+
+Deploy manual local via Railway CLI:
+- usar apenas como fallback/emergencia
+- antes de sobrescrever producao, rodar:
+  - `powershell -ExecutionPolicy Bypass -File scripts/railway-version-lock.ps1 -Mode check`
+- se houver sobrescrita manual autorizada, atualizar o lock local:
+  - `powershell -ExecutionPolicy Bypass -File scripts/railway-version-lock.ps1 -Mode set`

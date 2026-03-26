@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p ${PORT:-3333} -H 0.0.0.0",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=100",
+    "lint": "pnpm exec cross-env ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=100",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
@@ -42,7 +42,7 @@
     "@types/react": "^19.0.0",
     "@types/react-big-calendar": "^1.8.10",
     "@types/react-dom": "^19.0.0",
-    "eslint": "^8.0.0",
+    "eslint": "^9.0.0",
     "eslint-config-next": "^16.2.1",
     "typescript": "^5.4.0"
   }

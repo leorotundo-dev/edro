@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPatch } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import MenuItem from '@mui/material/MenuItem';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconBrandTrello, IconCalendarEvent, IconCash, IconMessage, IconUsers } from '@tabler/icons-react';
 import ProjectBoardClient from '@/app/projetos/[boardId]/ProjectBoardClient';
@@ -35,18 +38,33 @@ function parseSub(v: string | null): OperacaoSub {
   return 'board';
 }
 
-type ProjectBoard = { id: string; name: string };
+type ProjectBoard = {
+  id: string;
+  name: string;
+  client_id?: string | null;
+  card_count?: number;
+};
 
 function TrelloBoardSection({ clientId }: { clientId: string; }) {
   const [board, setBoard] = useState<ProjectBoard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [availableBoards, setAvailableBoards] = useState<ProjectBoard[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState('');
+  const [linking, setLinking] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await apiGet<{ boards: ProjectBoard[] }>(`/trello/project-boards?client_id=${clientId}`);
       setBoard(res.boards?.[0] ?? null);
+      if (!res.boards?.length) {
+        const allBoardsRes = await apiGet<{ boards: ProjectBoard[] }>('/trello/project-boards');
+        setAvailableBoards((allBoardsRes.boards ?? []).filter((candidate) => !candidate.client_id));
+      } else {
+        setAvailableBoards([]);
+      }
     } catch {
       setBoard(null);
+      setAvailableBoards([]);
     } finally {
       setLoading(false);
     }
@@ -54,20 +72,74 @@ function TrelloBoardSection({ clientId }: { clientId: string; }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const handleLinkBoard = useCallback(async () => {
+    if (!selectedBoardId) return;
+    setLinking(true);
+    try {
+      await apiPatch(`/trello/project-boards/${selectedBoardId}`, { client_id: clientId });
+      setSelectedBoardId('');
+      await load();
+    } finally {
+      setLinking(false);
+    }
+  }, [clientId, load, selectedBoardId]);
+
   if (loading) return null;
 
   if (!board) {
     return (
-      <Alert
-        severity="info"
-        action={
-          <Button size="small" href="/projetos" color="inherit">
-            Ver Projetos
-          </Button>
-        }
-      >
-        Nenhum board Trello vinculado a este cliente.
-      </Alert>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Alert
+          severity="info"
+          action={
+            <Button size="small" href="/clients" color="inherit">
+              Ver Clientes
+            </Button>
+          }
+        >
+          Nenhum board Trello vinculado a este cliente.
+        </Alert>
+
+        {availableBoards.length > 0 && (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: 1.5,
+              alignItems: { sm: 'center' },
+              p: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 2,
+              bgcolor: 'background.paper',
+            }}
+          >
+            <TextField
+              select
+              size="small"
+              label="Vincular board existente"
+              value={selectedBoardId}
+              onChange={(event) => setSelectedBoardId(event.target.value)}
+              sx={{ minWidth: 260 }}
+            >
+              <MenuItem value="">Selecione um board</MenuItem>
+              {availableBoards.map((candidate) => (
+                <MenuItem key={candidate.id} value={candidate.id}>
+                  {candidate.name}{candidate.card_count != null ? ` · ${candidate.card_count} cards` : ''}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Button
+              variant="contained"
+              onClick={handleLinkBoard}
+              disabled={!selectedBoardId || linking}
+              startIcon={linking ? <CircularProgress size={14} color="inherit" /> : undefined}
+            >
+              Vincular board
+            </Button>
+          </Box>
+        )}
+      </Box>
     );
   }
 

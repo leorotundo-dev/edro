@@ -23,6 +23,12 @@ import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { env } from '../env';
+import {
+  buildArtDirectionFeedbackMetadata,
+  getPrimaryArtDirectionReferenceId,
+  recordArtDirectionFeedbackEvent,
+  resolveArtDirectionCreativeContext,
+} from '../services/ai/artDirectionMemoryService';
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
@@ -204,6 +210,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   app.post('/portal/client/jobs/:id/approve', async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
+    const tenantId = request.user?.tenant_id ?? null;
 
     const { id } = request.params as any;
     const { comment } = z.object({ comment: z.string().optional() }).parse(request.body ?? {});
@@ -240,6 +247,44 @@ export default async function portalClientRoutes(app: FastifyInstance) {
          VALUES ($1, 'client', $2, '✓ Copy aprovada pelo cliente.')`,
         [id, clientName],
       );
+    }
+
+    if (tenantId) {
+      const creativeContext = await resolveArtDirectionCreativeContext({
+        tenantId,
+        briefingId: id,
+        clientId,
+      }).catch(() => null);
+      const daMetadata = buildArtDirectionFeedbackMetadata({
+        context: creativeContext,
+        metadata: {
+          feedback: comment ?? null,
+        },
+        source: 'client_portal_approval',
+        reviewActor: 'client',
+        reviewStage: 'client_portal',
+        briefingId: id,
+        clientId,
+      });
+      if (
+        daMetadata.visual_intent ||
+        daMetadata.strategy_summary ||
+        daMetadata.reference_ids?.length ||
+        daMetadata.reference_urls?.length ||
+        daMetadata.concept_slugs?.length ||
+        daMetadata.trend_tags?.length
+      ) {
+        await recordArtDirectionFeedbackEvent({
+          tenantId,
+          clientId,
+          creativeSessionId: creativeContext?.creativeSessionId ?? null,
+          referenceId: getPrimaryArtDirectionReferenceId(daMetadata),
+          eventType: 'approved',
+          notes: comment ?? 'client_portal_approved',
+          metadata: daMetadata,
+          createdBy: request.user?.id ?? null,
+        }).catch(() => {});
+      }
     }
 
     return reply.send({ ok: true });

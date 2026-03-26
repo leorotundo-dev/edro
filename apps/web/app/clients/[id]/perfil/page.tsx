@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -35,7 +34,6 @@ import {
   IconEdit,
   IconExternalLink,
   IconHash,
-  IconPlugConnected,
   IconTarget,
   IconUsers,
   IconUserSquare,
@@ -395,7 +393,6 @@ export default function PerfilPage() {
         <Tab label="Identidade" />
         <Tab label="DNA de Marca" />
         <Tab label="Conteúdo" />
-        <Tab label="Conectores" />
         <Tab icon={<IconUsers size={16} />} iconPosition="start" label="Contatos" sx={{ fontSize: '0.85rem' }} />
         <Tab icon={<IconBooks size={16} />} iconPosition="start" label="Library" sx={{ fontSize: '0.85rem' }} />
       </Tabs>
@@ -830,54 +827,9 @@ export default function PerfilPage() {
         </Stack>
       )}
 
-      {tab === 3 && (
-        <Card variant="outlined">
-          <CardContent>
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
-              <Avatar sx={{ bgcolor: '#eef2ff', color: '#4f46e5', width: 36, height: 36 }}>
-                <IconPlugConnected size={20} />
-              </Avatar>
-              <Typography variant="h6" fontWeight={700}>Conectores</Typography>
-            </Stack>
-            <Stack spacing={1}>
-              {[
-                { label: 'Reportei', ok: reporteiConfigured, updatedAt: reporteiConnector?.updated_at || null, syncOk: reporteiConnector?.last_sync_ok, syncAt: reporteiConnector?.last_sync_at, syncError: reporteiConnector?.last_error },
-                { label: 'Meta', ok: metaConfigured, updatedAt: metaConnector?.updated_at || null, syncOk: metaConnector?.last_sync_ok, syncAt: metaConnector?.last_sync_at, syncError: metaConnector?.last_error },
-                { label: `Fontes social (${platforms.length})`, ok: platforms.length > 0, updatedAt: sourcesConnector?.updated_at || null, syncOk: null, syncAt: null, syncError: null },
-              ].map((item) => {
-                const hasError = item.ok && item.syncOk === false;
-                const dotColor = hasError ? '#dc2626' : item.ok ? '#059669' : '#e2e8f0';
-                const dotShadow = hasError ? '0 0 6px rgba(220,38,38,0.35)' : item.ok ? '0 0 6px rgba(5,150,105,0.35)' : 'none';
-                const chipLabel = !item.ok ? 'Configurar' : hasError ? 'Erro' : 'OK';
-                const chipBg = !item.ok ? '#f8fafc' : hasError ? '#fef2f2' : '#ecfdf5';
-                const chipColor = !item.ok ? '#64748b' : hasError ? '#dc2626' : '#059669';
-                const timeLabel = item.syncAt ? `Testado: ${formatDate(item.syncAt)}` : item.updatedAt ? `Atualizado: ${formatDate(item.updatedAt)}` : '--';
-                return (
-                <Stack key={item.label} direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.75 }}>
-                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: dotColor, boxShadow: dotShadow }} />
-                  <Typography variant="body2" sx={{ flex: 1 }}>{item.label}</Typography>
-                  <Typography variant="caption" color="text.secondary">{timeLabel}</Typography>
-                  <Chip size="small" label={chipLabel} sx={{ bgcolor: chipBg, color: chipColor, fontWeight: 700 }} />
-                </Stack>
-                );
-              })}
-            </Stack>
-            <Button
-              variant="outlined"
-              size="small"
-              component={Link}
-              href={`/clients/${clientId}/connectors`}
-              sx={{ mt: 2 }}
-            >
-              Abrir conectores
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {tab === 3 && <ContactsManager clientId={clientId} />}
 
-      {tab === 4 && <ContactsManager clientId={clientId} />}
-
-      {tab === 5 && <ClientLibraryClient clientId={clientId} />}
+      {tab === 4 && <ClientLibraryClient clientId={clientId} />}
     </Box>
   );
 }

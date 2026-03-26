@@ -16,6 +16,12 @@ import { generateCalibrationReport, getCalibratedEstimate } from '../services/jo
 import { notifyJobBlocked, notifyJobAssigned } from '../services/jobs/opsNotificationService';
 import { audit } from '../audit/audit';
 import { createBillingEntryForJob, consumeCapacitySlot, releaseCapacitySlot } from '../services/daBillingService';
+import {
+  buildArtDirectionFeedbackMetadata,
+  getPrimaryArtDirectionReferenceId,
+  recordArtDirectionFeedbackEvent,
+  resolveArtDirectionCreativeContext,
+} from '../services/ai/artDirectionMemoryService';
 
 /** Send approval request directly to the client's primary WhatsApp contact. */
 async function notifyClientApprovalNeeded(
@@ -207,6 +213,17 @@ function canTransition(fromStatus: string, toStatus: string, row: any) {
     if (!isIntakeComplete(row)) return false;
   }
   return true;
+}
+
+function hasDaFeedbackSignal(metadata?: Record<string, any> | null) {
+  return Boolean(
+    metadata?.visual_intent ||
+    metadata?.strategy_summary ||
+    metadata?.reference_ids?.length ||
+    metadata?.reference_urls?.length ||
+    metadata?.concept_slugs?.length ||
+    metadata?.trend_tags?.length
+  );
 }
 
 async function getSupportData(tenantId: string) {
@@ -1062,7 +1079,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
 
     // If job is still in_review, auto-advance to approved
     const jobRes = await query(
-      `SELECT status FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      `SELECT status, client_id FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [tenantId, jobId]
     );
     if (jobRes.rows[0]?.status === 'in_review') {
@@ -1076,6 +1093,34 @@ export default async function jobsRoutes(app: FastifyInstance) {
         [jobId, userId]
       );
       await syncOperationalRuntimeForJob(tenantId, jobId);
+    }
+
+    const creativeContext = await resolveArtDirectionCreativeContext({ tenantId, jobId }).catch(() => null);
+    const daMetadata = buildArtDirectionFeedbackMetadata({
+      context: creativeContext,
+      metadata: {
+        ...(rows[0]?.art_direction || {}),
+        layout: rows[0]?.layout || null,
+      },
+      source: 'job_creative_draft_review',
+      reviewActor: 'internal',
+      reviewStage: 'draft_approve',
+      draftId,
+      briefingId: rows[0]?.briefing_id || creativeContext?.briefingId || null,
+      jobId,
+      clientId: jobRes.rows[0]?.client_id || creativeContext?.clientId || null,
+    });
+    if (hasDaFeedbackSignal(daMetadata)) {
+      await recordArtDirectionFeedbackEvent({
+        tenantId,
+        clientId: jobRes.rows[0]?.client_id || creativeContext?.clientId || null,
+        creativeSessionId: creativeContext?.creativeSessionId || null,
+        referenceId: getPrimaryArtDirectionReferenceId(daMetadata),
+        eventType: 'approved',
+        notes: 'job_creative_draft_approved',
+        metadata: daMetadata,
+        createdBy: userId,
+      }).catch(() => {});
     }
 
     return { success: true, draft: rows[0] };
@@ -1101,7 +1146,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
 
     // Send back to in_progress (needs revision)
     const jobRes = await query(
-      `SELECT status, revision_count FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      `SELECT status, revision_count, client_id FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [tenantId, jobId]
     );
     if (jobRes.rows[0] && ['in_review', 'approved'].includes(jobRes.rows[0].status)) {
@@ -1118,6 +1163,35 @@ export default async function jobsRoutes(app: FastifyInstance) {
         [jobId, jobRes.rows[0].status, userId, reason ?? 'draft_rejected']
       );
       await syncOperationalRuntimeForJob(tenantId, jobId);
+    }
+
+    const creativeContext = await resolveArtDirectionCreativeContext({ tenantId, jobId }).catch(() => null);
+    const daMetadata = buildArtDirectionFeedbackMetadata({
+      context: creativeContext,
+      metadata: {
+        ...(rows[0]?.art_direction || {}),
+        layout: rows[0]?.layout || null,
+      },
+      source: 'job_creative_draft_review',
+      reviewActor: 'internal',
+      reviewStage: 'draft_reject',
+      rejectionReason: reason ?? null,
+      draftId,
+      briefingId: rows[0]?.briefing_id || creativeContext?.briefingId || null,
+      jobId,
+      clientId: jobRes.rows[0]?.client_id || creativeContext?.clientId || null,
+    });
+    if (hasDaFeedbackSignal(daMetadata)) {
+      await recordArtDirectionFeedbackEvent({
+        tenantId,
+        clientId: jobRes.rows[0]?.client_id || creativeContext?.clientId || null,
+        creativeSessionId: creativeContext?.creativeSessionId || null,
+        referenceId: getPrimaryArtDirectionReferenceId(daMetadata),
+        eventType: 'rejected',
+        notes: reason ?? 'job_creative_draft_rejected',
+        metadata: daMetadata,
+        createdBy: userId,
+      }).catch(() => {});
     }
 
     return { success: true, draft: rows[0] };
@@ -1493,7 +1567,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
               updated_at   = now()
         WHERE id = $1 AND tenant_id = $2
           AND status IN ('in_review', 'adjustment')
-        RETURNING id, title, owner_id, fee_brl`,
+        RETURNING id, title, owner_id, fee_brl, client_id`,
       [jobId, tenantId],
     );
     if (!rows.length) return reply.status(404).send({ error: 'Job não encontrado ou não está em revisão' });
@@ -1516,12 +1590,35 @@ export default async function jobsRoutes(app: FastifyInstance) {
       ip: request.ip,
     }).catch(() => {});
 
+    const creativeContext = await resolveArtDirectionCreativeContext({ tenantId, jobId }).catch(() => null);
+    const daMetadata = buildArtDirectionFeedbackMetadata({
+      context: creativeContext,
+      source: 'job_b2b_review',
+      reviewActor: 'internal',
+      reviewStage: 'b2b_approve',
+      jobId,
+      clientId: rows[0]?.client_id || creativeContext?.clientId || null,
+    });
+    if (hasDaFeedbackSignal(daMetadata)) {
+      await recordArtDirectionFeedbackEvent({
+        tenantId,
+        clientId: rows[0]?.client_id || creativeContext?.clientId || null,
+        creativeSessionId: creativeContext?.creativeSessionId || null,
+        referenceId: getPrimaryArtDirectionReferenceId(daMetadata),
+        eventType: 'approved',
+        notes: 'job_b2b_approved',
+        metadata: daMetadata,
+        createdBy: userId,
+      }).catch(() => {});
+    }
+
     return reply.send({ ok: true, job: rows[0] });
   });
 
   // ── POST /jobs/:jobId/b2b-adjustment — admin sends back with feedback ───────
   app.post('/jobs/:jobId/b2b-adjustment', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
     const { jobId } = request.params as { jobId: string };
     const { feedback } = request.body as { feedback: string };
 
@@ -1534,10 +1631,36 @@ export default async function jobsRoutes(app: FastifyInstance) {
               updated_at          = now()
         WHERE id = $1 AND tenant_id = $2
           AND status = 'in_review'
-        RETURNING id, title, owner_id`,
+        RETURNING id, title, owner_id, client_id`,
       [jobId, tenantId, feedback.trim()],
     );
     if (!rows.length) return reply.status(404).send({ error: 'Job não encontrado ou não está em revisão' });
+
+    const creativeContext = await resolveArtDirectionCreativeContext({ tenantId, jobId }).catch(() => null);
+    const daMetadata = buildArtDirectionFeedbackMetadata({
+      context: creativeContext,
+      metadata: {
+        adjustment_feedback: feedback.trim(),
+      },
+      source: 'job_b2b_review',
+      reviewActor: 'internal',
+      reviewStage: 'b2b_adjustment',
+      rejectionReason: feedback.trim(),
+      jobId,
+      clientId: rows[0]?.client_id || creativeContext?.clientId || null,
+    });
+    if (hasDaFeedbackSignal(daMetadata)) {
+      await recordArtDirectionFeedbackEvent({
+        tenantId,
+        clientId: rows[0]?.client_id || creativeContext?.clientId || null,
+        creativeSessionId: creativeContext?.creativeSessionId || null,
+        referenceId: getPrimaryArtDirectionReferenceId(daMetadata),
+        eventType: 'rejected',
+        notes: feedback.trim(),
+        metadata: daMetadata,
+        createdBy: userId,
+      }).catch(() => {});
+    }
 
     return reply.send({ ok: true, job: rows[0] });
   });

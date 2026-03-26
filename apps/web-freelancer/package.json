@@ -6,7 +6,7 @@
     "dev": "next dev -p 3444",
     "build": "next build",
     "start": "next start -p ${PORT:-3444} -H 0.0.0.0",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=10",
+    "lint": "pnpm exec cross-env ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=10",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -22,7 +22,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
-    "eslint": "^8.0.0",
+    "eslint": "^9.0.0",
     "eslint-config-next": "^15.0.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
