@@ -830,6 +830,10 @@ export default function DaControlClient() {
       })),
     [canons, data?.concepts],
   );
+  const populatedCanonGroups = useMemo(
+    () => canonGroups.filter((group) => (group.canon?.active_entries ?? group.concepts.length) > 0).length,
+    [canonGroups],
+  );
 
   const nextStep = useMemo(() => {
     if (!stats) return 'Carregando status do pipeline.';
@@ -875,7 +879,7 @@ export default function DaControlClient() {
               value={canons.length ? canons.reduce((sum, canon) => sum + canon.active_entries, 0) : data?.concepts?.length ?? 0}
               subtitle={
                 canons.length
-                  ? `${canons.length} canons da Edro estruturados`
+                  ? `${populatedCanonGroups}/${CANON_GROUPS.length} pilares já populados`
                   : 'conceitos-base do DA da Edro'
               }
               icon={<IconBrain size={20} />}
@@ -1408,8 +1412,8 @@ export default function DaControlClient() {
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
-              title="Área de canons"
-              subtitle="Os canons da Edro ficam separados por pilares. Cada grupo organiza um pedaço do repertório-base do DA."
+              title="Biblioteca de ensino do bot"
+              subtitle="Aqui fica o conteúdo supra-cliente que ensina como o diretor de arte da Edro pensa, referencia e critica."
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -1420,6 +1424,22 @@ export default function DaControlClient() {
                 />
               ) : (
                 <Stack spacing={1.5}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
+                      bgcolor: 'rgba(93,135,255,0.03)',
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Como ensinar o bot
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Primeiro a Edro define os canons. Depois o motor absorve referências, detecta tendências e só então aplica
+                      recortes de cliente. Cliente não cria canon; cliente só testa a aplicação do canon.
+                    </Typography>
+                  </Paper>
                   {canonGroups.map((group) => (
                     <Paper key={group.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
                       <Stack direction="row" justifyContent="space-between" gap={2} mb={1}>
@@ -1434,6 +1454,8 @@ export default function DaControlClient() {
                               ? `${group.canon.active_entries} ativos • ${group.canon.draft_entries} draft`
                               : `${group.concepts.length} conceitos`
                           }
+                          color={(group.canon?.active_entries ?? group.concepts.length) > 0 ? 'primary' : 'default'}
+                          variant={(group.canon?.active_entries ?? group.concepts.length) > 0 ? 'filled' : 'outlined'}
                         />
                       </Stack>
 
@@ -1559,7 +1581,7 @@ export default function DaControlClient() {
 
         <SectionCard
           title="Repertório analisado"
-          subtitle="Referências já capturadas e analisadas que o motor usa como repertório vivo."
+          subtitle="Referências que o bot já absorveu e pode reutilizar como repertório vivo."
         >
           {loading ? (
             <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
