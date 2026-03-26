@@ -233,7 +233,13 @@ export async function syncTrelloBoard(
       `INSERT INTO project_boards (tenant_id, client_id, name, description, trello_board_id, trello_url, last_synced_at)
        VALUES ($1, $2, $3, $4, $5, $6, now())
        ON CONFLICT (tenant_id, trello_board_id)
-       DO UPDATE SET name = $3, description = $4, trello_url = $6, last_synced_at = now(), updated_at = now()
+       DO UPDATE SET
+         client_id = COALESCE($2, project_boards.client_id),
+         name = $3,
+         description = $4,
+         trello_url = $6,
+         last_synced_at = now(),
+         updated_at = now()
        RETURNING id`,
       [tenantId, clientId ?? null, board.name, board.desc ?? null, board.id, board.url],
     );

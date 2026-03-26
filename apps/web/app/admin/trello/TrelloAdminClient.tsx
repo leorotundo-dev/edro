@@ -153,8 +153,10 @@ export default function TrelloAdminClient() {
     setImporting(trelloBoardId);
     setImportResult((prev) => ({ ...prev, [trelloBoardId]: '' }));
     try {
+      const existingBoard = projectBoards.find((board) => board.trello_board_id === trelloBoardId);
+      const selectedClientId = importClientId[trelloBoardId] || existingBoard?.client_id || undefined;
       const res = await apiPost(`/trello/boards/${trelloBoardId}/sync`, {
-        client_id: importClientId[trelloBoardId] || undefined,
+        client_id: selectedClientId,
       });
       setImportResult((prev) => ({
         ...prev,
@@ -283,6 +285,7 @@ export default function TrelloAdminClient() {
 
               {trelloBoards.map((board) => {
                 const alreadyImported = projectBoards.find((b) => b.trello_board_id === board.id);
+                const selectedClientId = importClientId[board.id] ?? alreadyImported?.client_id ?? '';
                 const result = importResult[board.id];
                 return (
                   <Box
@@ -316,7 +319,7 @@ export default function TrelloAdminClient() {
                         select
                         size="small"
                         label="Cliente (opcional)"
-                        value={importClientId[board.id] ?? ''}
+                        value={selectedClientId}
                         onChange={(e) => setImportClientId((prev) => ({ ...prev, [board.id]: e.target.value }))}
                         sx={{ minWidth: 160 }}
                       >
