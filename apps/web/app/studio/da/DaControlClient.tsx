@@ -30,12 +30,6 @@ import {
   IconTargetArrow,
 } from '@tabler/icons-react';
 
-type StoredClient = {
-  id: string;
-  name: string;
-  segment?: string | null;
-};
-
 type Concept = {
   id: string;
   slug: string;
@@ -527,6 +521,7 @@ export default function DaControlClient() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'discover' | 'refresh' | null>(null);
+  const [showApplicationFilters, setShowApplicationFilters] = useState(false);
   const [error, setError] = useState<string>('');
   const [warning, setWarning] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
@@ -561,6 +556,7 @@ export default function DaControlClient() {
     const fromQuery = searchParams?.get('clientId') || '';
     if (fromQuery) {
       setClientId(fromQuery);
+      setShowApplicationFilters(true);
       return;
     }
 
@@ -569,6 +565,7 @@ export default function DaControlClient() {
     setClientId('');
     setSegment('');
     setCategory('social media');
+    setShowApplicationFilters(false);
   }, [searchParams]);
 
   const load = useCallback(async () => {
@@ -862,8 +859,8 @@ export default function DaControlClient() {
             Direção de Arte Intelligence
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mt: 1, maxWidth: 860 }}>
-            Painel de governança do cérebro de direção de arte da Edro. Aqui você controla o canon, aciona a
-            descoberta web, acompanha as tendências e alimenta o sistema com feedback humano.
+            Área de treinamento e governança do bot de direção de arte da Edro. Aqui você ensina o canon, cura
+            referências, acompanha tendências e calibra o julgamento visual do sistema.
           </Typography>
         </Box>
 
@@ -1100,8 +1097,8 @@ export default function DaControlClient() {
         </SectionCard>
 
         <SectionCard
-          title="Controle do motor"
-          subtitle="O cérebro é da Edro. Cliente, plataforma e segmento servem só como recorte de aplicação e pesquisa."
+          title="Treinamento do bot DA"
+          subtitle="Ensine e calibre o cérebro da Edro. Use recorte de aplicação só quando quiser testar um contexto específico."
           action={
             <Stack direction="row" spacing={1}>
               <Button
@@ -1126,15 +1123,6 @@ export default function DaControlClient() {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
-                fullWidth
-                label="Cliente opcional"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="id do cliente para recorte"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
-              <TextField
                 select
                 fullWidth
                 label="Plataforma"
@@ -1146,16 +1134,7 @@ export default function DaControlClient() {
                 ))}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
-              <TextField
-                fullWidth
-                label="Segmento"
-                value={segment}
-                onChange={(e) => setSegment(e.target.value)}
-                placeholder="varejo, saúde, industrial..."
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Categoria de busca"
@@ -1164,7 +1143,7 @@ export default function DaControlClient() {
                 placeholder="social media, retail, editorial..."
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 5 }}>
               <TextField
                 fullWidth
                 label="Mood opcional"
@@ -1173,7 +1152,7 @@ export default function DaControlClient() {
                 placeholder="premium, clean, bold, documentary..."
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 8 }}>
+            <Grid size={{ xs: 12 }}>
               <Paper
                 variant="outlined"
                 sx={{
@@ -1184,15 +1163,79 @@ export default function DaControlClient() {
                 }}
               >
                 <Typography variant="caption" color="text.secondary">
-                  O motor parte do canon da Edro e aplica o recorte em cima disso:
+                  O motor treina em quatro camadas principais:
                 </Typography>
                 <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
                   <Chip size="small" label="Canon Edro" />
-                  <Chip size="small" label="Estética do Cliente" />
                   <Chip size="small" label="Reference Memory" />
-                  <Chip size="small" label="Trend Memory" />
+                  <Chip size="small" label="Trend Radar" />
                   <Chip size="small" label="Feedback Loop" />
+                  {(clientId || segment) ? <Chip size="small" color="warning" variant="outlined" label="Recorte opcional ativo" /> : null}
                 </Stack>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.75,
+                  borderRadius: 2.5,
+                  bgcolor: 'rgba(15, 23, 42, 0.02)',
+                }}
+              >
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={1.5} alignItems={{ md: 'center' }}>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Recorte opcional de aplicação
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Cliente e segmento não treinam o cérebro da Edro. Eles só testam como o DA se comporta em um contexto específico.
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" gap={1} flexWrap="wrap">
+                    {(clientId || segment) ? (
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => {
+                          setClientId('');
+                          setSegment('');
+                        }}
+                      >
+                        Limpar recorte
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => setShowApplicationFilters((current) => !current)}
+                    >
+                      {showApplicationFilters ? 'Ocultar recorte' : 'Aplicar recorte'}
+                    </Button>
+                  </Stack>
+                </Stack>
+                {showApplicationFilters ? (
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <TextField
+                        fullWidth
+                        label="Cliente opcional"
+                        value={clientId}
+                        onChange={(e) => setClientId(e.target.value)}
+                        placeholder="id do cliente para teste"
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <TextField
+                        fullWidth
+                        label="Segmento opcional"
+                        value={segment}
+                        onChange={(e) => setSegment(e.target.value)}
+                        placeholder="varejo, saúde, industrial..."
+                      />
+                    </Grid>
+                  </Grid>
+                ) : null}
               </Paper>
             </Grid>
             <Grid size={{ xs: 12 }}>
