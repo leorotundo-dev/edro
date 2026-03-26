@@ -355,6 +355,8 @@ export async function generateJobImage(tenantId: string, jobId: string): Promise
       clientProfile: profile,
       platform,
       format: `Feed ${format}`,
+      tenantId,
+      clientId: job.client_id,
     });
 
     const artDirection = {

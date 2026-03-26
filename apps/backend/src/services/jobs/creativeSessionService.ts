@@ -3,6 +3,13 @@ import { pool, query } from '../../db';
 import { syncOperationalRuntimeForJob } from './operationsRuntimeService';
 import { deriveCreativeStageFromJobStatus, mapCreativeStageToJobStatus } from './creativeStageMapping';
 import { canTransitionCreativeStage } from './creativeWorkflowRules';
+import {
+  buildArtDirectionFeedbackMetadata,
+  getPrimaryArtDirectionReferenceId,
+  recordArtDirectionFeedbackEvent,
+  type ArtDirectionFeedbackEventType,
+  type ArtDirectionFeedbackMetadata,
+} from '../ai/artDirectionMemoryService';
 import type {
   CreativeAssetRow,
   CreativePublicationIntentRow,
@@ -112,6 +119,90 @@ function stageToSessionStatus(stage: CreativeStage) {
 
 function mergeJson(base?: Record<string, any> | null, patch?: Record<string, any> | null) {
   return { ...(base || {}), ...(patch || {}) };
+}
+
+function hasArtDirectionFeedbackSignal(metadata?: ArtDirectionFeedbackMetadata | null) {
+  if (!metadata) return false;
+  return Boolean(
+    metadata.visual_intent ||
+    metadata.strategy_summary ||
+    metadata.reference_ids?.length ||
+    metadata.reference_urls?.length ||
+    metadata.concept_slugs?.length ||
+    metadata.trend_tags?.length
+  );
+}
+
+function listCanvasDraftChanges(previous: Record<string, any> | null | undefined, next: Record<string, any> | null | undefined) {
+  const prev = previous || {};
+  const curr = next || {};
+  const changeTypes = new Set<string>();
+  const changedLayers = new Set<string>();
+
+  if (String(prev.current_image_url || '') !== String(curr.current_image_url || '')) {
+    changeTypes.add('image');
+    changedLayers.add('background_image');
+  }
+  if (String(prev.prompt || '') !== String(curr.prompt || '')) {
+    changeTypes.add('image_prompt');
+    changedLayers.add('background_image');
+  }
+  if (String(prev.format || '') !== String(curr.format || '')) {
+    changeTypes.add('layout');
+  }
+  if (String(prev.platform || '') !== String(curr.platform || '')) {
+    changeTypes.add('channel_fit');
+  }
+
+  const prevCopy = prev.copy && typeof prev.copy === 'object' ? prev.copy : {};
+  const currCopy = curr.copy && typeof curr.copy === 'object' ? curr.copy : {};
+  if (String(prevCopy.headline || '') !== String(currCopy.headline || '')) {
+    changeTypes.add('hierarchy');
+    changedLayers.add('headline');
+  }
+  if (String(prevCopy.body || '') !== String(currCopy.body || '')) {
+    changeTypes.add('copy_trim');
+    changedLayers.add('body');
+  }
+  if (String(prevCopy.cta || '') !== String(currCopy.cta || '')) {
+    changeTypes.add('cta');
+    changedLayers.add('cta');
+  }
+
+  const totalChanges = changeTypes.size;
+  const editSeverity: 'low' | 'medium' | 'high' | null =
+    totalChanges >= 4 ? 'high' :
+    totalChanges >= 2 ? 'medium' :
+    totalChanges >= 1 ? 'low' :
+    null;
+
+  return {
+    changeTypes: Array.from(changeTypes),
+    changedLayers: Array.from(changedLayers),
+    editSeverity,
+  };
+}
+
+async function recordArtDirectionFeedbackSafe(params: {
+  tenantId: string;
+  clientId?: string | null;
+  creativeSessionId?: string | null;
+  eventType: ArtDirectionFeedbackEventType;
+  metadata?: ArtDirectionFeedbackMetadata | null;
+  createdBy?: string | null;
+  notes?: string | null;
+}) {
+  if (!hasArtDirectionFeedbackSignal(params.metadata)) return;
+  await recordArtDirectionFeedbackEvent({
+    tenantId: params.tenantId,
+    clientId: params.clientId ?? null,
+    creativeSessionId: params.creativeSessionId ?? null,
+    referenceId: getPrimaryArtDirectionReferenceId(params.metadata || undefined),
+    eventType: params.eventType,
+    notes: params.notes ?? null,
+    metadata: params.metadata || {},
+    createdBy: params.createdBy ?? null,
+  });
 }
 
 async function appendJobStatusHistory(
@@ -640,6 +731,8 @@ export async function addCreativeVersion(
   input: AddCreativeVersionInput
 ) {
   const client = await pool.connect();
+  let job: JobRow | null = null;
+  let feedbackMetadata: ArtDirectionFeedbackMetadata | null = null;
   try {
     await client.query('BEGIN');
     const sessionRes = await client.query<CreativeSessionRow>(
@@ -648,6 +741,7 @@ export async function addCreativeVersion(
     );
     const session = sessionRes.rows[0];
     if (!session) throw new Error('Sessão criativa não encontrada.');
+    job = await fetchJobForTenant(client, tenantId, jobId);
 
     if (input.select) {
       await client.query(
@@ -666,15 +760,33 @@ export async function addCreativeVersion(
        RETURNING id`,
       [tenantId, sessionId, jobId, input.version_type, input.source, JSON.stringify(input.payload || {}), Boolean(input.select), userId || null]
     );
+    const versionId = inserted.rows[0].id;
 
     if (input.select && ['copy', 'caption'].includes(input.version_type)) {
       await client.query(
         `UPDATE creative_sessions
             SET selected_copy_version_id = $2
           WHERE id = $1`,
-        [sessionId, inserted.rows[0].id]
+        [sessionId, versionId]
       );
     }
+
+    feedbackMetadata = buildArtDirectionFeedbackMetadata({
+      context: {
+        creativeSessionId: session.id,
+        jobId: session.job_id,
+        briefingId: session.briefing_id,
+        clientId: job?.client_id ?? null,
+        sessionMetadata: session.metadata,
+        lastCanvasSnapshot: session.last_canvas_snapshot,
+      },
+      metadata: input.payload || {},
+      source: 'creative_session_add_version',
+      creativeVersionId: versionId,
+      briefingId: session.briefing_id,
+      jobId,
+      clientId: job?.client_id ?? null,
+    });
 
     await client.query('COMMIT');
   } catch (error) {
@@ -685,6 +797,14 @@ export async function addCreativeVersion(
   }
 
   await syncOperationalRuntimeForJob(tenantId, jobId);
+  await recordArtDirectionFeedbackSafe({
+    tenantId,
+    clientId: job?.client_id ?? null,
+    creativeSessionId: sessionId,
+    eventType: 'used',
+    metadata: feedbackMetadata,
+    createdBy: userId ?? null,
+  }).catch(() => {});
   return getCreativeSessionContextBySessionId(tenantId, sessionId);
 }
 
@@ -745,6 +865,8 @@ export async function addCreativeAsset(
   input: AddCreativeAssetInput
 ) {
   const client = await pool.connect();
+  let job: JobRow | null = null;
+  let feedbackMetadata: ArtDirectionFeedbackMetadata | null = null;
   try {
     await client.query('BEGIN');
     const sessionRes = await client.query<CreativeSessionRow>(
@@ -753,6 +875,7 @@ export async function addCreativeAsset(
     );
     const session = sessionRes.rows[0];
     if (!session) throw new Error('Sessão criativa não encontrada.');
+    job = await fetchJobForTenant(client, tenantId, jobId);
 
     if (input.select) {
       await client.query(
@@ -783,13 +906,34 @@ export async function addCreativeAsset(
         userId || null,
       ]
     );
+    const assetId = inserted.rows[0].id;
 
     if (input.select) {
       await client.query(
         `UPDATE creative_sessions SET selected_asset_id = $2 WHERE id = $1`,
-        [sessionId, inserted.rows[0].id]
+        [sessionId, assetId]
       );
     }
+
+    feedbackMetadata = buildArtDirectionFeedbackMetadata({
+      context: {
+        creativeSessionId: session.id,
+        jobId: session.job_id,
+        briefingId: session.briefing_id,
+        clientId: job?.client_id ?? null,
+        sessionMetadata: session.metadata,
+        lastCanvasSnapshot: session.last_canvas_snapshot,
+      },
+      metadata: {
+        ...(input.metadata || {}),
+        asset_id: assetId,
+        asset_type: input.asset_type,
+      },
+      source: 'creative_session_add_asset',
+      briefingId: session.briefing_id,
+      jobId,
+      clientId: job?.client_id ?? null,
+    });
 
     await client.query('COMMIT');
   } catch (error) {
@@ -800,6 +944,14 @@ export async function addCreativeAsset(
   }
 
   await syncOperationalRuntimeForJob(tenantId, jobId);
+  await recordArtDirectionFeedbackSafe({
+    tenantId,
+    clientId: job?.client_id ?? null,
+    creativeSessionId: sessionId,
+    eventType: 'used',
+    metadata: feedbackMetadata,
+    createdBy: userId ?? null,
+  }).catch(() => {});
   return getCreativeSessionContextBySessionId(tenantId, sessionId);
 }
 
@@ -898,8 +1050,18 @@ export async function resolveCreativeReview(
   input: ResolveCreativeReviewInput
 ) {
   const client = await pool.connect();
+  let job: JobRow | null = null;
+  let feedbackEventType: ArtDirectionFeedbackEventType | null = null;
+  let feedbackMetadata: ArtDirectionFeedbackMetadata | null = null;
   try {
     await client.query('BEGIN');
+    const sessionRes = await client.query<CreativeSessionRow>(
+      `SELECT * FROM creative_sessions WHERE tenant_id = $1 AND id = $2 AND job_id = $3 LIMIT 1`,
+      [tenantId, sessionId, jobId]
+    );
+    const session = sessionRes.rows[0];
+    if (!session) throw new Error('Sessão criativa não encontrada.');
+
     const reviewRes = await client.query<CreativeReviewRow>(
       `SELECT * FROM creative_reviews
         WHERE tenant_id = $1
@@ -922,7 +1084,7 @@ export async function resolveCreativeReview(
       [review.id, input.status, JSON.stringify(input.feedback || {}), userId || null]
     );
 
-    const job = await fetchJobForTenant(client, tenantId, jobId);
+    job = await fetchJobForTenant(client, tenantId, jobId);
     if (!job) throw new Error('Demanda não encontrada.');
 
     let nextStage: CreativeStage = 'arte';
@@ -950,6 +1112,40 @@ export async function resolveCreativeReview(
     );
     await setJobStatusIfChanged(client, job, nextJobStatus, userId, 'creative_review_resolved');
 
+    if (input.status === 'approved') {
+      feedbackEventType = 'approved';
+    } else if (input.status === 'rejected' || input.status === 'changes_requested') {
+      feedbackEventType = 'rejected';
+    }
+    feedbackMetadata = feedbackEventType
+      ? buildArtDirectionFeedbackMetadata({
+          context: {
+            creativeSessionId: sessionId,
+            jobId,
+            briefingId: review.feedback?.briefing_id ?? session.briefing_id ?? null,
+            clientId: job.client_id ?? null,
+            sessionMetadata: session.metadata,
+            lastCanvasSnapshot: session.last_canvas_snapshot,
+          },
+          metadata: {
+            ...(review.feedback || {}),
+            ...(input.feedback || {}),
+          },
+          source: review.review_type === 'client_approval'
+            ? 'creative_session_client_review'
+            : 'creative_session_internal_review',
+          reviewActor: review.review_type === 'client_approval' ? 'client' : 'internal',
+          reviewStage: review.review_type,
+          rejectionReason:
+            input.status === 'approved'
+              ? null
+              : String((input.feedback as any)?.reason || (input.feedback as any)?.comment || '').trim() || null,
+          briefingId: review.feedback?.briefing_id ?? session.briefing_id ?? null,
+          jobId,
+          clientId: job.client_id ?? null,
+        })
+      : null;
+
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
@@ -959,6 +1155,20 @@ export async function resolveCreativeReview(
   }
 
   await syncOperationalRuntimeForJob(tenantId, jobId);
+  if (feedbackEventType) {
+    await recordArtDirectionFeedbackSafe({
+      tenantId,
+      clientId: job?.client_id ?? null,
+      creativeSessionId: sessionId,
+      eventType: feedbackEventType,
+      metadata: feedbackMetadata,
+      createdBy: userId ?? null,
+      notes:
+        feedbackEventType === 'approved'
+          ? 'creative_review_approved'
+          : 'creative_review_rejected',
+    }).catch(() => {});
+  }
   return getCreativeSessionContextBySessionId(tenantId, sessionId);
 }
 
@@ -1011,6 +1221,8 @@ export async function saveCanvasDraft(
   input: SaveCanvasDraftInput
 ) {
   const client = await pool.connect();
+  let job: JobRow | null = null;
+  let feedbackMetadata: ArtDirectionFeedbackMetadata | null = null;
   try {
     await client.query('BEGIN');
     const sessionRes = await client.query<CreativeSessionRow>(
@@ -1019,6 +1231,7 @@ export async function saveCanvasDraft(
     );
     const session = sessionRes.rows[0];
     if (!session) throw new Error('Sessão criativa não encontrada.');
+    job = await fetchJobForTenant(client, tenantId, jobId);
 
     const snapshot = mergeJson(session.last_canvas_snapshot, input.snapshot || {});
     await client.query(
@@ -1048,9 +1261,34 @@ export async function saveCanvasDraft(
       );
     }
 
-    const job = await fetchJobForTenant(client, tenantId, jobId);
     if (job && ['intake', 'planned', 'ready', 'allocated', 'in_review', 'awaiting_approval'].includes(job.status)) {
       await setJobStatusIfChanged(client, job, 'in_progress', userId, 'canvas_draft_saved');
+    }
+
+    const diff = listCanvasDraftChanges(session.last_canvas_snapshot, snapshot);
+    if (diff.editSeverity) {
+      feedbackMetadata = buildArtDirectionFeedbackMetadata({
+        context: {
+          creativeSessionId: session.id,
+          jobId: session.job_id,
+          briefingId: session.briefing_id,
+          clientId: job?.client_id ?? null,
+          sessionMetadata: session.metadata,
+          lastCanvasSnapshot: session.last_canvas_snapshot,
+        },
+        metadata: {
+          ...(input.snapshot || {}),
+          ...(input.draft_asset?.metadata || {}),
+        },
+        source: 'canvas_save_draft',
+        reviewActor: 'internal',
+        changedLayers: diff.changedLayers,
+        changeTypes: diff.changeTypes,
+        editSeverity: diff.editSeverity,
+        briefingId: session.briefing_id,
+        jobId,
+        clientId: job?.client_id ?? null,
+      });
     }
 
     await client.query('COMMIT');
@@ -1062,5 +1300,14 @@ export async function saveCanvasDraft(
   }
 
   await syncOperationalRuntimeForJob(tenantId, jobId);
+  await recordArtDirectionFeedbackSafe({
+    tenantId,
+    clientId: job?.client_id ?? null,
+    creativeSessionId: sessionId,
+    eventType: 'edited',
+    metadata: feedbackMetadata,
+    createdBy: userId ?? null,
+    notes: 'canvas_draft_saved',
+  }).catch(() => {});
   return getCreativeSessionContextBySessionId(tenantId, sessionId);
 }

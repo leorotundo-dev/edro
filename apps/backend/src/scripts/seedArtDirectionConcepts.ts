@@ -1,0 +1,137 @@
+import { upsertArtDirectionConcept } from '../services/ai/artDirectionMemoryService';
+
+const CORE_CONCEPTS = [
+  {
+    slug: 'gestalt',
+    title: 'Gestalt',
+    category: 'fundamentos_visuais',
+    definition: 'Princípios de percepção visual que ajudam a organizar leitura, agrupamento e foco.',
+    heuristics: ['agrupar elementos relacionados por proximidade', 'usar contraste para separar blocos', 'evitar ilhas visuais sem relação clara'],
+    whenToUse: ['carrosséis educativos', 'layouts com múltiplos blocos', 'peças com headline + prova + CTA'],
+    whenToAvoid: ['caos visual intencional', 'composição experimental sem obrigação de clareza'],
+    critiqueChecks: ['a ordem de leitura está clara?', 'há blocos competindo entre si?'],
+    examples: ['carrossel com cards bem agrupados', 'landing hero com benefício, prova e CTA'],
+  },
+  {
+    slug: 'hierarquia_visual',
+    title: 'Hierarquia Visual',
+    category: 'fundamentos_visuais',
+    definition: 'Distribuição de peso visual para definir o que deve ser visto primeiro, depois e por último.',
+    heuristics: ['um foco principal dominante', 'headline acima do apoio', 'CTA nunca competir com o assunto principal'],
+    whenToUse: ['qualquer peça publicitária', 'layouts com múltiplos níveis de mensagem'],
+    whenToAvoid: ['nunca deve ser ignorada em peça de performance'],
+    critiqueChecks: ['o primeiro olhar cai no lugar certo?', 'headline, selo e CTA estão brigando?'],
+  },
+  {
+    slug: 'grids',
+    title: 'Grids',
+    category: 'fundamentos_visuais',
+    definition: 'Estruturas de alinhamento que trazem ordem, consistência e repetibilidade ao layout.',
+    heuristics: ['alinhar blocos com consistência', 'usar colunas claras', 'manter ritmo de margens'],
+    whenToUse: ['LinkedIn', 'B2B', 'carrosséis', 'sistemas editoriais'],
+    whenToAvoid: ['quando a proposta pedir ruptura controlada, ainda assim com intenção'],
+    critiqueChecks: ['há alinhamento coerente?', 'o layout parece acidental ou construído?'],
+  },
+  {
+    slug: 'teoria_das_cores',
+    title: 'Teoria das Cores',
+    category: 'fundamentos_visuais',
+    definition: 'Uso intencional de cor para contraste, clima, leitura e associação emocional.',
+    heuristics: ['definir primária, apoio e acento', 'usar contraste funcional para CTA', 'evitar ruído cromático sem função'],
+    whenToUse: ['performance ads', 'identidade de campanha', 'destaque de informação'],
+    whenToAvoid: ['paletas arbitrárias sem relação com marca ou objetivo'],
+    critiqueChecks: ['há contraste suficiente?', 'a cor reforça ou sabota a mensagem?'],
+  },
+  {
+    slug: 'tipografia',
+    title: 'Tipografia',
+    category: 'tipografia',
+    definition: 'Escolha e organização de tipos para construir tom, legibilidade e hierarquia.',
+    heuristics: ['tipografia deve servir a mensagem', 'uma família forte vale mais que várias brigando', 'peso e escala definem prioridade'],
+    whenToUse: ['todas as peças com texto', 'sistemas de campanha', 'carrosséis e OOH'],
+    whenToAvoid: ['decorativismo gratuito que sacrifica leitura'],
+    critiqueChecks: ['a fonte condiz com a marca?', 'o texto ainda é legível em tamanho real?'],
+  },
+  {
+    slug: 'sans_serifs',
+    title: 'Sans-serifs',
+    category: 'tipografia',
+    definition: 'Famílias sem serifa, geralmente associadas a clareza, contemporaneidade e performance.',
+    heuristics: ['ótimas para leitura rápida', 'funcionam bem em digital', 'pesos bold ajudam peças de conversão'],
+    whenToUse: ['redes sociais', 'interfaces', 'varejo', 'B2B moderno'],
+    whenToAvoid: ['quando o tom pedir tradição ou editorial clássico'],
+    critiqueChecks: ['o peso está certo?', 'a leitura mobile continua confortável?'],
+  },
+  {
+    slug: 'serifas',
+    title: 'Serifas',
+    category: 'tipografia',
+    definition: 'Famílias com serifa, úteis para trazer tradição, sofisticação ou tom editorial.',
+    heuristics: ['usar com controle de espaçamento', 'combinar com sans em apoio', 'melhor em tom premium/editorial'],
+    whenToUse: ['luxo', 'editorial', 'institucional sofisticado'],
+    whenToAvoid: ['peças densas e urgentes de leitura instantânea'],
+    critiqueChecks: ['a serifada elevou o valor percebido ou só ficou difícil de ler?'],
+  },
+  {
+    slug: 'acessibilidade',
+    title: 'Acessibilidade',
+    category: 'acessibilidade_critica',
+    definition: 'Garantia de leitura, contraste e inclusão para diferentes contextos de uso.',
+    heuristics: ['contraste AA mínimo', 'não depender só de cor', 'evitar texto sobre fundo instável'],
+    whenToUse: ['sempre'],
+    whenToAvoid: ['nunca deve ser ignorada'],
+    critiqueChecks: ['o contraste passa?', 'há área limpa suficiente para texto?'],
+  },
+  {
+    slug: 'design_suico',
+    title: 'Design Suíço',
+    category: 'historia_estilo',
+    definition: 'Linguagem de clareza, grid rígido, tipografia limpa e racionalidade visual.',
+    heuristics: ['uso forte de grid', 'respiro controlado', 'tipografia precisa', 'composição clara'],
+    whenToUse: ['B2B', 'tech', 'financeiro', 'mensagens informativas'],
+    whenToAvoid: ['quando a marca pede calor humano ou expressividade mais solta'],
+    critiqueChecks: ['a peça transmite clareza ou ficou fria e impessoal demais?'],
+  },
+  {
+    slug: 'bauhaus',
+    title: 'Bauhaus',
+    category: 'historia_estilo',
+    definition: 'Síntese entre forma, função e geometria, com racionalidade visual forte.',
+    heuristics: ['formas geométricas simples', 'função acima do ornamento', 'economia visual'],
+    whenToUse: ['sistemas visuais limpos', 'campanhas conceituais', 'layout geométrico'],
+    whenToAvoid: ['marcas que dependem de exuberância ornamental'],
+    critiqueChecks: ['há excesso ornamental sem função?', 'a forma está servindo a função?'],
+  },
+  {
+    slug: 'pos_modernismo',
+    title: 'Pós-modernismo',
+    category: 'historia_estilo',
+    definition: 'Linguagem mais expressiva, híbrida e deliberadamente tensionada.',
+    heuristics: ['quebrar grid com intenção', 'camadas visuais expressivas', 'mais atitude que neutralidade'],
+    whenToUse: ['moda', 'Gen Z', 'cultura', 'campanhas mais ousadas'],
+    whenToAvoid: ['comunicação que exige máxima clareza e institucionalidade'],
+    critiqueChecks: ['a ruptura parece intencional ou bagunçada?'],
+  },
+  {
+    slug: 'fotografia_documental_publicitaria',
+    title: 'Fotografia Documental Publicitária',
+    category: 'formatos_midias',
+    definition: 'Uso de linguagem aparentemente real e humana para gerar confiança e proximidade.',
+    heuristics: ['evitar pose artificial', 'buscar gesto verdadeiro', 'luz natural ou naturalista'],
+    whenToUse: ['prova social', 'institucional humano', 'comunidade'],
+    whenToAvoid: ['quando o objetivo é luxo altamente produzido'],
+    critiqueChecks: ['a imagem parece real?', 'há humanidade ou só banco de imagem genérico?'],
+  },
+];
+
+async function main() {
+  for (const concept of CORE_CONCEPTS) {
+    await upsertArtDirectionConcept(concept);
+  }
+  console.log(`[seedArtDirectionConcepts] upserted ${CORE_CONCEPTS.length} concepts`);
+}
+
+main().catch((err) => {
+  console.error('[seedArtDirectionConcepts] failed:', err);
+  process.exit(1);
+});

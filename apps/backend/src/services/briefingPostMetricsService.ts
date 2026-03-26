@@ -1,6 +1,12 @@
 import { query } from '../db';
 import { ReporteiClient, INSTAGRAM_METRICS, PLATFORM_METRICS } from '../providers/reportei/reporteiClient';
 import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
+import {
+  buildArtDirectionFeedbackMetadata,
+  getPrimaryArtDirectionReferenceId,
+  recordArtDirectionFeedbackEvent,
+  resolveArtDirectionCreativeContext,
+} from './ai/artDirectionMemoryService';
 
 // ── Normalize platform name to Reportei Connect platform key ──────────────────
 const PLATFORM_MAP: Record<string, string> = {
@@ -43,6 +49,105 @@ function refKeyToField(refKey: string): string | null {
     new_followers_count:   'new_followers',
   };
   return map[suffix] ?? null;
+}
+
+function hasDaSignal(metadata?: Record<string, any> | null) {
+  return Boolean(
+    metadata?.visual_intent ||
+    metadata?.strategy_summary ||
+    metadata?.reference_ids?.length ||
+    metadata?.reference_urls?.length ||
+    metadata?.concept_slugs?.length ||
+    metadata?.trend_tags?.length
+  );
+}
+
+function pickPerformanceMetric(fields: Record<string, number | null>) {
+  if (fields.engagement_rate != null) {
+    return { type: 'engagement_rate', value: Number(fields.engagement_rate) };
+  }
+  if (fields.ctr != null) {
+    return { type: 'ctr', value: Number(fields.ctr) };
+  }
+  if (fields.engagement != null) {
+    return { type: 'engagement', value: Number(fields.engagement) };
+  }
+  if (fields.impressions != null) {
+    return { type: 'impressions', value: Number(fields.impressions) };
+  }
+  if (fields.reach != null) {
+    return { type: 'reach', value: Number(fields.reach) };
+  }
+  return { type: null, value: null };
+}
+
+async function recordBriefingPerformanceFeedback(params: {
+  briefingId: string;
+  tenantId: string;
+  clientId: string | null;
+  platform: string;
+  fields: Record<string, number | null>;
+  matchSource: string;
+}) {
+  const creativeContext = await resolveArtDirectionCreativeContext({
+    tenantId: params.tenantId,
+    briefingId: params.briefingId,
+    clientId: params.clientId,
+  }).catch(() => null);
+  if (!creativeContext) return;
+
+  const performance = pickPerformanceMetric(params.fields);
+  const metadata = buildArtDirectionFeedbackMetadata({
+    context: creativeContext,
+    metadata: {
+      match_source: params.matchSource,
+      metrics: params.fields,
+    },
+    source: 'briefing_post_metrics_sync',
+    reviewActor: 'system',
+    reviewStage: 'performance_sync',
+    briefingId: params.briefingId,
+    clientId: params.clientId,
+    platform: params.platform,
+    metricType: performance.type,
+    metricValue: performance.value,
+  });
+  if (!hasDaSignal(metadata)) return;
+
+  const { rows } = await query<{ metadata: any; created_at: string }>(
+    `SELECT metadata, created_at
+       FROM da_feedback_events
+      WHERE tenant_id = $1
+        AND event_type = 'performed'
+        AND COALESCE(metadata->>'briefing_id', '') = $2
+        AND COALESCE(metadata->>'platform', '') = $3
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [params.tenantId, params.briefingId, params.platform],
+  );
+  const latest = rows[0];
+  if (latest?.metadata) {
+    const lastMetricType = String(latest.metadata.metric_type || '');
+    const lastMetricValue = latest.metadata.metric_value != null ? Number(latest.metadata.metric_value) : null;
+    const sameMetric =
+      lastMetricType === String(metadata.metric_type || '') &&
+      lastMetricValue === (metadata.metric_value != null ? Number(metadata.metric_value) : null);
+    const lastCreatedAt = latest.created_at ? new Date(latest.created_at).getTime() : 0;
+    const hoursSinceLast = lastCreatedAt ? (Date.now() - lastCreatedAt) / (1000 * 60 * 60) : Infinity;
+    if (sameMetric && hoursSinceLast < 12) return;
+  }
+
+  await recordArtDirectionFeedbackEvent({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    creativeSessionId: creativeContext.creativeSessionId,
+    referenceId: getPrimaryArtDirectionReferenceId(metadata),
+    eventType: 'performed',
+    score: performance.value,
+    notes: `briefing_metrics_${params.platform.toLowerCase()}`,
+    metadata,
+    createdBy: 'system:briefing_post_metrics',
+  });
 }
 
 // ── Public: sync aggregated metrics for a single briefing ────────────────────
@@ -145,6 +250,14 @@ export async function syncBriefingMetrics(
           'auto_aggregated',
         ]
       );
+      await recordBriefingPerformanceFeedback({
+        briefingId,
+        tenantId: effectiveTenantId,
+        clientId: mainClientId,
+        platform,
+        fields,
+        matchSource: 'auto_aggregated',
+      }).catch(() => {});
       synced.push(platform);
     } catch (err: any) {
       errors.push(`${platform}: ${err?.message ?? 'unknown'}`);

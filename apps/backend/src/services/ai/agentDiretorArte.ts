@@ -10,9 +10,15 @@
  *   P6 Multi-format         → fan-out parallel (optional, generates multiple sizes)
  */
 
-import { generateCompletion } from './claudeService';
+import { generateCompletion, generateCompletionWithVision } from './claudeService';
 import { generateImageWithFal, type FalModel, type FalLoraConfig } from './falAiService';
 import { loadCachedStyle, analyzeClientVisualStyle, type ClientVisualStyle } from '../visualStyleAnalyzer';
+import {
+  buildArtDirectionCritiqueBlock,
+  buildArtDirectionKnowledgeBlock,
+  resolveArtDirectionKnowledge,
+} from './artDirectionKnowledge';
+import { buildArtDirectionMemoryContext } from './artDirectionMemoryService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -25,6 +31,15 @@ export type BrandVisualContext = {
   loraScale: number;             // 0.0–1.0 (default 0.85)
   referenceStyle: string;        // ex: "hiper-realismo", "flat design", "minimalismo"
   typography: string;
+  referenceMovements: string[];
+  designPrinciples: string[];
+  layoutHeuristics: string[];
+  accessibilityRules: string[];
+  critiqueFocus: string[];
+  strategySummary: string;
+  trendSignals: string[];
+  referenceExamples: Array<{ title: string; sourceUrl: string }>;
+  externalKnowledgeSummary: string;
 };
 
 export type FalApiPayload = {
@@ -44,6 +59,8 @@ export type VisualCritique = {
   dimensions: Array<{ label: string; score: number; note?: string }>;
   issues: string[];
   promptRefinements: string;     // what to change in prompt for retry
+  recommendations?: string[];
+  summary?: string;
 };
 
 export type MultiFormatResult = {
@@ -98,6 +115,15 @@ async function plugin1BrandVisualRag(params: AgentDAParams): Promise<BrandVisual
   const profile = params.clientProfile ?? {};
   const vi = profile.visual_identity ?? profile.brand_tokens ?? {};
   const bv = profile.brand_voice ?? {};
+  const knowledge = resolveArtDirectionKnowledge({
+    copy: params.copy,
+    platform: params.platform,
+    format: params.format,
+    trigger: params.trigger,
+    briefing: params.briefing,
+    brandTokens: vi,
+    segment: profile.segment,
+  });
 
   // Load Instagram visual style if available
   let instagramStyle: ClientVisualStyle | null = null;
@@ -126,6 +152,16 @@ ${instagramStyle.style_summary}
   const campaignBlock = params.campaignConcept ? `
 CONCEITO DA CAMPANHA: ${params.campaignConcept}
 ${params.pieceIndex != null ? `PEÇA ${params.pieceIndex + 1} DE ${params.totalPieces ?? '?'} — varie a composição entre peças, mantenha coesão visual` : ''}` : '';
+  const memory = await buildArtDirectionMemoryContext({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    platform: params.platform,
+    segment: profile.segment,
+    conceptLimit: 4,
+    referenceLimit: 4,
+    trendLimit: 4,
+  });
+  const externalKnowledgeSummary = memory.promptBlock || '';
 
   const prompt = `Você é um especialista em identidade visual de marcas.
 Analise os dados do cliente abaixo e extraia as regras de direção de arte em um JSON rigoroso.
@@ -142,6 +178,8 @@ DADOS DO CLIENTE:
 - LoRA treinado: ${profile.fal_lora_id ?? 'não disponível'}
 - Personalidade da marca: ${bv.personality ?? 'não informada'}
 ${instagramBlock}${campaignBlock}
+${buildArtDirectionKnowledgeBlock(knowledge)}
+${externalKnowledgeSummary ? `\nMEMÓRIA EXTERNA DE DIREÇÃO DE ARTE:\n${externalKnowledgeSummary}\n` : ''}
 
 Retorne SOMENTE este JSON (sem markdown):
 {
@@ -150,17 +188,37 @@ Retorne SOMENTE este JSON (sem markdown):
   "moodKeywords": ["<ex: aspiracional>", "<ex: dinâmico>"],
   "avoidElements": ["<ex: logos concorrentes>", "<ex: estilo vintage>"],
   "referenceStyle": "<ex: hiper-realismo fotográfico | flat design minimalista | ilustração editorial>",
-  "typography": "<ex: san-serif bold | serif elegante | handwriting>"
+  "typography": "<ex: san-serif bold | serif elegante | handwriting>",
+  "referenceMovements": ["<ex: Design Suíço>", "<ex: editorial premium>"],
+  "designPrinciples": ["<ex: hierarquia explícita>", "<ex: contraste alto>"],
+  "layoutHeuristics": ["<ex: headline curta no terço inferior>", "<ex: proteger safe zones>"],
+  "accessibilityRules": ["<ex: contraste AA>", "<ex: evitar fundo poluído atrás do texto>"],
+  "critiqueFocus": ["<ex: legibilidade>", "<ex: aderência à marca>"],
+  "strategySummary": "<resuma em 1 frase como a copy deve virar direção de arte>"
 }`;
 
   try {
     const res = await generateCompletion({ prompt, maxTokens: 400, temperature: 0.1 });
     const raw = res.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Partial<BrandVisualContext>;
     return {
-      ...parsed,
+      primaryColor: parsed.primaryColor || vi.colors?.[0] || '#E85219',
+      styleKeywords: Array.isArray(parsed.styleKeywords) && parsed.styleKeywords.length ? parsed.styleKeywords : (vi.moodWords ?? ['profissional', 'moderno']),
+      moodKeywords: Array.isArray(parsed.moodKeywords) && parsed.moodKeywords.length ? parsed.moodKeywords : ['aspiracional'],
+      avoidElements: Array.isArray(parsed.avoidElements) ? parsed.avoidElements : (bv.donts ?? []),
       loraId:    profile.fal_lora_id ?? null,
       loraScale: profile.fal_lora_scale ?? 0.85,
+      referenceStyle: parsed.referenceStyle || vi.imageStyle || vi.style || 'fotografia de produto profissional',
+      typography: parsed.typography || vi.typography || 'sans-serif bold',
+      referenceMovements: Array.isArray(parsed.referenceMovements) && parsed.referenceMovements.length ? parsed.referenceMovements : knowledge.referenceMovements,
+      designPrinciples: Array.isArray(parsed.designPrinciples) && parsed.designPrinciples.length ? parsed.designPrinciples : knowledge.designPrinciples,
+      layoutHeuristics: Array.isArray(parsed.layoutHeuristics) && parsed.layoutHeuristics.length ? parsed.layoutHeuristics : knowledge.layoutHeuristics,
+      accessibilityRules: Array.isArray(parsed.accessibilityRules) && parsed.accessibilityRules.length ? parsed.accessibilityRules : knowledge.accessibilityRules,
+      critiqueFocus: Array.isArray(parsed.critiqueFocus) && parsed.critiqueFocus.length ? parsed.critiqueFocus : knowledge.critiqueFocus,
+      strategySummary: parsed.strategySummary || knowledge.strategySummary,
+      trendSignals: memory.trends.map((item) => item.tag),
+      referenceExamples: memory.references.map((item) => ({ title: item.title, sourceUrl: item.source_url })),
+      externalKnowledgeSummary,
     };
   } catch {
     return {
@@ -172,6 +230,15 @@ Retorne SOMENTE este JSON (sem markdown):
       loraScale: profile.fal_lora_scale ?? 0.85,
       referenceStyle: vi.imageStyle ?? 'fotografia de produto profissional',
       typography: vi.typography ?? 'sans-serif bold',
+      referenceMovements: knowledge.referenceMovements,
+      designPrinciples: knowledge.designPrinciples,
+      layoutHeuristics: knowledge.layoutHeuristics,
+      accessibilityRules: knowledge.accessibilityRules,
+      critiqueFocus: knowledge.critiqueFocus,
+      strategySummary: knowledge.strategySummary,
+      trendSignals: memory.trends.map((item) => item.tag),
+      referenceExamples: memory.references.map((item) => ({ title: item.title, sourceUrl: item.source_url })),
+      externalKnowledgeSummary,
     };
   }
 }
@@ -217,6 +284,14 @@ IDENTIDADE VISUAL DA MARCA:
 - Mood: ${brandVisual.moodKeywords.join(', ')}
 - EVITAR: ${brandVisual.avoidElements.join(', ')}
 - Tipografia: ${brandVisual.typography}
+- Repertório de referência: ${brandVisual.referenceMovements.join(', ')}
+- Princípios obrigatórios: ${brandVisual.designPrinciples.join('; ')}
+- Heurísticas de layout: ${brandVisual.layoutHeuristics.join('; ')}
+- Regras de acessibilidade: ${brandVisual.accessibilityRules.join('; ')}
+- Estratégia resumida: ${brandVisual.strategySummary}
+${brandVisual.externalKnowledgeSummary ? `- Memória externa consolidada:\n${brandVisual.externalKnowledgeSummary}` : ''}
+${brandVisual.trendSignals.length ? `- Tendências monitoradas: ${brandVisual.trendSignals.join(', ')}` : ''}
+${brandVisual.referenceExamples.length ? `- Referências observadas: ${brandVisual.referenceExamples.map((item) => item.title).slice(0, 4).join(' | ')}` : ''}
 
 DIREÇÃO DE ARTE:
 ${daDirectives.length ? daDirectives.join('\n') : '(automática — IA decide)'}
@@ -237,6 +312,9 @@ Regras para o prompt:
 3. Inclua a cor primária da marca (${brandVisual.primaryColor}) de forma natural no ambiente ou produto
 4. NÃO use texto ou palavras na imagem (texto vem da legenda)
 5. Máximo 250 tokens no prompt positivo
+6. Preserve áreas limpas e legíveis para overlay respeitando as heurísticas de layout
+7. Traduza a copy em composição visual coerente com a estratégia resumida e o repertório de referência
+8. Evite fundos caóticos nas áreas de texto e respeite as regras de acessibilidade
 
 Retorne SOMENTE este JSON (sem markdown):
 {
@@ -265,8 +343,8 @@ Retorne SOMENTE este JSON (sem markdown):
       : [];
     return {
       concept: 'Composição clean de produto em ambiente profissional',
-      prompt: `${brandVisual.referenceStyle}, ${brandVisual.styleKeywords.join(', ')}, ${brandVisual.moodKeywords.join(', ')}, high quality, 4k`,
-      negativePrompt: 'text, watermark, logo, blurry, distorted, ugly, deformed, low quality',
+      prompt: `${brandVisual.referenceStyle}, ${brandVisual.styleKeywords.join(', ')}, ${brandVisual.moodKeywords.join(', ')}, ${brandVisual.strategySummary}, high quality, 4k`,
+      negativePrompt: 'text, watermark, logo, blurry, distorted, ugly, deformed, low quality, busy lower third, low contrast text zone',
       model,
       aspectRatio: params.aspectRatio ?? '1:1',
       guidanceScale: 3.5,
@@ -300,10 +378,26 @@ async function plugin4Critique(
   params: AgentDAParams,
   brandVisual: BrandVisualContext,
 ): Promise<VisualCritique> {
+  const memory = await buildArtDirectionMemoryContext({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    platform: params.platform,
+    segment: params.clientProfile?.segment,
+    conceptLimit: 4,
+    referenceLimit: 4,
+    trendLimit: 4,
+  });
+  const critiqueFramework = buildArtDirectionCritiqueBlock(resolveArtDirectionKnowledge({
+    copy,
+    platform: params.platform,
+    format: params.format,
+    trigger: params.trigger,
+    briefing: params.briefing,
+    brandTokens: params.clientProfile?.visual_identity ?? params.clientProfile?.brand_tokens ?? {},
+    segment: params.clientProfile?.segment,
+  }));
   const prompt = `Você é um Diretor de Arte sênior com olhar crítico apurado.
 Avalie a imagem gerada contra o briefing e as regras visuais da marca.
-
-IMAGEM GERADA: ${imageUrl}
 
 CONTEXTO:
 - Copy: ${copy?.slice(0, 200) ?? 'não informada'}
@@ -315,33 +409,54 @@ REGRAS DA MARCA:
 - Estilo esperado: ${brandVisual.referenceStyle}
 - Mood: ${brandVisual.moodKeywords.join(', ')}
 - EVITAR: ${brandVisual.avoidElements.join(', ')}
+- Princípios: ${brandVisual.designPrinciples.join('; ')}
+- Heurísticas de layout: ${brandVisual.layoutHeuristics.join('; ')}
+- Regras de acessibilidade: ${brandVisual.accessibilityRules.join('; ')}
+${memory.critiqueBlock ? `\nMEMÓRIA EXTERNA DE CRÍTICA:\n${memory.critiqueBlock}\n` : ''}
 
-Avalie 4 dimensões (0–100 cada):
+${critiqueFramework}
+
+Avalie 6 dimensões (0–100 cada):
 1. Qualidade de Renderização (artefatos, nitidez, realismo)
 2. Consistência de Marca (cores, estilo, mood)
 3. Hierarquia Visual (elemento principal em destaque, composição)
 4. Coerência Copy↔Imagem (imagem reforça a mensagem da copy)
+5. Acessibilidade e Legibilidade (área útil para overlay, contraste, ruído)
+6. Adequação ao Canal/Formato (a peça funciona para a mídia e proporção informadas)
 
-Limiar de aprovação: 72/100.
+Limiar de aprovação: 75/100.
 
 Retorne SOMENTE este JSON (sem markdown):
 {
-  "pass": <true se overall ≥ 72>,
-  "score": <média das 4 dimensões>,
+  "pass": <true se overall ≥ 75>,
+  "score": <média das 6 dimensões>,
   "dimensions": [
     { "label": "Qualidade de Renderização", "score": <0-100>, "note": "<problema se <72>" },
     { "label": "Consistência de Marca",     "score": <0-100>, "note": "<problema se <72>" },
     { "label": "Hierarquia Visual",         "score": <0-100>, "note": "<problema se <72>" },
-    { "label": "Coerência Copy↔Imagem",     "score": <0-100>, "note": "<problema se <72>" }
+    { "label": "Coerência Copy↔Imagem",     "score": <0-100>, "note": "<problema se <72>" },
+    { "label": "Acessibilidade e Legibilidade", "score": <0-100>, "note": "<problema se <72>" },
+    { "label": "Adequação ao Canal/Formato", "score": <0-100>, "note": "<problema se <72>" }
   ],
   "issues": ["<problema 1>", "<problema 2>"],
+  "recommendations": ["<ação 1>", "<ação 2>"],
+  "summary": "<resuma em 1 frase o julgamento de direção de arte>",
   "promptRefinements": "<instrução específica de como REESCREVER o prompt para corrigir os problemas>"
 }`;
 
   try {
-    const res = await generateCompletion({ prompt, maxTokens: 600, temperature: 0.1 });
+    const res = await generateCompletionWithVision({ prompt, imageUrl, maxTokens: 700, temperature: 0.1 });
     const raw = res.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    return JSON.parse(raw) as VisualCritique;
+    const parsed = JSON.parse(raw) as Partial<VisualCritique>;
+    return {
+      pass: Boolean(parsed.pass),
+      score: typeof parsed.score === 'number' ? Math.max(0, Math.min(100, parsed.score)) : 70,
+      dimensions: Array.isArray(parsed.dimensions) ? parsed.dimensions : [],
+      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+      summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+      promptRefinements: typeof parsed.promptRefinements === 'string' ? parsed.promptRefinements : '',
+    };
   } catch {
     return {
       pass: true,
@@ -351,8 +466,12 @@ Retorne SOMENTE este JSON (sem markdown):
         { label: 'Consistência de Marca',     score: 70 },
         { label: 'Hierarquia Visual',         score: 70 },
         { label: 'Coerência Copy↔Imagem',     score: 70 },
+        { label: 'Acessibilidade e Legibilidade', score: 70 },
+        { label: 'Adequação ao Canal/Formato', score: 70 },
       ],
       issues: ['Critique endpoint indisponível — estimativa heurística'],
+      recommendations: [],
+      summary: '',
       promptRefinements: '',
     };
   }

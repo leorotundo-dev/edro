@@ -508,6 +508,7 @@ export default function EditorClient() {
   const [artDirLayout, setArtDirLayout] = useState<{
     eyebrow: string; headline: string; accentWord: string; accentColor: string; cta: string; body: string; overlayStrength: number;
   } | null>(null);
+  const [artDirVisualStrategy, setArtDirVisualStrategy] = useState<Record<string, any> | null>(null);
   const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
   const [imageNegativePrompt, setImageNegativePrompt] = useState('');
   // Loop de aprendizado: guarda o prompt da imagem exibida + estado do dialog de descarte
@@ -633,6 +634,13 @@ export default function EditorClient() {
     if (context.selected_asset?.file_url) {
       setArteImageUrl(context.selected_asset.file_url);
     }
+    const daContext = context.session?.metadata?.da_context as Record<string, any> | undefined;
+    if (daContext?.layout && !artDirLayout) {
+      setArtDirLayout(daContext.layout);
+    }
+    if (daContext?.visual_strategy && !artDirVisualStrategy) {
+      setArtDirVisualStrategy(daContext.visual_strategy);
+    }
     const workflowInventory = readStudioInventoryFromSession(context);
     if (workflowInventory.length) {
       setInventory(
@@ -665,7 +673,7 @@ export default function EditorClient() {
       hydratedEditorMetadataRef.current = editorMetaKey;
       persistedEditorMetadataRef.current = editorMetaKey;
     }
-  }, [tone]);
+  }, [artDirLayout, artDirVisualStrategy, tone]);
 
   const loadBriefing = useCallback(async () => {
     setLoading(true);
@@ -1356,13 +1364,67 @@ export default function EditorClient() {
     return window.localStorage.getItem('edro_copy_version_id') || '';
   };
 
-  const syncApprovedCopyToCreativeSession = useCallback(async (option: ParsedOption | null, sourceCopyId?: string | null) => {
-    if (!workflowContext.jobId || !option) return null;
+  const resolveBriefingId = () => {
+    if (briefing?.id) return briefing.id;
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem('edro_briefing_id');
+  };
+
+  const ensureCreativeSessionContext = useCallback(async () => {
+    if (!workflowContext.jobId) return null;
     const context = sessionId
       ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
       : await openStudioCreativeSession(workflowContext.jobId, {
-          briefing_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null,
+          briefing_id: resolveBriefingId(),
         }).catch(() => null);
+    if (context) applyCreativeContext(context);
+    return context;
+  }, [applyCreativeContext, creativeContext, sessionId, workflowContext.jobId]);
+
+  const buildArtDirectionSessionContext = useCallback((overrides?: {
+    layout?: Record<string, any> | null;
+    visualStrategy?: Record<string, any> | null;
+    imagePrompt?: Record<string, any> | null;
+  }) => {
+    const clientId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') || undefined : undefined;
+    const visualStrategy = overrides?.visualStrategy ?? artDirVisualStrategy;
+    const layout = overrides?.layout ?? artDirLayout;
+    return {
+      briefing_id: resolveBriefingId(),
+      client_id: clientId || null,
+      platform: activeFormat?.platform || null,
+      format: activeFormat?.format || null,
+      visual_strategy: visualStrategy || null,
+      layout: layout || null,
+      img_prompt: overrides?.imagePrompt || null,
+      reference_examples: Array.isArray(visualStrategy?.referenceExamples) ? visualStrategy.referenceExamples : [],
+      trend_signals: Array.isArray(visualStrategy?.trendSignals) ? visualStrategy.trendSignals : [],
+      concept_slugs: Array.isArray(visualStrategy?.referenceMovements) ? visualStrategy.referenceMovements : [],
+      strategy_summary: typeof visualStrategy?.strategySummary === 'string' ? visualStrategy.strategySummary : null,
+      visual_intent: typeof visualStrategy?.intent === 'string' ? visualStrategy.intent : null,
+    };
+  }, [activeFormat?.format, activeFormat?.platform, artDirLayout, artDirVisualStrategy, briefing?.id]);
+
+  const persistArtDirectionContextToCreativeSession = useCallback(async (payload: {
+    layout?: Record<string, any> | null;
+    visualStrategy?: Record<string, any> | null;
+    imagePrompt?: Record<string, any> | null;
+  }) => {
+    const context = await ensureCreativeSessionContext();
+    if (!context?.session?.id || !workflowContext.jobId) return context;
+    const daContext = buildArtDirectionSessionContext(payload);
+    const next = await updateStudioCreativeMetadata(context.session.id, {
+      job_id: workflowContext.jobId,
+      metadata: { da_context: daContext },
+      reason: 'art_direction_context_updated',
+    }).catch(() => context);
+    if (next) applyCreativeContext(next);
+    return next;
+  }, [applyCreativeContext, buildArtDirectionSessionContext, ensureCreativeSessionContext, workflowContext.jobId]);
+
+  const syncApprovedCopyToCreativeSession = useCallback(async (option: ParsedOption | null, sourceCopyId?: string | null) => {
+    if (!workflowContext.jobId || !option) return null;
+    const context = await ensureCreativeSessionContext();
     if (!context?.session?.id) return null;
 
     const next = await addStudioCreativeVersion(context.session.id, {
@@ -1393,15 +1455,11 @@ export default function EditorClient() {
     }
 
     return next;
-  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, briefing?.id, creativeContext, sessionId, workflowContext.jobId]);
+  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, briefing?.id, ensureCreativeSessionContext, workflowContext.jobId]);
 
   const syncApprovedAssetToCreativeSession = useCallback(async (imageUrl: string | null) => {
     if (!workflowContext.jobId || !imageUrl) return null;
-    const context = sessionId
-      ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
-      : await openStudioCreativeSession(workflowContext.jobId, {
-          briefing_id: typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null,
-        }).catch(() => null);
+    const context = await ensureCreativeSessionContext();
     if (!context?.session?.id) return null;
 
     const next = await addStudioCreativeAsset(context.session.id, {
@@ -1416,6 +1474,7 @@ export default function EditorClient() {
         platform: activeFormat?.platform || null,
         format: activeFormat?.format || null,
         source_copy_version_id: resolveActiveCopyId() || null,
+        da_context: buildArtDirectionSessionContext(),
       },
       select: true,
     }).catch(() => null);
@@ -1429,7 +1488,7 @@ export default function EditorClient() {
     }
 
     return next;
-  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, arteGeneratedPrompt, artePrompt, briefing?.id, creativeContext, sessionId, workflowContext.jobId]);
+  }, [activeFormat?.format, activeFormat?.platform, applyCreativeContext, arteGeneratedPrompt, artePrompt, briefing?.id, buildArtDirectionSessionContext, ensureCreativeSessionContext, workflowContext.jobId]);
 
   // Fase 1: busca as referências visuais e monta o prompt sem gerar a imagem
   const handleGenerateArte = async () => {
@@ -1566,6 +1625,8 @@ export default function EditorClient() {
       const res = await apiPost<{
         success: boolean;
         layout?: { eyebrow: string; headline: string; accentWord: string; accentColor: string; cta: string; body: string; overlayStrength: number };
+        imgPrompt?: { positive: string; negative: string; aspectRatio: string };
+        visualStrategy?: Record<string, any>;
         image_url?: string;
         image_urls?: string[];
         brand_colors?: string[];
@@ -1587,6 +1648,54 @@ export default function EditorClient() {
           headline: res.layout!.headline || prev.headline,
           cta: res.layout!.cta || prev.cta,
         }));
+      }
+      if (res?.visualStrategy) {
+        setArtDirVisualStrategy(res.visualStrategy);
+      }
+      if (res?.success && (res.layout || res.visualStrategy || res.imgPrompt)) {
+        const nextContext = await persistArtDirectionContextToCreativeSession({
+          layout: res.layout || null,
+          visualStrategy: res.visualStrategy || null,
+          imagePrompt: res.imgPrompt || null,
+        });
+        if (nextContext?.session?.id && workflowContext.jobId) {
+          const daContext = buildArtDirectionSessionContext({
+            layout: res.layout || null,
+            visualStrategy: res.visualStrategy || null,
+            imagePrompt: res.imgPrompt || null,
+          });
+          if (res.layout) {
+            await addStudioCreativeVersion(nextContext.session.id, {
+              job_id: workflowContext.jobId,
+              version_type: 'layout',
+              source: 'ai',
+              payload: {
+                layout: res.layout,
+                da_context: daContext,
+                briefing_id: resolveBriefingId(),
+                platform: activeFormat?.platform || null,
+                format: activeFormat?.format || null,
+              },
+              select: false,
+            }).then(applyCreativeContext).catch(() => null);
+          }
+          if (res.imgPrompt) {
+            await addStudioCreativeVersion(nextContext.session.id, {
+              job_id: workflowContext.jobId,
+              version_type: 'image_prompt',
+              source: 'ai',
+              payload: {
+                ...res.imgPrompt,
+                visual_strategy: res.visualStrategy || null,
+                da_context: daContext,
+                briefing_id: resolveBriefingId(),
+                platform: activeFormat?.platform || null,
+                format: activeFormat?.format || null,
+              },
+              select: false,
+            }).then(applyCreativeContext).catch(() => null);
+          }
+        }
       }
       if (withImage) {
         const urls = res?.image_urls?.length ? res.image_urls : (res?.image_url ? [res.image_url] : []);
@@ -1618,6 +1727,11 @@ export default function EditorClient() {
         format: activeFormat?.format || 'instagram-feed',
         client_id: clientId,
         copy_version_id: copyVersionId || undefined,
+        creative_session_id: creativeContext?.session?.id || sessionId || undefined,
+        metadata: {
+          da_context: buildArtDirectionSessionContext(),
+          visual_strategy: artDirVisualStrategy || null,
+        },
         rejection_tags: tags?.length ? tags : undefined,
         rejection_reason: reason || undefined,
       });
