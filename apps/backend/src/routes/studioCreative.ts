@@ -16,6 +16,7 @@ import {
   buildArtDirectionFeedbackMetadata,
   buildArtDirectionMemoryContext,
   discoverArtDirectionReferences,
+  getArtDirectionMemoryStats,
   getPrimaryArtDirectionReferenceId,
   listArtDirectionTrendSignals,
   listRelevantArtDirectionConcepts,
@@ -119,6 +120,8 @@ const daRefreshSchema = z.object({
   window_days: z.coerce.number().int().min(14).max(180).optional(),
   recent_days: z.coerce.number().int().min(3).max(30).optional(),
   client_id: clientIdSchema.optional(),
+  platform: z.string().optional(),
+  segment: z.string().optional(),
 });
 
 const daFeedbackSchema = z.object({
@@ -417,7 +420,14 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         }),
       ]);
 
-      return reply.send({ success: true, memory, concepts, references, trends });
+      const stats = await getArtDirectionMemoryStats({
+        tenantId,
+        clientId: input.client_id,
+        platform: input.platform,
+        segment: input.segment,
+      });
+
+      return reply.send({ success: true, memory, concepts, references, trends, stats });
     } catch (error: any) {
       request.log.error({ error }, '[studio/creative/da-memory] failed');
       const message = String(error?.message || '');
@@ -440,6 +450,27 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
           concepts: [],
           references: [],
           trends: [],
+          stats: {
+            concepts: { active: 0 },
+            references: {
+              discovered: 0,
+              analyzed: 0,
+              rejected: 0,
+              archived: 0,
+              lastDiscoveredAt: null,
+              lastAnalyzedAt: null,
+            },
+            trends: {
+              snapshots: 0,
+              lastSnapshotAt: null,
+            },
+            feedback: {
+              used: 0,
+              approved: 0,
+              rejected: 0,
+              saved: 0,
+            },
+          },
         });
       }
 
@@ -484,7 +515,14 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       maxResultsPerQuery: body.max_results_per_query ?? 4,
     });
 
-    return reply.send({ success: true, inserted, queries });
+    const stats = await getArtDirectionMemoryStats({
+      tenantId,
+      clientId: body.client_id,
+      platform: body.platform,
+      segment,
+    });
+
+    return reply.send({ success: true, inserted, queries, stats });
   });
 
   app.post('/studio/creative/da-memory/refresh', async (request: any, reply) => {
@@ -500,7 +538,14 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       recentDays: body.recent_days ?? 7,
     });
 
-    return reply.send({ success: true, analyzed, snapshots });
+    const stats = await getArtDirectionMemoryStats({
+      tenantId,
+      clientId: body.client_id,
+      platform: body.platform,
+      segment: body.segment,
+    });
+
+    return reply.send({ success: true, analyzed, snapshots, stats });
   });
 
   app.post('/studio/creative/da-memory/feedback', async (request: any, reply) => {

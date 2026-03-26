@@ -99,6 +99,30 @@ export type ArtDirectionMemoryContext = {
   critiqueBlock: string;
 };
 
+export type ArtDirectionMemoryStats = {
+  concepts: {
+    active: number;
+  };
+  references: {
+    discovered: number;
+    analyzed: number;
+    rejected: number;
+    archived: number;
+    lastDiscoveredAt: string | null;
+    lastAnalyzedAt: string | null;
+  };
+  trends: {
+    snapshots: number;
+    lastSnapshotAt: string | null;
+  };
+  feedback: {
+    used: number;
+    approved: number;
+    rejected: number;
+    saved: number;
+  };
+};
+
 export type ResolvedArtDirectionCreativeContext = {
   creativeSessionId: string | null;
   jobId: string | null;
@@ -1026,6 +1050,135 @@ export async function listArtDirectionTrendSignals(params: {
   );
 
   return rows;
+}
+
+export async function getArtDirectionMemoryStats(params: {
+  tenantId: string;
+  clientId?: string | null;
+  platform?: string | null;
+  segment?: string | null;
+  windowKey?: string;
+}): Promise<ArtDirectionMemoryStats> {
+  const referenceValues: any[] = [params.tenantId];
+  const referenceWhere = [`tenant_id = $1`];
+
+  if (params.clientId) {
+    referenceValues.push(params.clientId);
+    referenceWhere.push(`(client_id = $${referenceValues.length} OR client_id IS NULL)`);
+  }
+  if (params.platform) {
+    referenceValues.push(params.platform);
+    referenceWhere.push(`(platform = $${referenceValues.length} OR platform IS NULL)`);
+  }
+  if (params.segment) {
+    referenceValues.push(params.segment);
+    referenceWhere.push(`(segment = $${referenceValues.length} OR segment IS NULL)`);
+  }
+
+  const trendValues: any[] = [params.tenantId, params.windowKey ?? 'rolling_30d'];
+  const trendWhere = [`tenant_id = $1`, `window_key = $2`];
+  if (params.clientId) {
+    trendValues.push(params.clientId);
+    trendWhere.push(`(client_id = $${trendValues.length} OR client_id IS NULL)`);
+  }
+  if (params.platform) {
+    trendValues.push(params.platform);
+    trendWhere.push(`(platform = $${trendValues.length} OR platform IS NULL)`);
+  }
+  if (params.segment) {
+    trendValues.push(params.segment);
+    trendWhere.push(`(segment = $${trendValues.length} OR segment IS NULL)`);
+  }
+
+  const feedbackValues: any[] = [params.tenantId];
+  const feedbackWhere = [`tenant_id = $1`];
+  if (params.clientId) {
+    feedbackValues.push(params.clientId);
+    feedbackWhere.push(`(client_id = $${feedbackValues.length} OR client_id IS NULL)`);
+  }
+  if (params.platform) {
+    feedbackValues.push(params.platform);
+    feedbackWhere.push(`(metadata->>'platform' = $${feedbackValues.length} OR metadata->>'platform' IS NULL)`);
+  }
+  if (params.segment) {
+    feedbackValues.push(params.segment);
+    feedbackWhere.push(`(metadata->>'segment' = $${feedbackValues.length} OR metadata->>'segment' IS NULL)`);
+  }
+
+  const [conceptRows, referenceRows, trendRows, feedbackRows] = await Promise.all([
+    query<{ active: number }>(
+      `SELECT COUNT(*)::int AS active
+         FROM da_concepts
+        WHERE status = 'active'
+          AND (tenant_id = $1 OR tenant_id IS NULL)`,
+      [params.tenantId],
+    ),
+    query<{
+      discovered: number;
+      analyzed: number;
+      rejected: number;
+      archived: number;
+      last_discovered_at: string | null;
+      last_analyzed_at: string | null;
+    }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'discovered')::int AS discovered,
+         COUNT(*) FILTER (WHERE status = 'analyzed')::int AS analyzed,
+         COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected,
+         COUNT(*) FILTER (WHERE status = 'archived')::int AS archived,
+         MAX(discovered_at)::text AS last_discovered_at,
+         MAX(analyzed_at)::text AS last_analyzed_at
+       FROM da_references
+      WHERE ${referenceWhere.join(' AND ')}`,
+      referenceValues,
+    ),
+    query<{ snapshots: number; last_snapshot_at: string | null }>(
+      `SELECT
+         COUNT(*)::int AS snapshots,
+         MAX(snapshot_at)::text AS last_snapshot_at
+       FROM da_trend_snapshots
+      WHERE ${trendWhere.join(' AND ')}`,
+      trendValues,
+    ),
+    query<{ used: number; approved: number; rejected: number; saved: number }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE event_type = 'used')::int AS used,
+         COUNT(*) FILTER (WHERE event_type = 'approved')::int AS approved,
+         COUNT(*) FILTER (WHERE event_type = 'rejected')::int AS rejected,
+         COUNT(*) FILTER (WHERE event_type = 'saved')::int AS saved
+       FROM da_feedback_events
+      WHERE ${feedbackWhere.join(' AND ')}`,
+      feedbackValues,
+    ),
+  ]);
+
+  const reference = referenceRows.rows[0];
+  const trend = trendRows.rows[0];
+  const feedback = feedbackRows.rows[0];
+
+  return {
+    concepts: {
+      active: conceptRows.rows[0]?.active ?? 0,
+    },
+    references: {
+      discovered: reference?.discovered ?? 0,
+      analyzed: reference?.analyzed ?? 0,
+      rejected: reference?.rejected ?? 0,
+      archived: reference?.archived ?? 0,
+      lastDiscoveredAt: reference?.last_discovered_at ?? null,
+      lastAnalyzedAt: reference?.last_analyzed_at ?? null,
+    },
+    trends: {
+      snapshots: trend?.snapshots ?? 0,
+      lastSnapshotAt: trend?.last_snapshot_at ?? null,
+    },
+    feedback: {
+      used: feedback?.used ?? 0,
+      approved: feedback?.approved ?? 0,
+      rejected: feedback?.rejected ?? 0,
+      saved: feedback?.saved ?? 0,
+    },
+  };
 }
 
 function formatList(values: string[], limit = 3): string {
