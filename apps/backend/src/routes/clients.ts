@@ -312,8 +312,13 @@ export default async function clientsRoutes(app: FastifyInstance) {
         query<any>(
           `SELECT
              c.id, c.name, c.segment_primary, c.country, c.uf, c.city, c.status,
-             c.pending_posts, c.approval_rate, c.urgent_tasks, c.intelligence_score,
-             c.updated_at, c.logo_url, c.profile,
+             0::int AS pending_posts,
+             NULL::numeric AS approval_rate,
+             0::int AS urgent_tasks,
+             COALESCE(c.intelligence_score, 0)::int AS intelligence_score,
+             c.updated_at,
+             c.profile->>'logo_url' AS logo_url,
+             c.profile,
              hs.score     AS health_score,
              hs.trend     AS health_trend,
              pb.id        AS board_id,
