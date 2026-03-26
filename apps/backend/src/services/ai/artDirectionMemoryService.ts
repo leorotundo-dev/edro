@@ -40,6 +40,18 @@ export type ArtDirectionReferenceSummary = {
   discovered_at: string;
 };
 
+export type ArtDirectionReferenceRecord = ArtDirectionReferenceSummary & {
+  status: 'discovered' | 'analyzed' | 'rejected' | 'archived';
+  domain: string | null;
+  search_query: string | null;
+  source_kind: string;
+  source_id: string | null;
+  source_name: string | null;
+  source_type: string | null;
+  snippet: string | null;
+  analyzed_at: string | null;
+};
+
 export type ArtDirectionTrendSignal = {
   id: string;
   cluster_key: string;
@@ -157,6 +169,73 @@ export type DiscoverArtDirectionReferencesInput = {
   platform?: string | null;
   queries: string[];
   maxResultsPerQuery?: number;
+};
+
+export type ArtDirectionReferenceSourceRow = {
+  id: string;
+  tenant_id: string | null;
+  name: string;
+  source_type: 'search' | 'manual' | 'social' | 'rss' | 'site' | 'library';
+  base_url: string | null;
+  domain: string | null;
+  trust_score: number;
+  enabled: boolean;
+  metadata: Record<string, any>;
+  updated_at: string;
+};
+
+export type UpsertArtDirectionReferenceSourceInput = {
+  id?: string | null;
+  tenantId?: string | null;
+  name: string;
+  sourceType: 'search' | 'manual' | 'social' | 'rss' | 'site' | 'library';
+  baseUrl?: string | null;
+  domain?: string | null;
+  trustScore?: number;
+  enabled?: boolean;
+  metadata?: Record<string, any>;
+};
+
+export type CreateManualArtDirectionReferenceInput = {
+  tenantId: string;
+  clientId?: string | null;
+  title?: string | null;
+  sourceUrl: string;
+  platform?: string | null;
+  format?: string | null;
+  segment?: string | null;
+  visualIntent?: string | null;
+  creativeDirection?: string | null;
+  rationale?: string | null;
+  moodWords?: string[];
+  styleTags?: string[];
+  compositionTags?: string[];
+  typographyTags?: string[];
+  confidenceScore?: number | null;
+  trendScore?: number | null;
+  status?: 'discovered' | 'analyzed' | 'rejected' | 'archived';
+  metadata?: Record<string, any>;
+};
+
+export type UpdateArtDirectionReferenceInput = {
+  tenantId: string;
+  id: string;
+  title?: string | null;
+  sourceUrl?: string | null;
+  platform?: string | null;
+  format?: string | null;
+  segment?: string | null;
+  visualIntent?: string | null;
+  creativeDirection?: string | null;
+  rationale?: string | null;
+  moodWords?: string[] | null;
+  styleTags?: string[] | null;
+  compositionTags?: string[] | null;
+  typographyTags?: string[] | null;
+  confidenceScore?: number | null;
+  trendScore?: number | null;
+  status?: 'discovered' | 'analyzed' | 'rejected' | 'archived' | null;
+  metadata?: Record<string, any>;
 };
 
 type ReferenceRow = {
@@ -533,22 +612,113 @@ export async function ensureDefaultArtDirectionSources(tenantId: string): Promis
   }
 }
 
+export async function listArtDirectionReferenceSources(params: {
+  tenantId?: string | null;
+  enabledOnly?: boolean;
+}): Promise<ArtDirectionReferenceSourceRow[]> {
+  const values: any[] = [];
+  const where: string[] = [];
+
+  if (params.tenantId) {
+    values.push(params.tenantId);
+    where.push(`(tenant_id = $${values.length} OR tenant_id IS NULL)`);
+  }
+  if (params.enabledOnly) {
+    where.push(`enabled = true`);
+  }
+
+  const { rows } = await query<ArtDirectionReferenceSourceRow>(
+    `SELECT
+       id,
+       tenant_id,
+       name,
+       source_type,
+       base_url,
+       domain,
+       trust_score,
+       enabled,
+       COALESCE(metadata, '{}'::jsonb) AS metadata,
+       updated_at::text AS updated_at
+     FROM da_reference_sources
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY enabled DESC, trust_score DESC, updated_at DESC, name ASC`,
+    values,
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    metadata: asRecord(row.metadata),
+  }));
+}
+
+export async function upsertArtDirectionReferenceSource(
+  input: UpsertArtDirectionReferenceSourceInput,
+): Promise<ArtDirectionReferenceSourceRow> {
+  const normalizedBaseUrl = String(input.baseUrl || '').trim() || null;
+  const normalizedDomain = String(input.domain || '').trim() || normalizeUrlDomain(normalizedBaseUrl || '') || null;
+
+  const { rows } = await query<ArtDirectionReferenceSourceRow>(
+    `INSERT INTO da_reference_sources
+       (id, tenant_id, name, source_type, base_url, domain, trust_score, enabled, metadata)
+     VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+     ON CONFLICT (id)
+     DO UPDATE SET
+       name = EXCLUDED.name,
+       source_type = EXCLUDED.source_type,
+       base_url = EXCLUDED.base_url,
+       domain = EXCLUDED.domain,
+       trust_score = EXCLUDED.trust_score,
+       enabled = EXCLUDED.enabled,
+       metadata = EXCLUDED.metadata,
+       updated_at = now()
+     RETURNING
+       id,
+       tenant_id,
+       name,
+       source_type,
+       base_url,
+       domain,
+       trust_score,
+       enabled,
+       COALESCE(metadata, '{}'::jsonb) AS metadata,
+       updated_at::text AS updated_at`,
+    [
+      input.id ?? null,
+      input.tenantId ?? null,
+      input.name.trim(),
+      input.sourceType,
+      normalizedBaseUrl,
+      normalizedDomain,
+      input.trustScore ?? 0.7,
+      input.enabled ?? true,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+
+  return {
+    ...rows[0],
+    metadata: asRecord(rows[0]?.metadata),
+  };
+}
+
 export async function discoverArtDirectionReferences(input: DiscoverArtDirectionReferencesInput): Promise<number> {
   if (!isTavilyConfigured()) return 0;
 
   await ensureDefaultArtDirectionSources(input.tenantId);
 
-  const { rows: sourceRows } = await query<{ id: string }>(
-    `SELECT id FROM da_reference_sources
-      WHERE tenant_id = $1
-        AND name = 'Serper Search'
-      LIMIT 1`,
-    [input.tenantId],
-  );
-  const sourceId = sourceRows[0]?.id ?? null;
+  const sources = await listArtDirectionReferenceSources({ tenantId: input.tenantId, enabledOnly: true });
+  const searchSource = sources.find((source) => source.name === 'Serper Search');
+  const siteSources = sources.filter((source) => source.source_type === 'site' && source.domain).slice(0, 4);
+  const queries = uniq([
+    ...input.queries.slice(0, 4),
+    ...input.queries.slice(0, 2).flatMap((searchQuery) =>
+      siteSources.map((source) => `${searchQuery} site:${source.domain}`),
+    ),
+  ]);
+  const sourceId = searchSource?.id ?? null;
 
   let inserted = 0;
-  for (const searchQuery of input.queries.slice(0, 4)) {
+  for (const searchQuery of queries) {
     const startedAt = Date.now();
     const search = await tavilySearch(searchQuery, {
       maxResults: input.maxResultsPerQuery ?? 4,
@@ -569,6 +739,7 @@ export async function discoverArtDirectionReferences(input: DiscoverArtDirection
 
     for (const result of search.results) {
       const domain = normalizeUrlDomain(result.url);
+      const matchedSource = siteSources.find((source) => source.domain === domain) ?? null;
       const metadata = {
         source: 'search',
         query: searchQuery,
@@ -593,7 +764,7 @@ export async function discoverArtDirectionReferences(input: DiscoverArtDirection
         [
           input.tenantId,
           input.clientId ?? null,
-          sourceId,
+          matchedSource?.id ?? sourceId,
           result.url,
           domain,
           result.title || result.url,
@@ -776,6 +947,233 @@ export async function recordArtDirectionFeedbackEvent(params: {
   );
 }
 
+async function fetchArtDirectionReferenceRecord(
+  tenantId: string,
+  id: string,
+): Promise<ArtDirectionReferenceRecord | null> {
+  const { rows } = await query<ArtDirectionReferenceRecord>(
+    `SELECT
+       r.id,
+       r.title,
+       r.source_url,
+       r.platform,
+       r.format,
+       r.segment,
+       r.visual_intent,
+       r.creative_direction,
+       COALESCE(r.mood_words, '[]'::jsonb) AS mood_words,
+       COALESCE(r.style_tags, '[]'::jsonb) AS style_tags,
+       COALESCE(r.composition_tags, '[]'::jsonb) AS composition_tags,
+       COALESCE(r.typography_tags, '[]'::jsonb) AS typography_tags,
+       r.trend_score,
+       r.confidence_score,
+       r.rationale,
+       r.discovered_at::text AS discovered_at,
+       r.status,
+       r.domain,
+       r.search_query,
+       r.source_kind,
+       r.source_id,
+       r.snippet,
+       r.analyzed_at::text AS analyzed_at,
+       src.name AS source_name,
+       src.source_type
+     FROM da_references r
+     LEFT JOIN da_reference_sources src ON src.id = r.source_id
+    WHERE r.tenant_id = $1
+      AND r.id = $2
+    LIMIT 1`,
+    [tenantId, id],
+  );
+
+  if (!rows[0]) return null;
+
+  return {
+    ...rows[0],
+    mood_words: Array.isArray(rows[0].mood_words) ? rows[0].mood_words : [],
+    style_tags: Array.isArray(rows[0].style_tags) ? rows[0].style_tags : [],
+    composition_tags: Array.isArray(rows[0].composition_tags) ? rows[0].composition_tags : [],
+    typography_tags: Array.isArray(rows[0].typography_tags) ? rows[0].typography_tags : [],
+  };
+}
+
+export async function createManualArtDirectionReference(
+  input: CreateManualArtDirectionReferenceInput,
+): Promise<ArtDirectionReferenceRecord> {
+  const normalizedUrl = input.sourceUrl.trim();
+  const domain = normalizeUrlDomain(normalizedUrl);
+
+  let sourceId: string | null = null;
+  if (domain) {
+    const sourceRows = await query<{ id: string }>(
+      `SELECT id
+         FROM da_reference_sources
+        WHERE (tenant_id = $1 OR tenant_id IS NULL)
+          AND domain = $2
+        ORDER BY CASE WHEN tenant_id = $1 THEN 0 ELSE 1 END
+        LIMIT 1`,
+      [input.tenantId, domain],
+    );
+    sourceId = sourceRows.rows[0]?.id ?? null;
+  }
+
+  const { rows } = await query<{ id: string }>(
+    `INSERT INTO da_references
+       (
+         tenant_id, client_id, source_id, source_url, canonical_url, domain, title, snippet,
+         source_kind, status, platform, format, segment, visual_intent, creative_direction,
+         mood_words, style_tags, composition_tags, typography_tags,
+         confidence_score, trend_score, rationale, metadata, analyzed_at
+       )
+     VALUES (
+       $1,$2,$3,$4,$4,$5,$6,$7,
+       'manual',$8,$9,$10,$11,$12,$13,
+       $14::jsonb,$15::jsonb,$16::jsonb,$17::jsonb,
+       $18,$19,$20,$21::jsonb,
+       CASE WHEN $8 = 'analyzed' THEN now() ELSE NULL END
+     )
+     ON CONFLICT (tenant_id, source_url)
+     DO UPDATE SET
+       client_id = COALESCE(EXCLUDED.client_id, da_references.client_id),
+       source_id = COALESCE(EXCLUDED.source_id, da_references.source_id),
+       title = EXCLUDED.title,
+       platform = COALESCE(EXCLUDED.platform, da_references.platform),
+       format = COALESCE(EXCLUDED.format, da_references.format),
+       segment = COALESCE(EXCLUDED.segment, da_references.segment),
+       visual_intent = COALESCE(EXCLUDED.visual_intent, da_references.visual_intent),
+       creative_direction = COALESCE(EXCLUDED.creative_direction, da_references.creative_direction),
+       mood_words = EXCLUDED.mood_words,
+       style_tags = EXCLUDED.style_tags,
+       composition_tags = EXCLUDED.composition_tags,
+       typography_tags = EXCLUDED.typography_tags,
+       confidence_score = COALESCE(EXCLUDED.confidence_score, da_references.confidence_score),
+       trend_score = COALESCE(EXCLUDED.trend_score, da_references.trend_score),
+       rationale = COALESCE(EXCLUDED.rationale, da_references.rationale),
+       metadata = COALESCE(da_references.metadata, '{}'::jsonb) || EXCLUDED.metadata,
+       status = EXCLUDED.status,
+       analyzed_at = CASE WHEN EXCLUDED.status = 'analyzed' THEN now() ELSE da_references.analyzed_at END,
+       updated_at = now()
+     RETURNING id`,
+    [
+      input.tenantId,
+      input.clientId ?? null,
+      sourceId,
+      normalizedUrl,
+      domain,
+      (input.title || normalizedUrl).trim(),
+      null,
+      input.status ?? 'discovered',
+      input.platform ?? null,
+      input.format ?? null,
+      input.segment ?? null,
+      input.visualIntent ?? null,
+      input.creativeDirection ?? null,
+      toJson(input.moodWords),
+      toJson(input.styleTags),
+      toJson(input.compositionTags),
+      toJson(input.typographyTags),
+      input.confidenceScore ?? null,
+      input.trendScore ?? null,
+      input.rationale ?? null,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+
+  const stored = await fetchArtDirectionReferenceRecord(input.tenantId, rows[0].id);
+  if (!stored) throw new Error('Falha ao carregar referência manual após salvar');
+  return stored;
+}
+
+export async function updateArtDirectionReference(
+  input: UpdateArtDirectionReferenceInput,
+): Promise<ArtDirectionReferenceRecord | null> {
+  const currentRows = await query<{ source_url: string; status: string }>(
+    `SELECT source_url, status
+       FROM da_references
+      WHERE tenant_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [input.tenantId, input.id],
+  );
+  if (!currentRows.rows[0]) return null;
+
+  const normalizedUrl = String(input.sourceUrl || '').trim() || currentRows.rows[0].source_url;
+  const domain = normalizeUrlDomain(normalizedUrl);
+
+  let sourceId: string | null = null;
+  if (domain) {
+    const sourceRows = await query<{ id: string }>(
+      `SELECT id
+         FROM da_reference_sources
+        WHERE (tenant_id = $1 OR tenant_id IS NULL)
+          AND domain = $2
+        ORDER BY CASE WHEN tenant_id = $1 THEN 0 ELSE 1 END
+        LIMIT 1`,
+      [input.tenantId, domain],
+    );
+    sourceId = sourceRows.rows[0]?.id ?? null;
+  }
+
+  const status = input.status ?? (currentRows.rows[0].status as UpdateArtDirectionReferenceInput['status']);
+
+  const { rows } = await query<{ id: string }>(
+    `UPDATE da_references
+        SET source_id = COALESCE($3, source_id),
+            source_url = $4,
+            canonical_url = $4,
+            domain = $5,
+            title = COALESCE($6, title),
+            platform = COALESCE($7, platform),
+            format = COALESCE($8, format),
+            segment = COALESCE($9, segment),
+            visual_intent = COALESCE($10, visual_intent),
+            creative_direction = COALESCE($11, creative_direction),
+            mood_words = COALESCE($12::jsonb, mood_words),
+            style_tags = COALESCE($13::jsonb, style_tags),
+            composition_tags = COALESCE($14::jsonb, composition_tags),
+            typography_tags = COALESCE($15::jsonb, typography_tags),
+            confidence_score = COALESCE($16, confidence_score),
+            trend_score = COALESCE($17, trend_score),
+            rationale = COALESCE($18, rationale),
+            status = COALESCE($19, status),
+            analyzed_at = CASE
+              WHEN COALESCE($19, status) = 'analyzed' AND analyzed_at IS NULL THEN now()
+              WHEN COALESCE($19, status) <> 'analyzed' THEN NULL
+              ELSE analyzed_at
+            END,
+            metadata = COALESCE(metadata, '{}'::jsonb) || $20::jsonb,
+            updated_at = now()
+      WHERE tenant_id = $1
+        AND id = $2
+      RETURNING id`,
+    [
+      input.tenantId,
+      input.id,
+      sourceId,
+      normalizedUrl,
+      domain,
+      input.title ?? null,
+      input.platform ?? null,
+      input.format ?? null,
+      input.segment ?? null,
+      input.visualIntent ?? null,
+      input.creativeDirection ?? null,
+      input.moodWords ? toJson(input.moodWords) : null,
+      input.styleTags ? toJson(input.styleTags) : null,
+      input.compositionTags ? toJson(input.compositionTags) : null,
+      input.typographyTags ? toJson(input.typographyTags) : null,
+      input.confidenceScore ?? null,
+      input.trendScore ?? null,
+      input.rationale ?? null,
+      status ?? null,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+
+  if (!rows[0]) return null;
+  return fetchArtDirectionReferenceRecord(input.tenantId, rows[0].id);
+}
+
 export async function recomputeArtDirectionTrendSnapshots(params?: {
   tenantId?: string;
   clientId?: string;
@@ -956,6 +1354,88 @@ export async function listRelevantArtDirectionReferences(params: {
     values,
   );
   return rows;
+}
+
+export async function listArtDirectionReferences(params: {
+  tenantId: string;
+  clientId?: string | null;
+  platform?: string | null;
+  segment?: string | null;
+  statuses?: Array<'discovered' | 'analyzed' | 'rejected' | 'archived'>;
+  limit?: number;
+}): Promise<ArtDirectionReferenceRecord[]> {
+  const values: any[] = [params.tenantId];
+  const where = [`r.tenant_id = $1`];
+
+  if (params.clientId) {
+    values.push(params.clientId);
+    where.push(`(r.client_id = $${values.length} OR r.client_id IS NULL)`);
+  }
+  if (params.platform) {
+    values.push(params.platform);
+    where.push(`(r.platform = $${values.length} OR r.platform IS NULL)`);
+  }
+  if (params.segment) {
+    values.push(params.segment);
+    where.push(`(r.segment = $${values.length} OR r.segment IS NULL)`);
+  }
+  if (params.statuses?.length) {
+    values.push(params.statuses);
+    where.push(`r.status = ANY($${values.length}::text[])`);
+  }
+
+  values.push(Math.min(params.limit ?? 24, 100));
+
+  const { rows } = await query<ArtDirectionReferenceRecord>(
+    `SELECT
+       r.id,
+       r.title,
+       r.source_url,
+       r.platform,
+       r.format,
+       r.segment,
+       r.visual_intent,
+       r.creative_direction,
+       COALESCE(r.mood_words, '[]'::jsonb) AS mood_words,
+       COALESCE(r.style_tags, '[]'::jsonb) AS style_tags,
+       COALESCE(r.composition_tags, '[]'::jsonb) AS composition_tags,
+       COALESCE(r.typography_tags, '[]'::jsonb) AS typography_tags,
+       r.trend_score,
+       r.confidence_score,
+       r.rationale,
+       r.discovered_at::text AS discovered_at,
+       r.status,
+       r.domain,
+       r.search_query,
+       r.source_kind,
+       r.source_id,
+       r.snippet,
+       r.analyzed_at::text AS analyzed_at,
+       src.name AS source_name,
+       src.source_type
+     FROM da_references r
+     LEFT JOIN da_reference_sources src ON src.id = r.source_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY
+       CASE r.status
+         WHEN 'discovered' THEN 0
+         WHEN 'analyzed' THEN 1
+         WHEN 'rejected' THEN 2
+         ELSE 3
+       END,
+       r.updated_at DESC,
+       r.discovered_at DESC
+     LIMIT $${values.length}`,
+    values,
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    mood_words: Array.isArray(row.mood_words) ? row.mood_words : [],
+    style_tags: Array.isArray(row.style_tags) ? row.style_tags : [],
+    composition_tags: Array.isArray(row.composition_tags) ? row.composition_tags : [],
+    typography_tags: Array.isArray(row.typography_tags) ? row.typography_tags : [],
+  }));
 }
 
 export async function listRelevantArtDirectionConcepts(params: {
