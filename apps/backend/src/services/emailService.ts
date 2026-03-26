@@ -27,7 +27,7 @@ async function sendViaResend(payload: EmailPayload): Promise<DeliveryResult> {
   const apiKey = env.RESEND_API_KEY;
   if (!apiKey) return { ok: false, error: 'resend_not_configured' };
 
-  const from = env.RESEND_FROM || 'Edro Digital <noreply@edro.digital>';
+  const from = env.RESEND_FROM || 'Edro Studio <onboarding@resend.dev>';
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
