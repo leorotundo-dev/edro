@@ -15,16 +15,21 @@ import {
   analyzePendingArtDirectionReferences,
   buildArtDirectionFeedbackMetadata,
   buildArtDirectionMemoryContext,
+  createManualArtDirectionReference,
   discoverArtDirectionReferences,
   getArtDirectionMemoryStats,
   getPrimaryArtDirectionReferenceId,
+  listArtDirectionReferenceSources,
+  listArtDirectionReferences,
   listArtDirectionTrendSignals,
   listRelevantArtDirectionConcepts,
   listRelevantArtDirectionReferences,
   recordArtDirectionFeedbackEvent,
   recomputeArtDirectionTrendSnapshots,
   resolveArtDirectionCreativeContext,
+  updateArtDirectionReference,
   upsertArtDirectionConcept,
+  upsertArtDirectionReferenceSource,
 } from '../services/ai/artDirectionMemoryService';
 import { CORE_ART_DIRECTION_CONCEPTS } from '../services/ai/artDirectionCoreConcepts';
 
@@ -131,6 +136,65 @@ const daFeedbackSchema = z.object({
   event_type: z.enum(['used', 'approved', 'rejected', 'edited', 'performed', 'saved']),
   score: z.coerce.number().min(0).max(100).optional(),
   notes: z.string().max(2000).optional(),
+  metadata: z.record(z.any()).optional(),
+});
+
+const daReferenceStatuses = z.enum(['discovered', 'analyzed', 'rejected', 'archived']);
+
+const daReferenceListSchema = z.object({
+  client_id: clientIdSchema.optional(),
+  platform: z.string().optional(),
+  segment: z.string().optional(),
+  statuses: z.array(daReferenceStatuses).max(4).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const daReferenceCreateSchema = z.object({
+  client_id: clientIdSchema.optional(),
+  title: z.string().min(2).max(240).optional(),
+  source_url: z.string().url(),
+  platform: z.string().optional(),
+  format: z.string().optional(),
+  segment: z.string().optional(),
+  visual_intent: z.string().optional(),
+  creative_direction: z.string().optional(),
+  rationale: z.string().max(2000).optional(),
+  mood_words: z.array(z.string()).max(12).optional(),
+  style_tags: z.array(z.string()).max(16).optional(),
+  composition_tags: z.array(z.string()).max(12).optional(),
+  typography_tags: z.array(z.string()).max(12).optional(),
+  confidence_score: z.coerce.number().min(0).max(1).optional(),
+  trend_score: z.coerce.number().min(0).max(100).optional(),
+  status: daReferenceStatuses.optional(),
+  metadata: z.record(z.any()).optional(),
+});
+
+const daReferenceUpdateSchema = z.object({
+  title: z.string().min(2).max(240).optional(),
+  source_url: z.string().url().optional(),
+  platform: z.string().nullable().optional(),
+  format: z.string().nullable().optional(),
+  segment: z.string().nullable().optional(),
+  visual_intent: z.string().nullable().optional(),
+  creative_direction: z.string().nullable().optional(),
+  rationale: z.string().max(2000).nullable().optional(),
+  mood_words: z.array(z.string()).max(12).nullable().optional(),
+  style_tags: z.array(z.string()).max(16).nullable().optional(),
+  composition_tags: z.array(z.string()).max(12).nullable().optional(),
+  typography_tags: z.array(z.string()).max(12).nullable().optional(),
+  confidence_score: z.coerce.number().min(0).max(1).nullable().optional(),
+  trend_score: z.coerce.number().min(0).max(100).nullable().optional(),
+  status: daReferenceStatuses.nullable().optional(),
+  metadata: z.record(z.any()).optional(),
+});
+
+const daSourceSchema = z.object({
+  name: z.string().min(2).max(120),
+  source_type: z.enum(['search', 'manual', 'social', 'rss', 'site', 'library']),
+  base_url: z.string().url().optional(),
+  domain: z.string().min(3).max(200).optional(),
+  trust_score: z.coerce.number().min(0).max(1).optional(),
+  enabled: z.boolean().optional(),
   metadata: z.record(z.any()).optional(),
 });
 
@@ -403,13 +467,32 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         });
       }
 
-      const [references, trends] = await Promise.all([
+      const [references, pendingReferences, rejectedReferences, sources, trends] = await Promise.all([
         listRelevantArtDirectionReferences({
           tenantId,
           clientId: input.client_id,
           platform: input.platform,
           segment: input.segment,
           limit: input.reference_limit ?? 8,
+        }),
+        listArtDirectionReferences({
+          tenantId,
+          clientId: input.client_id,
+          platform: input.platform,
+          segment: input.segment,
+          statuses: ['discovered'],
+          limit: Math.min((input.reference_limit ?? 8) * 2, 20),
+        }),
+        listArtDirectionReferences({
+          tenantId,
+          clientId: input.client_id,
+          platform: input.platform,
+          segment: input.segment,
+          statuses: ['rejected'],
+          limit: Math.min(input.reference_limit ?? 8, 12),
+        }),
+        listArtDirectionReferenceSources({
+          tenantId,
         }),
         listArtDirectionTrendSignals({
           tenantId,
@@ -427,7 +510,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         segment: input.segment,
       });
 
-      return reply.send({ success: true, memory, concepts, references, trends, stats });
+      return reply.send({ success: true, memory, concepts, references, pendingReferences, rejectedReferences, sources, trends, stats });
     } catch (error: any) {
       request.log.error({ error }, '[studio/creative/da-memory] failed');
       const message = String(error?.message || '');
@@ -449,6 +532,9 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
           },
           concepts: [],
           references: [],
+          pendingReferences: [],
+          rejectedReferences: [],
+          sources: [],
           trends: [],
           stats: {
             concepts: { active: 0 },
@@ -476,6 +562,137 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
 
       return reply.status(500).send({ success: false, error: error?.message || 'Falha ao carregar memória de DA' });
     }
+  });
+
+  app.get('/studio/creative/da-memory/references', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const input = daReferenceListSchema.parse(request.query || {});
+    const references = await listArtDirectionReferences({
+      tenantId,
+      clientId: input.client_id,
+      platform: input.platform,
+      segment: input.segment,
+      statuses: input.statuses,
+      limit: input.limit ?? 50,
+    });
+
+    return reply.send({ success: true, references });
+  });
+
+  app.post('/studio/creative/da-memory/references', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const body = daReferenceCreateSchema.parse(request.body || {});
+    const reference = await createManualArtDirectionReference({
+      tenantId,
+      clientId: body.client_id,
+      title: body.title,
+      sourceUrl: body.source_url,
+      platform: body.platform,
+      format: body.format,
+      segment: body.segment,
+      visualIntent: body.visual_intent,
+      creativeDirection: body.creative_direction,
+      rationale: body.rationale,
+      moodWords: body.mood_words,
+      styleTags: body.style_tags,
+      compositionTags: body.composition_tags,
+      typographyTags: body.typography_tags,
+      confidenceScore: body.confidence_score ?? null,
+      trendScore: body.trend_score ?? null,
+      status: body.status,
+      metadata: {
+        source: 'studio_da_manual',
+        ...(body.metadata ?? {}),
+      },
+    });
+
+    return reply.send({ success: true, reference });
+  });
+
+  app.patch('/studio/creative/da-memory/references/:referenceId', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const params = z.object({ referenceId: z.string().uuid() }).parse(request.params || {});
+    const body = daReferenceUpdateSchema.parse(request.body || {});
+    const reference = await updateArtDirectionReference({
+      tenantId,
+      id: params.referenceId,
+      title: body.title,
+      sourceUrl: body.source_url,
+      platform: body.platform ?? undefined,
+      format: body.format ?? undefined,
+      segment: body.segment ?? undefined,
+      visualIntent: body.visual_intent ?? undefined,
+      creativeDirection: body.creative_direction ?? undefined,
+      rationale: body.rationale ?? undefined,
+      moodWords: body.mood_words ?? undefined,
+      styleTags: body.style_tags ?? undefined,
+      compositionTags: body.composition_tags ?? undefined,
+      typographyTags: body.typography_tags ?? undefined,
+      confidenceScore: body.confidence_score ?? undefined,
+      trendScore: body.trend_score ?? undefined,
+      status: body.status ?? undefined,
+      metadata: body.metadata,
+    });
+
+    if (!reference) {
+      return reply.status(404).send({ success: false, error: 'Referência não encontrada' });
+    }
+
+    return reply.send({ success: true, reference });
+  });
+
+  app.get('/studio/creative/da-memory/sources', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const sources = await listArtDirectionReferenceSources({ tenantId });
+    return reply.send({ success: true, sources });
+  });
+
+  app.post('/studio/creative/da-memory/sources', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const body = daSourceSchema.parse(request.body || {});
+    const source = await upsertArtDirectionReferenceSource({
+      tenantId,
+      name: body.name,
+      sourceType: body.source_type,
+      baseUrl: body.base_url,
+      domain: body.domain,
+      trustScore: body.trust_score,
+      enabled: body.enabled,
+      metadata: body.metadata,
+    });
+
+    return reply.send({ success: true, source });
+  });
+
+  app.patch('/studio/creative/da-memory/sources/:sourceId', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const params = z.object({ sourceId: z.string().uuid() }).parse(request.params || {});
+    const body = daSourceSchema.parse(request.body || {});
+    const source = await upsertArtDirectionReferenceSource({
+      id: params.sourceId,
+      tenantId,
+      name: body.name,
+      sourceType: body.source_type,
+      baseUrl: body.base_url,
+      domain: body.domain,
+      trustScore: body.trust_score,
+      enabled: body.enabled,
+      metadata: body.metadata,
+    });
+
+    return reply.send({ success: true, source });
   });
 
   app.post('/studio/creative/da-memory/discover', async (request: any, reply) => {

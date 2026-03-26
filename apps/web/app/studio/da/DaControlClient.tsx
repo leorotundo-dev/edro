@@ -68,6 +68,29 @@ type Reference = {
   discovered_at: string;
 };
 
+type ManagedReference = Reference & {
+  status: 'discovered' | 'analyzed' | 'rejected' | 'archived';
+  domain: string | null;
+  search_query: string | null;
+  source_kind: string;
+  source_id: string | null;
+  source_name: string | null;
+  source_type: string | null;
+  snippet: string | null;
+  analyzed_at: string | null;
+};
+
+type ReferenceSource = {
+  id: string;
+  name: string;
+  source_type: 'search' | 'manual' | 'social' | 'rss' | 'site' | 'library';
+  base_url: string | null;
+  domain: string | null;
+  trust_score: number;
+  enabled: boolean;
+  updated_at: string;
+};
+
 type Trend = {
   id: string;
   cluster_key: string;
@@ -117,10 +140,36 @@ type MemoryResponse = {
   stats: MemoryStats;
   concepts: Concept[];
   references: Reference[];
+  pendingReferences: ManagedReference[];
+  rejectedReferences: ManagedReference[];
+  sources: ReferenceSource[];
   trends: Trend[];
 };
 
+type ReferenceDraft = {
+  title: string;
+  source_url: string;
+  platform: string;
+  format: string;
+  segment: string;
+  visual_intent: string;
+  creative_direction: string;
+  rationale: string;
+  status: ManagedReference['status'];
+};
+
+type SourceDraft = {
+  name: string;
+  source_type: ReferenceSource['source_type'];
+  base_url: string;
+  domain: string;
+  trust_score: string;
+  enabled: boolean;
+};
+
 const PLATFORM_OPTIONS = ['Instagram', 'LinkedIn', 'Facebook', 'TikTok', 'YouTube', 'WhatsApp', 'General'];
+const REFERENCE_STATUS_OPTIONS: ManagedReference['status'][] = ['discovered', 'analyzed', 'rejected', 'archived'];
+const SOURCE_TYPE_OPTIONS: ReferenceSource['source_type'][] = ['site', 'search', 'manual', 'social', 'rss', 'library'];
 
 function EmptySection({
   title,
@@ -252,6 +301,165 @@ function uniqueTags(reference: Reference) {
   ).slice(0, 5);
 }
 
+function toOptionalString(value: string) {
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+function createReferenceDraft(reference: ManagedReference): ReferenceDraft {
+  return {
+    title: reference.title || '',
+    source_url: reference.source_url || '',
+    platform: reference.platform || '',
+    format: reference.format || '',
+    segment: reference.segment || '',
+    visual_intent: reference.visual_intent || '',
+    creative_direction: reference.creative_direction || '',
+    rationale: reference.rationale || '',
+    status: reference.status,
+  };
+}
+
+function createSourceDraft(source?: ReferenceSource | null): SourceDraft {
+  return {
+    name: source?.name || '',
+    source_type: source?.source_type || 'site',
+    base_url: source?.base_url || '',
+    domain: source?.domain || '',
+    trust_score: source ? String(source.trust_score ?? 0.7) : '0.70',
+    enabled: source?.enabled ?? true,
+  };
+}
+
+function renderReferenceDraftFields({
+  draft,
+  onChange,
+  compact = false,
+}: {
+  draft: ReferenceDraft;
+  onChange: (patch: Partial<ReferenceDraft>) => void;
+  compact?: boolean;
+}) {
+  return (
+    <Grid container spacing={1.25}>
+      <Grid size={{ xs: 12, md: compact ? 6 : 8 }}>
+        <TextField fullWidth label="Título" value={draft.title} onChange={(e) => onChange({ title: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: compact ? 6 : 4 }}>
+        <TextField
+          select
+          fullWidth
+          label="Status"
+          value={draft.status}
+          onChange={(e) => onChange({ status: e.target.value as ManagedReference['status'] })}
+          size="small"
+        >
+          {REFERENCE_STATUS_OPTIONS.map((status) => (
+            <MenuItem key={status} value={status}>
+              {status}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid size={{ xs: 12 }}>
+        <TextField fullWidth label="URL" value={draft.source_url} onChange={(e) => onChange({ source_url: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 4 }}>
+        <TextField fullWidth label="Plataforma" value={draft.platform} onChange={(e) => onChange({ platform: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 4 }}>
+        <TextField fullWidth label="Formato" value={draft.format} onChange={(e) => onChange({ format: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 4 }}>
+        <TextField fullWidth label="Segmento" value={draft.segment} onChange={(e) => onChange({ segment: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <TextField
+          fullWidth
+          label="Intenção visual"
+          value={draft.visual_intent}
+          onChange={(e) => onChange({ visual_intent: e.target.value })}
+          size="small"
+        />
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <TextField
+          fullWidth
+          label="Direção criativa"
+          value={draft.creative_direction}
+          onChange={(e) => onChange({ creative_direction: e.target.value })}
+          size="small"
+        />
+      </Grid>
+      <Grid size={{ xs: 12 }}>
+        <TextField
+          fullWidth
+          multiline
+          minRows={compact ? 2 : 3}
+          label="Racional"
+          value={draft.rationale}
+          onChange={(e) => onChange({ rationale: e.target.value })}
+          size="small"
+        />
+      </Grid>
+    </Grid>
+  );
+}
+
+function renderSourceDraftFields({
+  draft,
+  onChange,
+}: {
+  draft: SourceDraft;
+  onChange: (patch: Partial<SourceDraft>) => void;
+}) {
+  return (
+    <Grid container spacing={1.25}>
+      <Grid size={{ xs: 12, md: 5 }}>
+        <TextField fullWidth label="Nome" value={draft.name} onChange={(e) => onChange({ name: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 3 }}>
+        <TextField
+          select
+          fullWidth
+          label="Tipo"
+          value={draft.source_type}
+          onChange={(e) => onChange({ source_type: e.target.value as ReferenceSource['source_type'] })}
+          size="small"
+        >
+          {SOURCE_TYPE_OPTIONS.map((type) => (
+            <MenuItem key={type} value={type}>
+              {type}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid size={{ xs: 12, md: 2 }}>
+        <TextField fullWidth label="Trust" value={draft.trust_score} onChange={(e) => onChange({ trust_score: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 2 }}>
+        <TextField
+          select
+          fullWidth
+          label="Ativa"
+          value={draft.enabled ? 'true' : 'false'}
+          onChange={(e) => onChange({ enabled: e.target.value === 'true' })}
+          size="small"
+        >
+          <MenuItem value="true">Sim</MenuItem>
+          <MenuItem value="false">Não</MenuItem>
+        </TextField>
+      </Grid>
+      <Grid size={{ xs: 12, md: 7 }}>
+        <TextField fullWidth label="Base URL" value={draft.base_url} onChange={(e) => onChange({ base_url: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 5 }}>
+        <TextField fullWidth label="Domain" value={draft.domain} onChange={(e) => onChange({ domain: e.target.value })} size="small" />
+      </Grid>
+    </Grid>
+  );
+}
+
 export default function DaControlClient() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -266,6 +474,26 @@ export default function DaControlClient() {
   const [category, setCategory] = useState<string>('social media');
   const [mood, setMood] = useState<string>('');
   const [data, setData] = useState<MemoryResponse | null>(null);
+  const [editingReferenceId, setEditingReferenceId] = useState<string | null>(null);
+  const [referenceDrafts, setReferenceDrafts] = useState<Record<string, ReferenceDraft>>({});
+  const [savingReferenceId, setSavingReferenceId] = useState<string | null>(null);
+  const [manualReference, setManualReference] = useState<ReferenceDraft>({
+    title: '',
+    source_url: '',
+    platform: '',
+    format: '',
+    segment: '',
+    visual_intent: '',
+    creative_direction: '',
+    rationale: '',
+    status: 'discovered',
+  });
+  const [creatingReference, setCreatingReference] = useState(false);
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  const [sourceDrafts, setSourceDrafts] = useState<Record<string, SourceDraft>>({});
+  const [savingSourceId, setSavingSourceId] = useState<string | null>(null);
+  const [newSource, setNewSource] = useState<SourceDraft>(createSourceDraft());
+  const [creatingSource, setCreatingSource] = useState(false);
 
   useEffect(() => {
     const fromQuery = searchParams?.get('clientId') || '';
@@ -383,8 +611,158 @@ export default function DaControlClient() {
     }
   };
 
+  const patchJson = useCallback(async <T,>(path: string, body: Record<string, unknown>) => {
+    const response = await fetch(`/api/proxy${path}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error((payload as any)?.error || `Falha em ${path}`);
+    }
+    return payload as T;
+  }, []);
+
+  const beginEditReference = useCallback((reference: ManagedReference) => {
+    setEditingReferenceId(reference.id);
+    setReferenceDrafts((current) => ({
+      ...current,
+      [reference.id]: current[reference.id] || createReferenceDraft(reference),
+    }));
+  }, []);
+
+  const saveReferenceDraft = useCallback(async (referenceId: string) => {
+    const draft = referenceDrafts[referenceId];
+    if (!draft) return;
+    setSavingReferenceId(referenceId);
+    setError('');
+    setSuccess('');
+    try {
+      await patchJson<{ success: boolean; reference: ManagedReference }>(`/studio/creative/da-memory/references/${referenceId}`, {
+        title: toOptionalString(draft.title),
+        source_url: toOptionalString(draft.source_url),
+        platform: toOptionalString(draft.platform) ?? null,
+        format: toOptionalString(draft.format) ?? null,
+        segment: toOptionalString(draft.segment) ?? null,
+        visual_intent: toOptionalString(draft.visual_intent) ?? null,
+        creative_direction: toOptionalString(draft.creative_direction) ?? null,
+        rationale: toOptionalString(draft.rationale) ?? null,
+        status: draft.status,
+      });
+      setSuccess('Referência atualizada.');
+      setEditingReferenceId(null);
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao salvar referência');
+    } finally {
+      setSavingReferenceId(null);
+    }
+  }, [load, patchJson, referenceDrafts]);
+
+  const quickUpdateReferenceStatus = useCallback(async (referenceId: string, status: ManagedReference['status']) => {
+    setSavingReferenceId(referenceId);
+    setError('');
+    setSuccess('');
+    try {
+      await patchJson<{ success: boolean; reference: ManagedReference }>(`/studio/creative/da-memory/references/${referenceId}`, {
+        status,
+      });
+      setSuccess(`Referência movida para ${status}.`);
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao atualizar status da referência');
+    } finally {
+      setSavingReferenceId(null);
+    }
+  }, [load, patchJson]);
+
+  const createManualReference = useCallback(async () => {
+    setCreatingReference(true);
+    setError('');
+    setSuccess('');
+    try {
+      await apiPost<{ success: boolean; reference: ManagedReference }>('/studio/creative/da-memory/references', {
+        client_id: clientId || undefined,
+        title: toOptionalString(manualReference.title),
+        source_url: manualReference.source_url.trim(),
+        platform: toOptionalString(manualReference.platform),
+        format: toOptionalString(manualReference.format),
+        segment: toOptionalString(manualReference.segment) || toOptionalString(segment),
+        visual_intent: toOptionalString(manualReference.visual_intent),
+        creative_direction: toOptionalString(manualReference.creative_direction),
+        rationale: toOptionalString(manualReference.rationale),
+        status: manualReference.status,
+      });
+      setSuccess('Referência manual criada.');
+      setManualReference({
+        title: '',
+        source_url: '',
+        platform: '',
+        format: '',
+        segment: '',
+        visual_intent: '',
+        creative_direction: '',
+        rationale: '',
+        status: 'discovered',
+      });
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao criar referência manual');
+    } finally {
+      setCreatingReference(false);
+    }
+  }, [clientId, load, manualReference, segment]);
+
+  const beginEditSource = useCallback((source: ReferenceSource) => {
+    setEditingSourceId(source.id);
+    setSourceDrafts((current) => ({
+      ...current,
+      [source.id]: current[source.id] || createSourceDraft(source),
+    }));
+  }, []);
+
+  const saveSourceDraft = useCallback(async (sourceId?: string | null) => {
+    const draft = sourceId ? sourceDrafts[sourceId] : newSource;
+    if (!draft) return;
+    const payload = {
+      name: draft.name.trim(),
+      source_type: draft.source_type,
+      base_url: toOptionalString(draft.base_url),
+      domain: toOptionalString(draft.domain),
+      trust_score: Number(draft.trust_score || '0.70'),
+      enabled: draft.enabled,
+    };
+
+    setSavingSourceId(sourceId || 'new');
+    setError('');
+    setSuccess('');
+    try {
+      if (sourceId) {
+        await patchJson<{ success: boolean; source: ReferenceSource }>(`/studio/creative/da-memory/sources/${sourceId}`, payload);
+        setEditingSourceId(null);
+        setSuccess('Fonte atualizada.');
+      } else {
+        await apiPost<{ success: boolean; source: ReferenceSource }>('/studio/creative/da-memory/sources', payload);
+        setNewSource(createSourceDraft());
+        setSuccess('Fonte criada.');
+      }
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao salvar fonte');
+    } finally {
+      setSavingSourceId(null);
+    }
+  }, [load, newSource, patchJson, sourceDrafts]);
+
   const topTrend = useMemo(() => data?.trends?.[0] ?? null, [data]);
   const stats = data?.stats;
+  const pendingReferences = data?.pendingReferences ?? [];
+  const rejectedReferences = data?.rejectedReferences ?? [];
+  const sources = data?.sources ?? [];
 
   const nextStep = useMemo(() => {
     if (!stats) return 'Carregando status do pipeline.';
@@ -471,6 +849,181 @@ export default function DaControlClient() {
             />
           </Grid>
         </Grid>
+
+        <SectionCard
+          title="Curadoria de referências"
+          subtitle="Aqui você revisa a fila descoberta, reclassifica descartes e limpa a memória antes da análise final."
+        >
+          {loading ? (
+            <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+          ) : (
+            <Stack spacing={2}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2} mb={2}>
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Fila descoberta
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Referências capturadas que ainda não passaram pela análise final.
+                    </Typography>
+                  </Box>
+                  <Chip color="warning" variant="outlined" label={`${pendingReferences.length} na fila`} />
+                </Stack>
+
+                {!pendingReferences.length ? (
+                  <EmptySection
+                    title="Nenhuma referência descoberta pendente."
+                    description="Quando a descoberta web enfileirar novos casos, eles aparecem aqui para revisão rápida antes da análise."
+                  />
+                ) : (
+                  <Grid container spacing={2}>
+                    {pendingReferences.map((reference) => {
+                      const draft = referenceDrafts[reference.id] || createReferenceDraft(reference);
+                      const isEditing = editingReferenceId === reference.id;
+                      const isSaving = savingReferenceId === reference.id;
+
+                      return (
+                        <Grid key={reference.id} size={{ xs: 12, xl: 6 }}>
+                          <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                            <Stack direction="row" justifyContent="space-between" gap={2} mb={1}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  {reference.title || 'Sem título'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {reference.source_name || reference.domain || 'fonte não classificada'}
+                                  {reference.search_query ? ` • ${reference.search_query}` : ''}
+                                  {' • '}
+                                  {timeAgo(reference.discovered_at)}
+                                </Typography>
+                              </Box>
+                              <Stack direction="row" gap={1} flexWrap="wrap">
+                                <Chip size="small" color="warning" label={reference.status} />
+                                <Button
+                                  size="small"
+                                  component={Link}
+                                  href={reference.source_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  endIcon={<IconArrowUpRight size={14} />}
+                                >
+                                  Abrir
+                                </Button>
+                              </Stack>
+                            </Stack>
+
+                            {isEditing ? (
+                              <Stack spacing={1.5}>
+                                {renderReferenceDraftFields({
+                                  draft,
+                                  compact: true,
+                                  onChange: (patch) =>
+                                    setReferenceDrafts((current) => ({
+                                      ...current,
+                                      [reference.id]: {
+                                        ...(current[reference.id] || createReferenceDraft(reference)),
+                                        ...patch,
+                                      },
+                                    })),
+                                })}
+                                <Stack direction="row" gap={1} flexWrap="wrap">
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => void saveReferenceDraft(reference.id)}
+                                    disabled={isSaving}
+                                  >
+                                    {isSaving ? 'Salvando...' : 'Salvar'}
+                                  </Button>
+                                  <Button variant="outlined" size="small" onClick={() => setEditingReferenceId(null)} disabled={isSaving}>
+                                    Cancelar
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                            ) : (
+                              <>
+                                <Typography variant="body2" color="text.secondary">
+                                  {reference.snippet || reference.rationale || 'Sem snippet salvo nesta descoberta.'}
+                                </Typography>
+                                <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
+                                  <Chip size="small" label={reference.platform || 'geral'} />
+                                  {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
+                                  {reference.visual_intent ? <Chip size="small" variant="outlined" label={reference.visual_intent} /> : null}
+                                </Stack>
+                                <Divider sx={{ my: 1.5 }} />
+                                <Stack direction="row" gap={1} flexWrap="wrap">
+                                  <Button size="small" variant="outlined" onClick={() => beginEditReference(reference)}>
+                                    Editar
+                                  </Button>
+                                  <Button size="small" onClick={() => void quickUpdateReferenceStatus(reference.id, 'analyzed')} disabled={isSaving}>
+                                    Marcar analisada
+                                  </Button>
+                                  <Button size="small" color="error" onClick={() => void quickUpdateReferenceStatus(reference.id, 'rejected')} disabled={isSaving}>
+                                    Rejeitar
+                                  </Button>
+                                </Stack>
+                              </>
+                            )}
+                          </Paper>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+                )}
+              </Paper>
+
+              {!!rejectedReferences.length && (
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                  <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2} mb={2}>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Descartadas
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Casos que saíram do repertório ativo, mas ainda podem ser revisados.
+                      </Typography>
+                    </Box>
+                    <Chip color="default" variant="outlined" label={`${rejectedReferences.length} descartadas`} />
+                  </Stack>
+                  <Grid container spacing={2}>
+                    {rejectedReferences.map((reference) => (
+                      <Grid key={reference.id} size={{ xs: 12, lg: 6 }}>
+                        <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2.5, bgcolor: 'rgba(15, 23, 42, 0.02)', height: '100%' }}>
+                          <Stack direction="row" justifyContent="space-between" gap={2}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                {reference.title || 'Sem título'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {reference.domain || reference.source_name || 'fonte não classificada'} • {timeAgo(reference.discovered_at)}
+                              </Typography>
+                            </Box>
+                            <Stack direction="row" gap={1}>
+                              <Button size="small" component={Link} href={reference.source_url} target="_blank" rel="noopener noreferrer">
+                                Abrir
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={() => void quickUpdateReferenceStatus(reference.id, 'discovered')}
+                                disabled={savingReferenceId === reference.id}
+                              >
+                                Restaurar
+                              </Button>
+                            </Stack>
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            {reference.snippet || reference.rationale || 'Sem observação salva.'}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Paper>
+              )}
+            </Stack>
+          )}
+        </SectionCard>
 
         <SectionCard
           title="Controle do motor"
@@ -598,6 +1151,143 @@ export default function DaControlClient() {
         </SectionCard>
 
         <Grid container spacing={2.5}>
+          <Grid size={{ xs: 12, lg: 5 }}>
+            <SectionCard
+              title="Inclusão manual"
+              subtitle="Cadastre uma referência específica quando você já souber qual caso precisa entrar na memória."
+            >
+              <Stack spacing={1.5}>
+                {renderReferenceDraftFields({
+                  draft: manualReference,
+                  onChange: (patch) => setManualReference((current) => ({ ...current, ...patch })),
+                })}
+                <Stack direction="row" justifyContent="flex-end">
+                  <Button
+                    variant="contained"
+                    onClick={() => void createManualReference()}
+                    disabled={creatingReference || !manualReference.source_url.trim()}
+                  >
+                    {creatingReference ? 'Criando...' : 'Incluir referência'}
+                  </Button>
+                </Stack>
+              </Stack>
+            </SectionCard>
+          </Grid>
+          <Grid size={{ xs: 12, lg: 7 }}>
+            <SectionCard
+              title="Sites e fontes de referência"
+              subtitle="Cadastre os domínios que o motor deve privilegiar nas buscas e ajuste o peso de confiança."
+            >
+              <Stack spacing={2}>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: 'rgba(93,135,255,0.03)' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+                    Nova fonte
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    {renderSourceDraftFields({
+                      draft: newSource,
+                      onChange: (patch) => setNewSource((current) => ({ ...current, ...patch })),
+                    })}
+                    <Stack direction="row" justifyContent="flex-end">
+                      <Button
+                        variant="contained"
+                        onClick={() => void saveSourceDraft(null)}
+                        disabled={savingSourceId === 'new' || !newSource.name.trim()}
+                      >
+                        {savingSourceId === 'new' ? 'Salvando...' : 'Adicionar site'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Paper>
+
+                {!sources.length ? (
+                  <EmptySection
+                    title="Nenhuma fonte cadastrada."
+                    description="Cadastre sites de referência para o motor priorizar domínios específicos durante a descoberta."
+                  />
+                ) : (
+                  <Stack spacing={1.5}>
+                    {sources.map((source) => {
+                      const draft = sourceDrafts[source.id] || createSourceDraft(source);
+                      const isEditing = editingSourceId === source.id;
+                      const isSaving = savingSourceId === source.id;
+
+                      return (
+                        <Paper key={source.id} variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                          <Stack direction="row" justifyContent="space-between" gap={2} mb={1.5}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                {source.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {source.domain || source.base_url || 'sem domínio'} • atualizado {timeAgo(source.updated_at)}
+                              </Typography>
+                            </Box>
+                            <Stack direction="row" gap={1} flexWrap="wrap">
+                              <Chip size="small" label={source.source_type} />
+                              <Chip
+                                size="small"
+                                color={source.enabled ? 'success' : 'default'}
+                                variant="outlined"
+                                label={source.enabled ? 'ativa' : 'pausada'}
+                              />
+                              <Chip size="small" variant="outlined" label={`trust ${Number(source.trust_score || 0).toFixed(2)}`} />
+                            </Stack>
+                          </Stack>
+
+                          {isEditing ? (
+                            <Stack spacing={1.5}>
+                              {renderSourceDraftFields({
+                                draft,
+                                onChange: (patch) =>
+                                  setSourceDrafts((current) => ({
+                                    ...current,
+                                    [source.id]: {
+                                      ...(current[source.id] || createSourceDraft(source)),
+                                      ...patch,
+                                    },
+                                  })),
+                              })}
+                              <Stack direction="row" gap={1}>
+                                <Button variant="contained" size="small" onClick={() => void saveSourceDraft(source.id)} disabled={isSaving}>
+                                  {isSaving ? 'Salvando...' : 'Salvar'}
+                                </Button>
+                                <Button variant="outlined" size="small" onClick={() => setEditingSourceId(null)} disabled={isSaving}>
+                                  Cancelar
+                                </Button>
+                              </Stack>
+                            </Stack>
+                          ) : (
+                            <Stack direction="row" gap={1} flexWrap="wrap">
+                              {source.base_url ? <Chip size="small" variant="outlined" label={source.base_url} /> : null}
+                              <Button size="small" variant="outlined" onClick={() => beginEditSource(source)}>
+                                Editar
+                              </Button>
+                              {source.base_url ? (
+                                <Button
+                                  size="small"
+                                  component={Link}
+                                  href={source.base_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  endIcon={<IconArrowUpRight size={14} />}
+                                >
+                                  Abrir site
+                                </Button>
+                              ) : null}
+                            </Stack>
+                          )}
+                        </Paper>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Stack>
+            </SectionCard>
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
               title="Canon e critérios"
@@ -690,7 +1380,7 @@ export default function DaControlClient() {
         </Grid>
 
         <SectionCard
-          title="Reference memory"
+          title="Repertório analisado"
           subtitle="Referências já capturadas e analisadas que o motor usa como repertório vivo."
         >
           {loading ? (
