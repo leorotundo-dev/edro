@@ -170,6 +170,38 @@ type SourceDraft = {
 const PLATFORM_OPTIONS = ['Instagram', 'LinkedIn', 'Facebook', 'TikTok', 'YouTube', 'WhatsApp', 'General'];
 const REFERENCE_STATUS_OPTIONS: ManagedReference['status'][] = ['discovered', 'analyzed', 'rejected', 'archived'];
 const SOURCE_TYPE_OPTIONS: ReferenceSource['source_type'][] = ['site', 'search', 'manual', 'social', 'rss', 'library'];
+const CANON_GROUPS = [
+  {
+    key: 'fundamentos_visuais',
+    title: 'Fundamentos da Visão',
+    description: 'Base perceptiva e compositiva do DA da Edro.',
+    coverage: ['Gestalt', 'Grids', 'Hierarquia', 'Teoria das cores', 'Semiótica', 'Linguagem visual'],
+  },
+  {
+    key: 'tipografia',
+    title: 'Domínio Tipográfico',
+    description: 'Tipografia como tom, legibilidade e valor percebido.',
+    coverage: ['Tipografia', 'Sans-serifs', 'Serifas', 'Psicologia das fontes', 'Léxico tipográfico'],
+  },
+  {
+    key: 'historia_estilo',
+    title: 'História e Estilo',
+    description: 'Movimentos e linguagens que o motor usa como repertório histórico.',
+    coverage: ['Bauhaus', 'Design suíço', 'Pós-modernismo', 'Retrô', 'Vanguarda', 'Pastiche'],
+  },
+  {
+    key: 'formatos_midias',
+    title: 'Formatos e Aplicações',
+    description: 'Como o canon desce para mídia, fotografia e direção executável.',
+    coverage: ['Capas', 'Pôsteres', 'Redes sociais', 'Websites', 'Fotografia', 'UI/UX design'],
+  },
+  {
+    key: 'acessibilidade_critica',
+    title: 'Acessibilidade e Crítica',
+    description: 'Regras de inclusão, clareza e revisão obrigatória.',
+    coverage: ['Acessibilidade', 'Ética', 'Políticas do design', 'Resolução de problemas'],
+  },
+] as const;
 
 function EmptySection({
   title,
@@ -762,6 +794,14 @@ export default function DaControlClient() {
   const rejectedReferences = data?.rejectedReferences ?? [];
   const sources = data?.sources ?? [];
   const activeSources = useMemo(() => sources.filter((source) => source.enabled).length, [sources]);
+  const canonGroups = useMemo(
+    () =>
+      CANON_GROUPS.map((group) => ({
+        ...group,
+        concepts: (data?.concepts ?? []).filter((concept) => concept.category === group.key),
+      })),
+    [data?.concepts],
+  );
 
   const nextStep = useMemo(() => {
     if (!stats) return 'Carregando status do pipeline.';
@@ -1290,8 +1330,8 @@ export default function DaControlClient() {
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
-              title="Canon e critérios"
-              subtitle="Conceitos que o sistema usa como linguagem-base para geração e crítica."
+              title="Área de canons"
+              subtitle="Os canons da Edro ficam separados por pilares. Cada grupo organiza um pedaço do repertório-base do DA."
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -1302,20 +1342,46 @@ export default function DaControlClient() {
                 />
               ) : (
                 <Stack spacing={1.5}>
-                  {(data?.concepts ?? []).map((concept) => (
-                    <Paper key={concept.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+                  {canonGroups.map((group) => (
+                    <Paper key={group.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
                       <Stack direction="row" justifyContent="space-between" gap={2} mb={1}>
                         <Box>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{concept.title}</Typography>
-                          <Typography variant="body2" color="text.secondary">{concept.definition}</Typography>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{group.title}</Typography>
+                          <Typography variant="body2" color="text.secondary">{group.description}</Typography>
                         </Box>
-                        <Chip size="small" label={concept.category} />
+                        <Chip size="small" label={`${group.concepts.length} conceitos`} />
                       </Stack>
-                      <Stack direction="row" gap={1} flexWrap="wrap">
-                        {concept.heuristics.slice(0, 3).map((item) => (
+
+                      <Stack direction="row" gap={1} flexWrap="wrap" mb={group.concepts.length ? 1.25 : 0}>
+                        {group.coverage.map((item) => (
                           <Chip key={item} size="small" variant="outlined" label={item} />
                         ))}
                       </Stack>
+
+                      {group.concepts.length ? (
+                        <Stack spacing={1}>
+                          {group.concepts.map((concept) => (
+                            <Paper key={concept.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                              <Stack direction="row" justifyContent="space-between" gap={2} mb={0.75}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{concept.title}</Typography>
+                                <Chip size="small" label={concept.slug} />
+                              </Stack>
+                              <Typography variant="body2" color="text.secondary">
+                                {concept.definition}
+                              </Typography>
+                              <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                                {concept.heuristics.slice(0, 3).map((item) => (
+                                  <Chip key={item} size="small" variant="outlined" label={item} />
+                                ))}
+                              </Stack>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Grupo já definido no canon da Edro, mas ainda não populado com conceitos no seed atual.
+                        </Typography>
+                      )}
                     </Paper>
                   ))}
                 </Stack>
