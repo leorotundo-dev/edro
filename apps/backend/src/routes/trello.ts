@@ -934,10 +934,30 @@ export default async function trelloRoutes(app: FastifyInstance) {
       [tenantId],
     );
 
+    // Sync health summary
+    const { rows: healthRows } = await query<{
+      stale_count: number; unlinked_count: number; oldest_sync_hours: number | null;
+    }>(`
+      SELECT
+        COUNT(*) FILTER (WHERE last_synced_at IS NOT NULL AND EXTRACT(EPOCH FROM (now() - last_synced_at))/3600 > 2)::int as stale_count,
+        COUNT(*) FILTER (WHERE client_id IS NULL)::int as unlinked_count,
+        MAX(EXTRACT(EPOCH FROM (now() - last_synced_at))/3600) as oldest_sync_hours
+      FROM project_boards
+      WHERE tenant_id = $1 AND is_archived = false
+    `, [tenantId]);
+    const hw = healthRows[0];
+    const sync_health = {
+      stale_boards: hw?.stale_count ?? 0,
+      unlinked_boards: hw?.unlinked_count ?? 0,
+      oldest_sync_hours: hw?.oldest_sync_hours != null ? Math.round(Number(hw.oldest_sync_hours)) : null,
+      needs_attention: (hw?.stale_count ?? 0) > 0 || (hw?.unlinked_count ?? 0) > 0,
+    };
+
     return reply.send({
       jobs,
       owners,
       clients: clientRows,
+      sync_health,
     });
   });
 

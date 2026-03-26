@@ -49,12 +49,20 @@ function upsertJob(list: OperationsJob[], job: OperationsJob) {
   return next;
 }
 
+export type SyncHealth = {
+  stale_boards: number;
+  unlinked_boards: number;
+  oldest_sync_hours: number | null;
+  needs_attention: boolean;
+};
+
 export function useOperationsData(query = '?active=true') {
   const [jobs, setJobs] = useState<OperationsJob[]>([]);
   const [lookups, setLookups] = useState<OperationsLookups>(EMPTY_LOOKUPS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [syncHealth, setSyncHealth] = useState<SyncHealth | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -76,7 +84,7 @@ export function useOperationsData(query = '?active=true') {
     setError('');
     try {
       // Use Trello as the data source for the Operations Center
-      const feed = await apiGet<{ jobs: OperationsJob[]; owners: any[]; clients: any[] }>('/trello/ops-feed');
+      const feed = await apiGet<{ jobs: OperationsJob[]; owners: any[]; clients: any[]; sync_health?: SyncHealth }>('/trello/ops-feed');
       setJobs(feed?.jobs ?? []);
       setLookups({
         jobTypes: [],
@@ -85,6 +93,7 @@ export function useOperationsData(query = '?active=true') {
         clients: feed?.clients ?? [],
         owners: feed?.owners ?? [],
       });
+      if (feed?.sync_health) setSyncHealth(feed.sync_health);
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar dados do Trello.');
     } finally {
@@ -150,6 +159,7 @@ export function useOperationsData(query = '?active=true') {
     lookups,
     loading,
     error,
+    syncHealth,
     refresh: () => load({ sync: true }),
     syncSources,
     currentUser,
