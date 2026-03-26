@@ -11,6 +11,19 @@ import {
   isAdCreativeConfigured,
 } from '../services/adCreativeService';
 import { orchestrateCreative } from '../services/ai/artDirectorOrchestrator';
+import {
+  analyzePendingArtDirectionReferences,
+  buildArtDirectionFeedbackMetadata,
+  buildArtDirectionMemoryContext,
+  discoverArtDirectionReferences,
+  getPrimaryArtDirectionReferenceId,
+  listArtDirectionTrendSignals,
+  listRelevantArtDirectionConcepts,
+  listRelevantArtDirectionReferences,
+  recordArtDirectionFeedbackEvent,
+  recomputeArtDirectionTrendSnapshots,
+  resolveArtDirectionCreativeContext,
+} from '../services/ai/artDirectionMemoryService';
 
 const generateSchema = z.object({
   /** Raw copy / caption text */
@@ -75,6 +88,43 @@ const refineSchema = z.object({
   headline: z.string().optional(),
   brand: z.string().optional(),
   image_provider: z.enum(['gemini', 'leonardo']).optional(),
+});
+
+const daMemorySchema = z.object({
+  client_id: z.string().uuid().optional(),
+  platform: z.string().optional(),
+  segment: z.string().optional(),
+  concept_categories: z.array(z.string()).max(8).optional(),
+  concept_limit: z.coerce.number().int().min(1).max(12).optional(),
+  reference_limit: z.coerce.number().int().min(1).max(20).optional(),
+  trend_limit: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+const daDiscoverSchema = z.object({
+  client_id: z.string().uuid().optional(),
+  platform: z.string().optional(),
+  segment: z.string().optional(),
+  category: z.string().min(2).optional(),
+  mood: z.string().optional(),
+  queries: z.array(z.string().min(3)).max(8).optional(),
+  max_results_per_query: z.coerce.number().int().min(1).max(10).optional(),
+});
+
+const daRefreshSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(30).optional(),
+  window_days: z.coerce.number().int().min(14).max(180).optional(),
+  recent_days: z.coerce.number().int().min(3).max(30).optional(),
+  client_id: z.string().uuid().optional(),
+});
+
+const daFeedbackSchema = z.object({
+  client_id: z.string().uuid().optional(),
+  creative_session_id: z.string().uuid().optional(),
+  reference_id: z.string().uuid().optional(),
+  event_type: z.enum(['used', 'approved', 'rejected', 'edited', 'performed', 'saved']),
+  score: z.coerce.number().min(0).max(100).optional(),
+  notes: z.string().max(2000).optional(),
+  metadata: z.record(z.any()).optional(),
 });
 
 export default async function studioCreativeRoutes(app: FastifyInstance) {
@@ -228,6 +278,8 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       brand,
       format: body.format,
       platform: body.platform,
+      tenantId,
+      clientId: body.client_id,
       learningContext,
       brandTokens: clientBrandTokens,
     });
@@ -258,6 +310,14 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
             imageUrl: imageResult.image_url,
             gatilho: body.gatilho,
             aspectRatio: orchestrated.imgPrompt.aspectRatio,
+            copy: body.copy,
+            platform: body.platform,
+            format: body.format,
+            brandName: brand.name,
+            segment: brand.segment,
+            brandTokens: clientBrandTokens,
+            tenantId,
+            clientId: body.client_id,
           });
 
           if (!critiqueResult.pass && critiqueResult.additionalNegative) {
@@ -283,6 +343,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         success: true,
         layout: orchestrated.layout,
         imgPrompt: orchestrated.imgPrompt,
+        visualStrategy: orchestrated.visualStrategy,
         brand_colors: clientBrandColors,
         image_url: imageResult.image_url,
         image_urls: imageResult.image_urls,
@@ -295,9 +356,128 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       success: true,
       layout: orchestrated.layout,
       imgPrompt: orchestrated.imgPrompt,
+      visualStrategy: orchestrated.visualStrategy,
       brand_colors: clientBrandColors,
       brand_tokens: clientBrandTokens,
     });
+  });
+
+  app.get('/studio/creative/da-memory', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const input = daMemorySchema.parse(request.query || {});
+    const memory = await buildArtDirectionMemoryContext({
+      tenantId,
+      clientId: input.client_id,
+      platform: input.platform,
+      segment: input.segment,
+      conceptCategories: input.concept_categories,
+      conceptLimit: input.concept_limit,
+      referenceLimit: input.reference_limit,
+      trendLimit: input.trend_limit,
+    });
+
+    const [concepts, references, trends] = await Promise.all([
+      listRelevantArtDirectionConcepts({
+        tenantId,
+        categories: input.concept_categories,
+        limit: input.concept_limit ?? 6,
+      }),
+      listRelevantArtDirectionReferences({
+        tenantId,
+        clientId: input.client_id,
+        platform: input.platform,
+        segment: input.segment,
+        limit: input.reference_limit ?? 8,
+      }),
+      listArtDirectionTrendSignals({
+        tenantId,
+        clientId: input.client_id,
+        platform: input.platform,
+        segment: input.segment,
+        limit: input.trend_limit ?? 6,
+      }),
+    ]);
+
+    return reply.send({ success: true, memory, concepts, references, trends });
+  });
+
+  app.post('/studio/creative/da-memory/discover', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const body = daDiscoverSchema.parse(request.body || {});
+    let clientName: string | null = null;
+    let segment = body.segment ?? null;
+
+    if (body.client_id) {
+      try {
+        const { getClientById } = await import('../repos/clientsRepo');
+        const client = await getClientById(tenantId, body.client_id);
+        clientName = client?.name ?? null;
+        segment = segment ?? (client as any)?.segment_primary ?? null;
+      } catch {
+        // non-blocking
+      }
+    }
+
+    const queries = body.queries?.length
+      ? body.queries
+      : [
+          [body.category, body.mood, body.platform, 'ad design references'].filter(Boolean).join(' '),
+          [segment, body.platform, 'campaign visual direction examples'].filter(Boolean).join(' '),
+          [clientName, 'brand campaign inspiration'].filter(Boolean).join(' '),
+        ].filter((value) => String(value || '').trim().length >= 3);
+
+    const inserted = await discoverArtDirectionReferences({
+      tenantId,
+      clientId: body.client_id ?? null,
+      clientName,
+      segment,
+      platform: body.platform ?? null,
+      queries,
+      maxResultsPerQuery: body.max_results_per_query ?? 4,
+    });
+
+    return reply.send({ success: true, inserted, queries });
+  });
+
+  app.post('/studio/creative/da-memory/refresh', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const body = daRefreshSchema.parse(request.body || {});
+    const analyzed = await analyzePendingArtDirectionReferences(body.limit ?? 12);
+    const snapshots = await recomputeArtDirectionTrendSnapshots({
+      tenantId,
+      clientId: body.client_id,
+      windowDays: body.window_days ?? 30,
+      recentDays: body.recent_days ?? 7,
+    });
+
+    return reply.send({ success: true, analyzed, snapshots });
+  });
+
+  app.post('/studio/creative/da-memory/feedback', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const userId = (request.user as any)?.sub as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
+
+    const body = daFeedbackSchema.parse(request.body || {});
+    await recordArtDirectionFeedbackEvent({
+      tenantId,
+      clientId: body.client_id,
+      creativeSessionId: body.creative_session_id,
+      referenceId: body.reference_id,
+      eventType: body.event_type,
+      score: body.score ?? null,
+      notes: body.notes ?? null,
+      metadata: body.metadata ?? {},
+      createdBy: userId ?? null,
+    });
+
+    return reply.send({ success: true });
   });
 
   // ── Director AI — analyzes creative alignment with briefing ──────────────
@@ -760,9 +940,10 @@ Regras:
 
   app.post('/studio/creative/arte-chain', async (request: any, reply) => {
     const body = arteChainSchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
     try {
       const { runAgentDiretorArte } = await import('../services/ai/agentDiretorArte') as any;
-      const result = await runAgentDiretorArte(body);
+      const result = await runAgentDiretorArte({ ...body, tenantId });
       return reply.send({ success: true, data: result });
     } catch (e: any) {
       return reply.status(500).send({ success: false, error: e?.message });
@@ -774,17 +955,43 @@ Regras:
     category: z.string().min(2),
     mood:     z.string().optional(),
     platform: z.string().optional().default('Instagram'),
+    client_id: z.string().uuid().optional(),
   });
 
   app.post('/studio/creative/visual-insights', async (request: any, reply) => {
     const body = visualInsightsSchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
     try {
-      const { tavilySearch } = await import('../services/tavilyService');
+      let memoryReferences: Array<{ url: string; title: string; description: string; relevanceScore: number }> = [];
+      if (tenantId) {
+        const stored = await listRelevantArtDirectionReferences({
+          tenantId,
+          clientId: body.client_id,
+          platform: body.platform,
+          segment: body.category,
+          limit: 6,
+        }).catch(() => []);
+
+        memoryReferences = stored.map((reference: any, index: number) => ({
+          url: reference.source_url,
+          title: reference.title,
+          description: reference.rationale || reference.creative_direction || '',
+          relevanceScore: Math.max(
+            0.3,
+            Number(reference.trend_score || 0) / 100 || 1 - index * 0.1,
+          ),
+        }));
+      }
 
       const query = `${body.category} ${body.mood ?? ''} advertising creative ${body.platform} 2024 site:behance.net OR site:dribbble.com OR site:pinterest.com OR site:instagram.com`.trim();
 
       const apiKey = process.env.TAVILY_API_KEY;
-      if (!apiKey) return reply.status(503).send({ success: false, error: 'TAVILY_API_KEY não configurada' });
+      if (!apiKey) {
+        if (memoryReferences.length) {
+          return reply.send({ success: true, references: memoryReferences, source: 'memory' });
+        }
+        return reply.status(503).send({ success: false, error: 'TAVILY_API_KEY não configurada' });
+      }
 
       // Call Tavily with include_images=true for image URLs
       const res = await fetch('https://api.tavily.com/search', {
@@ -814,7 +1021,7 @@ Regras:
         .slice(0, 6);
 
       // Fallback: use page URLs from results if no images
-      const references = imageUrls.length >= 3
+      const webReferences = imageUrls.length >= 3
         ? imageUrls.map((url, i) => ({
             url,
             title: data.results?.[i]?.title ?? `Referência ${i + 1}`,
@@ -828,7 +1035,15 @@ Regras:
             relevanceScore: 1 - i * 0.1,
           }));
 
-      return reply.send({ success: true, references });
+      const references = [...memoryReferences, ...webReferences]
+        .filter((item, index, arr) => arr.findIndex((current) => current.url === item.url) === index)
+        .slice(0, 6);
+
+      return reply.send({
+        success: true,
+        references,
+        source: memoryReferences.length ? 'memory+web' : 'web',
+      });
     } catch (e: any) {
       return reply.status(500).send({ success: false, error: e?.message });
     }
@@ -1489,6 +1704,43 @@ Retorne SOMENTE um JSON válido:
           })
         )).catch(() => {});
       }
+    }
+
+    const creativeContext = await resolveArtDirectionCreativeContext({
+      tenantId: tokenRow.tenant_id,
+      briefingId,
+    }).catch(() => null);
+    const daMetadata = buildArtDirectionFeedbackMetadata({
+      context: creativeContext,
+      metadata: {
+        section: body.section || 'final',
+        feedback: body.feedback ?? null,
+      },
+      source: 'pipeline_client_approval',
+      reviewActor: 'client',
+      reviewStage: body.section || 'final',
+      rejectionReason: body.decision === 'rejected' ? body.feedback ?? null : null,
+      briefingId,
+      clientId: creativeContext?.clientId ?? null,
+    });
+    if (
+      daMetadata.visual_intent ||
+      daMetadata.strategy_summary ||
+      daMetadata.reference_ids?.length ||
+      daMetadata.reference_urls?.length ||
+      daMetadata.concept_slugs?.length ||
+      daMetadata.trend_tags?.length
+    ) {
+      await recordArtDirectionFeedbackEvent({
+        tenantId: tokenRow.tenant_id,
+        clientId: creativeContext?.clientId ?? null,
+        creativeSessionId: creativeContext?.creativeSessionId ?? null,
+        referenceId: getPrimaryArtDirectionReferenceId(daMetadata),
+        eventType: body.decision === 'approved' ? 'approved' : 'rejected',
+        notes: body.feedback ?? `pipeline_${body.decision}`,
+        metadata: daMetadata,
+        createdBy: body.client_email || null,
+      }).catch(() => {});
     }
 
     return reply.send({ success: true, approval });

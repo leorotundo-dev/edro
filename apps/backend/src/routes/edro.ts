@@ -86,6 +86,12 @@ import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../ser
 import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../services/decisionStackService';
 import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
 import { audit } from '../audit/audit';
+import {
+  buildArtDirectionFeedbackMetadata,
+  getPrimaryArtDirectionReferenceId,
+  recordArtDirectionFeedbackEvent,
+  resolveArtDirectionCreativeContext,
+} from '../services/ai/artDirectionMemoryService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -4082,6 +4088,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       rejection_reason: z.string().max(500).optional(),
       copy_version_id: z.string().optional(),
       client_id: z.string().optional(),
+      creative_session_id: z.string().uuid().optional(),
+      metadata: z.record(z.any()).optional(),
     });
 
     let body: z.infer<typeof bodySchema>;
@@ -4137,6 +4145,44 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       setImmediate(() => {
         syncCreativeFeedbackToProfile(tenantId, clientId as string).catch(() => {});
       });
+
+      const creativeContext = await resolveArtDirectionCreativeContext({
+        tenantId,
+        creativeSessionId: body.creative_session_id || null,
+        briefingId,
+        clientId,
+      }).catch(() => null);
+      const metadata = buildArtDirectionFeedbackMetadata({
+        context: creativeContext,
+        metadata: {
+          ...(body.metadata || {}),
+          prompt: body.prompt,
+          style: body.style,
+          used_custom_prompt: body.used_custom_prompt,
+        },
+        source: 'briefing_creative_feedback',
+        reviewActor: 'internal',
+        reviewStage: 'briefing_creative_feedback',
+        rejectionTags: body.rejection_tags,
+        rejectionReason: body.rejection_reason,
+        copyVersionId: body.copy_version_id || null,
+        briefingId,
+        clientId,
+        format: body.format || null,
+      });
+      await recordArtDirectionFeedbackEvent({
+        tenantId,
+        clientId,
+        creativeSessionId: creativeContext?.creativeSessionId ?? body.creative_session_id ?? null,
+        referenceId: getPrimaryArtDirectionReferenceId(metadata),
+        eventType: body.action === 'approved' ? 'approved' : 'rejected',
+        notes:
+          body.action === 'approved'
+            ? 'creative_feedback_approved'
+            : body.rejection_reason || 'creative_feedback_rejected',
+        metadata,
+        createdBy: user.id || user.email || null,
+      }).catch(() => {});
 
       return reply.send({ ok: true });
     } catch (err: any) {

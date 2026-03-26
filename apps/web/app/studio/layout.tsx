@@ -22,6 +22,7 @@ import {
   IconExternalLink,
   IconX,
   IconSparkles,
+  IconBrain,
 } from '@tabler/icons-react';
 import { buildStudioHref } from './studioWorkflow';
 
@@ -77,8 +78,18 @@ function getCurrentStep(pathname: string): number {
   if (pathname.startsWith('/studio/mockups')) return 3;
   // /studio/review is no longer in the nav — map to step 4 (Exportar) for progress bar
   if (pathname.startsWith('/studio/review')) return 4;
+  if (pathname.startsWith('/studio/da')) return 1;
   const step = STUDIO_STEPS.find((s) => pathname.startsWith(s.path));
   return step?.step || 1;
+}
+
+function getCurrentLabel(pathname: string): string {
+  if (pathname.startsWith('/studio/da')) return 'Motor de DA';
+  if (pathname.startsWith('/studio/recipes')) return 'Livro de Receitas';
+  if (pathname.startsWith('/studio/simulation')) return 'Simulador de Sucesso';
+  if (pathname.startsWith('/studio/mockups')) return 'Criar';
+  if (pathname.startsWith('/studio/review')) return 'Exportar';
+  return STUDIO_STEPS.find((s) => pathname.startsWith(s.path))?.label || 'Briefing';
 }
 
 type StoredClient = {
@@ -106,6 +117,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
   const [studioEvent, setStudioEvent] = useState<{ event: string; date: string } | null>(null);
   const [user, setUser] = useState<UserInfo>({});
   const recipesHref = useMemo(() => buildStudioHref('/studio/recipes', searchParams), [searchParams]);
+  const daHref = useMemo(() => buildStudioHref('/studio/da', searchParams), [searchParams]);
 
   // Canvas and Pipeline get full-screen — no Studio chrome
   const isFullscreen = pathname.startsWith('/studio/canvas') || pathname.startsWith('/studio/pipeline');
@@ -268,6 +280,25 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
           <PipelineLink />
         </Box>
 
+        <Box sx={{ px: 2, pb: 1 }}>
+          <Box
+            component={Link}
+            href={daHref}
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1.5,
+              px: 2, py: 1, borderRadius: 3, textDecoration: 'none',
+              border: pathname.startsWith('/studio/da') ? '1px solid rgba(93,135,255,0.35)' : '1px solid rgba(93,135,255,0.18)',
+              bgcolor: pathname.startsWith('/studio/da') ? 'rgba(93,135,255,0.08)' : 'rgba(93,135,255,0.04)',
+              color: '#5D87FF',
+              transition: 'background-color 0.2s',
+              '&:hover': { bgcolor: 'rgba(93,135,255,0.1)' },
+            }}
+          >
+            <IconBrain size={16} />
+            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Motor de DA</Typography>
+          </Box>
+        </Box>
+
         {/* Livro de Receitas link */}
         <Box sx={{ px: 2, pb: 1 }}>
           <Box
@@ -353,7 +384,7 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
               </Typography>
               <IconChevronRight size={14} />
               <Typography variant="overline" color="text.primary">
-                {STUDIO_STEPS.find((s) => pathname.startsWith(s.path))?.label || 'Briefing'}
+                {getCurrentLabel(pathname)}
               </Typography>
             </Stack>
             {activeClient ? (

@@ -138,6 +138,7 @@ export default function CanvasClient() {
   const [briefCtx, setBriefCtx] = useState<BriefingContext>(readBriefingContext);
   const [creativeJobId, setCreativeJobId] = useState(queryJobId);
   const [creativeSessionId, setCreativeSessionId] = useState(querySessionId);
+  const [creativeDaContext, setCreativeDaContext] = useState<Record<string, any> | null>(null);
 
   // Chat state
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -285,6 +286,9 @@ export default function CanvasClient() {
         if (!currentPrompt && ctx.session?.last_canvas_snapshot?.prompt) {
           setCurrentPrompt(String(ctx.session.last_canvas_snapshot.prompt || ''));
         }
+        if (ctx.session?.metadata?.da_context) {
+          setCreativeDaContext(ctx.session.metadata.da_context as Record<string, any>);
+        }
       } catch {
         // keep legacy flow
       }
@@ -306,6 +310,7 @@ export default function CanvasClient() {
       falModel,
       client_id: clientId || null,
       current_image_url: currentImage || null,
+      da_context: creativeDaContext || null,
     };
     const signature = JSON.stringify(snapshot);
     if (signature === lastSavedDraftRef.current) return;
@@ -326,6 +331,7 @@ export default function CanvasClient() {
                 fal_model: falModel,
                 platform,
                 format,
+                da_context: creativeDaContext || null,
               },
             },
           } : {}),
@@ -337,7 +343,7 @@ export default function CanvasClient() {
     }, 1500);
 
     return () => window.clearTimeout(timer);
-  }, [creativeSessionId, creativeJobId, currentPrompt, copy, format, platform, provider, falModel, clientId, currentImage]);
+  }, [creativeSessionId, creativeJobId, currentPrompt, copy, format, platform, provider, falModel, clientId, currentImage, creativeDaContext]);
 
   // ── Push history entry ─────────────────────────────────────────
   const pushHistory = useCallback(() => {

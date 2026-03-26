@@ -1,5 +1,10 @@
 import { generateCompletion } from './claudeService';
 import { VISUAL_DNA_BASE } from '../adCreativeService';
+import {
+  buildArtDirectionKnowledgeBlock,
+  resolveArtDirectionKnowledge,
+} from './artDirectionKnowledge';
+import { buildArtDirectionMemoryContext } from './artDirectionMemoryService';
 
 export type Gatilho =
   | 'G01' // Aversão à Perda
@@ -30,6 +35,8 @@ export interface OrchestrateParams {
   brand?: BrandInput;
   format?: string;
   platform?: string;
+  tenantId?: string;
+  clientId?: string | null;
   /** Formatted string of top learning rules for this client (from LearningEngine) */
   learningContext?: string;
   /** Structured brand design tokens from client profile */
@@ -44,6 +51,7 @@ export interface ArtDirectorLayout {
   cta: string;
   body: string;
   overlayStrength: number;
+  designRationale?: string;
 }
 
 export interface ArtDirectorImgPrompt {
@@ -55,6 +63,15 @@ export interface ArtDirectorImgPrompt {
 export interface OrchestrateResult {
   imgPrompt: ArtDirectorImgPrompt;
   layout: ArtDirectorLayout;
+  visualStrategy?: {
+    intent: string;
+    urgencyLevel: 'low' | 'medium' | 'high';
+    informationDensity: 'low' | 'medium' | 'high';
+    referenceMovements: string[];
+    strategySummary: string;
+    trendSignals?: string[];
+    referenceExamples?: Array<{ title: string; sourceUrl: string }>;
+  };
 }
 
 // ── Format-specific art direction rules ─────────────────────────────────────
@@ -230,7 +247,10 @@ const ORCHESTRATOR_SYSTEM = `You are a senior art director and copywriter at a l
 You orchestrate both the visual composition AND the text layout of advertising creatives.
 You must respond with a valid JSON object matching the exact schema given — no prose, no markdown, just JSON.`;
 
-function buildUserPrompt(params: OrchestrateParams): string {
+function buildUserPrompt(
+  params: OrchestrateParams,
+  memoryBlock?: string,
+): string {
   const { copy, gatilho, brand, format, platform, learningContext, brandTokens } = params;
   const brandName = brand?.name || '';
   const brandColor = brand?.primaryColor || '#F5C518';
@@ -242,6 +262,14 @@ function buildUserPrompt(params: OrchestrateParams): string {
 
   const gatilhoDirective = gatilho ? GATILHO_DIRECTIVES[gatilho] || '' : '';
   const gatilhoLabel = gatilho ? `${gatilho}` : 'General';
+  const knowledge = resolveArtDirectionKnowledge({
+    copy,
+    platform,
+    format,
+    trigger: gatilho,
+    brandTokens,
+    segment,
+  });
 
   return `You are creating a complete ad creative for the following brief:
 
@@ -263,6 +291,8 @@ ${brandTokens ? `\nBRAND DESIGN TOKENS (apply rigorously to both image and text 
 - Avoid Elements: ${(brandTokens.avoidElements || []).join(', ') || 'none'}
 - Reference Styles: ${(brandTokens.referenceStyles || []).join(', ') || 'none'}
 ` : ''}
+${buildArtDirectionKnowledgeBlock(knowledge)}
+${memoryBlock ? `\nART DIRECTION MEMORY (use as external repertoire and trend context):\n${memoryBlock}\n` : ''}
 FORMAT-SPECIFIC ART DIRECTION RULES (MANDATORY — apply strictly):
 COMPOSITION ZONES: ${rule.compositionZones}
 IMAGE CONSTRAINTS: ${rule.imgConstraints}
@@ -283,6 +313,7 @@ YOUR JOB — produce a JSON object with two top-level keys: "imgPrompt" and "lay
 - "cta": call-to-action button text (2–5 words). In Portuguese. Action-oriented.
 - "body": supporting proof point or social proof text (1 short sentence, max 12 words). In Portuguese. Can be empty string if not needed.
 - "overlayStrength": number 0.0–1.0 — how strong the bottom overlay gradient should be. Higher for darker images (0.6–0.8), lower for already-dark scenes (0.4–0.6).
+- "designRationale": explain in one short sentence why the visual hierarchy fits the copy and the channel. In Portuguese.
 
 Respond with ONLY the JSON object, no markdown code blocks, no extra text.
 
@@ -300,7 +331,8 @@ EXAMPLE SCHEMA:
     "accentColor": "#F5C518",
     "cta": "Descubra o leilão",
     "body": "Mais de 2.000 compradores já aumentaram sua margem.",
-    "overlayStrength": 0.72
+    "overlayStrength": 0.72,
+    "designRationale": "A headline curta e o contraste alto priorizam leitura instantânea no feed."
   }
 }`;
 }
@@ -313,9 +345,26 @@ EXAMPLE SCHEMA:
  * Single Claude call. ~2-4s.
  */
 export async function orchestrateCreative(params: OrchestrateParams): Promise<OrchestrateResult> {
-  const userPrompt = buildUserPrompt(params);
+  const memory = await buildArtDirectionMemoryContext({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    platform: params.platform,
+    segment: params.brand?.segment,
+    conceptLimit: 4,
+    referenceLimit: 4,
+    trendLimit: 4,
+  });
+  const userPrompt = buildUserPrompt(params, memory.promptBlock);
   const rule = resolveFormatRules(params.platform, params.format);
   const aspectRatio = rule.aspectRatio;
+  const knowledge = resolveArtDirectionKnowledge({
+    copy: params.copy,
+    platform: params.platform,
+    format: params.format,
+    trigger: params.gatilho,
+    brandTokens: params.brandTokens,
+    segment: params.brand?.segment,
+  });
 
   const result = await generateCompletion({
     prompt: userPrompt,
@@ -355,6 +404,16 @@ export async function orchestrateCreative(params: OrchestrateParams): Promise<Or
       overlayStrength: typeof parsed.layout?.overlayStrength === 'number'
         ? Math.max(0, Math.min(1, parsed.layout.overlayStrength))
         : 0.65,
+      designRationale: parsed.layout?.designRationale || knowledge.strategySummary,
+    },
+    visualStrategy: {
+      intent: knowledge.visualIntent,
+      urgencyLevel: knowledge.urgencyLevel,
+      informationDensity: knowledge.informationDensity,
+      referenceMovements: knowledge.referenceMovements,
+      strategySummary: knowledge.strategySummary,
+      trendSignals: memory.trends.map((item) => item.tag),
+      referenceExamples: memory.references.map((item) => ({ title: item.title, sourceUrl: item.source_url })),
     },
   };
 }
