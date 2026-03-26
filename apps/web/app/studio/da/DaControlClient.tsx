@@ -228,6 +228,10 @@ const CANON_GROUPS = [
   },
 ] as const;
 
+const EDRO_SURFACE_BORDER = '1px solid rgba(15, 23, 42, 0.08)';
+const EDRO_SURFACE_SHADOW = '0 24px 48px rgba(15, 23, 42, 0.06)';
+const EDRO_PANEL_BG = 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)';
+
 function EmptySection({
   title,
   description,
@@ -241,12 +245,17 @@ function EmptySection({
     <Paper
       variant="outlined"
       sx={{
-        p: 2.5,
-        borderRadius: 2.5,
-        bgcolor: 'rgba(15, 23, 42, 0.02)',
+        p: 3,
+        borderRadius: 4,
+        border: '1px dashed rgba(232,82,25,0.24)',
+        bgcolor: 'rgba(255,255,255,0.72)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85)',
       }}
     >
-      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+      <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
+        Estado Vazio
+      </Typography>
+      <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.25 }}>
         {title}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
@@ -271,30 +280,42 @@ function ScoreCard({
   color: string;
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
-      <CardContent>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 4,
+        height: '100%',
+        border: `1px solid ${color}26`,
+        background: `linear-gradient(180deg, ${color}12 0%, rgba(255,255,255,0.98) 24%, rgba(248,250,252,0.96) 100%)`,
+        boxShadow: EDRO_SURFACE_SHADOW,
+        overflow: 'hidden',
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
           <Box
             sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 2,
-              bgcolor: `${color}18`,
+              width: 48,
+              height: 48,
+              borderRadius: 3,
+              bgcolor: `${color}20`,
               color,
               display: 'grid',
               placeItems: 'center',
+              border: `1px solid ${color}20`,
+              boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)',
             }}
           >
             {icon}
           </Box>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.08em' }}>
             {title}
           </Typography>
         </Stack>
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.03em' }}>
+        <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1 }}>
           {value}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.1, maxWidth: 220 }}>
           {subtitle}
         </Typography>
       </CardContent>
@@ -307,28 +328,47 @@ function SectionCard({
   subtitle,
   children,
   action,
+  eyebrow,
+  tone = '#E85219',
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   action?: ReactNode;
+  eyebrow?: string;
+  tone?: string;
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
-      <CardContent>
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={2} mb={2}>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 4,
+        border: EDRO_SURFACE_BORDER,
+        background: EDRO_PANEL_BG,
+        boxShadow: EDRO_SURFACE_SHADOW,
+        overflow: 'hidden',
+      }}
+    >
+      <CardContent sx={{ p: { xs: 2.25, md: 2.75 } }}>
+        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={2} mb={2.25}>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            {eyebrow ? (
+              <Typography variant="overline" sx={{ color: tone, fontWeight: 800, letterSpacing: '0.08em' }}>
+                {eyebrow}
+              </Typography>
+            ) : null}
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
               {title}
             </Typography>
             {subtitle ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6, maxWidth: 760 }}>
                 {subtitle}
               </Typography>
             ) : null}
           </Box>
           {action}
         </Stack>
+        <Divider sx={{ mb: 2.25, borderColor: 'rgba(15, 23, 42, 0.06)' }} />
         {children}
       </CardContent>
     </Card>
@@ -853,26 +893,121 @@ export default function DaControlClient() {
   }, [canons.length, data?.concepts?.length, stats]);
 
   return (
-    <Box sx={{ maxWidth: 1440, mx: 'auto', px: { xs: 2, md: 4 }, py: 4 }}>
+    <Box
+      sx={{
+        maxWidth: 1440,
+        mx: 'auto',
+        px: { xs: 2, md: 4 },
+        py: 4,
+        position: 'relative',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: '0 16px auto',
+          height: 260,
+          borderRadius: 6,
+          background:
+            'radial-gradient(circle at top left, rgba(232,82,25,0.18), transparent 42%), radial-gradient(circle at top right, rgba(93,135,255,0.18), transparent 44%), linear-gradient(180deg, rgba(255,246,241,0.9) 0%, rgba(255,255,255,0) 100%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        },
+      }}
+    >
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
-            Motor de DA
-          </Typography>
-          <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.04em', mt: 0.5 }}>
-            Direção de Arte Intelligence
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mt: 1, maxWidth: 860 }}>
-            Área de treinamento e governança do bot de direção de arte da Edro. Aqui você ensina o canon, cura
-            referências, acompanha tendências e calibra o julgamento visual do sistema.
-          </Typography>
-        </Box>
+        <Card
+          variant="outlined"
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            borderRadius: 5,
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background:
+              'linear-gradient(135deg, rgba(255,248,244,0.96) 0%, rgba(255,255,255,0.98) 42%, rgba(244,248,255,0.96) 100%)',
+            boxShadow: '0 28px 60px rgba(15, 23, 42, 0.08)',
+            overflow: 'hidden',
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}>
+            <Grid container spacing={3} alignItems="stretch">
+              <Grid size={{ xs: 12, lg: 7 }}>
+                <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 900, letterSpacing: '0.12em' }}>
+                  Edro Canon Lab
+                </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.05em', mt: 0.5, maxWidth: 780 }}>
+                  Direção de Arte Intelligence
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mt: 1.2, maxWidth: 760, fontSize: '1.02rem' }}>
+                  O cérebro visual da Edro aprende aqui. Esta área existe para ensinar canons, curar repertório,
+                  detectar tendências e calibrar o julgamento do bot antes da aplicação em cliente.
+                </Typography>
+                <Stack direction="row" gap={1} flexWrap="wrap" mt={2}>
+                  <Chip size="small" label="Canon da Edro" sx={{ bgcolor: 'rgba(232,82,25,0.10)', color: '#E85219' }} />
+                  <Chip size="small" label="Repertório vivo" sx={{ bgcolor: 'rgba(19,222,185,0.10)', color: '#0f766e' }} />
+                  <Chip size="small" label="Trend radar" sx={{ bgcolor: 'rgba(255,174,31,0.12)', color: '#b45309' }} />
+                  <Chip size="small" label="Feedback loop" sx={{ bgcolor: 'rgba(93,135,255,0.10)', color: '#3659c9' }} />
+                </Stack>
+              </Grid>
+              <Grid size={{ xs: 12, lg: 5 }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    height: '100%',
+                    p: 2.25,
+                    borderRadius: 4,
+                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                    bgcolor: 'rgba(255,255,255,0.78)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9)',
+                  }}
+                >
+                  <Typography variant="overline" sx={{ color: '#5D87FF', fontWeight: 800, letterSpacing: '0.08em' }}>
+                    Estado do Treino
+                  </Typography>
+                  <Stack spacing={1.25} mt={1}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Pilares populados</Typography>
+                      <Chip size="small" color="primary" label={`${populatedCanonGroups}/${CANON_GROUPS.length}`} />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Fila de referências</Typography>
+                      <Chip size="small" color="warning" variant="outlined" label={stats ? `${stats.references.discovered}` : '...'} />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Repertório analisado</Typography>
+                      <Chip size="small" color="success" variant="outlined" label={stats ? `${stats.references.analyzed}` : '...'} />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Snapshots ativos</Typography>
+                      <Chip size="small" variant="outlined" label={stats ? `${stats.trends.snapshots}` : '...'} />
+                    </Stack>
+                  </Stack>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      mt: 2,
+                      p: 1.5,
+                      borderRadius: 3,
+                      border: '1px dashed rgba(232,82,25,0.22)',
+                      bgcolor: 'rgba(232,82,25,0.04)',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#E85219' }}>
+                      Próximo movimento
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {nextStep}
+                    </Typography>
+                  </Paper>
+                </Paper>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
 
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        {warning ? <Alert severity="warning">{warning}</Alert> : null}
-        {success ? <Alert severity="success">{success}</Alert> : null}
+        {error ? <Alert severity="error" sx={{ zIndex: 1 }}>{error}</Alert> : null}
+        {warning ? <Alert severity="warning" sx={{ zIndex: 1 }}>{warning}</Alert> : null}
+        {success ? <Alert severity="success" sx={{ zIndex: 1 }}>{success}</Alert> : null}
 
-        <Grid container spacing={2.5}>
+        <Grid container spacing={2.5} sx={{ position: 'relative', zIndex: 1 }}>
           <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Canon ativo"
@@ -928,6 +1063,8 @@ export default function DaControlClient() {
         <SectionCard
           title="Curadoria de referências"
           subtitle="Aqui você revisa a fila descoberta, reclassifica descartes e limpa a memória antes da análise final."
+          eyebrow="Ingestão"
+          tone="#13DEB9"
         >
           {loading ? (
             <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -1103,6 +1240,8 @@ export default function DaControlClient() {
         <SectionCard
           title="Treinamento do bot DA"
           subtitle="Ensine e calibre o cérebro da Edro. Use recorte de aplicação só quando quiser testar um contexto específico."
+          eyebrow="Calibração"
+          tone="#5D87FF"
           action={
             <Stack direction="row" spacing={1}>
               <Button
@@ -1277,6 +1416,8 @@ export default function DaControlClient() {
             <SectionCard
               title="Inclusão manual"
               subtitle="Cadastre uma referência específica quando você já souber qual caso precisa entrar na memória."
+              eyebrow="Entrada Direta"
+              tone="#E85219"
             >
               <Stack spacing={1.5}>
                 {renderReferenceDraftFields({
@@ -1299,6 +1440,8 @@ export default function DaControlClient() {
             <SectionCard
               title="Sites e fontes de referência"
               subtitle="Cadastre os domínios que o motor deve privilegiar nas buscas e ajuste o peso de confiança."
+              eyebrow="Fontes"
+              tone="#FA896B"
             >
               <Stack spacing={2}>
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: 'rgba(93,135,255,0.03)' }}>
@@ -1414,6 +1557,8 @@ export default function DaControlClient() {
             <SectionCard
               title="Biblioteca de ensino do bot"
               subtitle="Aqui fica o conteúdo supra-cliente que ensina como o diretor de arte da Edro pensa, referencia e critica."
+              eyebrow="Canon"
+              tone="#5D87FF"
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -1527,6 +1672,8 @@ export default function DaControlClient() {
             <SectionCard
               title="Trend radar"
               subtitle="Padrões recorrentes detectados nas referências analisadas."
+              eyebrow="Tendências"
+              tone="#FFAE1F"
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -1582,6 +1729,8 @@ export default function DaControlClient() {
         <SectionCard
           title="Repertório analisado"
           subtitle="Referências que o bot já absorveu e pode reutilizar como repertório vivo."
+          eyebrow="Memória Viva"
+          tone="#13DEB9"
         >
           {loading ? (
             <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
@@ -1671,6 +1820,8 @@ export default function DaControlClient() {
             <SectionCard
               title="Bloco de prompt"
               subtitle="O resumo que o motor envia para geração como memória externa."
+              eyebrow="Prompt Runtime"
+              tone="#5D87FF"
               action={<IconRoute size={18} color="#5D87FF" />}
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#0f172a', color: '#e2e8f0', overflowX: 'auto' }}>
@@ -1684,6 +1835,8 @@ export default function DaControlClient() {
             <SectionCard
               title="Bloco de critique"
               subtitle="Os critérios extras que entram na revisão de direção de arte."
+              eyebrow="Critique Runtime"
+              tone="#13DEB9"
               action={<IconChecklist size={18} color="#13DEB9" />}
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#111827', color: '#d1fae5', overflowX: 'auto' }}>
