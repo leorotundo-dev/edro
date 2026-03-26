@@ -107,7 +107,7 @@ export default function TrelloAdminClient() {
 
   const loadClients = useCallback(async () => {
     const data = await apiGet('/clients?limit=200&status=active');
-    setClients(data.clients ?? data.rows ?? []);
+    setClients(Array.isArray(data) ? data : (data.clients ?? data.rows ?? []));
   }, []);
 
   useEffect(() => {

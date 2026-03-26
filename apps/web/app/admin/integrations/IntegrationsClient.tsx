@@ -422,6 +422,8 @@ export default function IntegrationsClient() {
           label: 'Configurar',
           onClick: () => setSetupDialog('instagram'),
         };
+      case 'trello':
+        return { label: 'Gerenciar Boards', href: '/admin/trello' };
       default:
         return null;
     }
