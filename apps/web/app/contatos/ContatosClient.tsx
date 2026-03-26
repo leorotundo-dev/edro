@@ -309,7 +309,7 @@ export default function ContatosClient() {
   }), [people, ql]);
 
   return (
-    <AppShell>
+    <AppShell title="Contatos">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" spacing={2} mb={3}>
@@ -397,7 +397,7 @@ export default function ContatosClient() {
                       ? p.client_links!.slice(1).map((cl) => cl.client_name).join(', ')
                       : null;
                     return (
-                      <Grid item xs={12} sm={6} md={4} lg={3} key={p.id}>
+                      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={p.id}>
                         <ContactCard
                           name={link?.contact_name || p.display_name}
                           subtitle={subtitle}
@@ -430,7 +430,7 @@ export default function ContatosClient() {
                     const level = levelLabel(f.experience_level);
                     const subtitle = [f.role_title, f.department].filter(Boolean).join(' · ');
                     return (
-                      <Grid item xs={12} sm={6} md={4} lg={3} key={f.id}>
+                      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={f.id}>
                         <ContactCard
                           name={f.display_name}
                           subtitle={subtitle || null}
@@ -465,7 +465,7 @@ export default function ContatosClient() {
                     const wa = primaryWhatsapp(p.identities);
                     const clientNames = p.client_links?.map((cl) => cl.client_name).join(', ');
                     return (
-                      <Grid item xs={12} sm={6} md={4} lg={3} key={p.id}>
+                      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={p.id}>
                         <ContactCard
                           name={p.display_name || 'Sem nome'}
                           subtitle={clientNames || null}
