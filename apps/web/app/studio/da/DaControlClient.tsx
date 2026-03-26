@@ -563,18 +563,12 @@ export default function DaControlClient() {
       setClientId(fromQuery);
       return;
     }
-    try {
-      const selected = JSON.parse(window.localStorage.getItem('edro_selected_clients') || '[]') as StoredClient[];
-      const activeId = window.localStorage.getItem('edro_active_client_id') || '';
-      const found = selected.find((client) => client.id === activeId) || selected[0] || null;
-      if (found?.id) setClientId(found.id);
-      if (found?.segment) {
-        setSegment(found.segment);
-        setCategory(found.segment);
-      }
-    } catch {
-      // ignore
-    }
+
+    // O motor de DA é supra-cliente. Não herda client/segment/category do contexto
+    // operacional salvo no navegador; qualquer recorte aqui deve ser explícito.
+    setClientId('');
+    setSegment('');
+    setCategory('social media');
   }, [searchParams]);
 
   const load = useCallback(async () => {
