@@ -31,9 +31,17 @@ import { listClientDocuments, listClientSources, getLatestClientInsight } from '
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
 import { loadBehaviorProfiles } from '../services/behaviorClusteringService';
 import { loadLearningRules } from '../services/learningEngine';
-import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
+import { getAllToolDefinitions, getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
 import { runToolUseLoop, LoopMessage } from '../services/ai/toolUseLoop';
-import { ToolContext } from '../services/ai/toolExecutor';
+import { executeOperationsTool, OperationsToolContext, ToolContext } from '../services/ai/toolExecutor';
+import { buildOperationsSystemPrompt } from './operations';
+import {
+  buildInlineAttachmentContext,
+  buildJarvisRoutingDecision,
+  detectJarvisIntent,
+  loadUnifiedConversationHistory,
+  saveUnifiedConversation,
+} from '../services/jarvisPolicyService';
 
 /**
  * Resolve clients.id (TEXT like "banco-bbc-digital") → edro_clients.id (UUID).
@@ -85,6 +93,8 @@ const chatSchema = z.object({
     name: z.string(),
     text: z.string(),
   })).optional(),
+  context_page: z.string().optional().nullable(),
+  studio_context: z.string().optional().nullable(),
 });
 
 const createConversationSchema = z.object({
@@ -733,7 +743,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     } catch (parseErr: any) {
       return reply.status(400).send({ success: false, error: 'Mensagem invalida.' });
     }
-    const { message, provider, conversationId, mode, attachmentIds, inline_attachments } = body;
+    const { message, provider, conversationId, mode, attachmentIds, inline_attachments, context_page, studio_context } = body;
 
     // ── 1. Quick client context + psych context + performance context (best-effort, 3s max) ──
     let clientContext = '';
@@ -779,12 +789,9 @@ export default async function planningRoutes(app: FastifyInstance) {
     }
 
     // ── 1c. Inline attachments (uploaded directly via Jarvis file picker) ───
-    if (inline_attachments?.length) {
-      const inlineParts = inline_attachments.map(a => {
-        const preview = a.text.length > 4000 ? a.text.slice(0, 4000) + '...(truncado)' : a.text;
-        return `[Arquivo: ${a.name}]\n${preview}`;
-      });
-      attachmentContext += '\n\nDOCUMENTOS ANEXADOS PELO USUARIO:\n' + inlineParts.join('\n\n');
+    attachmentContext += buildInlineAttachmentContext(inline_attachments);
+    if (studio_context) {
+      attachmentContext += `\n\nCONTEXTO DO STUDIO:\n${studio_context}`;
     }
 
     const copyProvider = provider === 'collaborative'
@@ -802,63 +809,65 @@ export default async function planningRoutes(app: FastifyInstance) {
     let actionResult: Record<string, any> | null = null;
     let artifacts: Array<{ type: string; [key: string]: any }> = [];
 
-    // ── 2. Load conversation history (for agent + chat modes) ──────
-    let conversationHistory: LoopMessage[] = [];
-    if (conversationId && edroId) {
-      try {
-        const { rows } = await query(
-          `SELECT messages FROM planning_conversations WHERE id = $1 AND client_id = $2::uuid`,
-          [conversationId, edroId],
-        );
-        if (rows[0]?.messages) {
-          conversationHistory = (rows[0].messages as any[])
-            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
-            .slice(-20)
-            .map((m: any) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
-        }
-      } catch { /* ignore history load failure */ }
-    }
+    const canonicalIntent = detectJarvisIntent(message, context_page);
+    const canonicalDecision = buildJarvisRoutingDecision(canonicalIntent);
 
-    console.log(`[planning_chat] mode=${mode} provider=${copyProvider} tenant=${tenantId} client=${clientId} history=${conversationHistory.length}`);
+    const conversationHistory = await loadUnifiedConversationHistory({
+      route: canonicalDecision.route,
+      tenantId,
+      conversationId,
+      edroClientId: edroId,
+    });
+
+    console.log(`[planning_chat] mode=${mode} provider=${copyProvider} tenant=${tenantId} client=${clientId} history=${conversationHistory.length} route=${canonicalDecision.route}`);
 
     // ── 3. Agent mode (tool use loop) — also used for 'chat' mode ──
     if (mode === 'agent' || mode === 'chat') {
-      const resolvedProvider = getFallbackProvider(copyProvider);
-      const toolCtx: ToolContext = {
-        tenantId,
-        clientId,
-        edroClientId: edroId,
-        userId,
-        userEmail: user?.email,
-      };
-
       const userContent = attachmentContext
         ? message + attachmentContext
         : message;
-
-      const loopMessages: LoopMessage[] = [
-        ...conversationHistory,
-        { role: 'user', content: userContent },
-      ];
+      const resolvedProvider = getFallbackProvider(copyProvider);
 
       try {
         const agentTimeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('AGENT_TIMEOUT_60s')), 60000),
+          setTimeout(() => reject(new Error(`${canonicalDecision.route.toUpperCase()}_AGENT_TIMEOUT_60s`)), 60000),
         );
-        const loopResult = await Promise.race([
-          runToolUseLoop({
-            messages: loopMessages,
-            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext),
-            tools: getAllToolDefinitions(),
-            provider: resolvedProvider,
-            toolContext: toolCtx,
-            maxIterations: 8,
-            temperature: 0.7,
-            maxTokens: 4096,
-            usageContext: usageCtx,
-          }),
-          agentTimeout,
-        ]);
+        const loopResult = canonicalDecision.route === 'operations'
+          ? await Promise.race([
+            runToolUseLoop({
+              messages: [...conversationHistory, { role: 'user', content: userContent }],
+              systemPrompt: buildOperationsSystemPrompt(),
+              tools: getOperationsToolDefinitions(),
+              provider: resolvedProvider,
+              toolContext: { tenantId, userId: userId ?? undefined, userEmail: user?.email } satisfies OperationsToolContext,
+              maxIterations: canonicalDecision.retrievalBudget.toolIterations,
+              temperature: 0.5,
+              maxTokens: 4096,
+              usageContext: usageCtx,
+              toolExecutorFn: executeOperationsTool,
+            }),
+            agentTimeout,
+          ])
+          : await Promise.race([
+            runToolUseLoop({
+              messages: [...conversationHistory, { role: 'user', content: userContent }],
+              systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext),
+              tools: getAllToolDefinitions(),
+              provider: resolvedProvider,
+              toolContext: {
+                tenantId,
+                clientId,
+                edroClientId: edroId,
+                userId,
+                userEmail: user?.email,
+              } satisfies ToolContext,
+              maxIterations: canonicalDecision.retrievalBudget.toolIterations,
+              temperature: 0.7,
+              maxTokens: 4096,
+              usageContext: usageCtx,
+            }),
+            agentTimeout,
+          ]);
 
         resultOutput = loopResult.finalText;
         resultProvider = loopResult.provider;
@@ -1005,26 +1014,25 @@ export default async function planningRoutes(app: FastifyInstance) {
 
     // ── 6. Save conversation ──────────────────────────────────────
     let savedConversationId: string | null = conversationId || null;
-    const messagesPayload = [
-      { role: 'user', content: message, timestamp: new Date().toISOString() },
-      { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider: resultProvider },
-    ];
-
-    // For agent/chat mode: await the save so we can return conversationId
-    if ((mode === 'agent' || mode === 'chat') && !conversationId && edroId) {
-      try {
-        const { rows } = await query(
-          `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
-           VALUES ($1, $2::uuid, $3, $4, $5, $6::jsonb)
-           RETURNING id`,
-          [tenantId, edroId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)],
-        );
-        savedConversationId = rows[0]?.id || null;
-      } catch (e) {
-        console.warn('[planning] agent conversation save failed:', (e as Error).message);
-      }
+    if (mode === 'agent' || mode === 'chat') {
+      savedConversationId = await saveUnifiedConversation({
+        route: canonicalDecision.route,
+        tenantId,
+        edroClientId: edroId,
+        userId,
+        conversationId,
+        message,
+        assistantContent,
+        provider: resultProvider || provider,
+      }).catch((error) => {
+        console.warn('[planning] conversation save failed:', (error as Error).message);
+        return conversationId || null;
+      });
     } else {
-      // Fire-and-forget for chat/command modes
+      const messagesPayload = [
+        { role: 'user', content: message, timestamp: new Date().toISOString() },
+        { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider: resultProvider },
+      ];
       (async () => {
         try {
           if (conversationId) {
@@ -1059,6 +1067,10 @@ export default async function planningRoutes(app: FastifyInstance) {
         conversationId: savedConversationId,
         mode,
         artifacts,
+        intent: canonicalDecision.intent,
+        route: canonicalDecision.route,
+        primaryMemory: canonicalDecision.primaryMemory,
+        secondaryMemories: canonicalDecision.secondaryMemories,
       },
     });
   });

@@ -14,11 +14,16 @@ import {
 } from '../services/jobs/operationsRuntimeService';
 import { query } from '../db';
 import { rebuildOperationalSignals } from '../services/signalService';
-import crypto from 'crypto';
 import { getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
 import { executeOperationsTool, type OperationsToolContext } from '../services/ai/toolExecutor';
-import { runToolUseLoop, type LoopMessage } from '../services/ai/toolUseLoop';
+import { runToolUseLoop } from '../services/ai/toolUseLoop';
 import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
+import {
+  buildJarvisRoutingDecision,
+  detectJarvisIntent,
+  loadUnifiedConversationHistory,
+  saveUnifiedConversation,
+} from '../services/jarvisPolicyService';
 
 const allocationSchema = z.object({
   job_id: z.string().uuid(),
@@ -176,29 +181,20 @@ export default async function operationsRoutes(app: FastifyInstance) {
     const usageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
       ? { tenant_id: tenantId, feature: 'operations_chat' }
       : undefined;
-
-    // Load conversation history
-    let conversationHistory: LoopMessage[] = [];
-    if (body.conversationId) {
-      try {
-        const { rows } = await query(
-          `SELECT messages FROM operations_conversations WHERE id = $1 AND tenant_id = $2`,
-          [body.conversationId, tenantId],
-        );
-        if (rows[0]?.messages) {
-          conversationHistory = (rows[0].messages as any[])
-            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
-            .slice(-20)
-            .map((m: any) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
-        }
-      } catch { /* ignore */ }
-    }
+    const intent = detectJarvisIntent(body.message, '/operations');
+    const decision = buildJarvisRoutingDecision(intent);
+    const conversationHistory = await loadUnifiedConversationHistory({
+      route: 'operations',
+      tenantId,
+      conversationId: body.conversationId,
+      edroClientId: null,
+    });
 
     const toolCtx: OperationsToolContext = { tenantId, userId: userId ?? undefined, userEmail };
 
-    const loopMessages: LoopMessage[] = [
+    const loopMessages = [
       ...conversationHistory,
-      { role: 'user', content: body.message },
+      { role: 'user' as const, content: body.message },
     ];
 
     const systemPrompt = buildOperationsSystemPrompt();
@@ -214,7 +210,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
           tools: getOperationsToolDefinitions(),
           provider: resolvedProvider,
           toolContext: toolCtx,
-          maxIterations: 5,
+          maxIterations: decision.retrievalBudget.toolIterations,
           temperature: 0.5,
           maxTokens: 4096,
           usageContext: usageCtx,
@@ -223,20 +219,16 @@ export default async function operationsRoutes(app: FastifyInstance) {
         agentTimeout,
       ]);
 
-      // Persist conversation
-      const convId = body.conversationId || crypto.randomUUID();
-      const allMessages = [
-        ...conversationHistory,
-        { role: 'user', content: body.message, timestamp: new Date().toISOString() },
-        { role: 'assistant', content: loopResult.finalText, timestamp: new Date().toISOString(), provider: loopResult.provider },
-      ];
-
-      await query(
-        `INSERT INTO operations_conversations (id, tenant_id, user_id, messages, updated_at)
-         VALUES ($1, $2, $3, $4::jsonb, now())
-         ON CONFLICT (id) DO UPDATE SET messages = $4::jsonb, updated_at = now()`,
-        [convId, tenantId, userId, JSON.stringify(allMessages)],
-      ).catch(() => {/* table may not exist yet — non-critical */});
+      const convId = await saveUnifiedConversation({
+        route: 'operations',
+        tenantId,
+        edroClientId: null,
+        userId,
+        conversationId: body.conversationId,
+        message: body.message,
+        assistantContent: loopResult.finalText,
+        provider: loopResult.provider,
+      }).catch(() => body.conversationId || null);
 
       const elapsed = Date.now() - startMs;
       console.log(`[ops_chat] ok in ${elapsed}ms tools=${loopResult.toolCallsExecuted} iterations=${loopResult.iterations}`);
@@ -249,6 +241,9 @@ export default async function operationsRoutes(app: FastifyInstance) {
           provider: loopResult.provider,
           model: loopResult.model,
           toolsUsed: loopResult.toolCallsExecuted,
+          intent: decision.intent,
+          primaryMemory: decision.primaryMemory,
+          secondaryMemories: decision.secondaryMemories,
           durationMs: elapsed,
         },
       };
