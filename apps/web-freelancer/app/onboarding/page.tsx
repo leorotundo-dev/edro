@@ -67,10 +67,6 @@ function Field({ label, required, hint, children }: {
   );
 }
 
-function isSafeLocalPreviewUrl(value: string) {
-  return value.startsWith('blob:') || value.startsWith('data:image/');
-}
-
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)',
   border: '1px solid rgba(255,255,255,0.12)',
@@ -242,7 +238,6 @@ export default function OnboardingPage() {
   }
 
   const currentStep = STEPS[step];
-  const safeAvatarSourcePreview = isSafeLocalPreviewUrl(avatarSourcePreview) ? avatarSourcePreview : '';
 
   return (
     <div style={{
@@ -494,27 +489,21 @@ export default function OnboardingPage() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
                     Foto enviada
                   </div>
-                  {safeAvatarSourcePreview ? (
-                    <img
-                      src={safeAvatarSourcePreview}
-                      alt="Prévia da foto enviada"
-                      style={{ width: '100%', height: 190, objectFit: 'cover', borderRadius: 12 }}
-                    />
-                  ) : (
-                    <div style={{
-                      height: 190,
-                      borderRadius: 12,
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: 'rgba(255,255,255,0.04)',
-                      color: 'rgba(255,255,255,0.28)',
-                      fontSize: 13,
-                      textAlign: 'center',
-                      padding: 16,
-                    }}>
-                      A foto base aparece aqui
-                    </div>
-                  )}
+                  <div style={{
+                    height: 190,
+                    borderRadius: 12,
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: avatarFile ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.28)',
+                    fontSize: 13,
+                    textAlign: 'center',
+                    padding: 16,
+                  }}>
+                    {avatarFile
+                      ? `Foto pronta para gerar avatar: ${avatarFile.name}`
+                      : 'Envie sua foto para gerar o avatar'}
+                  </div>
                 </div>
 
                 <div style={{
