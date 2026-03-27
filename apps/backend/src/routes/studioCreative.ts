@@ -510,7 +510,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         listArtDirectionCanons({
           tenantId,
           includeEntries: true,
-          limitEntriesPerCanon: 24,
+          limitEntriesPerCanon: 50,
         }).catch(() => []),
       ]);
 
