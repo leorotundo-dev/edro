@@ -155,6 +155,7 @@ type CanonEntry = {
   examples: string[];
   chunk_count: number;
   source_count: number;
+  metadata: Record<string, any>;
   status: 'active' | 'draft' | 'archived';
   source_confidence: number;
 };
@@ -476,6 +477,46 @@ function getCanonEntryContainerStatus(entry: CanonEntry) {
     color: 'default' as const,
     helper: 'o tópico já existe no canon, aguardando conteúdo teórico mais profundo',
   };
+}
+
+type CanonModuleGroup = {
+  key: string;
+  title: string;
+  description: string;
+  order: number;
+  entries: CanonEntry[];
+};
+
+function getCanonEntryModule(entry: CanonEntry): CanonModuleGroup {
+  const title = String(entry.metadata?.curriculum_module_title || 'Mapa geral');
+  return {
+    key: String(entry.metadata?.curriculum_module_key || 'mapa_geral'),
+    title,
+    description: String(entry.metadata?.curriculum_module_description || 'Subárea curricular do canon da Edro.'),
+    order: Number(entry.metadata?.curriculum_module_order || 999),
+    entries: [entry],
+  };
+}
+
+function groupCanonEntriesByModule(entries: CanonEntry[]) {
+  const grouped = new Map<string, CanonModuleGroup>();
+
+  for (const entry of entries) {
+    const module = getCanonEntryModule(entry);
+    const current = grouped.get(module.key);
+    if (current) {
+      current.entries.push(entry);
+      continue;
+    }
+    grouped.set(module.key, module);
+  }
+
+  return Array.from(grouped.values())
+    .map((module) => ({
+      ...module,
+      entries: [...module.entries].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')),
+    }))
+    .sort((a, b) => (a.order - b.order) || a.title.localeCompare(b.title, 'pt-BR'));
 }
 
 function getReferenceSourceMeta(reference: {
@@ -1031,6 +1072,7 @@ export default function DaControlClient() {
       CANON_GROUPS.map((group) => ({
         ...group,
         canon: canons.find((canon) => canon.slug === group.key) ?? null,
+        canonModules: groupCanonEntriesByModule((canons.find((canon) => canon.slug === group.key)?.entries ?? [])),
         concepts: (data?.concepts ?? []).filter((concept) =>
           group.key === 'formatos_aplicacoes'
             ? concept.category === 'formatos_aplicacoes' || concept.category === 'formatos_midias'
@@ -1064,6 +1106,7 @@ export default function DaControlClient() {
         return {
           ...group,
           canon: group.canon ? { ...group.canon, entries: filteredEntries } : null,
+          canonModules: groupCanonEntriesByModule(filteredEntries),
           concepts: filteredConcepts,
           hidden: !coverageMatch && !filteredEntries.length && !filteredConcepts.length,
         };
@@ -1954,6 +1997,29 @@ export default function DaControlClient() {
                     sx={{
                       p: 1.75,
                       borderRadius: 2.5,
+                      bgcolor: 'rgba(19, 222, 185, 0.04)',
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Onde esse conteúdo mora
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      A teoria da Edro fica salva no banco em contêineres por tópico. Cada tópico pode guardar definição,
+                      história, heurísticas, aplicação, crítica, exemplos e fontes. O que você vê abaixo é o mapa curricular
+                      que o Jarvis e o bot DA precisam dominar.
+                    </Typography>
+                    <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                      <Chip size="small" variant="outlined" label="da_canons" />
+                      <Chip size="small" variant="outlined" label="da_canon_entries" />
+                      <Chip size="small" variant="outlined" label="da_canon_chunks" />
+                      <Chip size="small" variant="outlined" label="da_canon_sources" />
+                    </Stack>
+                  </Paper>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
                       bgcolor: 'rgba(15, 23, 42, 0.02)',
                     }}
                   >
@@ -1979,10 +2045,38 @@ export default function DaControlClient() {
                     </Typography>
                     <Stack spacing={1.5} mt={1.5}>
                       {filteredCanonGroups.map((group) => {
-                        const topicLabels = group.canon?.entries?.length
-                          ? group.canon.entries.map((entry) => entry.title)
-                          : group.concepts.map((concept) => concept.title);
+                        if (group.canonModules?.length) {
+                          return (
+                            <Box key={`${group.key}-map`}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                {group.title} • {group.canon?.total_entries ?? group.canonModules.reduce((sum, module) => sum + module.entries.length, 0)} tópicos
+                              </Typography>
+                              <Stack spacing={1} mt={0.85}>
+                                {group.canonModules.map((module) => (
+                                  <Paper
+                                    key={`${group.key}-${module.key}-map`}
+                                    variant="outlined"
+                                    sx={{ p: 1.2, borderRadius: 2, bgcolor: 'rgba(15, 23, 42, 0.02)' }}
+                                  >
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                      {module.title} • {module.entries.length}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                      {module.description}
+                                    </Typography>
+                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.85}>
+                                      {module.entries.map((entry) => (
+                                        <Chip key={`${module.key}-${entry.slug}`} size="small" variant="outlined" label={entry.title} />
+                                      ))}
+                                    </Stack>
+                                  </Paper>
+                                ))}
+                              </Stack>
+                            </Box>
+                          );
+                        }
 
+                        const topicLabels = group.concepts.map((concept) => concept.title);
                         if (!topicLabels.length) return null;
 
                         return (
@@ -2025,122 +2119,148 @@ export default function DaControlClient() {
                         ))}
                       </Stack>
 
-                      {group.canon?.entries?.length ? (
+                      {group.canonModules?.length ? (
                         <Stack spacing={1}>
-                          {group.canon.entries.map((entry) => {
-                            const containerStatus = getCanonEntryContainerStatus(entry);
-                            return (
-                              <Paper key={entry.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
-                                <Stack direction="row" justifyContent="space-between" gap={2} mb={0.9}>
-                                  <Box>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{entry.title}</Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      contêiner teórico do canon • {entry.slug}
-                                    </Typography>
-                                  </Box>
-                                  <Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
-                                    <Chip
-                                      size="small"
-                                      color={containerStatus.color}
-                                      variant="outlined"
-                                      label={containerStatus.label}
-                                    />
-                                    <Chip
-                                      size="small"
-                                      color={entry.status === 'active' ? 'success' : entry.status === 'draft' ? 'warning' : 'default'}
-                                      variant="outlined"
-                                      label={entry.status}
-                                    />
-                                  </Stack>
-                                </Stack>
-
-                                <Typography variant="body2" color="text.secondary">
-                                  {entry.summary_medium || entry.summary_short || entry.definition}
-                                </Typography>
-
-                                <Paper
+                          {group.canonModules.map((module) => (
+                            <Paper
+                              key={`${group.key}-${module.key}`}
+                              variant="outlined"
+                              sx={{ p: 1.5, borderRadius: 2.5, bgcolor: 'rgba(15, 23, 42, 0.02)' }}
+                            >
+                              <Stack direction="row" justifyContent="space-between" gap={2} mb={1.1}>
+                                <Box>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                    {module.title}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                                    {module.description}
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  size="small"
                                   variant="outlined"
-                                  sx={{
-                                    p: 1.25,
-                                    borderRadius: 2,
-                                    mt: 1.25,
-                                    bgcolor: 'rgba(15, 23, 42, 0.02)',
-                                  }}
-                                >
-                                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                                    Como esse tópico alimenta o Jarvis
-                                  </Typography>
-                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                    {containerStatus.helper}
-                                  </Typography>
-                                  <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
-                                    <Chip size="small" variant="outlined" label={`chunks ${entry.chunk_count}`} />
-                                    <Chip size="small" variant="outlined" label={`fontes ${entry.source_count}`} />
-                                    <Chip size="small" variant="outlined" label={`heurísticas ${entry.heuristics.length}`} />
-                                    <Chip size="small" variant="outlined" label={`exemplos ${entry.examples.length}`} />
-                                  </Stack>
-                                </Paper>
+                                  label={`${module.entries.length} tópicos`}
+                                />
+                              </Stack>
 
-                                <Stack spacing={1} mt={1.25}>
-                                  <Box>
-                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                                      Definição-base
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-                                      {entry.definition}
-                                    </Typography>
-                                  </Box>
+                              <Stack spacing={1}>
+                                {module.entries.map((entry) => {
+                                  const containerStatus = getCanonEntryContainerStatus(entry);
+                                  return (
+                                    <Paper key={entry.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+                                      <Stack direction="row" justifyContent="space-between" gap={2} mb={0.9}>
+                                        <Box>
+                                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{entry.title}</Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            contêiner teórico do canon • {entry.slug}
+                                          </Typography>
+                                        </Box>
+                                        <Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
+                                          <Chip
+                                            size="small"
+                                            color={containerStatus.color}
+                                            variant="outlined"
+                                            label={containerStatus.label}
+                                          />
+                                          <Chip
+                                            size="small"
+                                            color={entry.status === 'active' ? 'success' : entry.status === 'draft' ? 'warning' : 'default'}
+                                            variant="outlined"
+                                            label={entry.status}
+                                          />
+                                        </Stack>
+                                      </Stack>
 
-                                  <Box>
-                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                                      Quando usar
-                                    </Typography>
-                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
-                                      {entry.when_to_use.length ? entry.when_to_use.map((item) => (
-                                        <Chip key={`${entry.id}-use-${item}`} size="small" variant="outlined" label={item} />
-                                      )) : <Chip size="small" variant="outlined" label="aguardando conteúdo" />}
-                                    </Stack>
-                                  </Box>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {entry.summary_medium || entry.summary_short || entry.definition}
+                                      </Typography>
 
-                                  <Box>
-                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                                      Quando evitar
-                                    </Typography>
-                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
-                                      {entry.when_to_avoid.length ? entry.when_to_avoid.map((item) => (
-                                        <Chip key={`${entry.id}-avoid-${item}`} size="small" variant="outlined" label={item} />
-                                      )) : <Chip size="small" variant="outlined" label="aguardando conteúdo" />}
-                                    </Stack>
-                                  </Box>
+                                      <Paper
+                                        variant="outlined"
+                                        sx={{
+                                          p: 1.25,
+                                          borderRadius: 2,
+                                          mt: 1.25,
+                                          bgcolor: 'rgba(15, 23, 42, 0.02)',
+                                        }}
+                                      >
+                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                          Como esse tópico alimenta o Jarvis
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                          {containerStatus.helper}
+                                        </Typography>
+                                        <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                                          <Chip size="small" variant="outlined" label={`chunks ${entry.chunk_count}`} />
+                                          <Chip size="small" variant="outlined" label={`fontes ${entry.source_count}`} />
+                                          <Chip size="small" variant="outlined" label={`heurísticas ${entry.heuristics.length}`} />
+                                          <Chip size="small" variant="outlined" label={`exemplos ${entry.examples.length}`} />
+                                        </Stack>
+                                      </Paper>
 
-                                  <Box>
-                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                                      Heurísticas e crítica
-                                    </Typography>
-                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
-                                      {entry.heuristics.length ? entry.heuristics.slice(0, 4).map((item) => (
-                                        <Chip key={`${entry.id}-heur-${item}`} size="small" variant="outlined" label={item} />
-                                      )) : <Chip size="small" variant="outlined" label="heurísticas pendentes" />}
-                                      {entry.critique_checks.length ? entry.critique_checks.slice(0, 2).map((item) => (
-                                        <Chip key={`${entry.id}-crit-${item}`} size="small" color="warning" variant="outlined" label={item} />
-                                      )) : null}
-                                    </Stack>
-                                  </Box>
+                                      <Stack spacing={1} mt={1.25}>
+                                        <Box>
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                            Definição-base
+                                          </Typography>
+                                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                                            {entry.definition}
+                                          </Typography>
+                                        </Box>
 
-                                  <Box>
-                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                                      Exemplos e repertório
-                                    </Typography>
-                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
-                                      {entry.examples.length ? entry.examples.slice(0, 3).map((item) => (
-                                        <Chip key={`${entry.id}-ex-${item}`} size="small" variant="outlined" label={item} />
-                                      )) : <Chip size="small" variant="outlined" label="exemplos pendentes" />}
-                                    </Stack>
-                                  </Box>
-                                </Stack>
-                              </Paper>
-                            );
-                          })}
+                                        <Box>
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                            Quando usar
+                                          </Typography>
+                                          <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
+                                            {entry.when_to_use.length ? entry.when_to_use.map((item) => (
+                                              <Chip key={`${entry.id}-use-${item}`} size="small" variant="outlined" label={item} />
+                                            )) : <Chip size="small" variant="outlined" label="aguardando conteúdo" />}
+                                          </Stack>
+                                        </Box>
+
+                                        <Box>
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                            Quando evitar
+                                          </Typography>
+                                          <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
+                                            {entry.when_to_avoid.length ? entry.when_to_avoid.map((item) => (
+                                              <Chip key={`${entry.id}-avoid-${item}`} size="small" variant="outlined" label={item} />
+                                            )) : <Chip size="small" variant="outlined" label="aguardando conteúdo" />}
+                                          </Stack>
+                                        </Box>
+
+                                        <Box>
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                            Heurísticas e crítica
+                                          </Typography>
+                                          <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
+                                            {entry.heuristics.length ? entry.heuristics.slice(0, 4).map((item) => (
+                                              <Chip key={`${entry.id}-heur-${item}`} size="small" variant="outlined" label={item} />
+                                            )) : <Chip size="small" variant="outlined" label="heurísticas pendentes" />}
+                                            {entry.critique_checks.length ? entry.critique_checks.slice(0, 2).map((item) => (
+                                              <Chip key={`${entry.id}-crit-${item}`} size="small" color="warning" variant="outlined" label={item} />
+                                            )) : null}
+                                          </Stack>
+                                        </Box>
+
+                                        <Box>
+                                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                            Exemplos e repertório
+                                          </Typography>
+                                          <Stack direction="row" gap={1} flexWrap="wrap" mt={0.55}>
+                                            {entry.examples.length ? entry.examples.slice(0, 3).map((item) => (
+                                              <Chip key={`${entry.id}-ex-${item}`} size="small" variant="outlined" label={item} />
+                                            )) : <Chip size="small" variant="outlined" label="exemplos pendentes" />}
+                                          </Stack>
+                                        </Box>
+                                      </Stack>
+                                    </Paper>
+                                  );
+                                })}
+                              </Stack>
+                            </Paper>
+                          ))}
                         </Stack>
                       ) : group.concepts.length ? (
                         <Stack spacing={1}>
