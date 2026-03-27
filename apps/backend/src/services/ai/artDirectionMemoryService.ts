@@ -133,10 +133,16 @@ export type ArtDirectionCanonEntrySummary = {
   slug: string;
   title: string;
   summary_short: string | null;
+  summary_medium: string | null;
+  summary_long: string | null;
   definition: string;
+  when_to_use: string[];
+  when_to_avoid: string[];
   heuristics: string[];
   critique_checks: string[];
   examples: string[];
+  chunk_count: number;
+  source_count: number;
   status: 'active' | 'draft' | 'archived';
   source_confidence: number;
 };
@@ -1768,14 +1774,30 @@ export async function listArtDirectionCanons(params: {
        e.slug,
        e.title,
        e.summary_short,
+       e.summary_medium,
+       e.summary_long,
        e.definition,
+       COALESCE(e.when_to_use, '[]'::jsonb) AS when_to_use,
+       COALESCE(e.when_to_avoid, '[]'::jsonb) AS when_to_avoid,
        COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
        COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
        COALESCE(e.examples, '[]'::jsonb) AS examples,
+       COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
+       COALESCE(source_stats.source_count, 0)::int AS source_count,
        e.status,
        e.source_confidence
      FROM da_canon_entries e
      JOIN da_canons c ON c.id = e.canon_id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS chunk_count
+         FROM da_canon_chunks
+        GROUP BY entry_id
+     ) chunk_stats ON chunk_stats.entry_id = e.id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS source_count
+         FROM da_canon_sources
+        GROUP BY entry_id
+     ) source_stats ON source_stats.entry_id = e.id
      WHERE ${entryWhere.join(' AND ')}
      ORDER BY
        c.sort_order ASC,
@@ -1790,6 +1812,8 @@ export async function listArtDirectionCanons(params: {
     if (current.length < Math.max(1, Math.min(params.limitEntriesPerCanon ?? 12, 50))) {
       current.push({
         ...row,
+        when_to_use: Array.isArray(row.when_to_use) ? row.when_to_use : [],
+        when_to_avoid: Array.isArray(row.when_to_avoid) ? row.when_to_avoid : [],
         heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
         critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
         examples: Array.isArray(row.examples) ? row.examples : [],
@@ -1835,14 +1859,30 @@ export async function listRelevantArtDirectionCanonEntries(params: {
        e.slug,
        e.title,
        e.summary_short,
+       e.summary_medium,
+       e.summary_long,
        e.definition,
+       COALESCE(e.when_to_use, '[]'::jsonb) AS when_to_use,
+       COALESCE(e.when_to_avoid, '[]'::jsonb) AS when_to_avoid,
        COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
        COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
        COALESCE(e.examples, '[]'::jsonb) AS examples,
+       COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
+       COALESCE(source_stats.source_count, 0)::int AS source_count,
        e.status,
        e.source_confidence
      FROM da_canon_entries e
      JOIN da_canons c ON c.id = e.canon_id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS chunk_count
+         FROM da_canon_chunks
+        GROUP BY entry_id
+     ) chunk_stats ON chunk_stats.entry_id = e.id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS source_count
+         FROM da_canon_sources
+        GROUP BY entry_id
+     ) source_stats ON source_stats.entry_id = e.id
      WHERE ${where.join(' AND ')}
      ORDER BY
        c.sort_order ASC,
@@ -1855,6 +1895,8 @@ export async function listRelevantArtDirectionCanonEntries(params: {
 
   return rows.map((row) => ({
     ...row,
+    when_to_use: Array.isArray(row.when_to_use) ? row.when_to_use : [],
+    when_to_avoid: Array.isArray(row.when_to_avoid) ? row.when_to_avoid : [],
     heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
     critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
     examples: Array.isArray(row.examples) ? row.examples : [],
