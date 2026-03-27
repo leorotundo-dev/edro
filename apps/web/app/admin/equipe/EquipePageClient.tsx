@@ -58,6 +58,8 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import { alpha } from '@mui/material/styles';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
@@ -112,7 +114,9 @@ type TenantUser = {
 type InternalPerson = {
   id: string;
   display_name: string;
+  is_internal: boolean;
   avatar_url: string | null;
+  notes: string | null;
   identities: { type: string; value: string; primary: boolean }[] | null;
 };
 
@@ -1092,6 +1096,13 @@ export default function EquipePage() {
 
   const [freelancers, setFreelancers]         = useState<FreelancerProfile[]>([]);
   const [internalPeople, setInternalPeople]   = useState<InternalPerson[]>([]);
+  const [allPeople, setAllPeople]             = useState<InternalPerson[]>([]);
+  const [allPeopleLoading, setAllPeopleLoading] = useState(false);
+  const [allPeopleLoaded, setAllPeopleLoaded] = useState(false);
+  const [peopleSearch, setPeopleSearch]       = useState('');
+  const [editPerson, setEditPerson]           = useState<InternalPerson | null>(null);
+  const [editForm, setEditForm]               = useState({ display_name: '', is_internal: false, notes: '' });
+  const [editSaving, setEditSaving]           = useState(false);
   const [loading, setLoading]                 = useState(true);
   const [error, setError]             = useState('');
   const [drawerFl, setDrawerFl]       = useState<FreelancerProfile | null>(null);
@@ -1176,6 +1187,16 @@ export default function EquipePage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const loadAllPeople = async () => {
+    if (allPeopleLoaded) return;
+    setAllPeopleLoading(true);
+    try {
+      const res = await apiGet<{ success: boolean; data: InternalPerson[] }>('/people?limit=300');
+      setAllPeople(res.data ?? []);
+      setAllPeopleLoaded(true);
+    } catch { /* silent */ } finally { setAllPeopleLoading(false); }
+  };
 
   useEffect(() => {
     if (tab !== 2) return;
@@ -1324,10 +1345,11 @@ export default function EquipePage() {
           ))}
         </Grid>
 
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs value={tab} onChange={(_, v) => { setTab(v); if (v === 3) loadAllPeople(); }} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Tab label="Equipe" />
           <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Contatos" sx={{ fontSize: '0.85rem' }} />
           <Tab label="Analytics do Mês" />
+          <Tab icon={<IconUserCheck size={15} />} iconPosition="start" label="Diretório" sx={{ fontSize: '0.85rem' }} />
         </Tabs>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -1586,6 +1608,135 @@ export default function EquipePage() {
           </Grid>
         </Box>
       )}
+
+      {/* ── Diretório de Pessoas (tab 3) ─────────────────────────────── */}
+      {tab === 3 && (
+        <Box>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Diretório de Pessoas {!allPeopleLoading && allPeople.length > 0 && `(${allPeople.length})`}
+            </Typography>
+            <TextField
+              size="small"
+              placeholder="Buscar pelo nome ou contato..."
+              value={peopleSearch}
+              onChange={(e) => setPeopleSearch(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><IconSearch size={16} /></InputAdornment> }}
+              sx={{ width: 260 }}
+            />
+          </Stack>
+
+          {allPeopleLoading && <CircularProgress size={24} />}
+
+          {!allPeopleLoading && (
+            <Grid container spacing={1.5}>
+              {allPeople
+                .filter((p) => {
+                  if (!peopleSearch.trim()) return true;
+                  const q = peopleSearch.toLowerCase();
+                  if (p.display_name.toLowerCase().includes(q)) return true;
+                  return (p.identities ?? []).some((i) => i.value.toLowerCase().includes(q));
+                })
+                .map((p) => {
+                  const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
+                  const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
+                  return (
+                    <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                      <Card
+                        variant="outlined"
+                        sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { borderColor: 'primary.main' } }}
+                        onClick={() => { setEditPerson(p); setEditForm({ display_name: p.display_name, is_internal: p.is_internal ?? false, notes: p.notes ?? '' }); }}
+                      >
+                        <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                          <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Avatar sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: p.is_internal ? 'primary.main' : avatarColor(p.display_name) }}>
+                              {initials(p.display_name)}
+                            </Avatar>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Stack direction="row" alignItems="center" spacing={0.5}>
+                                <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
+                                {p.is_internal && <Chip label="interno" size="small" color="primary" sx={{ height: 16, fontSize: '0.6rem' }} />}
+                              </Stack>
+                              {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
+                              {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
+                            </Box>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+            </Grid>
+          )}
+        </Box>
+      )}
+
+      {/* Edit person dialog */}
+      <Dialog open={Boolean(editPerson)} onClose={() => setEditPerson(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Editar pessoa</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Nome"
+              size="small"
+              fullWidth
+              value={editForm.display_name}
+              onChange={(e) => setEditForm((f) => ({ ...f, display_name: e.target.value }))}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={editForm.is_internal}
+                  onChange={(e) => setEditForm((f) => ({ ...f, is_internal: e.target.checked }))}
+                  color="primary"
+                />
+              }
+              label="Pessoa interna (equipe Edro)"
+            />
+            <TextField
+              label="Notas"
+              size="small"
+              fullWidth
+              multiline
+              minRows={2}
+              value={editForm.notes}
+              onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditPerson(null)} disabled={editSaving}>Cancelar</Button>
+          <Button
+            variant="contained"
+            disabled={editSaving || !editForm.display_name.trim()}
+            onClick={async () => {
+              if (!editPerson) return;
+              setEditSaving(true);
+              try {
+                await apiPatch(`/people/${editPerson.id}`, {
+                  display_name: editForm.display_name.trim(),
+                  is_internal: editForm.is_internal,
+                  notes: editForm.notes || null,
+                });
+                setAllPeople((prev) => prev.map((p) =>
+                  p.id === editPerson.id
+                    ? { ...p, display_name: editForm.display_name.trim(), is_internal: editForm.is_internal, notes: editForm.notes || null }
+                    : p,
+                ));
+                setInternalPeople((prev) => prev.map((p) =>
+                  p.id === editPerson.id
+                    ? { ...p, display_name: editForm.display_name.trim(), is_internal: editForm.is_internal }
+                    : p,
+                ).filter((p) => p.is_internal));
+                setEditPerson(null);
+              } catch { /* TODO: show error */ }
+              finally { setEditSaving(false); }
+            }}
+          >
+            {editSaving ? <CircularProgress size={18} /> : 'Salvar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Freelancer detail drawer */}
       <Drawer
