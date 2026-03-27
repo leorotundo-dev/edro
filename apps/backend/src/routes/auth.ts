@@ -76,6 +76,41 @@ function verifyPendingMfaToken(app: FastifyInstance, token: string) {
 }
 
 export default async function authRoutes(app: FastifyInstance) {
+  const buildAuthUserPayload = async (params: {
+    userId: string;
+    email: string;
+    role: string;
+    tenantId?: string | null;
+  }) => {
+    const { rows } = await pool.query<{
+      name: string | null;
+      avatar_url: string | null;
+    }>(
+      `SELECT COALESCE(fp.display_name, eu.name, split_part(eu.email, '@', 1)) AS name,
+              COALESCE(p.avatar_url, p2.avatar_url, fp.avatar_url) AS avatar_url
+         FROM edro_users eu
+         LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+         LEFT JOIN people p ON p.id = fp.person_id
+         LEFT JOIN person_identities pi
+           ON pi.tenant_id = COALESCE($2, pi.tenant_id)
+          AND pi.identity_type = 'edro_user_id'
+          AND pi.normalized_value = LOWER(eu.id::text)
+         LEFT JOIN people p2 ON p2.id = pi.person_id
+        WHERE eu.id = $1
+        LIMIT 1`,
+      [params.userId, params.tenantId ?? null],
+    );
+
+    return {
+      id: params.userId,
+      email: params.email,
+      role: params.role,
+      tenant_id: params.tenantId ?? null,
+      name: rows[0]?.name ?? params.email.split('@')[0],
+      avatar_url: rows[0]?.avatar_url ?? null,
+    };
+  };
+
   const resolvePortalAuthTenantId = async (email: string, role?: 'client' | 'staff') => {
     const normalized = email.trim().toLowerCase();
     const scopes: Array<'client' | 'staff'> = role ? [role] : ['client', 'staff'];
@@ -195,12 +230,12 @@ export default async function authRoutes(app: FastifyInstance) {
         accessToken,
         refreshToken,
         refreshExpiresAt,
-        user: {
-          id: user.id,
+        user: await buildAuthUserPayload({
+          userId: user.id,
           email: user.email,
           role: tenantRole,
-          tenant_id: tenant.id,
-        },
+          tenantId: tenant.id,
+        }),
       });
     } catch (error: any) {
       const isDomain = error?.message === 'domain_not_allowed';
@@ -232,10 +267,12 @@ export default async function authRoutes(app: FastifyInstance) {
       const mfaEnabled = Boolean(mfaRecord?.enabled_at && mfaRecord?.secret_enc);
       const mfaEnforced = shouldEnforcePrivilegedMfa(tenant?.role ?? user.role);
       return reply.send({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        tenant_id: tenant?.tenant_id ?? null,
+        ...(await buildAuthUserPayload({
+          userId: user.id,
+          email: user.email,
+          role: tenant?.role ?? user.role,
+          tenantId: tenant?.tenant_id ?? null,
+        })),
         mfa_enabled: mfaEnabled,
         mfa_enforced: mfaEnforced,
       });
@@ -520,8 +557,6 @@ export default async function authRoutes(app: FastifyInstance) {
     );
     const refreshToken = crypto.randomBytes(48).toString('hex');
     const refreshExpiresAt = await issueRefreshToken(payload.sub, refreshToken, 14);
-    const user = await findUserById(payload.sub);
-
     return reply.send({
       ok: true,
       accessToken,
@@ -529,7 +564,12 @@ export default async function authRoutes(app: FastifyInstance) {
       refreshToken,
       refreshExpiresAt,
       recoveryCodes,
-      user: { id: payload.sub, email: payload.email, role: payload.role, tenant_id: payload.tenant_id },
+      user: await buildAuthUserPayload({
+        userId: payload.sub,
+        email: payload.email,
+        role: payload.role,
+        tenantId: payload.tenant_id,
+      }),
     });
   });
 
@@ -580,7 +620,12 @@ export default async function authRoutes(app: FastifyInstance) {
       token: accessToken,
       refreshToken,
       refreshExpiresAt,
-      user: { id: payload.sub, email: payload.email, role: payload.role, tenant_id: payload.tenant_id },
+      user: await buildAuthUserPayload({
+        userId: payload.sub,
+        email: payload.email,
+        role: payload.role,
+        tenantId: payload.tenant_id,
+      }),
     });
   });
 }

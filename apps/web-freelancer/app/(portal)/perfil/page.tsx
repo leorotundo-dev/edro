@@ -19,6 +19,8 @@ type SkillEntry = {
 
 type Profile = {
   display_name: string;
+  avatar_url: string | null;
+  avatar_generation_status?: string | null;
   specialty: string | null;
   hourly_rate_brl: string | null;
   pix_key: string | null;
@@ -265,7 +267,28 @@ export default function PerfilPage() {
     <div className="portal-page">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="portal-page-header">
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{
+            width: 80,
+            height: 80,
+            borderRadius: 18,
+            overflow: 'hidden',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            flexShrink: 0,
+            display: 'grid',
+            placeItems: 'center',
+            color: 'rgba(255,255,255,0.5)',
+            fontWeight: 800,
+            fontSize: 24,
+          }}>
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt={profile.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              profile.display_name.slice(0, 2).toUpperCase()
+            )}
+          </div>
+          <div>
           <span className="portal-kicker">Meu perfil</span>
           <h2 className="portal-page-title">{profile.display_name}</h2>
           {profile.razao_social && (
@@ -274,6 +297,12 @@ export default function PerfilPage() {
               {profile.cnpj ? ` · CNPJ ${formatCnpj(profile.cnpj)}` : ''}
             </p>
           )}
+            {profile.avatar_generation_status === 'ready' && (
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginTop: 6 }}>
+                Avatar Edro ativo no sistema
+              </p>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
           <span className={clsx('portal-pill', profile.is_active ? 'portal-pill-success' : 'portal-pill-neutral')}>

@@ -27,6 +27,24 @@ export const apiGet  = <T = any>(path: string) => request<T>('GET', path);
 export const apiPost = <T = any>(path: string, body?: unknown) => request<T>('POST', path, body);
 export const apiPatch = <T = any>(path: string, body?: unknown) => request<T>('PATCH', path, body);
 
+export async function apiPostFormData<T = any>(path: string, formData: FormData): Promise<T> {
+  const res = await fetch(`/api/proxy${path}`, {
+    method: 'POST',
+    body: formData,
+    cache: 'no-store',
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== 'undefined') window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+  try { return JSON.parse(text); } catch { return text as any; }
+}
+
 export function swrFetcher(path: string) {
   return apiGet(path);
 }
