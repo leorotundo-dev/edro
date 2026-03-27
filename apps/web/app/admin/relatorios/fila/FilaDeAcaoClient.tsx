@@ -178,7 +178,7 @@ export default function FilaDeAcaoClient() {
   const filtered = items.filter(tabs[activeTab].filter);
 
   return (
-    <AppShell>
+    <AppShell title="Fila de Ação">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>

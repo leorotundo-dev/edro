@@ -118,7 +118,7 @@ export default function PainelExecutivoClient() {
   const dark = theme.palette.mode === 'dark';
 
   return (
-    <AppShell>
+    <AppShell title="Painel Executivo">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
