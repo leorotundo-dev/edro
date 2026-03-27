@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -783,6 +784,9 @@ export default function DaControlClient() {
   const [savingSourceId, setSavingSourceId] = useState<string | null>(null);
   const [newSource, setNewSource] = useState<SourceDraft>(createSourceDraft());
   const [canonQuery, setCanonQuery] = useState<string>('');
+  const [selectedCanonKey, setSelectedCanonKey] = useState<string | null>(null);
+  const [selectedModuleKey, setSelectedModuleKey] = useState<string | null>(null);
+  const [selectedEntrySlug, setSelectedEntrySlug] = useState<string | null>(null);
 
   useEffect(() => {
     const fromQuery = searchParams?.get('clientId') || '';
@@ -1113,6 +1117,62 @@ export default function DaControlClient() {
       })
       .filter((group) => !group.hidden);
   }, [canonGroups, canonQuery]);
+
+  useEffect(() => {
+    if (!filteredCanonGroups.length) {
+      setSelectedCanonKey(null);
+      setSelectedModuleKey(null);
+      setSelectedEntrySlug(null);
+      return;
+    }
+
+    if (!selectedCanonKey || !filteredCanonGroups.some((group) => group.key === selectedCanonKey)) {
+      setSelectedCanonKey(filteredCanonGroups[0].key);
+      setSelectedModuleKey(null);
+      setSelectedEntrySlug(null);
+    }
+  }, [filteredCanonGroups, selectedCanonKey]);
+
+  const activeCanonGroup = useMemo(
+    () => filteredCanonGroups.find((group) => group.key === selectedCanonKey) ?? filteredCanonGroups[0] ?? null,
+    [filteredCanonGroups, selectedCanonKey],
+  );
+
+  useEffect(() => {
+    const modules = activeCanonGroup?.canonModules ?? [];
+    if (!modules.length) {
+      setSelectedModuleKey(null);
+      setSelectedEntrySlug(null);
+      return;
+    }
+
+    if (!selectedModuleKey || !modules.some((module) => module.key === selectedModuleKey)) {
+      setSelectedModuleKey(modules[0].key);
+      setSelectedEntrySlug(null);
+    }
+  }, [activeCanonGroup, selectedModuleKey]);
+
+  const activeModule = useMemo(
+    () => activeCanonGroup?.canonModules?.find((module) => module.key === selectedModuleKey) ?? activeCanonGroup?.canonModules?.[0] ?? null,
+    [activeCanonGroup, selectedModuleKey],
+  );
+
+  useEffect(() => {
+    const entries = activeModule?.entries ?? [];
+    if (!entries.length) {
+      setSelectedEntrySlug(null);
+      return;
+    }
+
+    if (!selectedEntrySlug || !entries.some((entry) => entry.slug === selectedEntrySlug)) {
+      setSelectedEntrySlug(entries[0].slug);
+    }
+  }, [activeModule, selectedEntrySlug]);
+
+  const activeEntry = useMemo(
+    () => activeModule?.entries?.find((entry) => entry.slug === selectedEntrySlug) ?? activeModule?.entries?.[0] ?? null,
+    [activeModule, selectedEntrySlug],
+  );
 
   useEffect(() => {
     const candidates = [...pendingReferences.slice(0, 12), ...analyzedReferences.slice(0, 8)];
@@ -2029,6 +2089,273 @@ export default function DaControlClient() {
                       <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.draft_entries, 0)} em curadoria`} />
                     </Stack>
                   </Paper>
+                  {filteredCanonGroups.length ? (
+                    <Grid container spacing={2}>
+                      <Grid size={{ xs: 12, lg: 4 }}>
+                        <Stack spacing={1.5}>
+                          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                              1. Escolha um canon
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45, mb: 1.2 }}>
+                              Entre por um território da disciplina.
+                            </Typography>
+                            <Stack spacing={1}>
+                              {filteredCanonGroups.map((group) => {
+                                const selected = group.key === activeCanonGroup?.key;
+                                return (
+                                  <Paper
+                                    key={`canon-browser-${group.key}`}
+                                    variant="outlined"
+                                    onClick={() => {
+                                      setSelectedCanonKey(group.key);
+                                      setSelectedModuleKey(null);
+                                      setSelectedEntrySlug(null);
+                                    }}
+                                    sx={{
+                                      p: 1.2,
+                                      borderRadius: 2,
+                                      cursor: 'pointer',
+                                      borderColor: selected ? 'rgba(93,135,255,0.38)' : 'rgba(15, 23, 42, 0.08)',
+                                      bgcolor: selected ? 'rgba(93,135,255,0.08)' : 'rgba(255,255,255,0.92)',
+                                    }}
+                                  >
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                      {group.title}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                                      {group.description}
+                                    </Typography>
+                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                                      <Chip size="small" variant={selected ? 'filled' : 'outlined'} color={selected ? 'primary' : 'default'} label={`${group.canon?.total_entries ?? 0} tópicos`} />
+                                      <Chip size="small" variant="outlined" label={`${group.canonModules?.length ?? 0} módulos`} />
+                                    </Stack>
+                                  </Paper>
+                                );
+                              })}
+                            </Stack>
+                          </Paper>
+
+                          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                              2. Escolha um módulo
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45, mb: 1.2 }}>
+                              O canon é quebrado em blocos de estudo.
+                            </Typography>
+                            {activeCanonGroup?.canonModules?.length ? (
+                              <Stack spacing={1}>
+                                {activeCanonGroup.canonModules.map((module) => {
+                                  const selected = module.key === activeModule?.key;
+                                  return (
+                                    <Paper
+                                      key={`module-browser-${module.key}`}
+                                      variant="outlined"
+                                      onClick={() => {
+                                        setSelectedModuleKey(module.key);
+                                        setSelectedEntrySlug(null);
+                                      }}
+                                      sx={{
+                                        p: 1.15,
+                                        borderRadius: 2,
+                                        cursor: 'pointer',
+                                        borderColor: selected ? 'rgba(232,82,25,0.30)' : 'rgba(15, 23, 42, 0.08)',
+                                        bgcolor: selected ? 'rgba(232,82,25,0.06)' : 'rgba(255,255,255,0.92)',
+                                      }}
+                                    >
+                                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                        {module.title}
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                        {module.description}
+                                      </Typography>
+                                    </Paper>
+                                  );
+                                })}
+                              </Stack>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                Selecione um canon para ver seus módulos.
+                              </Typography>
+                            )}
+                          </Paper>
+
+                          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                              3. Escolha um tópico
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45, mb: 1.2 }}>
+                              Entre no contêiner teórico específico.
+                            </Typography>
+                            {activeModule?.entries?.length ? (
+                              <Stack direction="row" gap={1} flexWrap="wrap">
+                                {activeModule.entries.map((entry) => (
+                                  <Chip
+                                    key={`topic-browser-${entry.slug}`}
+                                    label={entry.title}
+                                    color={entry.slug === activeEntry?.slug ? 'primary' : 'default'}
+                                    variant={entry.slug === activeEntry?.slug ? 'filled' : 'outlined'}
+                                    onClick={() => setSelectedEntrySlug(entry.slug)}
+                                    sx={{ cursor: 'pointer' }}
+                                  />
+                                ))}
+                              </Stack>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                Selecione um módulo para ver os tópicos.
+                              </Typography>
+                            )}
+                          </Paper>
+                        </Stack>
+                      </Grid>
+                      <Grid size={{ xs: 12, lg: 8 }}>
+                        <Stack spacing={1.5}>
+                          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5, bgcolor: 'rgba(15, 23, 42, 0.02)' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.85 }}>
+                              Breadcrumb da biblioteca
+                            </Typography>
+                            <Breadcrumbs aria-label="breadcrumb" separator="›">
+                              <Button variant="text" size="small" onClick={() => {
+                                setSelectedModuleKey(null);
+                                setSelectedEntrySlug(null);
+                              }}>
+                                Biblioteca teórica
+                              </Button>
+                              {activeCanonGroup ? (
+                                <Button variant="text" size="small" onClick={() => {
+                                  setSelectedCanonKey(activeCanonGroup.key);
+                                  setSelectedModuleKey(null);
+                                  setSelectedEntrySlug(null);
+                                }}>
+                                  {activeCanonGroup.title}
+                                </Button>
+                              ) : null}
+                              {activeModule ? (
+                                <Button variant="text" size="small" onClick={() => {
+                                  setSelectedModuleKey(activeModule.key);
+                                  setSelectedEntrySlug(null);
+                                }}>
+                                  {activeModule.title}
+                                </Button>
+                              ) : null}
+                              {activeEntry ? <Typography variant="body2" sx={{ fontWeight: 700 }}>{activeEntry.title}</Typography> : null}
+                            </Breadcrumbs>
+                          </Paper>
+                          {activeEntry ? (
+                            <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2.5 }}>
+                              <Stack direction="row" justifyContent="space-between" gap={2} mb={1.2}>
+                                <Box>
+                                  <Typography variant="overline" sx={{ color: '#5D87FF', fontWeight: 800, letterSpacing: '0.08em' }}>
+                                    {activeCanonGroup?.title || 'Canon'}
+                                  </Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 800, mt: 0.35 }}>
+                                    {activeEntry.title}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45 }}>
+                                    {activeModule?.description || activeCanonGroup?.description}
+                                  </Typography>
+                                </Box>
+                                <Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
+                                  <Chip size="small" variant="outlined" label={activeEntry.slug} />
+                                  <Chip size="small" variant="outlined" label={activeEntry.status} color={activeEntry.status === 'active' ? 'success' : activeEntry.status === 'draft' ? 'warning' : 'default'} />
+                                </Stack>
+                              </Stack>
+                              <Grid container spacing={1.5}>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                  <Paper variant="outlined" sx={{ p: 1.4, borderRadius: 2.25, height: '100%' }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                      Como esse tópico alimenta o Jarvis
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45 }}>
+                                      {getCanonEntryContainerStatus(activeEntry).helper}
+                                    </Typography>
+                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                                      <Chip size="small" variant="outlined" label={`chunks ${activeEntry.chunk_count}`} />
+                                      <Chip size="small" variant="outlined" label={`fontes ${activeEntry.source_count}`} />
+                                      <Chip size="small" variant="outlined" label={`heurísticas ${activeEntry.heuristics.length}`} />
+                                      <Chip size="small" variant="outlined" label={`exemplos ${activeEntry.examples.length}`} />
+                                    </Stack>
+                                  </Paper>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                  <Paper variant="outlined" sx={{ p: 1.4, borderRadius: 2.25, height: '100%' }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                      Definição-base
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45 }}>
+                                      {activeEntry.definition}
+                                    </Typography>
+                                  </Paper>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                  <Paper variant="outlined" sx={{ p: 1.4, borderRadius: 2.25, height: '100%' }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                      Quando usar
+                                    </Typography>
+                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                                      {activeEntry.when_to_use.length ? activeEntry.when_to_use.map((item) => (
+                                        <Chip key={`${activeEntry.id}-use-browser-${item}`} size="small" variant="outlined" label={item} />
+                                      )) : <Chip size="small" variant="outlined" label="aguardando conteúdo" />}
+                                    </Stack>
+                                  </Paper>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                  <Paper variant="outlined" sx={{ p: 1.4, borderRadius: 2.25, height: '100%' }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                      Quando evitar
+                                    </Typography>
+                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                                      {activeEntry.when_to_avoid.length ? activeEntry.when_to_avoid.map((item) => (
+                                        <Chip key={`${activeEntry.id}-avoid-browser-${item}`} size="small" variant="outlined" label={item} />
+                                      )) : <Chip size="small" variant="outlined" label="aguardando conteúdo" />}
+                                    </Stack>
+                                  </Paper>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                  <Paper variant="outlined" sx={{ p: 1.4, borderRadius: 2.25, height: '100%' }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                      Heurísticas e crítica
+                                    </Typography>
+                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                                      {activeEntry.heuristics.length ? activeEntry.heuristics.map((item) => (
+                                        <Chip key={`${activeEntry.id}-heur-browser-${item}`} size="small" variant="outlined" label={item} />
+                                      )) : <Chip size="small" variant="outlined" label="heurísticas pendentes" />}
+                                      {activeEntry.critique_checks.length ? activeEntry.critique_checks.map((item) => (
+                                        <Chip key={`${activeEntry.id}-crit-browser-${item}`} size="small" color="warning" variant="outlined" label={item} />
+                                      )) : null}
+                                    </Stack>
+                                  </Paper>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                  <Paper variant="outlined" sx={{ p: 1.4, borderRadius: 2.25, height: '100%' }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                                      Exemplos e repertório
+                                    </Typography>
+                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                                      {activeEntry.examples.length ? activeEntry.examples.map((item) => (
+                                        <Chip key={`${activeEntry.id}-ex-browser-${item}`} size="small" variant="outlined" label={item} />
+                                      )) : <Chip size="small" variant="outlined" label="exemplos pendentes" />}
+                                    </Stack>
+                                  </Paper>
+                                </Grid>
+                              </Grid>
+                            </Paper>
+                          ) : (
+                            <EmptySection
+                              title="Selecione um tópico para ver o contêiner teórico."
+                              description="Escolha um canon, depois um módulo, e por fim o tópico que você quer estudar ou alimentar."
+                            />
+                          )}
+                        </Stack>
+                      </Grid>
+                    </Grid>
+                  ) : (
+                    <EmptySection
+                      title="Nenhum tópico encontrado nessa busca."
+                      description="Tente buscar por um movimento, conceito ou formato para localizar onde ele está dentro dos canons da Edro."
+                    />
+                  )}
+                  <Box sx={{ display: 'none' }}>
                   <Paper
                     variant="outlined"
                     sx={{
@@ -2294,6 +2621,7 @@ export default function DaControlClient() {
                       description="Tente buscar por um movimento, conceito ou formato para localizar onde ele está dentro dos canons da Edro."
                     />
                   ) : null}
+                  </Box>
                 </Stack>
               )}
             </SectionCard>
