@@ -50,4 +50,4 @@ jobs:
             --service edro-backend \
             --project "${{ steps.railway.outputs.project_id }}" \
             --environment "${{ steps.railway.outputs.environment }}" \
-            bash -lc "cd /app && pnpm --filter @edro/backend db:migrate"
+            sh -lc "cd /app && pnpm --filter @edro/backend db:migrate"
