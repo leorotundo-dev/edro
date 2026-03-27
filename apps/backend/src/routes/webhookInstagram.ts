@@ -23,6 +23,7 @@ import {
   verifyMetaWebhookSignature,
 } from '../services/integrations/webhookSecurityService';
 import { logActivity } from '../services/integrationMonitor';
+import { enqueueWebhookRetry } from '../services/webhookRetryService';
 
 const BRIEFING_PROMPT = `Você é um assistente de agência. Uma mensagem chegou via Instagram Direct de um cliente.
 Extraia um briefing conciso. Retorne APENAS JSON: { "title": "...", "objective": "...", "notes": "..." }
@@ -77,6 +78,7 @@ export default async function webhookInstagramRoutes(app: FastifyInstance) {
           await processInstagramMessage(pageId, messaging);
         } catch (err: any) {
           console.error('[webhookInstagram] processMessage error:', err?.message);
+          enqueueWebhookRetry('instagram', { pageId, messaging }, undefined, err?.message).catch(() => {});
         }
       }
     }
@@ -107,6 +109,10 @@ export async function resolveTenantFromPage(pageId: string): Promise<{
 }
 
 // ── Process a single messaging event ─────────────────────────────────────
+
+export async function processInstagramMessageRetry(pageId: string, messaging: any) {
+  return processInstagramMessage(pageId, messaging);
+}
 
 async function processInstagramMessage(pageId: string, messaging: any) {
   const senderId = messaging.sender?.id as string | undefined;

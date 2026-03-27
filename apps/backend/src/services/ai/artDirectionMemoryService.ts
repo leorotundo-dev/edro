@@ -859,7 +859,7 @@ export async function recomputeArtDirectionTrendSnapshots(params?: {
     await query(
       `DELETE FROM da_trend_snapshots
         WHERE tenant_id = $1
-          AND (($2::uuid IS NULL AND client_id IS NULL) OR client_id = $2::uuid)
+          AND (($2::text IS NULL AND client_id IS NULL) OR client_id = $2::text)
           AND window_key = $3`,
       [scope.tenantId, scope.clientId, `rolling_${windowDays}d`],
     );

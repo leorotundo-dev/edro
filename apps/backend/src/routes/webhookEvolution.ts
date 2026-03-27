@@ -9,6 +9,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
+import { enqueueWebhookRetry } from '../services/webhookRetryService';
 import { transcribeAudioBuffer } from '../services/meetingService';
 import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import { sendOutboundMessage } from '../services/groupOutboundService';
@@ -128,10 +129,11 @@ async function handleMessagesUpsert(instanceNameStr: string | undefined, data: a
 
   for (const msg of messages) {
     try {
-      await processMessage(msg, instanceId, tenantId);
+      await processEvolutionMessage(msg, instanceId, tenantId);
       processedCount += 1;
     } catch (err: any) {
       console.error(`[webhookEvolution] processMessage failed: ${err.message}`);
+      enqueueWebhookRetry('whatsapp', { msg, instanceId, tenantId }, tenantId, err.message).catch(() => {});
     }
   }
 
@@ -148,7 +150,7 @@ async function handleMessagesUpsert(instanceNameStr: string | undefined, data: a
   });
 }
 
-async function processMessage(msg: any, instanceId: string, tenantId: string) {
+export async function processEvolutionMessage(msg: any, instanceId: string, tenantId: string) {
   const key = msg.key ?? {};
   const waMessageId = key.id as string | undefined;
   if (!waMessageId) return;

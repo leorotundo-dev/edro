@@ -46,6 +46,8 @@ type GmailStatus = {
   configured: boolean;
   email?: string;
   watchExpiry?: string;
+  expired?: boolean;
+  expiresSoon?: boolean;
   lastSyncAt?: string;
   connectedAt?: string;
   stats?: { totalThreads: number; processedThreads: number };
@@ -775,6 +777,19 @@ export default function IntegrationsClient() {
                   </Box>
                 )}
 
+                {gmail?.expired && (
+                  <Alert severity="error" sx={{ mt: 1.5 }}
+                    action={<Button size="small" color="inherit" variant="outlined" onClick={handleGmailConnect}>Reconectar</Button>}>
+                    Watch token do Gmail expirou — e-mails não estão sendo sincronizados.
+                  </Alert>
+                )}
+                {!gmail?.expired && gmail?.expiresSoon && (
+                  <Alert severity="warning" sx={{ mt: 1.5 }}
+                    action={<Button size="small" color="inherit" variant="outlined" onClick={handleGmailConnect}>Renovar</Button>}>
+                    Watch token do Gmail expira em menos de 48h. Reconecte para evitar interrupção.
+                  </Alert>
+                )}
+
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="caption" color="text.secondary">
                   Emails de clientes chegam ao Jarvis automaticamente. O Jarvis identifica pedidos de conteúdo e cria briefings.
@@ -867,6 +882,19 @@ export default function IntegrationsClient() {
                     {calendar.lastWatchError && (
                       <Alert severity="error" sx={{ mt: 2 }}>
                         Último erro do watch: {calendar.lastWatchError}
+                      </Alert>
+                    )}
+
+                    {calendar.expired && !calendar.lastWatchError && (
+                      <Alert severity="error" sx={{ mt: 2 }}
+                        action={<Button size="small" color="inherit" variant="outlined" onClick={handleCalendarRenew} disabled={renewingCalendar}>Renovar</Button>}>
+                        Watch token do Calendar expirou — eventos não estão sendo recebidos em tempo real.
+                      </Alert>
+                    )}
+                    {!calendar.expired && calendar.expiresSoon && (
+                      <Alert severity="warning" sx={{ mt: 2 }}
+                        action={<Button size="small" color="inherit" variant="outlined" onClick={handleCalendarRenew} disabled={renewingCalendar}>Renovar agora</Button>}>
+                        Watch token expira em menos de 48h. Renove para não perder detecção de reuniões.
                       </Alert>
                     )}
 

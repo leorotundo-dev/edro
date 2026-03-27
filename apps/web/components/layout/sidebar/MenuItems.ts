@@ -7,6 +7,12 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconUserCircle,
+  IconRadar,
+  IconChartBar,
+  IconReportAnalytics,
+  IconAlertSquare,
+  IconCalendarStats,
+  IconBuildingBank,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -68,6 +74,42 @@ const MenuItems: MenuGroupType[] = [
     ],
   },
   {
+    subheader: 'Relatórios',
+    requiredGroupRole: ['admin', 'manager'],
+    items: [
+      {
+        id: 'painel-executivo',
+        title: 'Painel Executivo',
+        icon: IconReportAnalytics,
+        href: '/admin/relatorios/painel',
+      },
+      {
+        id: 'fila-de-acao',
+        title: 'Fila de Ação',
+        icon: IconAlertSquare,
+        href: '/admin/relatorios/fila',
+      },
+      {
+        id: 'diario',
+        title: 'Diário',
+        icon: IconCalendarStats,
+        href: '/admin/diario',
+      },
+      {
+        id: 'financeiro-cruzado',
+        title: 'Financeiro',
+        icon: IconBuildingBank,
+        href: '/admin/relatorios/financeiro',
+      },
+      {
+        id: 'trello-insights',
+        title: 'Produção',
+        icon: IconChartBar,
+        href: '/admin/trello/insights',
+      },
+    ],
+  },
+  {
     subheader: 'Agência',
     requiredGroupRole: ['admin', 'manager'],
     items: [
@@ -82,6 +124,13 @@ const MenuItems: MenuGroupType[] = [
         title: 'Equipe',
         icon: IconUsersGroup,
         href: '/admin/equipe',
+      },
+      {
+        id: 'controle',
+        title: 'Central de Controle',
+        icon: IconRadar,
+        href: '/admin/controle',
+        requiredRole: ['admin'],
       },
       {
         id: 'admin-system',

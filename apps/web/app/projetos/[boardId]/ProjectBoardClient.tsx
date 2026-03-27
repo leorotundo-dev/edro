@@ -56,6 +56,7 @@ type ProjectList = {
   id: string;
   name: string;
   position: number;
+  is_archived?: boolean;
   cards: ProjectCard[];
 };
 
@@ -402,7 +403,7 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
     </Shell>
   );
 
-  const visibleLists = lists.filter((l) => !l.cards?.every((c) => c.is_archived));
+  const visibleLists = lists.filter((l) => !l.is_archived);
 
   return (
     <Shell>

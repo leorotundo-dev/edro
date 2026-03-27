@@ -100,10 +100,16 @@ export default async function gmailRoutes(app: FastifyInstance) {
     }
 
     const r = rows[0];
+    const watchExpiryMs = r.watch_expiry ? new Date(r.watch_expiry).getTime() : null;
+    const nowMs = Date.now();
+    const watchExpired = watchExpiryMs !== null && watchExpiryMs <= nowMs;
+    const watchExpiresSoon = watchExpiryMs !== null && !watchExpired && watchExpiryMs - nowMs < 48 * 60 * 60 * 1000;
     return reply.send({
       configured: true,
       email: r.email_address,
       watchExpiry: r.watch_expiry,
+      expired: watchExpired,
+      expiresSoon: watchExpiresSoon,
       lastSyncAt: r.last_sync_at,
       lastError: r.last_error,
       connectedAt: r.connected_at,

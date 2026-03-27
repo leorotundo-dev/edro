@@ -10,6 +10,7 @@ import { formatMinutes, getRisk, type OperationsJob } from '@/components/operati
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { apiGet, apiPost } from '@/lib/api';
 
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -326,7 +327,7 @@ export default function SignalFeedClient() {
   const theme = useTheme();
 
   const ops = useOperationsData('?active=true');
-  const { jobs, lookups, loading: jobsLoading } = ops;
+  const { jobs, lookups, loading: jobsLoading, syncHealth } = ops;
 
   const [signals, setSignals] = useState<Signal[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
@@ -402,6 +403,30 @@ export default function SignalFeedClient() {
         </Stack>
       ) : (
         <Stack spacing={3}>
+          {/* ── Trello sync health banner ── */}
+          {syncHealth?.needs_attention && (
+            <Alert
+              severity="warning"
+              action={
+                <Button
+                  component={Link}
+                  href={syncHealth.unmapped_lists > 0 ? '/admin/trello?tab=mapping' : '/admin/trello?tab=health'}
+                  size="small"
+                  color="inherit"
+                  variant="outlined"
+                >
+                  Corrigir
+                </Button>
+              }
+            >
+              {[
+                syncHealth.unmapped_lists > 0 && `${syncHealth.unmapped_lists} lista${syncHealth.unmapped_lists > 1 ? 's' : ''} do Trello sem mapeamento — cards podem aparecer com status errado`,
+                syncHealth.unlinked_boards > 0 && `${syncHealth.unlinked_boards} board${syncHealth.unlinked_boards > 1 ? 's' : ''} sem cliente vinculado`,
+                syncHealth.stale_boards > 0 && `${syncHealth.stale_boards} board${syncHealth.stale_boards > 1 ? 's' : ''} desatualizado${syncHealth.stale_boards > 1 ? 's' : ''}`,
+              ].filter(Boolean).join(' · ')}
+            </Alert>
+          )}
+
           {/* ── Hero KPI Strip — glass cards with glow ── */}
           <Box sx={{
             display: 'grid',

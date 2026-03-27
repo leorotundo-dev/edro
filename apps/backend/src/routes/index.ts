@@ -68,6 +68,9 @@ import competitorsRoutes from './competitors';
 import trelloRoutes from './trello';
 import jarvisRoutes from './jarvis';
 import daBillingRoutes from './daBilling';
+import agencyDigestRoutes from './agencyDigest';
+import clientReportTokensRoutes from './clientReportTokens';
+import relatoriosRoutes from './relatorios';
 import { env } from '../env';
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -152,4 +155,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(trelloRoutes, { prefix: '/api' });
   app.register(jarvisRoutes, { prefix: '/api' });
   app.register(daBillingRoutes, { prefix: '/api' });
+  app.register(agencyDigestRoutes, { prefix: '/api' });
+  app.register(clientReportTokensRoutes, { prefix: '/api' });
+  app.register(relatoriosRoutes, { prefix: '/api' });
 }

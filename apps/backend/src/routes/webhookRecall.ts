@@ -8,6 +8,7 @@ import {
 } from '../services/integrations/recallWebhookService';
 import { env } from '../env';
 import { securityLog } from '../audit/securityLog';
+import { enqueueWebhookRetry } from '../services/webhookRetryService';
 
 export default async function webhookRecallRoutes(app: FastifyInstance) {
   app.addHook('preParsing', async (request, _reply, payload) => {
@@ -67,6 +68,7 @@ export default async function webhookRecallRoutes(app: FastifyInstance) {
     if (!ingested.duplicate) {
       void processRecallWebhookEvent(ingested.id).catch((error: any) => {
         request.log.error({ error: error?.message, webhookEventId: ingested.id }, '[webhookRecall] processing failed');
+        enqueueWebhookRetry('recall', { eventId: ingested.id }, undefined, error?.message).catch(() => {});
       });
     }
   });

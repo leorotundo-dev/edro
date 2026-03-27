@@ -41,6 +41,8 @@ import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
 import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
 import { runArtDirectionReferenceWorkerOnce } from './artDirectionReferenceWorker';
 import { runArtDirectionTrendWorkerOnce } from './artDirectionTrendWorker';
+import { runWebhookRetryWorkerOnce } from './webhookRetryWorker';
+import { runAgencyDigestWorkerOnce } from './agencyDigestWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -101,7 +103,7 @@ export function startJobsRunner() {
   startWorkerLoop('calendarInspiration', runCalendarInspirationWorkerOnce, 5500, 120_000);
   // Auto-archive stale briefings (due_at passado) — roda 1× por dia, snapshot do copy gerado
   startWorkerLoop('archiveStale', runArchiveStaleBriefingsOnce, 6000);
-  // Reportei sync — runs every Monday, fetches 7d/30d/90d metrics for all clients
+  // Reportei sync — runs Mon/Wed/Fri (3×/week), fetches 7d/30d/90d metrics for all clients
   startWorkerLoop('reporteiSync', runReporteiSyncWorkerOnce, 6500, 300_000);
   // Performance alerts — runs every Monday, detects drops/spikes vs previous period
   startWorkerLoop('performanceAlerts', runPerformanceAlertWorkerOnce, 7000, 120_000);
@@ -161,4 +163,7 @@ export function startJobsRunner() {
   startWorkerLoop('artDirectionReference', runArtDirectionReferenceWorkerOnce, 20500, 180_000);
   // Art Direction Trend Memory — opt-in, analyzes discovered references and consolidates snapshots daily
   startWorkerLoop('artDirectionTrend', runArtDirectionTrendWorkerOnce, 21000, 300_000);
+  // Webhook Retry — retries failed WhatsApp/Instagram/Recall events with exponential backoff (max 3 attempts)
+  startWorkerLoop('webhookRetry', runWebhookRetryWorkerOnce, 21500, 30_000);
+  startWorkerLoop('agencyDigest', runAgencyDigestWorkerOnce, 22000, 60_000);
 }

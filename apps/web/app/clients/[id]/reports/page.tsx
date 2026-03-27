@@ -21,7 +21,7 @@ import Stack from '@mui/material/Stack';
 import Radio from '@mui/material/Radio';
 import LinearProgress from '@mui/material/LinearProgress';
 import Divider from '@mui/material/Divider';
-import { IconFileAnalytics, IconDownload, IconMail, IconPresentation, IconChartBar, IconUsers, IconSparkles, IconAlertTriangle, IconBulb, IconTrendingUp, IconFileTypePdf } from '@tabler/icons-react';
+import { IconFileAnalytics, IconDownload, IconMail, IconPresentation, IconChartBar, IconUsers, IconSparkles, IconAlertTriangle, IconBulb, IconTrendingUp, IconFileTypePdf, IconLink } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
@@ -104,6 +104,8 @@ export default function ClientReportsPage() {
   const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+  const [shareLinkLoading, setShareLinkLoading] = useState(false);
 
   const handleDownloadPdf = async () => {
     setPdfLoading(true);
@@ -164,6 +166,24 @@ export default function ClientReportsPage() {
     }
   };
 
+  const handleGenerateShareLink = async () => {
+    setShareLinkLoading(true);
+    setError('');
+    try {
+      const periodMonth = from.slice(0, 7); // YYYY-MM from 'YYYY-MM-DD'
+      const res = await apiPost<{ token: { token: string } }>(`/clients/${clientId}/report-token`, { period_month: periodMonth });
+      const token = res?.token?.token;
+      if (!token) throw new Error('Token não gerado.');
+      const link = `${window.location.origin}/relatorio/${token}`;
+      setShareLink(link);
+      await navigator.clipboard.writeText(link).catch(() => {});
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao gerar link.');
+    } finally {
+      setShareLinkLoading(false);
+    }
+  };
+
   const handleAiSummary = async () => {
     setAiLoading(true);
     setError('');
@@ -197,6 +217,13 @@ export default function ClientReportsPage() {
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
       {emailSent && <Alert severity="success" sx={{ mb: 2 }}>{emailSent}</Alert>}
+      {shareLink && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setShareLink('')}
+          action={<Button size="small" color="inherit" onClick={() => { navigator.clipboard.writeText(shareLink).catch(() => {}); }}>Copiar</Button>}
+        >
+          Link copiado! {shareLink}
+        </Alert>
+      )}
 
       {/* Template Selector */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -263,6 +290,15 @@ export default function ClientReportsPage() {
                 </Button>
                 <Button variant="outlined" startIcon={<IconMail size={18} />} onClick={handleEmail}>
                   Enviar Email
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={shareLinkLoading ? <CircularProgress size={16} /> : <IconLink size={18} />}
+                  onClick={handleGenerateShareLink}
+                  disabled={shareLinkLoading}
+                  color="secondary"
+                >
+                  {shareLinkLoading ? 'Gerando...' : 'Link do Cliente'}
                 </Button>
               </>
             )}

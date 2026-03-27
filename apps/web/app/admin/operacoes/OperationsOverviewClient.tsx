@@ -47,6 +47,7 @@ import {
 } from '@/components/operations/derived';
 import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
+import { apiPost } from '@/lib/api';
 import { OPS_COPY } from '@/components/operations/copy';
 
 function buildFlowBuckets(jobs: OperationsJob[]) {
@@ -94,7 +95,18 @@ function flowBucketForStatus(status?: string | null) {
 }
 
 export default function OperationsOverviewClient() {
-  const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
+  const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      await apiPost('/trello/sync-all', {});
+      setTimeout(() => { refresh(); setSyncing(false); }, 4000);
+    } catch {
+      setSyncing(false);
+    }
+  };
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [overviewRuntime, setOverviewRuntime] = useState<{
@@ -205,6 +217,39 @@ export default function OperationsOverviewClient() {
       }
     >
       {error ? <Alert severity="error">{error}</Alert> : null}
+
+      {!loading && syncHealth?.needs_attention && (
+        <Alert
+          severity={syncHealth.stale_boards > 0 || (syncHealth.unmapped_lists ?? 0) > 0 ? 'warning' : 'info'}
+          sx={{ mb: 2 }}
+          action={
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button
+                size="small"
+                color="inherit"
+                variant="outlined"
+                disabled={syncing}
+                onClick={handleSyncNow}
+              >
+                {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
+              </Button>
+              <Button size="small" color="inherit" href="/admin/trello" component="a">
+                Configurar
+              </Button>
+            </Stack>
+          }
+        >
+          {syncHealth.stale_boards > 0 && (
+            <span>{syncHealth.stale_boards} board(s) com dados desatualizados{syncHealth.oldest_sync_hours != null ? ` (há ${syncHealth.oldest_sync_hours}h)` : ''}. </span>
+          )}
+          {syncHealth.unlinked_boards > 0 && (
+            <span>{syncHealth.unlinked_boards} board(s) sem cliente vinculado — cards aparecem sem contexto. </span>
+          )}
+          {(syncHealth.unmapped_lists ?? 0) > 0 && (
+            <span>{syncHealth.unmapped_lists} lista(s) sem status mapeado — cards aparecem como Intake incorretamente. <a href="/admin/trello?tab=mapping" style={{ color: 'inherit', fontWeight: 600 }}>Mapear →</a></span>
+          )}
+        </Alert>
+      )}
 
       {loading ? (
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}>
