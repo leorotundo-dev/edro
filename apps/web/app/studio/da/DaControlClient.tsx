@@ -353,6 +353,7 @@ function SectionCard({
   action,
   eyebrow,
   tone = '#E85219',
+  sectionId,
 }: {
   title: string;
   subtitle?: string;
@@ -360,9 +361,11 @@ function SectionCard({
   action?: ReactNode;
   eyebrow?: string;
   tone?: string;
+  sectionId?: string;
 }) {
   return (
     <Card
+      id={sectionId}
       variant="outlined"
       sx={{
         borderRadius: 4,
@@ -370,6 +373,7 @@ function SectionCard({
         background: EDRO_PANEL_BG,
         boxShadow: EDRO_SURFACE_SHADOW,
         overflow: 'hidden',
+        scrollMarginTop: { xs: 88, md: 104 },
       }}
     >
       <CardContent sx={{ p: { xs: 2.25, md: 2.75 } }}>
@@ -1221,73 +1225,154 @@ export default function DaControlClient() {
 
         <SectionCard
           title="Como o bot DA é alimentado"
-          subtitle="Os canons ensinam teoria. As referências externas entram em triagem, e só depois viram repertório e tendência."
+          subtitle="Clique em cada card para ir direto à área certa. Os canons ensinam teoria. As referências externas entram em triagem, e só depois viram repertório e tendência."
           eyebrow="Fluxo"
           tone="#5D87FF"
         >
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%', bgcolor: 'rgba(93,135,255,0.04)' }}>
-                <Typography variant="overline" sx={{ color: '#5D87FF', fontWeight: 800, letterSpacing: '0.08em' }}>
-                  1. Canon
-                </Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
-                  Biblioteca teórica da Edro
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  Aqui mora a disciplina: design gráfico, tipografia, estética, direção de arte, história e crítica.
-                </Typography>
-                <Chip sx={{ mt: 1.5 }} size="small" color="primary" label={`${canons.reduce((sum, canon) => sum + canon.total_entries, 0)} tópicos`} />
-              </Paper>
+              <Link href="#da-canons" underline="none" color="inherit" sx={{ display: 'block' }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    height: '100%',
+                    bgcolor: 'rgba(93,135,255,0.04)',
+                    cursor: 'pointer',
+                    transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 18px 38px rgba(93,135,255,0.12)',
+                      borderColor: 'rgba(93,135,255,0.28)',
+                    },
+                  }}
+                >
+                  <Typography variant="overline" sx={{ color: '#5D87FF', fontWeight: 800, letterSpacing: '0.08em' }}>
+                    1. Canon
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
+                    Biblioteca teórica da Edro
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                    Aqui mora a disciplina: design gráfico, tipografia, estética, direção de arte, história e crítica.
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1.2, color: '#5D87FF', fontWeight: 700 }}>
+                    Entrar para alimentar, estudar e revisar a teoria
+                  </Typography>
+                  <Chip sx={{ mt: 1.5 }} size="small" color="primary" label={`${canons.reduce((sum, canon) => sum + canon.total_entries, 0)} tópicos`} />
+                </Paper>
+              </Link>
             </Grid>
             <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%', bgcolor: 'rgba(19,222,185,0.04)' }}>
-                <Typography variant="overline" sx={{ color: '#13DEB9', fontWeight: 800, letterSpacing: '0.08em' }}>
-                  2. Triagem
-                </Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
-                  Referências visuais externas
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  Sites, portfólios e buscas externas entram aqui. O gesto é binário: aceita no repertório ou rejeita.
-                </Typography>
-                <Chip sx={{ mt: 1.5 }} size="small" color="success" variant="outlined" label={`${pendingReferences.length} na fila`} />
-              </Paper>
+              <Link href="#da-triagem" underline="none" color="inherit" sx={{ display: 'block' }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    height: '100%',
+                    bgcolor: 'rgba(19,222,185,0.04)',
+                    cursor: 'pointer',
+                    transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 18px 38px rgba(19,222,185,0.12)',
+                      borderColor: 'rgba(19,222,185,0.28)',
+                    },
+                  }}
+                >
+                  <Typography variant="overline" sx={{ color: '#13DEB9', fontWeight: 800, letterSpacing: '0.08em' }}>
+                    2. Triagem
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
+                    Referências visuais externas
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                    Sites, portfólios e buscas externas entram aqui. O gesto é binário: aceita no repertório ou rejeita.
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1.2, color: '#13DEB9', fontWeight: 700 }}>
+                    Entrar para aprovar ou rejeitar referências
+                  </Typography>
+                  <Chip sx={{ mt: 1.5 }} size="small" color="success" variant="outlined" label={`${pendingReferences.length} na fila`} />
+                </Paper>
+              </Link>
             </Grid>
             <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%', bgcolor: 'rgba(232,82,25,0.04)' }}>
-                <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
-                  3. Repertório
-                </Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
-                  Memória visual viva
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  As referências aceitas passam a compor o repertório reutilizável do bot DA da Edro.
-                </Typography>
-                <Chip sx={{ mt: 1.5 }} size="small" color="warning" variant="outlined" label={`${analyzedReferences.length} aceitas`} />
-              </Paper>
+              <Link href="#da-repertorio" underline="none" color="inherit" sx={{ display: 'block' }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    height: '100%',
+                    bgcolor: 'rgba(232,82,25,0.04)',
+                    cursor: 'pointer',
+                    transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 18px 38px rgba(232,82,25,0.12)',
+                      borderColor: 'rgba(232,82,25,0.28)',
+                    },
+                  }}
+                >
+                  <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
+                    3. Repertório
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
+                    Memória visual viva
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                    As referências aceitas passam a compor o repertório reutilizável do bot DA da Edro.
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1.2, color: '#E85219', fontWeight: 700 }}>
+                    Entrar para revisar, usar e recalibrar o repertório
+                  </Typography>
+                  <Chip sx={{ mt: 1.5 }} size="small" color="warning" variant="outlined" label={`${analyzedReferences.length} aceitas`} />
+                </Paper>
+              </Link>
             </Grid>
             <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%', bgcolor: 'rgba(255,174,31,0.06)' }}>
-                <Typography variant="overline" sx={{ color: '#FFAE1F', fontWeight: 800, letterSpacing: '0.08em' }}>
-                  4. Trend radar
-                </Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
-                  Padrões derivados
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  O radar não é teoria nem referência. Ele é o que o sistema extrai do repertório já aceito.
-                </Typography>
-                <Chip sx={{ mt: 1.5 }} size="small" variant="outlined" label={`${stats?.trends.snapshots ?? 0} snapshots`} />
-              </Paper>
+              <Link href="#da-trends" underline="none" color="inherit" sx={{ display: 'block' }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    height: '100%',
+                    bgcolor: 'rgba(255,174,31,0.06)',
+                    cursor: 'pointer',
+                    transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 18px 38px rgba(255,174,31,0.12)',
+                      borderColor: 'rgba(255,174,31,0.28)',
+                    },
+                  }}
+                >
+                  <Typography variant="overline" sx={{ color: '#FFAE1F', fontWeight: 800, letterSpacing: '0.08em' }}>
+                    4. Trend radar
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.5 }}>
+                    Padrões derivados
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                    O radar não é teoria nem referência. Ele é o que o sistema extrai do repertório já aceito.
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1.2, color: '#FFAE1F', fontWeight: 700 }}>
+                    Entrar para auditar o que o bot está derivando
+                  </Typography>
+                  <Chip sx={{ mt: 1.5 }} size="small" variant="outlined" label={`${stats?.trends.snapshots ?? 0} snapshots`} />
+                </Paper>
+              </Link>
             </Grid>
           </Grid>
         </SectionCard>
 
         <SectionCard
+          sectionId="da-triagem"
           title="Referências externas em triagem"
-          subtitle="Este bloco não é teoria. Aqui entram sites, portfólios e resultados externos para você decidir se ensinam o bot visualmente."
+          subtitle="Este bloco não é teoria. Aqui entram sites, portfólios e resultados externos para você decidir se ensinam o bot visualmente. A ação principal aqui é aprovar ou rejeitar."
           eyebrow="Referências Externas"
           tone="#13DEB9"
         >
@@ -1295,6 +1380,14 @@ export default function DaControlClient() {
             <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
           ) : (
             <Stack spacing={2}>
+              <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2.5, bgcolor: 'rgba(19,222,185,0.04)' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  O que você faz aqui
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Ver a referência sem sair da Edro, abrir a fonte se precisar conferir, e decidir binariamente: entra no repertório da Edro ou sai.
+                </Typography>
+              </Paper>
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
                 <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2} mb={2}>
                   <Box>
@@ -1760,8 +1853,9 @@ export default function DaControlClient() {
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
+              sectionId="da-canons"
               title="Biblioteca completa de teoria e canons da Edro"
-              subtitle="Aqui fica a disciplina que a Edro ensina ao bot: fundamentos, tipografia, história, formatos, estética, direção de arte e crítica."
+              subtitle="Aqui fica a disciplina que a Edro ensina ao bot: fundamentos, tipografia, história, formatos, estética, direção de arte e crítica. É a área para alimentar, revisar e aprofundar a teoria."
               eyebrow="Canon"
               tone="#5D87FF"
               action={(
@@ -1798,6 +1892,21 @@ export default function DaControlClient() {
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                       Primeiro a Edro ensina teoria, critérios e repertório. Depois o motor absorve referências e tendências.
                       Só no fim ele aplica isso a clientes específicos.
+                    </Typography>
+                  </Paper>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
+                      bgcolor: 'rgba(93,135,255,0.04)',
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      O que você faz aqui
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Navega a teoria, revisa os tópicos que a Edro precisa dominar e decide onde aprofundar ou expandir o canon.
                     </Typography>
                   </Paper>
                   <Paper
@@ -1942,8 +2051,9 @@ export default function DaControlClient() {
 
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
+              sectionId="da-trends"
               title="Trend radar"
-              subtitle="Padrões recorrentes detectados nas referências analisadas."
+              subtitle="Padrões recorrentes detectados nas referências analisadas. Aqui você audita se o bot está derivando sinais coerentes do repertório aceito."
               eyebrow="Tendências"
               tone="#FFAE1F"
             >
@@ -1970,6 +2080,14 @@ export default function DaControlClient() {
                 />
               ) : (
                 <Stack spacing={1.25}>
+                  <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2.5, bgcolor: 'rgba(255,174,31,0.05)' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      O que você faz aqui
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Confere os padrões que emergiram do repertório aceito e verifica se o radar do bot está lendo tendências com coerência.
+                    </Typography>
+                  </Paper>
                   {(data?.trends ?? []).map((trend) => (
                     <Paper key={trend.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" gap={2}>
@@ -1999,8 +2117,9 @@ export default function DaControlClient() {
         </Grid>
 
         <SectionCard
+          sectionId="da-repertorio"
           title="Repertório visual aceito"
-          subtitle="Estas são referências externas que já passaram pela triagem e viraram memória visual reaproveitável da Edro."
+          subtitle="Estas são referências externas que já passaram pela triagem e viraram memória visual reaproveitável da Edro. Aqui você revisa o que o bot já absorveu e calibra a qualidade disso."
           eyebrow="Repertório"
           tone="#13DEB9"
         >
@@ -2036,7 +2155,16 @@ export default function DaControlClient() {
               }
             />
           ) : (
-            <Grid container spacing={2}>
+            <Stack spacing={2}>
+              <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2.5, bgcolor: 'rgba(232,82,25,0.04)' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  O que você faz aqui
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Revisa as referências já aceitas, marca o que foi usado ou aprovado no mundo real e sinaliza o que ficou ruim para recalibrar o bot.
+                </Typography>
+              </Paper>
+              <Grid container spacing={2}>
               {analyzedReferences.map((reference) => {
                 const preview = previewByReferenceId[reference.id];
                 const sourceMeta = getReferenceSourceMeta(preview || {
@@ -2102,7 +2230,8 @@ export default function DaControlClient() {
                   </Grid>
                 );
               })}
-            </Grid>
+              </Grid>
+            </Stack>
           )}
         </SectionCard>
 
