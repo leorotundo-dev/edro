@@ -30,12 +30,6 @@ import {
   IconTargetArrow,
 } from '@tabler/icons-react';
 
-type StoredClient = {
-  id: string;
-  name: string;
-  segment?: string | null;
-};
-
 type Concept = {
   id: string;
   slug: string;
@@ -53,6 +47,7 @@ type Reference = {
   id: string;
   title: string;
   source_url: string;
+  image_url: string | null;
   platform: string | null;
   format: string | null;
   segment: string | null;
@@ -66,6 +61,42 @@ type Reference = {
   confidence_score: number | null;
   rationale: string | null;
   discovered_at: string;
+};
+
+type ManagedReference = Reference & {
+  status: 'discovered' | 'analyzed' | 'rejected' | 'archived';
+  domain: string | null;
+  search_query: string | null;
+  source_kind: string;
+  source_id: string | null;
+  source_name: string | null;
+  source_type: string | null;
+  snippet: string | null;
+  analyzed_at: string | null;
+};
+
+type ReferencePreview = {
+  id: string;
+  title: string | null;
+  source_url: string;
+  image_url: string | null;
+  preview_excerpt: string | null;
+  preview_site_name: string | null;
+  curated: boolean;
+  source_name: string | null;
+  source_type: string | null;
+  domain: string | null;
+};
+
+type ReferenceSource = {
+  id: string;
+  name: string;
+  source_type: 'search' | 'manual' | 'social' | 'rss' | 'site' | 'library';
+  base_url: string | null;
+  domain: string | null;
+  trust_score: number;
+  enabled: boolean;
+  updated_at: string;
 };
 
 type Trend = {
@@ -82,6 +113,60 @@ type Trend = {
   segment: string | null;
 };
 
+type MemoryStats = {
+  concepts: {
+    active: number;
+  };
+  references: {
+    discovered: number;
+    analyzed: number;
+    rejected: number;
+    archived: number;
+    lastDiscoveredAt: string | null;
+    lastAnalyzedAt: string | null;
+  };
+  trends: {
+    snapshots: number;
+    lastSnapshotAt: string | null;
+  };
+  feedback: {
+    used: number;
+    approved: number;
+    rejected: number;
+    saved: number;
+  };
+};
+
+type CanonEntry = {
+  id: string;
+  canon_id: string;
+  canon_slug: string;
+  canon_title: string;
+  slug: string;
+  title: string;
+  summary_short: string | null;
+  definition: string;
+  heuristics: string[];
+  critique_checks: string[];
+  examples: string[];
+  status: 'active' | 'draft' | 'archived';
+  source_confidence: number;
+};
+
+type Canon = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: 'active' | 'draft' | 'archived';
+  sort_order: number;
+  total_entries: number;
+  active_entries: number;
+  draft_entries: number;
+  archived_entries: number;
+  entries: CanonEntry[];
+};
+
 type MemoryResponse = {
   success: boolean;
   degraded?: boolean;
@@ -90,12 +175,110 @@ type MemoryResponse = {
     promptBlock: string;
     critiqueBlock: string;
   };
+  stats: MemoryStats;
   concepts: Concept[];
+  canons: Canon[];
   references: Reference[];
+  pendingReferences: ManagedReference[];
+  rejectedReferences: ManagedReference[];
+  sources: ReferenceSource[];
   trends: Trend[];
 };
 
+type ReferenceDraft = {
+  title: string;
+  source_url: string;
+  platform: string;
+  format: string;
+  segment: string;
+  visual_intent: string;
+  creative_direction: string;
+  rationale: string;
+  status: ManagedReference['status'];
+};
+
+type SourceDraft = {
+  name: string;
+  source_type: ReferenceSource['source_type'];
+  base_url: string;
+  domain: string;
+  trust_score: string;
+  enabled: boolean;
+};
+
 const PLATFORM_OPTIONS = ['Instagram', 'LinkedIn', 'Facebook', 'TikTok', 'YouTube', 'WhatsApp', 'General'];
+const REFERENCE_STATUS_OPTIONS: ManagedReference['status'][] = ['discovered', 'analyzed', 'rejected', 'archived'];
+const SOURCE_TYPE_OPTIONS: ReferenceSource['source_type'][] = ['site', 'search', 'manual', 'social', 'rss', 'library'];
+const CANON_GROUPS = [
+  {
+    key: 'fundamentos_visuais',
+    title: 'Fundamentos da Visão',
+    description: 'Base perceptiva e compositiva do DA da Edro.',
+    coverage: ['Gestalt', 'Grids', 'Hierarquia', 'Teoria das cores', 'Semiótica', 'Linguagem visual'],
+  },
+  {
+    key: 'tipografia',
+    title: 'Domínio Tipográfico',
+    description: 'Tipografia como tom, legibilidade e valor percebido.',
+    coverage: ['Tipografia', 'Sans-serifs', 'Serifas', 'Psicologia das fontes', 'Léxico tipográfico'],
+  },
+  {
+    key: 'historia_estilo',
+    title: 'História e Estilo',
+    description: 'Movimentos e linguagens que o motor usa como repertório histórico.',
+    coverage: ['Bauhaus', 'Design suíço', 'Pós-modernismo', 'Retrô', 'Vanguarda', 'Pastiche'],
+  },
+  {
+    key: 'formatos_aplicacoes',
+    title: 'Formatos e Aplicações',
+    description: 'Como o canon desce para mídia, fotografia e direção executável.',
+    coverage: ['Capas', 'Pôsteres', 'Redes sociais', 'Websites', 'Fotografia', 'UI/UX design'],
+  },
+  {
+    key: 'acessibilidade_critica',
+    title: 'Acessibilidade e Crítica',
+    description: 'Regras de inclusão, clareza e revisão obrigatória.',
+    coverage: ['Acessibilidade', 'Ética', 'Políticas do design', 'Resolução de problemas'],
+  },
+] as const;
+
+const EDRO_SURFACE_BORDER = '1px solid rgba(15, 23, 42, 0.08)';
+const EDRO_SURFACE_SHADOW = '0 24px 48px rgba(15, 23, 42, 0.06)';
+const EDRO_PANEL_BG = 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)';
+
+function EmptySection({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 3,
+        borderRadius: 4,
+        border: '1px dashed rgba(232,82,25,0.24)',
+        bgcolor: 'rgba(255,255,255,0.72)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85)',
+      }}
+    >
+      <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
+        Estado Vazio
+      </Typography>
+      <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.25 }}>
+        {title}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+        {description}
+      </Typography>
+      {action ? <Box sx={{ mt: 1.5 }}>{action}</Box> : null}
+    </Paper>
+  );
+}
 
 function ScoreCard({
   title,
@@ -111,30 +294,42 @@ function ScoreCard({
   color: string;
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
-      <CardContent>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 4,
+        height: '100%',
+        border: `1px solid ${color}26`,
+        background: `linear-gradient(180deg, ${color}12 0%, rgba(255,255,255,0.98) 24%, rgba(248,250,252,0.96) 100%)`,
+        boxShadow: EDRO_SURFACE_SHADOW,
+        overflow: 'hidden',
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
           <Box
             sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 2,
-              bgcolor: `${color}18`,
+              width: 48,
+              height: 48,
+              borderRadius: 3,
+              bgcolor: `${color}20`,
               color,
               display: 'grid',
               placeItems: 'center',
+              border: `1px solid ${color}20`,
+              boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)',
             }}
           >
             {icon}
           </Box>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.08em' }}>
             {title}
           </Typography>
         </Stack>
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.03em' }}>
+        <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1 }}>
           {value}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.1, maxWidth: 220 }}>
           {subtitle}
         </Typography>
       </CardContent>
@@ -147,28 +342,47 @@ function SectionCard({
   subtitle,
   children,
   action,
+  eyebrow,
+  tone = '#E85219',
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   action?: ReactNode;
+  eyebrow?: string;
+  tone?: string;
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
-      <CardContent>
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={2} mb={2}>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 4,
+        border: EDRO_SURFACE_BORDER,
+        background: EDRO_PANEL_BG,
+        boxShadow: EDRO_SURFACE_SHADOW,
+        overflow: 'hidden',
+      }}
+    >
+      <CardContent sx={{ p: { xs: 2.25, md: 2.75 } }}>
+        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={2} mb={2.25}>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            {eyebrow ? (
+              <Typography variant="overline" sx={{ color: tone, fontWeight: 800, letterSpacing: '0.08em' }}>
+                {eyebrow}
+              </Typography>
+            ) : null}
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
               {title}
             </Typography>
             {subtitle ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6, maxWidth: 760 }}>
                 {subtitle}
               </Typography>
             ) : null}
           </Box>
           {action}
         </Stack>
+        <Divider sx={{ mb: 2.25, borderColor: 'rgba(15, 23, 42, 0.06)' }} />
         {children}
       </CardContent>
     </Card>
@@ -198,40 +412,298 @@ function uniqueTags(reference: Reference) {
   ).slice(0, 5);
 }
 
+function toOptionalString(value: string) {
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+function getDomainLabel(url?: string | null) {
+  try {
+    return new URL(String(url || '')).hostname.replace(/^www\./, '');
+  } catch {
+    return String(url || '').trim() || 'fonte desconhecida';
+  }
+}
+
+function getReferenceSourceMeta(reference: {
+  source_url: string;
+  source_name?: string | null;
+  source_type?: string | null;
+  domain?: string | null;
+  curated?: boolean;
+}) {
+  const sourceName = reference.source_name || null;
+  const sourceType = reference.source_type || null;
+  const domain = reference.domain || getDomainLabel(reference.source_url);
+  const isCurated = typeof reference.curated === 'boolean'
+    ? reference.curated
+    : sourceType === 'site' || sourceType === 'library';
+
+  if (isCurated) {
+    return {
+      label: sourceName || domain,
+      helper: 'fonte curada da Edro',
+      color: 'success' as const,
+    };
+  }
+
+  return {
+    label: domain || sourceName || 'web aberta',
+    helper: 'descoberta aberta',
+    color: 'default' as const,
+  };
+}
+
+function createSourceDraft(source?: ReferenceSource | null): SourceDraft {
+  return {
+    name: source?.name || '',
+    source_type: source?.source_type || 'site',
+    base_url: source?.base_url || '',
+    domain: source?.domain || '',
+    trust_score: source ? String(source.trust_score ?? 0.7) : '0.70',
+    enabled: source?.enabled ?? true,
+  };
+}
+
+function ReferenceVisualPreview({
+  title,
+  imageUrl,
+  excerpt,
+}: {
+  title: string;
+  imageUrl?: string | null;
+  excerpt?: string | null;
+}) {
+  if (imageUrl) {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: 3,
+          border: '1px solid rgba(15, 23, 42, 0.08)',
+          bgcolor: 'rgba(15, 23, 42, 0.04)',
+          aspectRatio: '16 / 10',
+          mb: 1.5,
+        }}
+      >
+        <Box
+          component="img"
+          src={imageUrl}
+          alt={title}
+          sx={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        mb: 1.5,
+        borderRadius: 3,
+        bgcolor: 'rgba(15, 23, 42, 0.03)',
+        minHeight: 160,
+        display: 'flex',
+        alignItems: 'center',
+      }}
+    >
+      <Box>
+        <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
+          Preview textual
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+          {excerpt || 'Ainda não conseguimos puxar imagem dessa fonte. A referência segue visível aqui pelo trecho extraído.'}
+        </Typography>
+      </Box>
+    </Paper>
+  );
+}
+
+function renderReferenceDraftFields({
+  draft,
+  onChange,
+  compact = false,
+}: {
+  draft: ReferenceDraft;
+  onChange: (patch: Partial<ReferenceDraft>) => void;
+  compact?: boolean;
+}) {
+  return (
+    <Grid container spacing={1.25}>
+      <Grid size={{ xs: 12, md: compact ? 6 : 8 }}>
+        <TextField fullWidth label="Título" value={draft.title} onChange={(e) => onChange({ title: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: compact ? 6 : 4 }}>
+        <TextField
+          select
+          fullWidth
+          label="Status"
+          value={draft.status}
+          onChange={(e) => onChange({ status: e.target.value as ManagedReference['status'] })}
+          size="small"
+        >
+          {REFERENCE_STATUS_OPTIONS.map((status) => (
+            <MenuItem key={status} value={status}>
+              {status}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid size={{ xs: 12 }}>
+        <TextField fullWidth label="URL" value={draft.source_url} onChange={(e) => onChange({ source_url: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 4 }}>
+        <TextField fullWidth label="Plataforma" value={draft.platform} onChange={(e) => onChange({ platform: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 4 }}>
+        <TextField fullWidth label="Formato" value={draft.format} onChange={(e) => onChange({ format: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 4 }}>
+        <TextField fullWidth label="Segmento" value={draft.segment} onChange={(e) => onChange({ segment: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <TextField
+          fullWidth
+          label="Intenção visual"
+          value={draft.visual_intent}
+          onChange={(e) => onChange({ visual_intent: e.target.value })}
+          size="small"
+        />
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <TextField
+          fullWidth
+          label="Direção criativa"
+          value={draft.creative_direction}
+          onChange={(e) => onChange({ creative_direction: e.target.value })}
+          size="small"
+        />
+      </Grid>
+      <Grid size={{ xs: 12 }}>
+        <TextField
+          fullWidth
+          multiline
+          minRows={compact ? 2 : 3}
+          label="Racional"
+          value={draft.rationale}
+          onChange={(e) => onChange({ rationale: e.target.value })}
+          size="small"
+        />
+      </Grid>
+    </Grid>
+  );
+}
+
+function renderSourceDraftFields({
+  draft,
+  onChange,
+}: {
+  draft: SourceDraft;
+  onChange: (patch: Partial<SourceDraft>) => void;
+}) {
+  return (
+    <Grid container spacing={1.25}>
+      <Grid size={{ xs: 12, md: 5 }}>
+        <TextField fullWidth label="Nome" value={draft.name} onChange={(e) => onChange({ name: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 3 }}>
+        <TextField
+          select
+          fullWidth
+          label="Tipo"
+          value={draft.source_type}
+          onChange={(e) => onChange({ source_type: e.target.value as ReferenceSource['source_type'] })}
+          size="small"
+        >
+          {SOURCE_TYPE_OPTIONS.map((type) => (
+            <MenuItem key={type} value={type}>
+              {type}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid size={{ xs: 12, md: 2 }}>
+        <TextField fullWidth label="Trust" value={draft.trust_score} onChange={(e) => onChange({ trust_score: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 2 }}>
+        <TextField
+          select
+          fullWidth
+          label="Ativa"
+          value={draft.enabled ? 'true' : 'false'}
+          onChange={(e) => onChange({ enabled: e.target.value === 'true' })}
+          size="small"
+        >
+          <MenuItem value="true">Sim</MenuItem>
+          <MenuItem value="false">Não</MenuItem>
+        </TextField>
+      </Grid>
+      <Grid size={{ xs: 12, md: 7 }}>
+        <TextField fullWidth label="Base URL" value={draft.base_url} onChange={(e) => onChange({ base_url: e.target.value })} size="small" />
+      </Grid>
+      <Grid size={{ xs: 12, md: 5 }}>
+        <TextField fullWidth label="Domain" value={draft.domain} onChange={(e) => onChange({ domain: e.target.value })} size="small" />
+      </Grid>
+    </Grid>
+  );
+}
+
 export default function DaControlClient() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'discover' | 'refresh' | null>(null);
+  const [showApplicationFilters, setShowApplicationFilters] = useState(false);
   const [error, setError] = useState<string>('');
   const [warning, setWarning] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [activeClient, setActiveClient] = useState<StoredClient | null>(null);
   const [clientId, setClientId] = useState<string>('');
   const [platform, setPlatform] = useState<string>('Instagram');
   const [segment, setSegment] = useState<string>('');
   const [category, setCategory] = useState<string>('social media');
   const [mood, setMood] = useState<string>('');
   const [data, setData] = useState<MemoryResponse | null>(null);
+  const [previewByReferenceId, setPreviewByReferenceId] = useState<Record<string, ReferencePreview>>({});
+  const [savingReferenceId, setSavingReferenceId] = useState<string | null>(null);
+  const [manualReference, setManualReference] = useState<ReferenceDraft>({
+    title: '',
+    source_url: '',
+    platform: '',
+    format: '',
+    segment: '',
+    visual_intent: '',
+    creative_direction: '',
+    rationale: '',
+    status: 'discovered',
+  });
+  const [creatingReference, setCreatingReference] = useState(false);
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  const [sourceDrafts, setSourceDrafts] = useState<Record<string, SourceDraft>>({});
+  const [savingSourceId, setSavingSourceId] = useState<string | null>(null);
+  const [newSource, setNewSource] = useState<SourceDraft>(createSourceDraft());
+  const [canonQuery, setCanonQuery] = useState<string>('');
 
   useEffect(() => {
     const fromQuery = searchParams?.get('clientId') || '';
     if (fromQuery) {
       setClientId(fromQuery);
+      setShowApplicationFilters(true);
       return;
     }
-    try {
-      const selected = JSON.parse(window.localStorage.getItem('edro_selected_clients') || '[]') as StoredClient[];
-      const activeId = window.localStorage.getItem('edro_active_client_id') || '';
-      const found = selected.find((client) => client.id === activeId) || selected[0] || null;
-      setActiveClient(found);
-      if (found?.id) setClientId(found.id);
-      if (found?.segment) {
-        setSegment(found.segment);
-        setCategory(found.segment);
-      }
-    } catch {
-      // ignore
-    }
+
+    // O motor de DA é supra-cliente. Não herda client/segment/category do contexto
+    // operacional salvo no navegador; qualquer recorte aqui deve ser explícito.
+    setClientId('');
+    setSegment('');
+    setCategory('social media');
+    setShowApplicationFilters(false);
   }, [searchParams]);
 
   const load = useCallback(async () => {
@@ -267,14 +739,15 @@ export default function DaControlClient() {
     setError('');
     setSuccess('');
     try {
-      const response = await apiPost<{ inserted: number; queries: string[] }>('/studio/creative/da-memory/discover', {
+      const response = await apiPost<{ inserted: number; queries: string[]; stats?: MemoryStats }>('/studio/creative/da-memory/discover', {
         client_id: clientId || undefined,
         platform,
         segment: segment || undefined,
         category: category || undefined,
         mood: mood || undefined,
       });
-      setSuccess(`Descoberta executada. ${response.inserted ?? 0} referências salvas.`);
+      const queued = response.stats?.references?.discovered ?? 0;
+      setSuccess(`Descoberta executada. ${response.inserted ?? 0} referências salvas. Fila atual: ${queued}.`);
       await load();
     } catch (err: any) {
       setError(err?.message || 'Falha ao buscar referências');
@@ -288,13 +761,18 @@ export default function DaControlClient() {
     setError('');
     setSuccess('');
     try {
-      const response = await apiPost<{ analyzed: number; snapshots: number }>('/studio/creative/da-memory/refresh', {
+      const response = await apiPost<{ analyzed: number; snapshots: number; stats?: MemoryStats }>('/studio/creative/da-memory/refresh', {
         client_id: clientId || undefined,
+        platform,
+        segment: segment || undefined,
         limit: 12,
         window_days: 30,
         recent_days: 7,
       });
-      setSuccess(`Memória atualizada. ${response.analyzed ?? 0} referências analisadas, ${response.snapshots ?? 0} snapshots de tendência.`);
+      const remainingQueue = response.stats?.references?.discovered ?? 0;
+      setSuccess(
+        `Memória atualizada. ${response.analyzed ?? 0} referências analisadas, ${response.snapshots ?? 0} snapshots de tendência. Fila restante: ${remainingQueue}.`,
+      );
       await load();
     } catch (err: any) {
       setError(err?.message || 'Falha ao recalcular memória');
@@ -323,61 +801,408 @@ export default function DaControlClient() {
     }
   };
 
+  const ensureReferencePreview = useCallback(async (reference: Reference | ManagedReference) => {
+    if (previewByReferenceId[reference.id]) return;
+    if (reference.image_url) {
+      setPreviewByReferenceId((current) => ({
+        ...current,
+        [reference.id]: {
+          id: reference.id,
+          title: reference.title,
+          source_url: reference.source_url,
+          image_url: reference.image_url,
+          preview_excerpt: null,
+          preview_site_name: null,
+          curated: false,
+          source_name: null,
+          source_type: null,
+          domain: getDomainLabel(reference.source_url),
+        },
+      }));
+      return;
+    }
+
+    try {
+      const response = await apiGet<{ success: boolean; preview: ReferencePreview }>(
+        `/studio/creative/da-memory/references/${reference.id}/preview`,
+      );
+      setPreviewByReferenceId((current) => ({
+        ...current,
+        [reference.id]: response.preview,
+      }));
+    } catch {
+      // best-effort: keep card renderable without preview
+    }
+  }, [previewByReferenceId]);
+
+  const patchJson = useCallback(async <T,>(path: string, body: Record<string, unknown>) => {
+    const response = await fetch(`/api/proxy${path}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error((payload as any)?.error || `Falha em ${path}`);
+    }
+    return payload as T;
+  }, []);
+
+  const quickUpdateReferenceStatus = useCallback(async (referenceId: string, status: ManagedReference['status']) => {
+    setSavingReferenceId(referenceId);
+    setError('');
+    setSuccess('');
+    try {
+      await patchJson<{ success: boolean; reference: ManagedReference }>(`/studio/creative/da-memory/references/${referenceId}`, {
+        status,
+      });
+      if (status === 'analyzed' || status === 'rejected') {
+        await apiPost('/studio/creative/da-memory/feedback', {
+          client_id: clientId || undefined,
+          reference_id: referenceId,
+          event_type: status === 'analyzed' ? 'approved' : 'rejected',
+          metadata: {
+            source: 'studio_da_training_queue',
+            platform,
+            segment,
+          },
+        }).catch(() => {});
+      }
+      setSuccess(
+        status === 'analyzed'
+          ? 'Referência aceita e incorporada ao repertório vivo.'
+          : status === 'rejected'
+          ? 'Referência rejeitada e removida da fila de treino.'
+          : `Referência movida para ${status}.`,
+      );
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao atualizar status da referência');
+    } finally {
+      setSavingReferenceId(null);
+    }
+  }, [load, patchJson]);
+
+  const createManualReference = useCallback(async () => {
+    setCreatingReference(true);
+    setError('');
+    setSuccess('');
+    try {
+      await apiPost<{ success: boolean; reference: ManagedReference }>('/studio/creative/da-memory/references', {
+        client_id: clientId || undefined,
+        title: toOptionalString(manualReference.title),
+        source_url: manualReference.source_url.trim(),
+        platform: toOptionalString(manualReference.platform),
+        format: toOptionalString(manualReference.format),
+        segment: toOptionalString(manualReference.segment) || toOptionalString(segment),
+        visual_intent: toOptionalString(manualReference.visual_intent),
+        creative_direction: toOptionalString(manualReference.creative_direction),
+        rationale: toOptionalString(manualReference.rationale),
+        status: manualReference.status,
+      });
+      setSuccess('Referência manual criada.');
+      setManualReference({
+        title: '',
+        source_url: '',
+        platform: '',
+        format: '',
+        segment: '',
+        visual_intent: '',
+        creative_direction: '',
+        rationale: '',
+        status: 'discovered',
+      });
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao criar referência manual');
+    } finally {
+      setCreatingReference(false);
+    }
+  }, [clientId, load, manualReference, segment]);
+
+  const beginEditSource = useCallback((source: ReferenceSource) => {
+    setEditingSourceId(source.id);
+    setSourceDrafts((current) => ({
+      ...current,
+      [source.id]: current[source.id] || createSourceDraft(source),
+    }));
+  }, []);
+
+  const saveSourceDraft = useCallback(async (sourceId?: string | null) => {
+    const draft = sourceId ? sourceDrafts[sourceId] : newSource;
+    if (!draft) return;
+    const payload = {
+      name: draft.name.trim(),
+      source_type: draft.source_type,
+      base_url: toOptionalString(draft.base_url),
+      domain: toOptionalString(draft.domain),
+      trust_score: Number(draft.trust_score || '0.70'),
+      enabled: draft.enabled,
+    };
+
+    setSavingSourceId(sourceId || 'new');
+    setError('');
+    setSuccess('');
+    try {
+      if (sourceId) {
+        await patchJson<{ success: boolean; source: ReferenceSource }>(`/studio/creative/da-memory/sources/${sourceId}`, payload);
+        setEditingSourceId(null);
+        setSuccess('Fonte atualizada.');
+      } else {
+        await apiPost<{ success: boolean; source: ReferenceSource }>('/studio/creative/da-memory/sources', payload);
+        setNewSource(createSourceDraft());
+        setSuccess('Fonte criada.');
+      }
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao salvar fonte');
+    } finally {
+      setSavingSourceId(null);
+    }
+  }, [load, newSource, patchJson, sourceDrafts]);
+
   const topTrend = useMemo(() => data?.trends?.[0] ?? null, [data]);
+  const stats = data?.stats;
+  const pendingReferences = data?.pendingReferences ?? [];
+  const rejectedReferences = data?.rejectedReferences ?? [];
+  const analyzedReferences = data?.references ?? [];
+  const sources = data?.sources ?? [];
+  const canons = data?.canons ?? [];
+  const activeSources = useMemo(() => sources.filter((source) => source.enabled).length, [sources]);
+  const canonGroups = useMemo(
+    () =>
+      CANON_GROUPS.map((group) => ({
+        ...group,
+        canon: canons.find((canon) => canon.slug === group.key) ?? null,
+        concepts: (data?.concepts ?? []).filter((concept) =>
+          group.key === 'formatos_aplicacoes'
+            ? concept.category === 'formatos_aplicacoes' || concept.category === 'formatos_midias'
+            : concept.category === group.key,
+        ),
+      })),
+    [canons, data?.concepts],
+  );
+  const populatedCanonGroups = useMemo(
+    () => canonGroups.filter((group) => (group.canon?.active_entries ?? group.concepts.length) > 0).length,
+    [canonGroups],
+  );
+  const filteredCanonGroups = useMemo(() => {
+    const normalizedQuery = canonQuery.trim().toLowerCase();
+    if (!normalizedQuery) return canonGroups;
+    return canonGroups
+      .map((group) => {
+        const filteredEntries = (group.canon?.entries ?? []).filter((entry) =>
+          [entry.title, entry.slug, entry.definition, ...(entry.heuristics || []), ...(entry.examples || [])]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedQuery),
+        );
+        const filteredConcepts = group.concepts.filter((concept) =>
+          [concept.title, concept.slug, concept.definition, ...(concept.heuristics || []), ...(concept.examples || [])]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedQuery),
+        );
+        const coverageMatch = group.coverage.some((item) => item.toLowerCase().includes(normalizedQuery));
+        return {
+          ...group,
+          canon: group.canon ? { ...group.canon, entries: filteredEntries } : null,
+          concepts: filteredConcepts,
+          hidden: !coverageMatch && !filteredEntries.length && !filteredConcepts.length,
+        };
+      })
+      .filter((group) => !group.hidden);
+  }, [canonGroups, canonQuery]);
+
+  useEffect(() => {
+    const candidates = [...pendingReferences.slice(0, 12), ...analyzedReferences.slice(0, 8)];
+    for (const reference of candidates) {
+      void ensureReferencePreview(reference);
+    }
+  }, [analyzedReferences, ensureReferencePreview, pendingReferences]);
+
+  const nextStep = useMemo(() => {
+    if (!stats) return 'Carregando status do pipeline.';
+    if ((canons.length === 0) && (data?.concepts?.length ?? 0) === 0) {
+      return 'O canon ainda não carregou para este recorte. Recarregue a tela; se continuar zerado, ainda há problema de setup.';
+    }
+    if (stats.references.discovered === 0 && stats.references.analyzed === 0) {
+      return 'Próximo passo: buscar referências para enfileirar repertório visual neste recorte.';
+    }
+    if (stats.references.discovered > 0 && stats.references.analyzed === 0) {
+      return 'Há referências na fila, mas nenhuma analisada ainda. Rode Recalcular para transformar descoberta em memória útil.';
+    }
+    if (stats.references.analyzed > 0 && stats.trends.snapshots === 0) {
+      return 'As referências já foram analisadas. Falta recalcular os snapshots para o Trend Radar começar a aparecer.';
+    }
+    return 'O pipeline está ativo. O próximo ganho vem de buscar mais referências e alimentar feedback humano nas melhores.';
+  }, [canons.length, data?.concepts?.length, stats]);
 
   return (
-    <Box sx={{ maxWidth: 1440, mx: 'auto', px: { xs: 2, md: 4 }, py: 4 }}>
+    <Box
+      sx={{
+        maxWidth: 1440,
+        mx: 'auto',
+        px: { xs: 2, md: 4 },
+        py: 4,
+        position: 'relative',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: '0 16px auto',
+          height: 260,
+          borderRadius: 6,
+          background:
+            'radial-gradient(circle at top left, rgba(232,82,25,0.18), transparent 42%), radial-gradient(circle at top right, rgba(93,135,255,0.18), transparent 44%), linear-gradient(180deg, rgba(255,246,241,0.9) 0%, rgba(255,255,255,0) 100%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        },
+      }}
+    >
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
-            Motor de DA
-          </Typography>
-          <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.04em', mt: 0.5 }}>
-            Direção de Arte Intelligence
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mt: 1, maxWidth: 860 }}>
-            Painel de governança do cérebro de direção de arte da Edro. Aqui você controla o canon, aciona a
-            descoberta web, acompanha as tendências e alimenta o sistema com feedback humano.
-          </Typography>
-        </Box>
+        <Card
+          variant="outlined"
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            borderRadius: 5,
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background:
+              'linear-gradient(135deg, rgba(255,248,244,0.96) 0%, rgba(255,255,255,0.98) 42%, rgba(244,248,255,0.96) 100%)',
+            boxShadow: '0 28px 60px rgba(15, 23, 42, 0.08)',
+            overflow: 'hidden',
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}>
+            <Grid container spacing={3} alignItems="stretch">
+              <Grid size={{ xs: 12, lg: 7 }}>
+                <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 900, letterSpacing: '0.12em' }}>
+                  Edro Canon Lab
+                </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.05em', mt: 0.5, maxWidth: 780 }}>
+                  Direção de Arte Intelligence
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mt: 1.2, maxWidth: 760, fontSize: '1.02rem' }}>
+                  O cérebro visual da Edro aprende aqui. Esta área existe para ensinar canons, curar repertório,
+                  detectar tendências e calibrar o julgamento do bot antes da aplicação em cliente.
+                </Typography>
+                <Stack direction="row" gap={1} flexWrap="wrap" mt={2}>
+                  <Chip size="small" label="Canon da Edro" sx={{ bgcolor: 'rgba(232,82,25,0.10)', color: '#E85219' }} />
+                  <Chip size="small" label="Repertório vivo" sx={{ bgcolor: 'rgba(19,222,185,0.10)', color: '#0f766e' }} />
+                  <Chip size="small" label="Trend radar" sx={{ bgcolor: 'rgba(255,174,31,0.12)', color: '#b45309' }} />
+                  <Chip size="small" label="Feedback loop" sx={{ bgcolor: 'rgba(93,135,255,0.10)', color: '#3659c9' }} />
+                </Stack>
+              </Grid>
+              <Grid size={{ xs: 12, lg: 5 }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    height: '100%',
+                    p: 2.25,
+                    borderRadius: 4,
+                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                    bgcolor: 'rgba(255,255,255,0.78)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9)',
+                  }}
+                >
+                  <Typography variant="overline" sx={{ color: '#5D87FF', fontWeight: 800, letterSpacing: '0.08em' }}>
+                    Estado do Treino
+                  </Typography>
+                  <Stack spacing={1.25} mt={1}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Pilares populados</Typography>
+                      <Chip size="small" color="primary" label={`${populatedCanonGroups}/${CANON_GROUPS.length}`} />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Fila de referências</Typography>
+                      <Chip size="small" color="warning" variant="outlined" label={stats ? `${stats.references.discovered}` : '...'} />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Repertório analisado</Typography>
+                      <Chip size="small" color="success" variant="outlined" label={stats ? `${stats.references.analyzed}` : '...'} />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Snapshots ativos</Typography>
+                      <Chip size="small" variant="outlined" label={stats ? `${stats.trends.snapshots}` : '...'} />
+                    </Stack>
+                  </Stack>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      mt: 2,
+                      p: 1.5,
+                      borderRadius: 3,
+                      border: '1px dashed rgba(232,82,25,0.22)',
+                      bgcolor: 'rgba(232,82,25,0.04)',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#E85219' }}>
+                      Próximo movimento
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {nextStep}
+                    </Typography>
+                  </Paper>
+                </Paper>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
 
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        {warning ? <Alert severity="warning">{warning}</Alert> : null}
-        {success ? <Alert severity="success">{success}</Alert> : null}
+        {error ? <Alert severity="error" sx={{ zIndex: 1 }}>{error}</Alert> : null}
+        {warning ? <Alert severity="warning" sx={{ zIndex: 1 }}>{warning}</Alert> : null}
+        {success ? <Alert severity="success" sx={{ zIndex: 1 }}>{success}</Alert> : null}
 
-        <Grid container spacing={2.5}>
-          <Grid size={{ xs: 12, md: 3 }}>
+        <Grid container spacing={2.5} sx={{ position: 'relative', zIndex: 1 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Canon ativo"
-              value={data?.concepts?.length ?? 0}
-              subtitle="conceitos relevantes no recorte atual"
+              value={canons.length ? canons.reduce((sum, canon) => sum + canon.active_entries, 0) : data?.concepts?.length ?? 0}
+              subtitle={
+                canons.length
+                  ? `${populatedCanonGroups}/${CANON_GROUPS.length} pilares já populados`
+                  : 'conceitos-base do DA da Edro'
+              }
               icon={<IconBrain size={20} />}
               color="#5D87FF"
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Memória de referência"
-              value={data?.references?.length ?? 0}
-              subtitle="casos visuais analisados e prontos para uso"
+              value={stats?.references?.analyzed ?? data?.references?.length ?? 0}
+              subtitle={
+                stats
+                  ? `${stats.references.discovered} na fila • ${stats.references.rejected} descartadas`
+                  : 'casos visuais analisados e prontos para uso'
+              }
               icon={<IconEyeSearch size={20} />}
               color="#13DEB9"
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
               title="Trend radar"
-              value={data?.trends?.length ?? 0}
-              subtitle={topTrend ? `principal sinal: ${topTrend.tag}` : 'nenhum snapshot no recorte'}
+              value={stats?.trends?.snapshots ?? data?.trends?.length ?? 0}
+              subtitle={
+                topTrend
+                  ? `principal sinal: ${topTrend.tag}`
+                  : stats?.references?.analyzed
+                  ? 'aguardando snapshots no recorte'
+                  : 'nenhum snapshot no recorte'
+              }
               icon={<IconFlame size={20} />}
               color="#FFAE1F"
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
-              title="Cliente em foco"
-              value={activeClient?.name || (clientId ? 'Selecionado' : 'Global')}
-              subtitle={segment || activeClient?.segment || 'sem segmentação'}
+              title="Fontes ativas"
+              value={activeSources}
+              subtitle={sources.length ? `${sources.length} fontes cadastradas na Edro` : 'cadastre sites de referência da Edro'}
               icon={<IconTargetArrow size={20} />}
               color="#FA896B"
             />
@@ -385,8 +1210,169 @@ export default function DaControlClient() {
         </Grid>
 
         <SectionCard
-          title="Controle do motor"
-          subtitle="Ajuste o recorte, force ingestão e reanalise o que o sistema já aprendeu."
+          title="Curadoria de referências"
+          subtitle="Aqui você vê a referência dentro da Edro e decide se ela ensina o bot ou se sai do repertório."
+          eyebrow="Ingestão"
+          tone="#13DEB9"
+        >
+          {loading ? (
+            <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+          ) : (
+            <Stack spacing={2}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2} mb={2}>
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Fila para ensino
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Referências recém-capturadas. O gesto principal aqui é binário: entra no repertório da Edro ou sai.
+                    </Typography>
+                  </Box>
+                  <Chip color="warning" variant="outlined" label={`${pendingReferences.length} na fila`} />
+                </Stack>
+
+                {!pendingReferences.length ? (
+                  <EmptySection
+                    title="Nenhuma referência descoberta pendente."
+                    description="Quando a descoberta web enfileirar novos casos, eles aparecem aqui para revisão rápida antes da análise."
+                  />
+                ) : (
+                  <Grid container spacing={2}>
+                    {pendingReferences.map((reference) => {
+                      const isSaving = savingReferenceId === reference.id;
+                      const preview = previewByReferenceId[reference.id];
+                      const sourceMeta = getReferenceSourceMeta(preview || reference);
+
+                      return (
+                        <Grid key={reference.id} size={{ xs: 12, xl: 6 }}>
+                          <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                            <Stack direction="row" justifyContent="space-between" gap={2} mb={1}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  {reference.title || 'Sem título'}
+                                </Typography>
+                                <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                                  <Chip size="small" color={sourceMeta.color} variant="outlined" label={sourceMeta.helper} />
+                                  <Chip size="small" variant="outlined" label={sourceMeta.label} />
+                                  {reference.search_query ? <Chip size="small" variant="outlined" label={reference.search_query} /> : null}
+                                  <Chip size="small" variant="outlined" label={timeAgo(reference.discovered_at)} />
+                                </Stack>
+                              </Box>
+                              <Stack direction="row" gap={1} flexWrap="wrap">
+                                <Chip size="small" color="warning" label="na fila" />
+                                <Button
+                                  size="small"
+                                  component={Link}
+                                  href={reference.source_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  endIcon={<IconArrowUpRight size={14} />}
+                                >
+                                  Ver fonte
+                                </Button>
+                              </Stack>
+                            </Stack>
+
+                            <ReferenceVisualPreview
+                              title={preview?.title || reference.title || 'Referência'}
+                              imageUrl={preview?.image_url || reference.image_url}
+                              excerpt={preview?.preview_excerpt || reference.snippet || reference.rationale}
+                            />
+
+                            <Typography variant="body2" color="text.secondary">
+                              {preview?.preview_excerpt || reference.snippet || reference.rationale || 'Sem resumo salvo nesta descoberta.'}
+                            </Typography>
+                            <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
+                              <Chip size="small" label={reference.platform || 'geral'} />
+                              {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
+                              {reference.visual_intent ? <Chip size="small" variant="outlined" label={reference.visual_intent} /> : null}
+                            </Stack>
+                            <Divider sx={{ my: 1.5 }} />
+                            <Stack direction="row" gap={1} flexWrap="wrap">
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={() => void quickUpdateReferenceStatus(reference.id, 'analyzed')}
+                                disabled={isSaving}
+                              >
+                                Aceitar
+                              </Button>
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => void quickUpdateReferenceStatus(reference.id, 'rejected')}
+                                disabled={isSaving}
+                              >
+                                Rejeitar
+                              </Button>
+                            </Stack>
+                          </Paper>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+                )}
+              </Paper>
+
+              {!!rejectedReferences.length && (
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                  <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2} mb={2}>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Descartadas
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Casos que saíram do repertório ativo, mas ainda podem ser revisados.
+                      </Typography>
+                    </Box>
+                    <Chip color="default" variant="outlined" label={`${rejectedReferences.length} descartadas`} />
+                  </Stack>
+                  <Grid container spacing={2}>
+                    {rejectedReferences.map((reference) => (
+                      <Grid key={reference.id} size={{ xs: 12, lg: 6 }}>
+                        <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2.5, bgcolor: 'rgba(15, 23, 42, 0.02)', height: '100%' }}>
+                          <Stack direction="row" justifyContent="space-between" gap={2}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                {reference.title || 'Sem título'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {reference.domain || reference.source_name || 'fonte não classificada'} • {timeAgo(reference.discovered_at)}
+                              </Typography>
+                            </Box>
+                            <Stack direction="row" gap={1}>
+                              <Button size="small" component={Link} href={reference.source_url} target="_blank" rel="noopener noreferrer">
+                                Abrir
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={() => void quickUpdateReferenceStatus(reference.id, 'discovered')}
+                                disabled={savingReferenceId === reference.id}
+                              >
+                                Restaurar
+                              </Button>
+                            </Stack>
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            {reference.snippet || reference.rationale || 'Sem observação salva.'}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Paper>
+              )}
+            </Stack>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Treinamento do bot DA"
+          subtitle="Ensine e calibre o cérebro da Edro. Use recorte de aplicação só quando quiser testar um contexto específico."
+          eyebrow="Calibração"
+          tone="#5D87FF"
           action={
             <Stack direction="row" spacing={1}>
               <Button
@@ -411,15 +1397,6 @@ export default function DaControlClient() {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
-                fullWidth
-                label="Client ID"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="id do cliente"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
-              <TextField
                 select
                 fullWidth
                 label="Plataforma"
@@ -431,16 +1408,7 @@ export default function DaControlClient() {
                 ))}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
-              <TextField
-                fullWidth
-                label="Segmento"
-                value={segment}
-                onChange={(e) => setSegment(e.target.value)}
-                placeholder="varejo, saúde, industrial..."
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Categoria de busca"
@@ -449,7 +1417,7 @@ export default function DaControlClient() {
                 placeholder="social media, retail, editorial..."
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 5 }}>
               <TextField
                 fullWidth
                 label="Mood opcional"
@@ -458,7 +1426,7 @@ export default function DaControlClient() {
                 placeholder="premium, clean, bold, documentary..."
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 8 }}>
+            <Grid size={{ xs: 12 }}>
               <Paper
                 variant="outlined"
                 sx={{
@@ -469,13 +1437,105 @@ export default function DaControlClient() {
                 }}
               >
                 <Typography variant="caption" color="text.secondary">
-                  O motor combina três camadas:
+                  O motor treina em quatro camadas principais:
                 </Typography>
                 <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
-                  <Chip size="small" label="Design Canon" />
+                  <Chip size="small" label="Canon Edro" />
                   <Chip size="small" label="Reference Memory" />
-                  <Chip size="small" label="Trend Memory" />
+                  <Chip size="small" label="Trend Radar" />
                   <Chip size="small" label="Feedback Loop" />
+                  {(clientId || segment) ? <Chip size="small" color="warning" variant="outlined" label="Recorte opcional ativo" /> : null}
+                </Stack>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.75,
+                  borderRadius: 2.5,
+                  bgcolor: 'rgba(15, 23, 42, 0.02)',
+                }}
+              >
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={1.5} alignItems={{ md: 'center' }}>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Recorte opcional de aplicação
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Cliente e segmento não treinam o cérebro da Edro. Eles só testam como o DA se comporta em um contexto específico.
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" gap={1} flexWrap="wrap">
+                    {(clientId || segment) ? (
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => {
+                          setClientId('');
+                          setSegment('');
+                        }}
+                      >
+                        Limpar recorte
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => setShowApplicationFilters((current) => !current)}
+                    >
+                      {showApplicationFilters ? 'Ocultar recorte' : 'Aplicar recorte'}
+                    </Button>
+                  </Stack>
+                </Stack>
+                {showApplicationFilters ? (
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <TextField
+                        fullWidth
+                        label="Cliente opcional"
+                        value={clientId}
+                        onChange={(e) => setClientId(e.target.value)}
+                        placeholder="id do cliente para teste"
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <TextField
+                        fullWidth
+                        label="Segmento opcional"
+                        value={segment}
+                        onChange={(e) => setSegment(e.target.value)}
+                        placeholder="varejo, saúde, industrial..."
+                      />
+                    </Grid>
+                  </Grid>
+                ) : null}
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.75,
+                  borderRadius: 2.5,
+                  bgcolor: 'rgba(232,82,25,0.03)',
+                }}
+              >
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={1.5}>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#E85219' }}>
+                      Próximo passo recomendado
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {nextStep}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+                    <Chip size="small" label={`Descobertas ${stats?.references.discovered ?? 0}`} />
+                    <Chip size="small" label={`Analisadas ${stats?.references.analyzed ?? 0}`} />
+                    <Chip size="small" label={`Snapshots ${stats?.trends.snapshots ?? 0}`} />
+                    <Chip size="small" label={`Feedback +${(stats?.feedback.approved ?? 0) + (stats?.feedback.used ?? 0)}`} />
+                  </Stack>
                 </Stack>
               </Paper>
             </Grid>
@@ -483,31 +1543,287 @@ export default function DaControlClient() {
         </SectionCard>
 
         <Grid container spacing={2.5}>
+          <Grid size={{ xs: 12, lg: 5 }}>
+            <SectionCard
+              title="Inclusão manual"
+              subtitle="Cadastre uma referência específica quando você já souber qual caso precisa entrar na memória."
+              eyebrow="Entrada Direta"
+              tone="#E85219"
+            >
+              <Stack spacing={1.5}>
+                {renderReferenceDraftFields({
+                  draft: manualReference,
+                  onChange: (patch) => setManualReference((current) => ({ ...current, ...patch })),
+                })}
+                <Stack direction="row" justifyContent="flex-end">
+                  <Button
+                    variant="contained"
+                    onClick={() => void createManualReference()}
+                    disabled={creatingReference || !manualReference.source_url.trim()}
+                  >
+                    {creatingReference ? 'Criando...' : 'Incluir referência'}
+                  </Button>
+                </Stack>
+              </Stack>
+            </SectionCard>
+          </Grid>
+          <Grid size={{ xs: 12, lg: 7 }}>
+            <SectionCard
+              title="Sites e fontes de referência"
+              subtitle="Cadastre os domínios que o motor deve privilegiar nas buscas e ajuste o peso de confiança."
+              eyebrow="Fontes"
+              tone="#FA896B"
+            >
+              <Stack spacing={2}>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: 'rgba(93,135,255,0.03)' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+                    Nova fonte
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    {renderSourceDraftFields({
+                      draft: newSource,
+                      onChange: (patch) => setNewSource((current) => ({ ...current, ...patch })),
+                    })}
+                    <Stack direction="row" justifyContent="flex-end">
+                      <Button
+                        variant="contained"
+                        onClick={() => void saveSourceDraft(null)}
+                        disabled={savingSourceId === 'new' || !newSource.name.trim()}
+                      >
+                        {savingSourceId === 'new' ? 'Salvando...' : 'Adicionar site'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Paper>
+
+                {!sources.length ? (
+                  <EmptySection
+                    title="Nenhuma fonte cadastrada."
+                    description="Cadastre sites de referência para o motor priorizar domínios específicos durante a descoberta."
+                  />
+                ) : (
+                  <Stack spacing={1.5}>
+                    {sources.map((source) => {
+                      const draft = sourceDrafts[source.id] || createSourceDraft(source);
+                      const isEditing = editingSourceId === source.id;
+                      const isSaving = savingSourceId === source.id;
+
+                      return (
+                        <Paper key={source.id} variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                          <Stack direction="row" justifyContent="space-between" gap={2} mb={1.5}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                {source.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {source.domain || source.base_url || 'sem domínio'} • atualizado {timeAgo(source.updated_at)}
+                              </Typography>
+                            </Box>
+                            <Stack direction="row" gap={1} flexWrap="wrap">
+                              <Chip size="small" label={source.source_type} />
+                              <Chip
+                                size="small"
+                                color={source.enabled ? 'success' : 'default'}
+                                variant="outlined"
+                                label={source.enabled ? 'ativa' : 'pausada'}
+                              />
+                              <Chip size="small" variant="outlined" label={`trust ${Number(source.trust_score || 0).toFixed(2)}`} />
+                            </Stack>
+                          </Stack>
+
+                          {isEditing ? (
+                            <Stack spacing={1.5}>
+                              {renderSourceDraftFields({
+                                draft,
+                                onChange: (patch) =>
+                                  setSourceDrafts((current) => ({
+                                    ...current,
+                                    [source.id]: {
+                                      ...(current[source.id] || createSourceDraft(source)),
+                                      ...patch,
+                                    },
+                                  })),
+                              })}
+                              <Stack direction="row" gap={1}>
+                                <Button variant="contained" size="small" onClick={() => void saveSourceDraft(source.id)} disabled={isSaving}>
+                                  {isSaving ? 'Salvando...' : 'Salvar'}
+                                </Button>
+                                <Button variant="outlined" size="small" onClick={() => setEditingSourceId(null)} disabled={isSaving}>
+                                  Cancelar
+                                </Button>
+                              </Stack>
+                            </Stack>
+                          ) : (
+                            <Stack direction="row" gap={1} flexWrap="wrap">
+                              {source.base_url ? <Chip size="small" variant="outlined" label={source.base_url} /> : null}
+                              <Button size="small" variant="outlined" onClick={() => beginEditSource(source)}>
+                                Editar
+                              </Button>
+                              {source.base_url ? (
+                                <Button
+                                  size="small"
+                                  component={Link}
+                                  href={source.base_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  endIcon={<IconArrowUpRight size={14} />}
+                                >
+                                  Abrir site
+                                </Button>
+                              ) : null}
+                            </Stack>
+                          )}
+                        </Paper>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Stack>
+            </SectionCard>
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
-              title="Canon e critérios"
-              subtitle="Conceitos que o sistema usa como linguagem-base para geração e crítica."
+              title="Teoria, estudo e canons da Edro"
+              subtitle="Esta é a biblioteca supra-cliente onde a Edro aprofunda fundamentos, tipografia, história, formatos e crítica para ensinar o bot DA."
+              eyebrow="Canon"
+              tone="#5D87FF"
+              action={(
+                <TextField
+                  size="small"
+                  label="Buscar na teoria"
+                  value={canonQuery}
+                  onChange={(e) => setCanonQuery(e.target.value)}
+                  placeholder="gestalt, bauhaus, tipografia..."
+                  sx={{ minWidth: { xs: 180, md: 260 } }}
+                />
+              )}
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+              ) : !(canons.length || data?.concepts?.length) ? (
+                <EmptySection
+                  title="Nenhum conceito retornou para este recorte."
+                  description="O canon base deveria aparecer automaticamente. Se isso continuar zerado após o refresh, ainda há problema de provisionamento ou filtro agressivo demais."
+                />
               ) : (
                 <Stack spacing={1.5}>
-                  {(data?.concepts ?? []).map((concept) => (
-                    <Paper key={concept.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
+                      bgcolor: 'rgba(93,135,255,0.03)',
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Como a Edro ensina o bot
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Primeiro a Edro define teoria, critérios e repertório. Depois o motor absorve referências e tendências.
+                      Só no fim ele aplica isso a clientes específicos.
+                    </Typography>
+                  </Paper>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
+                      bgcolor: 'rgba(15, 23, 42, 0.02)',
+                    }}
+                  >
+                    <Stack direction="row" gap={1} flexWrap="wrap">
+                      <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.total_entries, 0)} tópicos catalogados`} />
+                      <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.active_entries, 0)} ativos`} />
+                      <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.draft_entries, 0)} em curadoria`} />
+                    </Stack>
+                  </Paper>
+                  {filteredCanonGroups.map((group) => (
+                    <Paper key={group.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
                       <Stack direction="row" justifyContent="space-between" gap={2} mb={1}>
                         <Box>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{concept.title}</Typography>
-                          <Typography variant="body2" color="text.secondary">{concept.definition}</Typography>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{group.title}</Typography>
+                          <Typography variant="body2" color="text.secondary">{group.description}</Typography>
                         </Box>
-                        <Chip size="small" label={concept.category} />
+                        <Chip
+                          size="small"
+                          label={
+                            group.canon
+                              ? `${group.canon.active_entries} ativos • ${group.canon.draft_entries} draft`
+                              : `${group.concepts.length} conceitos`
+                          }
+                          color={(group.canon?.active_entries ?? group.concepts.length) > 0 ? 'primary' : 'default'}
+                          variant={(group.canon?.active_entries ?? group.concepts.length) > 0 ? 'filled' : 'outlined'}
+                        />
                       </Stack>
-                      <Stack direction="row" gap={1} flexWrap="wrap">
-                        {concept.heuristics.slice(0, 3).map((item) => (
+
+                      <Stack direction="row" gap={1} flexWrap="wrap" mb={group.concepts.length ? 1.25 : 0}>
+                        {group.coverage.map((item) => (
                           <Chip key={item} size="small" variant="outlined" label={item} />
                         ))}
                       </Stack>
+
+                      {group.canon?.entries?.length ? (
+                        <Stack spacing={1}>
+                          {group.canon.entries.map((entry) => (
+                            <Paper key={entry.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                              <Stack direction="row" justifyContent="space-between" gap={2} mb={0.75}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{entry.title}</Typography>
+                                <Stack direction="row" gap={1} flexWrap="wrap">
+                                  <Chip size="small" label={entry.slug} />
+                                  <Chip
+                                    size="small"
+                                    color={entry.status === 'active' ? 'success' : entry.status === 'draft' ? 'warning' : 'default'}
+                                    variant="outlined"
+                                    label={entry.status}
+                                  />
+                                </Stack>
+                              </Stack>
+                              <Typography variant="body2" color="text.secondary">
+                                {entry.definition}
+                              </Typography>
+                              <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                                {entry.heuristics.slice(0, 3).map((item) => (
+                                  <Chip key={item} size="small" variant="outlined" label={item} />
+                                ))}
+                              </Stack>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      ) : group.concepts.length ? (
+                        <Stack spacing={1}>
+                          {group.concepts.map((concept) => (
+                            <Paper key={concept.id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                              <Stack direction="row" justifyContent="space-between" gap={2} mb={0.75}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{concept.title}</Typography>
+                                <Chip size="small" label={concept.slug} />
+                              </Stack>
+                              <Typography variant="body2" color="text.secondary">
+                                {concept.definition}
+                              </Typography>
+                              <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                                {concept.heuristics.slice(0, 3).map((item) => (
+                                  <Chip key={item} size="small" variant="outlined" label={item} />
+                                ))}
+                              </Stack>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Grupo já definido no canon da Edro, mas ainda não populado com conceitos no seed atual.
+                        </Typography>
+                      )}
                     </Paper>
                   ))}
+                  {!filteredCanonGroups.length ? (
+                    <EmptySection
+                      title="Nenhum tópico encontrado nessa busca."
+                      description="Tente buscar por um movimento, conceito ou formato para localizar onde ele está dentro dos canons da Edro."
+                    />
+                  ) : null}
                 </Stack>
               )}
             </SectionCard>
@@ -517,9 +1833,30 @@ export default function DaControlClient() {
             <SectionCard
               title="Trend radar"
               subtitle="Padrões recorrentes detectados nas referências analisadas."
+              eyebrow="Tendências"
+              tone="#FFAE1F"
             >
               {loading ? (
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+              ) : !(data?.trends?.length) ? (
+                <EmptySection
+                  title="Trend radar ainda vazio."
+                  description={
+                    (stats?.references.analyzed ?? 0) > 0
+                      ? 'Já existem referências analisadas, mas ainda faltam snapshots para este recorte. Rode Recalcular.'
+                      : 'O radar só aparece depois que houver referências analisadas. Primeiro busque referências e depois recalcule.'
+                  }
+                  action={
+                    <Button
+                      variant="outlined"
+                      startIcon={busy === 'refresh' ? <CircularProgress size={14} /> : <IconRefresh size={16} />}
+                      onClick={handleRefresh}
+                      disabled={busy !== null}
+                    >
+                      Recalcular agora
+                    </Button>
+                  }
+                />
               ) : (
                 <Stack spacing={1.25}>
                   {(data?.trends ?? []).map((trend) => (
@@ -551,59 +1888,112 @@ export default function DaControlClient() {
         </Grid>
 
         <SectionCard
-          title="Reference memory"
-          subtitle="Referências já capturadas e analisadas que o motor usa como repertório vivo."
+          title="Repertório analisado"
+          subtitle="Referências aceitas pela Edro e já transformadas em repertório visual reaproveitável."
+          eyebrow="Memória Viva"
+          tone="#13DEB9"
         >
           {loading ? (
             <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
+          ) : !(data?.references?.length) ? (
+            <EmptySection
+              title="Ainda não há referências analisadas neste recorte."
+              description={
+                (stats?.references.discovered ?? 0) > 0
+                  ? `Existem ${stats?.references.discovered ?? 0} referências descobertas na fila. Falta rodar Recalcular para analisá-las e trazê-las para a memória viva.`
+                  : 'O motor ainda não encontrou repertório para este cliente/plataforma. Use Buscar referências para começar a ingestão.'
+              }
+              action={
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <Button
+                    variant="contained"
+                    startIcon={busy === 'discover' ? <CircularProgress size={14} /> : <IconSparkles size={16} />}
+                    onClick={handleDiscover}
+                    disabled={busy !== null}
+                  >
+                    Buscar referências
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={busy === 'refresh' ? <CircularProgress size={14} /> : <IconRefresh size={16} />}
+                    onClick={handleRefresh}
+                    disabled={busy !== null}
+                  >
+                    Recalcular
+                  </Button>
+                </Stack>
+              }
+            />
           ) : (
             <Grid container spacing={2}>
-              {(data?.references ?? []).map((reference) => (
-                <Grid key={reference.id} size={{ xs: 12, xl: 6 }}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
-                    <Stack direction="row" justifyContent="space-between" gap={2}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          {reference.title}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {reference.platform || 'geral'}{reference.format ? ` • ${reference.format}` : ''}{reference.segment ? ` • ${reference.segment}` : ''} • {timeAgo(reference.discovered_at)}
-                        </Typography>
-                      </Box>
-                      <Button
-                        size="small"
-                        component={Link}
-                        href={reference.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        endIcon={<IconArrowUpRight size={14} />}
-                      >
-                        Abrir
-                      </Button>
-                    </Stack>
+              {analyzedReferences.map((reference) => {
+                const preview = previewByReferenceId[reference.id];
+                const sourceMeta = getReferenceSourceMeta(preview || {
+                  ...reference,
+                  curated: false,
+                  source_name: null,
+                  source_type: null,
+                  domain: getDomainLabel(reference.source_url),
+                });
 
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      {reference.rationale || reference.creative_direction || reference.visual_intent || 'Sem racional salvo.'}
-                    </Typography>
+                return (
+                  <Grid key={reference.id} size={{ xs: 12, xl: 6 }}>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                      <Stack direction="row" justifyContent="space-between" gap={2}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            {reference.title}
+                          </Typography>
+                          <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                            <Chip size="small" color={sourceMeta.color} variant="outlined" label={sourceMeta.helper} />
+                            <Chip size="small" variant="outlined" label={sourceMeta.label} />
+                            <Chip size="small" variant="outlined" label={timeAgo(reference.discovered_at)} />
+                          </Stack>
+                        </Box>
+                        <Button
+                          size="small"
+                          component={Link}
+                          href={reference.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          endIcon={<IconArrowUpRight size={14} />}
+                        >
+                          Ver fonte
+                        </Button>
+                      </Stack>
 
-                    <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
-                      {(uniqueTags(reference)).map((tag) => (
-                        <Chip key={tag} size="small" variant="outlined" label={tag} />
-                      ))}
-                    </Stack>
+                      <ReferenceVisualPreview
+                        title={preview?.title || reference.title}
+                        imageUrl={preview?.image_url || reference.image_url}
+                        excerpt={preview?.preview_excerpt || reference.rationale}
+                      />
 
-                    <Divider sx={{ my: 1.5 }} />
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {reference.rationale || reference.creative_direction || reference.visual_intent || 'Sem racional salvo.'}
+                      </Typography>
 
-                    <Stack direction="row" gap={1} flexWrap="wrap">
-                      <Chip size="small" label={`trend ${Number(reference.trend_score || 0).toFixed(0)}`} />
-                      <Chip size="small" label={`confidence ${Number(reference.confidence_score || 0).toFixed(2)}`} />
-                      <Button size="small" onClick={() => void sendFeedback(reference.id, 'used')}>Usada</Button>
-                      <Button size="small" onClick={() => void sendFeedback(reference.id, 'approved')}>Aprovada</Button>
-                      <Button size="small" color="error" onClick={() => void sendFeedback(reference.id, 'rejected')}>Ruim</Button>
-                    </Stack>
-                  </Paper>
-                </Grid>
-              ))}
+                      <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
+                        <Chip size="small" label={reference.platform || 'geral'} />
+                        {reference.format ? <Chip size="small" variant="outlined" label={reference.format} /> : null}
+                        {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
+                        {(uniqueTags(reference)).map((tag) => (
+                          <Chip key={tag} size="small" variant="outlined" label={tag} />
+                        ))}
+                      </Stack>
+
+                      <Divider sx={{ my: 1.5 }} />
+
+                      <Stack direction="row" gap={1} flexWrap="wrap">
+                        <Chip size="small" label={`trend ${Number(reference.trend_score || 0).toFixed(0)}`} />
+                        <Chip size="small" label={`confidence ${Number(reference.confidence_score || 0).toFixed(2)}`} />
+                        <Button size="small" onClick={() => void sendFeedback(reference.id, 'used')}>Usada</Button>
+                        <Button size="small" onClick={() => void sendFeedback(reference.id, 'approved')}>Aprovada</Button>
+                        <Button size="small" color="error" onClick={() => void sendFeedback(reference.id, 'rejected')}>Ruim</Button>
+                      </Stack>
+                    </Paper>
+                  </Grid>
+                );
+              })}
             </Grid>
           )}
         </SectionCard>
@@ -613,11 +2003,13 @@ export default function DaControlClient() {
             <SectionCard
               title="Bloco de prompt"
               subtitle="O resumo que o motor envia para geração como memória externa."
+              eyebrow="Prompt Runtime"
+              tone="#5D87FF"
               action={<IconRoute size={18} color="#5D87FF" />}
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#0f172a', color: '#e2e8f0', overflowX: 'auto' }}>
                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12 }}>
-                  {data?.memory?.promptBlock || 'Sem bloco gerado ainda para este recorte.'}
+                  {data?.memory?.promptBlock || 'Sem bloco gerado ainda. Ele aparece quando o canon já carregou e houver memória de referência ou tendência suficiente para este recorte.'}
                 </pre>
               </Paper>
             </SectionCard>
@@ -626,11 +2018,13 @@ export default function DaControlClient() {
             <SectionCard
               title="Bloco de critique"
               subtitle="Os critérios extras que entram na revisão de direção de arte."
+              eyebrow="Critique Runtime"
+              tone="#13DEB9"
               action={<IconChecklist size={18} color="#13DEB9" />}
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#111827', color: '#d1fae5', overflowX: 'auto' }}>
                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12 }}>
-                  {data?.memory?.critiqueBlock || 'Sem bloco crítico gerado ainda para este recorte.'}
+                  {data?.memory?.critiqueBlock || 'Sem bloco crítico gerado ainda. Ele aparece quando o sistema já consegue combinar canon, referências e sinais do recorte atual.'}
                 </pre>
               </Paper>
             </SectionCard>
