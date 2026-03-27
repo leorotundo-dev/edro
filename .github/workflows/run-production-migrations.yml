@@ -83,7 +83,7 @@ jobs:
               );
 
               if (existing.rowCount > 0) {
-                console.log(\`Migration ${migration} already applied.\`);
+                console.log('Migration ' + migration + ' already applied.');
                 return;
               }
 
@@ -94,7 +94,7 @@ jobs:
                 [migration]
               );
               await client.query('COMMIT');
-              console.log(\`Migration ${migration} applied successfully.\`);
+              console.log('Migration ' + migration + ' applied successfully.');
             } catch (error) {
               await client.query('ROLLBACK');
               throw error;
