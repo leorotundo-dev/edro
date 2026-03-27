@@ -15,21 +15,20 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
         c.segment_primary AS segment,
         hs.score AS health_score,
         hs.trend AS health_trend,
-        hs.factors AS health_factors,
         COUNT(pc.id) FILTER (WHERE pc.status NOT IN ('done','published','approved')) AS active_jobs,
         COUNT(pc.id) FILTER (WHERE pc.status = 'blocked') AS blocked_jobs,
         COUNT(pc.id) FILTER (WHERE pc.due_at < now() AND pc.status NOT IN ('done','published','approved')) AS overdue_jobs,
         MAX(pc.updated_at) AS last_job_activity,
-        (SELECT MAX(li.created_at) FROM learned_insights li WHERE li.client_id = c.id) AS last_metric_sync
+        (SELECT MAX(li.created_at) FROM learned_insights li WHERE li.client_id = c.id::text) AS last_metric_sync
       FROM clients c
       LEFT JOIN LATERAL (
-        SELECT score, trend, factors FROM client_health_scores
+        SELECT score, trend FROM client_health_scores
         WHERE client_id = c.id ORDER BY period_date DESC LIMIT 1
       ) hs ON true
       LEFT JOIN project_cards pc ON pc.client_id = c.id::text
       WHERE c.tenant_id = $1
-      GROUP BY c.id, c.name, c.segment_primary, hs.score, hs.trend, hs.factors
-      ORDER BY hs.score ASC NULLS LAST, active_jobs DESC
+      GROUP BY c.id, c.name, c.segment_primary, hs.score, hs.trend
+      ORDER BY hs.score ASC NULLS LAST, COUNT(pc.id) FILTER (WHERE pc.status NOT IN ('done','published','approved')) DESC
     `, [tenantId]);
 
     // Compute risk level per client
