@@ -61,9 +61,13 @@ export async function GET(request: NextRequest) {
     { headers: { 'Cache-Control': 'no-store' } },
   );
 
-  if (refreshed?.accessToken) {
-    response.cookies.set(EDRO_SESSION_COOKIE, refreshed.accessToken, getCookieConfig(60 * 30));
-  }
+  // Always renew the session cookie (rolling session) so the browser-side expiry resets on every visit.
+  // This also ensures an expired-JWT-but-valid-cookie stays alive for the refresh flow.
+  response.cookies.set(
+    EDRO_SESSION_COOKIE,
+    refreshed?.accessToken ?? accessToken!,
+    getCookieConfig(60 * 60 * 24 * 14),
+  );
   if (refreshed?.refreshToken) {
     response.cookies.set(EDRO_REFRESH_COOKIE, refreshed.refreshToken, getCookieConfig(60 * 60 * 24 * 14));
   }
@@ -97,6 +101,6 @@ export async function POST(request: NextRequest) {
     { ok: true, user, tokenPayload: decodeJwtPayload(token) ?? null },
     { headers: { 'Cache-Control': 'no-store' } },
   );
-  response.cookies.set(EDRO_SESSION_COOKIE, token, getCookieConfig(60 * 30));
+  response.cookies.set(EDRO_SESSION_COOKIE, token, getCookieConfig(60 * 60 * 24 * 14));
   return response;
 }

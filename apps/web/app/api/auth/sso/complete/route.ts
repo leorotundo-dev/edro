@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.redirect(resolveNextPath(request, formData.get('next')));
   response.headers.set('Cache-Control', 'no-store');
-  response.cookies.set(EDRO_SESSION_COOKIE, token, getCookieConfig(60 * 30));
+  response.cookies.set(EDRO_SESSION_COOKIE, token, getCookieConfig(60 * 60 * 24 * 14));
 
   return response;
 }
