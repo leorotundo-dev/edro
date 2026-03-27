@@ -138,15 +138,28 @@ function buildInlineAttachmentContext(inlineAttachments?: Array<{ name?: string;
   return '\n\nDOCUMENTOS ANEXADOS PELO USUARIO:\n' + inlineParts.join('\n\n');
 }
 
-async function loadUnifiedConversationHistory(conversationId: string | null | undefined, edroClientId: string | null): Promise<LoopMessage[]> {
-  if (!conversationId || !edroClientId) return [];
+async function loadUnifiedConversationHistory(params: {
+  route: 'operations' | 'planning';
+  tenantId: string;
+  conversationId: string | null | undefined;
+  edroClientId: string | null;
+}): Promise<LoopMessage[]> {
+  const { route, tenantId, conversationId, edroClientId } = params;
+  if (!conversationId) return [];
   try {
-    const { rows } = await query(
-      `SELECT messages FROM planning_conversations WHERE id = $1 AND client_id = $2::uuid`,
-      [conversationId, edroClientId],
-    );
-    if (!rows[0]?.messages) return [];
-    return (rows[0].messages as any[])
+    const result = route === 'operations'
+      ? await query(
+        `SELECT messages FROM operations_conversations WHERE id = $1 AND tenant_id = $2`,
+        [conversationId, tenantId],
+      )
+      : edroClientId
+        ? await query(
+          `SELECT messages FROM planning_conversations WHERE id = $1 AND client_id = $2::uuid`,
+          [conversationId, edroClientId],
+        )
+        : { rows: [] as any[] };
+    if (!result.rows[0]?.messages) return [];
+    return (result.rows[0].messages as any[])
       .filter((message: any) => message.role === 'user' || message.role === 'assistant')
       .slice(-20)
       .map((message: any) => ({
@@ -159,6 +172,7 @@ async function loadUnifiedConversationHistory(conversationId: string | null | un
 }
 
 async function saveUnifiedConversation(params: {
+  route: 'operations' | 'planning';
   tenantId: string;
   edroClientId: string | null;
   userId: string | null;
@@ -167,13 +181,25 @@ async function saveUnifiedConversation(params: {
   assistantContent: string;
   provider: string;
 }): Promise<string | null> {
-  const { tenantId, edroClientId, userId, conversationId, message, assistantContent, provider } = params;
-  if (!edroClientId) return conversationId || null;
+  const { route, tenantId, edroClientId, userId, conversationId, message, assistantContent, provider } = params;
 
   const messagesPayload = [
     { role: 'user', content: message, timestamp: new Date().toISOString() },
     { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider },
   ];
+
+  if (route === 'operations') {
+    const resolvedConversationId = conversationId || crypto.randomUUID();
+    await query(
+      `INSERT INTO operations_conversations (id, tenant_id, user_id, messages, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, now())
+       ON CONFLICT (id) DO UPDATE SET messages = operations_conversations.messages || $4::jsonb, updated_at = now()`,
+      [resolvedConversationId, tenantId, userId, JSON.stringify(messagesPayload)],
+    );
+    return resolvedConversationId;
+  }
+
+  if (!edroClientId) return conversationId || null;
 
   if (conversationId) {
     await query(
@@ -212,7 +238,12 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const decision = buildJarvisRoutingDecision(intent);
     const clientId = body.clientId ?? null;
     const edroClientId = clientId ? await resolveEdroClientId(clientId) : null;
-    const conversationHistory = await loadUnifiedConversationHistory(body.conversationId, edroClientId);
+    const conversationHistory = await loadUnifiedConversationHistory({
+      route: decision.route,
+      tenantId,
+      conversationId: body.conversationId,
+      edroClientId,
+    });
     const attachmentContext = buildInlineAttachmentContext(body.inline_attachments);
     const studioContext = body.studio_context ? `\n\nCONTEXTO DO STUDIO:\n${body.studio_context}` : '';
     const userContent = `${body.message}${attachmentContext}${studioContext}`;
@@ -300,6 +331,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       }
 
       const savedConversationId = await saveUnifiedConversation({
+        route: decision.route,
         tenantId,
         edroClientId,
         userId,

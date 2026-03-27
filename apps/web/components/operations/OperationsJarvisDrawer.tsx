@@ -165,12 +165,12 @@ export default function OperationsJarvisDrawer({
     setLoading(true);
 
     try {
-      const res = await apiPost<{ data?: { message?: string; conversationId?: string } }>(
-        '/operations/chat',
-        { message: msg, conversationId, mode: 'agent' },
+      const res = await apiPost<{ data?: { response?: string; conversationId?: string } }>(
+        '/jarvis/chat',
+        { message: msg, conversationId, context_page: '/admin/operacoes' },
       );
 
-      const reply = res?.data?.message || 'Sem resposta do agente.';
+      const reply = res?.data?.response || 'Sem resposta do agente.';
       if (res?.data?.conversationId) setConversationId(res.data.conversationId);
 
       setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: new Date().toISOString() }]);
