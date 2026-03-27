@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db/db';
+import { authGuard, requirePerm } from '../auth/rbac';
+import { tenantGuard } from '../auth/tenantGuard';
 
 // SQL fragment: derive ops_status from list name + optional override
 // Used in multiple queries to avoid duplicating the CASE expression.
@@ -24,7 +26,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
 
   // ─── Painel Executivo ────────────────────────────────────────────────────────
   // GET /admin/relatorios/painel — all clients with health, risk, production data
-  app.get('/admin/relatorios/painel', async (req, reply) => {
+  app.get('/admin/relatorios/painel', { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] }, async (req, reply) => {
     const tenantId = (req as any).tenantId || process.env.DEFAULT_TENANT_ID;
     if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
 
@@ -110,7 +112,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
 
   // ─── Fila de Ação ────────────────────────────────────────────────────────────
   // GET /admin/relatorios/fila — prioritized action items across all clients
-  app.get('/admin/relatorios/fila', async (req, reply) => {
+  app.get('/admin/relatorios/fila', { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] }, async (req, reply) => {
     const tenantId = (req as any).tenantId || process.env.DEFAULT_TENANT_ID;
     if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
 
@@ -282,7 +284,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
 
   // ─── Financeiro Cruzado ──────────────────────────────────────────────────────
   // GET /admin/relatorios/financeiro?period=YYYY-MM
-  app.get('/admin/relatorios/financeiro', async (req, reply) => {
+  app.get('/admin/relatorios/financeiro', { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] }, async (req, reply) => {
     const tenantId = (req as any).tenantId || process.env.DEFAULT_TENANT_ID;
     if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
 
