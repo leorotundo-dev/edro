@@ -38,7 +38,7 @@ async function proxyRequest(
   const upstream = await fetch(backendUrl, {
     method,
     headers,
-    body: ['GET', 'HEAD'].includes(method) ? undefined : await request.text(),
+    body: ['GET', 'HEAD'].includes(method) ? undefined : Buffer.from(await request.arrayBuffer()),
     cache: 'no-store',
   });
 

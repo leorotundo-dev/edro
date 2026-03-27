@@ -54,7 +54,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
   const opsCritical = useOpsCriticalCount();
   const { openPalette, toggle: toggleJarvis, unreadCount: jarvisUnread, isOpen: jarvisOpen, isPaletteOpen } = useJarvis();
 
-  const [user, setUser] = useState<{ name?: string; email?: string; role?: string }>({});
+  const [user, setUser] = useState<{ name?: string; email?: string; role?: string; avatar_url?: string | null }>({});
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = window.localStorage.getItem('edro_user');
@@ -291,6 +291,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
           }}
         >
           <Avatar
+            src={user?.avatar_url ?? undefined}
             sx={{
               width: 32,
               height: 32,
@@ -301,7 +302,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
               border: `1.5px solid rgba(255,255,255,0.12)`,
             }}
           >
-            {initials}
+            {!user?.avatar_url ? initials : null}
           </Avatar>
           {open && (
             <Box sx={{ minWidth: 0, flex: 1 }}>

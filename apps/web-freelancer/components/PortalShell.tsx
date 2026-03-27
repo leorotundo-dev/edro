@@ -29,32 +29,36 @@ function initials(value: string) {
   return value.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || 'FR';
 }
 
+type PortalFreelancerMe = {
+  display_name?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+};
+
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadSession = async () => {
-      const res = await fetch('/api/auth/session', { cache: 'no-store' });
-      if (!res.ok) {
+    const loadProfile = async () => {
+      try {
+        const profile = await apiGet<PortalFreelancerMe>('/freelancers/portal/me');
+        if (cancelled) return;
+        setName(profile?.display_name ?? profile?.email?.split('@')[0] ?? 'Freelancer');
+        setEmail(profile?.email ?? '');
+        setAvatarUrl(profile?.avatar_url ?? '');
+      } catch {
         clearToken();
         window.location.href = '/login';
-        return;
-      }
-
-      const data = await res.json();
-      if (!cancelled) {
-        const sessionEmail = data?.user?.email ?? '';
-        setName(data?.user?.name ?? sessionEmail.split('@')[0] ?? 'Freelancer');
-        setEmail(sessionEmail);
       }
     };
 
-    void loadSession();
+    void loadProfile();
 
     // Onboarding gate — redirect if PJ setup or contract not complete
     apiGet<{ onboarding_complete: boolean; terms_accepted: boolean; contract_status: string }>('/freelancers/portal/me/onboarding-status')
@@ -109,7 +113,11 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             clearToken();
             window.location.href = '/login';
           }}>
-            <span className="ps-avatar">{initials(name)}</span>
+            <span className="ps-avatar">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={name || 'Freelancer'} className="ps-avatar-img" />
+              ) : initials(name)}
+            </span>
             <span className="ps-user-info">
               <span className="ps-user-name">{name || 'Freelancer'}</span>
               <span className="ps-user-email">{email}</span>
