@@ -261,6 +261,27 @@ export async function syncTrelloBoard(
       listIdMap[list.id] = listRes.rows[0].id;
     }
 
+    if (lists.length > 0) {
+      await client.query(
+        `UPDATE project_lists
+         SET is_archived = true, updated_at = now()
+         WHERE board_id = $1
+           AND tenant_id = $2
+           AND trello_list_id IS NOT NULL
+           AND trello_list_id <> ALL($3::text[])`,
+        [boardId, tenantId, lists.map((list) => list.id)],
+      );
+    } else {
+      await client.query(
+        `UPDATE project_lists
+         SET is_archived = true, updated_at = now()
+         WHERE board_id = $1
+           AND tenant_id = $2
+           AND trello_list_id IS NOT NULL`,
+        [boardId, tenantId],
+      );
+    }
+
     // 3. Upsert cards
     const cardIdMap: Record<string, string> = {};
     let cardsSync = 0;
@@ -296,6 +317,27 @@ export async function syncTrelloBoard(
       );
       cardIdMap[card.id] = cardRes.rows[0].id;
       cardsSync++;
+    }
+
+    if (cards.length > 0) {
+      await client.query(
+        `UPDATE project_cards
+         SET is_archived = true, updated_at = now()
+         WHERE board_id = $1
+           AND tenant_id = $2
+           AND trello_card_id IS NOT NULL
+           AND trello_card_id <> ALL($3::text[])`,
+        [boardId, tenantId, cards.map((card) => card.id)],
+      );
+    } else {
+      await client.query(
+        `UPDATE project_cards
+         SET is_archived = true, updated_at = now()
+         WHERE board_id = $1
+           AND tenant_id = $2
+           AND trello_card_id IS NOT NULL`,
+        [boardId, tenantId],
+      );
     }
 
     // 4. Build member email map — Trello API may not return emails for other members.
@@ -362,10 +404,36 @@ export async function syncTrelloBoard(
       }
     }
 
+    for (const card of cards) {
+      const edroCardId = cardIdMap[card.id];
+      if (!edroCardId) continue;
+      if (card.idMembers?.length) {
+        await client.query(
+          `DELETE FROM project_card_members
+           WHERE card_id = $1
+             AND tenant_id = $2
+             AND trello_member_id IS NOT NULL
+             AND trello_member_id <> ALL($3::text[])`,
+          [edroCardId, tenantId, card.idMembers],
+        );
+      } else {
+        await client.query(
+          `DELETE FROM project_card_members
+           WHERE card_id = $1
+             AND tenant_id = $2
+             AND trello_member_id IS NOT NULL`,
+          [edroCardId, tenantId],
+        );
+      }
+    }
+
     // 5. Upsert checklists
+    const checklistIdsByCard: Record<string, string[]> = {};
     for (const cl of checklists) {
       const edroCardId = cardIdMap[cl.idCard];
       if (!edroCardId) continue;
+      if (!checklistIdsByCard[cl.idCard]) checklistIdsByCard[cl.idCard] = [];
+      checklistIdsByCard[cl.idCard].push(cl.id);
       const items = cl.checkItems.map((item) => ({
         trello_id: item.id,
         text: item.name,
@@ -378,6 +446,28 @@ export async function syncTrelloBoard(
          DO UPDATE SET name = $3, items = $4, updated_at = now()`,
         [edroCardId, tenantId, cl.name, JSON.stringify(items), cl.id],
       );
+    }
+
+    for (const [trelloCardId, edroCardId] of Object.entries(cardIdMap)) {
+      const checklistIds = checklistIdsByCard[trelloCardId] ?? [];
+      if (checklistIds.length > 0) {
+        await client.query(
+          `DELETE FROM project_card_checklists
+           WHERE card_id = $1
+             AND tenant_id = $2
+             AND trello_checklist_id IS NOT NULL
+             AND trello_checklist_id <> ALL($3::text[])`,
+          [edroCardId, tenantId, checklistIds],
+        );
+      } else {
+        await client.query(
+          `DELETE FROM project_card_checklists
+           WHERE card_id = $1
+             AND tenant_id = $2
+             AND trello_checklist_id IS NOT NULL`,
+          [edroCardId, tenantId],
+        );
+      }
     }
 
     // 6. Upsert actions (paginated — fetchAllBoardActions handles >1000)
