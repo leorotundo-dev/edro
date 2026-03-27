@@ -846,7 +846,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
-       WHERE pc.tenant_id = $1 AND pc.is_archived = false AND pl.is_archived = false
+       WHERE pc.tenant_id = $1
+         AND pc.is_archived = false
+         AND pl.is_archived = false
+         AND pc.created_at >= date_trunc('year', CURRENT_DATE)
        ORDER BY pc.due_date ASC NULLS LAST, pc.position ASC`,
       [tenantId],
     );
