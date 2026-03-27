@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import AppShell from '@/components/AppShell';
 import Alert from '@mui/material/Alert';
@@ -63,10 +64,29 @@ function SeverityIcon({ severity }: { severity: number }) {
   return <IconInfoCircle size={18} color="#5D87FF" />;
 }
 
+function getDestination(item: ActionItem): string | null {
+  if (!item.client_id) return null;
+  switch (item.type) {
+    case 'blocked_job':
+    case 'overdue_job':
+      return `/clients/${item.client_id}/operacao`;
+    case 'no_metrics':
+      return `/clients/${item.client_id}/metricas`;
+    case 'health_drop':
+      return `/clients/${item.client_id}/analytics`;
+    case 'signal':
+      return item.actions?.[0]?.href ?? `/clients/${item.client_id}/operacao`;
+    default:
+      return `/clients/${item.client_id}`;
+  }
+}
+
 function ActionCard({ item, onResolve }: { item: ActionItem; onResolve: (id: string) => void }) {
   const theme = useTheme();
+  const router = useRouter();
   const dark = theme.palette.mode === 'dark';
   const cfg = TYPE_CONFIG[item.type];
+  const destination = getDestination(item);
 
   const borderColor = item.severity >= 80
     ? alpha(theme.palette.error.main, 0.3)
@@ -75,11 +95,21 @@ function ActionCard({ item, onResolve }: { item: ActionItem; onResolve: (id: str
     : dark ? alpha('#fff', 0.06) : alpha('#000', 0.06);
 
   return (
-    <Paper elevation={0} sx={{
-      p: 2, borderRadius: 2,
-      border: `1px solid ${borderColor}`,
-      bgcolor: item.severity >= 80 ? alpha(theme.palette.error.main, 0.03) : 'inherit',
-    }}>
+    <Paper
+      elevation={0}
+      onClick={destination ? () => router.push(destination) : undefined}
+      sx={{
+        p: 2, borderRadius: 2,
+        border: `1px solid ${borderColor}`,
+        bgcolor: item.severity >= 80 ? alpha(theme.palette.error.main, 0.03) : 'inherit',
+        cursor: destination ? 'pointer' : 'default',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
+        '&:hover': destination ? {
+          borderColor: item.severity >= 80 ? theme.palette.error.main : item.severity >= 50 ? theme.palette.warning.main : theme.palette.primary.main,
+          boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.08)}`,
+        } : {},
+      }}
+    >
       <Stack direction="row" alignItems="flex-start" spacing={1.5}>
         <Box sx={{ pt: 0.25 }}><SeverityIcon severity={item.severity} /></Box>
         <Stack flex={1} spacing={0.5}>
@@ -99,19 +129,14 @@ function ActionCard({ item, onResolve }: { item: ActionItem; onResolve: (id: str
             </Typography>
           )}
 
-          {/* Actions */}
-          {(item.actions?.length > 0 || item.client_id || item.type === 'signal') && (
-            <Stack direction="row" spacing={1} pt={0.5} flexWrap="wrap">
+          {/* Actions — stop propagation so card click doesn't also fire */}
+          {(item.actions?.length > 0 || item.type === 'signal') && (
+            <Stack direction="row" spacing={1} pt={0.5} flexWrap="wrap" onClick={(e) => e.stopPropagation()}>
               {item.actions?.map((a, i) => (
                 <Button key={i} size="small" variant="outlined" component={a.href ? Link : 'button'} href={a.href} sx={{ fontSize: '0.75rem' }}>
                   {a.label}
                 </Button>
               ))}
-              {item.client_id && (
-                <Button size="small" variant="text" component={Link} href={`/clients/${item.client_id}`} sx={{ fontSize: '0.75rem' }}>
-                  Ver cliente
-                </Button>
-              )}
               {item.type === 'signal' && (
                 <Button size="small" variant="text" color="success" onClick={() => onResolve(item.id)} sx={{ fontSize: '0.75rem' }}>
                   Resolver
@@ -121,15 +146,24 @@ function ActionCard({ item, onResolve }: { item: ActionItem; onResolve: (id: str
           )}
         </Stack>
 
-        {/* Severity badge */}
-        <Box sx={{
-          px: 1, py: 0.5, borderRadius: 1, minWidth: 40, textAlign: 'center',
-          bgcolor: item.severity >= 80 ? alpha(theme.palette.error.main, 0.1) : item.severity >= 50 ? alpha(theme.palette.warning.main, 0.1) : alpha('#5D87FF', 0.1),
-        }}>
-          <Typography fontWeight={900} fontSize="0.85rem" color={item.severity >= 80 ? 'error.main' : item.severity >= 50 ? 'warning.main' : '#5D87FF'}>
-            {item.severity}
-          </Typography>
-        </Box>
+        {/* Severity badge + destination hint */}
+        <Stack alignItems="flex-end" spacing={0.5}>
+          <Box sx={{
+            px: 1, py: 0.5, borderRadius: 1, minWidth: 40, textAlign: 'center',
+            bgcolor: item.severity >= 80 ? alpha(theme.palette.error.main, 0.1) : item.severity >= 50 ? alpha(theme.palette.warning.main, 0.1) : alpha('#5D87FF', 0.1),
+          }}>
+            <Typography fontWeight={900} fontSize="0.85rem" color={item.severity >= 80 ? 'error.main' : item.severity >= 50 ? 'warning.main' : '#5D87FF'}>
+              {item.severity}
+            </Typography>
+          </Box>
+          {destination && (
+            <Typography variant="caption" color="text.disabled" fontSize="0.65rem" sx={{ whiteSpace: 'nowrap' }}>
+              {item.type === 'blocked_job' || item.type === 'overdue_job' ? 'Operação →' :
+               item.type === 'no_metrics' ? 'Métricas →' :
+               item.type === 'health_drop' ? 'Analytics →' : 'Ver →'}
+            </Typography>
+          )}
+        </Stack>
       </Stack>
     </Paper>
   );
