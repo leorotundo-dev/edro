@@ -376,7 +376,7 @@ export default function DiarioClient() {
   const currentDigest = activeTab === 0 ? latestDaily : activeTab === 1 ? latestWeekly : null;
 
   return (
-    <AppShell>
+    <AppShell title="Diário da Agência">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
