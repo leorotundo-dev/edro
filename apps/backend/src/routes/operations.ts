@@ -19,6 +19,7 @@ import { executeOperationsTool, type OperationsToolContext } from '../services/a
 import { runToolUseLoop } from '../services/ai/toolUseLoop';
 import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
 import {
+  buildJarvisObservability,
   buildJarvisRoutingDecision,
   detectJarvisIntent,
   loadUnifiedConversationHistory,
@@ -228,10 +229,27 @@ export default async function operationsRoutes(app: FastifyInstance) {
         message: body.message,
         assistantContent: loopResult.finalText,
         provider: loopResult.provider,
+        observability: buildJarvisObservability(decision, {
+          durationMs: Date.now() - startMs,
+          toolsUsed: loopResult.toolCallsExecuted,
+          provider: loopResult.provider,
+          model: loopResult.model,
+        }),
       }).catch(() => body.conversationId || null);
 
       const elapsed = Date.now() - startMs;
-      console.log(`[ops_chat] ok in ${elapsed}ms tools=${loopResult.toolCallsExecuted} iterations=${loopResult.iterations}`);
+      const observability = buildJarvisObservability(decision, {
+        durationMs: elapsed,
+        toolsUsed: loopResult.toolCallsExecuted,
+        provider: loopResult.provider,
+        model: loopResult.model,
+      });
+      request.log?.info({
+        event: 'operations_chat_completed',
+        conversationId: convId,
+        iterations: loopResult.iterations,
+        ...observability,
+      });
 
       return {
         success: true,
@@ -245,11 +263,18 @@ export default async function operationsRoutes(app: FastifyInstance) {
           primaryMemory: decision.primaryMemory,
           secondaryMemories: decision.secondaryMemories,
           durationMs: elapsed,
+          observability,
         },
       };
     } catch (err: any) {
       const elapsed = Date.now() - startMs;
-      console.error(`[ops_chat] FAILED in ${elapsed}ms: ${err?.message || err}`);
+      request.log?.error({
+        event: 'operations_chat_failed',
+        intent: decision.intent,
+        route: decision.route,
+        durationMs: elapsed,
+        error: err?.message || 'unknown',
+      });
       return reply.status(500).send({
         success: false,
         error: `Falha no agente de operações (${err?.message || 'unknown'}). Tempo: ${elapsed}ms.`,

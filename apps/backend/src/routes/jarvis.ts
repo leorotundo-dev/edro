@@ -18,6 +18,7 @@ import {
 import { buildOperationsSystemPrompt } from './operations';
 import {
   buildInlineAttachmentContext,
+  buildJarvisObservability,
   buildJarvisRoutingDecision,
   detectJarvisIntent,
   loadUnifiedConversationHistory,
@@ -85,6 +86,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       let resultProvider = '';
       let resultModel = '';
       let artifacts: Array<{ type: string; [key: string]: any }> = [];
+      let toolsUsed = 0;
 
       if (decision.route === 'operations') {
         const toolCtx: OperationsToolContext = { tenantId, userId: userId ?? undefined, userEmail };
@@ -107,6 +109,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         finalText = loopResult.finalText;
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
+        toolsUsed = loopResult.toolCallsExecuted ?? 0;
       } else {
         const [clientContext, psychContext, perfContext] = await Promise.race([
           Promise.all([
@@ -142,10 +145,19 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         finalText = loopResult.finalText;
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
+        toolsUsed = loopResult.toolCallsExecuted ?? 0;
         artifacts = (loopResult.toolResults ?? [])
           .filter((result) => result.success && result.data)
           .map((result) => ({ type: result.toolName, ...result.data }));
       }
+
+      const durationMs = Date.now() - startMs;
+      const observability = buildJarvisObservability(decision, {
+        durationMs,
+        toolsUsed,
+        provider: resultProvider,
+        model: resultModel,
+      });
 
       const savedConversationId = await saveUnifiedConversation({
         route: decision.route,
@@ -156,7 +168,17 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         message: body.message,
         assistantContent: finalText,
         provider: resultProvider || body.provider,
+        observability,
       }).catch(() => body.conversationId || null);
+
+      request.log?.info({
+        event: 'jarvis_chat_completed',
+        clientId,
+        conversationId: savedConversationId,
+        attachmentCount: body.inline_attachments?.length ?? 0,
+        artifactsCount: artifacts.length,
+        ...observability,
+      });
 
       return reply.send({
         success: true,
@@ -171,11 +193,20 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           primaryMemory: decision.primaryMemory,
           secondaryMemories: decision.secondaryMemories,
           retrievalBudget: decision.retrievalBudget,
-          durationMs: Date.now() - startMs,
+          durationMs,
+          observability,
         },
       });
     } catch (err: any) {
       const elapsed = Date.now() - startMs;
+      request.log?.error({
+        event: 'jarvis_chat_failed',
+        clientId,
+        intent: decision.intent,
+        route: decision.route,
+        durationMs: elapsed,
+        error: err?.message || 'unknown',
+      });
       return reply.status(500).send({
         success: false,
         error: `Falha no Jarvis (${err?.message || 'unknown'}). Tempo: ${elapsed}ms.`,

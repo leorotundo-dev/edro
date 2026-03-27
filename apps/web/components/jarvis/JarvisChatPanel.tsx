@@ -14,6 +14,7 @@ import { IconSend, IconBrain, IconUser, IconPaperclip, IconX, IconFile } from '@
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiPost, apiGet } from '@/lib/api';
 import ArtifactCard, { Artifact } from './ArtifactCard';
+import JarvisResponseTrace, { type JarvisObservability } from './JarvisResponseTrace';
 
 type AttachedFile = {
   name: string;
@@ -29,6 +30,7 @@ type ChatMessage = {
   content: string;
   timestamp: string;
   artifacts?: Artifact[];
+  observability?: JarvisObservability | null;
 };
 
 type ConversationMemory = {
@@ -267,6 +269,7 @@ export default function JarvisChatPanel() {
         role: m.role,
         content: m.content,
         timestamp: m.timestamp ?? new Date().toISOString(),
+        observability: m.metadata?.observability ?? null,
       })));
     }).catch(() => {});
   }, [conversationId, clientId]);
@@ -360,7 +363,7 @@ export default function JarvisChatPanel() {
         } catch { /* ignore */ }
       }
 
-      const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[] } }>(
+      const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[]; observability?: JarvisObservability } }>(
         '/jarvis/chat',
         {
           clientId: cid,
@@ -378,6 +381,7 @@ export default function JarvisChatPanel() {
         content: data?.response ?? 'Sem resposta.',
         timestamp: new Date().toISOString(),
         artifacts: data?.artifacts?.length ? data.artifacts : undefined,
+        observability: data?.observability ?? null,
       }]);
 
       if (data?.conversationId && !conversationId) setConversationId(data.conversationId);
@@ -552,6 +556,7 @@ export default function JarvisChatPanel() {
                   <MarkdownText text={msg.content} />
                 )}
               </Box>
+              {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
               {msg.artifacts?.map((artifact, ai) => (
                 <ArtifactCard key={ai} artifact={artifact} clientId={clientId} />
               ))}

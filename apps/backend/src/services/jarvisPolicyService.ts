@@ -24,6 +24,26 @@ export type JarvisRoutingDecision = {
   };
 };
 
+export type JarvisObservability = {
+  intent: JarvisIntent;
+  route: 'operations' | 'planning';
+  primaryMemory: JarvisPrimaryMemory;
+  secondaryMemories: string[];
+  sourceLabels: {
+    primary: string;
+    secondary: string[];
+  };
+  retrievalBudget: {
+    historyMessages: number;
+    toolIterations: number;
+    contextBlocks: number;
+  };
+  durationMs?: number;
+  toolsUsed?: number;
+  provider?: string;
+  model?: string;
+};
+
 export function detectJarvisIntent(message: string, contextPage?: string | null): JarvisIntent {
   const haystack = `${contextPage || ''}\n${message}`.toLowerCase();
   const operationsSignals = [
@@ -95,6 +115,60 @@ export function buildJarvisRoutingDecision(intent: JarvisIntent): JarvisRoutingD
   }
 }
 
+export function describeJarvisMemory(memory: JarvisPrimaryMemory | string): string {
+  switch (memory) {
+    case 'operations_memory':
+      return 'Operacoes';
+    case 'client_memory':
+      return 'Memoria do cliente';
+    case 'canon_edro':
+      return 'Canon Edro';
+    case 'reference_memory':
+      return 'Repertorio visual';
+    case 'trend_memory':
+      return 'Trend radar';
+    case 'performance_memory':
+      return 'Performance';
+    default:
+      return memory;
+  }
+}
+
+export function describeJarvisIntent(intent: JarvisIntent): string {
+  switch (intent) {
+    case 'operations_control':
+      return 'Controle operacional';
+    case 'creative_execution':
+      return 'Execucao criativa';
+    case 'client_memory':
+      return 'Memoria do cliente';
+    case 'strategy_planning':
+    default:
+      return 'Planejamento';
+  }
+}
+
+export function buildJarvisObservability(
+  decision: JarvisRoutingDecision,
+  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model'>> = {},
+): JarvisObservability {
+  return {
+    intent: decision.intent,
+    route: decision.route,
+    primaryMemory: decision.primaryMemory,
+    secondaryMemories: decision.secondaryMemories,
+    sourceLabels: {
+      primary: describeJarvisMemory(decision.primaryMemory),
+      secondary: decision.secondaryMemories.map(describeJarvisMemory),
+    },
+    retrievalBudget: decision.retrievalBudget,
+    durationMs: extras.durationMs,
+    toolsUsed: extras.toolsUsed,
+    provider: extras.provider,
+    model: extras.model,
+  };
+}
+
 export function buildInlineAttachmentContext(inlineAttachments?: Array<{ name?: string; text?: string }>): string {
   if (!inlineAttachments?.length) return '';
   const inlineParts = inlineAttachments
@@ -151,12 +225,19 @@ export async function saveUnifiedConversation(params: {
   message: string;
   assistantContent: string;
   provider: string;
+  observability?: JarvisObservability | null;
 }): Promise<string | null> {
-  const { route, tenantId, edroClientId, userId, conversationId, message, assistantContent, provider } = params;
+  const { route, tenantId, edroClientId, userId, conversationId, message, assistantContent, provider, observability } = params;
 
   const messagesPayload = [
     { role: 'user', content: message, timestamp: new Date().toISOString() },
-    { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider },
+    {
+      role: 'assistant',
+      content: assistantContent,
+      timestamp: new Date().toISOString(),
+      provider,
+      metadata: observability ? { observability } : undefined,
+    },
   ];
 
   if (route === 'operations') {

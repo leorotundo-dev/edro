@@ -37,6 +37,7 @@ import { executeOperationsTool, OperationsToolContext, ToolContext } from '../se
 import { buildOperationsSystemPrompt } from './operations';
 import {
   buildInlineAttachmentContext,
+  buildJarvisObservability,
   buildJarvisRoutingDecision,
   detectJarvisIntent,
   loadUnifiedConversationHistory,
@@ -808,6 +809,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     let assistantContent = '';
     let actionResult: Record<string, any> | null = null;
     let artifacts: Array<{ type: string; [key: string]: any }> = [];
+    let toolsUsed = 0;
 
     const canonicalIntent = detectJarvisIntent(message, context_page);
     const canonicalDecision = buildJarvisRoutingDecision(canonicalIntent);
@@ -873,6 +875,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
         assistantContent = resultOutput;
+        toolsUsed = loopResult.toolCallsExecuted ?? 0;
         artifacts = (loopResult.toolResults ?? [])
           .filter(r => r.success && r.data)
           .map(r => ({ type: r.toolName, ...r.data }));
@@ -1014,6 +1017,13 @@ export default async function planningRoutes(app: FastifyInstance) {
 
     // ── 6. Save conversation ──────────────────────────────────────
     let savedConversationId: string | null = conversationId || null;
+    const elapsed = Date.now() - startMs;
+    const observability = buildJarvisObservability(canonicalDecision, {
+      durationMs: elapsed,
+      toolsUsed,
+      provider: resultProvider,
+      model: resultModel,
+    });
     if (mode === 'agent' || mode === 'chat') {
       savedConversationId = await saveUnifiedConversation({
         route: canonicalDecision.route,
@@ -1024,6 +1034,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         message,
         assistantContent,
         provider: resultProvider || provider,
+        observability,
       }).catch((error) => {
         console.warn('[planning] conversation save failed:', (error as Error).message);
         return conversationId || null;
@@ -1031,7 +1042,13 @@ export default async function planningRoutes(app: FastifyInstance) {
     } else {
       const messagesPayload = [
         { role: 'user', content: message, timestamp: new Date().toISOString() },
-        { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider: resultProvider },
+        {
+          role: 'assistant',
+          content: assistantContent,
+          timestamp: new Date().toISOString(),
+          provider: resultProvider,
+          metadata: { observability },
+        },
       ];
       (async () => {
         try {
@@ -1055,7 +1072,14 @@ export default async function planningRoutes(app: FastifyInstance) {
       })();
     }
 
-    request.log?.info({ elapsed: Date.now() - startMs, provider: resultProvider, mode }, 'planning_chat_ok');
+    request.log?.info({
+      event: 'planning_chat_completed',
+      mode,
+      clientId,
+      conversationId: savedConversationId,
+      artifactsCount: artifacts.length,
+      ...observability,
+    }, 'planning_chat_ok');
 
     return reply.send({
       success: true,
@@ -1071,6 +1095,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         route: canonicalDecision.route,
         primaryMemory: canonicalDecision.primaryMemory,
         secondaryMemories: canonicalDecision.secondaryMemories,
+        observability,
       },
     });
   });
