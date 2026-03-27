@@ -3,7 +3,7 @@ import { generateCompletion, generateCompletionWithVision } from './claudeServic
 import { estimateTokens, logAiUsage } from './aiUsageLogger';
 import { isTavilyConfigured, tavilySearch } from '../tavilyService';
 import { CORE_ART_DIRECTION_CONCEPTS } from './artDirectionCoreConcepts';
-import { EDRO_DA_CANON_SEED } from './artDirectionKnowledgeLibrarySeed';
+import { EDRO_DA_CANON_SEED, resolveCanonCurriculumModule } from './artDirectionKnowledgeLibrarySeed';
 
 type JsonArray = string[];
 
@@ -54,6 +54,7 @@ function buildFallbackCanonEntries(limitEntriesPerCanon = 12) {
       const slug = slugifyCanonEntry(title);
       const core = coreConceptMap.get(slug);
       const isActive = Boolean(core);
+      const curriculumModule = resolveCanonCurriculumModule(seed.canonSlug, title);
 
       return {
         id: `fallback-${seed.canonSlug}-${slug}`,
@@ -77,6 +78,14 @@ function buildFallbackCanonEntries(limitEntriesPerCanon = 12) {
         examples: core?.examples ?? [],
         chunk_count: isActive ? 5 : 6,
         source_count: 1,
+        metadata: {
+          curriculum_module_key: curriculumModule?.moduleKey ?? null,
+          curriculum_module_title: curriculumModule?.title ?? null,
+          curriculum_module_description: curriculumModule?.description ?? null,
+          curriculum_module_order: curriculumModule?.order ?? null,
+          needs_editorial_expansion: !isActive,
+          seeded_from: 'book_cover_taxonomy',
+        },
         status: (isActive ? 'active' : 'draft') as 'active' | 'draft' | 'archived',
         source_confidence: isActive ? 0.9 : 0.65,
         _index: index,
@@ -239,6 +248,7 @@ export type ArtDirectionCanonEntrySummary = {
   examples: string[];
   chunk_count: number;
   source_count: number;
+  metadata: Record<string, any>;
   status: 'active' | 'draft' | 'archived';
   source_confidence: number;
 };
@@ -1846,7 +1856,7 @@ export async function listArtDirectionCanons(params: {
     entries: [],
   }));
 
-  if (!canons.length) {
+  if (!canons.length || !canons.some((canon) => canon.total_entries > 0)) {
     return buildFallbackCanonEntries(params.limitEntriesPerCanon ?? 12);
   }
 
@@ -1884,6 +1894,7 @@ export async function listArtDirectionCanons(params: {
        COALESCE(e.examples, '[]'::jsonb) AS examples,
        COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
        COALESCE(source_stats.source_count, 0)::int AS source_count,
+       COALESCE(e.metadata, '{}'::jsonb) AS metadata,
        e.status,
        e.source_confidence
      FROM da_canon_entries e
@@ -1917,6 +1928,7 @@ export async function listArtDirectionCanons(params: {
         heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
         critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
         examples: Array.isArray(row.examples) ? row.examples : [],
+        metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {},
       });
     }
     grouped.set(row.canon_id, current);
@@ -1969,6 +1981,7 @@ export async function listRelevantArtDirectionCanonEntries(params: {
        COALESCE(e.examples, '[]'::jsonb) AS examples,
        COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
        COALESCE(source_stats.source_count, 0)::int AS source_count,
+       COALESCE(e.metadata, '{}'::jsonb) AS metadata,
        e.status,
        e.source_confidence
      FROM da_canon_entries e
@@ -2000,6 +2013,7 @@ export async function listRelevantArtDirectionCanonEntries(params: {
     heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
     critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
     examples: Array.isArray(row.examples) ? row.examples : [],
+    metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {},
   }));
 }
 
