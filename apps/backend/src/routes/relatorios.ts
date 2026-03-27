@@ -254,7 +254,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
         SELECT sc.client_id, c.name AS client_name,
                sc.type, sc.monthly_value_brl, sc.status
         FROM service_contracts sc
-        JOIN clients c ON c.id = sc.client_id
+        JOIN clients c ON c.id::text = sc.client_id
         WHERE sc.tenant_id = $1 AND sc.status = 'active'
         ORDER BY sc.monthly_value_brl DESC NULLS LAST
       `, [tenantId]),
@@ -267,7 +267,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
                COUNT(*) FILTER (WHERE i.status = 'overdue') AS overdue_count,
                SUM(i.amount_brl) FILTER (WHERE i.status = 'paid') AS paid_amount
         FROM invoices i
-        JOIN clients c ON c.id = i.client_id
+        JOIN clients c ON c.id::text = i.client_id
         WHERE i.period_month = $1
         GROUP BY i.client_id, c.name
         ORDER BY total_invoiced DESC
@@ -280,7 +280,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
                SUM(mb.realized_brl) AS total_realized,
                json_agg(json_build_object('platform', mb.platform, 'planned', mb.planned_brl, 'realized', mb.realized_brl)) AS platforms
         FROM media_budgets mb
-        JOIN clients c ON c.id = mb.client_id
+        JOIN clients c ON c.id::text = mb.client_id
         WHERE mb.period_month = $1
         GROUP BY mb.client_id, c.name
         ORDER BY total_planned DESC
