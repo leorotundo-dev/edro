@@ -361,11 +361,11 @@ export default function JarvisChatPanel() {
       }
 
       const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[] } }>(
-        `/clients/${cid}/planning/chat`,
+        '/jarvis/chat',
         {
+          clientId: cid,
           message: msg,
           conversationId,
-          mode: 'agent',
           context_page: pathname,
           studio_context: studioContext,
           inline_attachments: filesToSend.length ? filesToSend.map(f => ({ name: f.name, text: f.text })) : undefined,

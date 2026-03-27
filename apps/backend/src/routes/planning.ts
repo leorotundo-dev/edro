@@ -40,7 +40,7 @@ import { ToolContext } from '../services/ai/toolExecutor';
  * Two client tables coexist: `clients` (TEXT id, multitenant) and `edro_clients` (UUID, legacy briefing system).
  * Tables like library_items/clipping use clients.id (TEXT), while edro_briefings/ai_opportunities use edro_clients.id (UUID).
  */
-async function resolveEdroClientId(clientId: string): Promise<string | null> {
+export async function resolveEdroClientId(clientId: string): Promise<string | null> {
   try {
     const { rows } = await query(
       `SELECT ec.id FROM edro_clients ec
@@ -92,7 +92,7 @@ const createConversationSchema = z.object({
   provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
 });
 
-function mapProviderToCopy(provider: string): CopyProvider {
+export function mapProviderToCopy(provider: string): CopyProvider {
   switch (provider) {
     case 'anthropic': return 'claude';
     case 'google': return 'gemini';
@@ -206,7 +206,7 @@ async function resolveBriefingFromCommand(params: {
   return briefings.rows[0] || null;
 }
 
-async function buildClientContext(tenantId: string, clientId: string): Promise<string> {
+export async function buildClientContext(tenantId: string, clientId: string): Promise<string> {
   const client = await getClientById(tenantId, clientId);
   if (!client) return '';
 
@@ -265,7 +265,7 @@ async function buildClientContext(tenantId: string, clientId: string): Promise<s
   return parts.join('\n');
 }
 
-async function loadPerformanceContext(clientId: string): Promise<string> {
+export async function loadPerformanceContext(clientId: string): Promise<string> {
   try {
     // Fetch the most recent 30d snapshot for each platform
     const { rows } = await query<any>(
@@ -316,7 +316,7 @@ async function loadPerformanceContext(clientId: string): Promise<string> {
   }
 }
 
-async function loadPsychContext(tenantId: string, clientId: string): Promise<string> {
+export async function loadPsychContext(tenantId: string, clientId: string): Promise<string> {
   try {
     const [clusters, rules] = await Promise.all([
       loadBehaviorProfiles(tenantId, clientId),
@@ -367,7 +367,7 @@ GUIDELINES:
 - Consider the client's industry and market context`;
 }
 
-function buildAgentSystemPrompt(clientContext: string, psychContext: string, perfContext?: string): string {
+export function buildAgentSystemPrompt(clientContext: string, psychContext: string, perfContext?: string): string {
   return `Você é o Jarvis — diretor de estratégia e criação da agência EDRO, com QI operacional de 190.
 Você não é um assistente genérico. Você é o profissional mais sênior da sala: estrategista, redator-chefe, analista comportamental e gestor de conta ao mesmo tempo.
 Você tem acesso a ferramentas para operar dados reais do sistema, e inteligência própria para criar, diagnosticar e surpreender.

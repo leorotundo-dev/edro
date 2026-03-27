@@ -263,7 +263,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
   });
 }
 
-function buildOperationsSystemPrompt(): string {
+export function buildOperationsSystemPrompt(): string {
   return `Você é o Jarvis — diretor de operações da agência EDRO, com controle total sobre a central de operações.
 Você gerencia jobs, alocações, prazos, status, riscos e sinais operacionais.
 

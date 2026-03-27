@@ -257,9 +257,12 @@ export default function JarvisFullClient() {
 
     try {
       const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[] } }>(
-        `/clients/${cid}/planning/chat`,
+        '/jarvis/chat',
         {
-          message: msg, conversationId, mode: 'agent', context_page: '/jarvis',
+          clientId: cid,
+          message: msg,
+          conversationId,
+          context_page: '/jarvis',
           inline_attachments: filesToSend.length ? filesToSend.map(f => ({ name: f.name, text: f.text })) : undefined,
         },
       );
