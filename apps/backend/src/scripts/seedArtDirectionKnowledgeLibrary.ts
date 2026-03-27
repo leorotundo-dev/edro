@@ -34,6 +34,35 @@ function buildDraftSummary(title: string, canonTitle: string) {
   return `${title} faz parte do canon ${canonTitle} e está aguardando expansão editorial.`;
 }
 
+function buildDraftChunks(title: string, canonTitle: string) {
+  return [
+    {
+      chunkType: 'definition',
+      content: `Definição-base de ${title} dentro do canon ${canonTitle}. Expandir com contexto conceitual claro.`,
+    },
+    {
+      chunkType: 'history',
+      content: `Contexto histórico e cultural de ${title}. Registrar origens, movimentos relacionados e evolução do termo.`,
+    },
+    {
+      chunkType: 'heuristic',
+      content: `Heurísticas práticas de ${title}. Explicar como esse conceito orienta direção de arte, composição, tipografia ou repertório.`,
+    },
+    {
+      chunkType: 'application',
+      content: `Aplicações de ${title}. Documentar quando usar, quando evitar e em quais formatos ou mídias ele se manifesta.`,
+    },
+    {
+      chunkType: 'critique',
+      content: `Critério de revisão para ${title}. Registrar como o Jarvis e o bot DA devem avaliar o uso desse conceito em peças reais.`,
+    },
+    {
+      chunkType: 'example',
+      content: `Exemplos e repertório de ${title}. Adicionar casos, movimentos, referências e comparações úteis para treino.`,
+    },
+  ];
+}
+
 async function resolveCanonMap(client: any) {
   const result = await client.query(
     `SELECT id, slug, title
@@ -305,6 +334,7 @@ async function main() {
           await replaceChunks(client, entryId, chunks);
           activeEntries += 1;
         } else {
+          await replaceChunks(client, entryId, buildDraftChunks(entryTitle, canon.title));
           draftEntries += 1;
         }
 
