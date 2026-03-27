@@ -82,33 +82,44 @@ export default async function authRoutes(app: FastifyInstance) {
     role: string;
     tenantId?: string | null;
   }) => {
-    const { rows } = await pool.query<{
-      name: string | null;
-      avatar_url: string | null;
-    }>(
-      `SELECT COALESCE(fp.display_name, eu.name, split_part(eu.email, '@', 1)) AS name,
-              COALESCE(p.avatar_url, p2.avatar_url, fp.avatar_url) AS avatar_url
-         FROM edro_users eu
-         LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
-         LEFT JOIN people p ON p.id = fp.person_id
-         LEFT JOIN person_identities pi
-           ON pi.tenant_id = COALESCE($2, pi.tenant_id)
-          AND pi.identity_type = 'edro_user_id'
-          AND pi.normalized_value = LOWER(eu.id::text)
-         LEFT JOIN people p2 ON p2.id = pi.person_id
-        WHERE eu.id = $1
-        LIMIT 1`,
-      [params.userId, params.tenantId ?? null],
-    );
+    try {
+      const { rows } = await pool.query<{
+        name: string | null;
+        avatar_url: string | null;
+      }>(
+        `SELECT COALESCE(fp.display_name, eu.name, split_part(eu.email, '@', 1)) AS name,
+                COALESCE(p.avatar_url, p2.avatar_url, fp.avatar_url) AS avatar_url
+           FROM edro_users eu
+           LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+           LEFT JOIN people p ON p.id = fp.person_id
+           LEFT JOIN person_identities pi
+             ON pi.tenant_id = COALESCE($2, pi.tenant_id)
+            AND pi.identity_type = 'edro_user_id'
+            AND pi.normalized_value = LOWER(eu.id::text)
+           LEFT JOIN people p2 ON p2.id = pi.person_id
+          WHERE eu.id = $1
+          LIMIT 1`,
+        [params.userId, params.tenantId ?? null],
+      );
 
-    return {
-      id: params.userId,
-      email: params.email,
-      role: params.role,
-      tenant_id: params.tenantId ?? null,
-      name: rows[0]?.name ?? params.email.split('@')[0],
-      avatar_url: rows[0]?.avatar_url ?? null,
-    };
+      return {
+        id: params.userId,
+        email: params.email,
+        role: params.role,
+        tenant_id: params.tenantId ?? null,
+        name: rows[0]?.name ?? params.email.split('@')[0],
+        avatar_url: rows[0]?.avatar_url ?? null,
+      };
+    } catch {
+      return {
+        id: params.userId,
+        email: params.email,
+        role: params.role,
+        tenant_id: params.tenantId ?? null,
+        name: params.email.split('@')[0],
+        avatar_url: null,
+      };
+    }
   };
 
   const resolvePortalAuthTenantId = async (email: string, role?: 'client' | 'staff') => {
