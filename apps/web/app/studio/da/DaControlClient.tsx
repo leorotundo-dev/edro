@@ -14,6 +14,9 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import Link from '@mui/material/Link';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
@@ -2026,67 +2029,19 @@ export default function DaControlClient() {
                     sx={{
                       p: 1.75,
                       borderRadius: 2.5,
-                      bgcolor: 'rgba(93,135,255,0.03)',
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                      Como a Edro ensina o bot
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Primeiro a Edro ensina teoria, critérios e repertório. Depois o motor absorve referências e tendências.
-                      Só no fim ele aplica isso a clientes específicos.
-                    </Typography>
-                  </Paper>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.75,
-                      borderRadius: 2.5,
-                      bgcolor: 'rgba(93,135,255,0.04)',
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                      O que você faz aqui
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Navega a teoria, revisa os tópicos que a Edro precisa dominar e decide onde aprofundar ou expandir o canon.
-                    </Typography>
-                  </Paper>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.75,
-                      borderRadius: 2.5,
-                      bgcolor: 'rgba(19, 222, 185, 0.04)',
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                      Onde esse conteúdo mora
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      A teoria da Edro fica salva no banco em contêineres por tópico. Cada tópico pode guardar definição,
-                      história, heurísticas, aplicação, crítica, exemplos e fontes. O que você vê abaixo é o mapa curricular
-                      que o Jarvis e o bot DA precisam dominar.
-                    </Typography>
-                    <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
-                      <Chip size="small" variant="outlined" label="da_canons" />
-                      <Chip size="small" variant="outlined" label="da_canon_entries" />
-                      <Chip size="small" variant="outlined" label="da_canon_chunks" />
-                      <Chip size="small" variant="outlined" label="da_canon_sources" />
-                    </Stack>
-                  </Paper>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.75,
-                      borderRadius: 2.5,
                       bgcolor: 'rgba(15, 23, 42, 0.02)',
                     }}
                   >
-                    <Stack direction="row" gap={1} flexWrap="wrap">
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Biblioteca supra-cliente da Edro. Navegue por canon, módulo e tópico para estudar ou alimentar um contêiner teórico por vez.
+                    </Typography>
+                    <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
                       <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.total_entries, 0)} tópicos catalogados`} />
                       <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.active_entries, 0)} ativos`} />
                       <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.draft_entries, 0)} em curadoria`} />
+                      <Chip size="small" variant="outlined" label="da_canons" />
+                      <Chip size="small" variant="outlined" label="da_canon_entries" />
+                      <Chip size="small" variant="outlined" label="da_canon_chunks" />
                     </Stack>
                   </Paper>
                   {filteredCanonGroups.length ? (
@@ -2100,40 +2055,41 @@ export default function DaControlClient() {
                             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45, mb: 1.2 }}>
                               Entre por um território da disciplina.
                             </Typography>
-                            <Stack spacing={1}>
+                            <List dense disablePadding>
                               {filteredCanonGroups.map((group) => {
                                 const selected = group.key === activeCanonGroup?.key;
                                 return (
-                                  <Paper
+                                  <ListItemButton
                                     key={`canon-browser-${group.key}`}
-                                    variant="outlined"
                                     onClick={() => {
                                       setSelectedCanonKey(group.key);
                                       setSelectedModuleKey(null);
                                       setSelectedEntrySlug(null);
                                     }}
                                     sx={{
-                                      p: 1.2,
+                                      px: 1.25,
+                                      py: 1,
+                                      mb: 0.75,
                                       borderRadius: 2,
-                                      cursor: 'pointer',
+                                      border: '1px solid',
                                       borderColor: selected ? 'rgba(93,135,255,0.38)' : 'rgba(15, 23, 42, 0.08)',
                                       bgcolor: selected ? 'rgba(93,135,255,0.08)' : 'rgba(255,255,255,0.92)',
                                     }}
                                   >
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                      {group.title}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
-                                      {group.description}
-                                    </Typography>
-                                    <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
-                                      <Chip size="small" variant={selected ? 'filled' : 'outlined'} color={selected ? 'primary' : 'default'} label={`${group.canon?.total_entries ?? 0} tópicos`} />
+                                    <ListItemText
+                                      primary={group.title}
+                                      secondary={group.description}
+                                      primaryTypographyProps={{ fontWeight: 700, fontSize: 14.5 }}
+                                      secondaryTypographyProps={{ fontSize: 12.5 }}
+                                    />
+                                    <Stack direction="row" gap={0.75} flexWrap="wrap" justifyContent="flex-end">
+                                      <Chip size="small" variant={selected ? 'filled' : 'outlined'} color={selected ? 'primary' : 'default'} label={`${group.canon?.total_entries ?? 0}`} />
                                       <Chip size="small" variant="outlined" label={`${group.canonModules?.length ?? 0} módulos`} />
                                     </Stack>
-                                  </Paper>
+                                  </ListItemButton>
                                 );
                               })}
-                            </Stack>
+                            </List>
                           </Paper>
 
                           <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
@@ -2144,35 +2100,37 @@ export default function DaControlClient() {
                               O canon é quebrado em blocos de estudo.
                             </Typography>
                             {activeCanonGroup?.canonModules?.length ? (
-                              <Stack spacing={1}>
+                              <List dense disablePadding>
                                 {activeCanonGroup.canonModules.map((module) => {
                                   const selected = module.key === activeModule?.key;
                                   return (
-                                    <Paper
+                                    <ListItemButton
                                       key={`module-browser-${module.key}`}
-                                      variant="outlined"
                                       onClick={() => {
                                         setSelectedModuleKey(module.key);
                                         setSelectedEntrySlug(null);
                                       }}
                                       sx={{
-                                        p: 1.15,
+                                        px: 1.25,
+                                        py: 0.95,
+                                        mb: 0.75,
                                         borderRadius: 2,
-                                        cursor: 'pointer',
+                                        border: '1px solid',
                                         borderColor: selected ? 'rgba(232,82,25,0.30)' : 'rgba(15, 23, 42, 0.08)',
                                         bgcolor: selected ? 'rgba(232,82,25,0.06)' : 'rgba(255,255,255,0.92)',
                                       }}
                                     >
-                                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                        {module.title}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                                        {module.description}
-                                      </Typography>
-                                    </Paper>
+                                      <ListItemText
+                                        primary={module.title}
+                                        secondary={module.description}
+                                        primaryTypographyProps={{ fontWeight: 700, fontSize: 14 }}
+                                        secondaryTypographyProps={{ fontSize: 12.5 }}
+                                      />
+                                      <Chip size="small" variant="outlined" label={`${module.entries.length}`} />
+                                    </ListItemButton>
                                   );
                                 })}
-                              </Stack>
+                              </List>
                             ) : (
                               <Typography variant="body2" color="text.secondary">
                                 Selecione um canon para ver seus módulos.
@@ -2188,18 +2146,31 @@ export default function DaControlClient() {
                               Entre no contêiner teórico específico.
                             </Typography>
                             {activeModule?.entries?.length ? (
-                              <Stack direction="row" gap={1} flexWrap="wrap">
+                              <List dense disablePadding sx={{ maxHeight: 360, overflowY: 'auto', pr: 0.5 }}>
                                 {activeModule.entries.map((entry) => (
-                                  <Chip
+                                  <ListItemButton
                                     key={`topic-browser-${entry.slug}`}
-                                    label={entry.title}
-                                    color={entry.slug === activeEntry?.slug ? 'primary' : 'default'}
-                                    variant={entry.slug === activeEntry?.slug ? 'filled' : 'outlined'}
                                     onClick={() => setSelectedEntrySlug(entry.slug)}
-                                    sx={{ cursor: 'pointer' }}
-                                  />
+                                    sx={{
+                                      px: 1.25,
+                                      py: 0.95,
+                                      mb: 0.75,
+                                      borderRadius: 2,
+                                      border: '1px solid',
+                                      borderColor: entry.slug === activeEntry?.slug ? 'rgba(93,135,255,0.38)' : 'rgba(15, 23, 42, 0.08)',
+                                      bgcolor: entry.slug === activeEntry?.slug ? 'rgba(93,135,255,0.08)' : 'rgba(255,255,255,0.92)',
+                                    }}
+                                  >
+                                    <ListItemText
+                                      primary={entry.title}
+                                      secondary={entry.status === 'active' ? 'ativo' : entry.status === 'draft' ? 'em curadoria' : entry.status}
+                                      primaryTypographyProps={{ fontWeight: 700, fontSize: 14 }}
+                                      secondaryTypographyProps={{ fontSize: 12.5 }}
+                                    />
+                                    <Chip size="small" variant="outlined" label={`${entry.chunk_count} chunks`} />
+                                  </ListItemButton>
                                 ))}
-                              </Stack>
+                              </List>
                             ) : (
                               <Typography variant="body2" color="text.secondary">
                                 Selecione um módulo para ver os tópicos.
