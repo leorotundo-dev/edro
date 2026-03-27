@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     { headers: { 'Cache-Control': 'no-store' } },
   );
 
-  response.cookies.set(EDRO_SESSION_COOKIE, accessToken, getCookieConfig(60 * 30));
+  response.cookies.set(EDRO_SESSION_COOKIE, accessToken, getCookieConfig(60 * 60 * 24 * 14));
   response.cookies.set(EDRO_MFA_PENDING_COOKIE, '', { ...getCookieConfig(60 * 10), maxAge: 0 });
   if (data?.refreshToken) {
     response.cookies.set(EDRO_REFRESH_COOKIE, data.refreshToken, getCookieConfig(60 * 60 * 24 * 14));
