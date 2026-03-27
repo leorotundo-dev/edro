@@ -42,6 +42,7 @@ import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
 import { runArtDirectionReferenceWorkerOnce } from './artDirectionReferenceWorker';
 import { runArtDirectionTrendWorkerOnce } from './artDirectionTrendWorker';
 import { runWebhookRetryWorkerOnce } from './webhookRetryWorker';
+import { runAgencyDigestWorkerOnce } from './agencyDigestWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -164,4 +165,5 @@ export function startJobsRunner() {
   startWorkerLoop('artDirectionTrend', runArtDirectionTrendWorkerOnce, 21000, 300_000);
   // Webhook Retry — retries failed WhatsApp/Instagram/Recall events with exponential backoff (max 3 attempts)
   startWorkerLoop('webhookRetry', runWebhookRetryWorkerOnce, 21500, 30_000);
+  startWorkerLoop('agencyDigest', runAgencyDigestWorkerOnce, 22000, 60_000);
 }

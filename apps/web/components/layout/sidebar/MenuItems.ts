@@ -9,6 +9,10 @@ import {
   IconUserCircle,
   IconRadar,
   IconChartBar,
+  IconReportAnalytics,
+  IconAlertSquare,
+  IconCalendarStats,
+  IconBuildingBank,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -39,12 +43,6 @@ const MenuItems: MenuGroupType[] = [
         href: '/admin/operacoes',
       },
       {
-        id: 'insights',
-        title: 'Relatórios',
-        icon: IconChartBar,
-        href: '/admin/trello/insights',
-      },
-      {
         id: 'clients',
         title: 'Clientes',
         icon: IconUsers,
@@ -72,6 +70,42 @@ const MenuItems: MenuGroupType[] = [
         title: 'Minha Área',
         icon: IconUserCircle,
         href: '/minha-area',
+      },
+    ],
+  },
+  {
+    subheader: 'Relatórios',
+    requiredGroupRole: ['admin', 'manager'],
+    items: [
+      {
+        id: 'painel-executivo',
+        title: 'Painel Executivo',
+        icon: IconReportAnalytics,
+        href: '/admin/relatorios/painel',
+      },
+      {
+        id: 'fila-de-acao',
+        title: 'Fila de Ação',
+        icon: IconAlertSquare,
+        href: '/admin/relatorios/fila',
+      },
+      {
+        id: 'diario',
+        title: 'Diário',
+        icon: IconCalendarStats,
+        href: '/admin/diario',
+      },
+      {
+        id: 'financeiro-cruzado',
+        title: 'Financeiro',
+        icon: IconBuildingBank,
+        href: '/admin/relatorios/financeiro',
+      },
+      {
+        id: 'trello-insights',
+        title: 'Produção',
+        icon: IconChartBar,
+        href: '/admin/trello/insights',
       },
     ],
   },

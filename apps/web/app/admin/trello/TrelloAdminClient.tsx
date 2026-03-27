@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -165,7 +166,10 @@ function SyncStatusChip({ status }: { status: HealthBoard['sync_status'] }) {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function TrelloAdminClient() {
-  const [activeTab, setActiveTab] = useState(0);
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab = tabParam === 'mapping' ? 2 : tabParam === 'health' ? 1 : 0;
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // ── Boards tab state
   const [connector, setConnector] = useState<ConnectorStatus | null>(null);
