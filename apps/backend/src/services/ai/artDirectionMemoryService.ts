@@ -2,8 +2,104 @@ import { query } from '../../db';
 import { generateCompletion, generateCompletionWithVision } from './claudeService';
 import { estimateTokens, logAiUsage } from './aiUsageLogger';
 import { isTavilyConfigured, tavilySearch } from '../tavilyService';
+import { CORE_ART_DIRECTION_CONCEPTS } from './artDirectionCoreConcepts';
+import { EDRO_DA_CANON_SEED } from './artDirectionKnowledgeLibrarySeed';
 
 type JsonArray = string[];
+
+const FALLBACK_CANON_META: Record<string, { title: string; description: string; sortOrder: number }> = {
+  fundamentos_visuais: {
+    title: 'Fundamentos da Visao',
+    description: 'Percepcao, composicao, hierarquia, grid, cor e linguagem visual que sustentam qualquer peca.',
+    sortOrder: 10,
+  },
+  tipografia: {
+    title: 'Dominio Tipografico',
+    description: 'Familias, tons de voz, legibilidade, psicologia das fontes e uso tipografico em diferentes contextos.',
+    sortOrder: 20,
+  },
+  historia_estilo: {
+    title: 'Historia e Estilo',
+    description: 'Movimentos, escolas e repertorios historicos que moldam direcao de arte, design grafico e cultura visual.',
+    sortOrder: 30,
+  },
+  formatos_aplicacoes: {
+    title: 'Formatos e Aplicacoes',
+    description: 'Aplicacao do criterio visual por midia, formato, objetivo e superficie de uso.',
+    sortOrder: 40,
+  },
+  acessibilidade_critica: {
+    title: 'Acessibilidade e Critica',
+    description: 'Contraste, inclusao, clareza, avaliacao tecnica e feedback para calibrar o julgamento do DA.',
+    sortOrder: 50,
+  },
+};
+
+function slugifyCanonEntry(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function buildFallbackCanonEntries(limitEntriesPerCanon = 12) {
+  const coreConceptMap = new Map(CORE_ART_DIRECTION_CONCEPTS.map((concept) => [concept.slug, concept]));
+
+  return EDRO_DA_CANON_SEED.map((seed) => {
+    const meta = FALLBACK_CANON_META[seed.canonSlug];
+    const allEntries = seed.entries.map((title, index) => {
+      const slug = slugifyCanonEntry(title);
+      const core = coreConceptMap.get(slug);
+      const isActive = Boolean(core);
+
+      return {
+        id: `fallback-${seed.canonSlug}-${slug}`,
+        canon_id: `fallback-${seed.canonSlug}`,
+        canon_slug: seed.canonSlug,
+        canon_title: meta?.title ?? seed.canonSlug,
+        slug,
+        title,
+        summary_short: core?.definition ?? title,
+        summary_medium: core?.definition ?? `${title} é um contêiner teórico do canon ${meta?.title ?? seed.canonSlug}, aguardando aprofundamento editorial da Edro.`,
+        summary_long:
+          core?.definition ??
+          `${title} é um contêiner teórico do canon ${meta?.title ?? seed.canonSlug}. Esta entrada foi pré-cadastrada para receber definição, histórico, heurísticas, aplicações, crítica e exemplos antes de alimentar o Jarvis em profundidade.`,
+        definition:
+          core?.definition ??
+          `Entrada inicial do canon da Edro para curadoria sobre ${title}. Expandir com definição, heurísticas, exemplos e contexto histórico antes de ativar no motor.`,
+        when_to_use: core?.whenToUse ?? [],
+        when_to_avoid: core?.whenToAvoid ?? [],
+        heuristics: core?.heuristics ?? [],
+        critique_checks: core?.critiqueChecks ?? [],
+        examples: core?.examples ?? [],
+        chunk_count: isActive ? 5 : 6,
+        source_count: 1,
+        status: (isActive ? 'active' : 'draft') as 'active' | 'draft' | 'archived',
+        source_confidence: isActive ? 0.9 : 0.65,
+        _index: index,
+      };
+    });
+
+    const visibleEntries = allEntries.slice(0, Math.max(1, Math.min(limitEntriesPerCanon, 50))).map(({ _index, ...entry }) => entry);
+
+    return {
+      id: `fallback-${seed.canonSlug}`,
+      slug: seed.canonSlug,
+      title: meta?.title ?? seed.canonSlug,
+      description: meta?.description ?? null,
+      status: 'active' as const,
+      sort_order: meta?.sortOrder ?? 999,
+      total_entries: allEntries.length,
+      active_entries: allEntries.filter((entry) => entry.status === 'active').length,
+      draft_entries: allEntries.filter((entry) => entry.status === 'draft').length,
+      archived_entries: 0,
+      entries: visibleEntries,
+    };
+  }).sort((a, b) => a.sort_order - b.sort_order);
+}
 
 export type ArtDirectionConceptRow = {
   id: string;
@@ -1749,6 +1845,10 @@ export async function listArtDirectionCanons(params: {
     ...row,
     entries: [],
   }));
+
+  if (!canons.length) {
+    return buildFallbackCanonEntries(params.limitEntriesPerCanon ?? 12);
+  }
 
   if (!params.includeEntries || !canons.length) {
     return canons;
