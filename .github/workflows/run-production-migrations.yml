@@ -19,19 +19,6 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Load Railway target
         id: railway
         shell: bash
@@ -59,8 +46,8 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         shell: bash
         run: |
-          railway run \
+          railway ssh \
             --service edro-backend \
             --project "${{ steps.railway.outputs.project_id }}" \
             --environment "${{ steps.railway.outputs.environment }}" \
-            pnpm --filter @edro/backend db:migrate
+            bash -lc "cd /app && pnpm --filter @edro/backend db:migrate"
