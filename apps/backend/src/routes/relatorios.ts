@@ -53,6 +53,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
           COUNT(co.id) FILTER (WHERE co.ops_status = 'blocked')                            AS blocked_jobs,
           COUNT(co.id) FILTER (
             WHERE co.due_date < CURRENT_DATE
+              AND co.due_date >= date_trunc('year', CURRENT_DATE)
               AND co.ops_status NOT IN ('done','published','approved')
           )                                                                                  AS overdue_jobs,
           MAX(co.updated_at)                                                                 AS last_job_activity
@@ -149,6 +150,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
         WHERE pc.is_archived = false
           AND ${OPS_STATUS_EXPR} = 'blocked'
           AND pc.updated_at < now() - interval '1 day'
+          AND pc.created_at >= date_trunc('year', CURRENT_DATE)
         ORDER BY pc.updated_at ASC
         LIMIT 20
       `, [tenantId]),
@@ -165,6 +167,7 @@ export default async function relatoriosRoutes(app: FastifyInstance) {
         JOIN clients c ON c.id = pb.client_id
         WHERE pc.is_archived = false
           AND pc.due_date < CURRENT_DATE
+          AND pc.due_date >= date_trunc('year', CURRENT_DATE)
           AND ${OPS_STATUS_EXPR} NOT IN ('done', 'published', 'approved')
         ORDER BY pc.due_date ASC
         LIMIT 20
