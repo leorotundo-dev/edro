@@ -67,6 +67,10 @@ function Field({ label, required, hint, children }: {
   );
 }
 
+function isSafeLocalPreviewUrl(value: string) {
+  return value.startsWith('blob:') || value.startsWith('data:image/');
+}
+
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)',
   border: '1px solid rgba(255,255,255,0.12)',
@@ -238,6 +242,7 @@ export default function OnboardingPage() {
   }
 
   const currentStep = STEPS[step];
+  const safeAvatarSourcePreview = isSafeLocalPreviewUrl(avatarSourcePreview) ? avatarSourcePreview : '';
 
   return (
     <div style={{
@@ -489,9 +494,9 @@ export default function OnboardingPage() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
                     Foto enviada
                   </div>
-                  {avatarSourcePreview ? (
+                  {safeAvatarSourcePreview ? (
                     <img
-                      src={avatarSourcePreview}
+                      src={safeAvatarSourcePreview}
                       alt="Prévia da foto enviada"
                       style={{ width: '100%', height: 190, objectFit: 'cover', borderRadius: 12 }}
                     />
