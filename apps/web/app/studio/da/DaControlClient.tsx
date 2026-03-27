@@ -206,7 +206,16 @@ type SourceDraft = {
   enabled: boolean;
 };
 
-const PLATFORM_OPTIONS = ['Instagram', 'LinkedIn', 'Facebook', 'TikTok', 'YouTube', 'WhatsApp', 'General'];
+const PLATFORM_OPTIONS = [
+  { value: '', label: 'Sem filtro' },
+  { value: 'Instagram', label: 'Instagram' },
+  { value: 'LinkedIn', label: 'LinkedIn' },
+  { value: 'Facebook', label: 'Facebook' },
+  { value: 'TikTok', label: 'TikTok' },
+  { value: 'YouTube', label: 'YouTube' },
+  { value: 'WhatsApp', label: 'WhatsApp' },
+  { value: 'General', label: 'General' },
+];
 const REFERENCE_STATUS_OPTIONS: ManagedReference['status'][] = ['discovered', 'analyzed', 'rejected', 'archived'];
 const SOURCE_TYPE_OPTIONS: ReferenceSource['source_type'][] = ['site', 'search', 'manual', 'social', 'rss', 'library'];
 const CANON_GROUPS = [
@@ -665,9 +674,9 @@ export default function DaControlClient() {
   const [warning, setWarning] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [clientId, setClientId] = useState<string>('');
-  const [platform, setPlatform] = useState<string>('Instagram');
+  const [platform, setPlatform] = useState<string>('');
   const [segment, setSegment] = useState<string>('');
-  const [category, setCategory] = useState<string>('social media');
+  const [category, setCategory] = useState<string>('');
   const [mood, setMood] = useState<string>('');
   const [data, setData] = useState<MemoryResponse | null>(null);
   const [previewByReferenceId, setPreviewByReferenceId] = useState<Record<string, ReferencePreview>>({});
@@ -702,7 +711,8 @@ export default function DaControlClient() {
     // operacional salvo no navegador; qualquer recorte aqui deve ser explícito.
     setClientId('');
     setSegment('');
-    setCategory('social media');
+    setPlatform('');
+    setCategory('');
     setShowApplicationFilters(false);
   }, [searchParams]);
 
@@ -741,7 +751,7 @@ export default function DaControlClient() {
     try {
       const response = await apiPost<{ inserted: number; queries: string[]; stats?: MemoryStats }>('/studio/creative/da-memory/discover', {
         client_id: clientId || undefined,
-        platform,
+        platform: platform || undefined,
         segment: segment || undefined,
         category: category || undefined,
         mood: mood || undefined,
@@ -763,7 +773,7 @@ export default function DaControlClient() {
     try {
       const response = await apiPost<{ analyzed: number; snapshots: number; stats?: MemoryStats }>('/studio/creative/da-memory/refresh', {
         client_id: clientId || undefined,
-        platform,
+        platform: platform || undefined,
         segment: segment || undefined,
         limit: 12,
         window_days: 30,
@@ -791,8 +801,8 @@ export default function DaControlClient() {
         event_type: eventType,
         metadata: {
           source: 'studio_da_dashboard',
-          platform,
-          segment,
+          platform: platform || undefined,
+          segment: segment || undefined,
         },
       });
       setSuccess(`Feedback registrado: ${eventType}.`);
@@ -866,8 +876,8 @@ export default function DaControlClient() {
           event_type: status === 'analyzed' ? 'approved' : 'rejected',
           metadata: {
             source: 'studio_da_training_queue',
-            platform,
-            segment,
+            platform: platform || undefined,
+            segment: segment || undefined,
           },
         }).catch(() => {});
       }
@@ -1027,10 +1037,10 @@ export default function DaControlClient() {
   const nextStep = useMemo(() => {
     if (!stats) return 'Carregando status do pipeline.';
     if ((canons.length === 0) && (data?.concepts?.length ?? 0) === 0) {
-      return 'O canon ainda não carregou para este recorte. Recarregue a tela; se continuar zerado, ainda há problema de setup.';
+      return 'O canon ainda não carregou nesta visão. Recarregue a tela; se continuar zerado, ainda há problema de setup.';
     }
     if (stats.references.discovered === 0 && stats.references.analyzed === 0) {
-      return 'Próximo passo: buscar referências para enfileirar repertório visual neste recorte.';
+      return 'Próximo passo: buscar referências para enfileirar repertório visual.';
     }
     if (stats.references.discovered > 0 && stats.references.analyzed === 0) {
       return 'Há referências na fila, mas nenhuma analisada ainda. Rode Recalcular para transformar descoberta em memória útil.';
@@ -1191,8 +1201,8 @@ export default function DaControlClient() {
                 topTrend
                   ? `principal sinal: ${topTrend.tag}`
                   : stats?.references?.analyzed
-                  ? 'aguardando snapshots no recorte'
-                  : 'nenhum snapshot no recorte'
+                  ? 'aguardando snapshots'
+                  : 'nenhum snapshot ainda'
               }
               icon={<IconFlame size={20} />}
               color="#FFAE1F"
@@ -1284,8 +1294,6 @@ export default function DaControlClient() {
                               {preview?.preview_excerpt || reference.snippet || reference.rationale || 'Sem resumo salvo nesta descoberta.'}
                             </Typography>
                             <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
-                              <Chip size="small" label={reference.platform || 'geral'} />
-                              {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
                               {reference.visual_intent ? <Chip size="small" variant="outlined" label={reference.visual_intent} /> : null}
                             </Stack>
                             <Divider sx={{ my: 1.5 }} />
@@ -1399,22 +1407,22 @@ export default function DaControlClient() {
               <TextField
                 select
                 fullWidth
-                label="Plataforma"
+                label="Plataforma opcional"
                 value={platform}
                 onChange={(e) => setPlatform(e.target.value)}
               >
                 {PLATFORM_OPTIONS.map((item) => (
-                  <MenuItem key={item} value={item}>{item}</MenuItem>
+                  <MenuItem key={item.value || 'all'} value={item.value}>{item.label}</MenuItem>
                 ))}
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
-                label="Categoria de busca"
+                label="Tema de busca opcional"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                placeholder="social media, retail, editorial..."
+                placeholder="editorial, poster design, embalagem..."
               />
             </Grid>
             <Grid size={{ xs: 12, md: 5 }}>
@@ -1686,8 +1694,8 @@ export default function DaControlClient() {
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>
             <SectionCard
-              title="Teoria, estudo e canons da Edro"
-              subtitle="Esta é a biblioteca supra-cliente onde a Edro aprofunda fundamentos, tipografia, história, formatos e crítica para ensinar o bot DA."
+              title="Biblioteca completa de teoria e canons da Edro"
+              subtitle="Aqui fica a disciplina que a Edro ensina ao bot: fundamentos, tipografia, história, formatos, estética, direção de arte e crítica."
               eyebrow="Canon"
               tone="#5D87FF"
               action={(
@@ -1705,7 +1713,7 @@ export default function DaControlClient() {
                 <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
               ) : !(canons.length || data?.concepts?.length) ? (
                 <EmptySection
-                  title="Nenhum conceito retornou para este recorte."
+                  title="Nenhum conceito retornou nesta carga."
                   description="O canon base deveria aparecer automaticamente. Se isso continuar zerado após o refresh, ainda há problema de provisionamento ou filtro agressivo demais."
                 />
               ) : (
@@ -1722,7 +1730,7 @@ export default function DaControlClient() {
                       Como a Edro ensina o bot
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Primeiro a Edro define teoria, critérios e repertório. Depois o motor absorve referências e tendências.
+                      Primeiro a Edro ensina teoria, critérios e repertório. Depois o motor absorve referências e tendências.
                       Só no fim ele aplica isso a clientes específicos.
                     </Typography>
                   </Paper>
@@ -1740,6 +1748,43 @@ export default function DaControlClient() {
                       <Chip size="small" label={`${canons.reduce((sum, canon) => sum + canon.draft_entries, 0)} em curadoria`} />
                     </Stack>
                   </Paper>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
+                      bgcolor: 'rgba(15, 23, 42, 0.02)',
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Mapa da disciplina
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Esta é a lista grande de tópicos que a Edro quer dominar. Cada chip abaixo é um item do canon cadastrado no banco.
+                    </Typography>
+                    <Stack spacing={1.5} mt={1.5}>
+                      {filteredCanonGroups.map((group) => {
+                        const topicLabels = group.canon?.entries?.length
+                          ? group.canon.entries.map((entry) => entry.title)
+                          : group.concepts.map((concept) => concept.title);
+
+                        if (!topicLabels.length) return null;
+
+                        return (
+                          <Box key={`${group.key}-map`}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                              {group.title} • {topicLabels.length} tópicos
+                            </Typography>
+                            <Stack direction="row" gap={1} flexWrap="wrap" mt={0.75}>
+                              {topicLabels.map((label) => (
+                                <Chip key={`${group.key}-${label}`} size="small" variant="outlined" label={label} />
+                              ))}
+                            </Stack>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Paper>
                   {filteredCanonGroups.map((group) => (
                     <Paper key={group.key} variant="outlined" sx={{ p: 1.5, borderRadius: 2.5 }}>
                       <Stack direction="row" justifyContent="space-between" gap={2} mb={1}>
@@ -1751,7 +1796,7 @@ export default function DaControlClient() {
                           size="small"
                           label={
                             group.canon
-                              ? `${group.canon.active_entries} ativos • ${group.canon.draft_entries} draft`
+                              ? `${group.canon.entries.length}/${group.canon.total_entries} visíveis • ${group.canon.active_entries} ativos`
                               : `${group.concepts.length} conceitos`
                           }
                           color={(group.canon?.active_entries ?? group.concepts.length) > 0 ? 'primary' : 'default'}
@@ -1843,7 +1888,7 @@ export default function DaControlClient() {
                   title="Trend radar ainda vazio."
                   description={
                     (stats?.references.analyzed ?? 0) > 0
-                      ? 'Já existem referências analisadas, mas ainda faltam snapshots para este recorte. Rode Recalcular.'
+                      ? 'Já existem referências analisadas, mas ainda faltam snapshots. Rode Recalcular.'
                       : 'O radar só aparece depois que houver referências analisadas. Primeiro busque referências e depois recalcule.'
                   }
                   action={
@@ -1865,7 +1910,7 @@ export default function DaControlClient() {
                         <Box>
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{trend.tag}</Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {trend.cluster_key} {trend.platform ? `• ${trend.platform}` : ''} {trend.segment ? `• ${trend.segment}` : ''}
+                            {trend.cluster_key}
                           </Typography>
                         </Box>
                         <Chip
@@ -1897,11 +1942,11 @@ export default function DaControlClient() {
             <Stack alignItems="center" py={6}><CircularProgress size={28} /></Stack>
           ) : !(data?.references?.length) ? (
             <EmptySection
-              title="Ainda não há referências analisadas neste recorte."
+              title="Ainda não há referências analisadas."
               description={
                 (stats?.references.discovered ?? 0) > 0
                   ? `Existem ${stats?.references.discovered ?? 0} referências descobertas na fila. Falta rodar Recalcular para analisá-las e trazê-las para a memória viva.`
-                  : 'O motor ainda não encontrou repertório para este cliente/plataforma. Use Buscar referências para começar a ingestão.'
+                  : 'O motor ainda não encontrou repertório suficiente. Use Buscar referências para começar a ingestão.'
               }
               action={
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -1973,9 +2018,6 @@ export default function DaControlClient() {
                       </Typography>
 
                       <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
-                        <Chip size="small" label={reference.platform || 'geral'} />
-                        {reference.format ? <Chip size="small" variant="outlined" label={reference.format} /> : null}
-                        {reference.segment ? <Chip size="small" variant="outlined" label={reference.segment} /> : null}
                         {(uniqueTags(reference)).map((tag) => (
                           <Chip key={tag} size="small" variant="outlined" label={tag} />
                         ))}
@@ -2009,7 +2051,7 @@ export default function DaControlClient() {
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#0f172a', color: '#e2e8f0', overflowX: 'auto' }}>
                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12 }}>
-                  {data?.memory?.promptBlock || 'Sem bloco gerado ainda. Ele aparece quando o canon já carregou e houver memória de referência ou tendência suficiente para este recorte.'}
+                  {data?.memory?.promptBlock || 'Sem bloco gerado ainda. Ele aparece quando o canon já carregou e houver memória de referência ou tendência suficiente.'}
                 </pre>
               </Paper>
             </SectionCard>
@@ -2024,7 +2066,7 @@ export default function DaControlClient() {
             >
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: '#111827', color: '#d1fae5', overflowX: 'auto' }}>
                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12 }}>
-                  {data?.memory?.critiqueBlock || 'Sem bloco crítico gerado ainda. Ele aparece quando o sistema já consegue combinar canon, referências e sinais do recorte atual.'}
+                  {data?.memory?.critiqueBlock || 'Sem bloco crítico gerado ainda. Ele aparece quando o sistema já consegue combinar canon, referências e sinais já aprendidos.'}
                 </pre>
               </Paper>
             </SectionCard>
