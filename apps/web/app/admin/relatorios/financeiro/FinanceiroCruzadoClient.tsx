@@ -131,7 +131,7 @@ export default function FinanceiroCruzadoClient() {
   ] : [];
 
   return (
-    <AppShell>
+    <AppShell title="Financeiro Cruzado">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
