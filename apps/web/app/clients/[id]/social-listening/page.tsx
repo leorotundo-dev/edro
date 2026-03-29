@@ -1,10 +1,8 @@
-import SocialListeningClient from '@/app/social-listening/SocialListeningClient';
+import ClientSocialPageClient from './ClientSocialPageClient';
 
-type ClientSocialListeningPageProps = {
-  params: Promise<{ id: string }>;
-};
+type Props = { params: Promise<{ id: string }> };
 
-export default async function Page({ params }: ClientSocialListeningPageProps) {
+export default async function Page({ params }: Props) {
   const { id } = await params;
-  return <SocialListeningClient clientId={id} noShell embedded />;
+  return <ClientSocialPageClient clientId={id} />;
 }

@@ -85,11 +85,12 @@ type AnalysisResult = {
 };
 
 const CLIENT_TABS = [
-  { label: 'Operação',      path: '/operacao' },
-  { label: 'Radar',         path: '/radar' },
-  { label: 'Inteligência',  path: '/inteligencia' },
-  { label: 'Resultado',     path: '/resultado' },
-  { label: 'Identidade',    path: '/identidade' },
+  { label: 'Operação',        path: '/operacao' },
+  { label: 'Radar',           path: '/radar' },
+  { label: 'Social',          path: '/social-listening' },
+  { label: 'Inteligência',    path: '/inteligencia' },
+  { label: 'Resultado',       path: '/resultado' },
+  { label: 'Identidade',      path: '/identidade' },
 ];
 
 function formatMarkdown(text: string): string {
