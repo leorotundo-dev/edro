@@ -48,6 +48,7 @@ import {
   detectJarvisIntent,
   loadUnifiedConversationHistory,
   saveUnifiedConversation,
+  summarizeJarvisToolGovernance,
 } from '../services/jarvisPolicyService';
 export {
   buildClientContext,
@@ -673,6 +674,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     let artifacts: Array<{ type: string; [key: string]: any }> = [];
     let toolsUsed = 0;
     let loadedMemoryBlocks: string[] = [];
+    let autonomySummary: ReturnType<typeof summarizeJarvisToolGovernance> | undefined;
 
     const canonicalIntent = detectJarvisIntent(message, context_page);
     const canonicalDecision = buildJarvisRoutingDecision(canonicalIntent);
@@ -771,6 +773,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         artifacts = (loopResult.toolResults ?? [])
           .filter(r => r.success && r.data)
           .map(r => ({ type: r.toolName, ...r.data }));
+        autonomySummary = summarizeJarvisToolGovernance(loopResult.toolResults);
         console.log(`[planning_chat] agent ok in ${loopResult.totalDurationMs}ms tools=${loopResult.toolCallsExecuted} iterations=${loopResult.iterations}`);
       } catch (agentError: any) {
         const errMsg = agentError?.message || 'AGENT_ERROR';
@@ -916,6 +919,7 @@ export default async function planningRoutes(app: FastifyInstance) {
       provider: resultProvider,
       model: resultModel,
       loadedMemoryBlocks: mode === 'agent' || mode === 'chat' ? loadedMemoryBlocks : undefined,
+      autonomy: mode === 'agent' ? autonomySummary : undefined,
     });
     if (mode === 'agent' || mode === 'chat') {
       savedConversationId = await saveUnifiedConversation({

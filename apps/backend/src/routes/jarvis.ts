@@ -28,6 +28,7 @@ import {
   detectJarvisIntent,
   loadUnifiedConversationHistory,
   saveUnifiedConversation,
+  summarizeJarvisToolGovernance,
 } from '../services/jarvisPolicyService';
 import crypto from 'crypto';
 
@@ -135,6 +136,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           provider: resultProvider,
           model: resultModel,
           loadedMemoryBlocks,
+          autonomy: summarizeJarvisToolGovernance(loopResult.toolResults),
         });
         const savedConversationId = await saveUnifiedConversation({
           route: decision.route,
@@ -242,6 +244,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
             ...memoryBlocks.map((block) => block.label),
           ],
+          autonomy: summarizeJarvisToolGovernance(loopResult.toolResults),
         });
 
         const savedConversationId = await saveUnifiedConversation({

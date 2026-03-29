@@ -24,6 +24,7 @@ import {
   detectJarvisIntent,
   loadUnifiedConversationHistory,
   saveUnifiedConversation,
+  summarizeJarvisToolGovernance,
 } from '../services/jarvisPolicyService';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 
@@ -241,6 +242,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
           provider: loopResult.provider,
           model: loopResult.model,
           loadedMemoryBlocks: memoryBlocks.map((block) => block.label),
+          autonomy: summarizeJarvisToolGovernance(loopResult.toolResults),
         }),
       }).catch(() => body.conversationId || null);
 
@@ -251,6 +253,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
         provider: loopResult.provider,
         model: loopResult.model,
         loadedMemoryBlocks: memoryBlocks.map((block) => block.label),
+        autonomy: summarizeJarvisToolGovernance(loopResult.toolResults),
       });
       request.log?.info({
         event: 'operations_chat_completed',

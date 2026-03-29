@@ -48,6 +48,7 @@ import { enqueueJob, getJobById as getQueueJobById } from '../../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../jarvisBackgroundJobService';
 import { sendEmail } from '../emailService';
 import { decryptJSON } from '../../security/secrets';
+import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -72,7 +73,7 @@ export type ToolResult = {
   success: boolean;
   data?: any;
   error?: string;
-  metadata?: { row_count?: number; truncated?: boolean };
+  metadata?: { row_count?: number; truncated?: boolean; governance?: any };
 };
 
 const MAX_RESULT_CHARS = 4000;
@@ -356,6 +357,14 @@ export async function executeTool(
     return { success: false, error: `Tool '${toolName}' not found` };
   }
   try {
+    const governance = enforceJarvisToolGovernance(toolName, args);
+    if ('error' in governance) {
+      return {
+        success: false,
+        error: governance.error,
+        metadata: { governance: governance.policy },
+      };
+    }
     const timeoutMs = getToolTimeoutMs(toolName);
     const result = await Promise.race([
       handler(args, ctx),
@@ -363,7 +372,10 @@ export async function executeTool(
         setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
-    return truncateResult(result);
+    return truncateResult({
+      ...result,
+      metadata: { ...(result.metadata || {}), governance: governance.policy },
+    });
   } catch (err: any) {
     console.error(`[toolExecutor] ${toolName} failed:`, err.message);
     return { success: false, error: err.message || 'Tool execution failed' };
@@ -3327,6 +3339,14 @@ export async function executeOperationsTool(
     return { success: false, error: `Operations tool '${toolName}' not found` };
   }
   try {
+    const governance = enforceJarvisToolGovernance(toolName, args);
+    if ('error' in governance) {
+      return {
+        success: false,
+        error: governance.error,
+        metadata: { governance: governance.policy },
+      };
+    }
     const timeoutMs =
       toolName === 'suggest_creative_redistribution' ? 20000 :
         toolName === 'apply_job_allocation_recommendation' || toolName === 'apply_creative_redistribution' ? 20000 :
@@ -3341,7 +3361,10 @@ export async function executeOperationsTool(
         setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
-    return truncateResult(result);
+    return truncateResult({
+      ...result,
+      metadata: { ...(result.metadata || {}), governance: governance.policy },
+    });
   } catch (err: any) {
     console.error(`[opsToolExecutor] ${toolName} failed:`, err.message);
     return { success: false, error: err.message || 'Tool execution failed' };
