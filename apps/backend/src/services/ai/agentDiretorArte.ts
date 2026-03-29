@@ -11,6 +11,7 @@
  */
 
 import { generateCompletion, generateCompletionWithVision } from './claudeService';
+import { generateCompletionWithVision as geminiVision } from './geminiService';
 import { generateImageWithFal, type FalModel, type FalLoraConfig } from './falAiService';
 import { loadCachedStyle, analyzeClientVisualStyle, type ClientVisualStyle } from '../visualStyleAnalyzer';
 import {
@@ -69,6 +70,14 @@ export type MultiFormatResult = {
   imageUrl: string;
 };
 
+export type CopyImageAlignment = {
+  alignment_score: number;          // 0–100: sinergia copy↔imagem
+  relationship: 'complementar' | 'reforco' | 'duplicacao' | 'contradicao';
+  issues: string[];
+  copy_adjustment?: string;         // sugestão de copy ajustada quando score < 50
+  summary: string;
+};
+
 export type AgentDiretorArteResult = {
   brandVisual: BrandVisualContext;
   payload: FalApiPayload;
@@ -76,6 +85,7 @@ export type AgentDiretorArteResult = {
   imageUrls: string[];
   seed?: number;
   critique: VisualCritique;
+  copyAlignment?: CopyImageAlignment;  // P4b — alinhamento Gemini copy↔imagem
   attempts: number;
   multiFormat?: MultiFormatResult[];
   pluginTimings: Record<string, number>;
@@ -107,6 +117,7 @@ export type AgentDAParams = {
   pieceIndex?: number;          // qual peça da campanha (para variação)
   totalPieces?: number;         // total de peças na campanha
   spatialDirective?: string;    // "leave clean area in top 30% for headline"
+  onProgress?: (event: string, data: object) => void;
 };
 
 // ─── Plugin 1 — Brand Visual RAG ─────────────────────────────────────────────
@@ -477,6 +488,63 @@ Retorne SOMENTE este JSON (sem markdown):
   }
 }
 
+// ─── Plugin 4b — Copy↔Image Alignment (Gemini Vision) ───────────────────────
+//
+// Roda na imagem FINAL aprovada (fora do loop de retries).
+// Usa Gemini Flash Vision para calcular alignment_score entre copy e imagem.
+// Se score < 50, sugere ajuste na copy para maior sinergia.
+
+async function plugin4bCopyImageAlignment(
+  imageUrl: string,
+  copy: string | null | undefined,
+): Promise<CopyImageAlignment> {
+  if (!copy?.trim()) {
+    return { alignment_score: 80, relationship: 'complementar', issues: [], summary: 'Sem copy para análise.' };
+  }
+
+  const prompt = `Você é um Diretor de Criação avaliando o alinhamento entre copy e imagem gerada por IA.
+
+COPY:
+"${copy.slice(0, 500)}"
+
+AVALIE:
+1. alignment_score: 0-100 (100 = sinergia perfeita, 0 = contradição total)
+2. relationship:
+   - complementar: imagem acrescenta visualmente ao que a copy diz (ideal)
+   - reforco: imagem repete visualmente a copy, sem acrescentar (ok)
+   - duplicacao: redundante, sem valor adicional (fraco)
+   - contradicao: imagem contradiz ou confunde o texto (ruim)
+3. issues: lista de problemas concretos (array de strings)
+4. copy_adjustment: SE score < 50, sugira uma versão ajustada da copy que funcione melhor com esta imagem (string) — senão, omita o campo
+5. summary: julgamento em 1 frase
+
+Responda SOMENTE com JSON sem markdown:
+{
+  "alignment_score": <0-100>,
+  "relationship": "<complementar|reforco|duplicacao|contradicao>",
+  "issues": ["<problema>"],
+  "copy_adjustment": "<ajuste opcional>",
+  "summary": "<julgamento>"
+}`;
+
+  try {
+    const res = await geminiVision({ prompt, imageUrl, temperature: 0.1, maxTokens: 400 });
+    const jsonMatch = res.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('no json');
+    const parsed = JSON.parse(jsonMatch[0]) as Partial<CopyImageAlignment>;
+    const validRelationships: Array<CopyImageAlignment['relationship']> = ['complementar', 'reforco', 'duplicacao', 'contradicao'];
+    return {
+      alignment_score: typeof parsed.alignment_score === 'number' ? Math.max(0, Math.min(100, parsed.alignment_score)) : 75,
+      relationship: validRelationships.includes(parsed.relationship as any) ? parsed.relationship as CopyImageAlignment['relationship'] : 'complementar',
+      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+      copy_adjustment: typeof parsed.copy_adjustment === 'string' && parsed.copy_adjustment.length > 0 ? parsed.copy_adjustment : undefined,
+      summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+    };
+  } catch {
+    return { alignment_score: 75, relationship: 'complementar', issues: [], summary: 'Análise de alinhamento indisponível.' };
+  }
+}
+
 // ─── Plugin 6 — Multi-Format ─────────────────────────────────────────────────
 
 const MULTI_FORMAT_SIZES: Array<{ format: string; aspectRatio: string }> = [
@@ -529,6 +597,7 @@ export async function runAgentDiretorArte(params: AgentDAParams): Promise<AgentD
   // P1 — Brand Visual RAG (merge with override if provided)
   let brandVisual = await t('p1_brand_rag', () => plugin1BrandVisualRag(params));
   if (params.brandVisualOverride) brandVisual = { ...brandVisual, ...params.brandVisualOverride };
+  params.onProgress?.('p1_done', { loraId: brandVisual.loraId, refsCount: brandVisual.referenceExamples.length });
 
   // P2 → P3 → P4 loop (with retry on critique fail)
   let payload!: FalApiPayload;
@@ -543,14 +612,17 @@ export async function runAgentDiretorArte(params: AgentDAParams): Promise<AgentD
       plugin2PromptBrain(params, brandVisual, promptRefinements)
     );
     if (params.payloadOverride) payload = { ...payload, ...params.payloadOverride };
+    params.onProgress?.('p2_done', { promptSnippet: payload.prompt.slice(0, 60) });
 
     // P3 — Render
     renderResult = await t(`p3_render_${attempts}`, () => plugin3Render(payload));
+    params.onProgress?.('p3_done', { imageUrl: renderResult.imageUrl, attemptNum: attempts });
 
     // P4 — Critique
     critique = await t(`p4_critique_${attempts}`, () =>
       plugin4Critique(renderResult.imageUrl, params.copy, params, brandVisual)
     );
+    params.onProgress?.('p4_done', { score: critique.score, pass: critique.pass });
 
     if (critique.pass || attempts >= MAX_CRITIQUE_RETRIES) break;
 
@@ -559,13 +631,23 @@ export async function runAgentDiretorArte(params: AgentDAParams): Promise<AgentD
     attempts++;
   }
 
-  // P6 — Multi-format (optional, non-blocking)
-  let multiFormat: MultiFormatResult[] | undefined;
-  if (params.generateMultiFormat || params.brandPack) {
-    multiFormat = await t('p6_multi_format', () =>
-      plugin6MultiFormat(payload, payload.aspectRatio, params.brandPack)
-    );
-  }
+  // P4b + P6 — run in parallel (both are post-loop, independent)
+  const [copyAlignment, multiFormat] = await Promise.all([
+    t('p4b_copy_alignment', () =>
+      plugin4bCopyImageAlignment(renderResult.imageUrl, params.copy).then((r) => {
+        if (r) params.onProgress?.('p4b_done', { alignmentScore: r.alignment_score });
+        return r;
+      })
+    ),
+    params.generateMultiFormat || params.brandPack
+      ? t('p6_multi_format', () =>
+          plugin6MultiFormat(payload, payload.aspectRatio, params.brandPack).then((r) => {
+            if (r?.length) params.onProgress?.('p6_done', { formatCount: r.length });
+            return r;
+          })
+        )
+      : Promise.resolve(undefined),
+  ]);
 
   return {
     brandVisual,
@@ -574,6 +656,7 @@ export async function runAgentDiretorArte(params: AgentDAParams): Promise<AgentD
     imageUrls: renderResult.imageUrls,
     seed:      renderResult.seed,
     critique,
+    copyAlignment,
     attempts,
     multiFormat,
     pluginTimings: timings,

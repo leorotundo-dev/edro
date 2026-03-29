@@ -95,7 +95,7 @@ export default function ArteNode() {
     selectedArteIdx, setSelectedArteIdx, arteApproved, arteError,
     handleGenerateArte, useArte: applyArte, editArte, selectedTrigger, nodeStatus,
     addOptionalNode, activeNodeIds,
-    arteChainResult, arteChainStep, handleGenerateArteChain,
+    arteChainResult, arteChainStep, handleGenerateArteChain, handleGenerateArteChainStream,
     copyOptions, selectedCopyIdx,
   } = usePipeline();
 
@@ -289,6 +289,10 @@ export default function ArteNode() {
         width={320}
         collapsedSummary={collapsedSummary}
         onEdit={editArte}
+        onRerun={() => handleGenerateArteChainStream({
+          brandVisualOverride: Object.keys(bvOverride).length ? bvOverride : undefined,
+          payloadOverride: promptOverride ? { prompt: promptOverride } : undefined,
+        })}
         nodeOptions={[
           {
             id: 'multiFormat',
@@ -298,6 +302,15 @@ export default function ArteNode() {
             icon: <IconLayersLinked size={13} />,
             added: activeNodeIds.includes('multiFormat'),
             onClick: () => addOptionalNode('multiFormat'),
+          },
+          {
+            id: 'compare',
+            label: 'Comparar modelos',
+            description: 'Fan-out do prompt para até 4 modelos de IA em paralelo',
+            color: '#F59E0B',
+            icon: <IconScissors size={13} />,
+            added: activeNodeIds.includes('compare'),
+            onClick: () => addOptionalNode('compare'),
           },
         ]}
       >
@@ -698,7 +711,7 @@ export default function ArteNode() {
                 onClick={() => {
                   setBrandPackMode(false);
                   if (useAgentDA) {
-                    handleGenerateArteChain({
+                    handleGenerateArteChainStream({
                       brandVisualOverride: Object.keys(bvOverride).length ? bvOverride : undefined,
                       payloadOverride: promptOverride ? { prompt: promptOverride } : undefined,
                     });
@@ -722,7 +735,7 @@ export default function ArteNode() {
               onClick={() => {
                 setBrandPackMode(true);
                 setUseAgentDA(true);
-                handleGenerateArteChain({
+                handleGenerateArteChainStream({
                   brandVisualOverride: Object.keys(bvOverride).length ? bvOverride : undefined,
                   payloadOverride: promptOverride ? { prompt: promptOverride } : undefined,
                   brandPack: true,

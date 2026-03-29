@@ -4,7 +4,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
-import { IconPencil, IconLock, IconPlus, IconX } from '@tabler/icons-react';
+import { IconPencil, IconLock, IconPlus, IconX, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import type { NodeStatus } from './PipelineContext';
 
@@ -26,6 +26,7 @@ interface NodeShellProps {
   width?: number;
   collapsedSummary?: React.ReactNode;
   onEdit?: () => void;
+  onRerun?: () => void;
   accentColor?: string;
   nodeOptions?: NodeOption[];   // contextual child actions for this node
   children: React.ReactNode;
@@ -46,7 +47,7 @@ const STATUS_BG: Record<NodeStatus, string> = {
 };
 
 export default function NodeShell({
-  title, icon, status, width = 300, collapsedSummary, onEdit, accentColor, nodeOptions, children,
+  title, icon, status, width = 300, collapsedSummary, onEdit, onRerun, accentColor, nodeOptions, children,
 }: NodeShellProps) {
   const color = accentColor && status !== 'done' && status !== 'locked'
     ? accentColor
@@ -109,6 +110,11 @@ export default function NodeShell({
         )}
         {isLocked && (
           <IconLock size={14} color={color} />
+        )}
+        {isDone && onRerun && (
+          <IconButton size="small" onClick={onRerun} title="Re-executar" sx={{ p: 0.25, color: 'text.disabled', ml: 0.25, '&:hover': { color: '#F8A800' } }}>
+            <IconRefresh size={12} />
+          </IconButton>
         )}
         {isDone && onEdit && (
           <IconButton size="small" onClick={onEdit} sx={{ p: 0.25, color: 'text.disabled', ml: 0.25 }}>

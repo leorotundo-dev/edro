@@ -50,6 +50,7 @@ import ApprovalNode from '@/components/pipeline/nodes/ApprovalNode';
 import ScheduleNode from '@/components/pipeline/nodes/ScheduleNode';
 import PerformanceNode from '@/components/pipeline/nodes/PerformanceNode';
 import LearningFeedbackNode from '@/components/pipeline/nodes/LearningFeedbackNode';
+import CompareNode from '@/components/pipeline/nodes/CompareNode';
 import NoteNode from '@/components/pipeline/nodes/NoteNode';
 import PreviewPanel from '@/components/pipeline/PreviewPanel';
 import ChatAgentPanel from '@/components/pipeline/ChatAgentPanel';
@@ -145,6 +146,7 @@ const nodeTypes = {
   schedule:         ScheduleNode,
   performance:      PerformanceNode,
   learningFeedback: LearningFeedbackNode,
+  compare:          CompareNode,
 };
 
 const edgeTypes = {
@@ -169,6 +171,7 @@ function buildInitialNodes(): Node[] {
 //   CAMADA 3 — ANALYTICS    (y: 980)   Performance, LearningFeedback
 const OPTIONAL_NODE_POSITIONS: Record<string, { x: number; y: number }> = {
   critica:          { x: 1120, y: 360 },
+  compare:          { x: 1120, y: 560 },
   multiFormat:      { x: 1440, y: 400 },
   abTest:           { x: 1120, y: 580 },
   videoScript:      { x: 1440, y: 580 },
@@ -217,6 +220,12 @@ function buildEdges(ns: NodeStatusMap, existingNodeIds: Set<string>): Edge[] {
     if (existingNodeIds.has('promptDNA')) {
       edges.push({ id: 'e-prompt-copy', source: 'promptDNA', target: 'copy', type: 'pipeline', data: { status: 'done', accentColor: '#22D3EE' }, style: { strokeDasharray: '5 3' } });
     }
+  }
+  // CompareNode — branches off arte (parallel QA)
+  if (existingNodeIds.has('compare')) {
+    edges.push({ id: 'e-arte-compare', source: 'arte', target: 'compare', type: 'pipeline',
+      data: { status: ns.arte === 'done' ? 'active' : 'locked', accentColor: '#F59E0B' },
+      style: { strokeDasharray: '6 3' } });
   }
   // Agente Crítico (optional QA node — branches off copy)
   if (existingNodeIds.has('critica')) {
@@ -1361,6 +1370,78 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     }
   }, [briefing, selectedTrigger, activeFormat, copyOptions, selectedCopyIdx]);
 
+  // handleGenerateArteChainStream — SSE version, updates arteChainStep in real-time
+  const handleGenerateArteChainStream = useCallback(async (chainParams: ArteChainParams) => {
+    setArteGenerating(true);
+    setArteChainStep(1);
+    setArteChainResult(null);
+    setArteError('');
+
+    // Map SSE event names to the next step number
+    const EVENT_TO_STEP: Record<string, number> = {
+      p1_done: 2, p2_done: 3, p3_done: 4, p4_done: 5, p4b_done: 6,
+    };
+
+    try {
+      const { getApiBase } = await import('@/lib/api');
+      const copy = copyOptions[selectedCopyIdx];
+      const copyText = copy ? [copy.title, copy.body, copy.cta].filter(Boolean).join(' ') : '';
+      const payload = {
+        copy: copyText, briefing, clientProfile: Object.keys(clientProfile).length > 0 ? clientProfile : null,
+        trigger: selectedTrigger, platform: activeFormat?.platform, format: activeFormat?.format,
+        visualReferences: visualReferences.length > 0 ? visualReferences : undefined, ...chainParams,
+      };
+
+      const res = await fetch(`${getApiBase()}/studio/creative/arte-chain/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let currentEvent = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (currentEvent === 'done' && data.data) {
+                const result: ArteChainResult = data.data;
+                setArteChainResult(result);
+                setArteChainStep(0);
+                setArteImageUrl(result.imageUrl);
+                setArteImageUrls(result.imageUrls);
+              } else if (currentEvent === 'error') {
+                setArteError(data.error ?? 'Erro no pipeline de arte');
+                setArteChainStep(0);
+              } else if (EVENT_TO_STEP[currentEvent]) {
+                setArteChainStep(EVENT_TO_STEP[currentEvent]);
+              }
+            } catch { /* malformed JSON, skip */ }
+          }
+        }
+      }
+    } catch (e: any) {
+      setArteError(e?.message ?? 'Erro no pipeline de arte');
+      setArteChainStep(0);
+    } finally {
+      setArteGenerating(false);
+    }
+  }, [briefing, selectedTrigger, activeFormat, copyOptions, selectedCopyIdx, visualReferences, clientProfile]);
+
   const editCopy = useCallback(() => {
     setCopyApproved(false);
     setArteApproved(false);
@@ -1635,6 +1716,7 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     arteChainResult,
     arteChainStep,
     handleGenerateArteChain,
+    handleGenerateArteChainStream,
     visualReferences,
     setVisualReferences,
   };

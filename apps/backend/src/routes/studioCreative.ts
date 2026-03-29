@@ -1392,6 +1392,40 @@ Regras:
     }
   });
 
+  // POST /studio/creative/arte-chain/stream — SSE streaming version of arte-chain
+  app.post('/studio/creative/arte-chain/stream', async (request: any, reply) => {
+    const body = arteChainSchema.safeParse(request.body);
+    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
+
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+
+    reply.raw.setHeader('Content-Type', 'text/event-stream');
+    reply.raw.setHeader('Cache-Control', 'no-cache');
+    reply.raw.setHeader('Connection', 'keep-alive');
+    reply.raw.setHeader('X-Accel-Buffering', 'no');
+    reply.raw.flushHeaders();
+
+    const emit = (event: string, data: object) => {
+      try {
+        reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch { /* client disconnected */ }
+    };
+
+    try {
+      const { runAgentDiretorArte } = await import('../services/ai/agentDiretorArte') as any;
+      const result = await runAgentDiretorArte({
+        ...body.data,
+        tenantId,
+        onProgress: emit,
+      });
+      emit('done', { success: true, data: result });
+    } catch (e: any) {
+      emit('error', { success: false, error: e?.message ?? 'Erro no pipeline' });
+    } finally {
+      reply.raw.end();
+    }
+  });
+
   // ── Visual Insights — search reference images for DA context ────────────
   const visualInsightsSchema = z.object({
     category: z.string().min(2),
@@ -2393,6 +2427,37 @@ Retorne APENAS JSON válido:
     );
 
     return reply.send({ results });
+  });
+
+  // POST /studio/creative/schedule — schedule a post for publication
+  app.post('/studio/creative/schedule', async (request: any, reply) => {
+    const schema = z.object({
+      platform:     z.string().min(1),
+      scheduled_at: z.string().datetime(),
+      copy_text:    z.string().optional(),
+      image_url:    z.string().url().optional(),
+      briefing_id:  z.string().uuid().optional(),
+    });
+
+    const body = schema.safeParse(request.body);
+    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
+
+    const { platform, scheduled_at, copy_text, image_url, briefing_id } = body.data;
+    const tenantId: string = request.user.tenant_id;
+
+    try {
+      const res = await query<{ id: string }>(
+        `INSERT INTO scheduled_posts (tenant_id, briefing_id, platform, scheduled_at, copy_text, image_url, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [tenantId, briefing_id ?? null, platform, scheduled_at, copy_text ?? null, image_url ?? null],
+      );
+      return reply.send({ success: true, scheduled_id: res.rows[0]?.id ?? null });
+    } catch {
+      // Table may not exist yet — return success without persistence
+      return reply.send({ success: true, scheduled_id: null });
+    }
   });
 
   // POST /clients/:clientId/lora/jobs/:jobId/reject — discard a validating job

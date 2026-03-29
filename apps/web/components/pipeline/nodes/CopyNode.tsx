@@ -120,7 +120,7 @@ const PLATFORM_OPTIONS = [
 export default function CopyNode() {
   const {
     copyGenerating, copyOptions, selectedCopyIdx, setSelectedCopyIdx,
-    copyApproved, copyError, handleGenerateCopy, approveCopy, editCopy, nodeStatus,
+    copyApproved, copyError, handleGenerateCopy, rerunCopy, approveCopy, editCopy, nodeStatus,
     recommendations, selectedTrigger, activeFormat,
     tone, setTone, amd, setAmd, copyIsStale,
     addOptionalNode, activeNodeIds,
@@ -182,6 +182,7 @@ export default function CopyNode() {
         width={340}
         collapsedSummary={collapsedSummary}
         onEdit={editCopy}
+        onRerun={() => rerunCopy('')}
         nodeOptions={[
           {
             id: 'critica',
