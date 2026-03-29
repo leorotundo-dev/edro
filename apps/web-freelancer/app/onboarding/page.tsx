@@ -8,12 +8,12 @@
  * On completion, redirects to /onboarding/termos for clickwrap acceptance.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
 
-const STEPS = ['empresa', 'representante', 'pagamento', 'skills'] as const;
+const STEPS = ['empresa', 'representante', 'pagamento', 'skills', 'avatar'] as const;
 type Step = typeof STEPS[number];
 
 const STEP_LABELS: Record<Step, string> = {
@@ -21,6 +21,7 @@ const STEP_LABELS: Record<Step, string> = {
   representante: 'Representante Legal',
   pagamento:     'Dados de Pagamento',
   skills:        'Especialidades',
+  avatar:        'Avatar Edro',
 };
 
 function StepIndicator({ current }: { current: number }) {
@@ -83,7 +84,13 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [avatarGenerating, setAvatarGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [avatarError, setAvatarError] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarSourcePreview, setAvatarSourcePreview] = useState('');
+  const [avatarGeneratedUrl, setAvatarGeneratedUrl] = useState('');
+  const [avatarPromptVersion, setAvatarPromptVersion] = useState('');
 
   const [form, setForm] = useState({
     // Bloco 1: Empresa
@@ -118,6 +125,20 @@ export default function OnboardingPage() {
   function set(field: string, value: unknown) {
     setForm(prev => ({ ...prev, [field]: value }));
   }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    apiGet<{ avatar_url?: string | null; avatar_prompt_version?: string | null }>('/freelancers/portal/me')
+      .then((data) => {
+        if (cancelled) return;
+        setAvatarGeneratedUrl(data?.avatar_url ?? '');
+        setAvatarPromptVersion(data?.avatar_prompt_version ?? '');
+      })
+      .catch(() => null);
+
+    return () => { cancelled = true; };
+  }, []);
 
   async function lookupCnpj() {
     const clean = form.cnpj.replace(/\D/g, '');
@@ -164,7 +185,34 @@ export default function OnboardingPage() {
     if (step === 3) {
       if (form.skills.length === 0) return 'Selecione ao menos uma especialidade.';
     }
+    if (step === 4) {
+      if (!avatarGeneratedUrl) return 'Gere seu avatar Edro antes de continuar.';
+    }
     return null;
+  }
+
+  async function handleGenerateAvatar() {
+    if (!avatarFile) {
+      setAvatarError('Selecione uma foto sua antes de gerar o avatar.');
+      return;
+    }
+
+    setAvatarGenerating(true);
+    setAvatarError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', avatarFile);
+      const result = await apiPostFormData<{
+        avatar_url?: string;
+        avatar_prompt_version?: string;
+      }>('/freelancers/portal/me/avatar', formData);
+      setAvatarGeneratedUrl(result?.avatar_url ?? '');
+      setAvatarPromptVersion(result?.avatar_prompt_version ?? '');
+    } catch (e: any) {
+      setAvatarError(e?.message ?? 'Não foi possível gerar o avatar agora.');
+    } finally {
+      setAvatarGenerating(false);
+    }
   }
 
   async function handleNext() {
@@ -400,6 +448,136 @@ export default function OnboardingPage() {
                   <option value={80}>Máxima — 5+ escopos/semana</option>
                 </select>
               </Field>
+            </div>
+          )}
+
+          {/* ── Bloco 5: Avatar ─── */}
+          {currentStep === 'avatar' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{
+                background: 'rgba(232,82,25,0.08)', border: '1px solid rgba(232,82,25,0.18)',
+                borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'rgba(255,255,255,0.62)', lineHeight: 1.6,
+              }}>
+                Envie uma foto sua. A Edro vai transformar essa imagem em um avatar 3D padronizado, usado para identificar você no sistema.
+              </div>
+
+              <Field label="Foto base" required hint="Use uma foto nítida do rosto, sem óculos escuros, com boa luz.">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setAvatarFile(file);
+                    setAvatarGeneratedUrl('');
+                    setAvatarPromptVersion('');
+                    setAvatarError('');
+                    if (avatarSourcePreview) URL.revokeObjectURL(avatarSourcePreview);
+                    setAvatarSourcePreview(file ? URL.createObjectURL(file) : '');
+                  }}
+                  style={{ ...inputStyle, padding: '9px 12px' }}
+                />
+              </Field>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div style={{
+                  minHeight: 240,
+                  borderRadius: 14,
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  background: 'rgba(255,255,255,0.03)',
+                  padding: 14,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+                    Foto enviada
+                  </div>
+                  <div style={{
+                    height: 190,
+                    borderRadius: 12,
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: avatarFile ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.28)',
+                    fontSize: 13,
+                    textAlign: 'center',
+                    padding: 16,
+                  }}>
+                    {avatarFile
+                      ? `Foto pronta para gerar avatar: ${avatarFile.name}`
+                      : 'Envie sua foto para gerar o avatar'}
+                  </div>
+                </div>
+
+                <div style={{
+                  minHeight: 240,
+                  borderRadius: 14,
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  background: 'rgba(255,255,255,0.03)',
+                  padding: 14,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+                    Avatar Edro gerado
+                  </div>
+                  {avatarGeneratedUrl ? (
+                    <img
+                      src={avatarGeneratedUrl}
+                      alt="Avatar Edro gerado"
+                      style={{ width: '100%', height: 190, objectFit: 'cover', borderRadius: 12, background: '#f2f2f2' }}
+                    />
+                  ) : (
+                    <div style={{
+                      height: 190,
+                      borderRadius: 12,
+                      display: 'grid',
+                      placeItems: 'center',
+                      background: 'rgba(255,255,255,0.04)',
+                      color: 'rgba(255,255,255,0.28)',
+                      fontSize: 13,
+                      textAlign: 'center',
+                      padding: 16,
+                    }}>
+                      O avatar gerado aparece aqui
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {avatarPromptVersion && (
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                  Prompt ativo: <strong>{avatarPromptVersion}</strong>
+                </div>
+              )}
+
+              {avatarError && (
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  background: 'rgba(250,137,107,0.12)',
+                  border: '1px solid rgba(250,137,107,0.3)',
+                  color: '#FA896B',
+                  fontSize: 13,
+                }}>
+                  {avatarError}
+                </div>
+              )}
+
+              <div>
+                <button
+                  type="button"
+                  onClick={handleGenerateAvatar}
+                  disabled={!avatarFile || avatarGenerating}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.14)',
+                    background: avatarGenerating ? 'rgba(232,82,25,0.45)' : 'rgba(232,82,25,0.16)',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: !avatarFile || avatarGenerating ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {avatarGenerating ? 'Gerando avatar...' : avatarGeneratedUrl ? 'Gerar novamente' : 'Gerar avatar Edro'}
+                </button>
+              </div>
             </div>
           )}
 

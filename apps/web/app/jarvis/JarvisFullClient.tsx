@@ -20,11 +20,12 @@ import {
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiPost, apiGet } from '@/lib/api';
 import ArtifactCard, { Artifact } from '@/components/jarvis/ArtifactCard';
+import JarvisResponseTrace, { type JarvisObservability } from '@/components/jarvis/JarvisResponseTrace';
 import ConversationList from '@/components/jarvis/ConversationList';
 import AppShell from '@/components/AppShell';
 
 type AttachedFile = { name: string; text: string; chars: number; is_audio?: boolean };
-type ChatMessage = { role: 'user' | 'assistant'; content: string; timestamp: string; artifacts?: Artifact[] };
+type ChatMessage = { role: 'user' | 'assistant'; content: string; timestamp: string; artifacts?: Artifact[]; observability?: JarvisObservability | null };
 type ClientOption = { id: string; name: string };
 type ConversationMemory = {
   id: string;
@@ -190,7 +191,11 @@ export default function JarvisFullClient() {
     ).then(res => {
       const msgs = res?.data?.conversation?.messages ?? [];
       setMessages(msgs.map((m: any) => ({
-        role: m.role, content: m.content, timestamp: m.timestamp ?? new Date().toISOString(),
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp ?? new Date().toISOString(),
+        artifacts: Array.isArray(m.metadata?.artifacts) && m.metadata.artifacts.length ? m.metadata.artifacts : undefined,
+        observability: m.metadata?.observability ?? null,
       })));
     }).catch(() => {});
   }, [conversationId, clientId]);
@@ -256,10 +261,13 @@ export default function JarvisFullClient() {
     setLoading(true);
 
     try {
-      const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[] } }>(
-        `/clients/${cid}/planning/chat`,
+      const res = await apiPost<{ data?: { response?: string; conversationId?: string; artifacts?: Artifact[]; observability?: JarvisObservability } }>(
+        '/jarvis/chat',
         {
-          message: msg, conversationId, mode: 'agent', context_page: '/jarvis',
+          clientId: cid,
+          message: msg,
+          conversationId,
+          context_page: '/jarvis',
           inline_attachments: filesToSend.length ? filesToSend.map(f => ({ name: f.name, text: f.text })) : undefined,
         },
       );
@@ -267,6 +275,7 @@ export default function JarvisFullClient() {
       setMessages(prev => [...prev, {
         role: 'assistant', content: data?.response ?? 'Sem resposta.', timestamp: new Date().toISOString(),
         artifacts: data?.artifacts?.length ? data.artifacts : undefined,
+        observability: data?.observability ?? null,
       }]);
       if (data?.conversationId && !conversationId) setConversationId(data.conversationId);
     } catch {
@@ -513,6 +522,7 @@ export default function JarvisFullClient() {
                       <MarkdownText text={msg.content} />
                     )}
                   </Box>
+                  {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
                   {msg.artifacts?.map((artifact, ai) => (
                     <ArtifactCard key={ai} artifact={artifact} clientId={clientId} />
                   ))}

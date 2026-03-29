@@ -2,8 +2,113 @@ import { query } from '../../db';
 import { generateCompletion, generateCompletionWithVision } from './claudeService';
 import { estimateTokens, logAiUsage } from './aiUsageLogger';
 import { isTavilyConfigured, tavilySearch } from '../tavilyService';
+import { CORE_ART_DIRECTION_CONCEPTS } from './artDirectionCoreConcepts';
+import { EDRO_DA_CANON_SEED, resolveCanonCurriculumModule } from './artDirectionKnowledgeLibrarySeed';
 
 type JsonArray = string[];
+
+const FALLBACK_CANON_META: Record<string, { title: string; description: string; sortOrder: number }> = {
+  fundamentos_visuais: {
+    title: 'Fundamentos da Visao',
+    description: 'Percepcao, composicao, hierarquia, grid, cor e linguagem visual que sustentam qualquer peca.',
+    sortOrder: 10,
+  },
+  tipografia: {
+    title: 'Dominio Tipografico',
+    description: 'Familias, tons de voz, legibilidade, psicologia das fontes e uso tipografico em diferentes contextos.',
+    sortOrder: 20,
+  },
+  historia_estilo: {
+    title: 'Historia e Estilo',
+    description: 'Movimentos, escolas e repertorios historicos que moldam direcao de arte, design grafico e cultura visual.',
+    sortOrder: 30,
+  },
+  formatos_aplicacoes: {
+    title: 'Formatos e Aplicacoes',
+    description: 'Aplicacao do criterio visual por midia, formato, objetivo e superficie de uso.',
+    sortOrder: 40,
+  },
+  acessibilidade_critica: {
+    title: 'Acessibilidade e Critica',
+    description: 'Contraste, inclusao, clareza, avaliacao tecnica e feedback para calibrar o julgamento do DA.',
+    sortOrder: 50,
+  },
+};
+
+function slugifyCanonEntry(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function buildFallbackCanonEntries(limitEntriesPerCanon = 12) {
+  const coreConceptMap = new Map(CORE_ART_DIRECTION_CONCEPTS.map((concept) => [concept.slug, concept]));
+
+  return EDRO_DA_CANON_SEED.map((seed) => {
+    const meta = FALLBACK_CANON_META[seed.canonSlug];
+    const allEntries = seed.entries.map((title, index) => {
+      const slug = slugifyCanonEntry(title);
+      const core = coreConceptMap.get(slug);
+      const isActive = Boolean(core);
+      const curriculumModule = resolveCanonCurriculumModule(seed.canonSlug, title);
+
+      return {
+        id: `fallback-${seed.canonSlug}-${slug}`,
+        canon_id: `fallback-${seed.canonSlug}`,
+        canon_slug: seed.canonSlug,
+        canon_title: meta?.title ?? seed.canonSlug,
+        slug,
+        title,
+        summary_short: core?.definition ?? title,
+        summary_medium: core?.definition ?? `${title} é um contêiner teórico do canon ${meta?.title ?? seed.canonSlug}, aguardando aprofundamento editorial da Edro.`,
+        summary_long:
+          core?.definition ??
+          `${title} é um contêiner teórico do canon ${meta?.title ?? seed.canonSlug}. Esta entrada foi pré-cadastrada para receber definição, histórico, heurísticas, aplicações, crítica e exemplos antes de alimentar o Jarvis em profundidade.`,
+        definition:
+          core?.definition ??
+          `Entrada inicial do canon da Edro para curadoria sobre ${title}. Expandir com definição, heurísticas, exemplos e contexto histórico antes de ativar no motor.`,
+        when_to_use: core?.whenToUse ?? [],
+        when_to_avoid: core?.whenToAvoid ?? [],
+        heuristics: core?.heuristics ?? [],
+        critique_checks: core?.critiqueChecks ?? [],
+        examples: core?.examples ?? [],
+        chunk_count: isActive ? 5 : 6,
+        source_count: 1,
+        metadata: {
+          curriculum_module_key: curriculumModule?.moduleKey ?? null,
+          curriculum_module_title: curriculumModule?.title ?? null,
+          curriculum_module_description: curriculumModule?.description ?? null,
+          curriculum_module_order: curriculumModule?.order ?? null,
+          needs_editorial_expansion: !isActive,
+          seeded_from: 'book_cover_taxonomy',
+        },
+        status: (isActive ? 'active' : 'draft') as 'active' | 'draft' | 'archived',
+        source_confidence: isActive ? 0.9 : 0.65,
+        _index: index,
+      };
+    });
+
+    const visibleEntries = allEntries.slice(0, Math.max(1, Math.min(limitEntriesPerCanon, 50))).map(({ _index, ...entry }) => entry);
+
+    return {
+      id: `fallback-${seed.canonSlug}`,
+      slug: seed.canonSlug,
+      title: meta?.title ?? seed.canonSlug,
+      description: meta?.description ?? null,
+      status: 'active' as const,
+      sort_order: meta?.sortOrder ?? 999,
+      total_entries: allEntries.length,
+      active_entries: allEntries.filter((entry) => entry.status === 'active').length,
+      draft_entries: allEntries.filter((entry) => entry.status === 'draft').length,
+      archived_entries: 0,
+      entries: visibleEntries,
+    };
+  }).sort((a, b) => a.sort_order - b.sort_order);
+}
 
 export type ArtDirectionConceptRow = {
   id: string;
@@ -25,6 +130,7 @@ export type ArtDirectionReferenceSummary = {
   id: string;
   title: string;
   source_url: string;
+  image_url: string | null;
   platform: string | null;
   format: string | null;
   segment: string | null;
@@ -38,6 +144,31 @@ export type ArtDirectionReferenceSummary = {
   confidence_score: number | null;
   rationale: string | null;
   discovered_at: string;
+};
+
+export type ArtDirectionReferenceRecord = ArtDirectionReferenceSummary & {
+  status: 'discovered' | 'analyzed' | 'rejected' | 'archived';
+  domain: string | null;
+  search_query: string | null;
+  source_kind: string;
+  source_id: string | null;
+  source_name: string | null;
+  source_type: string | null;
+  snippet: string | null;
+  analyzed_at: string | null;
+};
+
+export type ArtDirectionReferencePreview = {
+  id: string;
+  title: string | null;
+  source_url: string;
+  image_url: string | null;
+  preview_excerpt: string | null;
+  preview_site_name: string | null;
+  curated: boolean;
+  source_name: string | null;
+  source_type: string | null;
+  domain: string | null;
 };
 
 export type ArtDirectionTrendSignal = {
@@ -99,6 +230,67 @@ export type ArtDirectionMemoryContext = {
   critiqueBlock: string;
 };
 
+export type ArtDirectionCanonEntrySummary = {
+  id: string;
+  canon_id: string;
+  canon_slug: string;
+  canon_title: string;
+  slug: string;
+  title: string;
+  summary_short: string | null;
+  summary_medium: string | null;
+  summary_long: string | null;
+  definition: string;
+  when_to_use: string[];
+  when_to_avoid: string[];
+  heuristics: string[];
+  critique_checks: string[];
+  examples: string[];
+  chunk_count: number;
+  source_count: number;
+  metadata: Record<string, any>;
+  status: 'active' | 'draft' | 'archived';
+  source_confidence: number;
+};
+
+export type ArtDirectionCanonSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: 'active' | 'draft' | 'archived';
+  sort_order: number;
+  total_entries: number;
+  active_entries: number;
+  draft_entries: number;
+  archived_entries: number;
+  entries: ArtDirectionCanonEntrySummary[];
+};
+
+export type ArtDirectionMemoryStats = {
+  concepts: {
+    active: number;
+  };
+  references: {
+    discovered: number;
+    analyzed: number;
+    rejected: number;
+    archived: number;
+    lastDiscoveredAt: string | null;
+    lastAnalyzedAt: string | null;
+  };
+  trends: {
+    snapshots: number;
+    lastSnapshotAt: string | null;
+  };
+  feedback: {
+    used: number;
+    approved: number;
+    rejected: number;
+    saved: number;
+  };
+};
+
 export type ResolvedArtDirectionCreativeContext = {
   creativeSessionId: string | null;
   jobId: string | null;
@@ -133,6 +325,73 @@ export type DiscoverArtDirectionReferencesInput = {
   platform?: string | null;
   queries: string[];
   maxResultsPerQuery?: number;
+};
+
+export type ArtDirectionReferenceSourceRow = {
+  id: string;
+  tenant_id: string | null;
+  name: string;
+  source_type: 'search' | 'manual' | 'social' | 'rss' | 'site' | 'library';
+  base_url: string | null;
+  domain: string | null;
+  trust_score: number;
+  enabled: boolean;
+  metadata: Record<string, any>;
+  updated_at: string;
+};
+
+export type UpsertArtDirectionReferenceSourceInput = {
+  id?: string | null;
+  tenantId?: string | null;
+  name: string;
+  sourceType: 'search' | 'manual' | 'social' | 'rss' | 'site' | 'library';
+  baseUrl?: string | null;
+  domain?: string | null;
+  trustScore?: number;
+  enabled?: boolean;
+  metadata?: Record<string, any>;
+};
+
+export type CreateManualArtDirectionReferenceInput = {
+  tenantId: string;
+  clientId?: string | null;
+  title?: string | null;
+  sourceUrl: string;
+  platform?: string | null;
+  format?: string | null;
+  segment?: string | null;
+  visualIntent?: string | null;
+  creativeDirection?: string | null;
+  rationale?: string | null;
+  moodWords?: string[];
+  styleTags?: string[];
+  compositionTags?: string[];
+  typographyTags?: string[];
+  confidenceScore?: number | null;
+  trendScore?: number | null;
+  status?: 'discovered' | 'analyzed' | 'rejected' | 'archived';
+  metadata?: Record<string, any>;
+};
+
+export type UpdateArtDirectionReferenceInput = {
+  tenantId: string;
+  id: string;
+  title?: string | null;
+  sourceUrl?: string | null;
+  platform?: string | null;
+  format?: string | null;
+  segment?: string | null;
+  visualIntent?: string | null;
+  creativeDirection?: string | null;
+  rationale?: string | null;
+  moodWords?: string[] | null;
+  styleTags?: string[] | null;
+  compositionTags?: string[] | null;
+  typographyTags?: string[] | null;
+  confidenceScore?: number | null;
+  trendScore?: number | null;
+  status?: 'discovered' | 'analyzed' | 'rejected' | 'archived' | null;
+  metadata?: Record<string, any>;
 };
 
 type ReferenceRow = {
@@ -205,6 +464,81 @@ function uniq(values: string[]): string[] {
     }
   }
   return out;
+}
+
+function extractMetaContent(html: string, selectors: string[]): string | null {
+  for (const selector of selectors) {
+    const pattern = new RegExp(
+      `<meta[^>]+(?:property|name)=["']${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+      'i',
+    );
+    const match = html.match(pattern);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return null;
+}
+
+function extractTitleTag(html: string): string | null {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return match?.[1]?.trim() || null;
+}
+
+function resolvePreviewUrl(rawUrl: string | null | undefined, sourceUrl: string): string | null {
+  const value = String(rawUrl || '').trim();
+  if (!value) return null;
+  try {
+    return new URL(value, sourceUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOpenGraphPreview(sourceUrl: string): Promise<{
+  imageUrl: string | null;
+  excerpt: string | null;
+  siteName: string | null;
+  title: string | null;
+}> {
+  try {
+    const res = await fetch(sourceUrl, {
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 (compatible; EdroDABot/1.0; +https://edro.digital)',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      return {
+        imageUrl: null,
+        excerpt: null,
+        siteName: null,
+        title: null,
+      };
+    }
+
+    const html = (await res.text()).slice(0, 250000);
+    const imageUrl = resolvePreviewUrl(
+      extractMetaContent(html, ['og:image', 'twitter:image', 'twitter:image:src']),
+      sourceUrl,
+    );
+    const excerpt =
+      extractMetaContent(html, ['og:description', 'description', 'twitter:description']) || null;
+    const siteName = extractMetaContent(html, ['og:site_name']) || null;
+    const title =
+      extractMetaContent(html, ['og:title', 'twitter:title']) ||
+      extractTitleTag(html) ||
+      null;
+
+    return { imageUrl, excerpt, siteName, title };
+  } catch {
+    return {
+      imageUrl: null,
+      excerpt: null,
+      siteName: null,
+      title: null,
+    };
+  }
 }
 
 function asRecord(value: any): Record<string, any> {
@@ -509,22 +843,113 @@ export async function ensureDefaultArtDirectionSources(tenantId: string): Promis
   }
 }
 
+export async function listArtDirectionReferenceSources(params: {
+  tenantId?: string | null;
+  enabledOnly?: boolean;
+}): Promise<ArtDirectionReferenceSourceRow[]> {
+  const values: any[] = [];
+  const where: string[] = [];
+
+  if (params.tenantId) {
+    values.push(params.tenantId);
+    where.push(`(tenant_id = $${values.length} OR tenant_id IS NULL)`);
+  }
+  if (params.enabledOnly) {
+    where.push(`enabled = true`);
+  }
+
+  const { rows } = await query<ArtDirectionReferenceSourceRow>(
+    `SELECT
+       id,
+       tenant_id,
+       name,
+       source_type,
+       base_url,
+       domain,
+       trust_score,
+       enabled,
+       COALESCE(metadata, '{}'::jsonb) AS metadata,
+       updated_at::text AS updated_at
+     FROM da_reference_sources
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY enabled DESC, trust_score DESC, updated_at DESC, name ASC`,
+    values,
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    metadata: asRecord(row.metadata),
+  }));
+}
+
+export async function upsertArtDirectionReferenceSource(
+  input: UpsertArtDirectionReferenceSourceInput,
+): Promise<ArtDirectionReferenceSourceRow> {
+  const normalizedBaseUrl = String(input.baseUrl || '').trim() || null;
+  const normalizedDomain = String(input.domain || '').trim() || normalizeUrlDomain(normalizedBaseUrl || '') || null;
+
+  const { rows } = await query<ArtDirectionReferenceSourceRow>(
+    `INSERT INTO da_reference_sources
+       (id, tenant_id, name, source_type, base_url, domain, trust_score, enabled, metadata)
+     VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+     ON CONFLICT (id)
+     DO UPDATE SET
+       name = EXCLUDED.name,
+       source_type = EXCLUDED.source_type,
+       base_url = EXCLUDED.base_url,
+       domain = EXCLUDED.domain,
+       trust_score = EXCLUDED.trust_score,
+       enabled = EXCLUDED.enabled,
+       metadata = EXCLUDED.metadata,
+       updated_at = now()
+     RETURNING
+       id,
+       tenant_id,
+       name,
+       source_type,
+       base_url,
+       domain,
+       trust_score,
+       enabled,
+       COALESCE(metadata, '{}'::jsonb) AS metadata,
+       updated_at::text AS updated_at`,
+    [
+      input.id ?? null,
+      input.tenantId ?? null,
+      input.name.trim(),
+      input.sourceType,
+      normalizedBaseUrl,
+      normalizedDomain,
+      input.trustScore ?? 0.7,
+      input.enabled ?? true,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+
+  return {
+    ...rows[0],
+    metadata: asRecord(rows[0]?.metadata),
+  };
+}
+
 export async function discoverArtDirectionReferences(input: DiscoverArtDirectionReferencesInput): Promise<number> {
   if (!isTavilyConfigured()) return 0;
 
   await ensureDefaultArtDirectionSources(input.tenantId);
 
-  const { rows: sourceRows } = await query<{ id: string }>(
-    `SELECT id FROM da_reference_sources
-      WHERE tenant_id = $1
-        AND name = 'Serper Search'
-      LIMIT 1`,
-    [input.tenantId],
-  );
-  const sourceId = sourceRows[0]?.id ?? null;
+  const sources = await listArtDirectionReferenceSources({ tenantId: input.tenantId, enabledOnly: true });
+  const searchSource = sources.find((source) => source.name === 'Serper Search');
+  const siteSources = sources.filter((source) => source.source_type === 'site' && source.domain).slice(0, 4);
+  const queries = uniq([
+    ...input.queries.slice(0, 4),
+    ...input.queries.slice(0, 2).flatMap((searchQuery) =>
+      siteSources.map((source) => `${searchQuery} site:${source.domain}`),
+    ),
+  ]);
+  const sourceId = searchSource?.id ?? null;
 
   let inserted = 0;
-  for (const searchQuery of input.queries.slice(0, 4)) {
+  for (const searchQuery of queries) {
     const startedAt = Date.now();
     const search = await tavilySearch(searchQuery, {
       maxResults: input.maxResultsPerQuery ?? 4,
@@ -545,6 +970,7 @@ export async function discoverArtDirectionReferences(input: DiscoverArtDirection
 
     for (const result of search.results) {
       const domain = normalizeUrlDomain(result.url);
+      const matchedSource = siteSources.find((source) => source.domain === domain) ?? null;
       const metadata = {
         source: 'search',
         query: searchQuery,
@@ -569,7 +995,7 @@ export async function discoverArtDirectionReferences(input: DiscoverArtDirection
         [
           input.tenantId,
           input.clientId ?? null,
-          sourceId,
+          matchedSource?.id ?? sourceId,
           result.url,
           domain,
           result.title || result.url,
@@ -752,6 +1178,318 @@ export async function recordArtDirectionFeedbackEvent(params: {
   );
 }
 
+async function fetchArtDirectionReferenceRecord(
+  tenantId: string,
+  id: string,
+): Promise<ArtDirectionReferenceRecord | null> {
+  const { rows } = await query<ArtDirectionReferenceRecord>(
+    `SELECT
+       r.id,
+       r.title,
+       r.source_url,
+       r.image_url,
+       r.platform,
+       r.format,
+       r.segment,
+       r.visual_intent,
+       r.creative_direction,
+       COALESCE(r.mood_words, '[]'::jsonb) AS mood_words,
+       COALESCE(r.style_tags, '[]'::jsonb) AS style_tags,
+       COALESCE(r.composition_tags, '[]'::jsonb) AS composition_tags,
+       COALESCE(r.typography_tags, '[]'::jsonb) AS typography_tags,
+       r.trend_score,
+       r.confidence_score,
+       r.rationale,
+       r.discovered_at::text AS discovered_at,
+       r.status,
+       r.domain,
+       r.search_query,
+       r.source_kind,
+       r.source_id,
+       r.snippet,
+       r.analyzed_at::text AS analyzed_at,
+       src.name AS source_name,
+       src.source_type
+     FROM da_references r
+     LEFT JOIN da_reference_sources src ON src.id = r.source_id
+    WHERE r.tenant_id = $1
+      AND r.id = $2
+    LIMIT 1`,
+    [tenantId, id],
+  );
+
+  if (!rows[0]) return null;
+
+  return {
+    ...rows[0],
+    mood_words: Array.isArray(rows[0].mood_words) ? rows[0].mood_words : [],
+    style_tags: Array.isArray(rows[0].style_tags) ? rows[0].style_tags : [],
+    composition_tags: Array.isArray(rows[0].composition_tags) ? rows[0].composition_tags : [],
+    typography_tags: Array.isArray(rows[0].typography_tags) ? rows[0].typography_tags : [],
+  };
+}
+
+export async function getArtDirectionReferencePreview(params: {
+  tenantId: string;
+  id: string;
+}): Promise<ArtDirectionReferencePreview | null> {
+  const { rows } = await query<{
+    id: string;
+    title: string | null;
+    source_url: string;
+    image_url: string | null;
+    snippet: string | null;
+    domain: string | null;
+    metadata: any;
+    source_name: string | null;
+    source_type: string | null;
+  }>(
+    `SELECT
+       r.id,
+       r.title,
+       r.source_url,
+       r.image_url,
+       r.snippet,
+       r.domain,
+       COALESCE(r.metadata, '{}'::jsonb) AS metadata,
+       src.name AS source_name,
+       src.source_type
+     FROM da_references r
+     LEFT JOIN da_reference_sources src ON src.id = r.source_id
+    WHERE r.tenant_id = $1
+      AND r.id = $2
+    LIMIT 1`,
+    [params.tenantId, params.id],
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const metadata = asRecord(row.metadata);
+  let imageUrl = row.image_url || null;
+  let previewExcerpt = String(metadata.preview_excerpt || '').trim() || row.snippet || null;
+  let previewSiteName = String(metadata.preview_site_name || '').trim() || row.source_name || null;
+  let previewTitle = String(metadata.preview_title || '').trim() || row.title || null;
+
+  if (!imageUrl || !previewExcerpt || !previewSiteName) {
+    const preview = await fetchOpenGraphPreview(row.source_url);
+    imageUrl = imageUrl || preview.imageUrl || null;
+    previewExcerpt = previewExcerpt || preview.excerpt || null;
+    previewSiteName = previewSiteName || preview.siteName || null;
+    previewTitle = previewTitle || preview.title || null;
+
+    await query(
+      `UPDATE da_references
+          SET image_url = COALESCE($3, image_url),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
+              updated_at = now()
+        WHERE tenant_id = $1
+          AND id = $2`,
+      [
+        params.tenantId,
+        params.id,
+        imageUrl,
+        JSON.stringify({
+          preview_excerpt: previewExcerpt,
+          preview_site_name: previewSiteName,
+          preview_title: previewTitle,
+          preview_fetched_at: new Date().toISOString(),
+        }),
+      ],
+    ).catch(() => {});
+  }
+
+  return {
+    id: row.id,
+    title: previewTitle,
+    source_url: row.source_url,
+    image_url: imageUrl,
+    preview_excerpt: previewExcerpt,
+    preview_site_name: previewSiteName,
+    curated: row.source_type === 'site' || row.source_type === 'library',
+    source_name: row.source_name,
+    source_type: row.source_type,
+    domain: row.domain,
+  };
+}
+
+export async function createManualArtDirectionReference(
+  input: CreateManualArtDirectionReferenceInput,
+): Promise<ArtDirectionReferenceRecord> {
+  const normalizedUrl = input.sourceUrl.trim();
+  const domain = normalizeUrlDomain(normalizedUrl);
+
+  let sourceId: string | null = null;
+  if (domain) {
+    const sourceRows = await query<{ id: string }>(
+      `SELECT id
+         FROM da_reference_sources
+        WHERE (tenant_id = $1 OR tenant_id IS NULL)
+          AND domain = $2
+        ORDER BY CASE WHEN tenant_id = $1 THEN 0 ELSE 1 END
+        LIMIT 1`,
+      [input.tenantId, domain],
+    );
+    sourceId = sourceRows.rows[0]?.id ?? null;
+  }
+
+  const { rows } = await query<{ id: string }>(
+    `INSERT INTO da_references
+       (
+         tenant_id, client_id, source_id, source_url, canonical_url, domain, title, snippet,
+         source_kind, status, platform, format, segment, visual_intent, creative_direction,
+         mood_words, style_tags, composition_tags, typography_tags,
+         confidence_score, trend_score, rationale, metadata, analyzed_at
+       )
+     VALUES (
+       $1,$2,$3,$4,$4,$5,$6,$7,
+       'manual',$8,$9,$10,$11,$12,$13,
+       $14::jsonb,$15::jsonb,$16::jsonb,$17::jsonb,
+       $18,$19,$20,$21::jsonb,
+       CASE WHEN $8 = 'analyzed' THEN now() ELSE NULL END
+     )
+     ON CONFLICT (tenant_id, source_url)
+     DO UPDATE SET
+       client_id = COALESCE(EXCLUDED.client_id, da_references.client_id),
+       source_id = COALESCE(EXCLUDED.source_id, da_references.source_id),
+       title = EXCLUDED.title,
+       platform = COALESCE(EXCLUDED.platform, da_references.platform),
+       format = COALESCE(EXCLUDED.format, da_references.format),
+       segment = COALESCE(EXCLUDED.segment, da_references.segment),
+       visual_intent = COALESCE(EXCLUDED.visual_intent, da_references.visual_intent),
+       creative_direction = COALESCE(EXCLUDED.creative_direction, da_references.creative_direction),
+       mood_words = EXCLUDED.mood_words,
+       style_tags = EXCLUDED.style_tags,
+       composition_tags = EXCLUDED.composition_tags,
+       typography_tags = EXCLUDED.typography_tags,
+       confidence_score = COALESCE(EXCLUDED.confidence_score, da_references.confidence_score),
+       trend_score = COALESCE(EXCLUDED.trend_score, da_references.trend_score),
+       rationale = COALESCE(EXCLUDED.rationale, da_references.rationale),
+       metadata = COALESCE(da_references.metadata, '{}'::jsonb) || EXCLUDED.metadata,
+       status = EXCLUDED.status,
+       analyzed_at = CASE WHEN EXCLUDED.status = 'analyzed' THEN now() ELSE da_references.analyzed_at END,
+       updated_at = now()
+     RETURNING id`,
+    [
+      input.tenantId,
+      input.clientId ?? null,
+      sourceId,
+      normalizedUrl,
+      domain,
+      (input.title || normalizedUrl).trim(),
+      null,
+      input.status ?? 'discovered',
+      input.platform ?? null,
+      input.format ?? null,
+      input.segment ?? null,
+      input.visualIntent ?? null,
+      input.creativeDirection ?? null,
+      toJson(input.moodWords),
+      toJson(input.styleTags),
+      toJson(input.compositionTags),
+      toJson(input.typographyTags),
+      input.confidenceScore ?? null,
+      input.trendScore ?? null,
+      input.rationale ?? null,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+
+  const stored = await fetchArtDirectionReferenceRecord(input.tenantId, rows[0].id);
+  if (!stored) throw new Error('Falha ao carregar referência manual após salvar');
+  return stored;
+}
+
+export async function updateArtDirectionReference(
+  input: UpdateArtDirectionReferenceInput,
+): Promise<ArtDirectionReferenceRecord | null> {
+  const currentRows = await query<{ source_url: string; status: string }>(
+    `SELECT source_url, status
+       FROM da_references
+      WHERE tenant_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [input.tenantId, input.id],
+  );
+  if (!currentRows.rows[0]) return null;
+
+  const normalizedUrl = String(input.sourceUrl || '').trim() || currentRows.rows[0].source_url;
+  const domain = normalizeUrlDomain(normalizedUrl);
+
+  let sourceId: string | null = null;
+  if (domain) {
+    const sourceRows = await query<{ id: string }>(
+      `SELECT id
+         FROM da_reference_sources
+        WHERE (tenant_id = $1 OR tenant_id IS NULL)
+          AND domain = $2
+        ORDER BY CASE WHEN tenant_id = $1 THEN 0 ELSE 1 END
+        LIMIT 1`,
+      [input.tenantId, domain],
+    );
+    sourceId = sourceRows.rows[0]?.id ?? null;
+  }
+
+  const status = input.status ?? (currentRows.rows[0].status as UpdateArtDirectionReferenceInput['status']);
+
+  const { rows } = await query<{ id: string }>(
+    `UPDATE da_references
+        SET source_id = COALESCE($3, source_id),
+            source_url = $4,
+            canonical_url = $4,
+            domain = $5,
+            title = COALESCE($6, title),
+            platform = COALESCE($7, platform),
+            format = COALESCE($8, format),
+            segment = COALESCE($9, segment),
+            visual_intent = COALESCE($10, visual_intent),
+            creative_direction = COALESCE($11, creative_direction),
+            mood_words = COALESCE($12::jsonb, mood_words),
+            style_tags = COALESCE($13::jsonb, style_tags),
+            composition_tags = COALESCE($14::jsonb, composition_tags),
+            typography_tags = COALESCE($15::jsonb, typography_tags),
+            confidence_score = COALESCE($16, confidence_score),
+            trend_score = COALESCE($17, trend_score),
+            rationale = COALESCE($18, rationale),
+            status = COALESCE($19, status),
+            analyzed_at = CASE
+              WHEN COALESCE($19, status) = 'analyzed' AND analyzed_at IS NULL THEN now()
+              WHEN COALESCE($19, status) <> 'analyzed' THEN NULL
+              ELSE analyzed_at
+            END,
+            metadata = COALESCE(metadata, '{}'::jsonb) || $20::jsonb,
+            updated_at = now()
+      WHERE tenant_id = $1
+        AND id = $2
+      RETURNING id`,
+    [
+      input.tenantId,
+      input.id,
+      sourceId,
+      normalizedUrl,
+      domain,
+      input.title ?? null,
+      input.platform ?? null,
+      input.format ?? null,
+      input.segment ?? null,
+      input.visualIntent ?? null,
+      input.creativeDirection ?? null,
+      input.moodWords ? toJson(input.moodWords) : null,
+      input.styleTags ? toJson(input.styleTags) : null,
+      input.compositionTags ? toJson(input.compositionTags) : null,
+      input.typographyTags ? toJson(input.typographyTags) : null,
+      input.confidenceScore ?? null,
+      input.trendScore ?? null,
+      input.rationale ?? null,
+      status ?? null,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+
+  if (!rows[0]) return null;
+  return fetchArtDirectionReferenceRecord(input.tenantId, rows[0].id);
+}
+
 export async function recomputeArtDirectionTrendSnapshots(params?: {
   tenantId?: string;
   clientId?: string;
@@ -918,7 +1656,7 @@ export async function listRelevantArtDirectionReferences(params: {
   values.push(Math.min(params.limit ?? 8, 20));
 
   const { rows } = await query(
-    `SELECT id, title, source_url, platform, format, segment, visual_intent, creative_direction,
+    `SELECT id, title, source_url, image_url, platform, format, segment, visual_intent, creative_direction,
             mood_words, style_tags, composition_tags, typography_tags, trend_score, confidence_score,
             rationale, discovered_at
        FROM da_references
@@ -932,6 +1670,89 @@ export async function listRelevantArtDirectionReferences(params: {
     values,
   );
   return rows;
+}
+
+export async function listArtDirectionReferences(params: {
+  tenantId: string;
+  clientId?: string | null;
+  platform?: string | null;
+  segment?: string | null;
+  statuses?: Array<'discovered' | 'analyzed' | 'rejected' | 'archived'>;
+  limit?: number;
+}): Promise<ArtDirectionReferenceRecord[]> {
+  const values: any[] = [params.tenantId];
+  const where = [`r.tenant_id = $1`];
+
+  if (params.clientId) {
+    values.push(params.clientId);
+    where.push(`(r.client_id = $${values.length} OR r.client_id IS NULL)`);
+  }
+  if (params.platform) {
+    values.push(params.platform);
+    where.push(`(r.platform = $${values.length} OR r.platform IS NULL)`);
+  }
+  if (params.segment) {
+    values.push(params.segment);
+    where.push(`(r.segment = $${values.length} OR r.segment IS NULL)`);
+  }
+  if (params.statuses?.length) {
+    values.push(params.statuses);
+    where.push(`r.status = ANY($${values.length}::text[])`);
+  }
+
+  values.push(Math.min(params.limit ?? 24, 100));
+
+  const { rows } = await query<ArtDirectionReferenceRecord>(
+    `SELECT
+       r.id,
+       r.title,
+       r.source_url,
+       r.image_url,
+       r.platform,
+       r.format,
+       r.segment,
+       r.visual_intent,
+       r.creative_direction,
+       COALESCE(r.mood_words, '[]'::jsonb) AS mood_words,
+       COALESCE(r.style_tags, '[]'::jsonb) AS style_tags,
+       COALESCE(r.composition_tags, '[]'::jsonb) AS composition_tags,
+       COALESCE(r.typography_tags, '[]'::jsonb) AS typography_tags,
+       r.trend_score,
+       r.confidence_score,
+       r.rationale,
+       r.discovered_at::text AS discovered_at,
+       r.status,
+       r.domain,
+       r.search_query,
+       r.source_kind,
+       r.source_id,
+       r.snippet,
+       r.analyzed_at::text AS analyzed_at,
+       src.name AS source_name,
+       src.source_type
+     FROM da_references r
+     LEFT JOIN da_reference_sources src ON src.id = r.source_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY
+       CASE r.status
+         WHEN 'discovered' THEN 0
+         WHEN 'analyzed' THEN 1
+         WHEN 'rejected' THEN 2
+         ELSE 3
+       END,
+       r.updated_at DESC,
+       r.discovered_at DESC
+     LIMIT $${values.length}`,
+    values,
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    mood_words: Array.isArray(row.mood_words) ? row.mood_words : [],
+    style_tags: Array.isArray(row.style_tags) ? row.style_tags : [],
+    composition_tags: Array.isArray(row.composition_tags) ? row.composition_tags : [],
+    typography_tags: Array.isArray(row.typography_tags) ? row.typography_tags : [],
+  }));
 }
 
 export async function listRelevantArtDirectionConcepts(params: {
@@ -984,6 +1805,218 @@ export async function listRelevantArtDirectionConcepts(params: {
   }));
 }
 
+export async function listArtDirectionCanons(params: {
+  tenantId?: string | null;
+  includeEntries?: boolean;
+  limitEntriesPerCanon?: number;
+}): Promise<ArtDirectionCanonSummary[]> {
+  const values: any[] = [];
+  const where: string[] = [];
+
+  if (params.tenantId) {
+    values.push(params.tenantId);
+    where.push(`(c.tenant_id = $${values.length} OR c.tenant_id IS NULL)`);
+  } else {
+    where.push(`c.tenant_id IS NULL`);
+  }
+
+  const { rows } = await query<{
+    id: string;
+    slug: string;
+    title: string;
+    description: string | null;
+    status: 'active' | 'draft' | 'archived';
+    sort_order: number;
+    total_entries: number;
+    active_entries: number;
+    draft_entries: number;
+    archived_entries: number;
+  }>(
+    `SELECT
+       c.id,
+       c.slug,
+       c.title,
+       c.description,
+       c.status,
+       c.sort_order,
+       COUNT(e.id)::int AS total_entries,
+       COUNT(e.id) FILTER (WHERE e.status = 'active')::int AS active_entries,
+       COUNT(e.id) FILTER (WHERE e.status = 'draft')::int AS draft_entries,
+       COUNT(e.id) FILTER (WHERE e.status = 'archived')::int AS archived_entries
+     FROM da_canons c
+     LEFT JOIN da_canon_entries e ON e.canon_id = c.id
+     WHERE ${where.join(' AND ')}
+     GROUP BY c.id, c.slug, c.title, c.description, c.status, c.sort_order
+     ORDER BY c.sort_order ASC, c.title ASC`,
+    values,
+  );
+
+  const canons: ArtDirectionCanonSummary[] = rows.map((row) => ({
+    ...row,
+    entries: [],
+  }));
+
+  if (!canons.length || !canons.some((canon) => canon.total_entries > 0)) {
+    return buildFallbackCanonEntries(params.limitEntriesPerCanon ?? 12);
+  }
+
+  if (!params.includeEntries || !canons.length) {
+    return canons;
+  }
+
+  const canonIds = canons.map((canon) => canon.id);
+  const entryValues: any[] = [canonIds];
+  const entryWhere = [`e.canon_id = ANY($1::uuid[])`];
+
+  if (params.tenantId) {
+    entryValues.push(params.tenantId);
+    entryWhere.push(`(e.tenant_id = $${entryValues.length} OR e.tenant_id IS NULL)`);
+  } else {
+    entryWhere.push(`e.tenant_id IS NULL`);
+  }
+
+  const { rows: entryRows } = await query<ArtDirectionCanonEntrySummary>(
+    `SELECT
+       e.id,
+       e.canon_id,
+       c.slug AS canon_slug,
+       c.title AS canon_title,
+       e.slug,
+       e.title,
+       e.summary_short,
+       e.summary_medium,
+       e.summary_long,
+       e.definition,
+       COALESCE(e.when_to_use, '[]'::jsonb) AS when_to_use,
+       COALESCE(e.when_to_avoid, '[]'::jsonb) AS when_to_avoid,
+       COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
+       COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
+       COALESCE(e.examples, '[]'::jsonb) AS examples,
+       COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
+       COALESCE(source_stats.source_count, 0)::int AS source_count,
+       COALESCE(e.metadata, '{}'::jsonb) AS metadata,
+       e.status,
+       e.source_confidence
+     FROM da_canon_entries e
+     JOIN da_canons c ON c.id = e.canon_id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS chunk_count
+         FROM da_canon_chunks
+        GROUP BY entry_id
+     ) chunk_stats ON chunk_stats.entry_id = e.id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS source_count
+         FROM da_canon_sources
+        GROUP BY entry_id
+     ) source_stats ON source_stats.entry_id = e.id
+     WHERE ${entryWhere.join(' AND ')}
+     ORDER BY
+       c.sort_order ASC,
+       CASE e.status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END,
+       e.title ASC`,
+    entryValues,
+  );
+
+  const grouped = new Map<string, ArtDirectionCanonEntrySummary[]>();
+  for (const row of entryRows) {
+    const current = grouped.get(row.canon_id) ?? [];
+    if (current.length < Math.max(1, Math.min(params.limitEntriesPerCanon ?? 12, 50))) {
+      current.push({
+        ...row,
+        when_to_use: Array.isArray(row.when_to_use) ? row.when_to_use : [],
+        when_to_avoid: Array.isArray(row.when_to_avoid) ? row.when_to_avoid : [],
+        heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
+        critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
+        examples: Array.isArray(row.examples) ? row.examples : [],
+        metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {},
+      });
+    }
+    grouped.set(row.canon_id, current);
+  }
+
+  return canons.map((canon) => ({
+    ...canon,
+    entries: grouped.get(canon.id) ?? [],
+  }));
+}
+
+export async function listRelevantArtDirectionCanonEntries(params: {
+  tenantId?: string | null;
+  canonSlugs?: string[] | null;
+  limit?: number;
+}): Promise<ArtDirectionCanonEntrySummary[]> {
+  const values: any[] = [];
+  const where: string[] = [`e.status = 'active'`];
+
+  if (params.tenantId) {
+    values.push(params.tenantId);
+    where.push(`(e.tenant_id = $${values.length} OR e.tenant_id IS NULL)`);
+  } else {
+    where.push(`e.tenant_id IS NULL`);
+  }
+
+  if (params.canonSlugs?.length) {
+    values.push(params.canonSlugs);
+    where.push(`c.slug = ANY($${values.length}::text[])`);
+  }
+
+  values.push(Math.min(params.limit ?? 8, 20));
+
+  const { rows } = await query<ArtDirectionCanonEntrySummary>(
+    `SELECT
+       e.id,
+       e.canon_id,
+       c.slug AS canon_slug,
+       c.title AS canon_title,
+       e.slug,
+       e.title,
+       e.summary_short,
+       e.summary_medium,
+       e.summary_long,
+       e.definition,
+       COALESCE(e.when_to_use, '[]'::jsonb) AS when_to_use,
+       COALESCE(e.when_to_avoid, '[]'::jsonb) AS when_to_avoid,
+       COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
+       COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
+       COALESCE(e.examples, '[]'::jsonb) AS examples,
+       COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
+       COALESCE(source_stats.source_count, 0)::int AS source_count,
+       COALESCE(e.metadata, '{}'::jsonb) AS metadata,
+       e.status,
+       e.source_confidence
+     FROM da_canon_entries e
+     JOIN da_canons c ON c.id = e.canon_id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS chunk_count
+         FROM da_canon_chunks
+        GROUP BY entry_id
+     ) chunk_stats ON chunk_stats.entry_id = e.id
+     LEFT JOIN (
+       SELECT entry_id, COUNT(*)::int AS source_count
+         FROM da_canon_sources
+        GROUP BY entry_id
+     ) source_stats ON source_stats.entry_id = e.id
+     WHERE ${where.join(' AND ')}
+     ORDER BY
+       c.sort_order ASC,
+       e.source_confidence DESC,
+       e.updated_at DESC,
+       e.title ASC
+     LIMIT $${values.length}`,
+    values,
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    when_to_use: Array.isArray(row.when_to_use) ? row.when_to_use : [],
+    when_to_avoid: Array.isArray(row.when_to_avoid) ? row.when_to_avoid : [],
+    heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
+    critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
+    examples: Array.isArray(row.examples) ? row.examples : [],
+    metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {},
+  }));
+}
+
 export async function listArtDirectionTrendSignals(params: {
   tenantId: string;
   clientId?: string | null;
@@ -1028,6 +2061,135 @@ export async function listArtDirectionTrendSignals(params: {
   return rows;
 }
 
+export async function getArtDirectionMemoryStats(params: {
+  tenantId: string;
+  clientId?: string | null;
+  platform?: string | null;
+  segment?: string | null;
+  windowKey?: string;
+}): Promise<ArtDirectionMemoryStats> {
+  const referenceValues: any[] = [params.tenantId];
+  const referenceWhere = [`tenant_id = $1`];
+
+  if (params.clientId) {
+    referenceValues.push(params.clientId);
+    referenceWhere.push(`(client_id = $${referenceValues.length} OR client_id IS NULL)`);
+  }
+  if (params.platform) {
+    referenceValues.push(params.platform);
+    referenceWhere.push(`(platform = $${referenceValues.length} OR platform IS NULL)`);
+  }
+  if (params.segment) {
+    referenceValues.push(params.segment);
+    referenceWhere.push(`(segment = $${referenceValues.length} OR segment IS NULL)`);
+  }
+
+  const trendValues: any[] = [params.tenantId, params.windowKey ?? 'rolling_30d'];
+  const trendWhere = [`tenant_id = $1`, `window_key = $2`];
+  if (params.clientId) {
+    trendValues.push(params.clientId);
+    trendWhere.push(`(client_id = $${trendValues.length} OR client_id IS NULL)`);
+  }
+  if (params.platform) {
+    trendValues.push(params.platform);
+    trendWhere.push(`(platform = $${trendValues.length} OR platform IS NULL)`);
+  }
+  if (params.segment) {
+    trendValues.push(params.segment);
+    trendWhere.push(`(segment = $${trendValues.length} OR segment IS NULL)`);
+  }
+
+  const feedbackValues: any[] = [params.tenantId];
+  const feedbackWhere = [`tenant_id = $1`];
+  if (params.clientId) {
+    feedbackValues.push(params.clientId);
+    feedbackWhere.push(`(client_id = $${feedbackValues.length} OR client_id IS NULL)`);
+  }
+  if (params.platform) {
+    feedbackValues.push(params.platform);
+    feedbackWhere.push(`(metadata->>'platform' = $${feedbackValues.length} OR metadata->>'platform' IS NULL)`);
+  }
+  if (params.segment) {
+    feedbackValues.push(params.segment);
+    feedbackWhere.push(`(metadata->>'segment' = $${feedbackValues.length} OR metadata->>'segment' IS NULL)`);
+  }
+
+  const [conceptRows, referenceRows, trendRows, feedbackRows] = await Promise.all([
+    query<{ active: number }>(
+      `SELECT COUNT(*)::int AS active
+         FROM da_concepts
+        WHERE status = 'active'
+          AND (tenant_id = $1 OR tenant_id IS NULL)`,
+      [params.tenantId],
+    ),
+    query<{
+      discovered: number;
+      analyzed: number;
+      rejected: number;
+      archived: number;
+      last_discovered_at: string | null;
+      last_analyzed_at: string | null;
+    }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'discovered')::int AS discovered,
+         COUNT(*) FILTER (WHERE status = 'analyzed')::int AS analyzed,
+         COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected,
+         COUNT(*) FILTER (WHERE status = 'archived')::int AS archived,
+         MAX(discovered_at)::text AS last_discovered_at,
+         MAX(analyzed_at)::text AS last_analyzed_at
+       FROM da_references
+      WHERE ${referenceWhere.join(' AND ')}`,
+      referenceValues,
+    ),
+    query<{ snapshots: number; last_snapshot_at: string | null }>(
+      `SELECT
+         COUNT(*)::int AS snapshots,
+         MAX(snapshot_at)::text AS last_snapshot_at
+       FROM da_trend_snapshots
+      WHERE ${trendWhere.join(' AND ')}`,
+      trendValues,
+    ),
+    query<{ used: number; approved: number; rejected: number; saved: number }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE event_type = 'used')::int AS used,
+         COUNT(*) FILTER (WHERE event_type = 'approved')::int AS approved,
+         COUNT(*) FILTER (WHERE event_type = 'rejected')::int AS rejected,
+         COUNT(*) FILTER (WHERE event_type = 'saved')::int AS saved
+       FROM da_feedback_events
+      WHERE ${feedbackWhere.join(' AND ')}`,
+      feedbackValues,
+    ),
+  ]);
+
+  const reference = referenceRows.rows[0];
+  const trend = trendRows.rows[0];
+  const feedback = feedbackRows.rows[0];
+
+  return {
+    concepts: {
+      active: conceptRows.rows[0]?.active ?? 0,
+    },
+    references: {
+      discovered: reference?.discovered ?? 0,
+      analyzed: reference?.analyzed ?? 0,
+      rejected: reference?.rejected ?? 0,
+      archived: reference?.archived ?? 0,
+      lastDiscoveredAt: reference?.last_discovered_at ?? null,
+      lastAnalyzedAt: reference?.last_analyzed_at ?? null,
+    },
+    trends: {
+      snapshots: trend?.snapshots ?? 0,
+      lastSnapshotAt: trend?.last_snapshot_at ?? null,
+    },
+    feedback: {
+      used: feedback?.used ?? 0,
+      approved: feedback?.approved ?? 0,
+      rejected: feedback?.rejected ?? 0,
+      saved: feedback?.saved ?? 0,
+    },
+  };
+}
+
 function formatList(values: string[], limit = 3): string {
   return uniq(values).slice(0, limit).join(', ');
 }
@@ -1046,10 +2208,15 @@ export async function buildArtDirectionMemoryContext(params: {
     return { concepts: [], references: [], trends: [], promptBlock: '', critiqueBlock: '' };
   }
 
-  const [concepts, references, trends] = await Promise.all([
+  const [concepts, canonEntries, references, trends] = await Promise.all([
     listRelevantArtDirectionConcepts({
       tenantId: params.tenantId,
       categories: params.conceptCategories,
+      limit: params.conceptLimit ?? 5,
+    }).catch(() => []),
+    listRelevantArtDirectionCanonEntries({
+      tenantId: params.tenantId,
+      canonSlugs: params.conceptCategories ?? undefined,
       limit: params.conceptLimit ?? 5,
     }).catch(() => []),
     listRelevantArtDirectionReferences({
@@ -1067,6 +2234,12 @@ export async function buildArtDirectionMemoryContext(params: {
       limit: params.trendLimit ?? 4,
     }).catch(() => []),
   ]);
+
+  const canonLines = canonEntries.map((entry) => {
+    const heuristics = entry.heuristics.length ? `heurísticas: ${formatList(entry.heuristics, 2)}` : '';
+    const checks = entry.critique_checks.length ? `checks: ${formatList(entry.critique_checks, 2)}` : '';
+    return `- ${entry.title} [${entry.canon_title}]: ${entry.definition}${heuristics || checks ? ` | ${[heuristics, checks].filter(Boolean).join(' | ')}` : ''}`;
+  });
 
   const conceptLines = concepts.map((concept) => {
     const heuristics = concept.heuristics.length ? `heurísticas: ${formatList(concept.heuristics, 2)}` : '';
@@ -1088,13 +2261,19 @@ export async function buildArtDirectionMemoryContext(params: {
   );
 
   const promptSections = [
-    conceptLines.length ? `DESIGN CANON RELEVANTE:\n${conceptLines.join('\n')}` : '',
+    canonLines.length
+      ? `BIBLIOTECA DE CONHECIMENTO DA EDRO:\n${canonLines.join('\n')}`
+      : conceptLines.length
+      ? `DESIGN CANON RELEVANTE:\n${conceptLines.join('\n')}`
+      : '',
     trendLines.length ? `TENDÊNCIAS DETECTADAS:\n${trendLines.join('\n')}` : '',
     referenceLines.length ? `REFERÊNCIAS RECENTES DA MEMÓRIA:\n${referenceLines.join('\n')}` : '',
   ].filter(Boolean);
 
   const critiqueSections = [
-    concepts.length
+    canonEntries.length
+      ? `REGRAS EXTRAS DE CRÍTICA DA BIBLIOTECA:\n${canonEntries.map((entry) => `- ${entry.title}: ${formatList(entry.critique_checks, 3) || formatList(entry.heuristics, 2)}`).join('\n')}`
+      : concepts.length
       ? `REGRAS EXTRAS DE CRÍTICA:\n${concepts.map((concept) => `- ${concept.title}: ${formatList(concept.critique_checks, 3) || formatList(concept.heuristics, 2)}`).join('\n')}`
       : '',
     trends.length

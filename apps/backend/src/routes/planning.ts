@@ -29,30 +29,31 @@ import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
 import { listClientDocuments, listClientSources, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
-import { loadBehaviorProfiles } from '../services/behaviorClusteringService';
-import { loadLearningRules } from '../services/learningEngine';
-import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
+import { getAllToolDefinitions, getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
 import { runToolUseLoop, LoopMessage } from '../services/ai/toolUseLoop';
-import { ToolContext } from '../services/ai/toolExecutor';
-
-/**
- * Resolve clients.id (TEXT like "banco-bbc-digital") → edro_clients.id (UUID).
- * Two client tables coexist: `clients` (TEXT id, multitenant) and `edro_clients` (UUID, legacy briefing system).
- * Tables like library_items/clipping use clients.id (TEXT), while edro_briefings/ai_opportunities use edro_clients.id (UUID).
- */
-async function resolveEdroClientId(clientId: string): Promise<string | null> {
-  try {
-    const { rows } = await query(
-      `SELECT ec.id FROM edro_clients ec
-       JOIN clients c ON LOWER(ec.name) = LOWER(c.name)
-       WHERE c.id = $1 LIMIT 1`,
-      [clientId]
-    );
-    return rows[0]?.id ?? null;
-  } catch {
-    return null;
-  }
-}
+import { executeOperationsTool, OperationsToolContext, ToolContext } from '../services/ai/toolExecutor';
+import {
+  buildClientContext,
+  loadPerformanceContext,
+  loadPsychContext,
+  resolveEdroClientId,
+} from '../services/jarvisContextService';
+import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
+import { buildOperationsSystemPrompt } from './operations';
+import {
+  buildInlineAttachmentContext,
+  buildJarvisObservability,
+  buildJarvisRoutingDecision,
+  detectJarvisIntent,
+  loadUnifiedConversationHistory,
+  saveUnifiedConversation,
+} from '../services/jarvisPolicyService';
+export {
+  buildClientContext,
+  loadPerformanceContext,
+  loadPsychContext,
+  resolveEdroClientId,
+};
 
 type ConversationMessage = {
   role: 'user' | 'assistant' | 'system';
@@ -85,6 +86,8 @@ const chatSchema = z.object({
     name: z.string(),
     text: z.string(),
   })).optional(),
+  context_page: z.string().optional().nullable(),
+  studio_context: z.string().optional().nullable(),
 });
 
 const createConversationSchema = z.object({
@@ -92,7 +95,7 @@ const createConversationSchema = z.object({
   provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
 });
 
-function mapProviderToCopy(provider: string): CopyProvider {
+export function mapProviderToCopy(provider: string): CopyProvider {
   switch (provider) {
     case 'anthropic': return 'claude';
     case 'google': return 'gemini';
@@ -206,151 +209,6 @@ async function resolveBriefingFromCommand(params: {
   return briefings.rows[0] || null;
 }
 
-async function buildClientContext(tenantId: string, clientId: string): Promise<string> {
-  const client = await getClientById(tenantId, clientId);
-  if (!client) return '';
-
-  const profile = client.profile || {};
-  const knowledge = profile.knowledge_base || {};
-
-  const parts: string[] = [];
-  parts.push(`Client: ${client.name}`);
-  if (client.segment_primary) parts.push(`Segment: ${client.segment_primary}`);
-  if (knowledge.description) parts.push(`Description: ${knowledge.description}`);
-  if (knowledge.audience) parts.push(`Target Audience: ${knowledge.audience}`);
-  if (knowledge.brand_promise) parts.push(`Brand Promise: ${knowledge.brand_promise}`);
-  if (knowledge.keywords?.length) parts.push(`Keywords: ${knowledge.keywords.join(', ')}`);
-  if (knowledge.pillars?.length) parts.push(`Content Pillars: ${knowledge.pillars.join(', ')}`);
-
-  // Enrich with client intelligence data (best-effort)
-  try {
-    const [docs, insight] = await Promise.all([
-      listClientDocuments({ tenantId, clientId, limit: 15 }),
-      getLatestClientInsight({ tenantId, clientId }),
-    ]);
-
-    if (insight?.summary) {
-      const s = insight.summary;
-      if (s.summary_text) parts.push(`\nINTELIGENCIA DO CLIENTE:\n${s.summary_text}`);
-      if (s.positioning) parts.push(`Posicionamento: ${s.positioning}`);
-      if (s.tone) parts.push(`Tom de voz: ${s.tone}`);
-      if (s.industry) parts.push(`Industria: ${s.industry}`);
-    }
-
-    if (docs.length > 0) {
-      const socialPosts = docs.filter((d) => d.source_type === 'social').slice(0, 8);
-      const webPages = docs.filter((d) => d.source_type !== 'social').slice(0, 5);
-
-      if (socialPosts.length > 0) {
-        parts.push(`\nCONTEUDO RECENTE DO CLIENTE (${socialPosts.length} posts):`);
-        socialPosts.forEach((d) => {
-          const date = d.published_at ? new Date(d.published_at).toLocaleDateString('pt-BR') : '';
-          const excerpt = (d.content_excerpt || d.content_text || '').slice(0, 150);
-          parts.push(`- [${d.platform || ''}] ${date}: ${excerpt}`);
-        });
-      }
-
-      if (webPages.length > 0) {
-        parts.push(`\nPAGINAS DO SITE DO CLIENTE (${webPages.length}):`);
-        webPages.forEach((d) => {
-          const excerpt = (d.content_excerpt || d.content_text || '').slice(0, 120);
-          parts.push(`- ${d.title || d.url || ''}: ${excerpt}`);
-        });
-      }
-    }
-  } catch {
-    // Intelligence data unavailable — continue with basic context
-  }
-
-  return parts.join('\n');
-}
-
-async function loadPerformanceContext(clientId: string): Promise<string> {
-  try {
-    // Fetch the most recent 30d snapshot for each platform
-    const { rows } = await query<any>(
-      `SELECT platform, metrics, synced_at
-       FROM reportei_metric_snapshots
-       WHERE client_id = $1 AND time_window = '30d'
-         AND synced_at > NOW() - INTERVAL '14 days'
-       ORDER BY platform, synced_at DESC`,
-      [clientId]
-    );
-
-    if (!rows.length) return '';
-
-    // De-dup: one row per platform
-    const byPlatform: Record<string, { metrics: Record<string, any>; synced_at: string }> = {};
-    for (const row of rows) {
-      if (!byPlatform[row.platform]) byPlatform[row.platform] = row;
-    }
-
-    const METRIC_LABELS: Record<string, string> = {
-      'ig:impressions': 'impressões', 'ig:reach': 'alcance', 'ig:engagement_rate': 'engajamento',
-      'ig:followers_gained': 'novos seguidores', 'li:impressions': 'impressões LinkedIn',
-      'li:engagement_rate': 'engajamento LinkedIn', 'ma:roas': 'ROAS', 'ma:ctr': 'CTR',
-      'ga:sessions': 'sessões site', 'ga:new_users': 'novos usuários',
-    };
-
-    const parts: string[] = ['\nPERFORMANCE REAL — ÚLTIMOS 30 DIAS (dados Reportei):'];
-
-    for (const [platform, data] of Object.entries(byPlatform)) {
-      const notable: string[] = [];
-      for (const [k, v] of Object.entries(data.metrics as Record<string, any>)) {
-        if (!(k in METRIC_LABELS)) continue;
-        if (v.value == null) continue;
-        const label = METRIC_LABELS[k];
-        const valStr = v.value >= 1000 ? `${(v.value / 1000).toFixed(1)}K` : String(v.value);
-        const delta = v.delta_pct != null ? ` (${v.delta_pct > 0 ? '+' : ''}${v.delta_pct.toFixed(1)}% vs anterior)` : '';
-        notable.push(`${label}: ${valStr}${delta}`);
-      }
-      if (notable.length) {
-        parts.push(`  ${platform}: ${notable.slice(0, 5).join(' | ')}`);
-      }
-    }
-
-    parts.push('  → Use esses dados ao sugerir estratégias, formatos e frequência de publicação.');
-    return parts.join('\n');
-  } catch {
-    return '';
-  }
-}
-
-async function loadPsychContext(tenantId: string, clientId: string): Promise<string> {
-  try {
-    const [clusters, rules] = await Promise.all([
-      loadBehaviorProfiles(tenantId, clientId),
-      loadLearningRules(tenantId, clientId),
-    ]);
-
-    const parts: string[] = [];
-
-    if (clusters.length > 0) {
-      parts.push('\nPERFIS COMPORTAMENTAIS REAIS DA AUDIÊNCIA:');
-      clusters.forEach((c) => {
-        const triggers = c.preferred_triggers?.join(', ') || '—';
-        const conf = c.confidence_score ? ` [confiança ${Math.round(c.confidence_score * 100)}%]` : '';
-        parts.push(`  - ${c.cluster_label}: formato "${c.preferred_format || '—'}", AMD "${c.preferred_amd || '—'}", gatilhos [${triggers}], save_rate ${(c.avg_save_rate * 100).toFixed(2)}%${conf}`);
-      });
-      parts.push('  → Use esses perfis ao recomendar AMDs, gatilhos e formatos.');
-    }
-
-    if (rules.length > 0) {
-      const top = rules.slice(0, 6);
-      parts.push('\nREGRAS DE APRENDIZADO VALIDADAS (dados reais desta audiência):');
-      top.forEach((r) => {
-        const conf = r.confidence_score ? ` [confiança ${Math.round(r.confidence_score * 100)}%]` : '';
-        parts.push(`  - ${r.effective_pattern} [uplift +${r.uplift_value.toFixed(1)}% em ${r.uplift_metric}${conf}]`);
-      });
-      parts.push('  → Priorize AMDs e gatilhos com uplift comprovado.');
-    }
-
-    return parts.join('\n');
-  } catch {
-    return '';
-  }
-}
-
 function buildSystemPrompt(clientContext: string): string {
   return `You are an expert marketing and communications strategist for the EDRO platform.
 You help create marketing plans, campaign strategies, and creative content for clients.
@@ -367,7 +225,7 @@ GUIDELINES:
 - Consider the client's industry and market context`;
 }
 
-function buildAgentSystemPrompt(clientContext: string, psychContext: string, perfContext?: string): string {
+export function buildAgentSystemPrompt(clientContext: string, psychContext: string, perfContext?: string, memoryFabric?: string): string {
   return `Você é o Jarvis — diretor de estratégia e criação da agência EDRO, com QI operacional de 190.
 Você não é um assistente genérico. Você é o profissional mais sênior da sala: estrategista, redator-chefe, analista comportamental e gestor de conta ao mesmo tempo.
 Você tem acesso a ferramentas para operar dados reais do sistema, e inteligência própria para criar, diagnosticar e surpreender.
@@ -386,6 +244,8 @@ CAPACIDADES DE SISTEMA (use ferramentas)
 📚 BIBLIOTECA — buscar conhecimento, adicionar notas/URLs, buscar conteúdo publicado, listar fontes
 🔬 ANÁLISE — score de carga cognitiva (Lc), pesquisa web de mercado/concorrentes/tendências
 💬 WHATSAPP — buscar mensagens de grupos do cliente, listar grupos linkados, ver insights extraídos (feedbacks, aprovações, reclamações), ler resumos diários/semanais
+🧾 EVIDÊNCIA DO CLIENTE — use retrieve_client_evidence para responder perguntas sobre o que foi dito em reunião, WhatsApp, digest ou documentos, sempre com base rastreável
+🚀 PIPELINE DE POST — use create_post_pipeline para pedidos como "cria um post pra mim" quando a intenção for sair com briefing + copy + direção de arte prontos
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MOTOR CRIATIVO (inteligência própria — não usa ferramentas)
@@ -517,6 +377,8 @@ REGRAS DE OPERAÇÃO
    Encadeie ferramentas quando necessário (buscar clipping → criar briefing → agendar).
    Para ações encadeadas em jobs (criar → briefing → atribuir → mover status), execute a cadeia completa sem pausar para pedir confirmação a cada passo — entregue o resultado final.
    Para ações DESTRUTIVAS (excluir, arquivar, cancelar job, mudar status para cancelado): SEMPRE confirme com o usuário antes de executar. Descreva o que vai fazer e aguarde "sim" ou "confirma".
+   Perguntas sobre "o que a cliente falou", "o que foi decidido", "qual a evidência" devem começar por retrieve_client_evidence.
+   Pedidos de "cria um post pra mim", "me entrega um post", "monta um post completo" devem priorizar create_post_pipeline.
 
 🤖 ORQUESTRAÇÃO MULTI-IA → você pode consultar Gemini e GPT-4o como especialistas paralelos:
    - Use consult_gemini para: perspectivas culturais, tendências amplas, análise multimodal, criatividade visual
@@ -526,6 +388,7 @@ REGRAS DE OPERAÇÃO
    - Use Tavily (web_search / web_research) para dados de mercado, tendências reais, benchmarks do setor
 
 🎨 CRIAÇÃO CRIATIVA → use inteligência própria. Não precisa de ferramentas.
+   Exceção: quando o usuário pedir para CRIAR no sistema um post completo, um fluxo de briefing+copy+direção de arte ou algo "pronto para produção", prefira create_post_pipeline.
    Pedido de conceito criativo: entregue IMEDIATAMENTE —
      • Nome do conceito + tagline
      • Arquétipo de marca ativado
@@ -571,7 +434,8 @@ Quando receber um arquivo de áudio transcrito ou texto de transcrição de reun
 CONTEXTO DO CLIENTE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${clientContext || 'Sem contexto carregado — pergunte sobre o cliente antes de criar.'}
-${perfContext || ''}`;
+${perfContext || ''}
+${memoryFabric ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nMEMÓRIAS CANÔNICAS CARREGADAS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${memoryFabric}` : ''}`;
 }
 
 function parseDueAt(value?: string) {
@@ -733,7 +597,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     } catch (parseErr: any) {
       return reply.status(400).send({ success: false, error: 'Mensagem invalida.' });
     }
-    const { message, provider, conversationId, mode, attachmentIds, inline_attachments } = body;
+    const { message, provider, conversationId, mode, attachmentIds, inline_attachments, context_page, studio_context } = body;
 
     // ── 1. Quick client context + psych context + performance context (best-effort, 3s max) ──
     let clientContext = '';
@@ -779,12 +643,9 @@ export default async function planningRoutes(app: FastifyInstance) {
     }
 
     // ── 1c. Inline attachments (uploaded directly via Jarvis file picker) ───
-    if (inline_attachments?.length) {
-      const inlineParts = inline_attachments.map(a => {
-        const preview = a.text.length > 4000 ? a.text.slice(0, 4000) + '...(truncado)' : a.text;
-        return `[Arquivo: ${a.name}]\n${preview}`;
-      });
-      attachmentContext += '\n\nDOCUMENTOS ANEXADOS PELO USUARIO:\n' + inlineParts.join('\n\n');
+    attachmentContext += buildInlineAttachmentContext(inline_attachments);
+    if (studio_context) {
+      attachmentContext += `\n\nCONTEXTO DO STUDIO:\n${studio_context}`;
     }
 
     const copyProvider = provider === 'collaborative'
@@ -801,69 +662,100 @@ export default async function planningRoutes(app: FastifyInstance) {
     let assistantContent = '';
     let actionResult: Record<string, any> | null = null;
     let artifacts: Array<{ type: string; [key: string]: any }> = [];
+    let toolsUsed = 0;
+    let loadedMemoryBlocks: string[] = [];
 
-    // ── 2. Load conversation history (for agent + chat modes) ──────
-    let conversationHistory: LoopMessage[] = [];
-    if (conversationId && edroId) {
-      try {
-        const { rows } = await query(
-          `SELECT messages FROM planning_conversations WHERE id = $1 AND client_id = $2::uuid`,
-          [conversationId, edroId],
-        );
-        if (rows[0]?.messages) {
-          conversationHistory = (rows[0].messages as any[])
-            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
-            .slice(-20)
-            .map((m: any) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
-        }
-      } catch { /* ignore history load failure */ }
-    }
+    const canonicalIntent = detectJarvisIntent(message, context_page);
+    const canonicalDecision = buildJarvisRoutingDecision(canonicalIntent);
 
-    console.log(`[planning_chat] mode=${mode} provider=${copyProvider} tenant=${tenantId} client=${clientId} history=${conversationHistory.length}`);
+    const conversationHistory = await loadUnifiedConversationHistory({
+      route: canonicalDecision.route,
+      tenantId,
+      conversationId,
+      edroClientId: edroId,
+    });
+
+    console.log(`[planning_chat] mode=${mode} provider=${copyProvider} tenant=${tenantId} client=${clientId} history=${conversationHistory.length} route=${canonicalDecision.route}`);
 
     // ── 3. Agent mode (tool use loop) — also used for 'chat' mode ──
     if (mode === 'agent' || mode === 'chat') {
-      const resolvedProvider = getFallbackProvider(copyProvider);
-      const toolCtx: ToolContext = {
-        tenantId,
-        clientId,
-        edroClientId: edroId,
-        userId,
-        userEmail: user?.email,
-      };
-
       const userContent = attachmentContext
         ? message + attachmentContext
         : message;
-
-      const loopMessages: LoopMessage[] = [
-        ...conversationHistory,
-        { role: 'user', content: userContent },
+      const resolvedProvider = getFallbackProvider(copyProvider);
+      const planningMemoryKeys =
+        canonicalDecision.route === 'operations'
+          ? [
+            canonicalDecision.primaryMemory,
+            ...canonicalDecision.secondaryMemories.filter((memory): memory is any =>
+              memory === 'client_memory' || memory === 'operations_memory'
+            ),
+          ]
+          : canonicalDecision.secondaryMemories.filter((memory): memory is any =>
+            memory === 'operations_memory'
+            || memory === 'canon_edro'
+            || memory === 'reference_memory'
+            || memory === 'trend_memory'
+          );
+      const planningMemoryBlocks = await buildJarvisMemoryBlocks({
+        tenantId,
+        clientId,
+        memories: planningMemoryKeys,
+        maxBlocks: canonicalDecision.retrievalBudget.contextBlocks,
+      });
+      const planningMemoryFabric = formatJarvisMemoryBlocks(planningMemoryBlocks);
+      loadedMemoryBlocks = [
+        ...(clientContext.trim() ? ['Memória do cliente'] : []),
+        ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
+        ...planningMemoryBlocks.map((block) => block.label),
       ];
 
       try {
         const agentTimeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('AGENT_TIMEOUT_60s')), 60000),
+          setTimeout(() => reject(new Error(`${canonicalDecision.route.toUpperCase()}_AGENT_TIMEOUT_60s`)), 60000),
         );
-        const loopResult = await Promise.race([
-          runToolUseLoop({
-            messages: loopMessages,
-            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext),
-            tools: getAllToolDefinitions(),
-            provider: resolvedProvider,
-            toolContext: toolCtx,
-            maxIterations: 8,
-            temperature: 0.7,
-            maxTokens: 4096,
-            usageContext: usageCtx,
-          }),
-          agentTimeout,
-        ]);
+        const loopResult = canonicalDecision.route === 'operations'
+          ? await Promise.race([
+            runToolUseLoop({
+              messages: [...conversationHistory, { role: 'user', content: userContent }],
+              systemPrompt: buildOperationsSystemPrompt(planningMemoryFabric),
+              tools: getOperationsToolDefinitions(),
+              provider: resolvedProvider,
+              toolContext: { tenantId, userId: userId ?? undefined, userEmail: user?.email } satisfies OperationsToolContext,
+              maxIterations: canonicalDecision.retrievalBudget.toolIterations,
+              temperature: 0.5,
+              maxTokens: 4096,
+              usageContext: usageCtx,
+              toolExecutorFn: executeOperationsTool,
+            }),
+            agentTimeout,
+          ])
+          : await Promise.race([
+            runToolUseLoop({
+              messages: [...conversationHistory, { role: 'user', content: userContent }],
+              systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext, planningMemoryFabric),
+              tools: getAllToolDefinitions(),
+              provider: resolvedProvider,
+              toolContext: {
+                tenantId,
+                clientId,
+                edroClientId: edroId,
+                userId,
+                userEmail: user?.email,
+              } satisfies ToolContext,
+              maxIterations: canonicalDecision.retrievalBudget.toolIterations,
+              temperature: 0.7,
+              maxTokens: 4096,
+              usageContext: usageCtx,
+            }),
+            agentTimeout,
+          ]);
 
         resultOutput = loopResult.finalText;
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
         assistantContent = resultOutput;
+        toolsUsed = loopResult.toolCallsExecuted ?? 0;
         artifacts = (loopResult.toolResults ?? [])
           .filter(r => r.success && r.data)
           .map(r => ({ type: r.toolName, ...r.data }));
@@ -1005,26 +897,40 @@ export default async function planningRoutes(app: FastifyInstance) {
 
     // ── 6. Save conversation ──────────────────────────────────────
     let savedConversationId: string | null = conversationId || null;
-    const messagesPayload = [
-      { role: 'user', content: message, timestamp: new Date().toISOString() },
-      { role: 'assistant', content: assistantContent, timestamp: new Date().toISOString(), provider: resultProvider },
-    ];
-
-    // For agent/chat mode: await the save so we can return conversationId
-    if ((mode === 'agent' || mode === 'chat') && !conversationId && edroId) {
-      try {
-        const { rows } = await query(
-          `INSERT INTO planning_conversations (tenant_id, client_id, user_id, title, provider, messages)
-           VALUES ($1, $2::uuid, $3, $4, $5, $6::jsonb)
-           RETURNING id`,
-          [tenantId, edroId, userId, message.slice(0, 100), provider, JSON.stringify(messagesPayload)],
-        );
-        savedConversationId = rows[0]?.id || null;
-      } catch (e) {
-        console.warn('[planning] agent conversation save failed:', (e as Error).message);
-      }
+    const elapsed = Date.now() - startMs;
+    const observability = buildJarvisObservability(canonicalDecision, {
+      durationMs: elapsed,
+      toolsUsed,
+      provider: resultProvider,
+      model: resultModel,
+      loadedMemoryBlocks: mode === 'agent' || mode === 'chat' ? loadedMemoryBlocks : undefined,
+    });
+    if (mode === 'agent' || mode === 'chat') {
+      savedConversationId = await saveUnifiedConversation({
+        route: canonicalDecision.route,
+        tenantId,
+        edroClientId: edroId,
+        userId,
+        conversationId,
+        message,
+        assistantContent,
+        provider: resultProvider || provider,
+        observability,
+      }).catch((error) => {
+        console.warn('[planning] conversation save failed:', (error as Error).message);
+        return conversationId || null;
+      });
     } else {
-      // Fire-and-forget for chat/command modes
+      const messagesPayload = [
+        { role: 'user', content: message, timestamp: new Date().toISOString() },
+        {
+          role: 'assistant',
+          content: assistantContent,
+          timestamp: new Date().toISOString(),
+          provider: resultProvider,
+          metadata: { observability },
+        },
+      ];
       (async () => {
         try {
           if (conversationId) {
@@ -1047,7 +953,14 @@ export default async function planningRoutes(app: FastifyInstance) {
       })();
     }
 
-    request.log?.info({ elapsed: Date.now() - startMs, provider: resultProvider, mode }, 'planning_chat_ok');
+    request.log?.info({
+      event: 'planning_chat_completed',
+      mode,
+      clientId,
+      conversationId: savedConversationId,
+      artifactsCount: artifacts.length,
+      ...observability,
+    }, 'planning_chat_ok');
 
     return reply.send({
       success: true,
@@ -1059,6 +972,11 @@ export default async function planningRoutes(app: FastifyInstance) {
         conversationId: savedConversationId,
         mode,
         artifacts,
+        intent: canonicalDecision.intent,
+        route: canonicalDecision.route,
+        primaryMemory: canonicalDecision.primaryMemory,
+        secondaryMemories: canonicalDecision.secondaryMemories,
+        observability,
       },
     });
   });

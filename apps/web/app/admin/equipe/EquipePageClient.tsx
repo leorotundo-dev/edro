@@ -68,6 +68,7 @@ type FreelancerProfile = {
   user_id: string;
   email: string;
   display_name: string;
+  avatar_url: string | null;
   specialty: string | null;
   hourly_rate_brl: string | null;
   pix_key: string | null;
@@ -382,6 +383,7 @@ function FreelancerContacts({
                   {/* Header */}
                   <Stack direction="row" spacing={1.5} alignItems="flex-start">
                     <Avatar
+                      src={fl.avatar_url ?? undefined}
                       sx={{
                         bgcolor: color,
                         width: 42,
@@ -391,7 +393,7 @@ function FreelancerContacts({
                         flexShrink: 0,
                       }}
                     >
-                      {initials(fl.display_name)}
+                      {!fl.avatar_url ? initials(fl.display_name) : null}
                     </Avatar>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography variant="subtitle2" fontWeight={700} noWrap>
@@ -880,6 +882,7 @@ function FreelancerContacts({
 type TeamScore = {
   email: string;
   display_name: string;
+  avatar_url: string | null;
   trello_member_id: string | null;
   freelancer_id: string | null;
   active_cards: number;
@@ -986,11 +989,13 @@ function TeamScoreGrid({ scores, freelancers, loading }: {
                   {/* Header: avatar + name + score badge */}
                   <Stack direction="row" spacing={1.5} alignItems="flex-start" mb={1.5}>
                     <Box sx={{ position: 'relative', flexShrink: 0 }}>
-                      <Avatar sx={{
+                      <Avatar
+                        src={s.avatar_url ?? undefined}
+                        sx={{
                         width: 44, height: 44, fontSize: '0.9rem', fontWeight: 800,
                         bgcolor: alpha(color, 0.18), color,
                       }}>
-                        {initials(s.display_name)}
+                        {!s.avatar_url ? initials(s.display_name) : null}
                       </Avatar>
                       {hasTimer && (
                         <Box sx={{
@@ -1591,8 +1596,8 @@ export default function EquipePage() {
                   <Card variant="outlined" sx={{ borderRadius: 2 }}>
                     <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
                       <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
-                          {initials(p.display_name)}
+                        <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
+                          {!p.avatar_url ? initials(p.display_name) : null}
                         </Avatar>
                         <Box sx={{ minWidth: 0 }}>
                           <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
@@ -1649,8 +1654,8 @@ export default function EquipePage() {
                       >
                         <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
                           <Stack direction="row" spacing={1.5} alignItems="center">
-                            <Avatar sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: p.is_internal ? 'primary.main' : avatarColor(p.display_name) }}>
-                              {initials(p.display_name)}
+                            <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: p.is_internal ? 'primary.main' : avatarColor(p.display_name) }}>
+                              {!p.avatar_url ? initials(p.display_name) : null}
                             </Avatar>
                             <Box sx={{ minWidth: 0, flex: 1 }}>
                               <Stack direction="row" alignItems="center" spacing={0.5}>

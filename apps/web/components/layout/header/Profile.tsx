@@ -19,6 +19,7 @@ type UserInfo = {
   name?: string;
   email?: string;
   role?: string;
+  avatar_url?: string | null;
 };
 
 export default function Profile() {
@@ -73,7 +74,9 @@ export default function Profile() {
           </Typography>
         </Box>
         <EdroAvatar
+          src={user?.avatar_url ?? undefined}
           alt={displayName}
+          name={displayName}
           size={36}
           sx={{
             bgcolor: 'primary.main',
@@ -85,9 +88,7 @@ export default function Profile() {
             transition: 'all 0.2s',
             '&:hover': { borderColor: 'primary.main' },
           }}
-        >
-          {displayName.slice(0, 2).toUpperCase()}
-        </EdroAvatar>
+        />
       </Stack>
 
       <Menu

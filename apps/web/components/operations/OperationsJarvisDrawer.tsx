@@ -13,6 +13,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import { IconSend, IconBrain, IconUser, IconX, IconPlus } from '@tabler/icons-react';
 import { apiPost } from '@/lib/api';
+import JarvisResponseTrace, { type JarvisObservability } from '@/components/jarvis/JarvisResponseTrace';
 
 const EDRO_ORANGE = '#E85219';
 const DRAWER_WIDTH = 440;
@@ -21,6 +22,7 @@ type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  observability?: JarvisObservability | null;
 };
 
 const QUICK_ACTIONS = [
@@ -165,15 +167,20 @@ export default function OperationsJarvisDrawer({
     setLoading(true);
 
     try {
-      const res = await apiPost<{ data?: { message?: string; conversationId?: string } }>(
-        '/operations/chat',
-        { message: msg, conversationId, mode: 'agent' },
+      const res = await apiPost<{ data?: { response?: string; conversationId?: string; observability?: JarvisObservability } }>(
+        '/jarvis/chat',
+        { message: msg, conversationId, context_page: '/admin/operacoes' },
       );
 
-      const reply = res?.data?.message || 'Sem resposta do agente.';
+      const reply = res?.data?.response || 'Sem resposta do agente.';
       if (res?.data?.conversationId) setConversationId(res.data.conversationId);
 
-      setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: new Date().toISOString() }]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: reply,
+        timestamp: new Date().toISOString(),
+        observability: res?.data?.observability ?? null,
+      }]);
     } catch (err: any) {
       setMessages(prev => [
         ...prev,
@@ -315,27 +322,29 @@ export default function OperationsJarvisDrawer({
             >
               {msg.role === 'assistant' ? <IconBrain size={14} /> : <IconUser size={14} />}
             </Avatar>
-            <Box
-              sx={{
-                maxWidth: '82%',
-                bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
-                color: msg.role === 'user' ? '#fff' : 'text.primary',
-                px: 1.5,
-                py: 1,
-                borderRadius: 2,
-                borderTopRightRadius: msg.role === 'user' ? 4 : undefined,
-                borderTopLeftRadius: msg.role === 'assistant' ? 4 : undefined,
-                border: msg.role === 'assistant' ? 1 : 0,
-                borderColor: 'divider',
-              }}
-            >
-              {msg.role === 'assistant' ? (
-                <MarkdownText text={msg.content} />
-              ) : (
-                <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                  {msg.content}
-                </Typography>
-              )}
+            <Box sx={{ maxWidth: '82%' }}>
+              <Box
+                sx={{
+                  bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
+                  color: msg.role === 'user' ? '#fff' : 'text.primary',
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  borderTopRightRadius: msg.role === 'user' ? 4 : undefined,
+                  borderTopLeftRadius: msg.role === 'assistant' ? 4 : undefined,
+                  border: msg.role === 'assistant' ? 1 : 0,
+                  borderColor: 'divider',
+                }}
+              >
+                {msg.role === 'assistant' ? (
+                  <MarkdownText text={msg.content} />
+                ) : (
+                  <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {msg.content}
+                  </Typography>
+                )}
+              </Box>
+              {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
             </Box>
           </Box>
         ))}

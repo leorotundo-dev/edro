@@ -17,6 +17,7 @@ import {
   isFreelancerVisibleBriefingStatus,
   syncBriefingExecutionSnapshot,
 } from '../services/briefingExecutionService';
+import { generateEdroAvatarForFreelancer } from '../services/avatarGenerationService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -788,14 +789,86 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const res = await pool.query(
       `SELECT fp.*, eu.email,
+              COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url,
+              p.avatar_generation_status,
+              p.avatar_generated_at,
+              p.avatar_prompt_version,
               (SELECT json_agg(at2) FROM active_timers at2 WHERE at2.freelancer_id = fp.id) as active_timers
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
+       LEFT JOIN people p ON p.id = fp.person_id
        WHERE fp.user_id = $1`,
       [userId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Freelancer profile not found' });
     return reply.send(res.rows[0]);
+  });
+
+  app.post('/freelancers/portal/me/avatar', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub as string | undefined;
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!userId || !tenantId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const file = await request.file();
+    if (!file) {
+      return reply.status(400).send({ error: 'Envie uma foto em JPG, PNG ou WebP.' });
+    }
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.mimetype)) {
+      return reply.status(400).send({ error: 'Formato não suportado. Use JPG, PNG ou WebP.' });
+    }
+
+    const snapshotRes = await pool.query(
+      `SELECT fp.id,
+              fp.person_id,
+              fp.user_id,
+              fp.display_name,
+              fp.email_personal,
+              fp.phone,
+              fp.whatsapp_jid,
+              eu.email
+         FROM freelancer_profiles fp
+         JOIN edro_users eu ON eu.id = fp.user_id
+        WHERE fp.user_id = $1
+        LIMIT 1`,
+      [userId],
+    );
+    const snapshot = snapshotRes.rows[0];
+    if (!snapshot) {
+      return reply.status(404).send({ error: 'Freelancer profile not found' });
+    }
+
+    const personId = await syncFreelancerPerson({
+      freelancerId: snapshot.id,
+      tenantId,
+      displayName: snapshot.display_name,
+      userId: snapshot.user_id,
+      email: snapshot.email,
+      emailPersonal: snapshot.email_personal,
+      phone: snapshot.phone,
+      whatsappJid: snapshot.whatsapp_jid,
+      existingPersonId: snapshot.person_id ?? null,
+    });
+
+    const buffer = await file.toBuffer();
+    const result = await generateEdroAvatarForFreelancer({
+      tenantId,
+      freelancerId: snapshot.id,
+      personId,
+      sourceBuffer: buffer,
+      sourceFilename: file.filename,
+      sourceMimeType: file.mimetype,
+    });
+
+    return reply.send({
+      ok: true,
+      avatar_url: result.avatarUrl,
+      avatar_generation_status: 'ready',
+      avatar_prompt_version: result.promptVersion,
+      avatar_provider: result.provider,
+      person_id: personId,
+    });
   });
 
   app.patch('/freelancers/portal/me', async (request: any, reply) => {
@@ -1914,7 +1987,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const { rows } = await pool.query(
       `SELECT onboarding_complete, terms_accepted_at, cnpj, razao_social,
               pix_key, skills, sla_score,
-              contract_status, contract_signed_at, contract_pdf_url
+              contract_status, contract_signed_at, contract_pdf_url, avatar_url
          FROM freelancer_profiles WHERE user_id = $1`,
       [userId],
     );
@@ -1927,6 +2000,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       has_cnpj: !!profile.cnpj,
       has_pix: !!profile.pix_key,
       has_skills: !!(profile.skills?.length),
+      has_avatar: !!profile.avatar_url,
+      avatar_url: profile.avatar_url ?? null,
       razao_social: profile.razao_social ?? null,
       sla_score: parseFloat(profile.sla_score) || 100,
       contract_status: profile.contract_status ?? 'none',

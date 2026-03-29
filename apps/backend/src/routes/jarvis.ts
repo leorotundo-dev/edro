@@ -1,9 +1,297 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authGuard } from '../auth/rbac';
 import { getJarvisAlerts, dismissAlert, snoozeAlert } from '../services/jarvisAlertEngine';
 import { query } from '../db';
+import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
+import { runToolUseLoop } from '../services/ai/toolUseLoop';
+import { getAllToolDefinitions, getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
+import { executeOperationsTool, type OperationsToolContext, type ToolContext } from '../services/ai/toolExecutor';
+import {
+  buildAgentSystemPrompt,
+  mapProviderToCopy,
+} from './planning';
+import {
+  buildClientContext,
+  loadPerformanceContext,
+  loadPsychContext,
+  resolveEdroClientId,
+} from '../services/jarvisContextService';
+import { buildOperationsSystemPrompt } from './operations';
+import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
+import {
+  buildInlineAttachmentContext,
+  buildJarvisObservability,
+  buildJarvisRoutingDecision,
+  detectJarvisIntent,
+  loadUnifiedConversationHistory,
+  saveUnifiedConversation,
+} from '../services/jarvisPolicyService';
+
+const jarvisChatSchema = z.object({
+  message: z.string().min(1),
+  clientId: z.string().trim().min(1).optional().nullable(),
+  provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
+  conversationId: z.string().uuid().nullish(),
+  context_page: z.string().optional().nullable(),
+  studio_context: z.string().optional().nullable(),
+  inline_attachments: z.array(z.object({
+    name: z.string(),
+    text: z.string(),
+  })).optional(),
+});
 
 export default async function jarvisRoutes(app: FastifyInstance) {
+  app.post('/jarvis/chat', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const startMs = Date.now();
+    const tenantId = request.user?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
+    const userEmail = request.user?.email as string | undefined;
+
+    let body: z.infer<typeof jarvisChatSchema>;
+    try {
+      body = jarvisChatSchema.parse(request.body);
+    } catch {
+      return reply.status(400).send({ success: false, error: 'Mensagem inválida.' });
+    }
+
+    const intent = detectJarvisIntent(body.message, body.context_page);
+    const decision = buildJarvisRoutingDecision(intent);
+    const clientId = body.clientId ?? null;
+    const edroClientId = clientId ? await resolveEdroClientId(clientId) : null;
+    const conversationHistory = await loadUnifiedConversationHistory({
+      route: decision.route,
+      tenantId,
+      conversationId: body.conversationId,
+      edroClientId,
+    });
+    const attachmentContext = buildInlineAttachmentContext(body.inline_attachments);
+    const studioContext = body.studio_context ? `\n\nCONTEXTO DO STUDIO:\n${body.studio_context}` : '';
+    const userContent = `${body.message}${attachmentContext}${studioContext}`;
+
+    if (decision.route === 'planning' && !clientId) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Selecione um cliente para perguntas de estratégia, memória ou criação.',
+      });
+    }
+
+    const copyProvider = body.provider === 'collaborative'
+      ? 'openai'
+      : mapProviderToCopy(body.provider);
+    const resolvedProvider = getFallbackProvider(copyProvider);
+    const usageCtx: UsageContext | undefined = tenantId && tenantId !== 'default'
+      ? { tenant_id: tenantId, feature: 'jarvis_chat' }
+      : undefined;
+
+    try {
+      let finalText = '';
+      let resultProvider = '';
+      let resultModel = '';
+      let artifacts: Array<{ type: string; [key: string]: any }> = [];
+      let toolsUsed = 0;
+
+      if (decision.route === 'operations') {
+        const memoryBlocks = await buildJarvisMemoryBlocks({
+          tenantId,
+          clientId,
+          memories: [
+            decision.primaryMemory,
+            ...decision.secondaryMemories.filter((memory): memory is any => memory === 'client_memory' || memory === 'operations_memory'),
+          ],
+          maxBlocks: decision.retrievalBudget.contextBlocks,
+        });
+        const memoryFabric = formatJarvisMemoryBlocks(memoryBlocks);
+        const toolCtx: OperationsToolContext = { tenantId, userId: userId ?? undefined, userEmail };
+        const loopResult = await Promise.race([
+          runToolUseLoop({
+            messages: [...conversationHistory, { role: 'user', content: userContent }],
+            systemPrompt: buildOperationsSystemPrompt(memoryFabric),
+            tools: getOperationsToolDefinitions(),
+            provider: resolvedProvider,
+            toolContext: toolCtx,
+            maxIterations: decision.retrievalBudget.toolIterations,
+            temperature: 0.5,
+            maxTokens: 4096,
+            usageContext: usageCtx,
+            toolExecutorFn: executeOperationsTool,
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('JARVIS_OPS_TIMEOUT_60s')), 60000)),
+        ]);
+
+        finalText = loopResult.finalText;
+        resultProvider = loopResult.provider;
+        resultModel = loopResult.model;
+        toolsUsed = loopResult.toolCallsExecuted ?? 0;
+        const loadedMemoryBlocks = memoryBlocks.map((block) => block.label);
+        const durationMs = Date.now() - startMs;
+        const observability = buildJarvisObservability(decision, {
+          durationMs,
+          toolsUsed,
+          provider: resultProvider,
+          model: resultModel,
+          loadedMemoryBlocks,
+        });
+        const savedConversationId = await saveUnifiedConversation({
+          route: decision.route,
+          tenantId,
+          edroClientId,
+          userId,
+          conversationId: body.conversationId,
+          message: body.message,
+          assistantContent: finalText,
+          provider: resultProvider || body.provider,
+          observability,
+          artifacts,
+        }).catch(() => body.conversationId || null);
+
+        request.log?.info({
+          event: 'jarvis_chat_completed',
+          clientId,
+          conversationId: savedConversationId,
+          attachmentCount: body.inline_attachments?.length ?? 0,
+          artifactsCount: artifacts.length,
+          ...observability,
+        });
+
+        return reply.send({
+          success: true,
+          data: {
+            response: finalText,
+            provider: resultProvider,
+            model: resultModel,
+            conversationId: savedConversationId,
+            artifacts,
+            intent: decision.intent,
+            route: decision.route,
+            primaryMemory: decision.primaryMemory,
+            secondaryMemories: decision.secondaryMemories,
+            retrievalBudget: decision.retrievalBudget,
+            durationMs,
+            observability,
+          },
+        });
+      } else {
+        const [clientContext, psychContext, perfContext] = await Promise.race([
+          Promise.all([
+            buildClientContext(tenantId, clientId!),
+            loadPsychContext(tenantId, clientId!),
+            loadPerformanceContext(clientId!),
+          ]),
+          new Promise<[string, string, string]>((resolve) => setTimeout(() => resolve(['', '', '']), 3000)),
+        ]);
+
+        const toolCtx: ToolContext = {
+          tenantId,
+          clientId: clientId!,
+          edroClientId,
+          userId: userId ?? undefined,
+          userEmail,
+        };
+        const memoryBlocks = await buildJarvisMemoryBlocks({
+          tenantId,
+          clientId,
+          memories: decision.secondaryMemories.filter((memory): memory is any =>
+            memory === 'operations_memory'
+            || memory === 'canon_edro'
+            || memory === 'reference_memory'
+            || memory === 'trend_memory'
+          ),
+          maxBlocks: decision.retrievalBudget.contextBlocks,
+        });
+        const memoryFabric = formatJarvisMemoryBlocks(memoryBlocks);
+        const loopResult = await Promise.race([
+          runToolUseLoop({
+            messages: [...conversationHistory, { role: 'user', content: userContent }],
+            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric),
+            tools: getAllToolDefinitions(),
+            provider: resolvedProvider,
+            toolContext: toolCtx,
+            maxIterations: decision.retrievalBudget.toolIterations,
+            temperature: 0.7,
+            maxTokens: 4096,
+            usageContext: usageCtx,
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('JARVIS_PLAN_TIMEOUT_60s')), 60000)),
+        ]);
+
+        finalText = loopResult.finalText;
+        resultProvider = loopResult.provider;
+        resultModel = loopResult.model;
+        toolsUsed = loopResult.toolCallsExecuted ?? 0;
+        artifacts = (loopResult.toolResults ?? [])
+          .filter((result) => result.success && result.data)
+          .map((result) => ({ type: result.toolName, ...result.data }));
+
+        const durationMs = Date.now() - startMs;
+        const observability = buildJarvisObservability(decision, {
+          durationMs,
+          toolsUsed,
+          provider: resultProvider,
+          model: resultModel,
+          loadedMemoryBlocks: [
+            ...(clientContext.trim() ? ['Memória do cliente'] : []),
+            ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
+            ...memoryBlocks.map((block) => block.label),
+          ],
+        });
+
+        const savedConversationId = await saveUnifiedConversation({
+          route: decision.route,
+          tenantId,
+          edroClientId,
+          userId,
+          conversationId: body.conversationId,
+          message: body.message,
+          assistantContent: finalText,
+          provider: resultProvider || body.provider,
+          observability,
+          artifacts,
+        }).catch(() => body.conversationId || null);
+
+        request.log?.info({
+          event: 'jarvis_chat_completed',
+          clientId,
+          conversationId: savedConversationId,
+          attachmentCount: body.inline_attachments?.length ?? 0,
+          artifactsCount: artifacts.length,
+          ...observability,
+        });
+
+        return reply.send({
+          success: true,
+          data: {
+            response: finalText,
+            provider: resultProvider,
+            model: resultModel,
+            conversationId: savedConversationId,
+            artifacts,
+            intent: decision.intent,
+            route: decision.route,
+            primaryMemory: decision.primaryMemory,
+            secondaryMemories: decision.secondaryMemories,
+            retrievalBudget: decision.retrievalBudget,
+            durationMs,
+            observability,
+          },
+        });
+      }
+    } catch (err: any) {
+      const elapsed = Date.now() - startMs;
+      request.log?.error({
+        event: 'jarvis_chat_failed',
+        clientId,
+        intent: decision.intent,
+        route: decision.route,
+        durationMs: elapsed,
+        error: err?.message || 'unknown',
+      });
+      return reply.status(500).send({
+        success: false,
+        error: `Falha no Jarvis (${err?.message || 'unknown'}). Tempo: ${elapsed}ms.`,
+      });
+    }
+  });
 
   // GET /jarvis/alerts — alertas abertos do tenant (opcionalmente filtrado por client_id)
   app.get('/jarvis/alerts', { preHandler: [authGuard] }, async (request: any, reply) => {

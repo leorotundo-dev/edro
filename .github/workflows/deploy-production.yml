@@ -288,6 +288,7 @@ jobs:
           name: railway-deployment-lock
           path: .railway-version-lock.json
           if-no-files-found: error
+          include-hidden-files: true
 
       - name: Publish deploy summary
         shell: bash

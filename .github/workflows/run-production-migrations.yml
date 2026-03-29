@@ -1,0 +1,116 @@
+name: Run Production Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Motivo da execucao manual
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Load Railway target
+        id: railway
+        shell: bash
+        run: |
+          PROJECT_ID="$(node -p 'require("./.railway/config.json").projectId')"
+          ENVIRONMENT="$(node -p 'require("./.railway/config.json").environment')"
+          echo "project_id=${PROJECT_ID}" >> "$GITHUB_OUTPUT"
+          echo "environment=${ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Validate Railway token
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${RAILWAY_TOKEN}" ]; then
+            echo "Secret RAILWAY_TOKEN nao configurado." >&2
+            exit 1
+          fi
+
+      - name: Run backend migrations against production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        shell: bash
+        run: |
+          REMOTE_SCRIPT=$(cat <<'EOF'
+          node - <<'NODE'
+          const { Client } = require('pg');
+
+          const migration = '0308_people_avatar_pipeline.sql';
+          const sql = `
+          ALTER TABLE people
+            ADD COLUMN IF NOT EXISTS avatar_source_key TEXT,
+            ADD COLUMN IF NOT EXISTS avatar_generated_key TEXT,
+            ADD COLUMN IF NOT EXISTS avatar_generation_status TEXT NOT NULL DEFAULT 'none',
+            ADD COLUMN IF NOT EXISTS avatar_generated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS avatar_provider TEXT,
+            ADD COLUMN IF NOT EXISTS avatar_prompt_version TEXT,
+            ADD COLUMN IF NOT EXISTS avatar_error TEXT;
+
+          CREATE INDEX IF NOT EXISTS idx_people_avatar_generation_status
+            ON people (tenant_id, avatar_generation_status);
+          `;
+
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            try {
+              await client.query(`
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                  id SERIAL PRIMARY KEY,
+                  name TEXT NOT NULL UNIQUE,
+                  run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+              `);
+
+              const existing = await client.query(
+                'SELECT 1 FROM schema_migrations WHERE name = $1',
+                [migration]
+              );
+
+              if (existing.rowCount > 0) {
+                console.log('Migration ' + migration + ' already applied.');
+                return;
+              }
+
+              await client.query('BEGIN');
+              await client.query(sql);
+              await client.query(
+                'INSERT INTO schema_migrations (name) VALUES ($1)',
+                [migration]
+              );
+              await client.query('COMMIT');
+              console.log('Migration ' + migration + ' applied successfully.');
+            } catch (error) {
+              await client.query('ROLLBACK');
+              throw error;
+            } finally {
+              await client.end();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          EOF
+          )
+
+          railway ssh \
+            --service edro-backend \
+            --project "${{ steps.railway.outputs.project_id }}" \
+            --environment "${{ steps.railway.outputs.environment }}" \
+            sh -lc "$REMOTE_SCRIPT"
