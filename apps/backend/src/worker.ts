@@ -1,7 +1,16 @@
+import http from 'http';
 import { initRedis } from './cache/redis';
 import { startJobsRunner } from './jobs/jobsRunner';
 import { env } from './env';
 import { runMigrations } from './migrate';
+
+// Minimal HTTP server so Railway healthcheck passes.
+// Workers have no application routes — only /health is served.
+const PORT = Number(process.env.PORT || 3001);
+const healthServer = http.createServer((req, res) => {
+  res.writeHead(req.url === '/health' || req.url === '/' ? 200 : 404);
+  res.end('ok');
+});
 
 async function main() {
   // Migrations are optional in worker mode — the HTTP instance runs them on startup.
@@ -16,8 +25,12 @@ async function main() {
 
   await initRedis().catch((e: any) => console.warn('[redis] connect failed:', e.message));
 
+  healthServer.listen(PORT, () => {
+    console.log(`[worker] healthcheck server on :${PORT}`);
+  });
+
   startJobsRunner();
-  console.log('[worker] background jobs started (HTTP disabled)');
+  console.log('[worker] background jobs started');
 }
 
 main().catch((e) => {
