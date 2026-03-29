@@ -7,6 +7,8 @@ import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
+import ModelComparePanel from '@/components/studio/ModelComparePanel';
+import PipelineProgressNodes from '@/components/studio/PipelineProgressNodes';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
@@ -21,6 +23,7 @@ import TimelineContent from '@mui/lab/TimelineContent';
 import TimelineDot from '@mui/lab/TimelineDot';
 import {
   IconBrain,
+  IconBulb,
   IconCheck,
   IconCopy,
   IconMinus,
@@ -56,6 +59,9 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Slider from '@mui/material/Slider';
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
 import MockupsPage from '@/app/studio/mockups/page';
 import {
   addStudioCreativeAsset,
@@ -71,6 +77,18 @@ import {
   type CreativeSessionContextDto,
   updateStudioCreativeStage,
 } from '../studioWorkflow';
+
+// ── agentConceito types (mirrors backend) ─────────────────────────────────────
+type CreativeConcept = {
+  concept_id: string;
+  headline_concept: string;
+  emotional_truth: string;
+  cultural_angle: string;
+  visual_direction: string;
+  suggested_structure: string;
+  risk_level: 'safe' | 'bold' | 'disruptive';
+  rationale: string;
+};
 
 type CopyVersion = {
   id: string;
@@ -522,6 +540,12 @@ export default function EditorClient() {
   const [arteIsPreview, setArteIsPreview] = useState(false);
   // Multi-variações — array de URLs retornadas pelo Leonardo
   const [arteImageUrls, setArteImageUrls] = useState<string[]>([]);
+  // Multi-formato (P6) — resultado do pipeline de formatos
+  const [arteMultiFormat, setArteMultiFormat] = useState<Array<{ format: string; imageUrl: string }>>([]);
+  // Resultado completo do pipeline (para PipelineProgressNodes)
+  const [arteDAResult, setArteDAResult] = useState<any | null>(null);
+  // Comparador de modelos
+  const [modelCompareMode, setModelCompareMode] = useState(false);
   const [selectedArteIndex, setSelectedArteIndex] = useState(0);
   // img2img — imagens da library do cliente como referência para Leonardo
   const [libraryImages, setLibraryImages] = useState<Array<{ id: string; title: string; file_mime: string; category?: string }>>([]);
@@ -531,6 +555,11 @@ export default function EditorClient() {
   // Tabs: 0 = Gerador de Copy, 1 = Grade de Mockups
   const [criarTab, setCriarTab] = useState<0 | 1>(0);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  // ── agentConceito ─────────────────────────────────────────────────────────
+  const [concepts, setConcepts] = useState<CreativeConcept[]>([]);
+  const [selectedConcept, setSelectedConcept] = useState<CreativeConcept | null>(null);
+  const [conceptRecIdx, setConceptRecIdx] = useState(0);
+  const [conceptGenerating, setConceptGenerating] = useState(false);
   const hydratedEditorMetadataRef = useRef('');
   const persistedEditorMetadataRef = useRef('');
   const editorMetadataTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1152,6 +1181,18 @@ export default function EditorClient() {
       const primaryClientId = activeClient?.id || clientsToGenerate[0]?.id || '';
       let primaryCopy: CopyVersion | null = null;
 
+      // Build concept context block if a concept is selected
+      const conceptBlock = selectedConcept
+        ? [
+            `CONCEITO CRIATIVO SELECIONADO — use como espinha dorsal desta copy:`,
+            `Conceito: ${selectedConcept.headline_concept}`,
+            `Verdade emocional: ${selectedConcept.emotional_truth}`,
+            `Ângulo cultural: ${selectedConcept.cultural_angle}`,
+            `Direção visual sugerida: ${selectedConcept.visual_direction}`,
+            `Estrutura sugerida: ${selectedConcept.suggested_structure}`,
+          ].join('\n')
+        : '';
+
       for (const client of clientsToGenerate) {
         const instructionLines = [
           client?.name ? `Cliente: ${client.name}` : '',
@@ -1160,6 +1201,7 @@ export default function EditorClient() {
           `Plataforma: ${activeFormat?.platform || 'não informado'}`,
           activeFormat?.production_type ? `Tipo de produção: ${activeFormat.production_type}` : '',
           tone ? `Tom de voz: ${tone}` : '',
+          conceptBlock,
           clientsToGenerate.length > 1 ? 'Gerar opcoes alinhadas a este cliente.' : '',
           'Retorne opcoes separadas e numeradas.',
           ...extraGuidelines,
@@ -1241,6 +1283,37 @@ export default function EditorClient() {
       setError(err?.message || 'Falha ao gerar copy.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // ── agentConceito ────────────────────────────────────────────────────────────
+  const generateConcepts = async () => {
+    if (!briefing?.id) return;
+    setConceptGenerating(true);
+    try {
+      const activeClient = resolveActiveClient();
+      const res = await apiPost<{ success: boolean; data: { concepts: CreativeConcept[]; recommended_index: number } }>(
+        '/studio/creative/conceito',
+        {
+          briefing: {
+            title: briefing.title || '',
+            objective: (briefing.payload?.objective || briefing.payload?.product || '') as string,
+            context: (briefing.payload?.context || briefing.payload?.positioning || '') as string,
+          },
+          clientId: activeClient?.id || null,
+          platform: activeFormat?.platform || null,
+        }
+      );
+      const result = res?.data;
+      if (res?.success && result && Array.isArray(result.concepts) && result.concepts.length) {
+        setConcepts(result.concepts);
+        setConceptRecIdx(result.recommended_index ?? 0);
+        setSelectedConcept(result.concepts[result.recommended_index ?? 0]);
+      }
+    } catch {
+      // silently ignore — concepts are optional
+    } finally {
+      setConceptGenerating(false);
     }
   };
 
@@ -1538,6 +1611,7 @@ export default function EditorClient() {
     }
 
     setArteModalError('');
+    setArteDAResult(null);
     setArteStep('generating');
     try {
       const res = await apiPost<{ success: boolean; image_url?: string; image_urls?: string[]; data?: { image_url?: string }; error?: string }>(
@@ -1570,6 +1644,11 @@ export default function EditorClient() {
         setArteStep(null);
         setArteModalError('');
         setArteIsPreview(isPreview);
+        // Wire up pipeline result data for PipelineProgressNodes + P6
+        setArteDAResult(res);
+        if ((res as any).multi_format?.length) {
+          setArteMultiFormat((res as any).multi_format);
+        }
         if (briefingId) {
           apiPost(`/edro/briefings/${briefingId}/creative-image`, { imageUrl: urls[0] }).catch(() => null);
         }
@@ -2035,6 +2114,67 @@ export default function EditorClient() {
                 </Box>
                 {/* Copy options */}
                 <Box sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
+                      {/* ── agentConceito panel ── */}
+                      <Box sx={{ mb: 2 }}>
+                        {concepts.length === 0 ? (
+                          <LoadingButton
+                            size="small" variant="outlined"
+                            loading={conceptGenerating}
+                            onClick={generateConcepts}
+                            disabled={!briefing?.id}
+                            startIcon={!conceptGenerating ? <IconBulb size={14} /> : null}
+                            sx={{ textTransform: 'none', fontSize: '0.75rem', borderColor: 'divider', color: 'text.secondary' }}
+                          >
+                            Gerar conceito criativo
+                          </LoadingButton>
+                        ) : (
+                          <Box>
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                              <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Conceito criativo
+                              </Typography>
+                              <Button size="small" variant="text" onClick={generateConcepts} disabled={conceptGenerating}
+                                sx={{ textTransform: 'none', fontSize: '0.7rem', p: '2px 6px', minWidth: 0 }}>
+                                ↺ Regenerar
+                              </Button>
+                            </Stack>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
+                              {concepts.map((c, i) => {
+                                const isSelected = selectedConcept?.concept_id === c.concept_id;
+                                const isRec = i === conceptRecIdx;
+                                return (
+                                  <Chip
+                                    key={c.concept_id}
+                                    label={`${isRec ? '★ ' : ''}${c.headline_concept}`}
+                                    size="small"
+                                    onClick={() => setSelectedConcept(isSelected ? null : c)}
+                                    color={isSelected ? 'primary' : 'default'}
+                                    variant={isSelected ? 'filled' : 'outlined'}
+                                    sx={{ fontSize: '0.7rem', cursor: 'pointer', maxWidth: 200 }}
+                                  />
+                                );
+                              })}
+                            </Stack>
+                            {selectedConcept && (
+                              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(93,135,255,0.06)', border: '1px solid', borderColor: 'primary.main', opacity: 0.85 }}>
+                                <Typography variant="caption" color="primary" fontWeight={700}>{selectedConcept.headline_concept}</Typography>
+                                <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                                  {selectedConcept.emotional_truth}
+                                </Typography>
+                                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} alignItems="center">
+                                  <Chip label={selectedConcept.risk_level} size="small" sx={{ fontSize: '0.65rem', height: 18 }}
+                                    color={selectedConcept.risk_level === 'safe' ? 'success' : selectedConcept.risk_level === 'bold' ? 'warning' : 'error'} />
+                                  <Button size="small" variant="text" onClick={() => setSelectedConcept(null)}
+                                    sx={{ textTransform: 'none', fontSize: '0.7rem', p: '1px 4px', minWidth: 0, color: 'text.disabled' }}>
+                                    × limpar
+                                  </Button>
+                                </Stack>
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+
                       {/* ── Generation controls ── */}
                       <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
                         <TextField
@@ -2740,16 +2880,23 @@ export default function EditorClient() {
                         <Stack direction="row" spacing={0.75} sx={{ mb: 0.5 }}>
                           <Chip
                             size="small" label="Imagem"
-                            variant={!artDirMode ? 'filled' : 'outlined'}
-                            color={!artDirMode ? 'primary' : 'default'}
-                            onClick={() => setArtDirMode(false)}
+                            variant={!artDirMode && !modelCompareMode ? 'filled' : 'outlined'}
+                            color={!artDirMode && !modelCompareMode ? 'primary' : 'default'}
+                            onClick={() => { setArtDirMode(false); setModelCompareMode(false); }}
                             sx={{ cursor: 'pointer', fontSize: '0.7rem' }}
                           />
                           <Chip
                             size="small" label="Art Director"
                             variant={artDirMode ? 'filled' : 'outlined'}
                             color={artDirMode ? 'secondary' : 'default'}
-                            onClick={() => setArtDirMode(true)}
+                            onClick={() => { setArtDirMode(true); setModelCompareMode(false); }}
+                            sx={{ cursor: 'pointer', fontSize: '0.7rem' }}
+                          />
+                          <Chip
+                            size="small" label="Comparar"
+                            variant={modelCompareMode ? 'filled' : 'outlined'}
+                            color={modelCompareMode ? 'warning' : 'default'}
+                            onClick={() => { setModelCompareMode(true); setArtDirMode(false); }}
                             sx={{ cursor: 'pointer', fontSize: '0.7rem' }}
                           />
                         </Stack>
@@ -2940,8 +3087,23 @@ export default function EditorClient() {
                           </Box>
                         )}
 
+                        {/* ── Comparador de Modelos ──────────────────────── */}
+                        {modelCompareMode && (
+                          <ModelComparePanel
+                            prompt={artePrompt}
+                            negativePrompt={imageNegativePrompt}
+                            aspectRatio={imageAspectRatio}
+                            clientId={typeof window !== 'undefined' ? window.localStorage.getItem('edro_active_client_id') ?? undefined : undefined}
+                            onSelect={(url, modelLabel) => {
+                              setArteImageUrl(url);
+                              setArteImageUrls([url]);
+                              setModelCompareMode(false);
+                            }}
+                          />
+                        )}
+
                         {/* Prompt — shown only in Imagem mode */}
-                        {!artDirMode && <Box>
+                        {!artDirMode && !modelCompareMode && <Box>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                             <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem' }}>
                               Prompt
@@ -2986,7 +3148,7 @@ export default function EditorClient() {
                         </Box>}
 
                         {/* Negative prompt — Imagem mode only */}
-                        {!artDirMode && <TextField
+                        {!artDirMode && !modelCompareMode && <TextField
                           size="small" label="Prompt negativo (opcional)"
                           value={imageNegativePrompt}
                           onChange={(e) => setImageNegativePrompt(e.target.value)}
@@ -2995,7 +3157,7 @@ export default function EditorClient() {
                         />}
 
                         {/* Iteração Guiada — aparece quando há prompt */}
-                        {!artDirMode && artePrompt.trim() && (
+                        {!artDirMode && !modelCompareMode && artePrompt.trim() && (
                           <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
                               Refinar cena
@@ -3029,7 +3191,7 @@ export default function EditorClient() {
                         )}
 
                         {/* Generate + Preview — Imagem mode only */}
-                        {!artDirMode && <Stack direction="row" spacing={0.75}>
+                        {!artDirMode && !modelCompareMode && <Stack direction="row" spacing={0.75}>
                           <LoadingButton
                             fullWidth variant="contained" size="small"
                             loading={arteStep === 'generating' && !arteIsPreview}
@@ -3050,6 +3212,12 @@ export default function EditorClient() {
                             {!(arteStep === 'generating' && arteIsPreview) && <IconBolt size={15} />}
                           </LoadingButton>
                         </Stack>}
+
+                        {/* Pipeline progress nodes */}
+                        <PipelineProgressNodes
+                          active={arteStep === 'generating'}
+                          result={arteDAResult}
+                        />
 
                         {/* Generated image preview */}
                         {arteImageUrl && (
@@ -3095,6 +3263,32 @@ export default function EditorClient() {
                                 ))}
                               </Stack>
                             )}
+                            {/* Multi-format grid (P6) */}
+                            {arteMultiFormat.length > 0 && (
+                              <Accordion disableGutters elevation={0} sx={{ mt: 1, border: 1, borderColor: 'divider', borderRadius: 1.5, '&:before': { display: 'none' } }}>
+                                <AccordionSummary sx={{ minHeight: 32, py: 0, '& .MuiAccordionSummary-content': { my: 0 } }}>
+                                  <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                                    Todos os formatos ({arteMultiFormat.length})
+                                  </Typography>
+                                </AccordionSummary>
+                                <AccordionDetails sx={{ pt: 0, pb: 1 }}>
+                                  <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }}>
+                                    {arteMultiFormat.map(f => (
+                                      <Box key={f.format} sx={{ minWidth: 72, textAlign: 'center', flexShrink: 0 }}>
+                                        <Box
+                                          component="img" src={f.imageUrl} alt={f.format}
+                                          sx={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider', display: 'block' }}
+                                        />
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, display: 'block', mt: 0.25 }}>
+                                          {f.format}
+                                        </Typography>
+                                      </Box>
+                                    ))}
+                                  </Stack>
+                                </AccordionDetails>
+                              </Accordion>
+                            )}
+
                             <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap">
                               <Button size="small" variant="contained" color="success" onClick={handleApproveCreative} startIcon={<IconCheck size={14} />}>
                                 Usar
