@@ -16,6 +16,7 @@ import { listApprovedEventsForYear } from '../repos/eventsRepo';
 import { listOverridesForClient, upsertOverride } from '../repos/calendarOverridesRepo';
 import { upsertRelevance } from '../repos/calendarRelevanceRepo';
 import { query } from '../db';
+import { cacheGetJSON, cacheSetJSON, cacheKey } from '../cache/redis';
 import { generateEventDescription } from '../services/calendarDescriptionService';
 import { enrichCalendarEvent } from '../jobs/calendarEnrichmentWorker';
 import { scrapeInspirations } from '../jobs/calendarInspirationWorker';
@@ -1520,6 +1521,11 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const clientId = request.params.clientId as string;
       const tenantId = (request.user as any).tenant_id;
       const layerMode = parseCalendarLayer((request.query as any)?.layer);
+      const showAll = ['1', 'true', 'yes'].includes(String((request.query as any)?.all || ''));
+
+      const calMonthKey = cacheKey({ route: 'cal_month', tenant: tenantId, client: clientId, month: params.month, layer: layerMode, all: showAll });
+      const calMonthCached = await cacheGetJSON<any>(calMonthKey);
+      if (calMonthCached) return reply.send(calMonthCached);
 
       const { rows: clients } = await query<any>(
         `SELECT * FROM clients WHERE id=$1 AND tenant_id=$2 LIMIT 1`,
@@ -1535,10 +1541,6 @@ export default async function calendarRoutes(app: FastifyInstance) {
       const hits = expandEventsForMonth(sourceEvents, params.month as any);
       const overrides = await listOverridesForClient({ tenantId, clientId: client.id });
       const overrideMap = new Map(overrides.map((o) => [o.calendar_event_id, o]));
-
-      const showAll = ['1', 'true', 'yes'].includes(
-        String((request.query as any)?.all || '')
-      );
 
       const days: Record<string, any[]> = {};
       let totalEvents = 0;
@@ -1603,12 +1605,14 @@ export default async function calendarRoutes(app: FastifyInstance) {
 
       totalEvents = recalculateCalendarDays(days);
 
-      return reply.send({
+      const calMonthPayload = {
         month: params.month,
         client_id: client.id,
         total_events: totalEvents,
         days,
-      });
+      };
+      await cacheSetJSON(calMonthKey, calMonthPayload, 300); // 5min — calendário muda pouco durante uma sessão
+      return reply.send(calMonthPayload);
     }
   );
 

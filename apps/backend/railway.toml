@@ -1,0 +1,12 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "apps/backend/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Workers must be disabled on the HTTP service.
+# Set JOBS_RUNNER_ENABLED=false in Railway Variables for this service.

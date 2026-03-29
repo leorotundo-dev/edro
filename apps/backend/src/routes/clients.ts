@@ -13,6 +13,7 @@ import { extractText } from '../library/extract';
 import { saveFile, readFile } from '../library/storage';
 import { OpenAIService } from '../services/ai/openaiService';
 import { query, pool } from '../db';
+import { cacheGetJSON, cacheSetJSON, cacheKey } from '../cache/redis';
 import { upsertUser, createLoginCode } from '../repositories/edroUserRepository';
 import { sendEmail } from '../services/emailService';
 import { makeHash } from '../utils/hash';
@@ -294,7 +295,11 @@ export default async function clientsRoutes(app: FastifyInstance) {
     { preHandler: [requirePerm('clients:read')] },
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id;
+      const key = cacheKey({ route: 'clients_list', tenant: tenantId });
+      const cached = await cacheGetJSON<any[]>(key);
+      if (cached) return reply.send(cached);
       const clients = await listClients(tenantId);
+      await cacheSetJSON(key, clients, 30); // 30s — fresco o suficiente, evita thundering herd
       return reply.send(clients);
     }
   );
@@ -367,6 +372,10 @@ export default async function clientsRoutes(app: FastifyInstance) {
          WHERE c.tenant_id = $1
          ORDER BY c.updated_at DESC NULLS LAST, c.name ASC`;
 
+      const overviewKey = cacheKey({ route: 'clients_overview', tenant: tenantId });
+      const cachedOverview = await cacheGetJSON<{ clients: any[]; unlinked_boards: any[] }>(overviewKey);
+      if (cachedOverview) return reply.send(cachedOverview);
+
       let clientRows: any[] = [];
       let unlinkedRows: any[] = [];
 
@@ -396,10 +405,9 @@ export default async function clientsRoutes(app: FastifyInstance) {
         unlinkedRows = [];
       }
 
-      return reply.send({
-        clients: clientRows,
-        unlinked_boards: unlinkedRows,
-      });
+      const overviewPayload = { clients: clientRows, unlinked_boards: unlinkedRows };
+      await cacheSetJSON(overviewKey, overviewPayload, 60); // 60s — query pesada com LEFT JOIN lateral
+      return reply.send(overviewPayload);
     }
   );
 

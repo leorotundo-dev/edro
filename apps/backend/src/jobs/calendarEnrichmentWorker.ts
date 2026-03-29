@@ -17,6 +17,8 @@ import { env } from '../env';
 
 const BATCH_SIZE = Number(process.env.CALENDAR_ENRICHMENT_BATCH_SIZE || 20);
 const BATCH_INTERVAL_MS = Number(process.env.CALENDAR_ENRICHMENT_INTERVAL_MS || 60 * 60 * 1000);
+// Only enrich events with meaningful relevance — very low-relevance dates are never used for content
+const MIN_RELEVANCE = Number(process.env.CALENDAR_ENRICHMENT_MIN_RELEVANCE || 60);
 
 let lastRunAt = 0;
 let running = false;
@@ -156,6 +158,7 @@ async function runBatch() {
   const { rows: events } = await query<EventRow>(
     `SELECT id, name, date, date_type FROM events
      WHERE date IS NOT NULL
+       AND COALESCE(base_relevance, 0) >= $2
        AND (
          payload IS NULL
          OR payload->>'descricao_ai' IS NULL
@@ -163,7 +166,7 @@ async function runBatch() {
        )
      ORDER BY base_relevance DESC NULLS LAST
      LIMIT $1`,
-    [BATCH_SIZE]
+    [BATCH_SIZE, MIN_RELEVANCE]
   );
 
   if (events.length === 0) {

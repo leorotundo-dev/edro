@@ -1,10 +1,15 @@
+import { createHash } from 'crypto';
 import { env } from '../../env';
+import { cacheGetJSON, cacheSetJSON } from '../../cache/redis';
 
 type CompletionParams = {
   prompt: string;
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  /** When set, cache the result in Redis for this many seconds.
+   *  Use only in background workers — interactive UI calls must NOT be cached. */
+  cacheTtl?: number;
 };
 
 export type AiCompletionResult = {
@@ -31,6 +36,21 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
   const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY_NOT_SET');
+  }
+
+  // Cache lookup — only when cacheTtl is explicitly requested (background workers)
+  let cacheKey: string | undefined;
+  if (params.cacheTtl) {
+    cacheKey = 'ai:claude:' + createHash('sha256')
+      .update(JSON.stringify({
+        p: params.prompt,
+        s: params.systemPrompt ?? '',
+        t: params.temperature ?? 0.6,
+        m: params.maxTokens ?? 1500,
+      }))
+      .digest('hex');
+    const cached = await cacheGetJSON<AiCompletionResult>(cacheKey);
+    if (cached) return cached;
   }
 
   const model = env.ANTHROPIC_MODEL;
@@ -84,7 +104,7 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
     throw new Error('Claude returned empty response');
   }
 
-  return {
+  const result: AiCompletionResult = {
     text,
     usage: {
       input_tokens: data.usage?.input_tokens || 0,
@@ -92,6 +112,12 @@ export async function generateCompletion(params: CompletionParams): Promise<AiCo
     },
     model: data.model || model,
   };
+
+  if (cacheKey && params.cacheTtl) {
+    await cacheSetJSON(cacheKey, result, params.cacheTtl);
+  }
+
+  return result;
 }
 
 // ── Vision (Multimodal) Support ────────────────────────────────
