@@ -40,6 +40,7 @@ import { recordPreferenceFeedback } from '../preferenceEngine';
 import { analyzeCognitiveLoad } from '../cognitiveLoadService';
 import { generateWithProvider } from './copyOrchestrator';
 import { enqueueJob } from '../../jobs/jobQueue';
+import { buildJarvisBackgroundArtifact } from '../jarvisBackgroundJobService';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -50,6 +51,8 @@ export type ToolContext = {
   edroClientId: string | null; // UUID from edro_clients table
   userId?: string;
   userEmail?: string;
+  conversationId?: string | null;
+  conversationRoute?: 'planning' | 'operations';
 };
 
 export type OperationsToolContext = {
@@ -1706,7 +1709,7 @@ async function toolRetrieveClientEvidence(args: any, ctx: ToolContext): Promise<
   };
 }
 
-async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<ToolResult> {
+export async function runCreatePostPipelineNow(args: any, ctx: ToolContext): Promise<ToolResult> {
   if (!ctx.edroClientId) return { success: false, error: 'Client not found in edro_clients' };
 
   const requestText = String(args.request || '').trim();
@@ -1995,6 +1998,69 @@ async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<Tool
       next_step: approvalUrl
         ? 'A sessão criativa foi aberta no Studio com copy, direção de arte e link de aprovação prontos.'
         : 'A sessão criativa foi aberta no Studio com copy e direção de arte prontos. Gere o link de aprovação quando quiser enviar ao cliente.',
+    },
+  };
+}
+
+async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (!ctx.edroClientId) return { success: false, error: 'Client not found in edro_clients' };
+
+  const requestText = String(args.request || '').trim();
+  if (!requestText) return { success: false, error: 'request é obrigatória.' };
+
+  const client = await getClientById(ctx.tenantId, ctx.clientId);
+  if (!client) return { success: false, error: 'Cliente não encontrado.' };
+
+  const job = await enqueueJob(ctx.tenantId, 'jarvis_background', {
+    kind: 'create_post_pipeline',
+    args: {
+      request: requestText,
+      title: args.title ?? null,
+      objective: args.objective ?? null,
+      platform: args.platform ?? 'instagram',
+      format: args.format ?? 'post',
+      deadline: args.deadline ?? null,
+      language: args.language ?? 'pt',
+      generate_approval_link: args.generate_approval_link !== false,
+    },
+    client_name: client.name,
+    context: {
+      tenantId: ctx.tenantId,
+      clientId: ctx.clientId,
+      edroClientId: ctx.edroClientId,
+      userId: ctx.userId ?? null,
+      userEmail: ctx.userEmail ?? null,
+    },
+    conversation: {
+      route: ctx.conversationRoute ?? 'planning',
+      conversationId: ctx.conversationId ?? null,
+      edroClientId: ctx.edroClientId ?? null,
+    },
+  });
+
+  const artifact = buildJarvisBackgroundArtifact({
+    id: job.id,
+    type: 'jarvis_background',
+    status: 'queued',
+    payload: {
+      kind: 'create_post_pipeline',
+      args: {
+        request: requestText,
+        title: args.title ?? null,
+        platform: args.platform ?? 'instagram',
+        format: args.format ?? 'post',
+      },
+      client_name: client.name,
+    },
+  });
+
+  return {
+    success: true,
+    data: artifact || {
+      type: 'create_post_pipeline',
+      background_job_id: job.id,
+      job_status: 'queued',
+      message: `Pipeline criativo enfileirado para ${client.name}.`,
     },
   };
 }

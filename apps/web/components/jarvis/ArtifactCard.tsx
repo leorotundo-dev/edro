@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import Chip from '@mui/material/Chip';
 import Link from 'next/link';
 import {
   IconFileText, IconLink, IconCircleCheck, IconBulb,
@@ -66,6 +67,21 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
 
   const copyValue = artifact.approvalUrl ?? null;
   const evidenceItems = Array.isArray(artifact.evidence) ? artifact.evidence.slice(0, 3) : [];
+  const jobStatus = String((artifact as any).job_status || '').trim().toLowerCase();
+  const statusLabel = jobStatus === 'queued'
+    ? 'na fila'
+    : jobStatus === 'processing'
+    ? 'em processamento'
+    : jobStatus === 'failed'
+    ? 'falhou'
+    : jobStatus === 'done'
+    ? 'pronto'
+    : null;
+  const statusColor = jobStatus === 'failed'
+    ? '#EF4444'
+    : jobStatus === 'done'
+    ? '#10B981'
+    : meta.color;
 
   return (
     <Box
@@ -93,9 +109,33 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
           </Typography>
         )}
         {artifact.type === 'create_post_pipeline' && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45, fontSize: '0.68rem' }}>
-            {artifact.briefing_title ? `${artifact.briefing_title} · ` : ''}{artifact.platform || ''}{artifact.format ? ` · ${artifact.format}` : ''}
-          </Typography>
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45, fontSize: '0.68rem' }}>
+              {artifact.briefing_title ? `${artifact.briefing_title} · ` : ''}{artifact.platform || ''}{artifact.format ? ` · ${artifact.format}` : ''}
+            </Typography>
+            {(statusLabel || artifact.error) && (
+              <Box sx={{ mt: 0.75, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                {statusLabel && (
+                  <Chip
+                    size="small"
+                    label={statusLabel}
+                    sx={{
+                      height: 22,
+                      fontSize: '0.68rem',
+                      bgcolor: `${statusColor}12`,
+                      color: statusColor,
+                      border: `1px solid ${statusColor}30`,
+                    }}
+                  />
+                )}
+                {artifact.error && (
+                  <Typography variant="caption" color="error.main" sx={{ fontSize: '0.68rem', lineHeight: 1.4 }}>
+                    {artifact.error}
+                  </Typography>
+                )}
+              </Box>
+            )}
+          </>
         )}
         {artifact.type === 'retrieve_client_evidence' && evidenceItems.length > 0 && (
           <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.4 }}>

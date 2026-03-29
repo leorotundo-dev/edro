@@ -20,6 +20,7 @@ import {
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiPost, apiGet } from '@/lib/api';
 import ArtifactCard, { Artifact } from '@/components/jarvis/ArtifactCard';
+import { collectPendingBackgroundJobIds, mergeBackgroundArtifactUpdate } from '@/components/jarvis/backgroundArtifacts';
 import JarvisResponseTrace, { type JarvisObservability } from '@/components/jarvis/JarvisResponseTrace';
 import ConversationList from '@/components/jarvis/ConversationList';
 import AppShell from '@/components/AppShell';
@@ -172,6 +173,38 @@ export default function JarvisFullClient() {
 
   useEffect(() => { clientIdRef.current = clientId; }, [clientId]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); }, [messages, loading]);
+
+  useEffect(() => {
+    const pendingJobIds = collectPendingBackgroundJobIds(messages);
+    if (!pendingJobIds.length) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      const responses = await Promise.all(
+        pendingJobIds.map((jobId) =>
+          apiGet<{ data?: { artifact?: Artifact | null } }>(`/jarvis/background-jobs/${jobId}`).catch(() => null),
+        ),
+      );
+
+      if (cancelled) return;
+      setMessages((prev) => {
+        let next = prev;
+        for (const response of responses) {
+          const artifact = response?.data?.artifact;
+          if (!artifact) continue;
+          next = mergeBackgroundArtifactUpdate(next, artifact);
+        }
+        return next;
+      });
+    };
+
+    void poll();
+    const intervalId = window.setInterval(() => void poll(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [messages]);
 
   // Load clients for selector
   useEffect(() => {

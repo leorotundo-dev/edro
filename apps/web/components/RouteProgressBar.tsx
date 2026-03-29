@@ -9,7 +9,7 @@ function ProgressInner() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const completedRef = useRef(`${pathname}?${searchParams}`);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Detect when route change completes
   useEffect(() => {
@@ -17,7 +17,7 @@ function ProgressInner() {
     if (completedRef.current !== current) {
       completedRef.current = current;
       setLoading(false);
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
     }
   }, [pathname, searchParams]);
 
@@ -33,7 +33,7 @@ function ProgressInner() {
       if (e.metaKey || e.ctrlKey || e.shiftKey || anchor.target === '_blank') return;
 
       setLoading(true);
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
       // Safety valve: clear if navigation never completes
       timerRef.current = setTimeout(() => setLoading(false), 15_000);
     };
@@ -41,7 +41,7 @@ function ProgressInner() {
     document.addEventListener('click', handleClick);
     return () => {
       document.removeEventListener('click', handleClick);
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [pathname]);
 
