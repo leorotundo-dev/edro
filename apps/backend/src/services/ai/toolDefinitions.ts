@@ -411,7 +411,7 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'create_post_pipeline',
-    description: 'Cria um post de ponta a ponta para o cliente atual: cria o briefing, gera a copy principal, orquestra a direção de arte e opcionalmente já gera um link de aprovação. Use quando o usuário disser "cria um post pra mim" ou pedir um post pronto para produção.',
+    description: 'Cria um post de ponta a ponta para o cliente atual: cria o briefing, gera a copy principal, orquestra a direção de arte, abre a sessão criativa no Studio e opcionalmente já gera um link de aprovação. Use quando o usuário disser "cria um post pra mim" ou pedir um post pronto para produção.',
     parameters: {
       request: { type: 'string', description: 'Pedido completo do usuário para o post, incluindo tema, objetivo ou contexto' },
       title: { type: 'string', description: 'Título opcional do briefing/post' },

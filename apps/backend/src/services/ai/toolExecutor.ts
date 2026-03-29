@@ -26,6 +26,14 @@ import { tagCopy } from './agentTagger';
 import { loadBehaviorProfiles, recomputeClientBehaviorProfiles } from '../behaviorClusteringService';
 import { loadLearningRules, recomputeClientLearningRules } from '../learningEngine';
 import { orchestrateCreative } from './artDirectorOrchestrator';
+import { autoCreateJobFromBriefing } from '../jobs/briefingToJobService';
+import {
+  addCreativeVersion,
+  openCreativeSession,
+  saveCreativeBrief,
+  updateCreativeSessionMetadata,
+  updateCreativeStage,
+} from '../jobs/creativeSessionService';
 import { createLibraryItem } from '../../library/libraryRepo';
 import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
@@ -135,6 +143,47 @@ function deriveBriefingTitleFromRequest(request: string, explicitTitle?: string 
   if (!normalized) return 'Novo post';
   const sentence = normalized.split(/[.!?]/)[0]?.trim() || normalized;
   return sentence.slice(0, 140);
+}
+
+function buildCreativeInventoryId(platform: string, format: string) {
+  return `${platform}__${format}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function buildStudioEditorUrl(jobId: string, sessionId: string) {
+  const params = new URLSearchParams({
+    jobId,
+    sessionId,
+  });
+  return `/studio/editor?${params.toString()}`;
+}
+
+function buildArtDirectionSessionContext(params: {
+  briefingId: string;
+  clientId: string;
+  platform: string;
+  format: string;
+  visualStrategy?: Record<string, any> | null;
+  layout?: Record<string, any> | null;
+  imagePrompt?: Record<string, any> | null;
+}) {
+  const { briefingId, clientId, platform, format, visualStrategy, layout, imagePrompt } = params;
+  return {
+    briefing_id: briefingId,
+    client_id: clientId,
+    platform,
+    format,
+    visual_strategy: visualStrategy || null,
+    layout: layout || null,
+    img_prompt: imagePrompt || null,
+    reference_examples: Array.isArray(visualStrategy?.referenceExamples) ? visualStrategy.referenceExamples : [],
+    trend_signals: Array.isArray(visualStrategy?.trendSignals) ? visualStrategy.trendSignals : [],
+    concept_slugs: Array.isArray(visualStrategy?.referenceMovements) ? visualStrategy.referenceMovements : [],
+    strategy_summary: typeof visualStrategy?.strategySummary === 'string' ? visualStrategy.strategySummary : null,
+    visual_intent: typeof visualStrategy?.intent === 'string' ? visualStrategy.intent : null,
+  };
 }
 
 function tokenizeEvidenceQuestion(question: string) {
@@ -1668,17 +1717,21 @@ async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<Tool
 
   const platform = String(args.platform || 'instagram').trim().toLowerCase();
   const format = String(args.format || 'post').trim();
+  const normalizedPlatform = normalizeCreativePlatform(platform);
+  const normalizedFormat = normalizeCreativeFormat(format);
   const briefingTitle = deriveBriefingTitleFromRequest(requestText, args.title);
   const objective = String(args.objective || 'engajamento').trim();
   const language = String(args.language || 'pt').trim();
 
   const briefing = await createBriefing({
     clientId: ctx.edroClientId,
+    mainClientId: ctx.clientId,
     title: briefingTitle,
     payload: {
       objective,
       platform,
       format,
+      content_type: format,
       notes: requestText,
       source: 'jarvis_create_post_pipeline',
     },
@@ -1755,6 +1808,153 @@ async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<Tool
     brandTokens,
   });
 
+  const tone =
+    String(profile.tone_description || profile.tone_profile || profile.voice_profile || '').trim()
+    || 'Claro, persuasivo e alinhado à marca';
+
+  const daContext = buildArtDirectionSessionContext({
+    briefingId: briefing.id,
+    clientId: ctx.clientId,
+    platform: normalizedPlatform,
+    format: normalizedFormat,
+    visualStrategy: orchestrated.visualStrategy,
+    layout: orchestrated.layout,
+    imagePrompt: orchestrated.imgPrompt,
+  });
+
+  const jobSeed = await autoCreateJobFromBriefing(ctx.tenantId, {
+    id: briefing.id,
+    title: briefing.title,
+    main_client_id: ctx.clientId,
+    due_at: briefing.due_at ? new Date(briefing.due_at).toISOString() : null,
+    brief_context: requestText,
+    summary: buildEvidenceExcerpt(copyResult.output, 260),
+    content_type: format || 'post',
+  });
+
+  const jobId = jobSeed.jobId;
+  if (!jobId) {
+    return { success: false, error: 'Falha ao criar ou localizar o job operacional do pipeline.' };
+  }
+
+  const creativeSession = await openCreativeSession(ctx.tenantId, jobId, ctx.userId ?? null, {
+    briefing_id: briefing.id,
+  });
+
+  await saveCreativeBrief(ctx.tenantId, creativeSession.session.id, ctx.userId ?? null, {
+    briefing_id: briefing.id,
+    title: briefing.title,
+    objective,
+    message: requestText,
+    tone,
+    event: null,
+    date: null,
+    notes: buildEvidenceExcerpt(copyResult.output, 400),
+    platforms: [normalizedPlatform],
+    metadata: {
+      source: 'jarvis_create_post_pipeline',
+      platform: normalizedPlatform,
+      format: normalizedFormat,
+      production_type: format || null,
+    },
+  });
+
+  const inventoryId = buildCreativeInventoryId(normalizedPlatform, normalizedFormat);
+  await updateCreativeSessionMetadata(
+    ctx.tenantId,
+    creativeSession.session.id,
+    jobId,
+    ctx.userId ?? null,
+    {
+      metadata: {
+        platforms: {
+          inventory: [
+            {
+              id: inventoryId,
+              platform: normalizedPlatform,
+              format: normalizedFormat,
+              production_type: format || 'post',
+              index: 0,
+              total: 1,
+              name: normalizedFormat,
+            },
+          ],
+        },
+        editor: {
+          activeFormatId: inventoryId,
+          pipeline: 'standard',
+          taskType: 'social_post',
+          tone,
+          criarTab: 0,
+          selectedOption: 0,
+          selectedArteIndex: 0,
+        },
+        da_context: daContext,
+      },
+      reason: 'jarvis_post_pipeline_context_seeded',
+    },
+  );
+
+  await updateCreativeStage(ctx.tenantId, creativeSession.session.id, ctx.userId ?? null, {
+    current_stage: 'copy',
+    reason: 'jarvis_post_pipeline_copy_ready',
+  }).catch(() => null);
+
+  await addCreativeVersion(ctx.tenantId, creativeSession.session.id, jobId, ctx.userId ?? null, {
+    version_type: 'copy',
+    source: 'ai',
+    payload: {
+      output: copyResult.output,
+      text: copyResult.output,
+      title: briefing.title,
+      objective,
+      platform: normalizedPlatform,
+      format: normalizedFormat,
+      source_copy_version_id: copyVersion.id,
+      briefing_id: briefing.id,
+      provider_model: copyResult.model,
+      da_context: daContext,
+    },
+    select: true,
+  });
+
+  await addCreativeVersion(ctx.tenantId, creativeSession.session.id, jobId, ctx.userId ?? null, {
+    version_type: 'layout',
+    source: 'ai',
+    payload: {
+      layout: orchestrated.layout,
+      visual_strategy: orchestrated.visualStrategy || null,
+      da_context: daContext,
+      briefing_id: briefing.id,
+      platform: normalizedPlatform,
+      format: normalizedFormat,
+      source_copy_version_id: copyVersion.id,
+    },
+    select: false,
+  }).catch(() => null);
+
+  await addCreativeVersion(ctx.tenantId, creativeSession.session.id, jobId, ctx.userId ?? null, {
+    version_type: 'image_prompt',
+    source: 'ai',
+    payload: {
+      ...orchestrated.imgPrompt,
+      visual_strategy: orchestrated.visualStrategy || null,
+      da_context: daContext,
+      briefing_id: briefing.id,
+      platform: normalizedPlatform,
+      format: normalizedFormat,
+      source_copy_version_id: copyVersion.id,
+    },
+    select: false,
+  }).catch(() => null);
+
+  await updateCreativeStage(ctx.tenantId, creativeSession.session.id, ctx.userId ?? null, {
+    current_stage: 'arte',
+    reason: 'jarvis_post_pipeline_art_direction_ready',
+  }).catch(() => null);
+
+  const studioUrl = buildStudioEditorUrl(jobId, creativeSession.session.id);
+
   let approvalUrl: string | null = null;
   if (args.generate_approval_link !== false) {
     const approvalResult = await toolGenerateApprovalLink({
@@ -1771,9 +1971,12 @@ async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<Tool
       message: `Pipeline criativo montado para ${client.name}: briefing, copy e direção de arte.`,
       briefing_id: briefing.id,
       briefing_title: briefing.title,
+      job_id: jobId,
+      creative_session_id: creativeSession.session.id,
       copy_id: copyVersion.id,
       platform,
       format,
+      studio_url: studioUrl,
       copy_preview: buildEvidenceExcerpt(copyResult.output, 520),
       visual_strategy: orchestrated.visualStrategy
         ? {
@@ -1790,8 +1993,8 @@ async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<Tool
       image_prompt_preview: buildEvidenceExcerpt(orchestrated.imgPrompt.positive, 320),
       approvalUrl,
       next_step: approvalUrl
-        ? 'Copy, direção de arte e link de aprovação já foram preparados.'
-        : 'Copy e direção de arte já foram preparados. Gere o link de aprovação quando quiser enviar ao cliente.',
+        ? 'A sessão criativa foi aberta no Studio com copy, direção de arte e link de aprovação prontos.'
+        : 'A sessão criativa foi aberta no Studio com copy e direção de arte prontos. Gere o link de aprovação quando quiser enviar ao cliente.',
     },
   };
 }

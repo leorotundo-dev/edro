@@ -56,7 +56,9 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
   const subtitle = artifact.message || artifact.brief?.slice(0, 80) || null;
 
   // Determine action (link or copy)
-  const href = artifact.briefing_id && clientId
+  const href = artifact.studio_url
+    ? artifact.studio_url
+    : artifact.briefing_id && clientId
     ? `/clients/${clientId}/briefings`
     : artifact.pauta_id && clientId
     ? `/clients/${clientId}/clipping`
@@ -106,7 +108,7 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
         )}
       </Box>
       {href && (
-        <Tooltip title="Ver">
+        <Tooltip title={artifact.studio_url ? 'Abrir no Studio' : 'Ver'}>
           <IconButton size="small" component={Link} href={href} sx={{ color: meta.color, p: 0.5 }}>
             <IconExternalLink size={14} />
           </IconButton>
