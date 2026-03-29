@@ -63,7 +63,7 @@ async function runSupplementForTenant(tenantId: string) {
      WHERE c.tenant_id=$1 AND c.status='active'
        AND EXISTS (
          SELECT 1 FROM jobs j
-         WHERE j.tenant_id=$1 AND j.client_id=c.id
+         WHERE j.tenant_id=$1 AND j.client_id=c.id::text
            AND j.created_at >= NOW() - INTERVAL '30 days'
          LIMIT 1
        )
