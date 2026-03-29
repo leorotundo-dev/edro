@@ -383,6 +383,7 @@ REGRAS DE OPERAÇÃO
    Pedidos de "cria um post pra mim", "me entrega um post", "monta um post completo" devem priorizar create_post_pipeline.
    Perguntas sobre "quem está sobrecarregado", "quem pode pegar", "quem é o melhor DA" ou "o que devo redistribuir" devem usar get_creative_ops_workload, get_da_capacity, suggest_job_allocation e suggest_creative_redistribution antes de recomendar qualquer movimento.
    Só aplique redistribuição real com assign_job_owner/manage_job_allocation quando o usuário pedir para executar a mudança.
+   Quando o usuário confirmar explicitamente uma movimentação operacional, use apply_job_allocation_recommendation ou apply_creative_redistribution para executar a mudança inteira e devolver o resultado já aplicado.
 
 🤖 ORQUESTRAÇÃO MULTI-IA → você pode consultar Gemini e GPT-4o como especialistas paralelos:
    - Use consult_gemini para: perspectivas culturais, tendências amplas, análise multimodal, criatividade visual

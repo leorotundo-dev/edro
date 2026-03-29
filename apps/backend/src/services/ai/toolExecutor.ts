@@ -2794,6 +2794,8 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   get_da_capacity: opsGetDaCapacity,
   suggest_job_allocation: opsSuggestJobAllocation,
   suggest_creative_redistribution: opsSuggestCreativeRedistribution,
+  apply_job_allocation_recommendation: opsApplyJobAllocationRecommendation,
+  apply_creative_redistribution: opsApplyCreativeRedistribution,
   get_operations_lookups: opsGetLookups,
   create_operations_job: opsCreateJob,
   update_operations_job: opsUpdateJob,
@@ -2816,6 +2818,7 @@ export async function executeOperationsTool(
   try {
     const timeoutMs =
       toolName === 'suggest_creative_redistribution' ? 20000 :
+        toolName === 'apply_job_allocation_recommendation' || toolName === 'apply_creative_redistribution' ? 20000 :
         toolName === 'suggest_job_allocation' ? 15000 :
           toolName === 'get_creative_ops_workload' || toolName === 'get_da_capacity' ? 15000 :
             10000;
@@ -3297,6 +3300,196 @@ async function opsSuggestCreativeRedistribution(args: any, ctx: OperationsToolCo
       note: suggestions.length
         ? 'Use assign_job_owner e manage_job_allocation para executar uma redistribuição após confirmar o movimento.'
         : 'Nenhuma redistribuição segura encontrada com os filtros atuais.',
+    },
+  };
+}
+
+async function opsResolveTargetOwnerForJob(params: {
+  tenantId: string;
+  jobId: string;
+  currentOwnerId?: string | null;
+  requestedOwnerId?: string | null;
+}) {
+  const proposals = await proposeAllocations(params.tenantId, params.jobId);
+  if (!proposals.length) {
+    throw new Error('Nenhuma sugestão elegível encontrada para este job.');
+  }
+
+  const requestedOwnerId = String(params.requestedOwnerId || '').trim() || null;
+  if (requestedOwnerId) {
+    const requested = proposals.find((proposal) => proposal.freelancerId === requestedOwnerId);
+    if (!requested) {
+      throw new Error('O owner informado não apareceu entre as sugestões elegíveis para este job.');
+    }
+    return requested;
+  }
+
+  const alternative = proposals.find((proposal) => proposal.freelancerId !== params.currentOwnerId);
+  return alternative || proposals[0];
+}
+
+async function opsApplyOwnerAndAllocation(params: {
+  tenantId: string;
+  userId?: string;
+  jobId: string;
+  ownerId: string;
+  plannedMinutes?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  notes?: string | null;
+}) {
+  const currentJobRes = await query(
+    `SELECT id, title, owner_id, estimated_minutes, status
+       FROM jobs
+      WHERE tenant_id = $1 AND id = $2
+      LIMIT 1`,
+    [params.tenantId, params.jobId],
+  );
+  if (!currentJobRes.rows.length) throw new Error('Job não encontrado.');
+
+  const currentJob = currentJobRes.rows[0];
+  await query(
+    `UPDATE jobs
+        SET owner_id = $3
+      WHERE tenant_id = $1 AND id = $2`,
+    [params.tenantId, params.jobId, params.ownerId],
+  );
+
+  const data = await upsertJobAllocation(params.tenantId, {
+    jobId: params.jobId,
+    ownerId: params.ownerId,
+    status: 'committed',
+    plannedMinutes: params.plannedMinutes ?? (Number(currentJob.estimated_minutes || 0) || null),
+    startsAt: params.startsAt ?? null,
+    endsAt: params.endsAt ?? null,
+    notes: params.notes ?? null,
+    changedBy: params.userId ?? null,
+  });
+  await syncOperationalRuntimeForJob(params.tenantId, params.jobId);
+
+  return {
+    job: currentJob,
+    allocation: data,
+  };
+}
+
+async function opsApplyJobAllocationRecommendation(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute esta ação quando o usuário confirmar explicitamente.' };
+  }
+
+  const { rows } = await query(
+    `SELECT j.id, j.title, j.owner_id, j.client_id, c.name AS client_name
+       FROM jobs j
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE j.tenant_id = $1 AND j.id = $2
+      LIMIT 1`,
+    [ctx.tenantId, args.job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  const job = rows[0];
+
+  const proposal = await opsResolveTargetOwnerForJob({
+    tenantId: ctx.tenantId,
+    jobId: args.job_id,
+    currentOwnerId: job.owner_id,
+    requestedOwnerId: args.owner_id,
+  });
+
+  const applied = await opsApplyOwnerAndAllocation({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    jobId: args.job_id,
+    ownerId: proposal.freelancerId,
+    plannedMinutes: proposal.estimatedMinutes,
+    startsAt: proposal.estimatedAvailableAt,
+    endsAt: proposal.estimatedCompletionAt,
+    notes: String(args.notes || '').trim() || `Alocação aplicada pelo Jarvis com base na recomendação automática.`,
+  });
+
+  return {
+    success: true,
+    data: {
+      action: 'allocation_applied',
+      job_id: args.job_id,
+      title: job.title,
+      client_name: job.client_name,
+      previous_owner_id: job.owner_id || null,
+      new_owner_id: proposal.freelancerId,
+      new_owner_name: proposal.name,
+      rationale: proposal.rationale,
+      estimated_available_at: proposal.estimatedAvailableAt,
+      estimated_completion_at: proposal.estimatedCompletionAt,
+      allocation: applied.allocation,
+      message: `Job "${job.title}" alocado para ${proposal.name}.`,
+    },
+  };
+}
+
+async function opsApplyCreativeRedistribution(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute esta ação quando o usuário confirmar explicitamente.' };
+  }
+
+  const { rows } = await query(
+    `SELECT j.id, j.title, j.owner_id, j.status, j.priority_band, j.client_id, c.name AS client_name
+       FROM jobs j
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE j.tenant_id = $1 AND j.id = $2
+      LIMIT 1`,
+    [ctx.tenantId, args.job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  const job = rows[0];
+
+  const proposal = await opsResolveTargetOwnerForJob({
+    tenantId: ctx.tenantId,
+    jobId: args.job_id,
+    currentOwnerId: job.owner_id,
+    requestedOwnerId: args.to_owner_id,
+  });
+
+  if (proposal.freelancerId === job.owner_id) {
+    return {
+      success: true,
+      data: {
+        action: 'redistribution_skipped',
+        job_id: job.id,
+        title: job.title,
+        owner_id: job.owner_id,
+        message: `O job "${job.title}" já está com ${proposal.name}.`,
+      },
+    };
+  }
+
+  const applied = await opsApplyOwnerAndAllocation({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    jobId: args.job_id,
+    ownerId: proposal.freelancerId,
+    plannedMinutes: proposal.estimatedMinutes,
+    startsAt: proposal.estimatedAvailableAt,
+    endsAt: proposal.estimatedCompletionAt,
+    notes: String(args.notes || '').trim() || `Redistribuição aplicada pelo Jarvis para aliviar carga operacional.`,
+  });
+
+  return {
+    success: true,
+    data: {
+      action: 'redistribution_applied',
+      job_id: job.id,
+      title: job.title,
+      client_name: job.client_name,
+      previous_owner_id: job.owner_id || null,
+      new_owner_id: proposal.freelancerId,
+      new_owner_name: proposal.name,
+      priority_band: job.priority_band,
+      status: job.status,
+      rationale: proposal.rationale,
+      estimated_available_at: proposal.estimatedAvailableAt,
+      estimated_completion_at: proposal.estimatedCompletionAt,
+      allocation: applied.allocation,
+      message: `Job "${job.title}" redistribuído de ${job.owner_id || 'sem responsável'} para ${proposal.name}.`,
     },
   };
 }

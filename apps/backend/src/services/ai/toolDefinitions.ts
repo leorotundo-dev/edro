@@ -791,6 +791,30 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'read',
   },
   {
+    name: 'apply_job_allocation_recommendation',
+    description: 'Aplica a melhor recomendação de responsável para um job: define owner e cria/atualiza a alocação principal com janela sugerida. Só use depois que o usuário pedir explicitamente para executar a atribuição.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      owner_id: { type: 'string', description: 'UUID do responsável escolhido. Se omitido, usa a melhor sugestão atual.' },
+      confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar a execução.' },
+      notes: { type: 'string', description: 'Nota opcional sobre a decisão de alocação.' },
+    },
+    required: ['job_id', 'confirmed'],
+    category: 'action',
+  },
+  {
+    name: 'apply_creative_redistribution',
+    description: 'Executa uma redistribuição criativa: move um job para outro responsável e recalcula a alocação principal. Só use quando o usuário confirmar explicitamente que quer aplicar a redistribuição.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job a mover' },
+      to_owner_id: { type: 'string', description: 'UUID do novo responsável. Se omitido, usa a melhor alternativa elegível.' },
+      confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar a execução.' },
+      notes: { type: 'string', description: 'Motivo ou nota sobre a redistribuição.' },
+    },
+    required: ['job_id', 'confirmed'],
+    category: 'action',
+  },
+  {
     name: 'get_operations_lookups',
     description: 'Retorna dados de referência para criação de jobs: tipos de job, skills, canais, clientes e owners disponíveis.',
     parameters: {},

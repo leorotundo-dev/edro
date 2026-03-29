@@ -26,7 +26,7 @@ import {
   IconShieldCheck,
   IconTrendingDown,
   IconUsers,
-  IconZap,
+  IconBolt,
 } from '@tabler/icons-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -226,7 +226,7 @@ export default function SystemHealthClient() {
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
           <SummaryCard value={summary.high} label="Alto" color="#ff9800"
-            icon={<IconZap size={28} />} />
+            icon={<IconBolt size={28} />} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
           <SummaryCard value={summary.medium} label="Médio" color="#2196f3"
