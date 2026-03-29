@@ -46,6 +46,7 @@ import { runAgencyDigestWorkerOnce } from './agencyDigestWorker';
 import { runFeedbackProcessorWorkerOnce } from './feedbackProcessorWorker';
 import { runBedelWorkerOnce } from './bedelWorker';
 import { runLoraMonitorWorkerOnce } from './loraMonitorWorker';
+import { runClientPostsWorkerOnce } from './clientPostsWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -149,8 +150,10 @@ export function startJobsRunner() {
   startWorkerLoop('monthlyReports', runMonthlyReportsWorkerOnce, 9000, 300_000, 60_000);
   // Meta Ads daily sync — pulls IG post metrics → format_performance_metrics (max 8 clients/tick)
   startWorkerLoop('metaSync', runMetaSyncWorkerOnce, 9500, 120_000, 60_000);
+  // Client Posts — fetches client's own Instagram + Facebook posts (every 12h)
+  startWorkerLoop('clientPosts', runClientPostsWorkerOnce, 10000, 120_000, 60_000);
   // Copy ROI scores — Fogg quality × Meta CTR × ROAS × AI cost (max 5 clients/tick)
-  startWorkerLoop('copyRoi', runCopyRoiWorkerOnce, 10000, 120_000, 60_000);
+  startWorkerLoop('copyRoi', runCopyRoiWorkerOnce, 10500, 120_000, 60_000);
   // AI Account Manager — proactive churn/upsell alerts per client (max 5 clients/tick)
   startWorkerLoop('accountManager', runAccountManagerWorkerOnce, 10500, 120_000, 60_000);
   // Recall meet-bot scheduler/finalizer for Google Calendar auto-join meetings
