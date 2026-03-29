@@ -17,7 +17,7 @@ export async function runJarvisAlertWorkerOnce(): Promise<void> {
 
   // Get all active tenants
   const tenantsRes = await query<{ tenant_id: string }>(
-    `SELECT DISTINCT tenant_id FROM clients WHERE is_active = true LIMIT 100`,
+    `SELECT DISTINCT tenant_id FROM clients WHERE status = 'active' LIMIT 100`,
     [],
   );
 

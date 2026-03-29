@@ -16,6 +16,11 @@ const MAX_PER_TICK = 8;
 const COOLDOWN_HOURS = 12;
 
 export async function runClientPostsWorkerOnce(): Promise<void> {
+  // Ensure posts_synced_at column exists (migration may not have run yet)
+  await query(
+    `ALTER TABLE connectors ADD COLUMN IF NOT EXISTS posts_synced_at TIMESTAMPTZ`
+  ).catch(() => {});
+
   const { rows } = await query<{
     tenant_id: string;
     client_id: string;
