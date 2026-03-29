@@ -4,10 +4,17 @@
  * Extract: Jina Reader (r.jina.ai) — free, no key required.
  *
  * Drop-in replacement for Tavily. All callers unchanged.
+ *
+ * Redis cache: search results are cached for SERPER_CACHE_TTL_S seconds (default 6h).
+ * Background workers benefit automatically — same query never hits Serper twice in the window.
  */
+
+import { createHash } from 'crypto';
+import { cacheGetJSON, cacheSetJSON } from '../cache/redis';
 
 const SERPER_BASE = 'https://google.serper.dev';
 const JINA_BASE = 'https://r.jina.ai';
+const CACHE_TTL_S = Number(process.env.SERPER_CACHE_TTL_S ?? 6 * 60 * 60); // 6h default
 
 export function isTavilyConfigured(): boolean {
   return !!process.env.SERPER_API_KEY;
@@ -33,10 +40,22 @@ export async function tavilySearch(
     searchDepth?: 'basic' | 'advanced';
     includeAnswer?: boolean;
     timeoutMs?: number;
+    /** Skip cache for this call (e.g. user-triggered real-time searches) */
+    noCache?: boolean;
   }
 ): Promise<TavilySearchResult> {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) throw new Error('SERPER_API_KEY not configured');
+
+  // Cache lookup — skip for explicitly real-time or very short TTLs
+  const cacheKey = 'serper:' + createHash('md5')
+    .update(query.slice(0, 400) + '|' + (options?.maxResults ?? 5))
+    .digest('hex');
+
+  if (!options?.noCache) {
+    const cached = await cacheGetJSON<TavilySearchResult>(cacheKey);
+    if (cached) return cached;
+  }
 
   const res = await fetch(`${SERPER_BASE}/search`, {
     method: 'POST',
@@ -63,7 +82,7 @@ export async function tavilySearch(
 
   const answer = data.answerBox?.answer || data.answerBox?.snippet || undefined;
 
-  return {
+  const result: TavilySearchResult = {
     answer,
     results: (data.organic || []).slice(0, options?.maxResults ?? 5).map((r) => ({
       title: r.title || '',
@@ -71,6 +90,12 @@ export async function tavilySearch(
       snippet: (r.snippet || '').slice(0, 600),
     })),
   };
+
+  if (!options?.noCache) {
+    await cacheSetJSON(cacheKey, result, CACHE_TTL_S);
+  }
+
+  return result;
 }
 
 /**

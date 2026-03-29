@@ -1,0 +1,9 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "apps/backend/Dockerfile.worker"
+
+[deploy]
+# Workers have no HTTP server — no healthcheck path needed.
+# Railway monitors the process directly.
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5

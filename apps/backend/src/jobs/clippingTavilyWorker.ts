@@ -51,17 +51,24 @@ async function ensureTavilySource(tenantId: string): Promise<string> {
 async function runSupplementForTenant(tenantId: string) {
   const sourceId = await ensureTavilySource(tenantId);
 
-  // Get active clients with keywords
+  // Get active clients with recent activity and keywords (last 30 days of jobs/briefings)
   const { rows: clients } = await query<{
     id: string;
     segment_primary: string | null;
     keywords: string[] | null;
   }>(
-    `SELECT id, segment_primary,
-            (profile->>'keywords')::jsonb AS keywords
-     FROM clients
-     WHERE tenant_id=$1 AND status='active'
-     LIMIT 20`,
+    `SELECT c.id, c.segment_primary,
+            (c.profile->>'keywords')::jsonb AS keywords
+     FROM clients c
+     WHERE c.tenant_id=$1 AND c.status='active'
+       AND EXISTS (
+         SELECT 1 FROM jobs j
+         WHERE j.tenant_id=$1 AND j.client_id=c.id
+           AND j.created_at >= NOW() - INTERVAL '30 days'
+         LIMIT 1
+       )
+     ORDER BY c.updated_at DESC
+     LIMIT 10`,
     [tenantId]
   );
 
