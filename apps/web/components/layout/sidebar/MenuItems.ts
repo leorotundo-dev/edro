@@ -7,12 +7,11 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconUserCircle,
-  IconRadar,
-  IconChartBar,
   IconReportAnalytics,
   IconAlertSquare,
   IconCalendarStats,
   IconBuildingBank,
+  IconHeartbeat,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -101,12 +100,6 @@ const MenuItems: MenuGroupType[] = [
         icon: IconBuildingBank,
         href: '/admin/relatorios/financeiro',
       },
-      {
-        id: 'trello-insights',
-        title: 'Produção',
-        icon: IconChartBar,
-        href: '/admin/trello/insights',
-      },
     ],
   },
   {
@@ -126,10 +119,10 @@ const MenuItems: MenuGroupType[] = [
         href: '/admin/equipe',
       },
       {
-        id: 'controle',
-        title: 'Central de Controle',
-        icon: IconRadar,
-        href: '/admin/controle',
+        id: 'saude',
+        title: 'Saúde',
+        icon: IconHeartbeat,
+        href: '/admin/saude',
         requiredRole: ['admin'],
       },
       {

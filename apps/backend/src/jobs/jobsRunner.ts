@@ -43,6 +43,9 @@ import { runArtDirectionReferenceWorkerOnce } from './artDirectionReferenceWorke
 import { runArtDirectionTrendWorkerOnce } from './artDirectionTrendWorker';
 import { runWebhookRetryWorkerOnce } from './webhookRetryWorker';
 import { runAgencyDigestWorkerOnce } from './agencyDigestWorker';
+import { runFeedbackProcessorWorkerOnce } from './feedbackProcessorWorker';
+import { runBedelWorkerOnce } from './bedelWorker';
+import { runLoraMonitorWorkerOnce } from './loraMonitorWorker';
 import { runClientPostsWorkerOnce } from './clientPostsWorker';
 import { runJarvisBackgroundWorkerOnce } from './jarvisBackgroundWorker';
 
@@ -189,4 +192,10 @@ export function startJobsRunner() {
   // Art Direction Trend Memory — opt-in, analyzes discovered references and consolidates daily
   startWorkerLoop('artDirectionTrend', runArtDirectionTrendWorkerOnce, 21000, 300_000, 60_000);
   startWorkerLoop('agencyDigest', runAgencyDigestWorkerOnce, 22000, 60_000, 60_000);
+  // Feedback Processor — closes learning loop from copy feedback + AMD + reportei
+  startWorkerLoop('feedbackProcessor', runFeedbackProcessorWorkerOnce, 22500, 120_000, 60_000);
+  // Bedel Worker — DA allocation scoring + monitor alerts + billing closure
+  startWorkerLoop('bedel', runBedelWorkerOnce, 23000, 120_000, 60_000);
+  // LoRA Monitor — polls fal.ai training jobs every 2 min
+  startWorkerLoop('loraMonitor', runLoraMonitorWorkerOnce, 23500, 120_000, 30_000);
 }
