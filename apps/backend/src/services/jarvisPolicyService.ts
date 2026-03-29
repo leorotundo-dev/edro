@@ -42,6 +42,7 @@ export type JarvisObservability = {
   toolsUsed?: number;
   provider?: string;
   model?: string;
+  loadedMemoryBlocks?: string[];
 };
 
 export function detectJarvisIntent(message: string, contextPage?: string | null): JarvisIntent {
@@ -150,7 +151,7 @@ export function describeJarvisIntent(intent: JarvisIntent): string {
 
 export function buildJarvisObservability(
   decision: JarvisRoutingDecision,
-  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model'>> = {},
+  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model' | 'loadedMemoryBlocks'>> = {},
 ): JarvisObservability {
   return {
     intent: decision.intent,
@@ -166,6 +167,7 @@ export function buildJarvisObservability(
     toolsUsed: extras.toolsUsed,
     provider: extras.provider,
     model: extras.model,
+    loadedMemoryBlocks: extras.loadedMemoryBlocks,
   };
 }
 

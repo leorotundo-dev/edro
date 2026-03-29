@@ -4,18 +4,21 @@ import { authGuard } from '../auth/rbac';
 import { getJarvisAlerts, dismissAlert, snoozeAlert } from '../services/jarvisAlertEngine';
 import { query } from '../db';
 import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
-import { runToolUseLoop, type LoopMessage } from '../services/ai/toolUseLoop';
+import { runToolUseLoop } from '../services/ai/toolUseLoop';
 import { getAllToolDefinitions, getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
 import { executeOperationsTool, type OperationsToolContext, type ToolContext } from '../services/ai/toolExecutor';
 import {
   buildAgentSystemPrompt,
+  mapProviderToCopy,
+} from './planning';
+import {
   buildClientContext,
   loadPerformanceContext,
   loadPsychContext,
-  mapProviderToCopy,
   resolveEdroClientId,
-} from './planning';
+} from '../services/jarvisContextService';
 import { buildOperationsSystemPrompt } from './operations';
+import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 import {
   buildInlineAttachmentContext,
   buildJarvisObservability,
@@ -89,11 +92,21 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       let toolsUsed = 0;
 
       if (decision.route === 'operations') {
+        const memoryBlocks = await buildJarvisMemoryBlocks({
+          tenantId,
+          clientId,
+          memories: [
+            decision.primaryMemory,
+            ...decision.secondaryMemories.filter((memory): memory is any => memory === 'client_memory' || memory === 'operations_memory'),
+          ],
+          maxBlocks: decision.retrievalBudget.contextBlocks,
+        });
+        const memoryFabric = formatJarvisMemoryBlocks(memoryBlocks);
         const toolCtx: OperationsToolContext = { tenantId, userId: userId ?? undefined, userEmail };
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
-            systemPrompt: buildOperationsSystemPrompt(),
+            systemPrompt: buildOperationsSystemPrompt(memoryFabric),
             tools: getOperationsToolDefinitions(),
             provider: resolvedProvider,
             toolContext: toolCtx,
@@ -110,6 +123,54 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
         toolsUsed = loopResult.toolCallsExecuted ?? 0;
+        const loadedMemoryBlocks = memoryBlocks.map((block) => block.label);
+        const durationMs = Date.now() - startMs;
+        const observability = buildJarvisObservability(decision, {
+          durationMs,
+          toolsUsed,
+          provider: resultProvider,
+          model: resultModel,
+          loadedMemoryBlocks,
+        });
+        const savedConversationId = await saveUnifiedConversation({
+          route: decision.route,
+          tenantId,
+          edroClientId,
+          userId,
+          conversationId: body.conversationId,
+          message: body.message,
+          assistantContent: finalText,
+          provider: resultProvider || body.provider,
+          observability,
+          artifacts,
+        }).catch(() => body.conversationId || null);
+
+        request.log?.info({
+          event: 'jarvis_chat_completed',
+          clientId,
+          conversationId: savedConversationId,
+          attachmentCount: body.inline_attachments?.length ?? 0,
+          artifactsCount: artifacts.length,
+          ...observability,
+        });
+
+        return reply.send({
+          success: true,
+          data: {
+            response: finalText,
+            provider: resultProvider,
+            model: resultModel,
+            conversationId: savedConversationId,
+            artifacts,
+            intent: decision.intent,
+            route: decision.route,
+            primaryMemory: decision.primaryMemory,
+            secondaryMemories: decision.secondaryMemories,
+            retrievalBudget: decision.retrievalBudget,
+            durationMs,
+            observability,
+          },
+        });
       } else {
         const [clientContext, psychContext, perfContext] = await Promise.race([
           Promise.all([
@@ -127,10 +188,22 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           userId: userId ?? undefined,
           userEmail,
         };
+        const memoryBlocks = await buildJarvisMemoryBlocks({
+          tenantId,
+          clientId,
+          memories: decision.secondaryMemories.filter((memory): memory is any =>
+            memory === 'operations_memory'
+            || memory === 'canon_edro'
+            || memory === 'reference_memory'
+            || memory === 'trend_memory'
+          ),
+          maxBlocks: decision.retrievalBudget.contextBlocks,
+        });
+        const memoryFabric = formatJarvisMemoryBlocks(memoryBlocks);
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
-            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext),
+            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric),
             tools: getAllToolDefinitions(),
             provider: resolvedProvider,
             toolContext: toolCtx,
@@ -149,55 +222,60 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         artifacts = (loopResult.toolResults ?? [])
           .filter((result) => result.success && result.data)
           .map((result) => ({ type: result.toolName, ...result.data }));
-      }
 
-      const durationMs = Date.now() - startMs;
-      const observability = buildJarvisObservability(decision, {
-        durationMs,
-        toolsUsed,
-        provider: resultProvider,
-        model: resultModel,
-      });
-
-      const savedConversationId = await saveUnifiedConversation({
-        route: decision.route,
-        tenantId,
-        edroClientId,
-        userId,
-        conversationId: body.conversationId,
-        message: body.message,
-        assistantContent: finalText,
-        provider: resultProvider || body.provider,
-        observability,
-        artifacts,
-      }).catch(() => body.conversationId || null);
-
-      request.log?.info({
-        event: 'jarvis_chat_completed',
-        clientId,
-        conversationId: savedConversationId,
-        attachmentCount: body.inline_attachments?.length ?? 0,
-        artifactsCount: artifacts.length,
-        ...observability,
-      });
-
-      return reply.send({
-        success: true,
-        data: {
-          response: finalText,
+        const durationMs = Date.now() - startMs;
+        const observability = buildJarvisObservability(decision, {
+          durationMs,
+          toolsUsed,
           provider: resultProvider,
           model: resultModel,
-          conversationId: savedConversationId,
-          artifacts,
-          intent: decision.intent,
+          loadedMemoryBlocks: [
+            ...(clientContext.trim() ? ['Memória do cliente'] : []),
+            ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
+            ...memoryBlocks.map((block) => block.label),
+          ],
+        });
+
+        const savedConversationId = await saveUnifiedConversation({
           route: decision.route,
-          primaryMemory: decision.primaryMemory,
-          secondaryMemories: decision.secondaryMemories,
-          retrievalBudget: decision.retrievalBudget,
-          durationMs,
+          tenantId,
+          edroClientId,
+          userId,
+          conversationId: body.conversationId,
+          message: body.message,
+          assistantContent: finalText,
+          provider: resultProvider || body.provider,
           observability,
-        },
-      });
+          artifacts,
+        }).catch(() => body.conversationId || null);
+
+        request.log?.info({
+          event: 'jarvis_chat_completed',
+          clientId,
+          conversationId: savedConversationId,
+          attachmentCount: body.inline_attachments?.length ?? 0,
+          artifactsCount: artifacts.length,
+          ...observability,
+        });
+
+        return reply.send({
+          success: true,
+          data: {
+            response: finalText,
+            provider: resultProvider,
+            model: resultModel,
+            conversationId: savedConversationId,
+            artifacts,
+            intent: decision.intent,
+            route: decision.route,
+            primaryMemory: decision.primaryMemory,
+            secondaryMemories: decision.secondaryMemories,
+            retrievalBudget: decision.retrievalBudget,
+            durationMs,
+            observability,
+          },
+        });
+      }
     } catch (err: any) {
       const elapsed = Date.now() - startMs;
       request.log?.error({

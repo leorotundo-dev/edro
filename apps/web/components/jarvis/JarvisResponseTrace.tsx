@@ -24,6 +24,7 @@ export type JarvisObservability = {
   toolsUsed?: number;
   provider?: string;
   model?: string;
+  loadedMemoryBlocks?: string[];
 };
 
 function formatDuration(value?: number) {
@@ -73,6 +74,11 @@ export default function JarvisResponseTrace({ observability }: { observability?:
       {observability.sourceLabels.secondary.length ? (
         <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary' }}>
           Apoios: {observability.sourceLabels.secondary.join(' + ')}
+        </Typography>
+      ) : null}
+      {observability.loadedMemoryBlocks?.length ? (
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+          Carregou: {observability.loadedMemoryBlocks.join(' + ')}
         </Typography>
       ) : null}
     </Box>

@@ -25,6 +25,7 @@ import {
   loadUnifiedConversationHistory,
   saveUnifiedConversation,
 } from '../services/jarvisPolicyService';
+import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 
 const allocationSchema = z.object({
   job_id: z.string().uuid(),
@@ -198,7 +199,12 @@ export default async function operationsRoutes(app: FastifyInstance) {
       { role: 'user' as const, content: body.message },
     ];
 
-    const systemPrompt = buildOperationsSystemPrompt();
+    const memoryBlocks = await buildJarvisMemoryBlocks({
+      tenantId,
+      memories: [decision.primaryMemory, ...decision.secondaryMemories.filter((memory): memory is any => memory === 'client_memory' || memory === 'operations_memory')],
+      maxBlocks: decision.retrievalBudget.contextBlocks,
+    });
+    const systemPrompt = buildOperationsSystemPrompt(formatJarvisMemoryBlocks(memoryBlocks));
 
     try {
       const agentTimeout = new Promise<never>((_, reject) =>
@@ -234,6 +240,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
           toolsUsed: loopResult.toolCallsExecuted,
           provider: loopResult.provider,
           model: loopResult.model,
+          loadedMemoryBlocks: memoryBlocks.map((block) => block.label),
         }),
       }).catch(() => body.conversationId || null);
 
@@ -243,6 +250,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
         toolsUsed: loopResult.toolCallsExecuted,
         provider: loopResult.provider,
         model: loopResult.model,
+        loadedMemoryBlocks: memoryBlocks.map((block) => block.label),
       });
       request.log?.info({
         event: 'operations_chat_completed',
@@ -283,7 +291,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
   });
 }
 
-export function buildOperationsSystemPrompt(): string {
+export function buildOperationsSystemPrompt(memoryFabric?: string): string {
   return `Você é o Jarvis — diretor de operações da agência EDRO, com controle total sobre a central de operações.
 Você gerencia jobs, alocações, prazos, status, riscos e sinais operacionais.
 
@@ -314,5 +322,6 @@ REGRAS DE OPERAÇÃO
 - Seja direto e operacional — entregue resultado, não instruções
 - Confirme ações realizadas com detalhes (ex: "Job 'Post Instagram Ciclus' movido de in_progress → in_review")
 - Quando listar jobs, formate como tabela ou lista organizada com cliente, status e prazo
-- Use emojis para status: 🔴 bloqueado/atrasado 🟡 em risco 🟢 em dia ⚪ não iniciado`;
+- Use emojis para status: 🔴 bloqueado/atrasado 🟡 em risco 🟢 em dia ⚪ não iniciado
+${memoryFabric ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nMEMÓRIAS CANÔNICAS CARREGADAS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${memoryFabric}` : ''}`;
 }
