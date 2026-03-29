@@ -397,6 +397,34 @@ export const TOOLS: ToolDefinition[] = [
     required: [],
     category: 'read',
   },
+  {
+    name: 'retrieve_client_evidence',
+    description: 'Recupera evidências concretas sobre o cliente a partir de reuniões, chat de reunião, WhatsApp, digests e documentos do cliente. Use para perguntas como "o que a cliente falou", "o que foi decidido", "quais evidências sustentam isso".',
+    parameters: {
+      question: { type: 'string', description: 'Pergunta ou assunto a investigar nas memórias do cliente' },
+      source_types: { type: 'array', description: 'Fontes opcionais para restringir a busca: meeting, meeting_chat, whatsapp_message, whatsapp_insight, whatsapp_digest, client_document', items: { type: 'string' } },
+      days_back: { type: 'number', description: 'Janela de dias a investigar (padrão 30, máximo 90)' },
+      limit: { type: 'number', description: 'Máximo de evidências a retornar (padrão 8, máximo 12)' },
+    },
+    required: ['question'],
+    category: 'read',
+  },
+  {
+    name: 'create_post_pipeline',
+    description: 'Cria um post de ponta a ponta para o cliente atual: cria o briefing, gera a copy principal, orquestra a direção de arte e opcionalmente já gera um link de aprovação. Use quando o usuário disser "cria um post pra mim" ou pedir um post pronto para produção.',
+    parameters: {
+      request: { type: 'string', description: 'Pedido completo do usuário para o post, incluindo tema, objetivo ou contexto' },
+      title: { type: 'string', description: 'Título opcional do briefing/post' },
+      objective: { type: 'string', description: 'Objetivo do post (ex: engajamento, awareness, conversão)' },
+      platform: { type: 'string', description: 'Plataforma alvo (instagram, linkedin, tiktok, facebook, youtube)' },
+      format: { type: 'string', description: 'Formato do conteúdo (post, reels, stories, carousel, video)' },
+      deadline: { type: 'string', description: 'Prazo opcional no formato YYYY-MM-DD' },
+      language: { type: 'string', description: 'Idioma da copy (padrão pt)', enum: ['pt', 'en', 'es'] },
+      generate_approval_link: { type: 'boolean', description: 'Se true, gera também um link de aprovação externa para o briefing' },
+    },
+    required: ['request'],
+    category: 'action',
+  },
   // ── Web ──
   {
     name: 'web_search',

@@ -226,8 +226,9 @@ export async function saveUnifiedConversation(params: {
   assistantContent: string;
   provider: string;
   observability?: JarvisObservability | null;
+  artifacts?: Array<Record<string, any>> | null;
 }): Promise<string | null> {
-  const { route, tenantId, edroClientId, userId, conversationId, message, assistantContent, provider, observability } = params;
+  const { route, tenantId, edroClientId, userId, conversationId, message, assistantContent, provider, observability, artifacts } = params;
 
   const messagesPayload = [
     { role: 'user', content: message, timestamp: new Date().toISOString() },
@@ -236,7 +237,7 @@ export async function saveUnifiedConversation(params: {
       content: assistantContent,
       timestamp: new Date().toISOString(),
       provider,
-      metadata: observability ? { observability } : undefined,
+      metadata: observability || artifacts?.length ? { observability, artifacts: artifacts || [] } : undefined,
     },
   ];
 

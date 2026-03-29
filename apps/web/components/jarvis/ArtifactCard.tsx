@@ -8,7 +8,7 @@ import Link from 'next/link';
 import {
   IconFileText, IconLink, IconCircleCheck, IconBulb,
   IconRss, IconChartBar, IconSparkles, IconArchive,
-  IconCalendar, IconBrain, IconExternalLink, IconCopy,
+  IconCalendar, IconBrain, IconExternalLink, IconCopy, IconMessageSearch,
 } from '@tabler/icons-react';
 
 export type Artifact = {
@@ -42,6 +42,8 @@ const ARTIFACT_MAP: Record<string, ArtifactMeta> = {
   add_clipping_source:       { icon: IconRss,          label: 'Fonte de monitoramento adicionada', color: '#10B981' },
   add_calendar_event:        { icon: IconCalendar,     label: 'Evento adicionado ao calendário', color: '#F59E0B' },
   create_campaign:           { icon: IconSparkles,     label: 'Campanha criada',                color: '#8B5CF6' },
+  retrieve_client_evidence:  { icon: IconMessageSearch,label: 'Evidências recuperadas',         color: '#0EA5E9' },
+  create_post_pipeline:      { icon: IconSparkles,     label: 'Pipeline de post criado',        color: '#E85219' },
 };
 
 type Props = { artifact: Artifact; clientId?: string | null };
@@ -61,6 +63,7 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
     : null;
 
   const copyValue = artifact.approvalUrl ?? null;
+  const evidenceItems = Array.isArray(artifact.evidence) ? artifact.evidence.slice(0, 3) : [];
 
   return (
     <Box
@@ -86,6 +89,20 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, lineHeight: 1.4, fontSize: '0.68rem' }}>
             {subtitle.length > 80 ? subtitle.slice(0, 80) + '…' : subtitle}
           </Typography>
+        )}
+        {artifact.type === 'create_post_pipeline' && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45, fontSize: '0.68rem' }}>
+            {artifact.briefing_title ? `${artifact.briefing_title} · ` : ''}{artifact.platform || ''}{artifact.format ? ` · ${artifact.format}` : ''}
+          </Typography>
+        )}
+        {artifact.type === 'retrieve_client_evidence' && evidenceItems.length > 0 && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+            {evidenceItems.map((item: any, index: number) => (
+              <Typography key={`${item.source_id || index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                {item.source_label}: {item.title}
+              </Typography>
+            ))}
+          </Box>
         )}
       </Box>
       {href && (

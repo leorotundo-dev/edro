@@ -269,6 +269,7 @@ export default function JarvisChatPanel() {
         role: m.role,
         content: m.content,
         timestamp: m.timestamp ?? new Date().toISOString(),
+        artifacts: Array.isArray(m.metadata?.artifacts) && m.metadata.artifacts.length ? m.metadata.artifacts : undefined,
         observability: m.metadata?.observability ?? null,
       })));
     }).catch(() => {});

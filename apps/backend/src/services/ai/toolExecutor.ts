@@ -25,6 +25,7 @@ import { auditDraftContent } from './agentAuditor';
 import { tagCopy } from './agentTagger';
 import { loadBehaviorProfiles, recomputeClientBehaviorProfiles } from '../behaviorClusteringService';
 import { loadLearningRules, recomputeClientLearningRules } from '../learningEngine';
+import { orchestrateCreative } from './artDirectorOrchestrator';
 import { createLibraryItem } from '../../library/libraryRepo';
 import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
@@ -57,13 +58,39 @@ export type ToolResult = {
 };
 
 const MAX_RESULT_CHARS = 4000;
+const CLIENT_EVIDENCE_SOURCE_TYPES = [
+  'meeting',
+  'meeting_chat',
+  'whatsapp_message',
+  'whatsapp_insight',
+  'whatsapp_digest',
+  'client_document',
+] as const;
+
+type ClientEvidenceSourceType = typeof CLIENT_EVIDENCE_SOURCE_TYPES[number];
 
 function truncateResult(result: ToolResult): ToolResult {
   const json = JSON.stringify(result.data);
   if (json && json.length > MAX_RESULT_CHARS) {
+    const truncateValue = (value: any, depth = 0): any => {
+      if (value == null) return value;
+      if (typeof value === 'string') {
+        return value.length > 280 ? `${value.slice(0, 279)}…` : value;
+      }
+      if (typeof value !== 'object') return value;
+      if (depth >= 2) return '[truncated]';
+      if (Array.isArray(value)) {
+        return value.slice(0, 6).map((item) => truncateValue(item, depth + 1));
+      }
+      return Object.fromEntries(
+        Object.entries(value)
+          .slice(0, 16)
+          .map(([key, nested]) => [key, truncateValue(nested, depth + 1)]),
+      );
+    };
     return {
       ...result,
-      data: JSON.parse(json.slice(0, MAX_RESULT_CHARS - 50) + '..."]}'),
+      data: truncateValue(result.data),
       metadata: { ...result.metadata, truncated: true },
     };
   }
@@ -79,6 +106,94 @@ function safeData(data: any, maxItems = 10): any {
     };
   }
   return data;
+}
+
+function normalizeCreativePlatform(platform?: string | null) {
+  const value = String(platform || '').trim().toLowerCase();
+  if (!value) return 'Instagram';
+  if (value === 'linkedin') return 'LinkedIn';
+  if (value === 'tiktok') return 'TikTok';
+  if (value === 'facebook') return 'Facebook';
+  if (value === 'youtube') return 'YouTube';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function normalizeCreativeFormat(format?: string | null) {
+  const value = String(format || '').trim().toLowerCase();
+  if (!value || value === 'post' || value === 'feed') return 'Feed 1:1';
+  if (value.includes('reels') || value.includes('reel')) return 'Reels 9:16';
+  if (value.includes('stories') || value.includes('story')) return 'Story 9:16';
+  if (value.includes('carousel') || value.includes('carrossel')) return 'Carousel 1:1';
+  if (value.includes('video')) return 'Video 16:9';
+  return format || 'Feed 1:1';
+}
+
+function deriveBriefingTitleFromRequest(request: string, explicitTitle?: string | null) {
+  const trimmed = String(explicitTitle || '').trim();
+  if (trimmed) return trimmed.slice(0, 140);
+  const normalized = String(request || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return 'Novo post';
+  const sentence = normalized.split(/[.!?]/)[0]?.trim() || normalized;
+  return sentence.slice(0, 140);
+}
+
+function tokenizeEvidenceQuestion(question: string) {
+  const stopwords = new Set([
+    'a', 'o', 'os', 'as', 'de', 'do', 'da', 'das', 'dos', 'e', 'em', 'no', 'na', 'nos', 'nas',
+    'um', 'uma', 'uns', 'umas', 'que', 'como', 'qual', 'quais', 'pra', 'para', 'com', 'sem',
+    'foi', 'sao', 'são', 'por', 'sobre', 'cliente', 'jarvis', 'falou', 'disse', 'pediu', 'falando',
+    'reuniao', 'reunião', 'whatsapp', 'zap',
+  ]);
+  const tokens = question
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopwords.has(token));
+  return Array.from(new Set(tokens)).slice(0, 8);
+}
+
+function scoreEvidence(questionTokens: string[], haystack: string, occurredAt?: string | null) {
+  const normalized = String(haystack || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  let score = 0;
+  for (const token of questionTokens) {
+    if (normalized.includes(token)) score += 5;
+  }
+
+  if (occurredAt) {
+    const timestamp = new Date(occurredAt).getTime();
+    if (!Number.isNaN(timestamp)) {
+      const daysAgo = (Date.now() - timestamp) / 86400000;
+      if (daysAgo <= 7) score += 3;
+      else if (daysAgo <= 30) score += 1;
+    }
+  }
+
+  return score;
+}
+
+function buildEvidenceExcerpt(value: string | null | undefined, maxChars = 280) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
+}
+
+function getToolTimeoutMs(toolName: string) {
+  switch (toolName) {
+    case 'create_post_pipeline':
+      return 45000;
+    case 'generate_campaign_strategy':
+    case 'generate_behavioral_copy':
+      return 20000;
+    default:
+      return 10000;
+  }
 }
 
 // ── Main Dispatcher ────────────────────────────────────────────
@@ -118,6 +233,8 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   search_client_content: toolSearchClientContent,
   list_client_sources: toolListClientSources,
   get_client_insights: toolGetClientInsights,
+  retrieve_client_evidence: toolRetrieveClientEvidence,
+  create_post_pipeline: toolCreatePostPipeline,
   web_search: toolWebSearch,
   web_extract: toolWebExtract,
   web_research: toolWebResearch,
@@ -174,10 +291,11 @@ export async function executeTool(
     return { success: false, error: `Tool '${toolName}' not found` };
   }
   try {
+    const timeoutMs = getToolTimeoutMs(toolName);
     const result = await Promise.race([
       handler(args, ctx),
       new Promise<ToolResult>((_, reject) =>
-        setTimeout(() => reject(new Error('TOOL_TIMEOUT_10s')), 10000),
+        setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
     return truncateResult(result);
@@ -1319,6 +1437,361 @@ async function toolGetClientInsights(args: any, ctx: ToolContext): Promise<ToolR
       period: insight.period,
       created_at: insight.created_at,
       summary: insight.summary,
+    },
+  };
+}
+
+async function toolRetrieveClientEvidence(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const question = String(args.question || '').trim();
+  if (!question) return { success: false, error: 'question é obrigatória.' };
+
+  const daysBack = Math.min(args.days_back ?? 30, 90);
+  const limit = Math.min(args.limit ?? 8, 12);
+  const requestedSourceTypes = Array.isArray(args.source_types)
+    ? args.source_types.map((value: any) => String(value || '').trim())
+    : [];
+  const sourceTypes = requestedSourceTypes.length
+    ? requestedSourceTypes.filter((value): value is ClientEvidenceSourceType => CLIENT_EVIDENCE_SOURCE_TYPES.includes(value as ClientEvidenceSourceType))
+    : [...CLIENT_EVIDENCE_SOURCE_TYPES];
+
+  const tokens = tokenizeEvidenceQuestion(question);
+  const hasTokenFilter = tokens.length > 0;
+  const sourceSet = new Set<ClientEvidenceSourceType>(sourceTypes);
+  const evidence: Array<Record<string, any>> = [];
+
+  if (sourceSet.has('meeting')) {
+    const { rows } = await query<any>(
+      `SELECT id, title, summary, transcript, recorded_at
+         FROM meetings
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND recorded_at > NOW() - make_interval(days => $3)
+        ORDER BY recorded_at DESC
+        LIMIT 25`,
+      [ctx.tenantId, ctx.clientId, daysBack],
+    );
+    for (const row of rows) {
+      const haystack = [row.title, row.summary, row.transcript].filter(Boolean).join(' \n ');
+      const score = scoreEvidence(tokens, haystack, row.recorded_at);
+      if (hasTokenFilter && score <= 0) continue;
+      evidence.push({
+        source_type: 'meeting',
+        source_label: 'Reunião',
+        source_id: row.id,
+        title: row.title || 'Reunião',
+        excerpt: buildEvidenceExcerpt(row.summary || row.transcript),
+        occurred_at: row.recorded_at,
+        score,
+      });
+    }
+  }
+
+  if (sourceSet.has('meeting_chat')) {
+    const { rows } = await query<any>(
+      `SELECT mcm.id,
+              mcm.sender_name,
+              mcm.message_text,
+              mcm.sent_at,
+              m.title AS meeting_title
+         FROM meeting_chat_messages mcm
+         JOIN meetings m ON m.id = mcm.meeting_id
+        WHERE mcm.tenant_id = $1
+          AND mcm.client_id = $2
+          AND COALESCE(mcm.sent_at, mcm.created_at) > NOW() - make_interval(days => $3)
+        ORDER BY COALESCE(mcm.sent_at, mcm.created_at) DESC
+        LIMIT 40`,
+      [ctx.tenantId, ctx.clientId, daysBack],
+    );
+    for (const row of rows) {
+      const haystack = [row.meeting_title, row.sender_name, row.message_text].filter(Boolean).join(' \n ');
+      const score = scoreEvidence(tokens, haystack, row.sent_at);
+      if (hasTokenFilter && score <= 0) continue;
+      evidence.push({
+        source_type: 'meeting_chat',
+        source_label: 'Chat da reunião',
+        source_id: row.id,
+        title: row.meeting_title ? `${row.meeting_title} · ${row.sender_name || 'Participante'}` : (row.sender_name || 'Chat da reunião'),
+        excerpt: buildEvidenceExcerpt(row.message_text),
+        occurred_at: row.sent_at,
+        score,
+      });
+    }
+  }
+
+  if (sourceSet.has('whatsapp_message')) {
+    const { rows } = await query<any>(
+      `SELECT wgm.id,
+              wg.group_name,
+              wgm.sender_name,
+              wgm.content,
+              wgm.created_at
+         FROM whatsapp_group_messages wgm
+         JOIN whatsapp_groups wg ON wg.id = wgm.group_id
+        WHERE wgm.tenant_id = $1
+          AND wg.client_id = $2
+          AND wgm.created_at > NOW() - make_interval(days => $3)
+        ORDER BY wgm.created_at DESC
+        LIMIT 40`,
+      [ctx.tenantId, ctx.clientId, daysBack],
+    );
+    for (const row of rows) {
+      const haystack = [row.group_name, row.sender_name, row.content].filter(Boolean).join(' \n ');
+      const score = scoreEvidence(tokens, haystack, row.created_at);
+      if (hasTokenFilter && score <= 0) continue;
+      evidence.push({
+        source_type: 'whatsapp_message',
+        source_label: 'WhatsApp',
+        source_id: row.id,
+        title: `${row.group_name || 'Grupo'} · ${row.sender_name || 'Contato'}`,
+        excerpt: buildEvidenceExcerpt(row.content),
+        occurred_at: row.created_at,
+        score,
+      });
+    }
+  }
+
+  if (sourceSet.has('whatsapp_insight')) {
+    const { rows } = await query<any>(
+      `SELECT id, insight_type, summary, sentiment, urgency, created_at
+         FROM whatsapp_message_insights
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND created_at > NOW() - make_interval(days => $3)
+        ORDER BY created_at DESC
+        LIMIT 25`,
+      [ctx.tenantId, ctx.clientId, daysBack],
+    );
+    for (const row of rows) {
+      const haystack = [row.insight_type, row.summary, row.sentiment, row.urgency].filter(Boolean).join(' \n ');
+      const score = scoreEvidence(tokens, haystack, row.created_at);
+      if (hasTokenFilter && score <= 0) continue;
+      evidence.push({
+        source_type: 'whatsapp_insight',
+        source_label: 'Insight de WhatsApp',
+        source_id: row.id,
+        title: `Insight · ${row.insight_type || 'mensagem'}`,
+        excerpt: buildEvidenceExcerpt(row.summary),
+        occurred_at: row.created_at,
+        score,
+      });
+    }
+  }
+
+  if (sourceSet.has('whatsapp_digest')) {
+    const { rows } = await query<any>(
+      `SELECT id, period, summary, key_decisions, pending_actions, created_at
+         FROM whatsapp_group_digests
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND created_at > NOW() - make_interval(days => $3)
+        ORDER BY created_at DESC
+        LIMIT 20`,
+      [ctx.tenantId, ctx.clientId, daysBack],
+    );
+    for (const row of rows) {
+      const haystack = [row.period, row.summary, JSON.stringify(row.key_decisions || []), JSON.stringify(row.pending_actions || [])].join(' \n ');
+      const score = scoreEvidence(tokens, haystack, row.created_at);
+      if (hasTokenFilter && score <= 0) continue;
+      evidence.push({
+        source_type: 'whatsapp_digest',
+        source_label: 'Digest de WhatsApp',
+        source_id: row.id,
+        title: `Digest ${row.period || ''}`.trim(),
+        excerpt: buildEvidenceExcerpt(row.summary),
+        occurred_at: row.created_at,
+        score,
+      });
+    }
+  }
+
+  if (sourceSet.has('client_document')) {
+    const docs = await listClientDocuments({ tenantId: ctx.tenantId, clientId: ctx.clientId, limit: 40 });
+    for (const doc of docs) {
+      const occurredAt = doc.published_at || doc.created_at || null;
+      if (occurredAt) {
+        const timestamp = new Date(occurredAt).getTime();
+        if (!Number.isNaN(timestamp) && (Date.now() - timestamp) / 86400000 > daysBack) continue;
+      }
+      const haystack = [doc.title, doc.content_excerpt, doc.content_text, doc.url].filter(Boolean).join(' \n ');
+      const score = scoreEvidence(tokens, haystack, occurredAt);
+      if (hasTokenFilter && score <= 0) continue;
+      evidence.push({
+        source_type: 'client_document',
+        source_label: 'Documento do cliente',
+        source_id: doc.id,
+        title: doc.title || doc.url || 'Documento do cliente',
+        excerpt: buildEvidenceExcerpt(doc.content_excerpt || doc.content_text),
+        occurred_at: occurredAt,
+        score,
+      });
+    }
+  }
+
+  const sortedEvidence = evidence
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      return new Date(right.occurred_at || 0).getTime() - new Date(left.occurred_at || 0).getTime();
+    })
+    .slice(0, limit)
+    .map((item) => ({
+      source_type: item.source_type,
+      source_label: item.source_label,
+      source_id: item.source_id,
+      title: item.title,
+      excerpt: item.excerpt,
+      occurred_at: item.occurred_at,
+    }));
+
+  return {
+    success: true,
+    data: {
+      message: sortedEvidence.length
+        ? `${sortedEvidence.length} evidências recuperadas para a pergunta.`
+        : 'Nenhuma evidência relevante encontrada no recorte atual.',
+      question,
+      searched_sources: sourceTypes,
+      total: sortedEvidence.length,
+      evidence: sortedEvidence,
+    },
+    metadata: { row_count: sortedEvidence.length },
+  };
+}
+
+async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (!ctx.edroClientId) return { success: false, error: 'Client not found in edro_clients' };
+
+  const requestText = String(args.request || '').trim();
+  if (!requestText) return { success: false, error: 'request é obrigatória.' };
+
+  const client = await getClientById(ctx.tenantId, ctx.clientId);
+  if (!client) return { success: false, error: 'Cliente não encontrado.' };
+
+  const platform = String(args.platform || 'instagram').trim().toLowerCase();
+  const format = String(args.format || 'post').trim();
+  const briefingTitle = deriveBriefingTitleFromRequest(requestText, args.title);
+  const objective = String(args.objective || 'engajamento').trim();
+  const language = String(args.language || 'pt').trim();
+
+  const briefing = await createBriefing({
+    clientId: ctx.edroClientId,
+    title: briefingTitle,
+    payload: {
+      objective,
+      platform,
+      format,
+      notes: requestText,
+      source: 'jarvis_create_post_pipeline',
+    },
+    createdBy: ctx.userEmail ?? null,
+    dueAt: args.deadline ? new Date(args.deadline) : null,
+    source: 'jarvis_create_post_pipeline',
+  });
+  await createBriefingStages(briefing.id, ctx.userEmail ?? null).catch(() => {});
+
+  const latestInsight = await getLatestClientInsight({ tenantId: ctx.tenantId, clientId: ctx.clientId }).catch(() => null);
+  const recentDocs = await listClientDocuments({ tenantId: ctx.tenantId, clientId: ctx.clientId, limit: 8 }).catch(() => []);
+  const recentSocialPosts = recentDocs
+    .filter((doc) => String(doc.source_type || '') === 'social')
+    .slice(0, 3)
+    .map((doc) => buildEvidenceExcerpt(doc.content_excerpt || doc.content_text, 160));
+
+  const copyPrompt = [
+    `Cliente: ${client.name}`,
+    client.segment_primary ? `Segmento: ${client.segment_primary}` : null,
+    `Pedido do usuário: ${requestText}`,
+    `Objetivo: ${objective}`,
+    `Plataforma: ${platform}`,
+    `Formato: ${format}`,
+    latestInsight?.summary?.summary_text ? `Insight atual: ${latestInsight.summary.summary_text}` : null,
+    recentSocialPosts.length ? `Posts recentes para não repetir: ${recentSocialPosts.join(' | ')}` : null,
+    `Gere uma única peça pronta para produção em ${language}.`,
+    'Entregue obrigatoriamente: HEADLINE, CORPO, CTA e LEGENDA/CAPTION final.',
+  ].filter(Boolean).join('\n');
+
+  const copyResult = await generateCopy({
+    prompt: copyPrompt,
+    taskType: 'social_post',
+  });
+
+  const copyVersion = await createCopyVersion({
+    briefingId: briefing.id,
+    language,
+    model: copyResult.model,
+    prompt: copyPrompt,
+    output: copyResult.output,
+    payload: copyResult.payload,
+    createdBy: ctx.userEmail ?? null,
+  });
+
+  const profile = (client as any).profile || {};
+  const brandColors = Array.isArray(profile.brand_colors) ? profile.brand_colors : [];
+  const brandTokens = profile.brand_tokens || null;
+  let learningContext = '';
+  try {
+    const rules = await loadLearningRules(ctx.tenantId, ctx.clientId);
+    if (rules.length) {
+      learningContext = rules
+        .sort((left: any, right: any) => Number(right.uplift_value || 0) - Number(left.uplift_value || 0))
+        .slice(0, 5)
+        .map((rule: any) => `• ${rule.effective_pattern} (↑${Number(rule.uplift_value || 0).toFixed(1)}% ${rule.uplift_metric})`)
+        .join('\n');
+    }
+  } catch {
+    learningContext = '';
+  }
+
+  const orchestrated = await orchestrateCreative({
+    copy: copyResult.output,
+    brand: {
+      name: client.name,
+      segment: client.segment_primary || '',
+      primaryColor: brandColors[0] || '',
+    },
+    format: normalizeCreativeFormat(format),
+    platform: normalizeCreativePlatform(platform),
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    learningContext,
+    brandTokens,
+  });
+
+  let approvalUrl: string | null = null;
+  if (args.generate_approval_link !== false) {
+    const approvalResult = await toolGenerateApprovalLink({
+      briefing_id: briefing.id,
+      client_name: client.name,
+      expires_in_days: 7,
+    }, ctx);
+    approvalUrl = approvalResult.success ? approvalResult.data?.approvalUrl || null : null;
+  }
+
+  return {
+    success: true,
+    data: {
+      message: `Pipeline criativo montado para ${client.name}: briefing, copy e direção de arte.`,
+      briefing_id: briefing.id,
+      briefing_title: briefing.title,
+      copy_id: copyVersion.id,
+      platform,
+      format,
+      copy_preview: buildEvidenceExcerpt(copyResult.output, 520),
+      visual_strategy: orchestrated.visualStrategy
+        ? {
+            intent: orchestrated.visualStrategy.intent,
+            strategy_summary: orchestrated.visualStrategy.strategySummary,
+            reference_movements: orchestrated.visualStrategy.referenceMovements,
+          }
+        : null,
+      layout: {
+        eyebrow: orchestrated.layout.eyebrow,
+        headline: orchestrated.layout.headline,
+        cta: orchestrated.layout.cta,
+      },
+      image_prompt_preview: buildEvidenceExcerpt(orchestrated.imgPrompt.positive, 320),
+      approvalUrl,
+      next_step: approvalUrl
+        ? 'Copy, direção de arte e link de aprovação já foram preparados.'
+        : 'Copy e direção de arte já foram preparados. Gere o link de aprovação quando quiser enviar ao cliente.',
     },
   };
 }

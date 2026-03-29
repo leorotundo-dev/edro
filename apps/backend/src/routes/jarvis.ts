@@ -169,6 +169,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         assistantContent: finalText,
         provider: resultProvider || body.provider,
         observability,
+        artifacts,
       }).catch(() => body.conversationId || null);
 
       request.log?.info({
