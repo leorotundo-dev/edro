@@ -4,6 +4,11 @@ import { estimateTokens, logAiUsage } from './aiUsageLogger';
 import { isTavilyConfigured, tavilySearch } from '../tavilyService';
 import { CORE_ART_DIRECTION_CONCEPTS } from './artDirectionCoreConcepts';
 import { EDRO_DA_CANON_SEED, resolveCanonCurriculumModule } from './artDirectionKnowledgeLibrarySeed';
+import {
+  EDRO_DA_IA_CANONICAL_FRAMEWORK,
+  buildArtDirectionCanonicalCritiqueBlock,
+  buildArtDirectionCanonicalDoctrineBlock,
+} from './artDirectionCanonicalFramework';
 
 type JsonArray = string[];
 
@@ -229,6 +234,8 @@ export type ArtDirectionMemoryContext = {
   promptBlock: string;
   critiqueBlock: string;
 };
+
+export type ArtDirectionCanonicalFrameworkPayload = typeof EDRO_DA_IA_CANONICAL_FRAMEWORK;
 
 export type ArtDirectionCanonEntrySummary = {
   id: string;
@@ -2261,6 +2268,7 @@ export async function buildArtDirectionMemoryContext(params: {
   );
 
   const promptSections = [
+    buildArtDirectionCanonicalDoctrineBlock(),
     canonLines.length
       ? `BIBLIOTECA DE CONHECIMENTO DA EDRO:\n${canonLines.join('\n')}`
       : conceptLines.length
@@ -2271,6 +2279,7 @@ export async function buildArtDirectionMemoryContext(params: {
   ].filter(Boolean);
 
   const critiqueSections = [
+    buildArtDirectionCanonicalCritiqueBlock(),
     canonEntries.length
       ? `REGRAS EXTRAS DE CRÍTICA DA BIBLIOTECA:\n${canonEntries.map((entry) => `- ${entry.title}: ${formatList(entry.critique_checks, 3) || formatList(entry.heuristics, 2)}`).join('\n')}`
       : concepts.length
@@ -2288,4 +2297,8 @@ export async function buildArtDirectionMemoryContext(params: {
     promptBlock: promptSections.join('\n\n'),
     critiqueBlock: critiqueSections.join('\n\n'),
   };
+}
+
+export function getArtDirectionCanonicalFramework(): ArtDirectionCanonicalFrameworkPayload {
+  return EDRO_DA_IA_CANONICAL_FRAMEWORK;
 }

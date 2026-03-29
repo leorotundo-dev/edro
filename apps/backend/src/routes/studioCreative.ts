@@ -17,6 +17,7 @@ import {
   buildArtDirectionMemoryContext,
   createManualArtDirectionReference,
   discoverArtDirectionReferences,
+  getArtDirectionCanonicalFramework,
   getArtDirectionMemoryStats,
   getArtDirectionReferencePreview,
   getPrimaryArtDirectionReferenceId,
@@ -527,7 +528,19 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         segment: input.segment,
       });
 
-      return reply.send({ success: true, memory, concepts, canons, references, pendingReferences, rejectedReferences, sources, trends, stats });
+      return reply.send({
+        success: true,
+        memory,
+        framework: getArtDirectionCanonicalFramework(),
+        concepts,
+        canons,
+        references,
+        pendingReferences,
+        rejectedReferences,
+        sources,
+        trends,
+        stats,
+      });
     } catch (error: any) {
       request.log.error({ error }, '[studio/creative/da-memory] failed');
       const message = String(error?.message || '');
@@ -547,6 +560,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
             promptBlock: '',
             critiqueBlock: '',
           },
+          framework: getArtDirectionCanonicalFramework(),
           concepts: [],
           canons: [],
           references: [],

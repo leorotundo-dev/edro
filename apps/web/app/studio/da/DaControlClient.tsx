@@ -141,6 +141,37 @@ type MemoryStats = {
   };
 };
 
+type FrameworkLayer = {
+  key: string;
+  title: string;
+  description: string;
+  prompts: string[];
+};
+
+type FrameworkField = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+type FrameworkAxis = {
+  key: string;
+  label: string;
+  question: string;
+};
+
+type ArtDirectionFramework = {
+  title: string;
+  thesis: string;
+  operatorRole: string;
+  directionFormula: string;
+  layers: FrameworkLayer[];
+  commandments: string[];
+  briefingSchema: FrameworkField[];
+  critiqueAxes: FrameworkAxis[];
+  workflowPhases: Array<{ key: string; title: string; description: string }>;
+};
+
 type CanonEntry = {
   id: string;
   canon_id: string;
@@ -186,6 +217,7 @@ type MemoryResponse = {
     promptBlock: string;
     critiqueBlock: string;
   };
+  framework?: ArtDirectionFramework;
   stats: MemoryStats;
   concepts: Concept[];
   canons: Canon[];
@@ -1995,6 +2027,120 @@ export default function DaControlClient() {
             </SectionCard>
           </Grid>
         </Grid>
+
+        <SectionCard
+          sectionId="da-framework"
+          title="Manual canônico de pilotagem do DA-IA"
+          subtitle="Esta é a doutrina operacional do motor: como a Edro deve dirigir a IA visual, o que ela precisa receber no briefing e como o julgamento deve acontecer."
+          eyebrow="Framework"
+          tone="#5D87FF"
+          action={<IconBrain size={18} color="#5D87FF" />}
+        >
+          {data?.framework ? (
+            <Stack spacing={2}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: 'rgba(93,135,255,0.04)' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  Tese central
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
+                  {data.framework.thesis}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1.25, fontWeight: 700 }}>
+                  {data.framework.operatorRole}
+                </Typography>
+                <Stack direction="row" gap={1} flexWrap="wrap" mt={1.5}>
+                  <Chip size="small" color="primary" label={data.framework.directionFormula} />
+                  {data.framework.commandments.map((item) => (
+                    <Chip key={item} size="small" variant="outlined" label={item} />
+                  ))}
+                </Stack>
+              </Paper>
+
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, lg: 5 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, height: '100%' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      7 camadas de direção
+                    </Typography>
+                    <Stack spacing={1.25} mt={1.25}>
+                      {data.framework.layers.map((layer) => (
+                        <Paper key={layer.key} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {layer.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                            {layer.description}
+                          </Typography>
+                          <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                            {layer.prompts.map((prompt) => (
+                              <Chip key={prompt} size="small" variant="outlined" label={prompt} />
+                            ))}
+                          </Stack>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 7 }}>
+                  <Stack spacing={2}>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                        Briefing obrigatório do DA-IA
+                      </Typography>
+                      <Stack spacing={1} mt={1.25}>
+                        {data.framework.briefingSchema.map((field) => (
+                          <Box key={field.key}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {field.label}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {field.description}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Paper>
+
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                        Critérios fixos de revisão
+                      </Typography>
+                      <Stack direction="row" gap={1} flexWrap="wrap" mt={1.25}>
+                        {data.framework.critiqueAxes.map((axis) => (
+                          <Chip key={axis.key} size="small" color="warning" variant="outlined" label={`${axis.label}: ${axis.question}`} />
+                        ))}
+                      </Stack>
+                    </Paper>
+
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                        Fases operacionais
+                      </Typography>
+                      <Stack spacing={1} mt={1.25}>
+                        {data.framework.workflowPhases.map((phase) => (
+                          <Box key={phase.key}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {phase.title}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {phase.description}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Paper>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </Stack>
+          ) : (
+            <EmptySection
+              title="Framework canônico indisponível."
+              description="O manual operacional do DA-IA deveria vir do backend em todas as cargas do painel."
+            />
+          )}
+        </SectionCard>
 
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, lg: 6 }}>

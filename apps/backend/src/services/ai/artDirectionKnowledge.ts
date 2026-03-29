@@ -1,3 +1,8 @@
+import {
+  buildArtDirectionCanonicalCritiqueBlock,
+  buildArtDirectionCanonicalDoctrineBlock,
+} from './artDirectionCanonicalFramework';
+
 export type ArtDirectionKnowledgeParams = {
   copy?: string | null;
   platform?: string | null;
@@ -198,7 +203,9 @@ export function resolveArtDirectionKnowledge(params: ArtDirectionKnowledgeParams
 }
 
 export function buildArtDirectionKnowledgeBlock(context: ArtDirectionKnowledgeContext): string {
-  return `MOTOR DE DIREÇÃO DE ARTE (aplique como heurísticas operacionais):
+  return `${buildArtDirectionCanonicalDoctrineBlock()}
+
+MOTOR DE DIREÇÃO DE ARTE (aplique como heurísticas operacionais):
 - Intenção visual: ${context.visualIntent}
 - Urgência: ${context.urgencyLevel}
 - Densidade de informação: ${context.informationDensity}
@@ -213,7 +220,9 @@ export function buildArtDirectionKnowledgeBlock(context: ArtDirectionKnowledgeCo
 }
 
 export function buildArtDirectionCritiqueBlock(context: ArtDirectionKnowledgeContext): string {
-  return `CRITIQUE FRAMEWORK:
+  return `${buildArtDirectionCanonicalCritiqueBlock()}
+
+CRITIQUE FRAMEWORK:
 - Julgue a peça com base em: ${context.critiqueFocus.join('; ')}
 - Considere estas regras de acessibilidade: ${context.accessibilityRules.join('; ')}
 - A hierarquia precisa refletir: ${context.designPrinciples.join('; ')}
