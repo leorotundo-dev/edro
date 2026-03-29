@@ -2773,12 +2773,15 @@ async function toolGetWhatsAppDigests(args: any, ctx: ToolContext): Promise<Tool
 
 import {
   buildOverviewSnapshot,
+  buildPlannerSnapshot,
   buildRiskSnapshot,
   upsertJobAllocation,
   syncOperationalRuntimeForJob,
 } from '../../services/jobs/operationsRuntimeService';
 import { calculatePriority } from '../../services/jobs/priorityService';
 import { estimateMinutes } from '../../services/jobs/estimationService';
+import { proposeAllocations } from '../../services/allocationService';
+import { getAvailableDAs, getWeeklyCapacity } from '../../services/daBillingService';
 
 const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Promise<ToolResult>> = {
   list_operations_jobs: opsListJobs,
@@ -2787,6 +2790,10 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   get_operations_risks: opsGetRisks,
   get_operations_signals: opsGetSignals,
   get_operations_team: opsGetTeam,
+  get_creative_ops_workload: opsGetCreativeWorkload,
+  get_da_capacity: opsGetDaCapacity,
+  suggest_job_allocation: opsSuggestJobAllocation,
+  suggest_creative_redistribution: opsSuggestCreativeRedistribution,
   get_operations_lookups: opsGetLookups,
   create_operations_job: opsCreateJob,
   update_operations_job: opsUpdateJob,
@@ -2807,10 +2814,15 @@ export async function executeOperationsTool(
     return { success: false, error: `Operations tool '${toolName}' not found` };
   }
   try {
+    const timeoutMs =
+      toolName === 'suggest_creative_redistribution' ? 20000 :
+        toolName === 'suggest_job_allocation' ? 15000 :
+          toolName === 'get_creative_ops_workload' || toolName === 'get_da_capacity' ? 15000 :
+            10000;
     const result = await Promise.race([
       handler(args, ctx),
       new Promise<ToolResult>((_, reject) =>
-        setTimeout(() => reject(new Error('TOOL_TIMEOUT_10s')), 10000),
+        setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
     return truncateResult(result);
@@ -2945,6 +2957,348 @@ async function opsGetTeam(_args: any, ctx: OperationsToolContext): Promise<ToolR
     [ctx.tenantId],
   );
   return { success: true, data: safeData(rows, 20) };
+}
+
+function opsPriorityWeight(priorityBand?: string | null) {
+  switch (String(priorityBand || '').toLowerCase()) {
+    case 'p0': return 0;
+    case 'p1': return 1;
+    case 'p2': return 2;
+    case 'p3': return 3;
+    default: return 4;
+  }
+}
+
+function opsUsageState(usage: number) {
+  if (usage >= 1) return 'sobrecarregado';
+  if (usage >= 0.85) return 'em_pressao';
+  if (usage <= 0.35) return 'com_folga';
+  return 'equilibrado';
+}
+
+function opsIsActiveJobStatus(status?: string | null) {
+  return !['done', 'archived', 'published', 'cancelled'].includes(String(status || '').toLowerCase());
+}
+
+function opsIsMovableCreativeJob(job: any, riskBand?: string | null) {
+  const jobType = String(job.job_type || '').toLowerCase();
+  const status = String(job.status || '').toLowerCase();
+  if (!opsIsActiveJobStatus(status)) return false;
+  if (['meeting', 'approval', 'publication'].includes(jobType)) return false;
+  if (['awaiting_approval', 'approved', 'scheduled'].includes(status)) return false;
+  if (riskBand === 'critical' && opsPriorityWeight(job.priority_band) <= 1) return false;
+  if (job.deadline_at) {
+    const diffHours = (new Date(job.deadline_at).getTime() - Date.now()) / 3600000;
+    if (Number.isFinite(diffHours) && diffHours <= 12) return false;
+  }
+  return true;
+}
+
+async function opsGetCreativeWorkload(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const [planner, teamRes] = await Promise.all([
+    buildPlannerSnapshot(ctx.tenantId),
+    query(
+      `SELECT
+         u.id,
+         COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name,
+         u.email,
+         tu.role,
+         fp.specialty,
+         CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type,
+         (SELECT COUNT(*) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.status NOT IN ('done','archived','published','cancelled')) AS active_jobs,
+         (SELECT COUNT(*) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.status = 'blocked') AS blocked_jobs,
+         (SELECT COUNT(*) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.deadline_at IS NOT NULL AND j.status NOT IN ('done','archived','published','cancelled') AND j.deadline_at <= NOW() + INTERVAL '24 hours') AS near_deadline_jobs
+       FROM tenant_users tu
+       JOIN edro_users u ON u.id = tu.user_id
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
+       WHERE tu.tenant_id = $1
+       ORDER BY name ASC`,
+      [ctx.tenantId],
+    ),
+  ]);
+
+  const limit = Math.min(args.limit || 12, 25);
+  const personType = args.person_type && args.person_type !== 'all' ? String(args.person_type) : null;
+  const specialtyFilter = String(args.specialty || '').trim().toLowerCase();
+  const includeJobs = args.include_jobs === true;
+  const teamMap = new Map(teamRes.rows.map((row: any) => [row.id, row]));
+
+  let owners = planner.owners
+    .map((row) => {
+      const teamRow = teamMap.get(row.owner.id);
+      const usagePct = Math.round((row.usage || 0) * 100);
+      const availableMinutes = Math.max(0, row.allocable_minutes - row.committed_minutes - row.tentative_minutes);
+      const activeJobs = Number(teamRow?.active_jobs ?? row.jobs.length ?? 0);
+      const blockedJobs = Number(teamRow?.blocked_jobs ?? row.jobs.filter((job) => job.status === 'blocked').length ?? 0);
+      const nearDeadlineJobs = Number(teamRow?.near_deadline_jobs ?? 0);
+      const state = opsUsageState(row.usage || 0);
+
+      return {
+        owner_id: row.owner.id,
+        name: row.owner.name,
+        email: row.owner.email,
+        role: row.owner.role,
+        specialty: row.owner.specialty,
+        person_type: row.owner.person_type,
+        state,
+        usage_pct: usagePct,
+        allocable_minutes: row.allocable_minutes,
+        committed_minutes: row.committed_minutes,
+        tentative_minutes: row.tentative_minutes,
+        available_minutes: availableMinutes,
+        active_jobs: activeJobs,
+        blocked_jobs: blockedJobs,
+        near_deadline_jobs: nearDeadlineJobs,
+        recommendation:
+          state === 'sobrecarregado' ? 'Redistribuir ou proteger a agenda imediatamente.' :
+            state === 'em_pressao' ? 'Evitar nova entrada sem revisar prioridades.' :
+              state === 'com_folga' ? 'Pode absorver demanda criativa nova.' :
+                'Carga equilibrada no momento.',
+        jobs: includeJobs ? row.jobs.slice(0, 6).map((job) => ({
+          id: job.id,
+          title: job.title,
+          client_name: job.client_name,
+          status: job.status,
+          priority_band: job.priority_band,
+          deadline_at: job.deadline_at,
+        })) : undefined,
+      };
+    })
+    .filter((row) => !personType || row.person_type === personType)
+    .filter((row) => !specialtyFilter || String(row.specialty || '').toLowerCase().includes(specialtyFilter));
+
+  if (args.only_overloaded === true) {
+    owners = owners.filter((row) => row.state === 'sobrecarregado' || row.state === 'em_pressao');
+  }
+
+  owners = owners
+    .sort((a, b) =>
+      (b.usage_pct - a.usage_pct) ||
+      (b.near_deadline_jobs - a.near_deadline_jobs) ||
+      (b.blocked_jobs - a.blocked_jobs) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  const summary = {
+    total_people: owners.length,
+    overloaded: owners.filter((row) => row.state === 'sobrecarregado').length,
+    under_pressure: owners.filter((row) => row.state === 'em_pressao').length,
+    with_capacity: owners.filter((row) => row.state === 'com_folga').length,
+    unassigned_jobs: planner.unassigned_jobs.length,
+  };
+
+  return {
+    success: true,
+    data: {
+      summary,
+      owners,
+      unassigned_jobs: planner.unassigned_jobs.slice(0, 8).map((job) => ({
+        id: job.id,
+        title: job.title,
+        client_name: job.client_name,
+        priority_band: job.priority_band,
+        deadline_at: job.deadline_at,
+        job_type: job.job_type,
+      })),
+    },
+  };
+}
+
+async function opsGetDaCapacity(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 10, 20);
+  const requiredSkill = String(args.required_skill || '').trim() || undefined;
+
+  await getAvailableDAs(ctx.tenantId, requiredSkill).catch(() => []);
+
+  const [capacity, planner, available] = await Promise.all([
+    getWeeklyCapacity(ctx.tenantId),
+    buildPlannerSnapshot(ctx.tenantId),
+    getAvailableDAs(ctx.tenantId, requiredSkill),
+  ]);
+
+  const ownerMap = new Map(
+    planner.owners
+      .filter((row) => row.owner.person_type === 'freelancer')
+      .map((row) => [row.owner.id, row]),
+  );
+  const availableMap = new Map(available.map((row) => [row.freelancer_id, row]));
+
+  const rows = capacity
+    .map((slot) => {
+      const owner = ownerMap.get(slot.freelancer_id);
+      const availableInfo = availableMap.get(slot.freelancer_id);
+      const usagePct = owner ? Math.round((owner.usage || 0) * 100) : null;
+      return {
+        freelancer_id: slot.freelancer_id,
+        name: owner?.owner.name || availableInfo?.name || slot.freelancer_id,
+        specialty: owner?.owner.specialty || null,
+        usage_pct: usagePct,
+        slots_total: slot.slots_total,
+        slots_used: slot.slots_used,
+        slots_blocked: slot.slots_blocked,
+        slots_available: slot.slots_available,
+        allocation_score: availableInfo?.score ?? null,
+        recommendation:
+          slot.slots_available <= 0 ? 'Sem slots disponíveis nesta semana.' :
+            slot.slots_available === 1 ? 'Pode receber uma demanda curta.' :
+              'Tem capacidade para absorver novas demandas.',
+      };
+    })
+    .sort((a, b) =>
+      (b.slots_available - a.slots_available) ||
+      ((a.usage_pct ?? 999) - (b.usage_pct ?? 999)) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        week_start: capacity[0]?.week_start ?? null,
+        freelancers_total: capacity.length,
+        available_now: rows.filter((row) => row.slots_available > 0).length,
+        slots_available_total: capacity.reduce((sum, row) => sum + row.slots_available, 0),
+        required_skill: requiredSkill ?? null,
+      },
+      ranking: rows,
+    },
+  };
+}
+
+async function opsSuggestJobAllocation(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 5, 8);
+  const { rows } = await query(
+    `SELECT j.id, j.title, j.client_id, j.job_type, j.channel, j.required_skill, j.priority_band, j.deadline_at,
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+            c.name AS client_name
+       FROM jobs j
+       LEFT JOIN edro_users u ON u.id = j.owner_id
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE j.tenant_id = $1 AND j.id = $2
+      LIMIT 1`,
+    [ctx.tenantId, args.job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+
+  const job = rows[0];
+  const proposals = (await proposeAllocations(ctx.tenantId, args.job_id)).slice(0, limit);
+  if (!proposals.length) {
+    return {
+      success: true,
+      data: {
+        job,
+        recommendations: [],
+        note: 'Nenhum DA elegível encontrado para este job no momento.',
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      job,
+      recommended_owner_id: proposals[0].freelancerId,
+      recommended_owner_name: proposals[0].name,
+      recommendations: proposals.map((proposal, index) => ({
+        rank: index + 1,
+        freelancer_id: proposal.freelancerId,
+        name: proposal.name,
+        specialty: proposal.specialty,
+        experience_level: proposal.experienceLevel,
+        score: proposal.score,
+        estimated_available_at: proposal.estimatedAvailableAt,
+        estimated_completion_at: proposal.estimatedCompletionAt,
+        current_active_jobs: proposal.currentActiveJobs,
+        max_concurrent_jobs: proposal.maxConcurrentJobs,
+        punctuality_score: proposal.punctualityScore,
+        approval_rate: proposal.approvalRate,
+        rationale: proposal.rationale,
+      })),
+    },
+  };
+}
+
+async function opsSuggestCreativeRedistribution(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const maxJobs = Math.min(args.max_jobs || 5, 8);
+  const onlyHighRisk = args.only_high_risk === true;
+  const ownerFilter = String(args.owner_id || '').trim() || null;
+
+  const [planner, risks] = await Promise.all([
+    buildPlannerSnapshot(ctx.tenantId),
+    buildRiskSnapshot(ctx.tenantId),
+  ]);
+
+  const riskMap = new Map<string, { band: string; summary?: string | null; action?: string | null }>();
+  for (const job of [...(risks.critical || []), ...(risks.high || [])]) {
+    riskMap.set(job.id, {
+      band: String(job.metadata?.risk_signal?.band || '').toLowerCase(),
+      summary: job.metadata?.risk_signal?.summary || null,
+      action: job.metadata?.risk_signal?.suggested_action || null,
+    });
+  }
+
+  const overloadedOwners = planner.owners
+    .filter((row) => !ownerFilter || row.owner.id === ownerFilter)
+    .filter((row) => row.usage >= 0.85 || row.jobs.some((job) => String(riskMap.get(job.id)?.band || '') === 'critical'))
+    .sort((a, b) => b.usage - a.usage);
+
+  const suggestions: Array<Record<string, any>> = [];
+
+  for (const owner of overloadedOwners) {
+    const movableJobs = owner.jobs
+      .filter((job) => {
+        const riskBand = riskMap.get(job.id)?.band || null;
+        if (onlyHighRisk && !riskBand && owner.usage < 1) return false;
+        return opsIsMovableCreativeJob(job, riskBand);
+      })
+      .sort((a, b) =>
+        (opsPriorityWeight(b.priority_band) - opsPriorityWeight(a.priority_band)) ||
+        ((new Date(b.deadline_at || 0).getTime()) - (new Date(a.deadline_at || 0).getTime())));
+
+    for (const job of movableJobs) {
+      if (suggestions.length >= maxJobs) break;
+      const alternatives = await proposeAllocations(ctx.tenantId, job.id);
+      const bestAlternative = alternatives.find((proposal) => proposal.freelancerId !== owner.owner.id);
+      if (!bestAlternative) continue;
+
+      const risk = riskMap.get(job.id);
+      suggestions.push({
+        job_id: job.id,
+        title: job.title,
+        client_name: job.client_name,
+        current_owner_id: owner.owner.id,
+        current_owner_name: owner.owner.name,
+        current_usage_pct: Math.round((owner.usage || 0) * 100),
+        priority_band: job.priority_band,
+        status: job.status,
+        deadline_at: job.deadline_at,
+        risk_band: risk?.band || null,
+        risk_summary: risk?.summary || null,
+        recommended_owner_id: bestAlternative.freelancerId,
+        recommended_owner_name: bestAlternative.name,
+        recommended_score: bestAlternative.score,
+        estimated_available_at: bestAlternative.estimatedAvailableAt,
+        rationale: `Mover de ${owner.owner.name} para ${bestAlternative.name}. ${bestAlternative.rationale}`,
+      });
+    }
+
+    if (suggestions.length >= maxJobs) break;
+  }
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        overloaded_owners: overloadedOwners.length,
+        suggested_moves: suggestions.length,
+        only_high_risk: onlyHighRisk,
+      },
+      suggestions,
+      note: suggestions.length
+        ? 'Use assign_job_owner e manage_job_allocation para executar uma redistribuição após confirmar o movimento.'
+        : 'Nenhuma redistribuição segura encontrada com os filtros atuais.',
+    },
+  };
 }
 
 async function opsGetLookups(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {

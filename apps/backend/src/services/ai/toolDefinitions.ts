@@ -747,6 +747,50 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'read',
   },
   {
+    name: 'get_creative_ops_workload',
+    description: 'Retorna a carga criativa da equipe: quem está sobrecarregado, em pressão, equilibrado ou com folga, com minutos comprometidos, próximos prazos, bloqueios e jobs sem dono. Use para perguntas como "quem está sobrecarregado?" ou "como está a carga dos DAs?".',
+    parameters: {
+      person_type: { type: 'string', description: 'Filtrar por tipo de pessoa', enum: ['all', 'freelancer', 'internal'] },
+      specialty: { type: 'string', description: 'Filtrar por especialidade (ex: design, motion, copy)' },
+      only_overloaded: { type: 'boolean', description: 'Mostrar só pessoas em sobrecarga ou pressão' },
+      include_jobs: { type: 'boolean', description: 'Se true, inclui uma amostra dos jobs por pessoa' },
+      limit: { type: 'number', description: 'Máximo de pessoas retornadas (default 12, max 25)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_da_capacity',
+    description: 'Retorna a capacidade semanal dos DAs/freelas: slots totais, usados, disponíveis e ranking de quem pode absorver novas demandas. Use para "quem pode pegar mais?" ou "como está a capacidade da equipe de arte?".',
+    parameters: {
+      required_skill: { type: 'string', description: 'Skill desejada para filtrar o ranking (ex: design, video, social)' },
+      limit: { type: 'number', description: 'Máximo de nomes retornados (default 10, max 20)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'suggest_job_allocation',
+    description: 'Sugere os melhores responsáveis para um job com base em skill, plataforma, capacidade, carga atual e histórico. Use antes de atribuir ou redistribuir um job criativo.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job' },
+      limit: { type: 'number', description: 'Máximo de sugestões (default 5, max 8)' },
+    },
+    required: ['job_id'],
+    category: 'read',
+  },
+  {
+    name: 'suggest_creative_redistribution',
+    description: 'Analisa a operação criativa e sugere redistribuições seguras de carga: quais jobs podem sair de quem está sobrecarregado e para quem devem ir. Use para perguntas como "o que devo redistribuir?" ou "quem devo desafogar?".',
+    parameters: {
+      owner_id: { type: 'string', description: 'UUID de um responsável específico para avaliar (opcional)' },
+      max_jobs: { type: 'number', description: 'Máximo de sugestões de redistribuição (default 5, max 8)' },
+      only_high_risk: { type: 'boolean', description: 'Se true, foca apenas em jobs com risco alto/crítico ou donos em pressão forte' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
     name: 'get_operations_lookups',
     description: 'Retorna dados de referência para criação de jobs: tipos de job, skills, canais, clientes e owners disponíveis.',
     parameters: {},
