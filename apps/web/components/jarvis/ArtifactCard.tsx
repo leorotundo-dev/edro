@@ -34,6 +34,9 @@ const ARTIFACT_MAP: Record<string, ArtifactMeta> = {
   delete_briefing:           { icon: IconFileText,     label: 'Briefing deletado',              color: '#EF4444' },
   generate_approval_link:    { icon: IconLink,         label: 'Link de aprovação gerado',       color: '#8B5CF6' },
   schedule_briefing:         { icon: IconCalendar,     label: 'Publicação agendada',            color: '#10B981' },
+  prepare_post_approval:     { icon: IconLink,         label: 'Aprovação preparada',            color: '#8B5CF6' },
+  schedule_post_publication: { icon: IconCalendar,     label: 'Post agendado',                  color: '#10B981' },
+  publish_studio_post:       { icon: IconExternalLink, label: 'Post publicado',                 color: '#0EA5E9' },
   approve_pauta:             { icon: IconCircleCheck,  label: 'Pauta aprovada · Brief criado', color: '#10B981' },
   reject_pauta:              { icon: IconCircleCheck,  label: 'Pauta rejeitada',               color: '#EF4444' },
   generate_pauta:            { icon: IconSparkles,     label: 'Pauta enfileirada (A/B em breve)', color: '#F59E0B' },
@@ -56,14 +59,16 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
   const Icon = meta.icon;
   const subtitle = artifact.message || artifact.brief?.slice(0, 80) || null;
 
-  // Determine action (link or copy)
-  const href = artifact.studio_url
+  const href = artifact.post_url
+    ? artifact.post_url
+    : artifact.studio_url
     ? artifact.studio_url
     : artifact.briefing_id && clientId
     ? `/clients/${clientId}/briefings`
     : artifact.pauta_id && clientId
     ? `/clients/${clientId}/clipping`
     : null;
+  const isExternalHref = Boolean(href && /^https?:\/\//i.test(href));
 
   const copyValue = artifact.approvalUrl ?? null;
   const evidenceItems = Array.isArray(artifact.evidence) ? artifact.evidence.slice(0, 3) : [];
@@ -146,12 +151,23 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
             ))}
           </Box>
         )}
+        {(artifact.type === 'prepare_post_approval' || artifact.type === 'schedule_post_publication' || artifact.type === 'publish_studio_post') && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45, fontSize: '0.68rem' }}>
+            {artifact.briefing_id ? `Briefing ${artifact.briefing_id.slice(0, 8)} · ` : ''}{artifact.channel ? `${artifact.channel} · ` : ''}{artifact.scheduled_for ? artifact.scheduled_for : ''}
+          </Typography>
+        )}
       </Box>
       {href && (
-        <Tooltip title={artifact.studio_url ? 'Abrir no Studio' : 'Ver'}>
-          <IconButton size="small" component={Link} href={href} sx={{ color: meta.color, p: 0.5 }}>
-            <IconExternalLink size={14} />
-          </IconButton>
+        <Tooltip title={artifact.post_url ? 'Abrir publicação' : artifact.studio_url ? 'Abrir no Studio' : 'Ver'}>
+          {isExternalHref ? (
+            <IconButton size="small" component="a" href={href} target="_blank" rel="noreferrer" sx={{ color: meta.color, p: 0.5 }}>
+              <IconExternalLink size={14} />
+            </IconButton>
+          ) : (
+            <IconButton size="small" component={Link} href={href} sx={{ color: meta.color, p: 0.5 }}>
+              <IconExternalLink size={14} />
+            </IconButton>
+          )}
         </Tooltip>
       )}
       {copyValue && (

@@ -185,6 +185,34 @@ export function buildInlineAttachmentContext(inlineAttachments?: Array<{ name?: 
   return '\n\nDOCUMENTOS ANEXADOS PELO USUARIO:\n' + inlineParts.join('\n\n');
 }
 
+function buildArtifactHistorySummary(artifacts?: Array<Record<string, any>> | null): string {
+  if (!Array.isArray(artifacts) || !artifacts.length) return '';
+
+  const lines = artifacts.slice(0, 4).map((artifact, index) => {
+    const pairs = [
+      ['type', artifact.type],
+      ['background_job_id', artifact.background_job_id],
+      ['briefing_id', artifact.briefing_id],
+      ['job_id', artifact.job_id],
+      ['creative_session_id', artifact.creative_session_id],
+      ['copy_id', artifact.copy_id],
+      ['channel', artifact.channel],
+      ['scheduled_for', artifact.scheduled_for],
+      ['job_status', artifact.job_status],
+      ['approvalUrl', artifact.approvalUrl],
+      ['studio_url', artifact.studio_url],
+      ['post_url', artifact.post_url],
+      ['post_id', artifact.post_id],
+    ]
+      .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+      .map(([label, value]) => `${label}=${String(value).trim()}`);
+
+    return `ARTEFATO ${index + 1}: ${pairs.join(' | ')}`;
+  });
+
+  return lines.length ? `\n\nCONTEXTO DE WORKFLOW:\n${lines.join('\n')}` : '';
+}
+
 export async function loadUnifiedConversationHistory(params: {
   route: 'operations' | 'planning';
   tenantId: string;
@@ -209,10 +237,16 @@ export async function loadUnifiedConversationHistory(params: {
     return (result.rows[0].messages as any[])
       .filter((message: any) => message.role === 'user' || message.role === 'assistant')
       .slice(-20)
-      .map((message: any) => ({
-        role: message.role,
-        content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
-      }));
+      .map((message: any) => {
+        const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+        const artifactSummary = message.role === 'assistant'
+          ? buildArtifactHistorySummary(message?.metadata?.artifacts)
+          : '';
+        return {
+          role: message.role,
+          content: `${content}${artifactSummary}`,
+        };
+      });
   } catch {
     return [];
   }

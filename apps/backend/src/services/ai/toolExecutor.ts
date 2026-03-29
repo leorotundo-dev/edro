@@ -9,6 +9,7 @@ import {
   createBriefingStages,
   createCopyVersion,
   getBriefingById,
+  listCopyVersions,
   listBriefings,
   deleteBriefing,
   archiveBriefing,
@@ -29,8 +30,12 @@ import { orchestrateCreative } from './artDirectorOrchestrator';
 import { autoCreateJobFromBriefing } from '../jobs/briefingToJobService';
 import {
   addCreativeVersion,
+  getCreativeSessionContext,
+  getCreativeSessionContextBySessionId,
+  markReadyToPublish,
   openCreativeSession,
   saveCreativeBrief,
+  sendCreativeReview,
   updateCreativeSessionMetadata,
   updateCreativeStage,
 } from '../jobs/creativeSessionService';
@@ -39,8 +44,10 @@ import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
 import { analyzeCognitiveLoad } from '../cognitiveLoadService';
 import { generateWithProvider } from './copyOrchestrator';
-import { enqueueJob } from '../../jobs/jobQueue';
+import { enqueueJob, getJobById as getQueueJobById } from '../../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../jarvisBackgroundJobService';
+import { sendEmail } from '../emailService';
+import { decryptJSON } from '../../security/secrets';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -240,6 +247,9 @@ function getToolTimeoutMs(toolName: string) {
   switch (toolName) {
     case 'create_post_pipeline':
       return 45000;
+    case 'prepare_post_approval':
+    case 'schedule_post_publication':
+    case 'publish_studio_post':
     case 'generate_campaign_strategy':
     case 'generate_behavioral_copy':
       return 20000;
@@ -287,6 +297,9 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   get_client_insights: toolGetClientInsights,
   retrieve_client_evidence: toolRetrieveClientEvidence,
   create_post_pipeline: toolCreatePostPipeline,
+  prepare_post_approval: toolPreparePostApproval,
+  schedule_post_publication: toolSchedulePostPublication,
+  publish_studio_post: toolPublishStudioPost,
   web_search: toolWebSearch,
   web_extract: toolWebExtract,
   web_research: toolWebResearch,
@@ -2065,6 +2078,501 @@ async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<Tool
   };
 }
 
+type ResolvedPostWorkflowContext = {
+  clientId: string;
+  clientName: string;
+  briefingId: string;
+  briefingTitle: string;
+  creativeSessionId: string | null;
+  jobId: string | null;
+  platform: string;
+  format: string | null;
+  copyId: string | null;
+  copyText: string;
+  studioUrl: string | null;
+  selectedAsset: { id: string; asset_type: string; file_url: string; thumb_url?: string | null } | null;
+};
+
+function inferPublishChannel(platform?: string | null) {
+  const value = String(platform || '').trim().toLowerCase();
+  if (!value) return 'instagram';
+  if (value.includes('linkedin')) return 'linkedin';
+  if (value.includes('tiktok')) return 'tiktok';
+  if (value.includes('facebook')) return 'facebook';
+  return 'instagram';
+}
+
+function computeDefaultScheduledForIso() {
+  const now = new Date();
+  const scheduled = new Date(now);
+  scheduled.setUTCHours(13, 0, 0, 0); // 10h BRT
+  if (scheduled <= now) scheduled.setUTCDate(scheduled.getUTCDate() + 1);
+  while (scheduled.getUTCDay() === 0 || scheduled.getUTCDay() === 6) {
+    scheduled.setUTCDate(scheduled.getUTCDate() + 1);
+  }
+  return scheduled.toISOString();
+}
+
+async function resolvePrimaryClientEmail(tenantId: string, clientId: string) {
+  const { rows } = await query<{ email: string | null }>(
+    `SELECT email
+       FROM client_contacts
+      WHERE tenant_id = $1
+        AND client_id = $2
+        AND email IS NOT NULL
+      ORDER BY is_primary DESC, created_at ASC
+      LIMIT 1`,
+    [tenantId, clientId],
+  ).catch(() => ({ rows: [] as { email: string | null }[] }));
+  return String(rows[0]?.email || '').trim() || null;
+}
+
+async function resolvePostWorkflowContext(args: any, ctx: ToolContext): Promise<ResolvedPostWorkflowContext> {
+  const backgroundJobId = String(args.background_job_id || '').trim() || null;
+  const providedBriefingId = String(args.briefing_id || '').trim() || null;
+  const providedSessionId = String(args.creative_session_id || '').trim() || null;
+  const providedJobId = String(args.job_id || '').trim() || null;
+
+  let briefingId = providedBriefingId;
+  let creativeSessionId = providedSessionId;
+  let jobId = providedJobId;
+
+  if (backgroundJobId) {
+    const backgroundJob = await getQueueJobById(backgroundJobId, ctx.tenantId);
+    if (!backgroundJob || backgroundJob.type !== 'jarvis_background') {
+      throw new Error('Artifact de background não encontrado.');
+    }
+    const result = backgroundJob.payload?.result || {};
+    if (backgroundJob.status !== 'done' && !result?.briefing_id) {
+      throw new Error('Esse pipeline ainda não terminou. Aguarde o artifact ficar pronto antes de seguir.');
+    }
+    briefingId ||= String(result.briefing_id || '').trim() || null;
+    creativeSessionId ||= String(result.creative_session_id || '').trim() || null;
+    jobId ||= String(result.job_id || '').trim() || null;
+  }
+
+  let creativeContext = null as Awaited<ReturnType<typeof getCreativeSessionContextBySessionId>> | null;
+
+  if (creativeSessionId) {
+    creativeContext = await getCreativeSessionContextBySessionId(ctx.tenantId, creativeSessionId);
+  } else if (jobId) {
+    creativeContext = await getCreativeSessionContext(ctx.tenantId, jobId);
+  } else if (briefingId) {
+    const { rows } = await query<{ id: string; job_id: string }>(
+      `SELECT id, job_id
+         FROM creative_sessions
+        WHERE tenant_id = $1
+          AND briefing_id = $2
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [ctx.tenantId, briefingId],
+    );
+    if (rows[0]?.id) {
+      creativeContext = await getCreativeSessionContextBySessionId(ctx.tenantId, rows[0].id);
+    }
+  }
+
+  briefingId ||= creativeContext?.session.briefing_id || creativeContext?.briefing?.id || null;
+  creativeSessionId ||= creativeContext?.session.id || null;
+  jobId ||= creativeContext?.job.id || null;
+
+  if (!briefingId) {
+    throw new Error('Não consegui resolver o briefing deste workflow. Informe briefing_id ou use o artifact mais recente do Jarvis.');
+  }
+
+  const briefing = await getBriefingById(briefingId);
+  if (!briefing) throw new Error('Briefing não encontrado.');
+
+  const copies = await listCopyVersions(briefingId).catch(() => []);
+  const selectedCopy = creativeContext?.selected_copy_version || copies[0] || null;
+  const copyText = String(
+    selectedCopy?.payload?.output
+    || selectedCopy?.payload?.text
+    || selectedCopy?.output
+    || '',
+  ).trim();
+
+  const selectedAsset = creativeContext?.selected_asset
+    ? {
+        id: creativeContext.selected_asset.id,
+        asset_type: creativeContext.selected_asset.asset_type,
+        file_url: creativeContext.selected_asset.file_url,
+        thumb_url: creativeContext.selected_asset.thumb_url,
+      }
+    : null;
+
+  const platform = String(
+    creativeContext?.briefing?.payload?.platform
+    || creativeContext?.session.metadata?.platforms?.inventory?.[0]?.platform
+    || briefing.payload?.platform
+    || 'instagram',
+  );
+  const format = String(
+    creativeContext?.briefing?.payload?.format
+    || creativeContext?.session.metadata?.platforms?.inventory?.[0]?.format
+    || briefing.payload?.format
+    || '',
+  ) || null;
+
+  const resolvedClientId = String(
+    creativeContext?.job.client_id
+    || creativeContext?.briefing?.client_id
+    || briefing.main_client_id
+    || ctx.clientId,
+  ).trim();
+  const client = await getClientById(ctx.tenantId, resolvedClientId);
+  if (!client) throw new Error('Cliente não encontrado para este workflow.');
+
+  return {
+    clientId: resolvedClientId,
+    clientName: String(client.name || 'Cliente'),
+    briefingId,
+    briefingTitle: String(briefing.title || 'Post'),
+    creativeSessionId,
+    jobId,
+    platform,
+    format,
+    copyId: selectedCopy?.id || null,
+    copyText,
+    studioUrl: creativeSessionId && jobId ? buildStudioEditorUrl(jobId, creativeSessionId) : null,
+    selectedAsset,
+  };
+}
+
+async function sendJarvisApprovalEmail(params: {
+  tenantId: string;
+  to: string;
+  clientName: string;
+  briefingTitle: string;
+  approvalUrl: string;
+  message?: string | null;
+}) {
+  const body = [
+    `Olá,`,
+    '',
+    `A peça "${params.briefingTitle}" está pronta para sua revisão.`,
+    params.message ? `Mensagem da equipe: ${params.message}` : null,
+    '',
+    `Aprovar ou revisar: ${params.approvalUrl}`,
+    '',
+    'Edro Studio',
+  ].filter(Boolean).join('\n');
+
+  await sendEmail({
+    to: params.to,
+    tenantId: params.tenantId,
+    subject: `Aprovação pendente · ${params.clientName} · ${params.briefingTitle}`,
+    text: body,
+    html: body.replace(/\n/g, '<br>'),
+  });
+}
+
+async function publishMetaAssetNow(params: {
+  tenantId: string;
+  clientId: string;
+  imageUrl: string;
+  caption: string;
+  channel: 'instagram' | 'facebook';
+}) {
+  const { rows: connectorRows } = await query<any>(
+    `SELECT payload, secrets_enc
+       FROM connectors
+      WHERE tenant_id = $1
+        AND client_id = $2
+        AND provider = 'meta'
+      LIMIT 1`,
+    [params.tenantId, params.clientId],
+  );
+  if (!connectorRows.length) {
+    throw new Error('Meta connector não encontrado para este cliente.');
+  }
+
+  const connector = connectorRows[0];
+  const payload = connector.payload as Record<string, any>;
+  const secrets = connector.secrets_enc ? await decryptJSON(connector.secrets_enc) : {};
+  const accessToken = secrets.access_token as string | undefined;
+  if (!accessToken) throw new Error('Meta access token ausente para este cliente.');
+
+  const version = 'v18.0';
+  const igUserId = payload.instagram_business_id as string | undefined;
+  const pageId = payload.page_id as string | undefined;
+
+  if (params.channel === 'instagram') {
+    if (!igUserId) throw new Error('Instagram Business não configurado neste conector.');
+    const createRes = await fetch(`https://graph.facebook.com/${version}/${igUserId}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_url: params.imageUrl,
+        caption: params.caption,
+        access_token: accessToken,
+      }),
+    });
+    const createData = await createRes.json() as { id?: string; error?: any };
+    if (!createData.id) throw new Error(`Instagram media create failed: ${JSON.stringify(createData.error || {})}`);
+
+    const publishRes = await fetch(`https://graph.facebook.com/${version}/${igUserId}/media_publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        creation_id: createData.id,
+        access_token: accessToken,
+      }),
+    });
+    const publishData = await publishRes.json() as { id?: string; error?: any };
+    if (!publishData.id) throw new Error(`Instagram publish failed: ${JSON.stringify(publishData.error || {})}`);
+
+    return {
+      platform: 'Instagram',
+      post_id: publishData.id,
+      post_url: `https://www.instagram.com/p/${publishData.id}/`,
+    };
+  }
+
+  if (!pageId) throw new Error('Facebook Page não configurada neste conector.');
+  const res = await fetch(`https://graph.facebook.com/${version}/${pageId}/photos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: params.imageUrl,
+      caption: params.caption,
+      access_token: accessToken,
+    }),
+  });
+  const data = await res.json() as { id?: string; post_id?: string; error?: any };
+  if (!data.id && !data.post_id) {
+    throw new Error(`Facebook post failed: ${JSON.stringify(data.error || {})}`);
+  }
+
+  const postId = data.post_id ?? data.id!;
+  return {
+    platform: 'Facebook',
+    post_id: postId,
+    post_url: `https://www.facebook.com/${postId}`,
+  };
+}
+
+async function toolPreparePostApproval(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const workflow = await resolvePostWorkflowContext(args, ctx);
+  const expiresInDays = Math.min(Number(args.expires_in_days || 7), 30);
+  const approvalResult = await toolGenerateApprovalLink({
+    briefing_id: workflow.briefingId,
+    client_name: String(args.client_name || workflow.clientName),
+    expires_in_days: expiresInDays,
+  }, ctx);
+  if (!approvalResult.success) return approvalResult;
+
+  const approvalUrl = String(approvalResult.data?.approvalUrl || '').trim();
+  const clientEmail = String(args.client_email || '').trim() || await resolvePrimaryClientEmail(ctx.tenantId, workflow.clientId);
+
+  if (workflow.creativeSessionId && workflow.jobId) {
+    await sendCreativeReview(ctx.tenantId, workflow.creativeSessionId, workflow.jobId, ctx.userId ?? null, {
+      review_type: 'client_approval',
+      payload: {
+        briefing_id: workflow.briefingId,
+        approval_url: approvalUrl,
+        client_email: clientEmail || null,
+        source: 'jarvis_prepare_post_approval',
+      },
+    }).catch(() => null);
+  }
+
+  let emailSent = false;
+  if (args.send_email === true && clientEmail) {
+    await sendJarvisApprovalEmail({
+      tenantId: ctx.tenantId,
+      to: clientEmail,
+      clientName: workflow.clientName,
+      briefingTitle: workflow.briefingTitle,
+      approvalUrl,
+      message: String(args.message || '').trim() || null,
+    }).then(() => {
+      emailSent = true;
+    }).catch(() => {
+      emailSent = false;
+    });
+  }
+
+  return {
+    success: true,
+    data: {
+      message: emailSent
+        ? `Aprovação preparada e enviada para ${clientEmail}.`
+        : 'Link de aprovação preparado para o workflow atual.',
+      briefing_id: workflow.briefingId,
+      creative_session_id: workflow.creativeSessionId,
+      job_id: workflow.jobId,
+      approvalUrl,
+      client_email: clientEmail || null,
+      studio_url: workflow.studioUrl,
+      next_step: emailSent
+        ? 'Acompanhe a resposta do cliente. Quando aprovar, o Jarvis pode agendar ou publicar.'
+        : 'Envie o link ao cliente ou peça ao Jarvis para mandar a aprovação por e-mail.',
+    },
+  };
+}
+
+async function toolSchedulePostPublication(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute este agendamento quando o usuário confirmar explicitamente.' };
+  }
+
+  const workflow = await resolvePostWorkflowContext(args, ctx);
+  if (!workflow.copyId) {
+    return { success: false, error: 'Não encontrei uma copy selecionada para este post. Finalize a copy no Studio antes de agendar.' };
+  }
+
+  const scheduledFor = String(args.scheduled_for || '').trim() || computeDefaultScheduledForIso();
+  const channel = String(args.channel || inferPublishChannel(workflow.platform)).trim().toLowerCase();
+
+  if (workflow.creativeSessionId && workflow.jobId) {
+    await markReadyToPublish(ctx.tenantId, workflow.creativeSessionId, workflow.jobId, ctx.userId ?? null, {
+      channel,
+      scheduled_for: scheduledFor,
+      metadata: {
+        source: 'jarvis_schedule_post_publication',
+        notes: String(args.notes || '').trim() || null,
+      },
+    }).catch(() => null);
+  }
+
+  const scheduleResult = await toolScheduleBriefing({
+    briefing_id: workflow.briefingId,
+    copy_id: workflow.copyId,
+    channel,
+    scheduled_for: scheduledFor,
+  }, ctx);
+  if (!scheduleResult.success) return scheduleResult;
+
+  return {
+    success: true,
+    data: {
+      message: `Publicação agendada para ${channel}.`,
+      briefing_id: workflow.briefingId,
+      creative_session_id: workflow.creativeSessionId,
+      job_id: workflow.jobId,
+      channel,
+      scheduled_for: scheduledFor,
+      schedule_id: scheduleResult.data?.scheduleId || null,
+      studio_url: workflow.studioUrl,
+      next_step: 'O post está pronto para a fila de publicação. Se houver asset final, você também pode mandar publicar agora.',
+    },
+  };
+}
+
+async function toolPublishStudioPost(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute esta publicação quando o usuário confirmar explicitamente.' };
+  }
+
+  const workflow = await resolvePostWorkflowContext(args, ctx);
+  const assetUrl = String(workflow.selectedAsset?.file_url || '').trim();
+  if (!assetUrl) {
+    return { success: false, error: 'Não encontrei asset final selecionado no Studio. Gere ou selecione o asset antes de publicar.' };
+  }
+  if (!workflow.copyText) {
+    return { success: false, error: 'Não encontrei a copy final deste post para publicar.' };
+  }
+
+  const channel = String(args.channel || inferPublishChannel(workflow.platform)).trim().toLowerCase();
+  const assetType = String(workflow.selectedAsset?.asset_type || '').trim().toLowerCase();
+  let published: Record<string, any>;
+
+  if (channel === 'linkedin') {
+    if (assetType && assetType !== 'image') {
+      return { success: false, error: 'Publicação direta no LinkedIn pelo Jarvis exige um asset de imagem selecionado no Studio.' };
+    }
+    const { publishLinkedInPost } = await import('../integrations/linkedinService');
+    const result = await publishLinkedInPost(ctx.tenantId, workflow.clientId, {
+      imageUrl: assetUrl,
+      caption: workflow.copyText,
+      title: String(args.title || workflow.briefingTitle),
+    });
+    published = {
+      platform: 'LinkedIn',
+      post_id: result.postId,
+      post_url: result.postUrl,
+    };
+  } else if (channel === 'tiktok') {
+    if (assetType && assetType !== 'video') {
+      return { success: false, error: 'Publicação direta no TikTok pelo Jarvis exige um asset de vídeo selecionado no Studio.' };
+    }
+    const { publishTikTokVideo } = await import('../integrations/tiktokService');
+    const result = await publishTikTokVideo(ctx.tenantId, workflow.clientId, {
+      videoUrl: assetUrl,
+      caption: workflow.copyText,
+    });
+    published = {
+      platform: 'TikTok',
+      post_id: result.publishId,
+      post_url: result.shareUrl,
+    };
+  } else if (channel === 'facebook' || channel === 'instagram') {
+    if (assetType && assetType !== 'image') {
+      return { success: false, error: 'Publicação direta em Instagram/Facebook pelo Jarvis exige um asset de imagem selecionado no Studio.' };
+    }
+    published = await publishMetaAssetNow({
+      tenantId: ctx.tenantId,
+      clientId: workflow.clientId,
+      imageUrl: assetUrl,
+      caption: workflow.copyText,
+      channel: channel === 'facebook' ? 'facebook' : 'instagram',
+    });
+  } else {
+    return { success: false, error: `Canal "${channel}" não suportado para publicação direta pelo Jarvis.` };
+  }
+
+  if (workflow.jobId) {
+    await query(
+      `UPDATE jobs
+          SET status = 'published',
+              completed_at = COALESCE(completed_at, NOW())
+        WHERE tenant_id = $1
+          AND id = $2`,
+      [ctx.tenantId, workflow.jobId],
+    ).catch(() => null);
+  }
+
+  if (workflow.creativeSessionId && workflow.jobId) {
+    await query(
+      `INSERT INTO creative_publication_intents (
+         tenant_id, creative_session_id, job_id, channel, scheduled_for, status, metadata
+       ) VALUES ($1, $2, $3, $4, NOW(), 'published', $5::jsonb)`,
+      [
+        ctx.tenantId,
+        workflow.creativeSessionId,
+        workflow.jobId,
+        channel,
+        JSON.stringify({
+          source: 'jarvis_publish_studio_post',
+          platform: published.platform,
+          post_id: published.post_id || null,
+          post_url: published.post_url || null,
+          asset_id: workflow.selectedAsset?.id || null,
+        }),
+      ],
+    ).catch(() => null);
+
+    await syncOperationalRuntimeForJob(ctx.tenantId, workflow.jobId).catch(() => null);
+  }
+
+  return {
+    success: true,
+    data: {
+      message: `Post publicado em ${published.platform}.`,
+      briefing_id: workflow.briefingId,
+      creative_session_id: workflow.creativeSessionId,
+      job_id: workflow.jobId,
+      channel,
+      platform: published.platform,
+      post_id: published.post_id || null,
+      post_url: published.post_url || null,
+      studio_url: workflow.studioUrl,
+      next_step: 'A publicação foi concluída. Agora o Jarvis pode acompanhar performance, feedback e operação.',
+    },
+  };
+}
+
 // ── Web Search (Tavily) ─────────────────────────────────────────
 
 async function toolWebSearch(args: any, ctx: ToolContext): Promise<ToolResult> {
@@ -2262,7 +2770,7 @@ async function toolScheduleBriefing(args: any, ctx: ToolContext): Promise<ToolRe
   }
 
   const { rows } = await query<{ id: string }>(
-    `INSERT INTO edro_publish_schedule (briefing_id, copy_version_id, channel, scheduled_for, tenant_id, status)
+    `INSERT INTO edro_publish_schedule (briefing_id, copy_id, channel, scheduled_for, tenant_id, status)
      VALUES ($1,$2,$3,$4,$5,'pending')
      RETURNING id`,
     [briefing_id, copy_id, channel, scheduled_for, ctx.tenantId]

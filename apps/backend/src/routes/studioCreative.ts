@@ -2272,7 +2272,7 @@ Retorne APENAS JSON válido:
 
   // GET /clients/:clientId/lora/jobs — list all training jobs for a client
   app.get('/clients/:clientId/lora/jobs', {
-    preHandler: [authGuard, tenantGuard, requirePerm('clients:read')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
   }, async (request: any, reply) => {
     const { clientId } = request.params;
     const tenantId = request.user.tenant_id;
@@ -2294,7 +2294,7 @@ Retorne APENAS JSON válido:
   });
 
   app.post('/clients/:clientId/lora/start-training', {
-    preHandler: [authGuard, tenantGuard, requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
   }, async (request: any, reply) => {
     const { clientId } = request.params;
     const tenantId = request.user.tenant_id;
@@ -2318,7 +2318,7 @@ Retorne APENAS JSON válido:
 
   // POST /clients/:clientId/lora/jobs/:jobId/approve — activate LoRA on client profile
   app.post('/clients/:clientId/lora/jobs/:jobId/approve', {
-    preHandler: [authGuard, tenantGuard, requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
   }, async (request: any, reply) => {
     const { clientId, jobId } = request.params;
     const tenantId = request.user.tenant_id;
@@ -2397,7 +2397,7 @@ Retorne APENAS JSON válido:
 
   // POST /clients/:clientId/lora/jobs/:jobId/reject — discard a validating job
   app.post('/clients/:clientId/lora/jobs/:jobId/reject', {
-    preHandler: [authGuard, tenantGuard, requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
   }, async (request: any, reply) => {
     const { clientId, jobId } = request.params;
     const tenantId = request.user.tenant_id;
