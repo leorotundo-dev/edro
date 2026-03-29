@@ -6,6 +6,7 @@ import { requireClientPerm } from '../auth/clientPerms';
 import { extractText } from '../library/extract';
 import { transcribeAudioBuffer } from '../services/meetingService';
 import mime from 'mime-types';
+import crypto from 'crypto';
 
 const JARVIS_AUDIO_MIMES = new Set([
   'audio/mpeg', 'audio/mp4', 'audio/mp3', 'audio/m4a',
@@ -668,10 +669,11 @@ export default async function planningRoutes(app: FastifyInstance) {
     const canonicalIntent = detectJarvisIntent(message, context_page);
     const canonicalDecision = buildJarvisRoutingDecision(canonicalIntent);
 
+    const effectiveConversationId = conversationId || crypto.randomUUID();
     const conversationHistory = await loadUnifiedConversationHistory({
       route: canonicalDecision.route,
       tenantId,
-      conversationId,
+      conversationId: effectiveConversationId,
       edroClientId: edroId,
     });
 
@@ -742,6 +744,8 @@ export default async function planningRoutes(app: FastifyInstance) {
                 edroClientId: edroId,
                 userId,
                 userEmail: user?.email,
+                conversationId: effectiveConversationId,
+                conversationRoute: canonicalDecision.route,
               } satisfies ToolContext,
               maxIterations: canonicalDecision.retrievalBudget.toolIterations,
               temperature: 0.7,
@@ -911,14 +915,15 @@ export default async function planningRoutes(app: FastifyInstance) {
         tenantId,
         edroClientId: edroId,
         userId,
-        conversationId,
+        conversationId: effectiveConversationId,
         message,
         assistantContent,
         provider: resultProvider || provider,
         observability,
+        artifacts,
       }).catch((error) => {
         console.warn('[planning] conversation save failed:', (error as Error).message);
-        return conversationId || null;
+        return effectiveConversationId || null;
       });
     } else {
       const messagesPayload = [

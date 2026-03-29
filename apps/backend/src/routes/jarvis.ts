@@ -19,6 +19,8 @@ import {
 } from '../services/jarvisContextService';
 import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
+import { getJobById } from '../jobs/jobQueue';
+import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import {
   buildInlineAttachmentContext,
   buildJarvisObservability,
@@ -27,6 +29,7 @@ import {
   loadUnifiedConversationHistory,
   saveUnifiedConversation,
 } from '../services/jarvisPolicyService';
+import crypto from 'crypto';
 
 const jarvisChatSchema = z.object({
   message: z.string().min(1),
@@ -59,10 +62,11 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const decision = buildJarvisRoutingDecision(intent);
     const clientId = body.clientId ?? null;
     const edroClientId = clientId ? await resolveEdroClientId(clientId) : null;
+    const effectiveConversationId = body.conversationId || crypto.randomUUID();
     const conversationHistory = await loadUnifiedConversationHistory({
       route: decision.route,
       tenantId,
-      conversationId: body.conversationId,
+      conversationId: effectiveConversationId,
       edroClientId,
     });
     const attachmentContext = buildInlineAttachmentContext(body.inline_attachments);
@@ -137,13 +141,13 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           tenantId,
           edroClientId,
           userId,
-          conversationId: body.conversationId,
+          conversationId: effectiveConversationId,
           message: body.message,
           assistantContent: finalText,
           provider: resultProvider || body.provider,
           observability,
           artifacts,
-        }).catch(() => body.conversationId || null);
+        }).catch(() => effectiveConversationId);
 
         request.log?.info({
           event: 'jarvis_chat_completed',
@@ -206,7 +210,11 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric),
             tools: getAllToolDefinitions(),
             provider: resolvedProvider,
-            toolContext: toolCtx,
+            toolContext: {
+              ...toolCtx,
+              conversationId: effectiveConversationId,
+              conversationRoute: decision.route,
+            },
             maxIterations: decision.retrievalBudget.toolIterations,
             temperature: 0.7,
             maxTokens: 4096,
@@ -241,13 +249,13 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           tenantId,
           edroClientId,
           userId,
-          conversationId: body.conversationId,
+          conversationId: effectiveConversationId,
           message: body.message,
           assistantContent: finalText,
           provider: resultProvider || body.provider,
           observability,
           artifacts,
-        }).catch(() => body.conversationId || null);
+        }).catch(() => effectiveConversationId);
 
         request.log?.info({
           event: 'jarvis_chat_completed',
@@ -291,6 +299,25 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         error: `Falha no Jarvis (${err?.message || 'unknown'}). Tempo: ${elapsed}ms.`,
       });
     }
+  });
+
+  // GET /jarvis/alerts — alertas abertos do tenant (opcionalmente filtrado por client_id)
+  app.get('/jarvis/background-jobs/:jobId', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    const job = await getJobById(jobId, tenantId);
+    if (!job || job.type !== 'jarvis_background') {
+      return reply.status(404).send({ success: false, error: 'Job não encontrado.' });
+    }
+    return reply.send({
+      success: true,
+      data: {
+        id: job.id,
+        status: job.status,
+        error: job.error_message || null,
+        artifact: buildJarvisBackgroundArtifact(job),
+      },
+    });
   });
 
   // GET /jarvis/alerts — alertas abertos do tenant (opcionalmente filtrado por client_id)

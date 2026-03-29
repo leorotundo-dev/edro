@@ -37,6 +37,26 @@ export async function fetchJobs(type: string, limit = 5) {
   return rows;
 }
 
+export async function getJobById(id: string, tenantId: string) {
+  const { rows } = await query<any>(
+    `SELECT * FROM job_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    [id, tenantId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function mergeJobPayload(id: string, patch: Record<string, any>): Promise<boolean> {
+  const { rows } = await query<{ id: string }>(
+    `UPDATE job_queue
+     SET payload = COALESCE(payload, '{}'::jsonb) || $2::jsonb,
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING id`,
+    [id, JSON.stringify(patch)]
+  );
+  return rows.length > 0;
+}
+
 export async function markJob(id: string, status: 'processing' | 'done' | 'failed', error?: string): Promise<boolean> {
   if (status === 'processing') {
     // Accept both 'queued' and 'processing' so fetchJobs (which already marks atomically)

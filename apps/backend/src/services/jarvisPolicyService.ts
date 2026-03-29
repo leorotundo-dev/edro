@@ -274,3 +274,61 @@ export async function saveUnifiedConversation(params: {
   );
   return newConversationId;
 }
+
+export async function updateUnifiedConversationArtifact(params: {
+  route: 'operations' | 'planning';
+  tenantId: string;
+  conversationId: string;
+  backgroundJobId: string;
+  edroClientId?: string | null;
+  artifact: Record<string, any>;
+}): Promise<boolean> {
+  const { route, tenantId, conversationId, backgroundJobId, edroClientId, artifact } = params;
+  const selectSql = route === 'operations'
+    ? `SELECT messages FROM operations_conversations WHERE id = $1 AND tenant_id = $2 LIMIT 1`
+    : `SELECT messages FROM planning_conversations WHERE id = $1 AND tenant_id = $2 AND client_id = $3::uuid LIMIT 1`;
+  const selectParams = route === 'operations'
+    ? [conversationId, tenantId]
+    : [conversationId, tenantId, edroClientId];
+
+  const { rows } = await query<{ messages: any[] }>(selectSql, selectParams);
+  if (!rows[0]?.messages || !Array.isArray(rows[0].messages)) return false;
+
+  let changed = false;
+  const nextMessages = rows[0].messages.map((message: any) => {
+    if (!message?.metadata?.artifacts || !Array.isArray(message.metadata.artifacts)) return message;
+
+    let messageChanged = false;
+    const nextArtifacts = message.metadata.artifacts.map((item: any) => {
+      if (String(item?.background_job_id || '') !== backgroundJobId) return item;
+      messageChanged = true;
+      changed = true;
+      return {
+        ...item,
+        ...artifact,
+        background_job_id: backgroundJobId,
+      };
+    });
+
+    if (!messageChanged) return message;
+    return {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        artifacts: nextArtifacts,
+      },
+    };
+  });
+
+  if (!changed) return false;
+
+  const updateSql = route === 'operations'
+    ? `UPDATE operations_conversations SET messages = $1::jsonb, updated_at = now() WHERE id = $2 AND tenant_id = $3`
+    : `UPDATE planning_conversations SET messages = $1::jsonb, updated_at = now() WHERE id = $2 AND tenant_id = $3 AND client_id = $4::uuid`;
+  const updateParams = route === 'operations'
+    ? [JSON.stringify(nextMessages), conversationId, tenantId]
+    : [JSON.stringify(nextMessages), conversationId, tenantId, edroClientId];
+
+  await query(updateSql, updateParams);
+  return true;
+}

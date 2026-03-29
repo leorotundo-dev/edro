@@ -47,6 +47,7 @@ import { runFeedbackProcessorWorkerOnce } from './feedbackProcessorWorker';
 import { runBedelWorkerOnce } from './bedelWorker';
 import { runLoraMonitorWorkerOnce } from './loraMonitorWorker';
 import { runClientPostsWorkerOnce } from './clientPostsWorker';
+import { runJarvisBackgroundWorkerOnce } from './jarvisBackgroundWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -107,6 +108,8 @@ export function startJobsRunner() {
   startWorkerLoop('whatsappHealth', runWhatsAppHealthWorkerOnce, 15000, 30_000);
   // Scheduled Publications — publishes LinkedIn or notifies for other platforms
   startWorkerLoop('scheduledPublications', runScheduledPublicationsOnce, 17500, 60_000);
+  // Jarvis Background — long-running actions such as full creative post pipelines
+  startWorkerLoop('jarvisBackground', runJarvisBackgroundWorkerOnce, 17750, 180_000);
   // Webhook Retry — retries failed WhatsApp/Instagram/Recall events (max 3 attempts)
   startWorkerLoop('webhookRetry', runWebhookRetryWorkerOnce, 21500, 30_000);
 
@@ -116,8 +119,6 @@ export function startJobsRunner() {
   startWorkerLoop('operationalAgent', runOperationalAgentOnce, 8000, 120_000, 30_000);
   // Briefing Scheduler — creates recurring jobs (self-throttled to 1min)
   startWorkerLoop('briefingScheduler', runBriefingSchedulerOnce, 8500, 60_000, 30_000);
-  // LoRA Monitor — polls fal.ai training jobs every 2 min
-  startWorkerLoop('loraMonitor', runLoraMonitorWorkerOnce, 23500, 120_000, 30_000);
 
   // ── 60s — daily/weekly workers (self-throttle by time-of-day internally) ─
   // These workers check internally whether it's time to run. Polling every 60s
@@ -191,8 +192,10 @@ export function startJobsRunner() {
   // Art Direction Trend Memory — opt-in, analyzes discovered references and consolidates daily
   startWorkerLoop('artDirectionTrend', runArtDirectionTrendWorkerOnce, 21000, 300_000, 60_000);
   startWorkerLoop('agencyDigest', runAgencyDigestWorkerOnce, 22000, 60_000, 60_000);
-  // DA Feedback Processor — 1×/day at 03h BRT, updates trust_score
+  // Feedback Processor — closes learning loop from copy feedback + AMD + reportei
   startWorkerLoop('feedbackProcessor', runFeedbackProcessorWorkerOnce, 22500, 120_000, 60_000);
-  // Bedel — alocação de DAs, monitor de entrega, geração de billing entries
-  startWorkerLoop('bedel', runBedelWorkerOnce, 23000, 60_000, 60_000);
+  // Bedel Worker — DA allocation scoring + monitor alerts + billing closure
+  startWorkerLoop('bedel', runBedelWorkerOnce, 23000, 120_000, 60_000);
+  // LoRA Monitor — polls fal.ai training jobs every 2 min
+  startWorkerLoop('loraMonitor', runLoraMonitorWorkerOnce, 23500, 120_000, 30_000);
 }
