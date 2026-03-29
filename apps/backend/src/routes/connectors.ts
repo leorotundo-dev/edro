@@ -6,6 +6,7 @@ import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { requireClientPerm } from '../auth/clientPerms';
 import { syncInstagramMetrics } from '../services/integrations/instagramSyncService';
+import { syncClientPosts } from '../services/integrations/clientPostsService';
 
 let connectorsReady = false;
 
@@ -379,6 +380,59 @@ export default async function connectorsRoutes(app: FastifyInstance) {
         [(request.user as any).tenant_id, params.clientId, params.provider]
       );
       return { ok: true };
+    }
+  );
+
+  // ── Client Posts — list + manual sync ──────────────────────────────────────
+  app.get(
+    '/clients/:clientId/posts',
+    { preHandler: [tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+      const { platform, limit, offset } = z.object({
+        platform: z.string().optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(30),
+        offset: z.coerce.number().int().min(0).default(0),
+      }).parse(request.query);
+
+      const platformClause = platform ? `AND platform = '${platform.replace(/'/g, '')}'` : '';
+
+      const { rows } = await query(
+        `SELECT id, platform, external_id, url, caption, media_type, media_url, thumbnail_url,
+                likes_count, comments_count, shares_count,
+                impressions, reach, saves, video_views, engagement_rate,
+                published_at, fetched_at
+         FROM client_posts
+         WHERE tenant_id=$1 AND client_id=$2 ${platformClause}
+         ORDER BY published_at DESC NULLS LAST
+         LIMIT $3 OFFSET $4`,
+        [tenantId, clientId, limit, offset]
+      );
+
+      const { rows: [{ count }] } = await query<{ count: string }>(
+        `SELECT COUNT(*) FROM client_posts WHERE tenant_id=$1 AND client_id=$2 ${platformClause}`,
+        [tenantId, clientId]
+      );
+
+      return reply.send({ posts: rows, total: Number(count) });
+    }
+  );
+
+  app.post(
+    '/clients/:clientId/posts/sync',
+    { preHandler: [tenantGuard(), requirePerm('integrations:write'), requireClientPerm('publish')] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+
+      try {
+        const result = await syncClientPosts(tenantId, clientId);
+        return reply.send({ success: true, data: result });
+      } catch (err: any) {
+        const status = err.message === 'meta_connector_not_found' ? 404 : 500;
+        return reply.status(status).send({ success: false, error: err.message });
+      }
     }
   );
 
