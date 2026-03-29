@@ -836,6 +836,42 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'read',
   },
   {
+    name: 'get_creative_ops_risk_report',
+    description: 'Retorna um relatório de risco criativo por responsável: quem está em pressão real, quem concentra jobs críticos/altos, bloqueios, prazos próximos e jobs sem dono. Use para "quem está em maior risco?", "qual DA está em perigo?" ou "onde a operação criativa pode estourar?".',
+    parameters: {
+      person_type: { type: 'string', description: 'Filtrar por tipo de pessoa', enum: ['all', 'freelancer', 'internal'] },
+      owner_id: { type: 'string', description: 'UUID de um responsável específico (opcional)' },
+      only_high_risk: { type: 'boolean', description: 'Se true, retorna apenas pessoas e jobs em alto/critico' },
+      limit: { type: 'number', description: 'Máximo de responsáveis retornados (default 8, max 20)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_creative_ops_quality',
+    description: 'Retorna qualidade operacional criativa por responsável: taxa de aprovação, pressão de retrabalho, média de revisões, mudanças pedidas em review e hotspots de qualidade. Use para "quem está gerando mais retrabalho?", "quem aprova melhor?" ou "como está a qualidade da equipe criativa?".',
+    parameters: {
+      person_type: { type: 'string', description: 'Filtrar por tipo de pessoa', enum: ['all', 'freelancer', 'internal'] },
+      owner_id: { type: 'string', description: 'UUID de um responsável específico (opcional)' },
+      specialty: { type: 'string', description: 'Filtrar por especialidade (ex: design, motion, social)' },
+      days_back: { type: 'number', description: 'Janela histórica em dias (default 120, max 365)' },
+      limit: { type: 'number', description: 'Máximo de responsáveis retornados (default 10, max 20)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_creative_ops_bottlenecks',
+    description: 'Mapeia gargalos criativos por estágio, tipo de job e canal: onde há acúmulo, bloqueio, jobs sem dono, risco alto e retrabalho acima do saudável. Use para "onde está travando?", "qual etapa está congestionada?" ou "que tipo de peça está virando gargalo?".',
+    parameters: {
+      stage: { type: 'string', description: 'Filtrar por status/etapa específica (opcional)' },
+      limit: { type: 'number', description: 'Máximo de grupos retornados por seção (default 6, max 12)' },
+      only_high_impact: { type: 'boolean', description: 'Se true, mostra só gargalos com risco, bloqueio ou retrabalho relevante' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
     name: 'apply_job_allocation_recommendation',
     description: 'Aplica a melhor recomendação de responsável para um job: define owner e cria/atualiza a alocação principal com janela sugerida. Só use depois que o usuário pedir explicitamente para executar a atribuição.',
     parameters: {

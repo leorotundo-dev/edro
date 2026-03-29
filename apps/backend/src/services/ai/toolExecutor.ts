@@ -3302,6 +3302,9 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   get_da_capacity: opsGetDaCapacity,
   suggest_job_allocation: opsSuggestJobAllocation,
   suggest_creative_redistribution: opsSuggestCreativeRedistribution,
+  get_creative_ops_risk_report: opsGetCreativeRiskReport,
+  get_creative_ops_quality: opsGetCreativeQuality,
+  get_creative_ops_bottlenecks: opsGetCreativeBottlenecks,
   apply_job_allocation_recommendation: opsApplyJobAllocationRecommendation,
   apply_creative_redistribution: opsApplyCreativeRedistribution,
   get_operations_lookups: opsGetLookups,
@@ -3328,7 +3331,9 @@ export async function executeOperationsTool(
       toolName === 'suggest_creative_redistribution' ? 20000 :
         toolName === 'apply_job_allocation_recommendation' || toolName === 'apply_creative_redistribution' ? 20000 :
         toolName === 'suggest_job_allocation' ? 15000 :
-          toolName === 'get_creative_ops_workload' || toolName === 'get_da_capacity' ? 15000 :
+          toolName === 'get_creative_ops_workload' || toolName === 'get_da_capacity' ||
+            toolName === 'get_creative_ops_risk_report' || toolName === 'get_creative_ops_quality' ||
+            toolName === 'get_creative_ops_bottlenecks' ? 15000 :
             10000;
     const result = await Promise.race([
       handler(args, ctx),
@@ -3503,6 +3508,52 @@ function opsIsMovableCreativeJob(job: any, riskBand?: string | null) {
     if (Number.isFinite(diffHours) && diffHours <= 12) return false;
   }
   return true;
+}
+
+function opsRiskBandWeight(riskBand?: string | null) {
+  switch (String(riskBand || '').toLowerCase()) {
+    case 'critical': return 5;
+    case 'high': return 3;
+    case 'medium': return 2;
+    case 'low': return 1;
+    default: return 0;
+  }
+}
+
+function opsCreativeRiskState(params: {
+  usage: number;
+  criticalJobs: number;
+  highRiskJobs: number;
+  blockedJobs: number;
+  nearDeadlineJobs: number;
+  riskScore: number;
+}) {
+  if (params.criticalJobs > 0 || params.usage >= 1 || params.riskScore >= 10) return 'critico';
+  if (params.highRiskJobs > 0 || params.blockedJobs > 0 || params.nearDeadlineJobs >= 2 || params.usage >= 0.85 || params.riskScore >= 6) return 'alto';
+  if (params.nearDeadlineJobs > 0 || params.usage >= 0.7 || params.riskScore >= 3) return 'moderado';
+  return 'estavel';
+}
+
+function opsCreativeQualityState(params: {
+  approvalRate: number | null;
+  avgRevisionCount: number;
+  clientReworkCount: number;
+  highReworkJobs: number;
+}) {
+  if ((params.approvalRate !== null && params.approvalRate < 60) || params.avgRevisionCount >= 2.5 || params.clientReworkCount >= 3 || params.highReworkJobs >= 3) {
+    return 'critico';
+  }
+  if ((params.approvalRate !== null && params.approvalRate < 75) || params.avgRevisionCount >= 1.4 || params.clientReworkCount >= 1 || params.highReworkJobs >= 1) {
+    return 'atencao';
+  }
+  return 'saudavel';
+}
+
+function opsCreativeBottleneckSeverity(score: number) {
+  if (score >= 14) return 'critico';
+  if (score >= 8) return 'alto';
+  if (score >= 4) return 'moderado';
+  return 'leve';
 }
 
 async function opsGetCreativeWorkload(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
@@ -3808,6 +3859,458 @@ async function opsSuggestCreativeRedistribution(args: any, ctx: OperationsToolCo
       note: suggestions.length
         ? 'Use assign_job_owner e manage_job_allocation para executar uma redistribuição após confirmar o movimento.'
         : 'Nenhuma redistribuição segura encontrada com os filtros atuais.',
+    },
+  };
+}
+
+async function opsGetCreativeRiskReport(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 8, 20);
+  const personType = args.person_type && args.person_type !== 'all' ? String(args.person_type) : null;
+  const ownerFilter = String(args.owner_id || '').trim() || null;
+  const onlyHighRisk = args.only_high_risk === true;
+
+  const [planner, risks] = await Promise.all([
+    buildPlannerSnapshot(ctx.tenantId),
+    buildRiskSnapshot(ctx.tenantId),
+  ]);
+
+  const riskyJobs = [...(risks.critical || []), ...(risks.high || [])];
+  const groupedByOwner = new Map<string, any[]>();
+  const unassignedJobs = riskyJobs.filter((job) => !job.owner_id);
+
+  for (const job of riskyJobs) {
+    if (!job.owner_id) continue;
+    const bucket = groupedByOwner.get(job.owner_id) || [];
+    bucket.push(job);
+    groupedByOwner.set(job.owner_id, bucket);
+  }
+
+  let owners = planner.owners
+    .filter((row) => !personType || row.owner.person_type === personType)
+    .filter((row) => !ownerFilter || row.owner.id === ownerFilter)
+    .map((row) => {
+      const ownerRiskJobs = groupedByOwner.get(row.owner.id) || [];
+      const criticalJobs = ownerRiskJobs.filter((job) => String(job.metadata?.risk_signal?.band || '').toLowerCase() === 'critical').length;
+      const highRiskJobs = ownerRiskJobs.filter((job) => ['critical', 'high', 'medium'].includes(String(job.metadata?.risk_signal?.band || '').toLowerCase())).length;
+      const blockedJobs = row.jobs.filter((job) => String(job.status || '').toLowerCase() === 'blocked').length;
+      const nearDeadlineJobs = row.jobs.filter((job) => {
+        if (!job.deadline_at || !opsIsActiveJobStatus(job.status)) return false;
+        const diffHours = (new Date(job.deadline_at).getTime() - Date.now()) / 3600000;
+        return Number.isFinite(diffHours) && diffHours <= 24;
+      }).length;
+      const riskScore = ownerRiskJobs.reduce((sum, job) => sum + opsRiskBandWeight(job.metadata?.risk_signal?.band), 0)
+        + (blockedJobs * 2)
+        + (nearDeadlineJobs * 2)
+        + (row.usage >= 1 ? 3 : row.usage >= 0.85 ? 2 : row.usage >= 0.7 ? 1 : 0);
+      const state = opsCreativeRiskState({
+        usage: row.usage || 0,
+        criticalJobs,
+        highRiskJobs,
+        blockedJobs,
+        nearDeadlineJobs,
+        riskScore,
+      });
+
+      return {
+        owner_id: row.owner.id,
+        name: row.owner.name,
+        email: row.owner.email,
+        specialty: row.owner.specialty,
+        person_type: row.owner.person_type,
+        usage_pct: Math.round((row.usage || 0) * 100),
+        state,
+        risk_score: riskScore,
+        critical_jobs: criticalJobs,
+        high_risk_jobs: highRiskJobs,
+        blocked_jobs: blockedJobs,
+        near_deadline_jobs: nearDeadlineJobs,
+        active_jobs: row.jobs.length,
+        recommendation:
+          state === 'critico' ? 'Proteger agenda, redistribuir jobs e atacar bloqueios imediatamente.' :
+            state === 'alto' ? 'Evitar nova entrada e revisar redistribuição hoje.' :
+              state === 'moderado' ? 'Monitorar prazos e priorizar saídas mais próximas.' :
+                'Sem pressão relevante agora.',
+        top_risk_jobs: ownerRiskJobs
+          .sort((a, b) =>
+            (opsRiskBandWeight(b.metadata?.risk_signal?.band) - opsRiskBandWeight(a.metadata?.risk_signal?.band)) ||
+            (opsPriorityWeight(a.priority_band) - opsPriorityWeight(b.priority_band)) ||
+            (new Date(a.deadline_at || 0).getTime() - new Date(b.deadline_at || 0).getTime()))
+          .slice(0, 4)
+          .map((job) => ({
+            job_id: job.id,
+            title: job.title,
+            client_name: job.client_name,
+            status: job.status,
+            priority_band: job.priority_band,
+            deadline_at: job.deadline_at,
+            risk_band: job.metadata?.risk_signal?.band || null,
+            risk_summary: job.metadata?.risk_signal?.summary || null,
+          })),
+      };
+    });
+
+  if (onlyHighRisk) {
+    owners = owners.filter((owner) => owner.state === 'critico' || owner.state === 'alto');
+  }
+
+  owners = owners
+    .sort((a, b) =>
+      (b.risk_score - a.risk_score) ||
+      (b.critical_jobs - a.critical_jobs) ||
+      (b.high_risk_jobs - a.high_risk_jobs) ||
+      (b.usage_pct - a.usage_pct) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        owners_evaluated: owners.length,
+        critical_people: owners.filter((owner) => owner.state === 'critico').length,
+        high_risk_people: owners.filter((owner) => owner.state === 'alto').length,
+        risky_jobs_total: riskyJobs.length,
+        critical_jobs_total: riskyJobs.filter((job) => String(job.metadata?.risk_signal?.band || '').toLowerCase() === 'critical').length,
+        unassigned_high_risk_jobs: unassignedJobs.length,
+      },
+      owners,
+      unassigned_jobs: unassignedJobs
+        .sort((a, b) =>
+          (opsRiskBandWeight(b.metadata?.risk_signal?.band) - opsRiskBandWeight(a.metadata?.risk_signal?.band)) ||
+          (opsPriorityWeight(a.priority_band) - opsPriorityWeight(b.priority_band)))
+        .slice(0, 6)
+        .map((job) => ({
+          job_id: job.id,
+          title: job.title,
+          client_name: job.client_name,
+          status: job.status,
+          priority_band: job.priority_band,
+          deadline_at: job.deadline_at,
+          risk_band: job.metadata?.risk_signal?.band || null,
+          risk_summary: job.metadata?.risk_signal?.summary || null,
+        })),
+    },
+  };
+}
+
+async function opsGetCreativeQuality(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 10, 20);
+  const daysBack = Math.min(Math.max(Number(args.days_back || 120), 30), 365);
+  const personType = args.person_type && args.person_type !== 'all' ? String(args.person_type) : null;
+  const ownerFilter = String(args.owner_id || '').trim() || null;
+  const specialtyFilter = String(args.specialty || '').trim().toLowerCase();
+
+  const { rows } = await query(
+    `WITH review_stats AS (
+       SELECT
+         cr.job_id,
+         COUNT(*) FILTER (WHERE cr.review_type = 'internal')::int AS internal_reviews,
+         COUNT(*) FILTER (WHERE cr.review_type = 'internal' AND cr.status = 'changes_requested')::int AS internal_changes,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval')::int AS client_reviews,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval' AND cr.status = 'approved')::int AS client_approved,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval' AND cr.status IN ('changes_requested', 'rejected'))::int AS client_rework
+       FROM creative_reviews cr
+       WHERE cr.tenant_id = $1
+       GROUP BY cr.job_id
+     )
+     SELECT
+       j.owner_id,
+       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+       u.email AS owner_email,
+       tu.role AS owner_role,
+       fp.specialty,
+       CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type,
+       fp.approval_rate,
+       COUNT(*)::int AS total_jobs,
+       COUNT(*) FILTER (WHERE j.status IN ('approved', 'scheduled', 'published', 'done'))::int AS delivered_jobs,
+       COALESCE(ROUND(AVG(COALESCE(j.revision_count, 0))::numeric, 2), 0)::float AS avg_revision_count,
+       MAX(COALESCE(j.revision_count, 0))::int AS max_revision_count,
+       COUNT(*) FILTER (WHERE COALESCE(j.revision_count, 0) >= 2)::int AS jobs_high_rework,
+       COALESCE(SUM(COALESCE(rs.internal_reviews, 0)), 0)::int AS internal_reviews,
+       COALESCE(SUM(COALESCE(rs.internal_changes, 0)), 0)::int AS internal_changes,
+       COALESCE(SUM(COALESCE(rs.client_reviews, 0)), 0)::int AS client_reviews,
+       COALESCE(SUM(COALESCE(rs.client_approved, 0)), 0)::int AS client_approved,
+       COALESCE(SUM(COALESCE(rs.client_rework, 0)), 0)::int AS client_rework,
+       MAX(j.updated_at) AS last_job_update
+     FROM jobs j
+     JOIN edro_users u ON u.id = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id = j.tenant_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN review_stats rs ON rs.job_id = j.id
+     WHERE j.tenant_id = $1
+       AND j.owner_id IS NOT NULL
+       AND j.status <> 'archived'
+       AND j.created_at >= NOW() - ($2 || ' days')::interval
+     GROUP BY j.owner_id, owner_name, owner_email, owner_role, fp.specialty, person_type, fp.approval_rate
+     ORDER BY total_jobs DESC, avg_revision_count DESC, owner_name ASC`,
+    [ctx.tenantId, String(daysBack)],
+  );
+
+  const filteredOwners = rows
+    .filter((row: any) => !personType || row.person_type === personType)
+    .filter((row: any) => !ownerFilter || row.owner_id === ownerFilter)
+    .filter((row: any) => !specialtyFilter || String(row.specialty || '').toLowerCase().includes(specialtyFilter))
+    .map((row: any) => {
+      const approvalRate = row.client_reviews > 0
+        ? Math.round((Number(row.client_approved || 0) / Math.max(1, Number(row.client_reviews || 0))) * 100)
+        : (row.approval_rate !== null && row.approval_rate !== undefined ? Math.round(Number(row.approval_rate)) : null);
+      const state = opsCreativeQualityState({
+        approvalRate,
+        avgRevisionCount: Number(row.avg_revision_count || 0),
+        clientReworkCount: Number(row.client_rework || 0),
+        highReworkJobs: Number(row.jobs_high_rework || 0),
+      });
+
+      return {
+        owner_id: row.owner_id,
+        name: row.owner_name,
+        email: row.owner_email,
+        role: row.owner_role,
+        specialty: row.specialty,
+        person_type: row.person_type,
+        state,
+        total_jobs: Number(row.total_jobs || 0),
+        delivered_jobs: Number(row.delivered_jobs || 0),
+        avg_revision_count: Number(row.avg_revision_count || 0),
+        max_revision_count: Number(row.max_revision_count || 0),
+        jobs_high_rework: Number(row.jobs_high_rework || 0),
+        internal_reviews: Number(row.internal_reviews || 0),
+        internal_changes: Number(row.internal_changes || 0),
+        client_reviews: Number(row.client_reviews || 0),
+        client_approved: Number(row.client_approved || 0),
+        client_rework: Number(row.client_rework || 0),
+        client_approval_rate: approvalRate,
+        approval_rate_profile: row.approval_rate !== null && row.approval_rate !== undefined ? Number(row.approval_rate) : null,
+        last_job_update: row.last_job_update,
+        recommendation:
+          state === 'critico' ? 'Revisar qualidade de entrega, retrabalho e handoff antes de nova carga.' :
+            state === 'atencao' ? 'Acompanhar rounds de revisão e calibrar briefing/critério visual.' :
+              'Qualidade operacional saudável no recorte atual.',
+      };
+    })
+    .sort((a: any, b: any) =>
+      ((a.state === 'critico' ? 2 : a.state === 'atencao' ? 1 : 0) - (b.state === 'critico' ? 2 : b.state === 'atencao' ? 1 : 0)) * -1 ||
+      (b.jobs_high_rework - a.jobs_high_rework) ||
+      (b.avg_revision_count - a.avg_revision_count) ||
+      ((a.client_approval_rate ?? 999) - (b.client_approval_rate ?? 999)) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  const hotspotRes = await query(
+    `WITH review_stats AS (
+       SELECT
+         cr.job_id,
+         COUNT(*) FILTER (WHERE cr.review_type = 'internal' AND cr.status = 'changes_requested')::int AS internal_changes,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval' AND cr.status IN ('changes_requested', 'rejected'))::int AS client_rework
+       FROM creative_reviews cr
+       WHERE cr.tenant_id = $1
+       GROUP BY cr.job_id
+     )
+     SELECT
+       j.id,
+       j.title,
+       j.status,
+       j.job_type,
+       j.channel,
+       j.revision_count,
+       j.updated_at,
+       c.name AS client_name,
+       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+       COALESCE(rs.internal_changes, 0)::int AS internal_changes,
+       COALESCE(rs.client_rework, 0)::int AS client_rework
+     FROM jobs j
+     LEFT JOIN clients c ON c.id = j.client_id
+     LEFT JOIN edro_users u ON u.id = j.owner_id
+     LEFT JOIN review_stats rs ON rs.job_id = j.id
+     WHERE j.tenant_id = $1
+       AND j.status NOT IN ('done', 'archived', 'published', 'cancelled')
+       AND j.created_at >= NOW() - ($2 || ' days')::interval
+       AND (COALESCE(j.revision_count, 0) >= 2 OR COALESCE(rs.internal_changes, 0) > 0 OR COALESCE(rs.client_rework, 0) > 0)
+     ORDER BY COALESCE(j.revision_count, 0) DESC, COALESCE(rs.client_rework, 0) DESC, j.updated_at DESC
+     LIMIT 8`,
+    [ctx.tenantId, String(daysBack)],
+  );
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        owners_evaluated: filteredOwners.length,
+        healthy_people: filteredOwners.filter((owner: any) => owner.state === 'saudavel').length,
+        attention_people: filteredOwners.filter((owner: any) => owner.state === 'atencao').length,
+        critical_people: filteredOwners.filter((owner: any) => owner.state === 'critico').length,
+        avg_revision_count:
+          filteredOwners.length
+            ? Number((filteredOwners.reduce((sum: number, owner: any) => sum + owner.avg_revision_count, 0) / filteredOwners.length).toFixed(2))
+            : 0,
+        avg_client_approval_rate:
+          filteredOwners.filter((owner: any) => owner.client_approval_rate !== null).length
+            ? Math.round(
+                filteredOwners
+                  .filter((owner: any) => owner.client_approval_rate !== null)
+                  .reduce((sum: number, owner: any) => sum + Number(owner.client_approval_rate || 0), 0) /
+                filteredOwners.filter((owner: any) => owner.client_approval_rate !== null).length,
+              )
+            : null,
+        days_back: daysBack,
+      },
+      owners: filteredOwners,
+      hotspots: hotspotRes.rows.map((row: any) => ({
+        job_id: row.id,
+        title: row.title,
+        client_name: row.client_name,
+        owner_name: row.owner_name,
+        status: row.status,
+        job_type: row.job_type,
+        channel: row.channel,
+        revision_count: Number(row.revision_count || 0),
+        internal_changes: Number(row.internal_changes || 0),
+        client_rework: Number(row.client_rework || 0),
+        updated_at: row.updated_at,
+      })),
+    },
+  };
+}
+
+async function opsGetCreativeBottlenecks(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 6, 12);
+  const stageFilter = String(args.stage || '').trim().toLowerCase();
+  const onlyHighImpact = args.only_high_impact === true;
+
+  const { rows } = await query(
+    `SELECT
+       j.id,
+       j.title,
+       j.status,
+       j.job_type,
+       COALESCE(NULLIF(j.channel, ''), 'sem_canal') AS channel,
+       j.deadline_at,
+       j.owner_id,
+       COALESCE(j.revision_count, 0)::int AS revision_count,
+       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+       c.name AS client_name,
+       rs.risk_band,
+       rs.summary AS risk_summary
+     FROM jobs j
+     LEFT JOIN edro_users u ON u.id = j.owner_id
+     LEFT JOIN clients c ON c.id = j.client_id
+     LEFT JOIN LATERAL (
+       SELECT risk_band, summary
+       FROM risk_signals
+       WHERE tenant_id = $1
+         AND job_id = j.id
+         AND resolved_at IS NULL
+       ORDER BY risk_score DESC
+       LIMIT 1
+     ) rs ON true
+     WHERE j.tenant_id = $1
+       AND j.status NOT IN ('done', 'archived', 'published', 'cancelled')
+       ${stageFilter ? `AND j.status = $2` : ''}
+     ORDER BY j.updated_at DESC`,
+    stageFilter ? [ctx.tenantId, stageFilter] : [ctx.tenantId],
+  );
+
+  const sourceRows = onlyHighImpact
+    ? rows.filter((row: any) => String(row.risk_band || '').length || row.status === 'blocked' || Number(row.revision_count || 0) >= 2 || !row.owner_id)
+    : rows;
+
+  const stageMap = new Map<string, any>();
+  const typeMap = new Map<string, any>();
+  const channelMap = new Map<string, any>();
+
+  for (const row of sourceRows) {
+    const groups = [
+      { map: stageMap, key: String(row.status || 'sem_status'), label: String(row.status || 'sem_status') },
+      { map: typeMap, key: String(row.job_type || 'sem_tipo'), label: String(row.job_type || 'sem_tipo') },
+      { map: channelMap, key: String(row.channel || 'sem_canal'), label: String(row.channel || 'sem_canal') },
+    ];
+    const riskWeight = opsRiskBandWeight(row.risk_band);
+    const blocked = String(row.status || '').toLowerCase() === 'blocked' ? 1 : 0;
+    const nearDeadline = row.deadline_at
+      ? (((new Date(row.deadline_at).getTime() - Date.now()) / 3600000) <= 24 ? 1 : 0)
+      : 0;
+    const unassigned = row.owner_id ? 0 : 1;
+    const revisionCount = Number(row.revision_count || 0);
+
+    for (const group of groups) {
+      const current = group.map.get(group.key) || {
+        key: group.key,
+        label: group.label,
+        open_jobs: 0,
+        blocked_jobs: 0,
+        high_risk_jobs: 0,
+        near_deadline_jobs: 0,
+        unassigned_jobs: 0,
+        total_revisions: 0,
+        sample_jobs: [] as Array<Record<string, any>>,
+      };
+      current.open_jobs += 1;
+      current.blocked_jobs += blocked;
+      current.high_risk_jobs += riskWeight >= 3 ? 1 : 0;
+      current.near_deadline_jobs += nearDeadline;
+      current.unassigned_jobs += unassigned;
+      current.total_revisions += revisionCount;
+      if (current.sample_jobs.length < 3) {
+        current.sample_jobs.push({
+          job_id: row.id,
+          title: row.title,
+          client_name: row.client_name,
+          owner_name: row.owner_name,
+          status: row.status,
+          risk_band: row.risk_band,
+          revision_count: revisionCount,
+        });
+      }
+      group.map.set(group.key, current);
+    }
+  }
+
+  const toRankedRows = (map: Map<string, any>) =>
+    Array.from(map.values())
+      .map((item) => {
+        const score = (item.high_risk_jobs * 4) + (item.blocked_jobs * 3) + (item.near_deadline_jobs * 2) + (item.unassigned_jobs * 2) + Math.min(item.total_revisions, 6);
+        const avgRevisionCount = item.open_jobs ? Number((item.total_revisions / item.open_jobs).toFixed(2)) : 0;
+        const severity = opsCreativeBottleneckSeverity(score);
+        return {
+          key: item.key,
+          label: item.label,
+          severity,
+          score,
+          open_jobs: item.open_jobs,
+          blocked_jobs: item.blocked_jobs,
+          high_risk_jobs: item.high_risk_jobs,
+          near_deadline_jobs: item.near_deadline_jobs,
+          unassigned_jobs: item.unassigned_jobs,
+          avg_revision_count: avgRevisionCount,
+          recommendation:
+            severity === 'critico' ? 'Atacar esta fila primeiro: redistribuir, destravar ou reduzir entrada.' :
+              severity === 'alto' ? 'Repriorizar e revisar ownership antes de adicionar nova demanda.' :
+                'Monitorar evolução desta fila.',
+          sample_jobs: item.sample_jobs,
+        };
+      })
+      .filter((item) => !onlyHighImpact || item.score >= 4)
+      .sort((a, b) =>
+        (b.score - a.score) ||
+        (b.high_risk_jobs - a.high_risk_jobs) ||
+        (b.blocked_jobs - a.blocked_jobs) ||
+        a.label.localeCompare(b.label))
+      .slice(0, limit);
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        open_jobs: sourceRows.length,
+        blocked_jobs: sourceRows.filter((row: any) => String(row.status || '').toLowerCase() === 'blocked').length,
+        unassigned_jobs: sourceRows.filter((row: any) => !row.owner_id).length,
+        near_deadline_jobs: sourceRows.filter((row: any) => row.deadline_at && ((new Date(row.deadline_at).getTime() - Date.now()) / 3600000) <= 24).length,
+        high_risk_jobs: sourceRows.filter((row: any) => opsRiskBandWeight(row.risk_band) >= 3).length,
+        stage_filter: stageFilter || null,
+      },
+      stage_bottlenecks: toRankedRows(stageMap),
+      job_type_hotspots: toRankedRows(typeMap),
+      channel_hotspots: toRankedRows(channelMap),
     },
   };
 }
