@@ -109,7 +109,7 @@ const LEVELS: { value: SkillLevel; emoji: string; label: string; sub: string }[]
   { value: 'ninja',  emoji: '🧙', label: 'Ninja/Sênior',sub: 'Resolvemos qualquer BO' },
 ];
 
-const MAX = 20;
+const MAX = Infinity;
 
 // ── Level picker modal ────────────────────────────────────────────────────────
 
@@ -244,7 +244,7 @@ export default function ArsenalPicker({
       {value.length > 0 && (
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 8, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Seu arsenal — {value.length}/{MAX}
+            Seu arsenal — {value.length} selecionadas
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {value.map(s => {
@@ -273,16 +273,6 @@ export default function ArsenalPicker({
         </div>
       )}
 
-      {/* Max reached banner */}
-      {atMax && (
-        <div style={{
-          padding: '10px 14px', borderRadius: 8, fontSize: 12,
-          background: 'rgba(248,168,0,0.08)', border: '1px solid rgba(248,168,0,0.2)',
-          color: '#F8A800',
-        }}>
-          Limite de {MAX} tags atingido. Remova uma para adicionar outra — foco é tudo!
-        </div>
-      )}
 
       {/* Search */}
       <div style={{ position: 'relative' }}>
@@ -296,7 +286,7 @@ export default function ArsenalPicker({
           <input
             ref={searchRef}
             type="text"
-            placeholder={atMax ? 'Limite atingido' : 'Buscar habilidade... ex: "Motion", "Figma", "Blender"'}
+            placeholder='Buscar habilidade... ex: "Motion", "Figma", "Blender"'
             value={search}
             disabled={atMax}
             onChange={e => { setSearch(e.target.value); setShowSearch(true); }}
