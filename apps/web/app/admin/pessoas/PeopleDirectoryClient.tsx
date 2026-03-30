@@ -35,6 +35,7 @@ import {
   IconPhone, IconRefresh, IconSearch, IconTrash, IconUser, IconUsersGroup, IconX,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -526,6 +527,9 @@ export default function PeopleDirectoryClient() {
 
   return (
     <AppShell title="Pessoas">
+      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 } }}>
+        <AdminSubmenu value="pessoas" />
+      </Box>
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>

@@ -126,6 +126,13 @@ const MenuItems: MenuGroupType[] = [
         href: '/admin/equipe',
       },
       {
+        id: 'controle',
+        title: 'Central de Controle',
+        icon: IconHeartbeat,
+        href: '/admin/controle',
+        requiredRole: ['admin'],
+      },
+      {
         id: 'admin-system',
         title: 'Admin',
         icon: IconShieldCheck,

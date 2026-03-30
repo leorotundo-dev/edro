@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -74,6 +75,9 @@ export default function BriefingRatingsPage() {
 
   return (
     <AppShell title="Avaliações de Briefing">
+      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 } }}>
+        <AdminSubmenu value="briefing-ratings" />
+      </Box>
       <Box sx={{ p: 3, maxWidth: 1100 }}>
         <Typography variant="h5" fontWeight={800} mb={0.5}>Avaliação Reversa</Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>
