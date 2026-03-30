@@ -86,9 +86,9 @@ const STAGE_CONFIG: Record<string, { label: string; color: 'info' | 'warning' | 
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function DarkFunnelPage() {
+export default function DarkFunnelClient({ clientId: clientIdProp }: { clientId?: string }) {
   const params = useParams();
-  const clientId = params?.id as string;
+  const clientId = clientIdProp ?? (params?.id as string);
 
   const [events, setEvents] = useState<DarkFunnelEvent[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);

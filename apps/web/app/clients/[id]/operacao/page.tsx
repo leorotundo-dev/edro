@@ -6,55 +6,53 @@ import { apiGet, apiPatch } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import ButtonGroup from '@mui/material/ButtonGroup';
 import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconBrandTrello, IconCalendarEvent, IconCash, IconMessage, IconNotes, IconRocket, IconSpeakerphone, IconUsers } from '@tabler/icons-react';
+import {
+  IconBrandTrello,
+  IconCalendarEvent,
+  IconMessage2,
+  IconNotes,
+} from '@tabler/icons-react';
 import ProjectBoardClient from '@/app/projetos/[boardId]/ProjectBoardClient';
 import OperacaoRadarSection from './OperacaoRadarSection';
 import MeetingsClient from '../meetings/MeetingsClient';
 import WhatsAppClientTab from '../whatsapp/WhatsAppClientTab';
-import ClientFinanceiroPage from '../financeiro/page';
 import ClientCalendarClient from '../calendar/ClientCalendarClient';
-import ClientDemandasClient from '../demandas/ClientDemandasClient';
 import ClientBriefingsClient from '../briefings/ClientBriefingsClient';
 import CampaignsClient from '../campaigns/CampaignsClient';
 
-type OperacaoSub = 'board' | 'demandas' | 'briefings' | 'campanhas' | 'reunioes' | 'whatsapp' | 'financeiro' | 'calendario';
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type OperacaoSub = 'board' | 'producao' | 'comunicacao' | 'agenda';
+type ProducaoInner = 'briefings' | 'campanhas';
+type ComunicacaoInner = 'reunioes' | 'whatsapp';
 
 const SUB_TABS = [
-  { value: 'board' as const,      label: 'Board',      icon: <IconBrandTrello size={16} /> },
-  { value: 'demandas' as const,   label: 'Demandas',   icon: <IconRocket size={16} /> },
-  { value: 'briefings' as const,  label: 'Briefings',  icon: <IconNotes size={16} /> },
-  { value: 'campanhas' as const,  label: 'Campanhas',  icon: <IconSpeakerphone size={16} /> },
-  { value: 'reunioes' as const,   label: 'Reuniões',   icon: <IconUsers size={16} /> },
-  { value: 'whatsapp' as const,   label: 'WhatsApp',   icon: <IconMessage size={16} /> },
-  { value: 'financeiro' as const, label: 'Financeiro', icon: <IconCash size={16} /> },
-  { value: 'calendario' as const, label: 'Calendário', icon: <IconCalendarEvent size={16} /> },
+  { value: 'board' as const,       label: 'Board',       icon: <IconBrandTrello size={16} /> },
+  { value: 'producao' as const,    label: 'Produção',    icon: <IconNotes size={16} /> },
+  { value: 'comunicacao' as const, label: 'Comunicação', icon: <IconMessage2 size={16} /> },
+  { value: 'agenda' as const,      label: 'Agenda',      icon: <IconCalendarEvent size={16} /> },
 ];
 
 function parseSub(v: string | null): OperacaoSub {
-  if (v === 'demandas') return 'demandas';
-  if (v === 'briefings') return 'briefings';
-  if (v === 'campanhas') return 'campanhas';
-  if (v === 'reunioes') return 'reunioes';
-  if (v === 'whatsapp') return 'whatsapp';
-  if (v === 'financeiro') return 'financeiro';
-  if (v === 'calendario') return 'calendario';
+  if (v === 'producao') return 'producao';
+  if (v === 'comunicacao') return 'comunicacao';
+  if (v === 'agenda') return 'agenda';
   return 'board';
 }
 
-type ProjectBoard = {
-  id: string;
-  name: string;
-  client_id?: string | null;
-  card_count?: number;
-};
+// ── Trello Board ──────────────────────────────────────────────────────────────
 
-function TrelloBoardSection({ clientId }: { clientId: string; }) {
+type ProjectBoard = { id: string; name: string; client_id?: string | null; card_count?: number };
+
+function TrelloBoardSection({ clientId }: { clientId: string }) {
   const [board, setBoard] = useState<ProjectBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [availableBoards, setAvailableBoards] = useState<ProjectBoard[]>([]);
@@ -66,8 +64,8 @@ function TrelloBoardSection({ clientId }: { clientId: string; }) {
       const res = await apiGet<{ boards: ProjectBoard[] }>(`/trello/project-boards?client_id=${clientId}`);
       setBoard(res.boards?.[0] ?? null);
       if (!res.boards?.length) {
-        const allBoardsRes = await apiGet<{ boards: ProjectBoard[] }>('/trello/project-boards');
-        setAvailableBoards((allBoardsRes.boards ?? []).filter((candidate) => !candidate.client_id));
+        const all = await apiGet<{ boards: ProjectBoard[] }>('/trello/project-boards');
+        setAvailableBoards((all.boards ?? []).filter((b) => !b.client_id));
       } else {
         setAvailableBoards([]);
       }
@@ -81,7 +79,7 @@ function TrelloBoardSection({ clientId }: { clientId: string; }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleLinkBoard = useCallback(async () => {
+  const handleLink = useCallback(async () => {
     if (!selectedBoardId) return;
     setLinking(true);
     try {
@@ -98,52 +96,18 @@ function TrelloBoardSection({ clientId }: { clientId: string; }) {
   if (!board) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Alert
-          severity="info"
-          action={
-            <Button size="small" href="/clients" color="inherit">
-              Ver Clientes
-            </Button>
-          }
-        >
+        <Alert severity="info" action={<Button size="small" href="/clients" color="inherit">Ver Clientes</Button>}>
           Nenhum board Trello vinculado a este cliente.
         </Alert>
-
         {availableBoards.length > 0 && (
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              gap: 1.5,
-              alignItems: { sm: 'center' },
-              p: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 2,
-              bgcolor: 'background.paper',
-            }}
-          >
-            <TextField
-              select
-              size="small"
-              label="Vincular board existente"
-              value={selectedBoardId}
-              onChange={(event) => setSelectedBoardId(event.target.value)}
-              sx={{ minWidth: 260 }}
-            >
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, alignItems: { sm: 'center' }, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
+            <TextField select size="small" label="Vincular board existente" value={selectedBoardId} onChange={(e) => setSelectedBoardId(e.target.value)} sx={{ minWidth: 260 }}>
               <MenuItem value="">Selecione um board</MenuItem>
-              {availableBoards.map((candidate) => (
-                <MenuItem key={candidate.id} value={candidate.id}>
-                  {candidate.name}{candidate.card_count != null ? ` · ${candidate.card_count} cards` : ''}
-                </MenuItem>
+              {availableBoards.map((b) => (
+                <MenuItem key={b.id} value={b.id}>{b.name}{b.card_count != null ? ` · ${b.card_count} cards` : ''}</MenuItem>
               ))}
             </TextField>
-            <Button
-              variant="contained"
-              onClick={handleLinkBoard}
-              disabled={!selectedBoardId || linking}
-              startIcon={linking ? <CircularProgress size={14} color="inherit" /> : undefined}
-            >
+            <Button variant="contained" onClick={handleLink} disabled={!selectedBoardId || linking} startIcon={linking ? <CircularProgress size={14} color="inherit" /> : undefined}>
               Vincular board
             </Button>
           </Box>
@@ -161,6 +125,62 @@ function TrelloBoardSection({ clientId }: { clientId: string; }) {
     </Box>
   );
 }
+
+// ── Produção — Briefings + Campanhas ─────────────────────────────────────────
+
+function ProducaoSection({ clientId }: { clientId: string }) {
+  const [inner, setInner] = useState<ProducaoInner>('briefings');
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
+        <ButtonGroup size="small" variant="outlined">
+          <Button variant={inner === 'briefings' ? 'contained' : 'outlined'} onClick={() => setInner('briefings')}>
+            Briefings
+          </Button>
+          <Button variant={inner === 'campanhas' ? 'contained' : 'outlined'} onClick={() => setInner('campanhas')}>
+            Campanhas
+          </Button>
+        </ButtonGroup>
+      </Box>
+      {inner === 'briefings' && <ClientBriefingsClient clientId={clientId} />}
+      {inner === 'campanhas' && <CampaignsClient clientId={clientId} />}
+    </Box>
+  );
+}
+
+// ── Comunicação — Reuniões + WhatsApp ─────────────────────────────────────────
+
+function ComunicacaoSection({ clientId }: { clientId: string }) {
+  const [inner, setInner] = useState<ComunicacaoInner>('reunioes');
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
+        <ButtonGroup size="small" variant="outlined">
+          <Button variant={inner === 'reunioes' ? 'contained' : 'outlined'} onClick={() => setInner('reunioes')}>
+            Reuniões
+          </Button>
+          <Button variant={inner === 'whatsapp' ? 'contained' : 'outlined'} onClick={() => setInner('whatsapp')}>
+            WhatsApp
+          </Button>
+        </ButtonGroup>
+      </Box>
+      {inner === 'reunioes' && <MeetingsClient clientId={clientId} />}
+      {inner === 'whatsapp' && <WhatsAppClientTab clientId={clientId} />}
+    </Box>
+  );
+}
+
+// ── Agenda — Calendário + Financeiro ──────────────────────────────────────────
+
+function AgendaSection({ clientId }: { clientId: string }) {
+  return (
+    <Box>
+      <ClientCalendarClient clientId={clientId} />
+    </Box>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OperacaoPage() {
   const params = useParams();
@@ -199,14 +219,10 @@ export default function OperacaoPage() {
         ))}
       </Tabs>
 
-      {tab === 'board' && <TrelloBoardSection clientId={clientId} />}
-      {tab === 'demandas' && <ClientDemandasClient clientId={clientId} />}
-      {tab === 'briefings' && <ClientBriefingsClient clientId={clientId} />}
-      {tab === 'campanhas' && <CampaignsClient clientId={clientId} />}
-      {tab === 'reunioes' && <MeetingsClient clientId={clientId} />}
-      {tab === 'whatsapp' && <WhatsAppClientTab clientId={clientId} />}
-      {tab === 'financeiro' && <ClientFinanceiroPage />}
-      {tab === 'calendario' && <ClientCalendarClient clientId={clientId} />}
+      {tab === 'board'       && <TrelloBoardSection clientId={clientId} />}
+      {tab === 'producao'    && <ProducaoSection    clientId={clientId} />}
+      {tab === 'comunicacao' && <ComunicacaoSection clientId={clientId} />}
+      {tab === 'agenda'      && <AgendaSection      clientId={clientId} />}
     </Box>
   );
 }

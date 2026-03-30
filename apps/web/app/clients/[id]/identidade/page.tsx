@@ -3,29 +3,44 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBook2, IconFingerprint, IconPlugConnected, IconShieldCheck } from '@tabler/icons-react';
+import { IconBook2, IconFingerprint, IconSettings } from '@tabler/icons-react';
 import PerfilPage from '../perfil/page';
+import ClientLibraryClient from '../library/ClientLibraryClient';
 import ClientConnectorsPage from '../connectors/page';
 import ClientPermissionsPage from '../permissions/page';
-import ClientLibraryClient from '../library/ClientLibraryClient';
 
-type IdentidadeSub = 'perfil' | 'biblioteca' | 'integracoes' | 'acesso';
+type IdentidadeSub = 'perfil' | 'biblioteca' | 'config';
 
 const SUB_TABS = [
-  { value: 'perfil' as const,      label: 'Perfil & Marca',  icon: <IconFingerprint size={16} /> },
-  { value: 'biblioteca' as const,  label: 'Biblioteca',      icon: <IconBook2 size={16} /> },
-  { value: 'integracoes' as const, label: 'Integrações',     icon: <IconPlugConnected size={16} /> },
-  { value: 'acesso' as const,      label: 'Acesso',          icon: <IconShieldCheck size={16} /> },
+  { value: 'perfil' as const,     label: 'Perfil & Marca', icon: <IconFingerprint size={16} /> },
+  { value: 'biblioteca' as const, label: 'Biblioteca',     icon: <IconBook2 size={16} /> },
+  { value: 'config' as const,     label: 'Config',         icon: <IconSettings size={16} /> },
 ];
 
 function parseSub(v: string | null): IdentidadeSub {
   if (v === 'biblioteca') return 'biblioteca';
-  if (v === 'integracoes') return 'integracoes';
-  if (v === 'acesso') return 'acesso';
+  if (v === 'config') return 'config';
+  // backward compat: old 'integracoes' and 'acesso' → config
+  if (v === 'integracoes' || v === 'acesso') return 'config';
   return 'perfil';
 }
+
+// ── Config — Integrações + Acesso ─────────────────────────────────────────────
+
+function ConfigSection() {
+  return (
+    <Box>
+      <ClientConnectorsPage />
+      <Divider sx={{ my: 5 }} />
+      <ClientPermissionsPage />
+    </Box>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IdentidadePage() {
   const params = useParams();
@@ -64,10 +79,9 @@ export default function IdentidadePage() {
         ))}
       </Tabs>
 
-      {tab === 'perfil' && <PerfilPage />}
+      {tab === 'perfil'     && <PerfilPage />}
       {tab === 'biblioteca' && <ClientLibraryClient clientId={clientId} />}
-      {tab === 'integracoes' && <ClientConnectorsPage />}
-      {tab === 'acesso' && <ClientPermissionsPage />}
+      {tab === 'config'     && <ConfigSection />}
     </Box>
   );
 }
