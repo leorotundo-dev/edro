@@ -2093,6 +2093,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         skills = COALESCE($20::text[], skills),
         skills_json = $22::jsonb,
         phone = COALESCE($21, phone),
+        onboarding_complete = true,
         updated_at = now()
        WHERE user_id = $1`,
       [
@@ -3083,14 +3084,17 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               address_street, address_number, address_complement,
               address_district, address_city, address_state, address_cep,
               representante_nome, representante_cpf, estado_civil,
-              onboarding_complete, contract_status
+              onboarding_complete, contract_status,
+              terms_accepted_at
          FROM freelancer_profiles WHERE user_id = $1`,
       [userId],
     );
     const prof = profRows[0];
     if (!prof) return reply.status(404).send({ error: 'Perfil não encontrado.' });
-    if (!prof.onboarding_complete) return reply.status(400).send({ error: 'Conclua o onboarding antes de solicitar o contrato.' });
     if (!prof.cnpj) return reply.status(400).send({ error: 'CNPJ não preenchido no perfil.' });
+    if (!prof.razao_social || !prof.representante_nome || !prof.pix_key) {
+      return reply.status(400).send({ error: 'Complete os dados principais do onboarding antes de solicitar o contrato.' });
+    }
     if (prof.contract_status === 'pending_signature') {
       return reply.send({ ok: true, message: 'Contrato já enviado. Verifique seu e-mail para assinar.' });
     }
@@ -3108,6 +3112,32 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const cfg = cfgRows[0];
     if (!cfg?.agency_cnpj) {
       return reply.status(400).send({ error: 'Configure os dados fiscais da agência em Configurações antes de gerar contratos.' });
+    }
+
+    // First contract send from the final onboarding step acts as clickwrap acceptance.
+    if (!prof.terms_accepted_at) {
+      const ip = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+        ?? request.ip
+        ?? 'unknown';
+      const userAgent = (request.headers['user-agent'] as string) ?? null;
+      const version = '1.0';
+
+      await pool.query(
+        `INSERT INTO freelancer_term_acceptances (user_id, tenant_id, terms_version, accepted_at, ip_address, user_agent)
+         VALUES ($1, $2, $3, now(), $4, $5)`,
+        [userId, tenantId, version, ip, userAgent],
+      );
+
+      await pool.query(
+        `UPDATE freelancer_profiles
+            SET onboarding_complete = true,
+                terms_accepted_at = now(),
+                terms_accepted_ip = $2,
+                terms_version = $3,
+                updated_at = now()
+          WHERE user_id = $1`,
+        [userId, ip, version],
+      );
     }
 
     // Generate PDF

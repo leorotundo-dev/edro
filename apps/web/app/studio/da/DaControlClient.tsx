@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -32,12 +31,6 @@ import {
   IconTargetArrow,
 } from '@tabler/icons-react';
 import ReferenceGallerySection from './ReferenceGallerySection';
-
-type StoredClient = {
-  id: string;
-  name: string;
-  segment?: string | null;
-};
 
 type Concept = {
   id: string;
@@ -633,13 +626,11 @@ function renderSourceDraftFields({
 }
 
 export default function DaControlClient() {
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'discover' | 'refresh' | null>(null);
   const [error, setError] = useState<string>('');
   const [warning, setWarning] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [clientId, setClientId] = useState<string>('');
   const [platform, setPlatform] = useState<string>('Instagram');
   const [segment, setSegment] = useState<string>('');
   const [category, setCategory] = useState<string>('social media');
@@ -666,33 +657,12 @@ export default function DaControlClient() {
   const [newSource, setNewSource] = useState<SourceDraft>(createSourceDraft());
   const [creatingSource, setCreatingSource] = useState(false);
 
-  useEffect(() => {
-    const fromQuery = searchParams?.get('clientId') || '';
-    if (fromQuery) {
-      setClientId(fromQuery);
-      return;
-    }
-    try {
-      const selected = JSON.parse(window.localStorage.getItem('edro_selected_clients') || '[]') as StoredClient[];
-      const activeId = window.localStorage.getItem('edro_active_client_id') || '';
-      const found = selected.find((client) => client.id === activeId) || selected[0] || null;
-      if (found?.id) setClientId(found.id);
-      if (found?.segment) {
-        setSegment(found.segment);
-        setCategory(found.segment);
-      }
-    } catch {
-      // ignore
-    }
-  }, [searchParams]);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     setWarning('');
     try {
       const params = new URLSearchParams();
-      if (clientId) params.set('client_id', clientId);
       if (platform) params.set('platform', platform);
       if (segment) params.set('segment', segment);
       params.set('concept_limit', '8');
@@ -708,7 +678,7 @@ export default function DaControlClient() {
     } finally {
       setLoading(false);
     }
-  }, [clientId, platform, segment]);
+  }, [platform, segment]);
 
   useEffect(() => {
     void load();
@@ -720,7 +690,6 @@ export default function DaControlClient() {
     setSuccess('');
     try {
       const response = await apiPost<{ inserted: number; queries: string[]; stats?: MemoryStats }>('/studio/creative/da-memory/discover', {
-        client_id: clientId || undefined,
         platform,
         segment: segment || undefined,
         category: category || undefined,
@@ -742,7 +711,6 @@ export default function DaControlClient() {
     setSuccess('');
     try {
       const response = await apiPost<{ analyzed: number; snapshots: number; stats?: MemoryStats }>('/studio/creative/da-memory/refresh', {
-        client_id: clientId || undefined,
         platform,
         segment: segment || undefined,
         limit: 12,
@@ -766,7 +734,6 @@ export default function DaControlClient() {
     setSuccess('');
     try {
       await apiPost('/studio/creative/da-memory/feedback', {
-        client_id: clientId || undefined,
         reference_id: referenceId,
         event_type: eventType,
         metadata: {
@@ -856,7 +823,6 @@ export default function DaControlClient() {
     setSuccess('');
     try {
       await apiPost<{ success: boolean; reference: ManagedReference }>('/studio/creative/da-memory/references', {
-        client_id: clientId || undefined,
         title: toOptionalString(manualReference.title),
         source_url: manualReference.source_url.trim(),
         platform: toOptionalString(manualReference.platform),
@@ -885,7 +851,7 @@ export default function DaControlClient() {
     } finally {
       setCreatingReference(false);
     }
-  }, [clientId, load, manualReference, segment]);
+  }, [load, manualReference, segment]);
 
   const beginEditSource = useCallback((source: ReferenceSource) => {
     setEditingSourceId(source.id);
@@ -1249,7 +1215,7 @@ export default function DaControlClient() {
 
         <SectionCard
           title="Controle do motor"
-          subtitle="O cérebro é da Edro. Cliente, plataforma e segmento servem só como recorte de aplicação e pesquisa."
+          subtitle="O cérebro é da Edro. Plataforma, segmento e categoria servem só como recorte de pesquisa."
           action={
             <Stack direction="row" spacing={1}>
               <Button
@@ -1272,15 +1238,6 @@ export default function DaControlClient() {
           }
         >
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 3 }}>
-              <TextField
-                fullWidth
-                label="Cliente opcional"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="id do cliente para recorte"
-              />
-            </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 select
@@ -1336,7 +1293,7 @@ export default function DaControlClient() {
                 </Typography>
                 <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
                   <Chip size="small" label="Canon Edro" />
-                  <Chip size="small" label="Estética do Cliente" />
+                  <Chip size="small" label="Recorte de Mercado" />
                   <Chip size="small" label="Reference Memory" />
                   <Chip size="small" label="Trend Memory" />
                   <Chip size="small" label="Feedback Loop" />
@@ -2015,7 +1972,7 @@ export default function DaControlClient() {
               description={
                 (stats?.references.discovered ?? 0) > 0
                   ? `Existem ${stats?.references.discovered ?? 0} referências descobertas na fila. Falta rodar Recalcular para analisá-las e trazê-las para a memória viva.`
-                  : 'O motor ainda não encontrou repertório para este cliente/plataforma. Use Buscar referências para começar a ingestão.'
+                  : 'O motor ainda não encontrou repertório para este recorte. Use Buscar referências para começar a ingestão.'
               }
               action={
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>

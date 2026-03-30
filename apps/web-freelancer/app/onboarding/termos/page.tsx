@@ -13,6 +13,17 @@ interface ContractState {
   sent_at: string | null;
 }
 
+function parseUiErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : '';
+  if (!message) return fallback;
+  try {
+    const parsed = JSON.parse(message) as { error?: string; message?: string };
+    return parsed.error || parsed.message || fallback;
+  } catch {
+    return message;
+  }
+}
+
 export default function TermosPage() {
   const router = useRouter();
   const [contract, setContract] = useState<ContractState | null>(null);
@@ -48,7 +59,7 @@ export default function TermosPage() {
       await apiPost('/freelancers/portal/me/contract/send', {});
       await loadContract();
     } catch (e: any) {
-      setError(e?.message ?? 'Erro ao enviar contrato. Tente novamente.');
+      setError(parseUiErrorMessage(e, 'Erro ao enviar contrato. Tente novamente.'));
     } finally {
       setSending(false);
     }
@@ -62,7 +73,7 @@ export default function TermosPage() {
       setError('');
       await loadContract();
     } catch (e: any) {
-      setError(e?.message ?? 'Erro ao reenviar.');
+      setError(parseUiErrorMessage(e, 'Erro ao reenviar.'));
     } finally {
       setSending(false);
     }
