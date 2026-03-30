@@ -1,6 +1,5 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import mime from 'mime-types';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db/db';
@@ -19,7 +18,6 @@ import {
   createManualArtDirectionReference,
   discoverArtDirectionReferences,
   getArtDirectionMemoryStats,
-  getArtDirectionReferencePreview,
   getPrimaryArtDirectionReferenceId,
   listArtDirectionCanons,
   listArtDirectionReferenceSources,
@@ -35,12 +33,6 @@ import {
   upsertArtDirectionReferenceSource,
 } from '../services/ai/artDirectionMemoryService';
 import { CORE_ART_DIRECTION_CONCEPTS } from '../services/ai/artDirectionCoreConcepts';
-import {
-  approveLoraModel,
-  listLoraJobs,
-  rejectLoraModel,
-  startLoraTraining,
-} from '../services/loraService';
 
 const generateSchema = z.object({
   /** Raw copy / caption text */
@@ -125,8 +117,6 @@ const daDiscoverSchema = z.object({
   segment: z.string().optional(),
   category: z.string().min(2).optional(),
   mood: z.string().optional(),
-  tensao_formula: z.string().optional(),
-  visual_direction: z.string().optional(),
   queries: z.array(z.string().min(3)).max(8).optional(),
   max_results_per_query: z.coerce.number().int().min(1).max(10).optional(),
 });
@@ -158,10 +148,6 @@ const daReferenceListSchema = z.object({
   segment: z.string().optional(),
   statuses: z.array(daReferenceStatuses).max(4).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-});
-
-const daReferenceParamsSchema = z.object({
-  referenceId: z.string().uuid(),
 });
 
 const daReferenceCreateSchema = z.object({
@@ -519,7 +505,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         listArtDirectionCanons({
           tenantId,
           includeEntries: true,
-          limitEntriesPerCanon: 50,
+          limitEntriesPerCanon: 24,
         }).catch(() => []),
       ]);
 
@@ -602,23 +588,6 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     return reply.send({ success: true, references });
   });
 
-  app.get('/studio/creative/da-memory/references/:referenceId/preview', async (request: any, reply) => {
-    const tenantId = (request.user as any)?.tenant_id as string | undefined;
-    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
-
-    const params = daReferenceParamsSchema.parse(request.params || {});
-    const preview = await getArtDirectionReferencePreview({
-      tenantId,
-      id: params.referenceId,
-    });
-
-    if (!preview) {
-      return reply.status(404).send({ success: false, error: 'Referência não encontrada' });
-    }
-
-    return reply.send({ success: true, preview });
-  });
-
   app.post('/studio/creative/da-memory/references', async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
@@ -655,7 +624,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
 
-    const params = daReferenceParamsSchema.parse(request.params || {});
+    const params = z.object({ referenceId: z.string().uuid() }).parse(request.params || {});
     const body = daReferenceUpdateSchema.parse(request.body || {});
     const reference = await updateArtDirectionReference({
       tenantId,
@@ -741,29 +710,32 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     let clientName: string | null = null;
     let segment = body.segment ?? null;
 
-    let clientProfile: any = null;
     if (body.client_id) {
       try {
         const { getClientById } = await import('../repos/clientsRepo');
         const client = await getClientById(tenantId, body.client_id);
         clientName = client?.name ?? null;
         segment = segment ?? (client as any)?.segment_primary ?? null;
-        clientProfile = (client as any)?.profile ?? null;
       } catch {
         // non-blocking
       }
     }
 
+    const queries = body.queries?.length
+      ? body.queries
+      : [
+          [body.category, body.mood, body.platform, 'ad design references'].filter(Boolean).join(' '),
+          [segment, body.platform, 'campaign visual direction examples'].filter(Boolean).join(' '),
+          [clientName, 'brand campaign inspiration'].filter(Boolean).join(' '),
+        ].filter((value) => String(value || '').trim().length >= 3);
+
     const inserted = await discoverArtDirectionReferences({
       tenantId,
       clientId: body.client_id ?? null,
       clientName,
-      clientProfile,
       segment,
       platform: body.platform ?? null,
-      tensaoFormula: body.tensao_formula ?? null,
-      visualDirection: body.visual_direction ?? null,
-      queries: body.queries ?? [],
+      queries,
       maxResultsPerQuery: body.max_results_per_query ?? 4,
     });
 
@@ -774,7 +746,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       segment,
     });
 
-    return reply.send({ success: true, inserted, stats });
+    return reply.send({ success: true, inserted, queries, stats });
   });
 
   app.post('/studio/creative/da-memory/refresh', async (request: any, reply) => {
@@ -819,107 +791,6 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ success: true });
-  });
-
-  // GET /studio/creative/da-analytics — aggregated performance analytics for the DA motor
-  app.get('/studio/creative/da-analytics', async (request: any, reply) => {
-    const tenantId = (request.user as any)?.tenant_id as string | undefined;
-    if (!tenantId) return reply.status(401).send({ success: false });
-
-    const { client_id, platform, days: daysStr } = (request.query ?? {}) as {
-      client_id?: string;
-      platform?: string;
-      days?: string;
-    };
-    const days = Math.min(Math.max(parseInt(daysStr || '30', 10), 7), 365);
-
-    const clientFilter   = client_id ? `AND tenant_id = '${tenantId}' AND client_id = '${client_id}'` : `AND tenant_id = '${tenantId}'`;
-    const platformFilter = platform  ? `AND platform = '${platform.replace(/'/g, "''")}'` : '';
-
-    const { query: q } = await import('../db');
-
-    // ── 1. Gatilhos: approved/performed feedback grouped by trigger in metadata
-    const { rows: triggersRaw } = await q(
-      `SELECT
-         COALESCE(metadata->>'trigger', 'desconhecido') AS trigger_id,
-         COUNT(*) FILTER (WHERE event_type IN ('approved','performed')) AS positive,
-         COUNT(*) FILTER (WHERE event_type = 'rejected') AS negative,
-         ROUND(AVG(CASE WHEN event_type IN ('approved','performed') THEN 100 ELSE 0 END), 1) AS approval_rate
-       FROM da_feedback_events
-       WHERE tenant_id = $1
-         AND created_at >= now() - ($2 || ' days')::interval
-         AND metadata ? 'trigger'
-       GROUP BY trigger_id
-       ORDER BY positive DESC
-       LIMIT 10`,
-      [tenantId, `${days}`],
-    );
-
-    // ── 2. Conceitos: top concepts by trust_score
-    const { rows: concepts } = await q(
-      `SELECT
-         slug,
-         title,
-         category,
-         ROUND(trust_score::numeric * 100, 1) AS score,
-         ROUND(100 - trust_score::numeric * 100, 1) AS rejection_rate
-       FROM art_direction_concepts
-       WHERE (tenant_id = $1 OR tenant_id IS NULL)
-       ORDER BY trust_score DESC
-       LIMIT 12`,
-      [tenantId],
-    );
-
-    // ── 3. Trends: latest snapshot with momentum
-    const { rows: trends } = await q(
-      `SELECT DISTINCT ON (cluster_key)
-         tag,
-         cluster_key,
-         platform,
-         segment,
-         ROUND(momentum::numeric, 2)   AS momentum,
-         ROUND(trend_score::numeric, 1) AS trend_score,
-         recent_count,
-         previous_count
-       FROM da_trend_snapshots
-       WHERE tenant_id = $1
-         ${platformFilter}
-       ORDER BY cluster_key, snapshot_at DESC`,
-      [tenantId],
-    );
-    const topTrends = trends
-      .sort((a: any, b: any) => b.trend_score - a.trend_score)
-      .slice(0, 20);
-
-    // ── 4. Plataforma × Estilo: references aggregated by platform + first style_tag
-    const { rows: matrixRaw } = await q(
-      `SELECT
-         COALESCE(platform, 'outros')      AS platform,
-         COALESCE(style_tags->>0, 'outro') AS style,
-         COUNT(*)                          AS count,
-         ROUND(AVG(confidence_score) * 100, 1) AS avg_confidence
-       FROM da_references
-       WHERE tenant_id = $1
-         ${clientFilter.replace(`AND tenant_id = '${tenantId}'`, '').replace(`AND tenant_id = '${tenantId}' AND client_id = '${client_id}'`, client_id ? `AND client_id = '${client_id}'` : '')}
-         AND confidence_score IS NOT NULL
-         AND style_tags IS NOT NULL
-         AND jsonb_array_length(style_tags) > 0
-       GROUP BY platform, style
-       ORDER BY count DESC
-       LIMIT 30`,
-      [tenantId],
-    );
-
-    return reply.send({
-      success: true,
-      data: {
-        triggers: triggersRaw,
-        concepts,
-        trends: topTrends,
-        platform_style_matrix: matrixRaw,
-        window_days: days,
-      },
-    });
   });
 
   // ── Director AI — analyzes creative alignment with briefing ──────────────
@@ -1211,63 +1082,29 @@ Retorne SOMENTE um JSON válido:
       briefing?: { title?: string; objective?: string; context?: string };
       clientProfile?: any;
       clientId?: string;
-      campaignId?: string;
       platform?: string;
       conceptCount?: number;
     };
     try {
       const { runAgentConceito } = await import('../services/ai/agentConceito') as any;
-      const tenantId = (request as any).user?.tenant_id as string;
 
       let cultureBlock: string | null = null;
       if (body.clientId) {
         try {
           const { buildCultureBriefing } = await import('../services/cultureBriefingService') as any;
+          const tenantId = (request as any).user?.tenant_id as string;
           const segmentKw = body.clientProfile?.segment_primary ? [body.clientProfile.segment_primary] : [];
           const cb = await buildCultureBriefing(body.clientId, tenantId, segmentKw);
           cultureBlock = cb.culture_block || null;
         } catch { /* culture block is optional */ }
       }
 
-      // Load Edro OS Big Idea context if campaign present
-      let bigIdeaContext: string | null = null;
-      if (body.campaignId && body.clientId) {
-        try {
-          const { pool } = await import('../db/db') as any;
-          const now = new Date();
-          const [clientRes, t2Res, biRes] = await Promise.all([
-            pool.query(`SELECT strategy FROM clients WHERE id=$1 AND tenant_id=$2`, [body.clientId, tenantId]),
-            pool.query(
-              `SELECT negocio_do_mes, tensao, transformacao_de, transformacao_para, frente_dominante
-                 FROM client_monthly_strategies
-                WHERE client_id=$1 AND tenant_id=$2 AND year=$3 AND month=$4`,
-              [body.clientId, tenantId, now.getFullYear(), now.getMonth() + 1]
-            ),
-            pool.query(
-              `SELECT titulo, conceito_central, territorio_criativo FROM campaign_big_ideas
-                WHERE campaign_id=$1 AND status='adotada' LIMIT 1`,
-              [body.campaignId]
-            ),
-          ]);
-          const t1 = clientRes.rows[0]?.strategy || {};
-          const t2 = t2Res.rows[0] || {};
-          const bi = biRes.rows[0] || null;
-          const parts: string[] = [];
-          if (t1.territorio_criativo) parts.push(`Território criativo do cliente: ${t1.territorio_criativo}`);
-          if (t2.tensao)              parts.push(`Tensão do mês: ${t2.tensao}`);
-          if (t2.negocio_do_mes)      parts.push(`Negócio do mês: ${t2.negocio_do_mes}`);
-          if (bi) parts.push(`Big Idea adotada: "${bi.titulo}" — ${bi.conceito_central}`);
-          if (parts.length) bigIdeaContext = parts.join('\n');
-        } catch { /* non-blocking */ }
-      }
-
       const result = await runAgentConceito({
-        briefing:       body.briefing,
-        clientProfile:  body.clientProfile,
-        platform:       body.platform,
+        briefing:      body.briefing,
+        clientProfile: body.clientProfile,
+        platform:      body.platform,
         cultureBlock,
-        conceptCount:   body.conceptCount,
-        bigIdeaContext,
+        conceptCount:  body.conceptCount,
       });
 
       return reply.send({ success: true, data: result });
@@ -1412,8 +1249,6 @@ Regras:
     generateMultiFormat: z.boolean().optional(),
     brandPack: z.boolean().optional(),
     visualReferences: z.array(z.string().url()).max(6).optional(),
-    tensaoFormula: z.string().optional(),
-    visualDirection: z.string().optional(),
   });
 
   app.post('/studio/creative/arte-chain', async (request: any, reply) => {
@@ -1425,40 +1260,6 @@ Regras:
       return reply.send({ success: true, data: result });
     } catch (e: any) {
       return reply.status(500).send({ success: false, error: e?.message });
-    }
-  });
-
-  // POST /studio/creative/arte-chain/stream — SSE streaming version of arte-chain
-  app.post('/studio/creative/arte-chain/stream', async (request: any, reply) => {
-    const body = arteChainSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    const tenantId = (request.user as any)?.tenant_id as string | undefined;
-
-    reply.raw.setHeader('Content-Type', 'text/event-stream');
-    reply.raw.setHeader('Cache-Control', 'no-cache');
-    reply.raw.setHeader('Connection', 'keep-alive');
-    reply.raw.setHeader('X-Accel-Buffering', 'no');
-    reply.raw.flushHeaders();
-
-    const emit = (event: string, data: object) => {
-      try {
-        reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-      } catch { /* client disconnected */ }
-    };
-
-    try {
-      const { runAgentDiretorArte } = await import('../services/ai/agentDiretorArte') as any;
-      const result = await runAgentDiretorArte({
-        ...body.data,
-        tenantId,
-        onProgress: emit,
-      });
-      emit('done', { success: true, data: result });
-    } catch (e: any) {
-      emit('error', { success: false, error: e?.message ?? 'Erro no pipeline' });
-    } finally {
-      reply.raw.end();
     }
   });
 
@@ -2335,600 +2136,6 @@ Retorne APENAS JSON válido:
       return reply.send({ success: true, adaptations: parsed.adaptations || {} });
     } catch (err: any) {
       return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // ── LoRA Pipeline ─────────────────────────────────────────────────────────
-
-  // GET /clients/:clientId/lora/jobs — list all training jobs for a client
-  app.get('/clients/:clientId/lora/jobs', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
-  }, async (request: any, reply) => {
-    const { clientId } = request.params;
-    const tenantId = request.user.tenant_id;
-    try {
-      const jobs = await listLoraJobs(tenantId, clientId);
-      return reply.send({ success: true, jobs });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // POST /clients/:clientId/lora/start-training — enqueue a new LoRA training job
-  const loraStartSchema = z.object({
-    training_images: z.array(z.string().url()).min(10).max(50),
-    trigger_word: z.string().min(3).max(40).regex(/^[A-Z0-9_]+$/, 'Trigger word deve ser MAIÚSCULAS e underscores'),
-    steps: z.coerce.number().int().min(500).max(2000).default(1000),
-    learning_rate: z.coerce.number().min(0.00001).max(0.01).default(0.0004),
-    model_base: z.enum(['flux-dev', 'flux-pro']).default('flux-dev'),
-  });
-
-  app.post('/clients/:clientId/lora/start-training', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
-  }, async (request: any, reply) => {
-    const { clientId } = request.params;
-    const tenantId = request.user.tenant_id;
-    const parsed = loraStartSchema.safeParse(request.body);
-    if (!parsed.success) return reply.status(400).send({ success: false, error: parsed.error.issues[0]?.message });
-    try {
-      const job = await startLoraTraining({
-        tenantId,
-        clientId,
-        trainingImages: parsed.data.training_images,
-        triggerWord: parsed.data.trigger_word,
-        steps: parsed.data.steps,
-        learningRate: parsed.data.learning_rate,
-        modelBase: parsed.data.model_base,
-      });
-      return reply.send({ success: true, job });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // POST /clients/:clientId/lora/jobs/:jobId/approve — activate LoRA on client profile
-  app.post('/clients/:clientId/lora/jobs/:jobId/approve', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
-  }, async (request: any, reply) => {
-    const { clientId, jobId } = request.params;
-    const tenantId = request.user.tenant_id;
-    try {
-      await approveLoraModel({ tenantId, clientId, jobId, approvedBy: request.user.sub });
-      return reply.send({ success: true });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // POST /studio/creative/compare-models — fan-out same prompt to N models in parallel
-  app.post('/studio/creative/compare-models', async (request: any, reply) => {
-    const schema = z.object({
-      prompt: z.string().min(1),
-      negative_prompt: z.string().optional(),
-      models: z.array(z.object({
-        model: z.string(),
-        label: z.string(),
-      })).min(2).max(4),
-      aspect_ratio: z.string().optional(),
-      client_id: z.string().optional(),
-    });
-
-    const body = schema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    const { prompt, negative_prompt, models, aspect_ratio, client_id } = body.data;
-    const tenantId: string = request.user.tenant_id;
-
-    // Load LoRA config if client_id provided
-    let loraConfig: Array<{ path: string; scale: number }> = [];
-    if (client_id) {
-      try {
-        const loraRes = await query<{ lora_model_id: string; lora_scale: number }>(
-          `SELECT lora_model_id, lora_scale FROM client_visual_identity WHERE client_id = $1 AND tenant_id = $2 LIMIT 1`,
-          [client_id, tenantId],
-        );
-        if (loraRes.rows[0]?.lora_model_id) {
-          loraConfig = [{ path: loraRes.rows[0].lora_model_id, scale: loraRes.rows[0].lora_scale ?? 0.85 }];
-        }
-      } catch { /* no lora */ }
-    }
-
-    const settled = await Promise.allSettled(
-      models.map(async ({ model, label }) => {
-        const t0 = Date.now();
-        let imageUrl: string;
-        let imageUrls: string[];
-
-        if (model.startsWith('leonardo-')) {
-          const { generateImageWithLeonardo, resolveLeonardoModelId } = await import('../services/ai/leonardoService');
-          const result = await generateImageWithLeonardo({
-            prompt,
-            negativePrompt: negative_prompt,
-            modelId: resolveLeonardoModelId(model),
-            aspectRatio: aspect_ratio ?? '1:1',
-            numImages: 1,
-          });
-          imageUrl = result.imageUrl;
-          imageUrls = result.imageUrls;
-        } else {
-          const { generateImageWithFal } = await import('../services/ai/falAiService');
-          const result = await generateImageWithFal({
-            prompt,
-            negativePrompt: negative_prompt,
-            aspectRatio: aspect_ratio ?? '1:1',
-            numImages: 1,
-            model: model as any,
-            loras: model === 'flux-lora' ? loraConfig : [],
-          });
-          imageUrl = result.imageUrl;
-          imageUrls = result.imageUrls;
-        }
-
-        return { model, label, image_url: imageUrl, image_urls: imageUrls, ms: Date.now() - t0 };
-      }),
-    );
-
-    const results = settled.map((r, i) =>
-      r.status === 'fulfilled'
-        ? r.value
-        : { model: models[i].model, label: models[i].label, image_url: '', image_urls: [], ms: 0, error: (r.reason as Error)?.message ?? 'Erro' },
-    );
-
-    return reply.send({ results });
-  });
-
-  // POST /studio/creative/schedule — schedule a post for publication
-  app.post('/studio/creative/schedule', async (request: any, reply) => {
-    const schema = z.object({
-      platform:     z.string().min(1),
-      scheduled_at: z.string().datetime(),
-      copy_text:    z.string().optional(),
-      image_url:    z.string().url().optional(),
-      briefing_id:  z.string().uuid().optional(),
-    });
-
-    const body = schema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    const { platform, scheduled_at, copy_text, image_url, briefing_id } = body.data;
-    const tenantId: string = request.user.tenant_id;
-
-    try {
-      const res = await query<{ id: string }>(
-        `INSERT INTO scheduled_posts (tenant_id, briefing_id, platform, scheduled_at, copy_text, image_url, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-         ON CONFLICT DO NOTHING
-         RETURNING id`,
-        [tenantId, briefing_id ?? null, platform, scheduled_at, copy_text ?? null, image_url ?? null],
-      );
-      return reply.send({ success: true, scheduled_id: res.rows[0]?.id ?? null });
-    } catch {
-      // Table may not exist yet — return success without persistence
-      return reply.send({ success: true, scheduled_id: null });
-    }
-  });
-
-  // POST /clients/:clientId/lora/jobs/:jobId/reject — discard a validating job
-  app.post('/clients/:clientId/lora/jobs/:jobId/reject', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
-  }, async (request: any, reply) => {
-    const { clientId, jobId } = request.params;
-    const tenantId = request.user.tenant_id;
-    try {
-      await rejectLoraModel({ tenantId, clientId, jobId });
-      return reply.send({ success: true });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Studio Creative — MediaNode, AssistantNode, VideoCombinerNode endpoints
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  /**
-   * POST /studio/creative/upload-asset
-   *
-   * Upload a file asset for use in MediaNode (canvas, image, video, audio).
-   * Max 50 MB. Uses the shared storage layer (S3 or local) via ../library/storage.
-   *
-   * Response: { success, assetUrl, mimeType, key }
-   */
-  app.post('/studio/creative/upload-asset', async (request: any, reply) => {
-    const tenantId: string = request.user.tenant_id;
-
-    const data = await request.file();
-    if (!data) return reply.status(400).send({ error: 'No file uploaded' });
-
-    const buffer = await data.toBuffer();
-
-    if (buffer.length > 50 * 1024 * 1024) {
-      return reply.status(413).send({ error: 'File too large. Max 50MB.' });
-    }
-
-    const mimeType: string = data.mimetype || 'application/octet-stream';
-    const originalName: string = data.filename || 'asset';
-    const ext = originalName.split('.').pop() ?? 'bin';
-    const key = `${tenantId}/studio-assets/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-    try {
-      const { saveFile } = await import('../library/storage');
-      await saveFile(buffer, key);
-    } catch (err: any) {
-      request.log.error({ err }, '[studio/creative/upload-asset] saveFile failed');
-      return reply.status(500).send({ error: 'Falha ao salvar arquivo.' });
-    }
-
-    const base = process.env.S3_PUBLIC_URL ?? process.env.API_URL ?? '';
-    const assetUrl = base
-      ? `${base.replace(/\/$/, '')}/api/artworks/file/${encodeURIComponent(key)}`
-      : `/api/artworks/file/${encodeURIComponent(key)}`;
-
-    return reply.send({ success: true, assetUrl, mimeType, key });
-  });
-
-  /**
-   * GET /studio/creative/asset/:key
-   *
-   * Serve a previously uploaded studio asset by its storage key.
-   * Delegates to the same storage layer used by artworks (S3 or local).
-   * The key is URL-encoded in the path.
-   *
-   * Response: raw file bytes with inferred Content-Type.
-   */
-  app.get('/studio/creative/asset/:key', async (request: any, reply) => {
-    const { key } = request.params as { key: string };
-    const decodedKey = decodeURIComponent(key);
-
-    try {
-      const { readFile } = await import('../library/storage');
-      const buf = await readFile(decodedKey);
-
-      const contentType = mime.lookup(decodedKey) || 'application/octet-stream';
-      reply.header('Content-Type', contentType);
-
-      return reply.send(buf);
-    } catch (err: any) {
-      request.log.error({ err, key: decodedKey }, '[studio/creative/asset] readFile failed');
-      return reply.status(404).send({ error: 'Asset não encontrado.' });
-    }
-  });
-
-  /**
-   * POST /studio/creative/assistant
-   *
-   * AssistantNode: perform an AI task on text (and optionally an image URL).
-   * Supported tasks:
-   *   refinar_prompt    — rewrite text as an optimised image-gen prompt
-   *   descrever_imagem  — describe the provided image_url in detail
-   *   gerar_variacoes   — generate 5 creative text variations
-   *   traduzir          — translate text to the specified language
-   *
-   * Response: { success, result }
-   */
-  const assistantSchema = z.object({
-    task: z.enum(['refinar_prompt', 'descrever_imagem', 'gerar_variacoes', 'traduzir']),
-    text: z.string().min(1).max(4000),
-    image_url: z.string().url().optional(),
-    language: z.string().optional().default('pt-BR'),
-    client_id: z.string().optional(),
-  });
-
-  app.post('/studio/creative/assistant', async (request: any, reply) => {
-    const body = assistantSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    const { task, text, image_url, language } = body.data;
-
-    const SYSTEM_PROMPTS: Record<typeof task, string> = {
-      refinar_prompt:
-        'Você é um especialista em prompts para IA generativa de imagens. Receba o texto e reescreva como um prompt otimizado para geração de imagem: detalhado, visual, com estilo, iluminação, composição. Responda APENAS com o prompt reescrito, sem explicações.',
-      descrever_imagem:
-        'Você é um especialista em arte visual. Analise a imagem e descreva-a detalhadamente em português: composição, cores, estilo, iluminação, elementos visuais, atmosfera. Seja específico e técnico.',
-      gerar_variacoes:
-        'Você é um copywriter criativo. Receba o texto e gere 5 variações criativas mantendo a essência mas com abordagens diferentes. Numere cada variação.',
-      traduzir:
-        `Você é um tradutor profissional. Traduza o texto para ${language}. Mantenha o tom, estilo e nuances. Responda APENAS com a tradução.`,
-    };
-
-    try {
-      const { generateCompletion } = await import('../services/ai/claudeService');
-
-      // For descrever_imagem, include the image URL in the prompt when provided
-      const userPrompt =
-        task === 'descrever_imagem' && image_url
-          ? `Imagem: ${image_url}\n\nTexto de contexto: ${text}`
-          : text;
-
-      const result = await generateCompletion({
-        systemPrompt: SYSTEM_PROMPTS[task],
-        prompt: userPrompt,
-        maxTokens: 800,
-        temperature: 0.5,
-      });
-
-      return reply.send({ success: true, result: result.text.trim() });
-    } catch (err: any) {
-      request.log.error({ err, task }, '[studio/creative/assistant] generateCompletion failed');
-      return reply.status(500).send({ success: false, error: 'Falha ao processar tarefa de IA.' });
-    }
-  });
-
-  /**
-   * POST /studio/creative/combine-videos
-   *
-   * VideoCombinerNode: concatenate 2–4 video clips with optional audio overlay.
-   * Requires FFmpeg on the host. If FFmpeg is absent the endpoint returns 501
-   * with a "Feature coming soon" message so the UI can degrade gracefully.
-   *
-   * Response: { success, jobId, status, message }
-   */
-  const combineVideosSchema = z.object({
-    clip_urls: z.array(z.string().url()).min(2).max(4),
-    audio_url: z.string().url().optional(),
-    transition: z.enum(['cut', 'fade', 'dissolve']).default('cut'),
-  });
-
-  app.post('/studio/creative/combine-videos', async (request: any, reply) => {
-    const body = combineVideosSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    // Check if FFmpeg is available before accepting the job
-    try {
-      const { execSync } = await import('child_process');
-      execSync('ffmpeg -version', { stdio: 'ignore' });
-    } catch {
-      return reply.status(501).send({
-        success: false,
-        error: 'Video combining requires FFmpeg. Feature coming soon.',
-        fallback: 'manual',
-      });
-    }
-
-    // FFmpeg is available — queue the job (full implementation deferred)
-    const jobId = `vcj_${Date.now()}`;
-    return reply.send({
-      success: true,
-      jobId,
-      status: 'queued',
-      message: 'Combinação iniciada. Verifique o status pelo jobId.',
-    });
-  });
-
-  /**
-   * GET /studio/creative/combine-videos/:jobId/status
-   *
-   * Poll the status of a video-combine job started by the endpoint above.
-   * Full FFmpeg implementation is deferred; for now all jobs report as queued.
-   *
-   * Response: { jobId, status, outputUrl? }
-   */
-  app.get('/studio/creative/combine-videos/:jobId/status', async (request: any, reply) => {
-    const { jobId } = request.params as { jobId: string };
-    // Full persistence/processing pipeline is deferred; return queued stub.
-    return reply.send({ jobId, status: 'queued' });
-  });
-
-  app.get('/studio/creative/canvas/:briefingId', { preHandler: [authGuard, tenantGuard()] }, async (request: any, reply) => {
-    const { briefingId } = request.params as { briefingId: string };
-    const tenantId: string = request.user.tenant_id;
-
-    try {
-      const res = await query<{ nodes: any; edges: any; viewport: any }>(
-        `SELECT nodes, edges, viewport FROM studio_pipeline_canvas
-         WHERE tenant_id = $1 AND briefing_id = $2 LIMIT 1`,
-        [tenantId, briefingId],
-      );
-      if (!res.rows[0]) return reply.send({ found: false });
-      return reply.send({ found: true, nodes: res.rows[0].nodes, edges: res.rows[0].edges, viewport: res.rows[0].viewport });
-    } catch (err) {
-      request.log.error({ err }, '[studio/creative/canvas] load failed');
-      return reply.status(500).send({ error: 'Erro ao carregar canvas' });
-    }
-  });
-
-  const canvasSaveSchema = z.object({
-    nodes:    z.array(z.any()),
-    edges:    z.array(z.any()),
-    viewport: z.object({ x: z.number(), y: z.number(), zoom: z.number() }).optional(),
-  });
-
-  app.put('/studio/creative/canvas/:briefingId', { preHandler: [authGuard, tenantGuard()] }, async (request: any, reply) => {
-    const { briefingId } = request.params as { briefingId: string };
-    const tenantId: string = request.user.tenant_id;
-
-    const body = canvasSaveSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    const { nodes, edges, viewport } = body.data;
-
-    try {
-      await query(
-        `INSERT INTO studio_pipeline_canvas (tenant_id, briefing_id, nodes, edges, viewport, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
-         ON CONFLICT (tenant_id, briefing_id)
-         DO UPDATE SET nodes = $3, edges = $4, viewport = $5, updated_at = NOW()`,
-        [tenantId, briefingId, JSON.stringify(nodes), JSON.stringify(edges), JSON.stringify(viewport ?? { x: 0, y: 0, zoom: 1 })],
-      );
-      return reply.send({ success: true });
-    } catch (err) {
-      request.log.error({ err }, '[studio/creative/canvas] save failed');
-      return reply.status(500).send({ error: 'Erro ao salvar canvas' });
-    }
-  });
-
-  // ── Biblioteca de Julgamento ──────────────────────────────────────────────────
-
-  const recordJudgmentSchema = z.object({
-    decisionType: z.enum(['conceito_aprovado', 'conceito_rejeitado', 'copy_aprovada', 'arte_aprovada', 'campanha_publicada']),
-    subjectText: z.string().min(1).max(500),
-    subjectContext: z.any().optional(),
-    rationale: z.string().max(1000).optional(),
-    clientId: z.string().uuid().optional(),
-    briefingId: z.string().optional(),
-  });
-
-  app.post('/studio/creative/biblioteca-julgamento', {
-    preHandler: [authGuard, tenantGuard()],
-  }, async (request, reply) => {
-    const { recordJudgment } = await import('../services/bibliotecaJulgamentoService');
-    const tenantId = (request as any).user.tenant_id as string;
-    const body = recordJudgmentSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    try {
-      const { decisionType, subjectText, subjectContext, rationale, clientId, briefingId } = body.data;
-      const id = await recordJudgment({ tenantId, decisionType, subjectText, subjectContext, rationale, clientId, briefingId });
-      return reply.send({ success: true, id });
-    } catch (err) {
-      request.log.error({ err }, '[studio/creative/biblioteca-julgamento] record failed');
-      return reply.status(500).send({ error: 'Erro ao registrar julgamento' });
-    }
-  });
-
-  app.get('/studio/creative/biblioteca-julgamento', {
-    preHandler: [authGuard, tenantGuard()],
-  }, async (request, reply) => {
-    const { findSimilarJudgments, listRecentJudgments } = await import('../services/bibliotecaJulgamentoService');
-    const tenantId = (request as any).user.tenant_id as string;
-    const { q, limit } = request.query as { q?: string; limit?: string };
-
-    try {
-      const results = q
-        ? await findSimilarJudgments(q, tenantId, Number(limit) || 5)
-        : await listRecentJudgments(tenantId, Number(limit) || 12);
-      return reply.send({ results });
-    } catch (err) {
-      request.log.error({ err }, '[studio/creative/biblioteca-julgamento] search failed');
-      return reply.status(500).send({ error: 'Erro na busca' });
-    }
-  });
-
-  // ── Canon semantic search by tensão ──────────────────────────────────────────
-  app.get('/studio/creative/da-memory/canon-search', {
-    preHandler: [authGuard, tenantGuard()],
-  }, async (request, reply) => {
-    const { listCanonEntriesByTensao } = await import('../services/ai/artDirectionMemoryService');
-    const tenantId = (request as any).user.tenant_id as string;
-    const { q, limit } = request.query as { q?: string; limit?: string };
-
-    if (!q?.trim()) return reply.status(400).send({ error: 'q required' });
-
-    try {
-      const entryIds = await listCanonEntriesByTensao(tenantId, q.trim(), Number(limit) || 5);
-      if (!entryIds.length) return reply.send({ entries: [] });
-
-      const { pool: dbPool } = await import('../db');
-      const { rows } = await dbPool.query(
-        `SELECT e.id, e.title, e.definition, e.heuristics, e.critique_checks, e.when_to_use, e.examples,
-                c.title AS canon_title, c.slug AS canon_slug
-           FROM da_canon_entries e
-           JOIN da_canons c ON c.id = e.canon_id
-          WHERE e.id = ANY($1::uuid[]) AND e.status = 'active'`,
-        [entryIds],
-      );
-      return reply.send({ entries: rows });
-    } catch (err) {
-      request.log.error({ err }, '[studio/creative/da-memory/canon-search] failed');
-      return reply.status(500).send({ error: 'Erro na busca semântica' });
-    }
-  });
-
-  // ── Score de Maturidade Criativa ──────────────────────────────────────────────
-
-  const maturityScoreSchema = z.object({
-    conceptHeadline: z.string().optional(),
-    tensaoFormula: z.string().optional(),
-    copyHook: z.string().optional(),
-    copyBody: z.string().optional(),
-    copyCta: z.string().optional(),
-    arteDirection: z.string().optional(),
-    clientId: z.string().uuid().optional(),
-  });
-
-  // ── POST /studio/creative/campanha — gera campanha sequencial completa ────
-  app.post('/studio/creative/campanha', { preHandler: [authGuard] }, async (request: any, reply) => {
-    const body = request.body as {
-      template?: 'lancamento' | 'data_comemorativa' | 'nurture' | 'reativacao';
-      conceito?: any;
-      briefing: {
-        produto: string;
-        objetivo_final: string;
-        mensagem_chave: string;
-        audiencia: string;
-        tom: string;
-        restricoes?: string[];
-      };
-      clientId?: string;
-      plataformas?: string[];
-      duracao_dias?: number;
-    };
-
-    if (!body.briefing) {
-      return reply.status(400).send({ success: false, error: 'briefing is required' });
-    }
-
-    try {
-      const { runAgentCampanha } = await import('../services/ai/agentCampanha');
-
-      let clientProfile: any = null;
-      if (body.clientId) {
-        const { rows } = await query(
-          `SELECT profile, knowledge_base FROM clients WHERE id = $1 LIMIT 1`,
-          [body.clientId],
-        );
-        if (rows[0]) clientProfile = rows[0];
-      }
-
-      let cultureBlock: string | null = null;
-      if (body.clientId) {
-        try {
-          const { buildCultureBriefing } = await import('../services/cultureBriefingService') as any;
-          const tenantId = (request as any).user?.tenant_id as string;
-          const cb = await buildCultureBriefing(body.clientId, tenantId, []);
-          cultureBlock = cb.culture_block || null;
-        } catch { /* optional */ }
-      }
-
-      const result = await runAgentCampanha({
-        template: body.template,
-        conceito: body.conceito ?? null,
-        briefing: body.briefing,
-        clientProfile,
-        plataformas: body.plataformas,
-        duracao_dias: body.duracao_dias,
-        cultureBlock,
-      });
-
-      return reply.send({ success: true, data: result });
-    } catch (e: any) {
-      request.log.error({ err: e }, '[studio/creative/campanha] failed');
-      return reply.status(500).send({ success: false, error: e?.message });
-    }
-  });
-
-  app.post('/studio/creative/maturity-score', {
-    preHandler: [authGuard, tenantGuard()],
-  }, async (request, reply) => {
-    const { computeMaturityScore } = await import('../services/ai/agentAuditor');
-    const body = maturityScoreSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    let clientProfile: any = null;
-    if (body.data.clientId) {
-      const { rows } = await query(
-        `SELECT profile, knowledge_base FROM clients WHERE id = $1 LIMIT 1`,
-        [body.data.clientId],
-      );
-      if (rows[0]) clientProfile = rows[0];
-    }
-
-    try {
-      const result = await computeMaturityScore({ ...body.data, clientProfile });
-      return reply.send(result);
-    } catch (err) {
-      request.log.error({ err }, '[studio/creative/maturity-score] failed');
-      return reply.status(500).send({ error: 'Erro ao calcular score de maturidade' });
     }
   });
 

@@ -3,7 +3,6 @@ import { CORE_ART_DIRECTION_CONCEPTS } from '../services/ai/artDirectionCoreConc
 import {
   EDRO_DA_CANON_SEED,
   KNOWLEDGE_LIBRARY_SOURCE,
-  resolveCanonCurriculumModule,
 } from '../services/ai/artDirectionKnowledgeLibrarySeed';
 
 type CanonRow = {
@@ -33,35 +32,6 @@ function buildDraftDefinition(title: string) {
 
 function buildDraftSummary(title: string, canonTitle: string) {
   return `${title} faz parte do canon ${canonTitle} e está aguardando expansão editorial.`;
-}
-
-function buildDraftChunks(title: string, canonTitle: string) {
-  return [
-    {
-      chunkType: 'definition',
-      content: `Definição-base de ${title} dentro do canon ${canonTitle}. Expandir com contexto conceitual claro.`,
-    },
-    {
-      chunkType: 'history',
-      content: `Contexto histórico e cultural de ${title}. Registrar origens, movimentos relacionados e evolução do termo.`,
-    },
-    {
-      chunkType: 'heuristic',
-      content: `Heurísticas práticas de ${title}. Explicar como esse conceito orienta direção de arte, composição, tipografia ou repertório.`,
-    },
-    {
-      chunkType: 'application',
-      content: `Aplicações de ${title}. Documentar quando usar, quando evitar e em quais formatos ou mídias ele se manifesta.`,
-    },
-    {
-      chunkType: 'critique',
-      content: `Critério de revisão para ${title}. Registrar como o Jarvis e o bot DA devem avaliar o uso desse conceito em peças reais.`,
-    },
-    {
-      chunkType: 'example',
-      content: `Exemplos e repertório de ${title}. Adicionar casos, movimentos, referências e comparações úteis para treino.`,
-    },
-  ];
 }
 
 async function resolveCanonMap(client: any) {
@@ -272,7 +242,6 @@ async function main() {
         const slug = slugify(entryTitle);
         const core = coreConceptMap.get(slug);
         const isActive = Boolean(core);
-        const curriculumModule = resolveCanonCurriculumModule(canon.slug, entryTitle);
 
         const definition = core?.definition ?? buildDraftDefinition(entryTitle);
         const heuristics = core?.heuristics ?? [];
@@ -298,16 +267,12 @@ async function main() {
           heuristics,
           critiqueChecks,
           examples,
-          relatedTags: [canon.slug, curriculumModule?.moduleKey].filter(Boolean) as string[],
+          relatedTags: [canon.slug],
           sourceConfidence: isActive ? 0.9 : 0.65,
           status: isActive ? 'active' : 'draft',
           metadata: {
             seeded_from: 'book_cover_taxonomy',
             canon_slug: canon.slug,
-            curriculum_module_key: curriculumModule?.moduleKey ?? null,
-            curriculum_module_title: curriculumModule?.title ?? null,
-            curriculum_module_description: curriculumModule?.description ?? null,
-            curriculum_module_order: curriculumModule?.order ?? null,
             needs_editorial_expansion: !isActive,
           },
         });
@@ -340,7 +305,6 @@ async function main() {
           await replaceChunks(client, entryId, chunks);
           activeEntries += 1;
         } else {
-          await replaceChunks(client, entryId, buildDraftChunks(entryTitle, canon.title));
           draftEntries += 1;
         }
 
