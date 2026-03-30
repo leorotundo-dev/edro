@@ -863,6 +863,23 @@ export function OpsJobRow({
             {job.is_urgent ? (
               <Chip size="small" color="error" label="!" sx={{ height: 20, minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />
             ) : null}
+            {job.job_size ? (
+              <Chip
+                size="small"
+                label={job.job_size}
+                sx={{
+                  height: 18,
+                  minWidth: 22,
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  '& .MuiChip-label': { px: 0.6 },
+                  ...(job.job_size === 'P' && { bgcolor: 'rgba(93,135,255,0.12)', color: '#5D87FF' }),
+                  ...(job.job_size === 'M' && { bgcolor: 'rgba(99,91,255,0.12)', color: '#635BFF' }),
+                  ...(job.job_size === 'G' && { bgcolor: 'rgba(255,174,31,0.14)', color: '#E58E00' }),
+                  ...(job.job_size === 'GG' && { bgcolor: 'rgba(250,137,107,0.14)', color: '#FA896B' }),
+                }}
+              />
+            ) : null}
             <PriorityPill priorityBand={job.priority_band} />
             {(() => {
               const ds = getDeliveryStatus(job);

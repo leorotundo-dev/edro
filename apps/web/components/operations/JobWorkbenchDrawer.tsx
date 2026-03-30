@@ -72,6 +72,7 @@ type JobDraft = {
   summary: string;
   job_type: string;
   complexity: 's' | 'm' | 'l';
+  job_size: 'P' | 'M' | 'G' | 'GG' | '';
   channel: string | null;
   source: string;
   impact_level: number;
@@ -501,6 +502,7 @@ function buildDraft(job: OperationsJob | null, lookups: { jobTypes: OperationsLo
     summary: job?.summary || '',
     job_type: jobType,
     complexity: job?.complexity || 'm',
+    job_size: (job?.job_size as 'P' | 'M' | 'G' | 'GG' | undefined) || '',
     channel: job?.channel || null,
     source: job?.source || 'manual',
     impact_level: job?.impact_level ?? 2,
@@ -848,6 +850,7 @@ export default function JobWorkbenchDrawer({
     summary: form.summary.trim() || null,
     job_type: form.job_type,
     complexity: form.complexity,
+    job_size: form.job_size || null,
     channel: form.channel,
     source: form.source,
     impact_level: form.impact_level,
@@ -1070,11 +1073,12 @@ export default function JobWorkbenchDrawer({
         >
           <Stack spacing={2}>
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="caption" color="text.secondary">Complexidade</Typography>
-              <ToggleButtonGroup exclusive value={form.complexity} onChange={(_event, value) => value && handleChange('complexity', value)} size="small">
-                <ToggleButton value="s">S</ToggleButton>
-                <ToggleButton value="m">M</ToggleButton>
-                <ToggleButton value="l">L</ToggleButton>
+              <Typography variant="caption" color="text.secondary">Tamanho</Typography>
+              <ToggleButtonGroup exclusive value={form.job_size} onChange={(_event, value) => value !== null && handleChange('job_size', value)} size="small">
+                <ToggleButton value="P" sx={{ px: 1.5, fontSize: '0.75rem', fontWeight: 700 }}>P</ToggleButton>
+                <ToggleButton value="M" sx={{ px: 1.5, fontSize: '0.75rem', fontWeight: 700 }}>M</ToggleButton>
+                <ToggleButton value="G" sx={{ px: 1.5, fontSize: '0.75rem', fontWeight: 700 }}>G</ToggleButton>
+                <ToggleButton value="GG" sx={{ px: 1.5, fontSize: '0.75rem', fontWeight: 700 }}>GG</ToggleButton>
               </ToggleButtonGroup>
             </Stack>
             <Grid container spacing={2}>

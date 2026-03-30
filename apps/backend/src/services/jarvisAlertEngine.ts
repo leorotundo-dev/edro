@@ -21,7 +21,11 @@ export type JarvisAlertType =
   | 'whatsapp_no_reply'
   | 'contract_expiring'
   | 'market_opportunity'
-  | 'job_no_briefing';
+  | 'job_no_briefing'
+  | 'calendar_date_orphan'
+  | 'competitor_active'
+  | 'da_stale'
+  | 'learning_pattern_new';
 
 export type JarvisAlert = {
   tenant_id: string;
@@ -38,13 +42,18 @@ export type JarvisAlert = {
 export async function runJarvisAlertEngine(tenantId: string): Promise<number> {
   const alerts: JarvisAlert[] = [];
 
-  const [stalledCards, pendingWhatsApp, expiringContracts, marketOpportunities, meetingNoCard, jobNoBriefing] = await Promise.allSettled([
+  const [stalledCards, pendingWhatsApp, expiringContracts, marketOpportunities, meetingNoCard, jobNoBriefing,
+    calendarOrphan, competitorActive, daStale, learningPattern] = await Promise.allSettled([
     detectStalledCards(tenantId),
     detectWhatsAppNoReply(tenantId),
     detectExpiringContracts(tenantId),
     detectMarketOpportunities(tenantId),
     detectMeetingNoCard(tenantId),
     detectJobNoBriefing(tenantId),
+    detectCalendarOrphan(tenantId),
+    detectCompetitorActive(tenantId),
+    detectDaStale(tenantId),
+    detectLearningPattern(tenantId),
   ]);
 
   if (stalledCards.status === 'fulfilled')        alerts.push(...stalledCards.value);
@@ -53,6 +62,10 @@ export async function runJarvisAlertEngine(tenantId: string): Promise<number> {
   if (marketOpportunities.status === 'fulfilled') alerts.push(...marketOpportunities.value);
   if (meetingNoCard.status === 'fulfilled')       alerts.push(...meetingNoCard.value);
   if (jobNoBriefing.status === 'fulfilled')       alerts.push(...jobNoBriefing.value);
+  if (calendarOrphan.status === 'fulfilled')      alerts.push(...calendarOrphan.value);
+  if (competitorActive.status === 'fulfilled')    alerts.push(...competitorActive.value);
+  if (daStale.status === 'fulfilled')             alerts.push(...daStale.value);
+  if (learningPattern.status === 'fulfilled')     alerts.push(...learningPattern.value);
 
   let saved = 0;
   for (const alert of alerts) {
@@ -304,6 +317,177 @@ async function detectJobNoBriefing(tenantId: string): Promise<JarvisAlert[]> {
     body: `"${r.job_title}" está em intake/briefing sem briefing preenchido.`,
     source_refs: { ref_id: r.job_id, job_id: r.job_id },
     priority: r.hours_old > 48 ? 'high' : 'medium',
+  }));
+}
+
+// ─── C07 — Data comemorativa órfã ────────────────────────────────────────────
+
+/**
+ * Detecta datas comemorativas no calendário que se aproximam (≤5 dias)
+ * sem nenhum conteúdo planejado (sem card criado após o evento ser registrado).
+ */
+async function detectCalendarOrphan(tenantId: string): Promise<JarvisAlert[]> {
+  const res = await query<{
+    event_id: string; event_title: string; event_date: string;
+    client_id: string; client_name: string; days_until: number;
+  }>(
+    `SELECT
+       ce.id           AS event_id,
+       ce.title        AS event_title,
+       ce.event_date::text,
+       ce.client_id::text,
+       c.name          AS client_name,
+       (ce.event_date - CURRENT_DATE)::int AS days_until
+     FROM calendar_events ce
+     JOIN clients c ON c.id::text = ce.client_id::text
+     WHERE c.tenant_id = $1
+       AND ce.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE + interval '5 days'
+       AND NOT EXISTS (
+         SELECT 1 FROM project_cards pc
+         JOIN project_boards pb ON pb.id = pc.board_id
+         WHERE pb.client_id::text = ce.client_id::text
+           AND pc.tenant_id = $1
+           AND pc.created_at > now() - interval '7 days'
+           AND pc.title ILIKE '%' || split_part(ce.title, ' ', 1) || '%'
+       )
+     ORDER BY ce.event_date ASC
+     LIMIT 10`,
+    [tenantId],
+  );
+
+  return res.rows.map((r) => ({
+    tenant_id: tenantId,
+    client_id: r.client_id,
+    alert_type: 'calendar_date_orphan' as JarvisAlertType,
+    title: `${r.client_name}: "${r.event_title}" em ${r.days_until}d sem conteúdo`,
+    body: `Data comemorativa se aproxima e nenhum card relacionado foi criado nos últimos 7 dias.`,
+    source_refs: { ref_id: r.event_id, calendar_event_id: r.event_id },
+    priority: r.days_until <= 2 ? 'urgent' : r.days_until <= 4 ? 'high' : 'medium',
+  }));
+}
+
+// ─── C08 — Concorrente em movimento ──────────────────────────────────────────
+
+/**
+ * Detecta quando um concorrente monitorado publicou posts novos nas últimas 48h.
+ */
+async function detectCompetitorActive(tenantId: string): Promise<JarvisAlert[]> {
+  const res = await query<{
+    profile_id: string; client_id: string; client_name: string;
+    competitor_name: string; platform: string; post_count: number;
+  }>(
+    `SELECT
+       cp.id::text         AS profile_id,
+       cp.client_id        AS client_id,
+       c.name              AS client_name,
+       COALESCE(cp.display_name, cp.handle) AS competitor_name,
+       cp.platform,
+       COUNT(cpost.id)::int AS post_count
+     FROM competitor_profiles cp
+     JOIN clients c ON c.id::text = cp.client_id
+     JOIN competitor_posts cpost ON cpost.competitor_profile_id = cp.id
+     WHERE cp.tenant_id = $1
+       AND cp.is_active = true
+       AND cpost.published_at > now() - interval '48 hours'
+     GROUP BY cp.id, cp.client_id, c.name, cp.display_name, cp.handle, cp.platform
+     HAVING COUNT(cpost.id) >= 2
+     ORDER BY post_count DESC
+     LIMIT 10`,
+    [tenantId],
+  );
+
+  return res.rows.map((r) => ({
+    tenant_id: tenantId,
+    client_id: r.client_id,
+    alert_type: 'competitor_active' as JarvisAlertType,
+    title: `${r.client_name}: concorrente "${r.competitor_name}" ativo no ${r.platform}`,
+    body: `${r.post_count} publicações nas últimas 48h. Verificar posicionamento.`,
+    source_refs: { ref_id: r.profile_id, competitor_profile_id: r.profile_id },
+    priority: 'medium',
+  }));
+}
+
+// ─── C09 — DA sem movimento ───────────────────────────────────────────────────
+
+/**
+ * Detecta jobs alocados para um DA que não tiveram atualização nas últimas 48h
+ * e têm prazo nos próximos 2 dias.
+ */
+async function detectDaStale(tenantId: string): Promise<JarvisAlert[]> {
+  const res = await query<{
+    job_id: string; job_title: string; client_id: string; client_name: string;
+    da_name: string; stale_hours: number; hours_until_deadline: number;
+  }>(
+    `SELECT
+       j.id           AS job_id,
+       j.title        AS job_title,
+       j.client_id::text,
+       c.name         AS client_name,
+       COALESCE(u.name, u.email) AS da_name,
+       EXTRACT(EPOCH FROM (now() - j.updated_at)) / 3600 AS stale_hours,
+       EXTRACT(EPOCH FROM (j.deadline_at - now())) / 3600 AS hours_until_deadline
+     FROM jobs j
+     JOIN job_assignees ja ON ja.job_id = j.id
+     JOIN edro_users u ON u.id = ja.user_id
+     LEFT JOIN clients c ON c.id = j.client_id
+     WHERE j.tenant_id = $1
+       AND j.status IN ('allocated', 'in_progress')
+       AND j.updated_at < now() - interval '48 hours'
+       AND j.deadline_at IS NOT NULL
+       AND j.deadline_at BETWEEN now() AND now() + interval '2 days'
+     ORDER BY j.deadline_at ASC
+     LIMIT 10`,
+    [tenantId],
+  );
+
+  return res.rows.map((r) => ({
+    tenant_id: tenantId,
+    client_id: r.client_id,
+    alert_type: 'da_stale' as JarvisAlertType,
+    title: `${r.client_name}: DA sem atualizar "${r.job_title}" (prazo em ${Math.round(r.hours_until_deadline)}h)`,
+    body: `${r.da_name} não atualizou o job há ${Math.round(r.stale_hours)}h. Prazo se aproxima.`,
+    source_refs: { ref_id: r.job_id, job_id: r.job_id },
+    priority: r.hours_until_deadline <= 24 ? 'urgent' : 'high',
+  }));
+}
+
+// ─── C10 — Padrão de performance novo ────────────────────────────────────────
+
+/**
+ * Detecta quando uma nova learning rule com alta confiança foi gerada nas últimas 24h.
+ * Dispara silenciosamente (urgência baixa) para atualizar o perfil do cliente.
+ */
+async function detectLearningPattern(tenantId: string): Promise<JarvisAlert[]> {
+  const res = await query<{
+    rule_id: string; client_id: string; client_name: string;
+    rule_name: string; effective_pattern: string; confidence: number;
+  }>(
+    `SELECT
+       lr.id::text         AS rule_id,
+       lr.client_id::text,
+       c.name              AS client_name,
+       lr.rule_name,
+       lr.effective_pattern,
+       lr.confidence_score::float AS confidence
+     FROM learning_rules lr
+     JOIN clients c ON c.id::text = lr.client_id::text
+     WHERE lr.tenant_id = $1
+       AND lr.is_active = true
+       AND lr.confidence_score >= 0.75
+       AND lr.created_at > now() - interval '24 hours'
+     ORDER BY lr.confidence_score DESC
+     LIMIT 5`,
+    [tenantId],
+  );
+
+  return res.rows.map((r) => ({
+    tenant_id: tenantId,
+    client_id: r.client_id,
+    alert_type: 'learning_pattern_new' as JarvisAlertType,
+    title: `${r.client_name}: novo padrão detectado — ${r.rule_name}`,
+    body: r.effective_pattern,
+    source_refs: { ref_id: r.rule_id, rule_id: r.rule_id },
+    priority: 'low',
   }));
 }
 

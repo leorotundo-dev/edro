@@ -2471,4 +2471,34 @@ Retorne APENAS JSON válido:
     }
   });
 
+  // ── POST /studio/creative/execute — Jarvis full pipeline (CCO → conceito → copy + arte) ──
+  app.post('/studio/creative/execute', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const body = z.object({
+      briefing_id:   z.string().uuid(),
+      client_id:     z.string().nullable().optional(),
+      platform:      z.string().nullable().optional(),
+      format:        z.string().nullable().optional(),
+      concept_index: z.number().int().min(0).max(9).optional(),
+      skip_arte:     z.boolean().optional(),
+    }).parse(request.body);
+
+    try {
+      const { runJarvisExecutor } = await import('../services/jarvisExecutor') as any;
+      const result = await runJarvisExecutor({
+        briefingId:   body.briefing_id,
+        clientId:     body.client_id ?? null,
+        tenantId,
+        platform:     body.platform ?? null,
+        format:       body.format ?? null,
+        conceptIndex: body.concept_index,
+        skipArte:     body.skip_arte ?? false,
+      });
+      return reply.send({ success: true, data: result });
+    } catch (err: any) {
+      if (err.message === 'cco_not_found') return reply.status(404).send({ error: 'Briefing não encontrado.' });
+      throw err;
+    }
+  });
+
 }

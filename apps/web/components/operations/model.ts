@@ -10,6 +10,8 @@ export type OperationsJob = {
   summary?: string | null;
   job_type: string;
   complexity: 's' | 'm' | 'l';
+  job_size?: 'P' | 'M' | 'G' | 'GG' | null;
+  fee_brl?: number | null;
   channel?: string | null;
   source: string;
   status: string;
