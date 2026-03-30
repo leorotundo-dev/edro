@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -16,6 +16,8 @@ import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import {
@@ -396,21 +398,42 @@ function ScoreCard({
 }
 
 function SectionCard({
+  sectionId,
   title,
   subtitle,
+  eyebrow,
+  tone,
   children,
   action,
 }: {
+  sectionId?: string;
   title: string;
   subtitle?: string;
+  eyebrow?: string;
+  tone?: string;
   children: ReactNode;
   action?: ReactNode;
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card id={sectionId} variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent>
         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={2} mb={2}>
           <Box>
+            {eyebrow ? (
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  mb: 0.75,
+                  fontWeight: 800,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: tone || 'text.secondary',
+                }}
+              >
+                {eyebrow}
+              </Typography>
+            ) : null}
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               {title}
             </Typography>
@@ -442,13 +465,12 @@ function timeAgo(value?: string | null) {
 }
 
 function uniqueTags(reference: Reference) {
-  return Array.from(
-    new Set([
-      ...(reference.style_tags || []),
-      ...(reference.composition_tags || []),
-      ...(reference.typography_tags || []),
-    ].filter(Boolean)),
-  ).slice(0, 5);
+  const merged = [
+    ...(reference.style_tags || []),
+    ...(reference.composition_tags || []),
+    ...(reference.typography_tags || []),
+  ].filter(Boolean) as string[];
+  return Array.from(new Set<string>(merged)).slice(0, 5);
 }
 
 function toOptionalString(value: string) {
@@ -944,26 +966,59 @@ export default function DaControlClient() {
     return 'O pipeline está ativo. O próximo ganho vem de buscar mais referências e alimentar feedback humano nas melhores.';
   }, [canons.length, data?.concepts?.length, stats]);
 
+  const [activeTab, setActiveTab] = useState(0);
+
   return (
-    <Box sx={{ maxWidth: 1440, mx: 'auto', px: { xs: 2, md: 4 }, py: 4 }}>
-      <Stack spacing={3}>
-        <Box>
-          <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
-            Motor de DA
-          </Typography>
-          <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.04em', mt: 0.5 }}>
-            Direção de Arte Intelligence
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mt: 1, maxWidth: 860 }}>
-            Painel de governança do cérebro de direção de arte da Edro. Aqui você controla o canon, aciona a
-            descoberta web, acompanha as tendências e alimenta o sistema com feedback humano.
-          </Typography>
+    <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
+
+      {/* ── Page header ───────────────────────────────────────────────────── */}
+      <Box sx={{ px: { xs: 2, md: 4 }, pt: 4, pb: 0 }}>
+        <Stack direction="row" alignItems="flex-end" justifyContent="space-between" flexWrap="wrap" gap={2}>
+          <Box>
+            <Typography variant="overline" sx={{ color: '#E85219', fontWeight: 800, letterSpacing: '0.08em' }}>
+              Motor de DA
+            </Typography>
+            <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.03em', mt: 0.25 }}>
+              Acervo de referências
+            </Typography>
+          </Box>
+          <Stack direction="row" gap={1.5} alignItems="center">
+            <Button size="small" variant="outlined" startIcon={<IconEyeSearch size={15} />} onClick={handleDiscover} disabled={busy !== null}>
+              {busy === 'discover' ? 'Descobrindo…' : 'Descobrir'}
+            </Button>
+            <Button size="small" variant="outlined" startIcon={<IconRefresh size={15} />} onClick={handleRefresh} disabled={busy !== null}>
+              {busy === 'refresh' ? 'Analisando…' : 'Recalcular'}
+            </Button>
+          </Stack>
+        </Stack>
+
+        {error   && <Alert severity="error"   sx={{ mt: 2 }}>{error}</Alert>}
+        {warning && <Alert severity="warning" sx={{ mt: 2 }}>{warning}</Alert>}
+        {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
+
+        {/* Tabs */}
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{ mt: 2, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 40, fontSize: '0.82rem' } }}
+        >
+          <Tab label="Acervo" />
+          <Tab label={`Curadoria${(data?.stats?.references?.discovered ?? 0) > 0 ? ` · ${data?.stats?.references?.discovered}` : ''}`} />
+          <Tab label="Configurar" />
+        </Tabs>
+      </Box>
+
+      {/* ── Tab 0: Acervo (galeria visual) ───────────────────────────────── */}
+      {activeTab === 0 && (
+        <Box sx={{ px: { xs: 2, md: 4 }, pt: 3, pb: 6 }}>
+          <ReferenceGallerySection />
         </Box>
+      )}
 
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        {warning ? <Alert severity="warning">{warning}</Alert> : null}
-        {success ? <Alert severity="success">{success}</Alert> : null}
-
+      {/* ── Tab 1: Curadoria + KPIs ───────────────────────────────────────── */}
+      {activeTab === 1 && (
+      <Box sx={{ px: { xs: 2, md: 4 }, pt: 3, pb: 6 }}>
+      <Stack spacing={3}>
         <Grid container spacing={2.5}>
           <Grid size={{ xs: 12, md: 6, lg: 3 }}>
             <ScoreCard
@@ -1016,13 +1071,6 @@ export default function DaControlClient() {
             />
           </Grid>
         </Grid>
-
-        <SectionCard
-          title="Acervo de referências"
-          subtitle="Catálogo visual completo — Cannes, Behance, Ads of the World, D&AD e mais. Filtre por categoria, aprove ou rejeite direto no card."
-        >
-          <ReferenceGallerySection />
-        </SectionCard>
 
         <SectionCard
           title="Curadoria de referências"
@@ -1461,7 +1509,14 @@ export default function DaControlClient() {
             </SectionCard>
           </Grid>
         </Grid>
+      </Stack>
+      </Box>
+      )}
 
+      {/* ── Tab 2: Configurar (framework + fontes + critique) ─────────────── */}
+      {activeTab === 2 && (
+      <Box sx={{ px: { xs: 2, md: 4 }, pt: 3, pb: 6 }}>
+      <Stack spacing={3}>
         <SectionCard
           sectionId="da-framework"
           title="Manual canônico de pilotagem do DA-IA"
@@ -2064,6 +2119,9 @@ export default function DaControlClient() {
           </Grid>
         </Grid>
       </Stack>
+      </Box>
+      )}
+
     </Box>
   );
 }

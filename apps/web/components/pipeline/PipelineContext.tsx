@@ -161,6 +161,10 @@ export interface PipelineContextValue {
   // Visual Insights — selected reference image URLs feed into DA P2
   visualReferences: string[];
   setVisualReferences: (refs: string[]) => void;
+
+  // Conceito node — staged concept engine result shared across pipeline nodes
+  conceitoResult: any | null;
+  setConceitoResult: (value: any | null) => void;
 }
 
 export type CopyChainBrandVoice = {
