@@ -104,11 +104,11 @@ function trustColor(score: number | null): string {
 // ── Card ──────────────────────────────────────────────────────────────────────
 
 function RefCard({
-  ref: r,
+  item: r,
   onApprove,
   onReject,
 }: {
-  ref: Ref;
+  item: Ref;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
 }) {
@@ -438,7 +438,7 @@ export default function ReferenceGallerySection() {
           }}
         >
           {filtered.map((r) => (
-            <RefCard key={r.id} ref={r} onApprove={handleApprove} onReject={handleReject} />
+            <RefCard key={r.id} item={r} onApprove={handleApprove} onReject={handleReject} />
           ))}
         </Box>
       )}
