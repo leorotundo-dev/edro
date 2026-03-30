@@ -433,4 +433,31 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       return reply.status(500).send({ success: false, error: e?.message });
     }
   });
+
+  // ── GET /jarvis/decisions — classified decisions from Decision Engine ──────
+  // Returns top-N JarvisDecisions sorted by weight desc, ready for Jarvis panel UI.
+  app.get('/jarvis/decisions', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const { limit = '20' } = request.query as { limit?: string };
+    try {
+      const { processAlerts } = await import('../services/jarvisDecisionEngine') as any;
+      const decisions = await processAlerts(tenantId, Math.min(parseInt(limit) || 20, 100));
+      return reply.send({ success: true, decisions, total: decisions.length });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message, decisions: [] });
+    }
+  });
+
+  // ── GET /jarvis/client-state/:clientId — full awareness snapshot for a client ──
+  app.get('/jarvis/client-state/:clientId', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { clientId } = request.params as { clientId: string };
+    const tenantId = request.user?.tenant_id as string;
+    try {
+      const { buildClientState } = await import('../services/jarvisDecisionEngine') as any;
+      const state = await buildClientState(tenantId, clientId);
+      return reply.send({ success: true, state });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
 }
