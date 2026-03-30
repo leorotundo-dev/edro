@@ -77,10 +77,9 @@ export async function assembleCreativeContext(params: {
 
   const [briefingRes, clientRes, behaviorRes, learningRes, copiesRes, clippingRes, artDirRes] =
     await Promise.allSettled([
-      // 1. Briefing
-      query<{ id: string; titulo: string; objetivo: string; contexto: string | null;
-               plataforma: string | null; formato: string | null; payload: any; main_client_id: string | null }>(
-        `SELECT id, titulo, objetivo, contexto, plataforma, formato, payload, main_client_id
+      // 1. Briefing — only real columns; titulo/objetivo/plataforma/formato live in payload JSONB
+      query<{ id: string; title: string; payload: any; main_client_id: string | null }>(
+        `SELECT id, title, payload, main_client_id
          FROM edro_briefings
          WHERE id = $1 AND tenant_id = $2
          LIMIT 1`,
@@ -124,16 +123,17 @@ export async function assembleCreativeContext(params: {
           )
         : Promise.resolve({ rows: [] }),
 
-      // 5. Recent copies (anti-repetition)
+      // 5. Recent copies (anti-repetition) — from studio_creatives library
       clientId
         ? query<{ copy_text: string }>(
-            `SELECT COALESCE(copy_text, '') as copy_text
-             FROM copy_outputs
-             WHERE client_id = $1 AND tenant_id = $2
+            `SELECT COALESCE(copy_body, '') as copy_text
+             FROM studio_creatives
+             WHERE client_id = $1::uuid AND tenant_id = $2::uuid
+               AND copy_body IS NOT NULL
              ORDER BY created_at DESC
              LIMIT 5`,
             [clientId, tenantId],
-          ).catch(() => ({ rows: [] }))  // table may not exist in all envs
+          ).catch(() => ({ rows: [] }))
         : Promise.resolve({ rows: [] }),
 
       // 6. Cultural context (recent clipping + upcoming calendar dates)
@@ -158,12 +158,13 @@ export async function assembleCreativeContext(params: {
           )
         : Promise.resolve({ rows: [] }),
 
-      // 7. Art direction context (DA memory)
+      // 7. Art direction context — from client_visual_style synthesis
       clientId
         ? query<{ style_notes: string | null }>(
-            `SELECT style_notes
-             FROM client_brand_voice
+            `SELECT style_summary AS style_notes
+             FROM client_visual_style
              WHERE client_id = $1 AND tenant_id = $2
+             ORDER BY analyzed_at DESC
              LIMIT 1`,
             [clientId, tenantId],
           ).catch(() => ({ rows: [] }))
@@ -229,11 +230,14 @@ export async function assembleCreativeContext(params: {
     },
     briefing: {
       id: briefingRow.id,
-      titulo: briefingRow.titulo ?? '',
-      objetivo: briefingRow.objetivo ?? '',
-      contexto: briefingRow.contexto ?? null,
-      plataforma: briefingRow.plataforma ?? null,
-      formato: briefingRow.formato ?? null,
+      // Extract semantic fields from payload JSONB (edro_briefings only has title + payload as columns)
+      titulo: briefingRow.title ?? briefingRow.payload?.title ?? '',
+      objetivo: briefingRow.payload?.objective ?? briefingRow.payload?.objetivo ?? '',
+      contexto: briefingRow.payload?.context ?? briefingRow.payload?.notes ?? briefingRow.payload?.additional_notes ?? null,
+      plataforma: briefingRow.payload?.platform ?? briefingRow.payload?.plataforma
+        ?? (Array.isArray(briefingRow.payload?.channels) ? briefingRow.payload.channels[0] : null)
+        ?? briefingRow.payload?.channels ?? null,
+      formato: briefingRow.payload?.format ?? briefingRow.payload?.formato ?? briefingRow.payload?.creative_format ?? null,
       payload: briefingRow.payload ?? {},
     },
   };
