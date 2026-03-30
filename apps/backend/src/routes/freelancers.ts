@@ -58,6 +58,99 @@ function isValidCnpj(value: string) {
   return digits === `${digits.slice(0, 12)}${first}${second}`;
 }
 
+type CnpjLookupStatus = 'found_active' | 'found_inactive' | 'not_found' | 'provider_unavailable' | 'invalid_cnpj';
+
+type CnpjLookupResponse = {
+  status: CnpjLookupStatus;
+  provider: 'brasilapi' | 'validation';
+  source: 'brasilapi' | 'validation' | 'cache';
+  cnpj: string;
+  message: string;
+  allow_manual_entry: boolean;
+  cache_hit?: boolean;
+  cached_at?: string | null;
+  expires_at?: string | null;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  situacao?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  municipio?: string | null;
+  uf?: string | null;
+  cep?: string | null;
+};
+
+const CNPJ_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CNPJ_NOT_FOUND_CACHE_TTL_MS = 60 * 60 * 1000;
+
+async function readCnpjLookupCache(cnpj: string): Promise<CnpjLookupResponse | null> {
+  const res = await pool.query<{
+    provider: string;
+    status: 'found_active' | 'found_inactive' | 'not_found';
+    payload: Record<string, unknown> | null;
+    fetched_at: string;
+    expires_at: string;
+  }>(
+    `SELECT provider, status, payload, fetched_at, expires_at
+       FROM cnpj_lookup_cache
+      WHERE cnpj = $1
+        AND expires_at > NOW()
+      LIMIT 1`,
+    [cnpj],
+  );
+
+  const row = res.rows[0];
+  if (!row) return null;
+
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+  return {
+    ...(payload as Omit<CnpjLookupResponse, 'cache_hit' | 'cached_at' | 'expires_at' | 'source'>),
+    source: 'cache',
+    cache_hit: true,
+    cached_at: row.fetched_at,
+    expires_at: row.expires_at,
+  };
+}
+
+async function writeCnpjLookupCache(response: CnpjLookupResponse) {
+  if (!['found_active', 'found_inactive', 'not_found'].includes(response.status)) return;
+
+  const ttlMs = response.status === 'not_found' ? CNPJ_NOT_FOUND_CACHE_TTL_MS : CNPJ_CACHE_TTL_MS;
+  const expiresAt = new Date(Date.now() + ttlMs);
+  const payload = {
+    status: response.status,
+    provider: response.provider,
+    cnpj: response.cnpj,
+    message: response.message,
+    allow_manual_entry: response.allow_manual_entry,
+    razao_social: response.razao_social ?? null,
+    nome_fantasia: response.nome_fantasia ?? null,
+    situacao: response.situacao ?? null,
+    logradouro: response.logradouro ?? null,
+    numero: response.numero ?? null,
+    complemento: response.complemento ?? null,
+    bairro: response.bairro ?? null,
+    municipio: response.municipio ?? null,
+    uf: response.uf ?? null,
+    cep: response.cep ?? null,
+  };
+
+  await pool.query(
+    `INSERT INTO cnpj_lookup_cache (cnpj, provider, status, payload, fetched_at, expires_at, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, NOW(), $5, NOW())
+     ON CONFLICT (cnpj) DO UPDATE
+        SET provider = EXCLUDED.provider,
+            status = EXCLUDED.status,
+            payload = EXCLUDED.payload,
+            fetched_at = EXCLUDED.fetched_at,
+            expires_at = EXCLUDED.expires_at,
+            updated_at = NOW()`,
+    [response.cnpj, response.provider, response.status, JSON.stringify(payload), expiresAt],
+  );
+}
+
 async function loadFreelancerIdentitySnapshot(freelancerId: string) {
   const res = await pool.query(
     `SELECT fp.id,
@@ -1897,18 +1990,25 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       });
     }
 
+    const cached = await readCnpjLookupCache(clean);
+    if (cached) {
+      return reply.send(cached);
+    }
+
     try {
       // codeql[js/request-forgery] domain hardcoded to brasilapi.com.br; ${clean} is digits-only (regex + length validated)
       const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`, { signal: AbortSignal.timeout(8000) });
       if (res.status === 404) {
-        return reply.send({
+        const response: CnpjLookupResponse = {
           status: 'not_found',
           provider: 'brasilapi',
           source: 'brasilapi',
           cnpj: clean,
           message: 'Não encontramos esse CNPJ na consulta automática. Você pode preencher os campos manualmente e continuar.',
           allow_manual_entry: true,
-        });
+        };
+        await writeCnpjLookupCache(response);
+        return reply.send(response);
       }
       if (!res.ok) {
         return reply.send({
@@ -1923,7 +2023,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       const data = await res.json() as any;
       const situacao = data.descricao_situacao_cadastral ?? null;
       const isActive = !situacao || String(situacao).toLowerCase().includes('ativa');
-      return reply.send({
+      const response: CnpjLookupResponse = {
         status: isActive ? 'found_active' : 'found_inactive',
         provider: 'brasilapi',
         source: 'brasilapi',
@@ -1942,7 +2042,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         municipio: data.municipio ?? null,
         uf: data.uf ?? null,
         cep: data.cep ?? null,
-      });
+      };
+      await writeCnpjLookupCache(response);
+      return reply.send(response);
     } catch {
       return reply.send({
         status: 'provider_unavailable',

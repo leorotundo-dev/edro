@@ -8,10 +8,13 @@ export type CnpjLookupStatus =
 export type CnpjLookupResponse = {
   status: CnpjLookupStatus;
   provider: 'brasilapi' | 'validation';
-  source: 'brasilapi' | 'validation';
+  source: 'brasilapi' | 'validation' | 'cache';
   cnpj: string;
   message: string;
   allow_manual_entry: boolean;
+  cache_hit?: boolean;
+  cached_at?: string | null;
+  expires_at?: string | null;
   razao_social?: string | null;
   nome_fantasia?: string | null;
   situacao?: string | null;
