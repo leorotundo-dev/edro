@@ -48,6 +48,7 @@ import { runJarvisBackgroundWorkerOnce } from './jarvisBackgroundWorker';
 import { runJarvisCreationWorkerOnce } from './jarvisCreationWorker';
 import { runFeedbackProcessorWorkerOnce } from './feedbackProcessorWorker';
 import { runLoraMonitorWorkerOnce } from './loraMonitorWorker';
+import { runBehanceCrawlerWorkerOnce } from './behanceCrawlerWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -200,4 +201,6 @@ export function startJobsRunner() {
 
   // ── 60s — LoRA monitor (polls Fal.ai training status for in-flight jobs) ──────
   startWorkerLoop('loraMonitor', runLoraMonitorWorkerOnce, 25000, 120_000, 60_000);
+  // Behance Featured crawler — daily at 03h BRT, seeds da_references from Adobe API
+  startWorkerLoop('behanceCrawler', runBehanceCrawlerWorkerOnce, 26000, 300_000, 60_000);
 }
