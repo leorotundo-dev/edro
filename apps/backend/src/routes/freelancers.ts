@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
+import { readFile } from '../library/storage';
 import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
 import { syncFreelancerPerson } from '../repos/peopleRepo';
@@ -789,10 +790,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const res = await pool.query(
       `SELECT fp.*, eu.email,
+              p.avatar_url AS person_avatar_url,
+              fp.avatar_url AS freelancer_avatar_url,
               COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url,
+              p.avatar_generated_key,
+              p.avatar_source_key,
               p.avatar_generation_status,
               p.avatar_generated_at,
               p.avatar_prompt_version,
+              p.avatar_provider,
+              p.avatar_error,
               (SELECT json_agg(at2) FROM active_timers at2 WHERE at2.freelancer_id = fp.id) as active_timers
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
@@ -801,7 +808,43 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       [userId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Freelancer profile not found' });
-    return reply.send(res.rows[0]);
+    const row = res.rows[0];
+    if (row.avatar_generated_key || row.avatar_source_key) {
+      const cacheBust = row.avatar_generated_at ? `?v=${new Date(row.avatar_generated_at).getTime()}` : '';
+      row.avatar_url = `/api/proxy/freelancers/portal/me/avatar${cacheBust}`;
+    }
+    return reply.send(row);
+  });
+
+  app.get('/freelancers/portal/me/avatar', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const res = await pool.query(
+      `SELECT p.avatar_generated_key,
+              p.avatar_source_key
+         FROM freelancer_profiles fp
+         LEFT JOIN people p ON p.id = fp.person_id
+        WHERE fp.user_id = $1
+        LIMIT 1`,
+      [userId],
+    );
+
+    const row = res.rows[0];
+    const key = row?.avatar_generated_key ?? row?.avatar_source_key ?? null;
+    if (!key) return reply.status(404).send({ error: 'Avatar not found' });
+
+    try {
+      const buf = await readFile(key);
+      const ext = key.split('.').pop()?.toLowerCase() || '';
+      const ct = ext === 'png' ? 'image/png'
+        : ext === 'webp' ? 'image/webp'
+        : ext === 'svg' ? 'image/svg+xml'
+        : 'image/jpeg';
+      return reply.type(ct).header('Cache-Control', 'private, no-store').send(buf);
+    } catch {
+      return reply.status(404).send({ error: 'Avatar not found' });
+    }
   });
 
   app.post('/freelancers/portal/me/avatar', async (request: any, reply) => {
