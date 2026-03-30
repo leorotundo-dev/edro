@@ -2427,4 +2427,76 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
       return reply.send(res.rows[0]);
     },
   );
+
+  // ── GET /clients/:id/banner-kpis — lightweight 5-number banner for client header ──
+  app.get(
+    '/clients/:id/banner-kpis',
+    { preHandler: [requirePerm('clients:read')] },
+    async (request: any, reply) => {
+      const { id } = request.params as { id: string };
+      const { tenantId } = request.user as { tenantId: string };
+
+      const [jobsRes, mentionsRes, behaviorRes, engagementRes, healthRes] = await Promise.allSettled([
+        // active jobs count
+        query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt FROM edro_jobs
+           WHERE client_id = $1 AND tenant_id = $2
+             AND job_status NOT IN ('done', 'cancelled', 'archived')`,
+          [id, tenantId],
+        ),
+        // mentions in last 48h
+        query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt
+           FROM clipping_items ci
+           JOIN clipping_sources cs ON cs.id = ci.source_id
+           WHERE cs.client_id = $1 AND ci.tenant_id = $2
+             AND ci.published_at > now() - interval '48 hours'`,
+          [id, tenantId],
+        ),
+        // AMD behavior score (preferred_amd proxy)
+        query<{ preferred_amd: string | null; amd_score: string | null }>(
+          `SELECT preferred_amd,
+                  COALESCE(
+                    (SELECT AVG(confidence_score)*100 FROM learning_rules
+                     WHERE client_id = $1 AND tenant_id = $2 AND is_active = true),
+                    0
+                  )::int::text AS amd_score
+           FROM client_behavior_profiles
+           WHERE client_id = $1 AND tenant_id = $2
+           LIMIT 1`,
+          [id, tenantId],
+        ),
+        // engagement rate — avg over recent analytics posts
+        query<{ engagement_rate: string }>(
+          `SELECT COALESCE(ROUND(AVG(engagement_rate::numeric), 1), 0)::text AS engagement_rate
+           FROM analytics_posts
+           WHERE client_id = $1 AND tenant_id = $2
+             AND created_at > now() - interval '30 days'`,
+          [id, tenantId],
+        ).catch(() => ({ rows: [{ engagement_rate: '0' }] })),
+        // health score — ratio of jobs on-time vs total completed last 90d
+        query<{ health_score: string }>(
+          `SELECT CASE WHEN COUNT(*) = 0 THEN 0
+                  ELSE ROUND(
+                    COUNT(*) FILTER (WHERE completed_at <= deadline_at OR deadline_at IS NULL)::numeric
+                    / COUNT(*)::numeric * 100
+                  )
+                  END::text AS health_score
+           FROM edro_jobs
+           WHERE client_id = $1 AND tenant_id = $2
+             AND job_status = 'done'
+             AND completed_at > now() - interval '90 days'`,
+          [id, tenantId],
+        ).catch(() => ({ rows: [{ health_score: '0' }] })),
+      ]);
+
+      const activeJobs = jobsRes.status === 'fulfilled' ? parseInt(jobsRes.value.rows[0]?.cnt ?? '0') : 0;
+      const mentions48h = mentionsRes.status === 'fulfilled' ? parseInt(mentionsRes.value.rows[0]?.cnt ?? '0') : 0;
+      const amdScore = behaviorRes.status === 'fulfilled' ? parseInt(behaviorRes.value.rows[0]?.amd_score ?? '0') : 0;
+      const engagementRate = engagementRes.status === 'fulfilled' ? parseFloat(engagementRes.value.rows[0]?.engagement_rate ?? '0') : 0;
+      const healthScore = healthRes.status === 'fulfilled' ? parseInt(healthRes.value.rows[0]?.health_score ?? '0') : 0;
+
+      return reply.send({ activeJobs, mentions48h, amdScore, engagementRate, healthScore });
+    },
+  );
 }

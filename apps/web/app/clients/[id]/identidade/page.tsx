@@ -5,20 +5,23 @@ import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconFingerprint, IconPlugConnected, IconShieldCheck } from '@tabler/icons-react';
+import { IconBook2, IconFingerprint, IconPlugConnected, IconShieldCheck } from '@tabler/icons-react';
 import PerfilPage from '../perfil/page';
 import ClientConnectorsPage from '../connectors/page';
 import ClientPermissionsPage from '../permissions/page';
+import ClientLibraryClient from '../library/ClientLibraryClient';
 
-type IdentidadeSub = 'perfil' | 'integracoes' | 'acesso';
+type IdentidadeSub = 'perfil' | 'biblioteca' | 'integracoes' | 'acesso';
 
 const SUB_TABS = [
   { value: 'perfil' as const,      label: 'Perfil & Marca',  icon: <IconFingerprint size={16} /> },
+  { value: 'biblioteca' as const,  label: 'Biblioteca',      icon: <IconBook2 size={16} /> },
   { value: 'integracoes' as const, label: 'Integrações',     icon: <IconPlugConnected size={16} /> },
   { value: 'acesso' as const,      label: 'Acesso',          icon: <IconShieldCheck size={16} /> },
 ];
 
 function parseSub(v: string | null): IdentidadeSub {
+  if (v === 'biblioteca') return 'biblioteca';
   if (v === 'integracoes') return 'integracoes';
   if (v === 'acesso') return 'acesso';
   return 'perfil';
@@ -62,6 +65,7 @@ export default function IdentidadePage() {
       </Tabs>
 
       {tab === 'perfil' && <PerfilPage />}
+      {tab === 'biblioteca' && <ClientLibraryClient clientId={clientId} />}
       {tab === 'integracoes' && <ClientConnectorsPage />}
       {tab === 'acesso' && <ClientPermissionsPage />}
     </Box>

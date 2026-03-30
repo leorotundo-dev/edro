@@ -12,18 +12,24 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconBrandTrello, IconCalendarEvent, IconCash, IconMessage, IconUsers } from '@tabler/icons-react';
+import { IconBrandTrello, IconCalendarEvent, IconCash, IconMessage, IconNotes, IconRocket, IconSpeakerphone, IconUsers } from '@tabler/icons-react';
 import ProjectBoardClient from '@/app/projetos/[boardId]/ProjectBoardClient';
 import OperacaoRadarSection from './OperacaoRadarSection';
 import MeetingsClient from '../meetings/MeetingsClient';
 import WhatsAppClientTab from '../whatsapp/WhatsAppClientTab';
 import ClientFinanceiroPage from '../financeiro/page';
 import ClientCalendarClient from '../calendar/ClientCalendarClient';
+import ClientDemandasClient from '../demandas/ClientDemandasClient';
+import ClientBriefingsClient from '../briefings/ClientBriefingsClient';
+import CampaignsClient from '../campaigns/CampaignsClient';
 
-type OperacaoSub = 'board' | 'reunioes' | 'whatsapp' | 'financeiro' | 'calendario';
+type OperacaoSub = 'board' | 'demandas' | 'briefings' | 'campanhas' | 'reunioes' | 'whatsapp' | 'financeiro' | 'calendario';
 
 const SUB_TABS = [
   { value: 'board' as const,      label: 'Board',      icon: <IconBrandTrello size={16} /> },
+  { value: 'demandas' as const,   label: 'Demandas',   icon: <IconRocket size={16} /> },
+  { value: 'briefings' as const,  label: 'Briefings',  icon: <IconNotes size={16} /> },
+  { value: 'campanhas' as const,  label: 'Campanhas',  icon: <IconSpeakerphone size={16} /> },
   { value: 'reunioes' as const,   label: 'Reuniões',   icon: <IconUsers size={16} /> },
   { value: 'whatsapp' as const,   label: 'WhatsApp',   icon: <IconMessage size={16} /> },
   { value: 'financeiro' as const, label: 'Financeiro', icon: <IconCash size={16} /> },
@@ -31,6 +37,9 @@ const SUB_TABS = [
 ];
 
 function parseSub(v: string | null): OperacaoSub {
+  if (v === 'demandas') return 'demandas';
+  if (v === 'briefings') return 'briefings';
+  if (v === 'campanhas') return 'campanhas';
   if (v === 'reunioes') return 'reunioes';
   if (v === 'whatsapp') return 'whatsapp';
   if (v === 'financeiro') return 'financeiro';
@@ -191,6 +200,9 @@ export default function OperacaoPage() {
       </Tabs>
 
       {tab === 'board' && <TrelloBoardSection clientId={clientId} />}
+      {tab === 'demandas' && <ClientDemandasClient clientId={clientId} />}
+      {tab === 'briefings' && <ClientBriefingsClient clientId={clientId} />}
+      {tab === 'campanhas' && <CampaignsClient clientId={clientId} />}
       {tab === 'reunioes' && <MeetingsClient clientId={clientId} />}
       {tab === 'whatsapp' && <WhatsAppClientTab clientId={clientId} />}
       {tab === 'financeiro' && <ClientFinanceiroPage />}
