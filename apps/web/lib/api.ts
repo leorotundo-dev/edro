@@ -207,6 +207,13 @@ export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
   });
 }
 
+export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
+  return requestWithRefresh<T>(path, {
+    method: 'PUT',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
 export async function apiDelete<T = any>(path: string): Promise<T> {
   return requestWithRefresh<T>(path, { method: 'DELETE' });
 }
@@ -214,6 +221,7 @@ export async function apiDelete<T = any>(path: string): Promise<T> {
 export const api = {
   get: apiGet,
   post: apiPost,
+  put: apiPut,
   patch: apiPatch,
   delete: apiDelete,
 };
