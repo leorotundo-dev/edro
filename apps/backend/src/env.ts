@@ -106,7 +106,6 @@ const envSchema = z.object({
   GOOGLE_PUBSUB_TOPIC: z.string().optional(),
   GOOGLE_CALENDAR_REDIRECT_URI: z.string().optional(),
   GOOGLE_CALENDAR_WEBHOOK_URL: z.string().optional(),
-  BEHANCE_API_KEY: z.string().optional(),
   RECALL_API_KEY: z.string().optional(),
   RECALL_REGION: z.string().optional(),
   RECALL_GOOGLE_LOGIN_GROUP_ID: z.string().optional(),

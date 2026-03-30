@@ -618,8 +618,9 @@ export async function upsertArtDirectionConcept(input: ArtDirectionConceptInput)
 export async function ensureDefaultArtDirectionSources(tenantId: string): Promise<void> {
   const defaults = [
     { name: 'Behance', sourceType: 'site', baseUrl: 'https://www.behance.net', domain: 'behance.net', trust: 0.95 },
-    { name: 'Dribbble', sourceType: 'site', baseUrl: 'https://dribbble.com', domain: 'dribbble.com', trust: 0.85 },
     { name: 'Ads of the World', sourceType: 'site', baseUrl: 'https://www.adsoftheworld.com', domain: 'adsoftheworld.com', trust: 0.95 },
+    { name: "It's Nice That", sourceType: 'site', baseUrl: 'https://www.itsnicethat.com', domain: 'itsnicethat.com', trust: 0.90 },
+    { name: 'Dribbble', sourceType: 'site', baseUrl: 'https://dribbble.com', domain: 'dribbble.com', trust: 0.85 },
     { name: 'Pinterest', sourceType: 'site', baseUrl: 'https://www.pinterest.com', domain: 'pinterest.com', trust: 0.60 },
     { name: 'Serper Search', sourceType: 'search', baseUrl: 'https://google.serper.dev', domain: 'google.serper.dev', trust: 0.70 },
   ];
