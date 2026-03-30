@@ -160,6 +160,54 @@ type FrameworkAxis = {
   question: string;
 };
 
+type FrameworkOperatingLayer = {
+  key: string;
+  title: string;
+  question: string;
+  output: string;
+};
+
+type FrameworkCriterion = {
+  key: string;
+  label: string;
+  description: string;
+  weight: number;
+};
+
+type FrameworkRepertoireMapping = {
+  key: string;
+  problem: string;
+  dominantRepertoires: string[];
+  desiredEffect: string;
+  principalRisk: string;
+  bestFor: string[];
+};
+
+type FrameworkStackLayer = {
+  key: string;
+  title: string;
+  role: string;
+  sources: string[];
+  output: string;
+};
+
+type FrameworkModule = {
+  key: string;
+  title: string;
+  function: string;
+  coreQuestion: string;
+  dominantRepertoires: string[];
+  successCriteria: string[];
+  antipatterns: string[];
+};
+
+type FrameworkArtifact = {
+  key: string;
+  title: string;
+  purpose: string;
+  steps: string[];
+};
+
 type ArtDirectionFramework = {
   title: string;
   thesis: string;
@@ -170,6 +218,12 @@ type ArtDirectionFramework = {
   briefingSchema: FrameworkField[];
   critiqueAxes: FrameworkAxis[];
   workflowPhases: Array<{ key: string; title: string; description: string }>;
+  operatingSystem: FrameworkOperatingLayer[];
+  resultCriteria: FrameworkCriterion[];
+  repertoireMatrix: FrameworkRepertoireMapping[];
+  intelligenceStack: FrameworkStackLayer[];
+  specializedModules: FrameworkModule[];
+  operationalArtifacts: FrameworkArtifact[];
 };
 
 type CanonEntry = {
@@ -2031,7 +2085,7 @@ export default function DaControlClient() {
         <SectionCard
           sectionId="da-framework"
           title="Manual canônico de pilotagem do DA-IA"
-          subtitle="Esta é a doutrina operacional do motor: como a Edro deve dirigir a IA visual, o que ela precisa receber no briefing e como o julgamento deve acontecer."
+          subtitle="Esta é a doutrina operacional do motor: o micro método de pilotagem do DA-IA, o Edro OS visual, a matriz de repertório, o stack híbrido e os módulos especializados."
           eyebrow="Framework"
           tone="#5D87FF"
           action={<IconBrain size={18} color="#5D87FF" />}
@@ -2060,7 +2114,7 @@ export default function DaControlClient() {
                 <Grid size={{ xs: 12, lg: 5 }}>
                   <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, height: '100%' }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                      7 camadas de direção
+                      7 camadas de pilotagem
                     </Typography>
                     <Stack spacing={1.25} mt={1.25}>
                       {data.framework.layers.map((layer) => (
@@ -2133,6 +2187,226 @@ export default function DaControlClient() {
                   </Stack>
                 </Grid>
               </Grid>
+
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, lg: 6 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, height: '100%' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Edro OS visual
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
+                      A macro sequência que transforma problema real em campanha viva. Aqui o DA deixa de ser executor e passa a operar junto da estratégia.
+                    </Typography>
+                    <Stack spacing={1.25} mt={1.25}>
+                      {data.framework.operatingSystem.map((layer) => (
+                        <Paper key={layer.key} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {layer.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                            {layer.question}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.8, fontWeight: 700 }}>
+                            Saída: {layer.output}
+                          </Typography>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, height: '100%' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Régua de resultado incrível
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
+                      Esta é a pontuação estrutural que substitui gosto solto por critério. O peso ajuda a calibrar o que mais importa quando a equipe julga uma direção.
+                    </Typography>
+                    <Stack spacing={1.1} mt={1.25}>
+                      {data.framework.resultCriteria.map((criterion) => (
+                        <Paper key={criterion.key} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Stack direction="row" justifyContent="space-between" gap={2}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {criterion.label}
+                            </Typography>
+                            <Chip size="small" color="warning" variant="outlined" label={`${criterion.weight}%`} />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45 }}>
+                            {criterion.description}
+                          </Typography>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  Matriz problema x repertório
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
+                  O DA da Edro não escolhe referência pelo gosto. Ele escolhe repertório pela função que precisa resolver e pelo risco de leitura que precisa evitar.
+                </Typography>
+                <Grid container spacing={1.5} mt={0.25}>
+                  {data.framework.repertoireMatrix.map((entry) => (
+                    <Grid key={entry.key} size={{ xs: 12, xl: 6 }}>
+                      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5, height: '100%' }}>
+                        <Stack direction="row" justifyContent="space-between" gap={1.5} alignItems="flex-start">
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                            {entry.problem}
+                          </Typography>
+                          <Chip size="small" color="primary" variant="outlined" label={entry.bestFor[0] || 'uso amplo'} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                          {entry.desiredEffect}
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary', fontWeight: 700 }}>
+                          Repertório dominante
+                        </Typography>
+                        <Stack direction="row" gap={1} flexWrap="wrap" mt={0.5}>
+                          {entry.dominantRepertoires.map((item) => (
+                            <Chip key={`${entry.key}-${item}`} size="small" variant="outlined" label={item} />
+                          ))}
+                        </Stack>
+                        <Typography variant="caption" sx={{ display: 'block', mt: 1.1, color: 'text.secondary', fontWeight: 700 }}>
+                          Melhor para
+                        </Typography>
+                        <Stack direction="row" gap={1} flexWrap="wrap" mt={0.5}>
+                          {entry.bestFor.map((item) => (
+                            <Chip key={`${entry.key}-best-${item}`} size="small" color="success" variant="outlined" label={item} />
+                          ))}
+                        </Stack>
+                        <Paper variant="outlined" sx={{ p: 1.1, borderRadius: 2, mt: 1.2, bgcolor: 'rgba(255,174,31,0.06)' }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                            Risco principal
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                            {entry.principalRisk}
+                          </Typography>
+                        </Paper>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Paper>
+
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, lg: 6 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, height: '100%' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Stack híbrido de repertório
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
+                      A arquitetura certa para a Edro não é um banco monstruoso. É um stack que cruza excelência, sinais vivos e memória curta com filtro crítico.
+                    </Typography>
+                    <Stack spacing={1.25} mt={1.25}>
+                      {data.framework.intelligenceStack.map((layer) => (
+                        <Paper key={layer.key} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {layer.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                            {layer.role}
+                          </Typography>
+                          <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                            {layer.sources.map((source) => (
+                              <Chip key={`${layer.key}-${source}`} size="small" variant="outlined" label={source} />
+                            ))}
+                          </Stack>
+                          <Typography variant="body2" sx={{ mt: 0.9, fontWeight: 700 }}>
+                            Output: {layer.output}
+                          </Typography>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, height: '100%' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Artefatos operacionais
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
+                      Estes são os artefatos mínimos para a operação parar de depender de feeling e começar a rodar como sistema.
+                    </Typography>
+                    <Stack spacing={1.25} mt={1.25}>
+                      {data.framework.operationalArtifacts.map((artifact) => (
+                        <Paper key={artifact.key} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {artifact.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                            {artifact.purpose}
+                          </Typography>
+                          <Stack direction="row" gap={1} flexWrap="wrap" mt={1}>
+                            {artifact.steps.map((step) => (
+                              <Chip key={`${artifact.key}-${step}`} size="small" color="primary" variant="outlined" label={step} />
+                            ))}
+                          </Stack>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  Módulos especializados
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65 }}>
+                  O método-mãe não muda, mas a régua muda por função. Cada tipo de entrega precisa de uma lógica própria para o DA-IA deixar de operar em modo genérico.
+                </Typography>
+                <Grid container spacing={1.5} mt={0.25}>
+                  {data.framework.specializedModules.map((module) => (
+                    <Grid key={module.key} size={{ xs: 12, xl: 6 }}>
+                      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5, height: '100%' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                          {module.title}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.55 }}>
+                          {module.function}
+                        </Typography>
+                        <Paper variant="outlined" sx={{ p: 1.1, borderRadius: 2, mt: 1.1, bgcolor: 'rgba(93,135,255,0.05)' }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                            Pergunta-mãe
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.35, fontWeight: 700 }}>
+                            {module.coreQuestion}
+                          </Typography>
+                        </Paper>
+                        <Typography variant="caption" sx={{ display: 'block', mt: 1.1, color: 'text.secondary', fontWeight: 700 }}>
+                          Repertório dominante
+                        </Typography>
+                        <Stack direction="row" gap={1} flexWrap="wrap" mt={0.5}>
+                          {module.dominantRepertoires.map((item) => (
+                            <Chip key={`${module.key}-rep-${item}`} size="small" variant="outlined" label={item} />
+                          ))}
+                        </Stack>
+                        <Typography variant="caption" sx={{ display: 'block', mt: 1.1, color: 'text.secondary', fontWeight: 700 }}>
+                          Critérios de sucesso
+                        </Typography>
+                        <Stack direction="row" gap={1} flexWrap="wrap" mt={0.5}>
+                          {module.successCriteria.map((item) => (
+                            <Chip key={`${module.key}-ok-${item}`} size="small" color="success" variant="outlined" label={item} />
+                          ))}
+                        </Stack>
+                        <Typography variant="caption" sx={{ display: 'block', mt: 1.1, color: 'text.secondary', fontWeight: 700 }}>
+                          Antipadrões
+                        </Typography>
+                        <Stack direction="row" gap={1} flexWrap="wrap" mt={0.5}>
+                          {module.antipatterns.map((item) => (
+                            <Chip key={`${module.key}-bad-${item}`} size="small" color="error" variant="outlined" label={item} />
+                          ))}
+                        </Stack>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Paper>
             </Stack>
           ) : (
             <EmptySection
