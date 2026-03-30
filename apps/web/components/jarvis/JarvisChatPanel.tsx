@@ -310,14 +310,14 @@ export default function JarvisChatPanel() {
 
   // Auto-send message from command palette when drawer opens
   useEffect(() => {
-    if (isOpen && pendingMessage && clientId) {
+    if (isOpen && pendingMessage) {
       clearPendingMessage();
       // Small delay so the drawer is fully rendered before sending
       const timer = setTimeout(() => sendMessage(pendingMessage), 120);
       return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, pendingMessage, clientId]);
+  }, [isOpen, pendingMessage]);
 
   useEffect(() => {
     if (!clientId) {
@@ -373,8 +373,8 @@ export default function JarvisChatPanel() {
 
   const sendMessage = useCallback(async (text?: string, clientIdOverride?: string) => {
     const msg = (text ?? input).trim();
-    const cid = clientIdOverride ?? clientIdRef.current;
-    if (!msg || loading || !cid) return;
+    const cid = clientIdOverride ?? clientIdRef.current ?? null;
+    if (!msg || loading) return;
 
     const filesToSend = attachedFiles.slice();
     setInput('');
