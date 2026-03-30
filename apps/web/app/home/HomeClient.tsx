@@ -383,9 +383,9 @@ export default function HomeClient() {
             <Card variant="outlined" sx={{ height: '100%' }}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                  <Chip label="Em breve" size="small" />
+                  <Typography variant="subtitle1" fontWeight={700}>Próximos eventos</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Proximos 14 dias
+                    Próximos 14 dias
                   </Typography>
                 </Stack>
                 <Stack spacing={1}>

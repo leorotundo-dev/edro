@@ -1778,38 +1778,78 @@ Regras:
 
   app.post('/studio/creative/critique-arte', async (request: any, reply) => {
     const body = arteSchema.parse(request.body);
-    try {
-      const { generateCompletion } = await import('../services/ai/claudeService');
 
-      const prompt = `Você é um Diretor de Arte especializado em crítica visual de peças publicitárias digitais.
-Analise a imagem na URL abaixo (considere-a como descrita pelos parâmetros de contexto) e avalie a qualidade visual.
+    const PASS_THRESHOLD = 72;
+
+    // Gemini Vision — real multimodal analysis
+    const apiKey = env.GEMINI_API_KEY;
+    if (apiKey) {
+      try {
+        const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+        const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+        const prompt = `Você é um Diretor de Arte especializado em peças publicitárias digitais.
+Analise visualmente a imagem e avalie 4 dimensões de 0 a 100. Limiar de aprovação: ${PASS_THRESHOLD}.
 
 CONTEXTO:
-- URL da imagem: ${body.image_url}
 - Plataforma: ${body.platform ?? 'não informada'}
-- Gatilho psicológico: ${body.trigger ?? 'nenhum'}
+- Gatilho: ${body.trigger ?? 'nenhum'}
 - Copy vinculada: ${body.copy_text ? body.copy_text.slice(0, 300) : 'não informada'}
 - Briefing: ${body.briefing_title ?? 'não informado'}
 
-Avalie 4 dimensões visuais de 0 a 100 (sem decimais).
-Limiar de aprovação: 72/100.
-
-Retorne SOMENTE um JSON válido:
+Retorne SOMENTE JSON válido:
 {
-  "overall": <número 0-100>,
-  "passed": <boolean true se overall >= 72>,
+  "overall": <0-100>,
+  "passed": <true se overall>=${PASS_THRESHOLD}>,
   "dimensions": [
-    { "label": "Qualidade de Renderização", "score": <0-100>, "note": "<problema específico se score<72, senão null>" },
+    { "label": "Qualidade de Renderização", "score": <0-100>, "note": "<problema se score<${PASS_THRESHOLD}, senão null>" },
     { "label": "Contraste do Texto",        "score": <0-100>, "note": "<problema ou null>" },
     { "label": "Hierarquia Visual",         "score": <0-100>, "note": "<problema ou null>" },
     { "label": "Coerência Copy↔Imagem",     "score": <0-100>, "note": "<problema ou null>" }
   ],
-  "issues": ["<problema visual 1 em PT-BR>", "<problema 2>"],
-  "suggestions": ["<sugestão acionável 1 em PT-BR>", "<sugestão 2>"]
+  "issues": ["<problema em PT-BR>"],
+  "suggestions": ["<sugestão acionável em PT-BR>"]
 }`;
 
-      const result = await generateCompletion({ prompt, maxTokens: 500, temperature: 0.2 });
-      let raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+        const res = await fetch(
+          `${baseUrl}/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  { file_data: { file_uri: body.image_url, mime_type: 'image/jpeg' } },
+                ],
+              }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 700 },
+            }),
+          },
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          const raw = (data?.candidates?.[0]?.content?.parts ?? [])
+            .map((p: any) => p.text || '').join('').trim();
+          const start = raw.indexOf('{');
+          if (start >= 0) {
+            const parsed = JSON.parse(raw.slice(start));
+            return reply.send({ success: true, data: parsed });
+          }
+        }
+      } catch { /* fall through to Claude text fallback */ }
+    }
+
+    // Fallback: Claude with image URL in text (no actual vision)
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+      const prompt = `Você é um Diretor de Arte. Baseado nos parâmetros da peça abaixo, estime as dimensões visuais de 0 a 100. Limiar: ${PASS_THRESHOLD}.
+Plataforma: ${body.platform ?? '?'} | Copy: ${body.copy_text?.slice(0, 200) ?? '?'} | Briefing: ${body.briefing_title ?? '?'}
+Retorne SOMENTE JSON: { "overall": N, "passed": bool, "dimensions": [{ "label": "Qualidade de Renderização", "score": N, "note": null }, { "label": "Contraste do Texto", "score": N, "note": null }, { "label": "Hierarquia Visual", "score": N, "note": null }, { "label": "Coerência Copy↔Imagem", "score": N, "note": null }], "issues": [], "suggestions": ["Ative GEMINI_API_KEY para análise visual real"] }`;
+      const result = await generateCompletion({ prompt, maxTokens: 400, temperature: 0.2 });
+      const raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
       const parsed = JSON.parse(raw);
       return reply.send({ success: true, data: parsed });
     } catch (e: any) {
