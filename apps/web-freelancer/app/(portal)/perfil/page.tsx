@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import clsx from 'clsx';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
@@ -98,6 +98,7 @@ function ScoreRing({ score }: { score: number }) {
 
 export default function PerfilPage() {
   const { data: profile, mutate } = useSWR<Profile>('/freelancers/portal/me', swrFetcher);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [contact, setContact] = useState({ phone: '', whatsapp_jid: '', department: '', role_title: '', email_personal: '', notes: '' });
   const [availability, setAvailability] = useState({ available_days: [] as string[], available_hours_start: '', available_hours_end: '', weekly_capacity_hours: '', unavailable_until: '' });
@@ -203,7 +204,8 @@ export default function PerfilPage() {
   }
 
   async function generateAvatar() {
-    if (!avatarFile) {
+    const file = avatarFile ?? avatarInputRef.current?.files?.[0] ?? null;
+    if (!file) {
       setError((prev) => ({ ...prev, avatar: 'Selecione uma foto antes de gerar o avatar.' }));
       return;
     }
@@ -211,11 +213,12 @@ export default function PerfilPage() {
     setError((prev) => ({ ...prev, avatar: '' }));
     try {
       const formData = new FormData();
-      formData.append('file', avatarFile);
+      formData.append('file', file);
       await apiPostFormData('/freelancers/portal/me/avatar', formData);
       await mutate();
       setAvatarFile(null);
       setAvatarPreview('');
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
     } catch (e: any) {
       setError((prev) => ({ ...prev, avatar: e?.message ?? 'Não foi possível gerar o avatar.' }));
     } finally {
@@ -258,11 +261,18 @@ export default function PerfilPage() {
               {avatarPreview ? <img src={avatarPreview} alt="Novo avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : profile.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : profile.display_name.slice(0, 2).toUpperCase()}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <input className="portal-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                setAvatarFile(file);
-                setAvatarPreview(file ? URL.createObjectURL(file) : '');
-              }} />
+              <input
+                ref={avatarInputRef}
+                className="portal-input"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setAvatarFile(file);
+                  setError((prev) => ({ ...prev, avatar: '' }));
+                  setAvatarPreview(file ? URL.createObjectURL(file) : '');
+                }}
+              />
               <button type="button" className="portal-button" onClick={generateAvatar} disabled={saving.avatar}>{saving.avatar ? 'Gerando avatar...' : 'Gerar avatar'}</button>
               {error.avatar && <span style={{ fontSize: 12, color: '#FA896B' }}>{error.avatar}</span>}
             </div>
