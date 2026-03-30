@@ -923,10 +923,6 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const freelancerId = fpRes.rows[0].id;
 
     const body = request.body as Record<string, any>;
-    if (body.pix_key_type === 'cpf') {
-      return reply.status(400).send({ error: 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF.' });
-    }
-
     const scalarAllowed = [
       'display_name',
       'phone',
@@ -1910,11 +1906,6 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     // Validate mandatory PJ fields
     if (!body.cnpj || !body.razao_social || !body.representante_nome || !body.pix_key) {
       return reply.status(400).send({ error: 'Campos obrigatórios: cnpj, razao_social, representante_nome, pix_key' });
-    }
-
-    // Block CPF as pix_key_type
-    if (body.pix_key_type === 'cpf') {
-      return reply.status(400).send({ error: 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF.' });
     }
 
     const skillsJson = Array.isArray(body.skills) && body.skills.length

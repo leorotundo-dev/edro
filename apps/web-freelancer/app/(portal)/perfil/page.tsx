@@ -14,7 +14,7 @@ type Profile = {
   specialty: string | null;
   hourly_rate_brl: string | null;
   pix_key: string | null;
-  pix_key_type: 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+  pix_key_type: 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria' | null;
   email: string | null;
   phone: string | null;
   whatsapp_jid: string | null;
@@ -107,7 +107,7 @@ export default function PerfilPage() {
     address_street: '', address_number: '', address_complement: '', address_district: '', address_city: '', address_state: '', address_cep: '',
     representante_nome: '', representante_cpf: '', estado_civil: '',
   });
-  const [payment, setPayment] = useState({ pix_key: '', pix_key_type: 'cnpj' as 'cnpj' | 'email' | 'telefone' | 'aleatoria', bank_name: '', bank_agency: '', bank_account: '' });
+  const [payment, setPayment] = useState({ pix_key: '', pix_key_type: 'cnpj' as 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria', bank_name: '', bank_agency: '', bank_account: '' });
   const [arsenal, setArsenal] = useState({ skills_json: [] as SelectedSkill[], portfolio_url: '', weekly_capacity: 40 });
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
@@ -309,9 +309,9 @@ export default function PerfilPage() {
       </section>
 
       <section className="portal-card">
-        <h3 className="portal-section-title" style={{ marginBottom: 16 }}>Pagamento PJ</h3>
+        <h3 className="portal-section-title" style={{ marginBottom: 16 }}>Pagamento e PIX</h3>
         <div className="portal-profile-form-grid">
-          <div><label className="portal-field-label">Tipo de chave PIX</label><select className="portal-input" value={payment.pix_key_type} onChange={(e) => setPayment((prev) => ({ ...prev, pix_key_type: e.target.value as any }))} title="Tipo de chave PIX"><option value="cnpj">CNPJ</option><option value="email">E-mail</option><option value="telefone">Telefone</option><option value="aleatoria">Aleatória</option></select></div>
+          <div><label className="portal-field-label">Tipo de chave PIX</label><select className="portal-input" value={payment.pix_key_type} onChange={(e) => setPayment((prev) => ({ ...prev, pix_key_type: e.target.value as any }))} title="Tipo de chave PIX"><option value="cnpj">CNPJ</option><option value="cpf">CPF</option><option value="email">E-mail</option><option value="telefone">Telefone</option><option value="aleatoria">Aleatória</option></select></div>
           <div><label className="portal-field-label">Chave PIX</label><input className="portal-input" value={payment.pix_key} onChange={(e) => setPayment((prev) => ({ ...prev, pix_key: e.target.value }))} /></div>
           <div><label className="portal-field-label">Banco</label><input className="portal-input" value={payment.bank_name} onChange={(e) => setPayment((prev) => ({ ...prev, bank_name: e.target.value }))} /></div>
           <div><label className="portal-field-label">Agência</label><input className="portal-input" value={payment.bank_agency} onChange={(e) => setPayment((prev) => ({ ...prev, bank_agency: e.target.value }))} /></div>

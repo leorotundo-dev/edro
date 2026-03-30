@@ -112,7 +112,7 @@ export default function OnboardingPage() {
     phone: '',
     // Bloco 3: Pagamento (PJ obrigatório)
     pix_key: '',
-    pix_key_type: 'cnpj' as 'cnpj' | 'email' | 'telefone' | 'aleatoria',
+    pix_key_type: 'cnpj' as 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria',
     bank_name: '',
     bank_agency: '',
     bank_account: '',
@@ -180,7 +180,6 @@ export default function OnboardingPage() {
     }
     if (step === 2) {
       if (!form.pix_key.trim()) return 'Chave PIX é obrigatória.';
-      if (form.pix_key_type === ('cpf' as string)) return 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF pessoal.';
     }
     if (step === 3) {
       if (form.skills.length === 0) return 'Selecione ao menos uma especialidade.';
@@ -343,12 +342,12 @@ export default function OnboardingPage() {
                 background: 'rgba(93,135,255,0.08)', border: '1px solid rgba(93,135,255,0.2)',
                 borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'rgba(255,255,255,0.55)',
               }}>
-                ℹ️ O CPF informado é do representante legal para fins de contrato. <strong>O pagamento será feito exclusivamente para o CNPJ da empresa.</strong>
+                ℹ️ O CPF informado identifica o representante legal para fins contratuais e também pode ser usado como chave PIX no próximo passo, se preferir.
               </div>
               <Field label="Nome completo do representante" required>
                 <input style={inputStyle} value={form.representante_nome} onChange={e => set('representante_nome', e.target.value)} placeholder="Nome Sobrenome" />
               </Field>
-              <Field label="CPF do representante" required hint="Usado apenas para assinatura do contrato — não para pagamento.">
+              <Field label="CPF do representante" required hint="Usado para assinatura do contrato e opcionalmente como chave PIX.">
                 <input style={inputStyle} value={form.representante_cpf} onChange={e => set('representante_cpf', e.target.value)} placeholder="000.000.000-00" maxLength={14} />
               </Field>
               <Field label="Estado civil">
@@ -378,7 +377,7 @@ export default function OnboardingPage() {
                 background: 'rgba(250,137,107,0.08)', border: '1px solid rgba(250,137,107,0.25)',
                 borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'rgba(255,255,255,0.6)',
               }}>
-                ⚠️ <strong>Pagamentos são realizados exclusivamente para Pessoa Jurídica (CNPJ).</strong> Chaves PIX vinculadas a CPF pessoal não são aceitas.
+                ⚠️ <strong>Informe a chave PIX principal para recebimento.</strong> Você pode usar CNPJ da empresa, CPF do representante, e-mail, telefone ou chave aleatória.
               </div>
               <Field label="Tipo de chave PIX" required>
                 <select
@@ -387,6 +386,7 @@ export default function OnboardingPage() {
                   onChange={e => set('pix_key_type', e.target.value)}
                 >
                   <option value="cnpj">CNPJ da empresa</option>
+                  <option value="cpf">CPF do representante</option>
                   <option value="email">E-mail corporativo</option>
                   <option value="telefone">Telefone corporativo</option>
                   <option value="aleatoria">Chave aleatória</option>
@@ -399,6 +399,7 @@ export default function OnboardingPage() {
                   onChange={e => set('pix_key', e.target.value)}
                   placeholder={
                     form.pix_key_type === 'cnpj' ? '00.000.000/0001-00'
+                    : form.pix_key_type === 'cpf' ? '000.000.000-00'
                     : form.pix_key_type === 'email' ? 'financeiro@empresa.com.br'
                     : form.pix_key_type === 'telefone' ? '+55 11 99999-9999'
                     : 'Chave aleatória (UUID)'
