@@ -2434,16 +2434,16 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
     { preHandler: [requirePerm('clients:read')] },
     async (request: any, reply) => {
       const { id } = request.params as { id: string };
-      const { tenantId } = request.user as { tenantId: string };
+      const tenantId = (request.user as any).tenant_id as string;
 
       const [jobsRes, mentionsRes, behaviorRes, engagementRes, healthRes] = await Promise.allSettled([
         // active jobs count
         query<{ cnt: string }>(
-          `SELECT COUNT(*)::text AS cnt FROM edro_jobs
+          `SELECT COUNT(*)::text AS cnt FROM jobs
            WHERE client_id = $1 AND tenant_id = $2
-             AND job_status NOT IN ('done', 'cancelled', 'archived')`,
+             AND status NOT IN ('done', 'cancelled', 'archived')`,
           [id, tenantId],
-        ),
+        ).catch(() => ({ rows: [{ cnt: '0' }] })),
         // mentions in last 48h
         query<{ cnt: string }>(
           `SELECT COUNT(*)::text AS cnt
@@ -2482,9 +2482,9 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
                     / COUNT(*)::numeric * 100
                   )
                   END::text AS health_score
-           FROM edro_jobs
+           FROM jobs
            WHERE client_id = $1 AND tenant_id = $2
-             AND job_status = 'done'
+             AND status = 'done'
              AND completed_at > now() - interval '90 days'`,
           [id, tenantId],
         ).catch(() => ({ rows: [{ health_score: '0' }] })),
