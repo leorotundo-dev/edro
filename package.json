@@ -39,7 +39,11 @@
       "undici": ">=7.24.0",
       "underscore": ">=1.13.8",
       "bn.js": ">=4.12.3",
-      "diff": ">=4.0.4"
+      "diff": ">=4.0.4",
+      "picomatch": ">=2.3.2",
+      "brace-expansion": ">=2.0.3",
+      "yaml": ">=1.10.3",
+      "dompurify": ">=3.3.2"
     }
   },
   "devDependencies": {
