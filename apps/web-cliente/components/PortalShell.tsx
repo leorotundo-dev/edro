@@ -103,7 +103,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       </div>
 
       <nav className="portal-mobile-nav" aria-label="Atalhos">
-        {NAV.slice(0, 4).map((item) => {
+        {NAV.map((item) => {
           const active = item.match(pathname);
           return (
             <Link

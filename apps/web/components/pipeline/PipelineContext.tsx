@@ -156,6 +156,7 @@ export interface PipelineContextValue {
   arteChainResult: ArteChainResult | null;
   arteChainStep: number;         // 0=idle 1-6=plugin running
   handleGenerateArteChain: (params: ArteChainParams) => Promise<void>;
+  handleGenerateArteChainStream: (params: ArteChainParams) => Promise<void>;
 
   // Visual Insights — selected reference image URLs feed into DA P2
   visualReferences: string[];

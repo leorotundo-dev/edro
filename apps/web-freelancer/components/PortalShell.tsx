@@ -9,21 +9,23 @@ import clsx from 'clsx';
 const NAV_ITEMS = [
   { href: '/',           label: 'Dashboard',   icon: '⊞', visible: true,  match: (p: string) => p === '/' },
   { href: '/jobs',       label: 'Escopos',     icon: '◈', visible: true,  match: (p: string) => p.startsWith('/jobs') },
-  { href: '/pagamentos', label: 'Honorários',  icon: '◎', visible: true,  match: (p: string) => p.startsWith('/pagamentos') },
+  { href: '/pagamentos',  label: 'Honorários',  icon: '◎', visible: true,  match: (p: string) => p.startsWith('/pagamentos') },
+  { href: '/da-extrato',  label: 'Extrato DA',  icon: '◈', visible: true,  match: (p: string) => p.startsWith('/da-extrato') },
   { href: '/agenda',     label: 'Agenda',      icon: '📅', visible: true,  match: (p: string) => p.startsWith('/agenda') },
   { href: '/horas',      label: 'Score SLA',   icon: '★', visible: true,  match: (p: string) => p.startsWith('/horas') },
   { href: '/perfil',     label: 'Perfil',      icon: '◉', visible: true,  match: (p: string) => p.startsWith('/perfil') },
-  { href: '/analytics',  label: 'Analytics',   icon: '📊', visible: false, match: (p: string) => p.startsWith('/analytics') },
-  { href: '/radar',      label: 'Radar',       icon: '🔮', visible: false, match: (p: string) => p.startsWith('/radar') },
-  { href: '/portfolio',  label: 'Hall da Fama',icon: '🏆', visible: false, match: (p: string) => p.startsWith('/portfolio') },
-  { href: '/parceiros',  label: 'Parceiros',   icon: '🤝', visible: false, match: (p: string) => p.startsWith('/parceiros') },
-  { href: '/studio',     label: 'Studio',      icon: '✦', visible: false, match: (p: string) => p.startsWith('/studio') },
+  { href: '/analytics',  label: 'Analytics',   icon: '📊', visible: true,  match: (p: string) => p.startsWith('/analytics') },
+  { href: '/radar',      label: 'Radar',       icon: '🔮', visible: true,  match: (p: string) => p.startsWith('/radar') },
+  { href: '/portfolio',  label: 'Hall da Fama',icon: '🏆', visible: true,  match: (p: string) => p.startsWith('/portfolio') },
+  { href: '/parceiros',  label: 'Parceiros',   icon: '🤝', visible: true,  match: (p: string) => p.startsWith('/parceiros') },
+  { href: '/studio',     label: 'Studio',      icon: '✦', visible: true,  match: (p: string) => p.startsWith('/studio') },
+  { href: '/arte',       label: 'Motor DA',    icon: '◈', visible: false, match: (p: string) => p.startsWith('/arte') },
 ];
 
 const NAV = NAV_ITEMS.filter((item) => item.visible);
 
-// Mobile nav shows only most-used items
-const MOBILE_NAV = NAV.filter(n => ['/', '/jobs', '/pagamentos', '/agenda', '/perfil'].includes(n.href));
+// Mobile nav — core items + studio (central feature)
+const MOBILE_NAV = NAV.filter(n => ['/', '/jobs', '/studio', '/agenda', '/perfil'].includes(n.href));
 
 function initials(value: string) {
   return value.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || 'FR';

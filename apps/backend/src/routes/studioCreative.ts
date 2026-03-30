@@ -17,9 +17,7 @@ import {
   buildArtDirectionMemoryContext,
   createManualArtDirectionReference,
   discoverArtDirectionReferences,
-  getArtDirectionCanonicalFramework,
   getArtDirectionMemoryStats,
-  getArtDirectionReferencePreview,
   getPrimaryArtDirectionReferenceId,
   listArtDirectionCanons,
   listArtDirectionReferenceSources,
@@ -35,12 +33,6 @@ import {
   upsertArtDirectionReferenceSource,
 } from '../services/ai/artDirectionMemoryService';
 import { CORE_ART_DIRECTION_CONCEPTS } from '../services/ai/artDirectionCoreConcepts';
-import {
-  approveLoraModel,
-  listLoraJobs,
-  rejectLoraModel,
-  startLoraTraining,
-} from '../services/loraService';
 
 const generateSchema = z.object({
   /** Raw copy / caption text */
@@ -156,10 +148,6 @@ const daReferenceListSchema = z.object({
   segment: z.string().optional(),
   statuses: z.array(daReferenceStatuses).max(4).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-});
-
-const daReferenceParamsSchema = z.object({
-  referenceId: z.string().uuid(),
 });
 
 const daReferenceCreateSchema = z.object({
@@ -517,7 +505,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         listArtDirectionCanons({
           tenantId,
           includeEntries: true,
-          limitEntriesPerCanon: 50,
+          limitEntriesPerCanon: 24,
         }).catch(() => []),
       ]);
 
@@ -528,19 +516,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
         segment: input.segment,
       });
 
-      return reply.send({
-        success: true,
-        memory,
-        framework: getArtDirectionCanonicalFramework(),
-        concepts,
-        canons,
-        references,
-        pendingReferences,
-        rejectedReferences,
-        sources,
-        trends,
-        stats,
-      });
+      return reply.send({ success: true, memory, concepts, canons, references, pendingReferences, rejectedReferences, sources, trends, stats });
     } catch (error: any) {
       request.log.error({ error }, '[studio/creative/da-memory] failed');
       const message = String(error?.message || '');
@@ -560,7 +536,6 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
             promptBlock: '',
             critiqueBlock: '',
           },
-          framework: getArtDirectionCanonicalFramework(),
           concepts: [],
           canons: [],
           references: [],
@@ -613,23 +588,6 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     return reply.send({ success: true, references });
   });
 
-  app.get('/studio/creative/da-memory/references/:referenceId/preview', async (request: any, reply) => {
-    const tenantId = (request.user as any)?.tenant_id as string | undefined;
-    if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
-
-    const params = daReferenceParamsSchema.parse(request.params || {});
-    const preview = await getArtDirectionReferencePreview({
-      tenantId,
-      id: params.referenceId,
-    });
-
-    if (!preview) {
-      return reply.status(404).send({ success: false, error: 'Referência não encontrada' });
-    }
-
-    return reply.send({ success: true, preview });
-  });
-
   app.post('/studio/creative/da-memory/references', async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
@@ -666,7 +624,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!tenantId) return reply.status(401).send({ success: false, error: 'Tenant não encontrado' });
 
-    const params = daReferenceParamsSchema.parse(request.params || {});
+    const params = z.object({ referenceId: z.string().uuid() }).parse(request.params || {});
     const body = daReferenceUpdateSchema.parse(request.body || {});
     const reference = await updateArtDirectionReference({
       tenantId,
@@ -833,107 +791,6 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ success: true });
-  });
-
-  // GET /studio/creative/da-analytics — aggregated performance analytics for the DA motor
-  app.get('/studio/creative/da-analytics', async (request: any, reply) => {
-    const tenantId = (request.user as any)?.tenant_id as string | undefined;
-    if (!tenantId) return reply.status(401).send({ success: false });
-
-    const { client_id, platform, days: daysStr } = (request.query ?? {}) as {
-      client_id?: string;
-      platform?: string;
-      days?: string;
-    };
-    const days = Math.min(Math.max(parseInt(daysStr || '30', 10), 7), 365);
-
-    const clientFilter   = client_id ? `AND tenant_id = '${tenantId}' AND client_id = '${client_id}'` : `AND tenant_id = '${tenantId}'`;
-    const platformFilter = platform  ? `AND platform = '${platform.replace(/'/g, "''")}'` : '';
-
-    const { query: q } = await import('../db');
-
-    // ── 1. Gatilhos: approved/performed feedback grouped by trigger in metadata
-    const { rows: triggersRaw } = await q(
-      `SELECT
-         COALESCE(metadata->>'trigger', 'desconhecido') AS trigger_id,
-         COUNT(*) FILTER (WHERE event_type IN ('approved','performed')) AS positive,
-         COUNT(*) FILTER (WHERE event_type = 'rejected') AS negative,
-         ROUND(AVG(CASE WHEN event_type IN ('approved','performed') THEN 100 ELSE 0 END), 1) AS approval_rate
-       FROM da_feedback_events
-       WHERE tenant_id = $1
-         AND created_at >= now() - ($2 || ' days')::interval
-         AND metadata ? 'trigger'
-       GROUP BY trigger_id
-       ORDER BY positive DESC
-       LIMIT 10`,
-      [tenantId, `${days}`],
-    );
-
-    // ── 2. Conceitos: top concepts by trust_score
-    const { rows: concepts } = await q(
-      `SELECT
-         slug,
-         title,
-         category,
-         ROUND(trust_score::numeric * 100, 1) AS score,
-         ROUND(100 - trust_score::numeric * 100, 1) AS rejection_rate
-       FROM art_direction_concepts
-       WHERE (tenant_id = $1 OR tenant_id IS NULL)
-       ORDER BY trust_score DESC
-       LIMIT 12`,
-      [tenantId],
-    );
-
-    // ── 3. Trends: latest snapshot with momentum
-    const { rows: trends } = await q(
-      `SELECT DISTINCT ON (cluster_key)
-         tag,
-         cluster_key,
-         platform,
-         segment,
-         ROUND(momentum::numeric, 2)   AS momentum,
-         ROUND(trend_score::numeric, 1) AS trend_score,
-         recent_count,
-         previous_count
-       FROM da_trend_snapshots
-       WHERE tenant_id = $1
-         ${platformFilter}
-       ORDER BY cluster_key, snapshot_at DESC`,
-      [tenantId],
-    );
-    const topTrends = trends
-      .sort((a: any, b: any) => b.trend_score - a.trend_score)
-      .slice(0, 20);
-
-    // ── 4. Plataforma × Estilo: references aggregated by platform + first style_tag
-    const { rows: matrixRaw } = await q(
-      `SELECT
-         COALESCE(platform, 'outros')      AS platform,
-         COALESCE(style_tags->>0, 'outro') AS style,
-         COUNT(*)                          AS count,
-         ROUND(AVG(confidence_score) * 100, 1) AS avg_confidence
-       FROM da_references
-       WHERE tenant_id = $1
-         ${clientFilter.replace(`AND tenant_id = '${tenantId}'`, '').replace(`AND tenant_id = '${tenantId}' AND client_id = '${client_id}'`, client_id ? `AND client_id = '${client_id}'` : '')}
-         AND confidence_score IS NOT NULL
-         AND style_tags IS NOT NULL
-         AND jsonb_array_length(style_tags) > 0
-       GROUP BY platform, style
-       ORDER BY count DESC
-       LIMIT 30`,
-      [tenantId],
-    );
-
-    return reply.send({
-      success: true,
-      data: {
-        triggers: triggersRaw,
-        concepts,
-        trends: topTrends,
-        platform_style_matrix: matrixRaw,
-        window_days: days,
-      },
-    });
   });
 
   // ── Director AI — analyzes creative alignment with briefing ──────────────
@@ -2277,147 +2134,6 @@ Retorne APENAS JSON válido:
       if (!jsonMatch) throw new Error('No JSON in response');
       const parsed = JSON.parse(jsonMatch[0]);
       return reply.send({ success: true, adaptations: parsed.adaptations || {} });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // ── LoRA Pipeline ─────────────────────────────────────────────────────────
-
-  // GET /clients/:clientId/lora/jobs — list all training jobs for a client
-  app.get('/clients/:clientId/lora/jobs', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
-  }, async (request: any, reply) => {
-    const { clientId } = request.params;
-    const tenantId = request.user.tenant_id;
-    try {
-      const jobs = await listLoraJobs(tenantId, clientId);
-      return reply.send({ success: true, jobs });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // POST /clients/:clientId/lora/start-training — enqueue a new LoRA training job
-  const loraStartSchema = z.object({
-    training_images: z.array(z.string().url()).min(10).max(50),
-    trigger_word: z.string().min(3).max(40).regex(/^[A-Z0-9_]+$/, 'Trigger word deve ser MAIÚSCULAS e underscores'),
-    steps: z.coerce.number().int().min(500).max(2000).default(1000),
-    learning_rate: z.coerce.number().min(0.00001).max(0.01).default(0.0004),
-    model_base: z.enum(['flux-dev', 'flux-pro']).default('flux-dev'),
-  });
-
-  app.post('/clients/:clientId/lora/start-training', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
-  }, async (request: any, reply) => {
-    const { clientId } = request.params;
-    const tenantId = request.user.tenant_id;
-    const parsed = loraStartSchema.safeParse(request.body);
-    if (!parsed.success) return reply.status(400).send({ success: false, error: parsed.error.issues[0]?.message });
-    try {
-      const job = await startLoraTraining({
-        tenantId,
-        clientId,
-        trainingImages: parsed.data.training_images,
-        triggerWord: parsed.data.trigger_word,
-        steps: parsed.data.steps,
-        learningRate: parsed.data.learning_rate,
-        modelBase: parsed.data.model_base,
-      });
-      return reply.send({ success: true, job });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // POST /clients/:clientId/lora/jobs/:jobId/approve — activate LoRA on client profile
-  app.post('/clients/:clientId/lora/jobs/:jobId/approve', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
-  }, async (request: any, reply) => {
-    const { clientId, jobId } = request.params;
-    const tenantId = request.user.tenant_id;
-    try {
-      await approveLoraModel({ tenantId, clientId, jobId, approvedBy: request.user.sub });
-      return reply.send({ success: true });
-    } catch (err: any) {
-      return reply.status(500).send({ success: false, error: err.message });
-    }
-  });
-
-  // POST /studio/creative/compare-models — fan-out same prompt to N models in parallel
-  app.post('/studio/creative/compare-models', async (request: any, reply) => {
-    const schema = z.object({
-      prompt: z.string().min(1),
-      negative_prompt: z.string().optional(),
-      models: z.array(z.object({
-        model: z.string(),
-        label: z.string(),
-      })).min(2).max(4),
-      aspect_ratio: z.string().optional(),
-      client_id: z.string().optional(),
-    });
-
-    const body = schema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() });
-
-    const { prompt, negative_prompt, models, aspect_ratio, client_id } = body.data;
-    const tenantId: string = request.user.tenant_id;
-
-    // Load LoRA config if client_id provided
-    let loraConfig: Array<{ path: string; scale: number }> = [];
-    if (client_id) {
-      try {
-        const loraRes = await query<{ lora_model_id: string; lora_scale: number }>(
-          `SELECT lora_model_id, lora_scale FROM client_visual_identity WHERE client_id = $1 AND tenant_id = $2 LIMIT 1`,
-          [client_id, tenantId],
-        );
-        if (loraRes.rows[0]?.lora_model_id) {
-          loraConfig = [{ path: loraRes.rows[0].lora_model_id, scale: loraRes.rows[0].lora_scale ?? 0.85 }];
-        }
-      } catch { /* no lora */ }
-    }
-
-    const { generateImageWithFal } = await import('../services/ai/falAiService');
-
-    const settled = await Promise.allSettled(
-      models.map(async ({ model, label }) => {
-        const t0 = Date.now();
-        const result = await generateImageWithFal({
-          prompt,
-          negativePrompt: negative_prompt,
-          aspectRatio: aspect_ratio ?? '1:1',
-          numImages: 1,
-          model: model as any,
-          loras: model === 'flux-lora' ? loraConfig : [],
-        });
-        return {
-          model,
-          label,
-          image_url: result.imageUrl,
-          image_urls: result.imageUrls,
-          ms: Date.now() - t0,
-        };
-      }),
-    );
-
-    const results = settled.map((r, i) =>
-      r.status === 'fulfilled'
-        ? r.value
-        : { model: models[i].model, label: models[i].label, image_url: '', image_urls: [], ms: 0, error: (r.reason as Error)?.message ?? 'Erro' },
-    );
-
-    return reply.send({ results });
-  });
-
-  // POST /clients/:clientId/lora/jobs/:jobId/reject — discard a validating job
-  app.post('/clients/:clientId/lora/jobs/:jobId/reject', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
-  }, async (request: any, reply) => {
-    const { clientId, jobId } = request.params;
-    const tenantId = request.user.tenant_id;
-    try {
-      await rejectLoraModel({ tenantId, clientId, jobId });
-      return reply.send({ success: true });
     } catch (err: any) {
       return reply.status(500).send({ success: false, error: err.message });
     }

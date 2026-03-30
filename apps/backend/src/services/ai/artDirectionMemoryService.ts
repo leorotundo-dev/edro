@@ -2,118 +2,8 @@ import { query } from '../../db';
 import { generateCompletion, generateCompletionWithVision } from './claudeService';
 import { estimateTokens, logAiUsage } from './aiUsageLogger';
 import { isTavilyConfigured, tavilySearch } from '../tavilyService';
-import { CORE_ART_DIRECTION_CONCEPTS } from './artDirectionCoreConcepts';
-import { EDRO_DA_CANON_SEED, resolveCanonCurriculumModule } from './artDirectionKnowledgeLibrarySeed';
-import {
-  EDRO_DA_IA_CANONICAL_FRAMEWORK,
-  buildArtDirectionCanonicalCritiqueBlock,
-  buildArtDirectionCanonicalDoctrineBlock,
-} from './artDirectionCanonicalFramework';
 
 type JsonArray = string[];
-
-const FALLBACK_CANON_META: Record<string, { title: string; description: string; sortOrder: number }> = {
-  fundamentos_visuais: {
-    title: 'Fundamentos da Visao',
-    description: 'Percepcao, composicao, hierarquia, grid, cor e linguagem visual que sustentam qualquer peca.',
-    sortOrder: 10,
-  },
-  tipografia: {
-    title: 'Dominio Tipografico',
-    description: 'Familias, tons de voz, legibilidade, psicologia das fontes e uso tipografico em diferentes contextos.',
-    sortOrder: 20,
-  },
-  historia_estilo: {
-    title: 'Historia e Estilo',
-    description: 'Movimentos, escolas e repertorios historicos que moldam direcao de arte, design grafico e cultura visual.',
-    sortOrder: 30,
-  },
-  formatos_aplicacoes: {
-    title: 'Formatos e Aplicacoes',
-    description: 'Aplicacao do criterio visual por midia, formato, objetivo e superficie de uso.',
-    sortOrder: 40,
-  },
-  acessibilidade_critica: {
-    title: 'Acessibilidade e Critica',
-    description: 'Contraste, inclusao, clareza, avaliacao tecnica e feedback para calibrar o julgamento do DA.',
-    sortOrder: 50,
-  },
-};
-
-function slugifyCanonEntry(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/['’]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-function buildFallbackCanonEntries(limitEntriesPerCanon = 12) {
-  const coreConceptMap = new Map(CORE_ART_DIRECTION_CONCEPTS.map((concept) => [concept.slug, concept]));
-
-  return EDRO_DA_CANON_SEED.map((seed) => {
-    const meta = FALLBACK_CANON_META[seed.canonSlug];
-    const allEntries = seed.entries.map((title, index) => {
-      const slug = slugifyCanonEntry(title);
-      const core = coreConceptMap.get(slug);
-      const isActive = Boolean(core);
-      const curriculumModule = resolveCanonCurriculumModule(seed.canonSlug, title);
-
-      return {
-        id: `fallback-${seed.canonSlug}-${slug}`,
-        canon_id: `fallback-${seed.canonSlug}`,
-        canon_slug: seed.canonSlug,
-        canon_title: meta?.title ?? seed.canonSlug,
-        slug,
-        title,
-        summary_short: core?.definition ?? title,
-        summary_medium: core?.definition ?? `${title} é um contêiner teórico do canon ${meta?.title ?? seed.canonSlug}, aguardando aprofundamento editorial da Edro.`,
-        summary_long:
-          core?.definition ??
-          `${title} é um contêiner teórico do canon ${meta?.title ?? seed.canonSlug}. Esta entrada foi pré-cadastrada para receber definição, histórico, heurísticas, aplicações, crítica e exemplos antes de alimentar o Jarvis em profundidade.`,
-        definition:
-          core?.definition ??
-          `Entrada inicial do canon da Edro para curadoria sobre ${title}. Expandir com definição, heurísticas, exemplos e contexto histórico antes de ativar no motor.`,
-        when_to_use: core?.whenToUse ?? [],
-        when_to_avoid: core?.whenToAvoid ?? [],
-        heuristics: core?.heuristics ?? [],
-        critique_checks: core?.critiqueChecks ?? [],
-        examples: core?.examples ?? [],
-        chunk_count: isActive ? 5 : 6,
-        source_count: 1,
-        metadata: {
-          curriculum_module_key: curriculumModule?.moduleKey ?? null,
-          curriculum_module_title: curriculumModule?.title ?? null,
-          curriculum_module_description: curriculumModule?.description ?? null,
-          curriculum_module_order: curriculumModule?.order ?? null,
-          needs_editorial_expansion: !isActive,
-          seeded_from: 'book_cover_taxonomy',
-        },
-        status: (isActive ? 'active' : 'draft') as 'active' | 'draft' | 'archived',
-        source_confidence: isActive ? 0.9 : 0.65,
-        _index: index,
-      };
-    });
-
-    const visibleEntries = allEntries.slice(0, Math.max(1, Math.min(limitEntriesPerCanon, 50))).map(({ _index, ...entry }) => entry);
-
-    return {
-      id: `fallback-${seed.canonSlug}`,
-      slug: seed.canonSlug,
-      title: meta?.title ?? seed.canonSlug,
-      description: meta?.description ?? null,
-      status: 'active' as const,
-      sort_order: meta?.sortOrder ?? 999,
-      total_entries: allEntries.length,
-      active_entries: allEntries.filter((entry) => entry.status === 'active').length,
-      draft_entries: allEntries.filter((entry) => entry.status === 'draft').length,
-      archived_entries: 0,
-      entries: visibleEntries,
-    };
-  }).sort((a, b) => a.sort_order - b.sort_order);
-}
 
 export type ArtDirectionConceptRow = {
   id: string;
@@ -135,7 +25,6 @@ export type ArtDirectionReferenceSummary = {
   id: string;
   title: string;
   source_url: string;
-  image_url: string | null;
   platform: string | null;
   format: string | null;
   segment: string | null;
@@ -161,19 +50,6 @@ export type ArtDirectionReferenceRecord = ArtDirectionReferenceSummary & {
   source_type: string | null;
   snippet: string | null;
   analyzed_at: string | null;
-};
-
-export type ArtDirectionReferencePreview = {
-  id: string;
-  title: string | null;
-  source_url: string;
-  image_url: string | null;
-  preview_excerpt: string | null;
-  preview_site_name: string | null;
-  curated: boolean;
-  source_name: string | null;
-  source_type: string | null;
-  domain: string | null;
 };
 
 export type ArtDirectionTrendSignal = {
@@ -235,8 +111,6 @@ export type ArtDirectionMemoryContext = {
   critiqueBlock: string;
 };
 
-export type ArtDirectionCanonicalFrameworkPayload = typeof EDRO_DA_IA_CANONICAL_FRAMEWORK;
-
 export type ArtDirectionCanonEntrySummary = {
   id: string;
   canon_id: string;
@@ -245,17 +119,10 @@ export type ArtDirectionCanonEntrySummary = {
   slug: string;
   title: string;
   summary_short: string | null;
-  summary_medium: string | null;
-  summary_long: string | null;
   definition: string;
-  when_to_use: string[];
-  when_to_avoid: string[];
   heuristics: string[];
   critique_checks: string[];
   examples: string[];
-  chunk_count: number;
-  source_count: number;
-  metadata: Record<string, any>;
   status: 'active' | 'draft' | 'archived';
   source_confidence: number;
 };
@@ -471,81 +338,6 @@ function uniq(values: string[]): string[] {
     }
   }
   return out;
-}
-
-function extractMetaContent(html: string, selectors: string[]): string | null {
-  for (const selector of selectors) {
-    const pattern = new RegExp(
-      `<meta[^>]+(?:property|name)=["']${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]+content=["']([^"']+)["'][^>]*>`,
-      'i',
-    );
-    const match = html.match(pattern);
-    if (match?.[1]?.trim()) return match[1].trim();
-  }
-  return null;
-}
-
-function extractTitleTag(html: string): string | null {
-  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  return match?.[1]?.trim() || null;
-}
-
-function resolvePreviewUrl(rawUrl: string | null | undefined, sourceUrl: string): string | null {
-  const value = String(rawUrl || '').trim();
-  if (!value) return null;
-  try {
-    return new URL(value, sourceUrl).toString();
-  } catch {
-    return null;
-  }
-}
-
-async function fetchOpenGraphPreview(sourceUrl: string): Promise<{
-  imageUrl: string | null;
-  excerpt: string | null;
-  siteName: string | null;
-  title: string | null;
-}> {
-  try {
-    const res = await fetch(sourceUrl, {
-      headers: {
-        Accept: 'text/html,application/xhtml+xml',
-        'User-Agent': 'Mozilla/5.0 (compatible; EdroDABot/1.0; +https://edro.digital)',
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!res.ok) {
-      return {
-        imageUrl: null,
-        excerpt: null,
-        siteName: null,
-        title: null,
-      };
-    }
-
-    const html = (await res.text()).slice(0, 250000);
-    const imageUrl = resolvePreviewUrl(
-      extractMetaContent(html, ['og:image', 'twitter:image', 'twitter:image:src']),
-      sourceUrl,
-    );
-    const excerpt =
-      extractMetaContent(html, ['og:description', 'description', 'twitter:description']) || null;
-    const siteName = extractMetaContent(html, ['og:site_name']) || null;
-    const title =
-      extractMetaContent(html, ['og:title', 'twitter:title']) ||
-      extractTitleTag(html) ||
-      null;
-
-    return { imageUrl, excerpt, siteName, title };
-  } catch {
-    return {
-      imageUrl: null,
-      excerpt: null,
-      siteName: null,
-      title: null,
-    };
-  }
 }
 
 function asRecord(value: any): Record<string, any> {
@@ -1194,7 +986,6 @@ async function fetchArtDirectionReferenceRecord(
        r.id,
        r.title,
        r.source_url,
-       r.image_url,
        r.platform,
        r.format,
        r.segment,
@@ -1233,90 +1024,6 @@ async function fetchArtDirectionReferenceRecord(
     style_tags: Array.isArray(rows[0].style_tags) ? rows[0].style_tags : [],
     composition_tags: Array.isArray(rows[0].composition_tags) ? rows[0].composition_tags : [],
     typography_tags: Array.isArray(rows[0].typography_tags) ? rows[0].typography_tags : [],
-  };
-}
-
-export async function getArtDirectionReferencePreview(params: {
-  tenantId: string;
-  id: string;
-}): Promise<ArtDirectionReferencePreview | null> {
-  const { rows } = await query<{
-    id: string;
-    title: string | null;
-    source_url: string;
-    image_url: string | null;
-    snippet: string | null;
-    domain: string | null;
-    metadata: any;
-    source_name: string | null;
-    source_type: string | null;
-  }>(
-    `SELECT
-       r.id,
-       r.title,
-       r.source_url,
-       r.image_url,
-       r.snippet,
-       r.domain,
-       COALESCE(r.metadata, '{}'::jsonb) AS metadata,
-       src.name AS source_name,
-       src.source_type
-     FROM da_references r
-     LEFT JOIN da_reference_sources src ON src.id = r.source_id
-    WHERE r.tenant_id = $1
-      AND r.id = $2
-    LIMIT 1`,
-    [params.tenantId, params.id],
-  );
-
-  const row = rows[0];
-  if (!row) return null;
-
-  const metadata = asRecord(row.metadata);
-  let imageUrl = row.image_url || null;
-  let previewExcerpt = String(metadata.preview_excerpt || '').trim() || row.snippet || null;
-  let previewSiteName = String(metadata.preview_site_name || '').trim() || row.source_name || null;
-  let previewTitle = String(metadata.preview_title || '').trim() || row.title || null;
-
-  if (!imageUrl || !previewExcerpt || !previewSiteName) {
-    const preview = await fetchOpenGraphPreview(row.source_url);
-    imageUrl = imageUrl || preview.imageUrl || null;
-    previewExcerpt = previewExcerpt || preview.excerpt || null;
-    previewSiteName = previewSiteName || preview.siteName || null;
-    previewTitle = previewTitle || preview.title || null;
-
-    await query(
-      `UPDATE da_references
-          SET image_url = COALESCE($3, image_url),
-              metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
-              updated_at = now()
-        WHERE tenant_id = $1
-          AND id = $2`,
-      [
-        params.tenantId,
-        params.id,
-        imageUrl,
-        JSON.stringify({
-          preview_excerpt: previewExcerpt,
-          preview_site_name: previewSiteName,
-          preview_title: previewTitle,
-          preview_fetched_at: new Date().toISOString(),
-        }),
-      ],
-    ).catch(() => {});
-  }
-
-  return {
-    id: row.id,
-    title: previewTitle,
-    source_url: row.source_url,
-    image_url: imageUrl,
-    preview_excerpt: previewExcerpt,
-    preview_site_name: previewSiteName,
-    curated: row.source_type === 'site' || row.source_type === 'library',
-    source_name: row.source_name,
-    source_type: row.source_type,
-    domain: row.domain,
   };
 }
 
@@ -1663,7 +1370,7 @@ export async function listRelevantArtDirectionReferences(params: {
   values.push(Math.min(params.limit ?? 8, 20));
 
   const { rows } = await query(
-    `SELECT id, title, source_url, image_url, platform, format, segment, visual_intent, creative_direction,
+    `SELECT id, title, source_url, platform, format, segment, visual_intent, creative_direction,
             mood_words, style_tags, composition_tags, typography_tags, trend_score, confidence_score,
             rationale, discovered_at
        FROM da_references
@@ -1714,7 +1421,6 @@ export async function listArtDirectionReferences(params: {
        r.id,
        r.title,
        r.source_url,
-       r.image_url,
        r.platform,
        r.format,
        r.segment,
@@ -1863,10 +1569,6 @@ export async function listArtDirectionCanons(params: {
     entries: [],
   }));
 
-  if (!canons.length || !canons.some((canon) => canon.total_entries > 0)) {
-    return buildFallbackCanonEntries(params.limitEntriesPerCanon ?? 12);
-  }
-
   if (!params.includeEntries || !canons.length) {
     return canons;
   }
@@ -1891,31 +1593,14 @@ export async function listArtDirectionCanons(params: {
        e.slug,
        e.title,
        e.summary_short,
-       e.summary_medium,
-       e.summary_long,
        e.definition,
-       COALESCE(e.when_to_use, '[]'::jsonb) AS when_to_use,
-       COALESCE(e.when_to_avoid, '[]'::jsonb) AS when_to_avoid,
        COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
        COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
        COALESCE(e.examples, '[]'::jsonb) AS examples,
-       COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
-       COALESCE(source_stats.source_count, 0)::int AS source_count,
-       COALESCE(e.metadata, '{}'::jsonb) AS metadata,
        e.status,
        e.source_confidence
      FROM da_canon_entries e
      JOIN da_canons c ON c.id = e.canon_id
-     LEFT JOIN (
-       SELECT entry_id, COUNT(*)::int AS chunk_count
-         FROM da_canon_chunks
-        GROUP BY entry_id
-     ) chunk_stats ON chunk_stats.entry_id = e.id
-     LEFT JOIN (
-       SELECT entry_id, COUNT(*)::int AS source_count
-         FROM da_canon_sources
-        GROUP BY entry_id
-     ) source_stats ON source_stats.entry_id = e.id
      WHERE ${entryWhere.join(' AND ')}
      ORDER BY
        c.sort_order ASC,
@@ -1930,12 +1615,9 @@ export async function listArtDirectionCanons(params: {
     if (current.length < Math.max(1, Math.min(params.limitEntriesPerCanon ?? 12, 50))) {
       current.push({
         ...row,
-        when_to_use: Array.isArray(row.when_to_use) ? row.when_to_use : [],
-        when_to_avoid: Array.isArray(row.when_to_avoid) ? row.when_to_avoid : [],
         heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
         critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
         examples: Array.isArray(row.examples) ? row.examples : [],
-        metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {},
       });
     }
     grouped.set(row.canon_id, current);
@@ -1978,31 +1660,14 @@ export async function listRelevantArtDirectionCanonEntries(params: {
        e.slug,
        e.title,
        e.summary_short,
-       e.summary_medium,
-       e.summary_long,
        e.definition,
-       COALESCE(e.when_to_use, '[]'::jsonb) AS when_to_use,
-       COALESCE(e.when_to_avoid, '[]'::jsonb) AS when_to_avoid,
        COALESCE(e.heuristics, '[]'::jsonb) AS heuristics,
        COALESCE(e.critique_checks, '[]'::jsonb) AS critique_checks,
        COALESCE(e.examples, '[]'::jsonb) AS examples,
-       COALESCE(chunk_stats.chunk_count, 0)::int AS chunk_count,
-       COALESCE(source_stats.source_count, 0)::int AS source_count,
-       COALESCE(e.metadata, '{}'::jsonb) AS metadata,
        e.status,
        e.source_confidence
      FROM da_canon_entries e
      JOIN da_canons c ON c.id = e.canon_id
-     LEFT JOIN (
-       SELECT entry_id, COUNT(*)::int AS chunk_count
-         FROM da_canon_chunks
-        GROUP BY entry_id
-     ) chunk_stats ON chunk_stats.entry_id = e.id
-     LEFT JOIN (
-       SELECT entry_id, COUNT(*)::int AS source_count
-         FROM da_canon_sources
-        GROUP BY entry_id
-     ) source_stats ON source_stats.entry_id = e.id
      WHERE ${where.join(' AND ')}
      ORDER BY
        c.sort_order ASC,
@@ -2015,12 +1680,9 @@ export async function listRelevantArtDirectionCanonEntries(params: {
 
   return rows.map((row) => ({
     ...row,
-    when_to_use: Array.isArray(row.when_to_use) ? row.when_to_use : [],
-    when_to_avoid: Array.isArray(row.when_to_avoid) ? row.when_to_avoid : [],
     heuristics: Array.isArray(row.heuristics) ? row.heuristics : [],
     critique_checks: Array.isArray(row.critique_checks) ? row.critique_checks : [],
     examples: Array.isArray(row.examples) ? row.examples : [],
-    metadata: row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {},
   }));
 }
 
@@ -2268,7 +1930,6 @@ export async function buildArtDirectionMemoryContext(params: {
   );
 
   const promptSections = [
-    buildArtDirectionCanonicalDoctrineBlock(),
     canonLines.length
       ? `BIBLIOTECA DE CONHECIMENTO DA EDRO:\n${canonLines.join('\n')}`
       : conceptLines.length
@@ -2279,7 +1940,6 @@ export async function buildArtDirectionMemoryContext(params: {
   ].filter(Boolean);
 
   const critiqueSections = [
-    buildArtDirectionCanonicalCritiqueBlock(),
     canonEntries.length
       ? `REGRAS EXTRAS DE CRÍTICA DA BIBLIOTECA:\n${canonEntries.map((entry) => `- ${entry.title}: ${formatList(entry.critique_checks, 3) || formatList(entry.heuristics, 2)}`).join('\n')}`
       : concepts.length
@@ -2297,8 +1957,4 @@ export async function buildArtDirectionMemoryContext(params: {
     promptBlock: promptSections.join('\n\n'),
     critiqueBlock: critiqueSections.join('\n\n'),
   };
-}
-
-export function getArtDirectionCanonicalFramework(): ArtDirectionCanonicalFrameworkPayload {
-  return EDRO_DA_IA_CANONICAL_FRAMEWORK;
 }

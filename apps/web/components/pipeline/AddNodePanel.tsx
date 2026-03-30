@@ -4,7 +4,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Fab from '@mui/material/Fab';
 import Tooltip from '@mui/material/Tooltip';
-import { IconPlus, IconX, IconLayersLinked, IconTestPipe, IconMovie, IconMail, IconCalendar, IconChartBar, IconBrain, IconShieldCheck } from '@tabler/icons-react';
+import { IconPlus, IconX, IconLayersLinked, IconTestPipe, IconMovie, IconMail, IconCalendar, IconChartBar, IconBrain, IconShieldCheck, IconBulb, IconCalendarEvent, IconFlask } from '@tabler/icons-react';
 import { useState } from 'react';
 
 type NodeCategory = {
@@ -21,6 +21,13 @@ type NodeOption = {
 };
 
 const CATEGORIES: NodeCategory[] = [
+  {
+    label: 'Estratégia',
+    items: [
+      { id: 'conceito',  label: 'Conceito Criativo', description: 'Gerar 5 conceitos rankeados com tensão emocional e direção visual', icon: <IconBulb size={16} />, color: '#A855F7' },
+      { id: 'campanha',  label: 'Campanha Sequencial', description: '3 a 7 peças encadeadas com arco narrativo e calendário sugerido', icon: <IconCalendarEvent size={16} />, color: '#F59E0B' },
+    ],
+  },
   {
     label: 'QA & Revisão',
     items: [
@@ -43,6 +50,7 @@ const CATEGORIES: NodeCategory[] = [
   {
     label: 'Distribuição',
     items: [
+      { id: 'simulation', label: 'Simulação de Resultado', description: 'Prever CTR, salvar e engajamento antes de publicar', icon: <IconFlask size={16} />, color: '#5D87FF' },
       { id: 'approval', label: 'Aprovação do Cliente', description: 'Enviar peça para aprovação antes de publicar', icon: <IconMail size={16} />, color: '#7C3AED' },
       { id: 'schedule', label: 'Agendar Publicação', description: 'Definir data e hora de publicação com sugestão de IA', icon: <IconCalendar size={16} />, color: '#7C3AED' },
     ],

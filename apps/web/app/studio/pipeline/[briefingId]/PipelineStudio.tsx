@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  ReactFlow, ReactFlowProvider, Background, MiniMap, Controls,
-  useNodesState, useEdgesState, useReactFlow, type Node, type Edge,
+  ReactFlow, ReactFlowProvider, Background, Controls,
+  useReactFlow, type Node, type Edge,
   BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { IconRobot, IconEye, IconMessage, IconCheck, IconCircleCheck, IconCircleX } from '@tabler/icons-react';
+import { IconRobot, IconEye, IconMessage, IconCheck, IconCircleCheck, IconCircleX, IconX, IconLayoutSidebarRight } from '@tabler/icons-react';
+import IconButton from '@mui/material/IconButton';
 
 import {
   PipelineContext,
@@ -50,11 +51,26 @@ import ApprovalNode from '@/components/pipeline/nodes/ApprovalNode';
 import ScheduleNode from '@/components/pipeline/nodes/ScheduleNode';
 import PerformanceNode from '@/components/pipeline/nodes/PerformanceNode';
 import LearningFeedbackNode from '@/components/pipeline/nodes/LearningFeedbackNode';
+import CompareNode from '@/components/pipeline/nodes/CompareNode';
+import ConceitoNode from '@/components/pipeline/nodes/ConceitoNode';
+import CampanhaNode from '@/components/pipeline/nodes/CampanhaNode';
+import SimulationNode from '@/components/pipeline/nodes/SimulationNode';
 import NoteNode from '@/components/pipeline/nodes/NoteNode';
+import ListNode from '@/components/pipeline/nodes/ListNode';
+import MediaNode from '@/components/pipeline/nodes/MediaNode';
+import AssistantNode from '@/components/pipeline/nodes/AssistantNode';
+import PromptVariablesNode from '@/components/pipeline/nodes/PromptVariablesNode';
+import ConditionalNode from '@/components/pipeline/nodes/ConditionalNode';
+import PanelNode from '@/components/pipeline/nodes/PanelNode';
+import VideoCombinerNode from '@/components/pipeline/nodes/VideoCombinerNode';
+import { CanvasProvider } from '@/components/pipeline/CanvasContext';
+import SelectionToolbar from '@/components/pipeline/SelectionToolbar';
 import PreviewPanel from '@/components/pipeline/PreviewPanel';
 import ChatAgentPanel from '@/components/pipeline/ChatAgentPanel';
 import CanvasToolbar from '@/components/pipeline/CanvasToolbar';
-import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import { useCanvasExport } from './useCanvasExport';
+import { useUndoRedo } from './useUndoRedo';
+import { apiGet, apiPost, apiPatch, apiPut } from '@/lib/api';
 import {
   addStudioCreativeAsset,
   addStudioCreativeVersion,
@@ -145,6 +161,17 @@ const nodeTypes = {
   schedule:         ScheduleNode,
   performance:      PerformanceNode,
   learningFeedback: LearningFeedbackNode,
+  compare:          CompareNode,
+  conceito:         ConceitoNode,
+  campanha:         CampanhaNode,
+  simulation:       SimulationNode,
+  list:             ListNode,
+  media:            MediaNode,
+  assistant:        AssistantNode,
+  promptVariables:  PromptVariablesNode,
+  conditional:      ConditionalNode,
+  panel:            PanelNode,
+  videoCombiner:    VideoCombinerNode,
 };
 
 const edgeTypes = {
@@ -168,7 +195,11 @@ function buildInitialNodes(): Node[] {
 //   CAMADA 2 — QA + DISTRIB (y: 560-760) Crítica, Approval, Schedule, MultiFormat
 //   CAMADA 3 — ANALYTICS    (y: 980)   Performance, LearningFeedback
 const OPTIONAL_NODE_POSITIONS: Record<string, { x: number; y: number }> = {
+  conceito:         { x: 360,  y: 160 },
+  campanha:         { x: 840,  y: 560 },
+  simulation:       { x: 1120, y: 760 },
   critica:          { x: 1120, y: 360 },
+  compare:          { x: 1120, y: 560 },
   multiFormat:      { x: 1440, y: 400 },
   abTest:           { x: 1120, y: 580 },
   videoScript:      { x: 1440, y: 580 },
@@ -176,6 +207,14 @@ const OPTIONAL_NODE_POSITIONS: Record<string, { x: number; y: number }> = {
   schedule:         { x: 580,  y: 760 },
   performance:      { x: 200,  y: 980 },
   learningFeedback: { x: 600,  y: 980 },
+  // New Spaces-parity nodes
+  list:             { x: 40,   y: 700 },
+  media:            { x: 40,   y: 880 },
+  assistant:        { x: 460,  y: 700 },
+  promptVariables:  { x: 40,   y: 1060 },
+  conditional:      { x: 1320, y: 360 },
+  videoCombiner:    { x: 1440, y: 760 },
+  panel:            { x: 160,  y: 140 },
 };
 
 function buildEdges(ns: NodeStatusMap, existingNodeIds: Set<string>): Edge[] {
@@ -217,6 +256,12 @@ function buildEdges(ns: NodeStatusMap, existingNodeIds: Set<string>): Edge[] {
     if (existingNodeIds.has('promptDNA')) {
       edges.push({ id: 'e-prompt-copy', source: 'promptDNA', target: 'copy', type: 'pipeline', data: { status: 'done', accentColor: '#22D3EE' }, style: { strokeDasharray: '5 3' } });
     }
+  }
+  // CompareNode — branches off arte (parallel QA)
+  if (existingNodeIds.has('compare')) {
+    edges.push({ id: 'e-arte-compare', source: 'arte', target: 'compare', type: 'pipeline',
+      data: { status: ns.arte === 'done' ? 'active' : 'locked', accentColor: '#F59E0B' },
+      style: { strokeDasharray: '6 3' } });
   }
   // Agente Crítico (optional QA node — branches off copy)
   if (existingNodeIds.has('critica')) {
@@ -500,15 +545,124 @@ function CommentsPanel({ briefingId }: { briefingId: string }) {
   );
 }
 
+// ── Canvas context menu — right-click to add nodes ────────────────────────────
+
+const CONTEXT_MENU_NODES = [
+  { id: 'critica',          label: 'Agente Crítico',  color: '#EF4444', description: 'Auto-revisão da copy' },
+  { id: 'multiFormat',      label: 'Multi-Formato',   color: '#F97316', description: 'Múltiplas plataformas' },
+  { id: 'abTest',           label: 'Teste A/B',       color: '#F97316', description: 'Split de audiência' },
+  { id: 'videoScript',      label: 'Roteiro de Vídeo', color: '#A855F7', description: 'Roteiro em cenas' },
+  { id: 'compare',          label: 'Comparar Modelos', color: '#F59E0B', description: 'Side-by-side de IAs' },
+  { id: 'approval',         label: 'Aprovação',       color: '#7C3AED', description: 'Enviar para aprovação' },
+  { id: 'schedule',         label: 'Agendar',         color: '#7C3AED', description: 'Data/hora publicação' },
+  { id: 'performance',      label: 'Performance',     color: '#0EA5E9', description: 'Métricas pós-publi' },
+  { id: 'learningFeedback', label: 'Fechar Loop',     color: '#0EA5E9', description: 'LearningEngine' },
+];
+
+function CanvasContextMenu({
+  x, y, flowX, flowY, activeNodeIds, onAddNode, onAddNote, onClose,
+}: {
+  x: number; y: number; flowX: number; flowY: number;
+  activeNodeIds: string[];
+  onAddNode: (id: string, pos: { x: number; y: number }) => void;
+  onAddNote: (screenPos: { x: number; y: number }) => void;
+  onClose: () => void;
+}) {
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = document.getElementById('canvas-context-menu');
+      if (el && !el.contains(e.target as EventTarget & globalThis.Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  // Keep menu inside viewport
+  const menuW = 200; const menuH = 340;
+  const adjustedX = x + menuW > window.innerWidth  ? x - menuW : x;
+  const adjustedY = y + menuH > window.innerHeight ? y - menuH : y;
+
+  return (
+    <Box
+      id="canvas-context-menu"
+      sx={{
+        position: 'fixed', top: adjustedY, left: adjustedX, zIndex: 9999,
+        bgcolor: '#111', border: '1px solid #2a2a2a',
+        borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
+        minWidth: menuW, py: 0.5, overflow: 'hidden',
+        animation: 'ctxFadeIn 0.1s ease',
+        '@keyframes ctxFadeIn': { from: { opacity: 0, transform: 'scale(0.96)' }, to: { opacity: 1, transform: 'scale(1)' } },
+      }}
+    >
+      <Box sx={{ px: 1.25, py: 0.625, borderBottom: '1px solid #1e1e1e' }}>
+        <Typography sx={{ fontSize: '0.5rem', color: '#444', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>
+          Adicionar node
+        </Typography>
+      </Box>
+
+      {/* Sticky note shortcut */}
+      <Stack direction="row" spacing={0.75} alignItems="center"
+        onClick={() => onAddNote({ x, y })}
+        sx={{ px: 1.25, py: 0.625, cursor: 'pointer', '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}
+      >
+        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#888', flexShrink: 0 }} />
+        <Box sx={{ flex: 1 }}>
+          <Typography sx={{ fontSize: '0.62rem', color: '#aaa', fontWeight: 500 }}>Nota / Anotação</Typography>
+          <Typography sx={{ fontSize: '0.55rem', color: '#444' }}>Sticky note no canvas</Typography>
+        </Box>
+      </Stack>
+
+      <Box sx={{ height: 1, bgcolor: '#1e1e1e', mx: 0 }} />
+
+      {/* Node list */}
+      <Box sx={{ maxHeight: 260, overflowY: 'auto' }}>
+        {CONTEXT_MENU_NODES.map((item) => {
+          const added = activeNodeIds.includes(item.id);
+          return (
+            <Stack key={item.id} direction="row" spacing={0.75} alignItems="center"
+              onClick={() => { if (!added) onAddNode(item.id, { x: flowX, y: flowY }); }}
+              sx={{
+                px: 1.25, py: 0.625, cursor: added ? 'default' : 'pointer',
+                opacity: added ? 0.35 : 1,
+                '&:hover': added ? {} : { bgcolor: 'rgba(255,255,255,0.04)' },
+                transition: 'background 0.1s',
+              }}
+            >
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: item.color, flexShrink: 0 }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: '0.62rem', color: added ? '#555' : '#ccc', fontWeight: 500 }}>
+                  {item.label}
+                  {added && <Typography component="span" sx={{ fontSize: '0.5rem', color: '#444', ml: 0.5 }}>· adicionado</Typography>}
+                </Typography>
+                <Typography sx={{ fontSize: '0.55rem', color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {item.description}
+                </Typography>
+              </Box>
+            </Stack>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+}
+
 // ── Right panel — tab switcher between Chat Agent and Live Preview ─────────────
 
-function RightPanel({ briefingId }: { briefingId: string }) {
+function RightPanel({ briefingId, open, onClose }: { briefingId: string; open: boolean; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<'agent' | 'preview' | 'comments'>('agent');
 
   return (
-    <Box sx={{ flex: '0 0 38%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{
+      position: 'absolute', top: 0, right: 0, height: '100%', width: 400,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      bgcolor: '#0a0a0a', borderLeft: '1px solid #1a1a1a',
+      transform: open ? 'translateX(0)' : 'translateX(100%)',
+      transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+      zIndex: 10,
+    }}>
       {/* Tab bar */}
-      <Stack direction="row" sx={{ borderBottom: '1px solid #1a1a1a', bgcolor: '#0a0a0a', flexShrink: 0 }}>
+      <Stack direction="row" alignItems="center" sx={{ borderBottom: '1px solid #1a1a1a', bgcolor: '#0a0a0a', flexShrink: 0 }}>
         {[
           { id: 'agent',    label: 'Agente IA',    icon: <IconRobot   size={12} />, color: '#5D87FF' },
           { id: 'preview',  label: 'Preview',      icon: <IconEye     size={12} />, color: '#13DEB9' },
@@ -540,6 +694,9 @@ function RightPanel({ briefingId }: { briefingId: string }) {
             </Box>
           );
         })}
+        <IconButton size="small" onClick={onClose} sx={{ mx: 0.5, color: '#444', '&:hover': { color: '#ccc' } }}>
+          <IconX size={13} />
+        </IconButton>
       </Stack>
 
       {/* Panel content */}
@@ -550,6 +707,16 @@ function RightPanel({ briefingId }: { briefingId: string }) {
       </Box>
     </Box>
   );
+}
+
+// ── Pure helper — merge explicit refs with any MediaNode assets wired to ArteNode ─
+
+function collectMediaVisualRefs(nodes: Node[], edges: Edge[], existing: string[]): string[] {
+  const mediaRefs = edges
+    .filter((e) => e.target === 'arte' && nodes.some((n) => n.id === e.source && n.type === 'media'))
+    .map((e) => (nodes.find((n) => n.id === e.source)?.data as any)?.assetUrl as string | undefined)
+    .filter((url): url is string => Boolean(url));
+  return [...existing, ...mediaRefs];
 }
 
 // ── Pipeline studio inner ──────────────────────────────────────────────────────
@@ -563,6 +730,9 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   const [creativeContext, setCreativeContext] = useState<CreativeSessionContextDto | null>(null);
   const [workflowStageOverride, setWorkflowStageOverride] = useState<CreativeStage | null>(null);
   const [interactionMode, setInteractionMode] = useState<'select' | 'hand' | 'draw'>('select');
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [briefing, setBriefing] = useState<PipelineBriefing | null>(null);
   const [activeFormat, setActiveFormat] = useState<PipelineFormat | null>(null);
   const [clientBrandColor, setClientBrandColor] = useState('#F5C518');
@@ -585,6 +755,9 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
 
   // Visual Insights — reference URLs selected by user in FormatHintsNode
   const [visualReferences, setVisualReferences] = useState<string[]>([]);
+
+  // Conceito Criativo — generated by ConceitoNode, consumed by CopyNode + ArteNode
+  const [conceitoResult, setConceitoResult] = useState<any | null>(null);
 
   // Trigger
   const [selectedTrigger, setSelectedTrigger] = useState<string | null>(null);
@@ -955,15 +1128,51 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     export:   effectiveArteApproved ? 'active' : 'locked',
   }), [effectiveBriefingConfirmed, effectiveTriggerConfirmed, effectiveCopyApproved, copyGenerating, effectiveArteApproved, arteGenerating]);
 
-  // ── React Flow state ────────────────────────────────────────────────────────
-  const [nodes, setNodes, onNodesChange] = useNodesState(buildInitialNodes());
-  const [edges, setEdges] = useEdgesState(buildEdges(nodeStatus, new Set(['briefing', 'clientDNA'])));
+  // ── React Flow state + undo/redo ────────────────────────────────────────────
+  const {
+    nodes, edges, setNodes, setEdges,
+    onNodesChange, onEdgesChange,
+    undo, redo, canUndo, canRedo,
+  } = useUndoRedo(
+    buildInitialNodes(),
+    buildEdges(nodeStatus, new Set(['briefing', 'clientDNA'])),
+  );
 
   // Update edges whenever nodeStatus or nodes change
   useEffect(() => {
     const ids = new Set(nodes.map((n) => n.id));
     setEdges(buildEdges(nodeStatus, ids));
   }, [nodeStatus, nodes, setEdges]);
+
+  // ── Canvas load on mount ────────────────────────────────────────────────────
+  const canvasLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!briefingId) return;
+    apiGet<{ found: boolean; nodes?: any[]; edges?: any[]; viewport?: any }>(
+      `/studio/creative/canvas/${briefingId}`
+    ).then((res) => {
+      if (res.found && res.nodes && res.edges) {
+        setNodes(res.nodes);
+        setEdges(res.edges);
+      }
+    }).catch(() => {/* silent — first visit has no saved state */})
+      .finally(() => { canvasLoadedRef.current = true; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [briefingId]);
+
+  // ── Canvas auto-save (debounced 2s on nodes/edges change) ──────────────────
+  const canvasSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!briefingId || !canvasLoadedRef.current) return;
+    if (canvasSaveTimerRef.current) clearTimeout(canvasSaveTimerRef.current);
+    canvasSaveTimerRef.current = setTimeout(() => {
+      apiPut(`/studio/creative/canvas/${briefingId}`, { nodes, edges })
+        .catch(() => {/* silent */});
+    }, 2000);
+    return () => {
+      if (canvasSaveTimerRef.current) clearTimeout(canvasSaveTimerRef.current);
+    };
+  }, [nodes, edges, briefingId]);
 
   // ── Load briefing + format on mount ────────────────────────────────────────
   useEffect(() => {
@@ -1335,6 +1544,8 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
       const { apiPost } = await import('@/lib/api');
       const copy = copyOptions[selectedCopyIdx];
       const copyText = copy ? [copy.title, copy.body, copy.cta].filter(Boolean).join(' ') : '';
+      const allVisualRefs = collectMediaVisualRefs(nodes, edges, visualReferences);
+      const approvedConceito = conceitoResult?.concepts?.[conceitoResult?.approved_index ?? conceitoResult?.recommended_index];
       const res = await apiPost<{ success: boolean; data: ArteChainResult }>('/studio/creative/arte-chain', {
         copy:             copyText,
         briefing,
@@ -1342,7 +1553,9 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
         trigger:          selectedTrigger,
         platform:         activeFormat?.platform,
         format:           activeFormat?.format,
-        visualReferences: visualReferences.length > 0 ? visualReferences : undefined,
+        visualReferences: allVisualRefs.length > 0 ? allVisualRefs : undefined,
+        tensaoFormula:    conceitoResult?.tensoes?.top_tensao?.formula ?? undefined,
+        visualDirection:  approvedConceito?.visual_direction ?? undefined,
         ...chainParams,
       });
       stepTimers.forEach(clearTimeout);
@@ -1359,7 +1572,84 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     } finally {
       setArteGenerating(false);
     }
-  }, [briefing, selectedTrigger, activeFormat, copyOptions, selectedCopyIdx]);
+  }, [briefing, selectedTrigger, activeFormat, copyOptions, selectedCopyIdx, visualReferences, nodes, edges]);
+
+  // handleGenerateArteChainStream — SSE version, updates arteChainStep in real-time
+  const handleGenerateArteChainStream = useCallback(async (chainParams: ArteChainParams) => {
+    setArteGenerating(true);
+    setArteChainStep(1);
+    setArteChainResult(null);
+    setArteError('');
+
+    // Map SSE event names to the next step number (p0=step1, p1=step2 … p4b=step6)
+    const EVENT_TO_STEP: Record<string, number> = {
+      p0_done: 2, p1_done: 3, p2_done: 4, p3_done: 5, p4_done: 6, p4b_done: 6,
+    };
+
+    try {
+      const { getApiBase } = await import('@/lib/api');
+      const copy = copyOptions[selectedCopyIdx];
+      const copyText = copy ? [copy.title, copy.body, copy.cta].filter(Boolean).join(' ') : '';
+      const allVisualRefsStream = collectMediaVisualRefs(nodes, edges, visualReferences);
+      const approvedConceitoStream = conceitoResult?.concepts?.[conceitoResult?.approved_index ?? conceitoResult?.recommended_index];
+      const payload = {
+        copy: copyText, briefing, clientProfile: Object.keys(clientProfile).length > 0 ? clientProfile : null,
+        trigger: selectedTrigger, platform: activeFormat?.platform, format: activeFormat?.format,
+        visualReferences: allVisualRefsStream.length > 0 ? allVisualRefsStream : undefined,
+        tensaoFormula: conceitoResult?.tensoes?.top_tensao?.formula ?? undefined,
+        visualDirection: approvedConceitoStream?.visual_direction ?? undefined,
+        ...chainParams,
+      };
+
+      const res = await fetch(`${getApiBase()}/studio/creative/arte-chain/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let currentEvent = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (currentEvent === 'done' && data.data) {
+                const result: ArteChainResult = data.data;
+                setArteChainResult(result);
+                setArteChainStep(0);
+                setArteImageUrl(result.imageUrl);
+                setArteImageUrls(result.imageUrls);
+              } else if (currentEvent === 'error') {
+                setArteError(data.error ?? 'Erro no pipeline de arte');
+                setArteChainStep(0);
+              } else if (EVENT_TO_STEP[currentEvent]) {
+                setArteChainStep(EVENT_TO_STEP[currentEvent]);
+              }
+            } catch { /* malformed JSON, skip */ }
+          }
+        }
+      }
+    } catch (e: any) {
+      setArteError(e?.message ?? 'Erro no pipeline de arte');
+      setArteChainStep(0);
+    } finally {
+      setArteGenerating(false);
+    }
+  }, [briefing, selectedTrigger, activeFormat, copyOptions, selectedCopyIdx, visualReferences, clientProfile, nodes, edges]);
 
   const editCopy = useCallback(() => {
     setCopyApproved(false);
@@ -1570,8 +1860,8 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
   }, [setSelectedTrigger]);
 
   // ── Add optional nodes from AddNodePanel ─────────────────────────────────
-  const addOptionalNode = useCallback((nodeId: string) => {
-    const pos = OPTIONAL_NODE_POSITIONS[nodeId];
+  const addOptionalNode = useCallback((nodeId: string, posOverride?: { x: number; y: number }) => {
+    const pos = posOverride ?? OPTIONAL_NODE_POSITIONS[nodeId];
     if (!pos) return;
     setNodes((prev) => {
       if (prev.some((n) => n.id === nodeId)) return prev;
@@ -1597,9 +1887,53 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
 
   // In draw mode, clicking the pane places a note at cursor position
   const handlePaneClick = useCallback((event: React.MouseEvent) => {
+    setContextMenu(null);
     if (interactionMode !== 'draw') return;
     addAnnotationNode('note', { x: event.clientX, y: event.clientY });
   }, [interactionMode, addAnnotationNode]);
+
+  const handlePaneContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    const flowPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    setContextMenu({ x: event.clientX, y: event.clientY, flowX: flowPos.x, flowY: flowPos.y });
+  }, [screenToFlowPosition]);
+
+  // ── Node duplication ─────────────────────────────────────────────────────────
+  const duplicateNode = useCallback((nodeId: string) => {
+    setNodes((prev) => {
+      const src = prev.find((n) => n.id === nodeId);
+      if (!src) return prev;
+      const copy: Node = {
+        ...src,
+        id: `${src.id}-copy-${Date.now()}`,
+        position: { x: src.position.x + 80, y: src.position.y + 80 },
+        selected: false,
+        data: { ...src.data },
+      };
+      return [...prev, copy];
+    });
+  }, [setNodes]);
+
+  // ── Node deletion ────────────────────────────────────────────────────────────
+  const deleteNode = useCallback((nodeId: string) => {
+    setNodes((prev) => prev.filter((n) => n.id !== nodeId));
+    setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
+  }, [setNodes, setEdges]);
+
+  // ── Undo/Redo keyboard shortcuts ────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo]);
+
+  // ── Export canvas ────────────────────────────────────────────────────────────
+  const { exportAsZip } = useCanvasExport();
 
   // ── Context value ───────────────────────────────────────────────────────────
   const ctxValue: PipelineContextValue = {
@@ -1635,60 +1969,104 @@ function PipelineStudioInner({ briefingId }: PipelineStudioProps) {
     arteChainResult,
     arteChainStep,
     handleGenerateArteChain,
+    handleGenerateArteChainStream,
     visualReferences,
     setVisualReferences,
+    conceitoResult,
+    setConceitoResult,
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
+    <CanvasProvider onDuplicateNode={duplicateNode} onDeleteNode={deleteNode}>
     <PipelineContext.Provider value={ctxValue}>
-      <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: '#0d0d0d' }}>
-        {/* Canvas — 62% */}
-        <Box sx={{ flex: '0 0 62%', height: '100%', position: 'relative' }}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.15 }}
-            minZoom={0.4}
-            maxZoom={1.5}
-            proOptions={{ hideAttribution: true }}
-            onPaneClick={handlePaneClick}
-            panOnDrag={interactionMode === 'hand'}
-            selectionOnDrag={interactionMode === 'select'}
-            style={{
-              background: '#0d0d0d',
-              cursor: interactionMode === 'hand' ? 'grab' : interactionMode === 'draw' ? 'crosshair' : 'default',
-            }}
-          >
-            <Background color="#1a1a1a" variant={BackgroundVariant.Dots} gap={20} size={1.5} />
-            <Controls
-              style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8 }}
-            />
-            <MiniMap
-              nodeColor={(node) => {
-                const s = nodeStatus[node.id as keyof NodeStatusMap];
-                return s === 'done' ? '#13DEB9' : s === 'active' ? '#E85219' : s === 'running' ? '#E85219' : '#333';
-              }}
-              style={{ background: '#111', border: '1px solid #222', borderRadius: 8 }}
-            />
-          </ReactFlow>
-
-          {/* Canvas Toolbar — Lovart-style floating vertical pill */}
-          <CanvasToolbar
-            interactionMode={interactionMode}
-            setInteractionMode={setInteractionMode}
-            addAnnotationNode={addAnnotationNode}
+      <Box sx={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', bgcolor: '#0d0d0d' }}>
+        {/* Canvas — full screen */}
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.15 }}
+          minZoom={0.4}
+          maxZoom={1.5}
+          proOptions={{ hideAttribution: true }}
+          onPaneClick={handlePaneClick}
+          onPaneContextMenu={handlePaneContextMenu}
+          onSelectionChange={({ nodes: sel }) => setSelectedNodeIds(sel.map((n) => n.id))}
+          panOnDrag={interactionMode === 'hand'}
+          selectionOnDrag={interactionMode === 'select'}
+          style={{
+            width: '100%',
+            height: '100%',
+            background: '#0d0d0d',
+            cursor: interactionMode === 'hand' ? 'grab' : interactionMode === 'draw' ? 'crosshair' : 'default',
+          }}
+        >
+          <Background color="#1a1a1a" variant={BackgroundVariant.Dots} gap={20} size={1.5} />
+          <Controls
+            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8 }}
           />
-        </Box>
+        </ReactFlow>
 
-        {/* Right panel — 38% — Chat Agent (primary) + Preview tab */}
-        <RightPanel briefingId={briefingId} />
+        {/* Canvas Toolbar — Lovart-style floating vertical pill */}
+        <CanvasToolbar
+          interactionMode={interactionMode}
+          setInteractionMode={setInteractionMode}
+          addAnnotationNode={addAnnotationNode}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onExport={exportAsZip}
+        />
+
+        {/* Selection toolbar — appears when 2+ nodes selected */}
+        {selectedNodeIds.length >= 2 && (
+          <SelectionToolbar
+            selectedNodeIds={selectedNodeIds}
+            onClose={() => setSelectedNodeIds([])}
+          />
+        )}
+
+        {/* Toggle button — top-right floating */}
+        <IconButton
+          onClick={() => setRightPanelOpen((p) => !p)}
+          title="Painel lateral"
+          sx={{
+            position: 'absolute', top: 12, right: rightPanelOpen ? 412 : 12, zIndex: 11,
+            bgcolor: rightPanelOpen ? '#1a1a1a' : '#111', border: '1px solid #2a2a2a',
+            color: rightPanelOpen ? '#5D87FF' : '#555',
+            borderRadius: '8px', p: 0.75,
+            transition: 'right 0.25s cubic-bezier(0.4,0,0.2,1), color 0.15s',
+            '&:hover': { bgcolor: '#1e1e1e', color: '#ccc' },
+          }}
+        >
+          <IconLayoutSidebarRight size={16} />
+        </IconButton>
+
+        {/* Right-click context menu */}
+        {contextMenu && (
+          <CanvasContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            flowX={contextMenu.flowX}
+            flowY={contextMenu.flowY}
+            activeNodeIds={nodes.map((n) => n.id)}
+            onAddNode={(id, pos) => { addOptionalNode(id, pos); setContextMenu(null); }}
+            onAddNote={(pos) => { addAnnotationNode('note', pos); setContextMenu(null); }}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+
+        {/* Right panel — sliding overlay */}
+        <RightPanel briefingId={briefingId} open={rightPanelOpen} onClose={() => setRightPanelOpen(false)} />
       </Box>
     </PipelineContext.Provider>
+    </CanvasProvider>
   );
 }
 

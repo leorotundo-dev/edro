@@ -262,6 +262,9 @@ export default function IntegrationsClient() {
   const [waTestPhone, setWaTestPhone] = useState('');
   const [waTestSending, setWaTestSending] = useState(false);
   const [waTestResult, setWaTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [emailTestTo, setEmailTestTo] = useState('');
+  const [emailTestSending, setEmailTestSending] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [setupDialog, setSetupDialog] = useState<IntegrationType | null>(null);
   const [monitor, setMonitor] = useState<ServiceMonitorStatus[] | null>(null);
   const [monitorDetail, setMonitorDetail] = useState<ServiceMonitorStatus | null>(null);
@@ -374,6 +377,21 @@ export default function IntegrationsClient() {
   };
 
 
+  const handleEmailTestSend = async () => {
+    if (!emailTestTo.trim()) return;
+    setEmailTestSending(true);
+    setEmailTestResult(null);
+    try {
+      const res = await apiPost<{ ok: boolean; provider: string }>('/admin/integrations/email/test-send', { to: emailTestTo.trim() });
+      setEmailTestResult({ ok: true, msg: `Email enviado via ${res.provider ?? 'email'}! Verifique a caixa de entrada.` });
+      load(); // refresh monitor to clear the error state
+    } catch (e: any) {
+      setEmailTestResult({ ok: false, msg: e.message || 'Falha ao enviar.' });
+    } finally {
+      setEmailTestSending(false);
+    }
+  };
+
   const gmailConnected = searchParams.get('gmail_connected');
   const gmailError = searchParams.get('gmail_error');
   const calendarConnected = searchParams.get('calendar_connected');
@@ -384,7 +402,7 @@ export default function IntegrationsClient() {
         || a.label.localeCompare(b.label, 'pt-BR')
       ))
     : null;
-  const attentionMonitor = sortedMonitor?.filter((svc) => svc.status === 'error' || svc.status === 'degraded') ?? [];
+  const attentionMonitor = sortedMonitor?.filter((svc) => svc.configured && (svc.status === 'error' || svc.status === 'degraded')) ?? [];
 
   const monitorQuickAction = (svc: ServiceMonitorStatus): MonitorQuickAction | null => {
     switch (svc.service) {
@@ -582,6 +600,38 @@ export default function IntegrationsClient() {
                     </Stack>
                   )}
                 </Box>
+                {monitorDetail.service === 'resend' && (
+                  <Box>
+                    <Divider sx={{ mb: 1.5 }} />
+                    <Typography variant="caption" fontWeight={700} color="text.secondary">
+                      Testar envio de email
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ mt: 1 }}>
+                      <TextField
+                        size="small"
+                        type="email"
+                        placeholder="email@destino.com"
+                        value={emailTestTo}
+                        onChange={(e) => { setEmailTestTo(e.target.value); setEmailTestResult(null); }}
+                        disabled={emailTestSending}
+                        sx={{ flex: 1 }}
+                      />
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={handleEmailTestSend}
+                        disabled={!emailTestTo.trim() || emailTestSending}
+                      >
+                        {emailTestSending ? 'Enviando...' : 'Testar'}
+                      </Button>
+                    </Stack>
+                    {emailTestResult && (
+                      <Alert severity={emailTestResult.ok ? 'success' : 'error'} sx={{ mt: 1, fontSize: '0.8rem' }}>
+                        {emailTestResult.msg}
+                      </Alert>
+                    )}
+                  </Box>
+                )}
                 <Stack direction="row" justifyContent="flex-end">
                   <Button size="small" onClick={() => setMonitorDetail(null)}>Fechar</Button>
                 </Stack>

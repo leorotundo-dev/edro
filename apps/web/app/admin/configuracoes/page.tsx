@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -71,6 +72,9 @@ export default function ConfiguracoesPage() {
 
   return (
     <AppShell title="Configurações">
+      <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <AdminSubmenu value="configuracoes" />
+      </Box>
       <Box sx={{ p: 3, maxWidth: 700 }}>
         <Stack direction="row" alignItems="center" spacing={1.5} mb={0.5}>
           <IconSettings size={22} />

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api';
 import AppShell from '@/components/AppShell';
+import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
 import Box from '@mui/material/Box';
@@ -18,6 +19,8 @@ import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
+import AskJarvisButton from '@/components/jarvis/AskJarvisButton';
 import {
   IconAlertCircle,
   IconAlertTriangle,
@@ -171,6 +174,14 @@ export default function CentralDeControleClient() {
     }
   };
 
+  useJarvisPage({
+    screen: 'admin_controle',
+    ok: data?.summary.ok ?? null,
+    warnings: data?.summary.warnings ?? null,
+    errors: data?.summary.errors ?? null,
+    criticalAlerts: data?.summary.alerts_critical ?? null,
+  }, [data?.summary.ok, data?.summary.warnings, data?.summary.errors, data?.summary.alerts_critical]);
+
   // ── Summary bar ──────────────────────────────────────────────────────────
   const healthColor = !data ? '#9e9e9e'
     : data.summary.errors > 0 || data.summary.alerts_critical > 0 ? '#d32f2f'
@@ -184,6 +195,9 @@ export default function CentralDeControleClient() {
 
   return (
     <AppShell title="Central de Controle">
+      <Box sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2, md: 3 } }}>
+        <AdminSubmenu value="controle" />
+      </Box>
       <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
 
         {/* ── Header ── */}
@@ -207,6 +221,13 @@ export default function CentralDeControleClient() {
             )}
           </Stack>
           <Stack direction="row" spacing={1}>
+            {data && (
+              <AskJarvisButton
+                message={`Status do sistema: ${data.summary.ok} OK, ${data.summary.warnings} avisos, ${data.summary.errors} erros, ${data.summary.alerts_critical} alertas críticos. O que precisa de atenção imediata?`}
+                label="Diagnosticar"
+                size="small"
+              />
+            )}
             <Button size="small" variant="outlined" startIcon={syncing ? <CircularProgress size={14} /> : <IconBrandTrello size={16} />} onClick={handleSyncAll} disabled={syncing}>
               Sincronizar Trello
             </Button>

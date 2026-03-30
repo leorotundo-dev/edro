@@ -10,9 +10,17 @@ import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { query } from '../db';
 import { sendWhatsAppText, isWhatsAppConfigured } from '../services/whatsappService';
+import { sendEmail, isEmailConfigured } from '../services/emailService';
 import { env } from '../env';
 import { getMonitorStatus, type IntegrationService, type ServiceMonitorStatus } from '../services/integrationMonitor';
-import { isEmailConfigured } from '../services/emailService';
+
+async function safeQuery<T>(sql: string, params: any[]): Promise<{ rows: T[] }> {
+  try {
+    return await query<T>(sql, params);
+  } catch {
+    return { rows: [] };
+  }
+}
 
 function has(key: string): boolean {
   const v = process.env[key];
@@ -35,7 +43,9 @@ const STALE_ACTIVITY_WINDOW_MS: Partial<Record<IntegrationService, number>> = {
 };
 
 function applyStaleMonitorStatus(service: ServiceMonitorStatus, nowMs: number): ServiceMonitorStatus {
-  if (service.status !== 'ok' || !service.last_activity) return service;
+  // Only handle 'ok' and 'error' — 'degraded'/'unknown' are unchanged
+  if (service.status !== 'ok' && service.status !== 'error') return service;
+  if (!service.last_activity) return service;
 
   const staleWindowMs = STALE_ACTIVITY_WINDOW_MS[service.service];
   if (!staleWindowMs) return service;
@@ -44,7 +54,9 @@ function applyStaleMonitorStatus(service: ServiceMonitorStatus, nowMs: number): 
   if (!Number.isFinite(lastActivityMs)) return service;
 
   const ageMs = nowMs - lastActivityMs;
-  if (ageMs <= staleWindowMs) return service;
+  // For errors use 3× the stale window so genuinely recent errors stay visible longer
+  const effectiveWindowMs = service.status === 'error' ? staleWindowMs * 3 : staleWindowMs;
+  if (ageMs <= effectiveWindowMs) return service;
 
   return {
     ...service,
@@ -53,7 +65,7 @@ function applyStaleMonitorStatus(service: ServiceMonitorStatus, nowMs: number): 
       ...(service.meta ?? {}),
       stale: true,
       stale_age_hours: Math.floor(ageMs / HOUR_MS),
-      stale_window_hours: Math.floor(staleWindowMs / HOUR_MS),
+      stale_window_hours: Math.floor(effectiveWindowMs / HOUR_MS),
     },
   };
 }
@@ -148,6 +160,30 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     return { ok: true, messageId: result.messageId };
   });
 
+  // POST /admin/integrations/email/test-send
+  app.post('/admin/integrations/email/test-send', {
+    preHandler: [authGuard, requirePerm('admin:write'), tenantGuard()],
+  }, async (request: any, reply) => {
+    const { to } = z.object({ to: z.string().email() }).parse(request.body);
+
+    if (!isEmailConfigured()) {
+      return reply.status(503).send({ error: 'Email não configurado. Configure SMTP_HOST/SMTP_USER/SMTP_PASS ou RESEND_API_KEY.' });
+    }
+
+    const tenantId = request.user.tenant_id as string;
+    const result = await sendEmail({
+      to,
+      subject: '✅ Teste Edro.Digital — Email de verificação',
+      text: 'Este é um email de teste enviado pelo painel de integrações da Edro.Digital para verificar que o serviço de email está funcionando corretamente.',
+      tenantId,
+    });
+
+    if (!result.ok) {
+      return reply.status(502).send({ error: result.error || 'Falha ao enviar email.' });
+    }
+    return { ok: true, provider: result.provider };
+  });
+
   // GET /admin/integrations/monitor — live activity status per service
   app.get('/admin/integrations/monitor', {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
@@ -228,8 +264,10 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       ...(isEmailConfigured() ? ['resend' as const] : []),
       ...(has('D4SIGN_TOKEN_API') ? ['d4sign' as const] : []),
       ...(has('OPENAI_API_KEY') ? ['openai' as const] : []),
-      ...(gmailConnectionRes.rows.length || has('GOOGLE_CLIENT_ID') ? ['gmail' as const] : []),
-      ...(calendarChannelRes.rows.length || has('GOOGLE_CLIENT_ID') ? ['google_calendar' as const] : []),
+      // Gmail/Calendar only "configured" when OAuth creds exist — otherwise DB rows from
+      // prior sessions show stale errors that can't be resolved without the credentials.
+      ...(has('GOOGLE_CLIENT_ID') ? ['gmail' as const] : []),
+      ...(has('GOOGLE_CLIENT_ID') ? ['google_calendar' as const] : []),
       ...(metaConnectorRes.rows.length || has('META_APP_ID') ? ['instagram' as const] : []),
     ]);
 
@@ -247,7 +285,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       });
     }
 
-    if (gmailConnectionRes.rows[0]) {
+    if (gmailConnectionRes.rows[0] && has('GOOGLE_CLIENT_ID')) {
       const gmail = gmailConnectionRes.rows[0];
       const watchExpiryMs = gmail.watch_expiry ? new Date(gmail.watch_expiry).getTime() : null;
       const watchExpired = watchExpiryMs !== null && watchExpiryMs <= now;
@@ -271,7 +309,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       });
     }
 
-    if (calendarChannelRes.rows[0]) {
+    if (calendarChannelRes.rows[0] && has('GOOGLE_CLIENT_ID')) {
       const calendar = calendarChannelRes.rows[0];
       const expiryMs = calendar.expires_at ? new Date(calendar.expires_at).getTime() : null;
       const expired = expiryMs !== null && expiryMs <= now;
@@ -377,11 +415,12 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
   app.get('/admin/controle', {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
   }, async (request: any, reply) => {
+    try {
     const tenantId = request.user?.tenant_id as string;
     const now = Date.now();
     const nowTs = new Date().toISOString();
 
-    // 1. Integration monitor (reuse existing logic)
+    // 1. All queries in parallel
     const [
       trelloConnectorRes,
       gmailConnectionRes,
@@ -391,26 +430,27 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       trelloUnmappedRes,
       trelloMembersRes,
       metaFailingRes,
+      freshnessRes,
     ] = await Promise.all([
-      query<{ last_synced_at: string | null; is_active: boolean }>(
+      safeQuery<{ last_synced_at: string | null; is_active: boolean }>(
         `SELECT last_synced_at, is_active FROM trello_connectors WHERE tenant_id = $1 LIMIT 1`,
         [tenantId],
       ),
-      query<{ email_address: string | null; watch_expiry: string | null; last_sync_at: string | null; last_error: string | null }>(
+      safeQuery<{ email_address: string | null; watch_expiry: string | null; last_sync_at: string | null; last_error: string | null }>(
         `SELECT email_address, watch_expiry, last_sync_at, last_error FROM gmail_connections WHERE tenant_id = $1 LIMIT 1`,
         [tenantId],
       ),
-      query<{ email_address: string | null; expires_at: string | null; watch_status: string | null; last_watch_error: string | null }>(
+      safeQuery<{ email_address: string | null; expires_at: string | null; watch_status: string | null; last_watch_error: string | null }>(
         `SELECT email_address, expires_at, watch_status, last_watch_error FROM google_calendar_channels WHERE tenant_id = $1 LIMIT 1`,
         [tenantId],
       ),
-      query<{ last_sync_at: string | null; page_id: string | null; last_sync_ok: boolean | null; last_error: string | null; last_error_at: string | null }>(
+      safeQuery<{ last_sync_at: string | null; page_id: string | null; last_sync_ok: boolean | null; last_error: string | null; last_error_at: string | null }>(
         `SELECT last_sync_at, payload->>'page_id' AS page_id, last_sync_ok, last_error, last_error_at
          FROM connectors WHERE tenant_id = $1 AND provider = 'meta' ORDER BY updated_at DESC LIMIT 1`,
         [tenantId],
       ),
       // Trello boards health summary
-      query<{ ok: number; stale: number; err: number; unlinked: number; total: number }>(
+      safeQuery<{ ok: number; stale: number; err: number; unlinked: number; total: number }>(
         `SELECT
            COUNT(*) FILTER (WHERE last_synced_at IS NOT NULL AND EXTRACT(EPOCH FROM (now()-last_synced_at))/3600 <= 2)::int as ok,
            COUNT(*) FILTER (WHERE last_synced_at IS NOT NULL AND EXTRACT(EPOCH FROM (now()-last_synced_at))/3600 > 2)::int as stale,
@@ -421,7 +461,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         [tenantId],
       ),
       // Trello unmapped lists (active cards, no explicit status override → fall to 'intake')
-      query<{ count: number; board_names: string }>(
+      safeQuery<{ count: number; board_names: string }>(
         `SELECT
            COUNT(DISTINCT pl.id)::int as count,
            STRING_AGG(DISTINCT pb.name, ', ' ORDER BY pb.name) AS board_names
@@ -436,7 +476,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         [tenantId],
       ),
       // Trello members without email (can't resolve to Edro team)
-      query<{ count: number }>(
+      safeQuery<{ count: number }>(
         `SELECT COUNT(DISTINCT pcm.trello_member_id)::int as count
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
@@ -445,7 +485,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         [tenantId],
       ),
       // Meta connectors failing > 24h (across all clients)
-      query<{ count: number; client_names: string }>(
+      safeQuery<{ count: number; client_names: string }>(
         `SELECT
            COUNT(*)::int as count,
            STRING_AGG(cl.name, ', ' ORDER BY cl.name) AS client_names
@@ -457,28 +497,27 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
            AND c.last_error_at < now() - interval '24 hours'`,
         [tenantId],
       ),
+      // 2. Data freshness per domain (runs in parallel with connector queries)
+      safeQuery<{
+        last_meta_metrics: string | null;
+        last_learning_rules: string | null;
+        last_trello_card: string | null;
+        last_calendar: string | null;
+        last_whatsapp: string | null;
+        last_jarvis_alert: string | null;
+        last_briefing: string | null;
+      }>(
+        `SELECT
+           (SELECT MAX(updated_at)::text FROM format_performance_metrics WHERE tenant_id = $1) as last_meta_metrics,
+           (SELECT MAX(updated_at)::text FROM learning_rules WHERE tenant_id = $1) as last_learning_rules,
+           (SELECT MAX(updated_at)::text FROM project_cards WHERE tenant_id = $1) as last_trello_card,
+           (SELECT MAX(updated_at)::text FROM calendar_events WHERE tenant_id = $1) as last_calendar,
+           (SELECT MAX(created_at)::text FROM whatsapp_messages WHERE tenant_id = $1) as last_whatsapp,
+           (SELECT MAX(created_at)::text FROM jarvis_alerts WHERE tenant_id = $1) as last_jarvis_alert,
+           (SELECT MAX(updated_at)::text FROM edro_briefings WHERE tenant_id = $1) as last_briefing`,
+        [tenantId],
+      ),
     ]);
-
-    // 2. Data freshness per domain
-    const freshnessRes = await query<{
-      last_meta_metrics: string | null;
-      last_learning_rules: string | null;
-      last_trello_card: string | null;
-      last_calendar: string | null;
-      last_whatsapp: string | null;
-      last_jarvis_alert: string | null;
-      last_briefing: string | null;
-    }>(
-      `SELECT
-         (SELECT MAX(updated_at)::text FROM format_performance_metrics WHERE tenant_id = $1) as last_meta_metrics,
-         (SELECT MAX(updated_at)::text FROM learning_rules WHERE tenant_id = $1) as last_learning_rules,
-         (SELECT MAX(updated_at)::text FROM project_cards WHERE tenant_id = $1) as last_trello_card,
-         (SELECT MAX(updated_at)::text FROM calendar_events WHERE tenant_id = $1) as last_calendar,
-         (SELECT MAX(created_at)::text FROM whatsapp_messages WHERE tenant_id = $1) as last_whatsapp,
-         (SELECT MAX(created_at)::text FROM jarvis_alerts WHERE tenant_id = $1) as last_jarvis_alert,
-         (SELECT MAX(updated_at)::text FROM edro_briefings WHERE tenant_id = $1) as last_briefing`,
-      [tenantId],
-    );
     const fr: {
       last_meta_metrics: string | null;
       last_learning_rules: string | null;
@@ -674,6 +713,10 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     };
 
     return reply.send({ integrations, domains, alerts, summary });
+    } catch (err: any) {
+      request.log?.error({ err }, 'GET /admin/controle failed');
+      return reply.status(500).send({ error: 'Falha ao carregar dados do sistema.', detail: err?.message });
+    }
   });
 
   // GET /admin/integrations/config-hints

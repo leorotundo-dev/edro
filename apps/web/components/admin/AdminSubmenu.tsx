@@ -35,39 +35,58 @@ const ENTRIES: Entry[] = [
   {
     label: 'Sistema', value: 'group-sistema',
     children: [
-      { label: 'Feature Flags', value: 'feature-flags',  kind: 'internal' },
-      { label: 'Security Logs', value: 'security-logs',  kind: 'internal' },
-      { label: 'Jobs',          value: 'jobs',            kind: 'internal' },
-      { label: 'Health',        value: 'health',          kind: 'route', href: '/admin/health' },
+      { label: 'Central de Controle', value: 'controle',      kind: 'route', href: '/admin/controle' },
+      { label: 'Central de Saúde',    value: 'saude',         kind: 'route', href: '/admin/saude' },
+      { label: 'Health',              value: 'health',        kind: 'route', href: '/admin/health' },
+      { label: 'Feature Flags',       value: 'feature-flags', kind: 'internal' },
+      { label: 'Security Logs',       value: 'security-logs', kind: 'internal' },
+      { label: 'Jobs',                value: 'jobs',          kind: 'internal' },
     ],
   },
   { label: 'Usuários', value: 'users', kind: 'route', href: '/admin/users' },
   {
+    label: 'Pessoas & Equipe', value: 'group-pessoas',
+    children: [
+      { label: 'Equipe',      value: 'equipe',  kind: 'route', href: '/admin/equipe' },
+      { label: 'Diretório',   value: 'pessoas', kind: 'route', href: '/admin/pessoas' },
+      { label: 'Freelancers', value: 'freelancers-admin', kind: 'route', href: '/admin/users?tab=freelancers' },
+    ],
+  },
+  {
     label: 'Financeiro', value: 'group-financeiro',
     children: [
-      { label: 'Equipe',     value: 'equipe',     kind: 'route', href: '/admin/equipe' },
-      { label: 'Pagamentos', value: 'pagamentos', kind: 'route', href: '/admin/pagamentos' },
-      { label: 'AI Costs',   value: 'ai-costs',   kind: 'route', href: '/admin/ai-costs' },
+      { label: 'Pagamentos',    value: 'pagamentos', kind: 'route', href: '/admin/pagamentos' },
+      { label: 'AI Costs',      value: 'ai-costs',   kind: 'route', href: '/admin/ai-costs' },
+    ],
+  },
+  {
+    label: 'Relatórios', value: 'group-relatorios',
+    children: [
+      { label: 'Painel Executivo', value: 'painel-executivo', kind: 'route', href: '/admin/relatorios/painel' },
+      { label: 'Fila de Ação',     value: 'fila-de-acao',     kind: 'route', href: '/admin/relatorios/fila' },
+      { label: 'Briefing Ratings', value: 'briefing-ratings', kind: 'route', href: '/admin/analytics/briefing-ratings' },
+      { label: 'Relatórios Mensais', value: 'relatorios-mensais', kind: 'route', href: '/admin/relatorios' },
     ],
   },
   {
     label: 'IA & Automação', value: 'group-ia',
     children: [
-      { label: 'Automações',     value: 'automacoes',   kind: 'route', href: '/admin/automations' },
-      { label: 'Recco Engine',   value: 'recco-engine', kind: 'route', href: '/admin/recco-engine' },
+      { label: 'Automações',      value: 'automacoes',   kind: 'route', href: '/admin/automations' },
+      { label: 'Recco Engine',    value: 'recco-engine', kind: 'route', href: '/admin/recco-engine' },
       { label: 'Inteligência IA', value: 'intelligence', kind: 'route', href: '/admin/intelligence' },
     ],
   },
   {
     label: 'Integrações', value: 'group-integracoes',
     children: [
-      { label: 'Canais & APIs',   value: 'integracoes',    kind: 'route', href: '/admin/integrations' },
+      { label: 'Canais & APIs',   value: 'integracoes',     kind: 'route', href: '/admin/integrations' },
       { label: 'WhatsApp Grupos', value: 'whatsapp-groups', kind: 'route', href: '/admin/whatsapp-groups' },
-      { label: 'Reportei',        value: 'reportei',       kind: 'route', href: '/admin/reportei' },
-      { label: 'Import Events',   value: 'import-events',  kind: 'route', href: '/admin/events/import' },
+      { label: 'Reportei',        value: 'reportei',        kind: 'route', href: '/admin/reportei' },
+      { label: 'Import Events',   value: 'import-events',   kind: 'route', href: '/admin/events/import' },
     ],
   },
-  { label: 'Settings', value: 'settings', kind: 'route', href: '/settings' },
+  { label: 'Configurações', value: 'configuracoes', kind: 'route', href: '/admin/configuracoes' },
+  { label: 'Settings',      value: 'settings',      kind: 'route', href: '/settings' },
 ];
 
 // Flatten all items for lookup

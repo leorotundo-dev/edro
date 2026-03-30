@@ -12,6 +12,7 @@ import {
   IconCalendarStats,
   IconBuildingBank,
   IconHeartbeat,
+  IconFileTypePdf,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -100,6 +101,12 @@ const MenuItems: MenuGroupType[] = [
         icon: IconBuildingBank,
         href: '/admin/relatorios/financeiro',
       },
+      {
+        id: 'relatorios-mensais',
+        title: 'Relatórios Mensais',
+        icon: IconFileTypePdf,
+        href: '/admin/relatorios',
+      },
     ],
   },
   {
@@ -119,10 +126,10 @@ const MenuItems: MenuGroupType[] = [
         href: '/admin/equipe',
       },
       {
-        id: 'saude',
-        title: 'Saúde',
+        id: 'controle',
+        title: 'Central de Controle',
         icon: IconHeartbeat,
-        href: '/admin/saude',
+        href: '/admin/controle',
         requiredRole: ['admin'],
       },
       {
