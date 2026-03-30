@@ -117,6 +117,7 @@ export type AgentDAParams = {
   pieceIndex?: number;          // qual peça da campanha (para variação)
   totalPieces?: number;         // total de peças na campanha
   spatialDirective?: string;    // "leave clean area in top 30% for headline"
+  visualIntent?: string | null; // briefing intent (performance_conversion|authority_structured|editorial_premium|social_proof_human|culture_driven_expressive)
   onProgress?: (event: string, data: object) => void;
 };
 
@@ -168,8 +169,9 @@ ${params.pieceIndex != null ? `PEÇA ${params.pieceIndex + 1} DE ${params.totalP
     clientId: params.clientId,
     platform: params.platform,
     segment: profile.segment,
+    visualIntent: params.visualIntent ?? (params.briefing?.payload?.visual_intent as string | null) ?? null,
     conceptLimit: 4,
-    referenceLimit: 4,
+    referenceLimit: 6,
     trendLimit: 4,
   });
   const externalKnowledgeSummary = memory.promptBlock || '';
@@ -394,8 +396,9 @@ async function plugin4Critique(
     clientId: params.clientId,
     platform: params.platform,
     segment: params.clientProfile?.segment,
+    visualIntent: params.visualIntent ?? (params.briefing?.payload?.visual_intent as string | null) ?? null,
     conceptLimit: 4,
-    referenceLimit: 4,
+    referenceLimit: 6,
     trendLimit: 4,
   });
   const critiqueFramework = buildArtDirectionCritiqueBlock(resolveArtDirectionKnowledge({

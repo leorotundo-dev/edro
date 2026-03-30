@@ -1370,6 +1370,7 @@ export async function listRelevantArtDirectionReferences(params: {
   clientId?: string | null;
   platform?: string | null;
   segment?: string | null;
+  visualIntent?: string | null;
   limit?: number;
 }) {
   const values: any[] = [params.tenantId];
@@ -1388,16 +1389,24 @@ export async function listRelevantArtDirectionReferences(params: {
   }
   values.push(Math.min(params.limit ?? 8, 20));
 
+  // visual_intent boost: refs that match the briefing's intent score higher
+  const intentBoost = params.visualIntent
+    ? `CASE WHEN visual_intent = '${params.visualIntent.replace(/'/g, "''")}' THEN 1 ELSE 0 END`
+    : '0';
+
   const { rows } = await query(
     `SELECT id, title, source_url, platform, format, segment, visual_intent, creative_direction,
-            mood_words, style_tags, composition_tags, typography_tags, trend_score, confidence_score,
+            mood_words, style_tags, composition_tags, typography_tags,
+            trend_score, confidence_score, trust_score,
             rationale, discovered_at
        FROM da_references
       WHERE ${where.join(' AND ')}
       ORDER BY
         CASE WHEN client_id IS NOT NULL THEN 0 ELSE 1 END,
-        trend_score DESC,
-        confidence_score DESC,
+        ${intentBoost} DESC,
+        COALESCE(trust_score, 0.60) DESC,
+        COALESCE(trend_score, 0) DESC,
+        COALESCE(confidence_score, 0) DESC,
         discovered_at DESC
       LIMIT $${values.length}`,
     values,
@@ -1894,6 +1903,7 @@ export async function buildArtDirectionMemoryContext(params: {
   clientId?: string | null;
   platform?: string | null;
   segment?: string | null;
+  visualIntent?: string | null;
   conceptCategories?: string[] | null;
   conceptLimit?: number;
   referenceLimit?: number;
@@ -1919,7 +1929,8 @@ export async function buildArtDirectionMemoryContext(params: {
       clientId: params.clientId,
       platform: params.platform,
       segment: params.segment,
-      limit: params.referenceLimit ?? 5,
+      visualIntent: params.visualIntent,
+      limit: params.referenceLimit ?? 6,
     }).catch(() => []),
     listArtDirectionTrendSignals({
       tenantId: params.tenantId,
