@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import clsx from 'clsx';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
 import { apiGet, apiPatch, apiPostFormData, swrFetcher } from '@/lib/api';
-import { isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
+import { describeCnpjLookupSource, formatLookupTimestamp, isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
 
 type Profile = {
   display_name: string;
@@ -112,6 +112,7 @@ export default function PerfilPage() {
   const [arsenal, setArsenal] = useState({ skills_json: [] as SelectedSkill[], portfolio_url: '', weekly_capacity: 40 });
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
+  const [cnpjLookupResult, setCnpjLookupResult] = useState<CnpjLookupResponse | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState('');
 
@@ -178,6 +179,7 @@ export default function PerfilPage() {
   async function lookupCnpj() {
     const clean = normalizeDigits(legal.cnpj);
     if (!isValidCnpj(clean)) {
+      setCnpjLookupResult(null);
       setError((prev) => ({ ...prev, legal: 'CNPJ inválido. Confira os dígitos e tente novamente.' }));
       return;
     }
@@ -185,6 +187,7 @@ export default function PerfilPage() {
     setError((prev) => ({ ...prev, legal: '' }));
     try {
       const data = await apiGet<CnpjLookupResponse>(`/freelancers/portal/cnpj/${clean}`);
+      setCnpjLookupResult(data);
       if (data.status === 'invalid_cnpj' || data.status === 'not_found' || data.status === 'provider_unavailable') {
         setError((prev) => ({ ...prev, legal: data.message }));
         return;
@@ -205,6 +208,7 @@ export default function PerfilPage() {
         setError((prev) => ({ ...prev, legal: data.message }));
       }
     } catch {
+      setCnpjLookupResult(null);
       setError((prev) => ({ ...prev, legal: 'A consulta automática de CNPJ falhou agora. Você pode preencher os campos manualmente.' }));
     } finally {
       setSaving((prev) => ({ ...prev, legal_lookup: false }));
@@ -298,6 +302,33 @@ export default function PerfilPage() {
               <button type="button" className="portal-button-secondary" onClick={lookupCnpj} disabled={saving.legal_lookup}>{saving.legal_lookup ? 'Buscando...' : 'Buscar CNPJ'}</button>
             </div>
           </div>
+          {cnpjLookupResult && (
+            <div style={{
+              gridColumn: '1 / -1',
+              marginTop: -6,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid rgba(19,222,185,0.18)',
+              background: 'rgba(19,222,185,0.06)',
+              color: 'rgba(255,255,255,0.65)',
+              fontSize: 12,
+              lineHeight: 1.5,
+            }}>
+              <strong style={{ color: '#13DEB9' }}>
+                {cnpjLookupResult.cache_hit ? 'Dados recuperados do cache.' : 'Consulta automática concluída.'}
+              </strong>{' '}
+              Fonte: {describeCnpjLookupSource(cnpjLookupResult)}.
+              {cnpjLookupResult.cached_at && (
+                <> Atualizado em {formatLookupTimestamp(cnpjLookupResult.cached_at)}.</>
+              )}
+              {!cnpjLookupResult.cached_at && cnpjLookupResult.source === 'brasilapi' && (
+                <> Dados carregados agora.</>
+              )}
+              {cnpjLookupResult.expires_at && (
+                <> Cache válido até {formatLookupTimestamp(cnpjLookupResult.expires_at)}.</>
+              )}
+            </div>
+          )}
           <div><label className="portal-field-label">Razão social</label><input className="portal-input" value={legal.razao_social} onChange={(e) => setLegal((prev) => ({ ...prev, razao_social: e.target.value }))} /></div>
           <div><label className="portal-field-label">Nome fantasia</label><input className="portal-input" value={legal.nome_fantasia} onChange={(e) => setLegal((prev) => ({ ...prev, nome_fantasia: e.target.value }))} /></div>
           <div><label className="portal-field-label">Inscrição municipal</label><input className="portal-input" value={legal.inscricao_municipal} onChange={(e) => setLegal((prev) => ({ ...prev, inscricao_municipal: e.target.value }))} /></div>

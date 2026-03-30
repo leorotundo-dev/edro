@@ -46,3 +46,19 @@ export function isValidCnpj(value: string) {
   const second = calc(`${digits.slice(0, 12)}${first}`, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
   return digits === `${digits.slice(0, 12)}${first}${second}`;
 }
+
+export function describeCnpjLookupSource(result: Pick<CnpjLookupResponse, 'source' | 'provider'>) {
+  if (result.source === 'cache') return 'cache interno';
+  if (result.provider === 'brasilapi') return 'consulta automática';
+  return 'validação local';
+}
+
+export function formatLookupTimestamp(value?: string | null) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(parsed);
+}

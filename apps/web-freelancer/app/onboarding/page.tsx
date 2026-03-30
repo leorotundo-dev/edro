@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
-import { isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
+import { describeCnpjLookupSource, formatLookupTimestamp, isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
 
 const STEPS = ['empresa', 'representante', 'pagamento', 'skills', 'avatar'] as const;
@@ -87,6 +87,7 @@ export default function OnboardingPage() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [avatarGenerating, setAvatarGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [cnpjLookupResult, setCnpjLookupResult] = useState<CnpjLookupResponse | null>(null);
   const [avatarError, setAvatarError] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarSourcePreview, setAvatarSourcePreview] = useState('');
@@ -143,11 +144,16 @@ export default function OnboardingPage() {
 
   async function lookupCnpj() {
     const clean = normalizeDigits(form.cnpj);
-    if (!isValidCnpj(clean)) { setError('CNPJ inválido. Confira os dígitos e tente novamente.'); return; }
+    if (!isValidCnpj(clean)) {
+      setCnpjLookupResult(null);
+      setError('CNPJ inválido. Confira os dígitos e tente novamente.');
+      return;
+    }
     setError('');
     setCnpjLoading(true);
     try {
       const data = await apiGet<CnpjLookupResponse>(`/freelancers/portal/cnpj/${clean}`);
+      setCnpjLookupResult(data);
       if (data.status === 'invalid_cnpj' || data.status === 'not_found' || data.status === 'provider_unavailable') {
         setError(data.message);
         return;
@@ -168,6 +174,7 @@ export default function OnboardingPage() {
         setError(data.message);
       }
     } catch {
+      setCnpjLookupResult(null);
       setError('A consulta automática de CNPJ falhou agora. Você pode preencher manualmente e continuar.');
     } finally {
       setCnpjLoading(false);
@@ -304,6 +311,32 @@ export default function OnboardingPage() {
                   </button>
                 </div>
               </Field>
+              {cnpjLookupResult && (
+                <div style={{
+                  marginTop: -6,
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(19,222,185,0.18)',
+                  background: 'rgba(19,222,185,0.06)',
+                  color: 'rgba(255,255,255,0.65)',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}>
+                  <strong style={{ color: '#13DEB9' }}>
+                    {cnpjLookupResult.cache_hit ? 'Dados recuperados do cache.' : 'Consulta automática concluída.'}
+                  </strong>{' '}
+                  Fonte: {describeCnpjLookupSource(cnpjLookupResult)}.
+                  {cnpjLookupResult.cached_at && (
+                    <> Atualizado em {formatLookupTimestamp(cnpjLookupResult.cached_at)}.</>
+                  )}
+                  {!cnpjLookupResult.cached_at && cnpjLookupResult.source === 'brasilapi' && (
+                    <> Dados carregados agora.</>
+                  )}
+                  {cnpjLookupResult.expires_at && (
+                    <> Cache válido até {formatLookupTimestamp(cnpjLookupResult.expires_at)}.</>
+                  )}
+                </div>
+              )}
               <Field label="Razão Social" required>
                 <input style={inputStyle} value={form.razao_social} onChange={e => set('razao_social', e.target.value)} placeholder="Empresa Ltda." />
               </Field>
