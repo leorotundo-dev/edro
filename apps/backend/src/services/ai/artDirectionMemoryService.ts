@@ -617,12 +617,28 @@ export async function upsertArtDirectionConcept(input: ArtDirectionConceptInput)
 
 export async function ensureDefaultArtDirectionSources(tenantId: string): Promise<void> {
   const defaults = [
-    { name: 'Behance', sourceType: 'site', baseUrl: 'https://www.behance.net', domain: 'behance.net', trust: 0.95 },
-    { name: 'Ads of the World', sourceType: 'site', baseUrl: 'https://www.adsoftheworld.com', domain: 'adsoftheworld.com', trust: 0.95 },
-    { name: "It's Nice That", sourceType: 'site', baseUrl: 'https://www.itsnicethat.com', domain: 'itsnicethat.com', trust: 0.90 },
-    { name: 'Dribbble', sourceType: 'site', baseUrl: 'https://dribbble.com', domain: 'dribbble.com', trust: 0.85 },
-    { name: 'Pinterest', sourceType: 'site', baseUrl: 'https://www.pinterest.com', domain: 'pinterest.com', trust: 0.60 },
-    { name: 'Serper Search', sourceType: 'search', baseUrl: 'https://google.serper.dev', domain: 'google.serper.dev', trust: 0.70 },
+    // ── Tier 1 — Publicidade curada ───────────────────────────────────────────
+    { name: 'Ads of the World',    sourceType: 'site',   baseUrl: 'https://www.adsoftheworld.com',     domain: 'adsoftheworld.com',       trust: 0.95 },
+    { name: 'Cannes Lions',        sourceType: 'site',   baseUrl: 'https://www.canneslions.com',        domain: 'canneslions.com',          trust: 0.95 },
+    { name: 'CCB',                 sourceType: 'site',   baseUrl: 'https://ccb.org.br',                domain: 'ccb.org.br',               trust: 0.95 },
+    { name: "D&AD",                sourceType: 'site',   baseUrl: 'https://www.dandad.org',             domain: 'dandad.org',               trust: 0.90 },
+    { name: "Lürzer's Archive",    sourceType: 'site',   baseUrl: 'https://www.luerzersarchive.com',    domain: 'luerzersarchive.com',      trust: 0.90 },
+    // ── Tier 2 — Design + identidade visual ──────────────────────────────────
+    { name: "It's Nice That",      sourceType: 'site',   baseUrl: 'https://www.itsnicethat.com',        domain: 'itsnicethat.com',          trust: 0.90 },
+    { name: 'Brand New',           sourceType: 'site',   baseUrl: 'https://www.underconsideration.com', domain: 'underconsideration.com',   trust: 0.88 },
+    { name: 'The Dieline',         sourceType: 'site',   baseUrl: 'https://thedieline.com',             domain: 'thedieline.com',           trust: 0.82 },
+    { name: 'Fonts In Use',        sourceType: 'site',   baseUrl: 'https://fontsinuse.com',             domain: 'fontsinuse.com',           trust: 0.80 },
+    { name: 'Awwwards',            sourceType: 'site',   baseUrl: 'https://www.awwwards.com',           domain: 'awwwards.com',             trust: 0.78 },
+    // ── Tier 3 — Social-first + motion ───────────────────────────────────────
+    { name: 'Behance',             sourceType: 'site',   baseUrl: 'https://www.behance.net',            domain: 'behance.net',              trust: 0.92 },
+    { name: 'Motionographer',      sourceType: 'site',   baseUrl: 'https://motionographer.com',         domain: 'motionographer.com',       trust: 0.82 },
+    { name: 'Dribbble',            sourceType: 'site',   baseUrl: 'https://dribbble.com',               domain: 'dribbble.com',             trust: 0.82 },
+    { name: 'Pinterest',           sourceType: 'site',   baseUrl: 'https://www.pinterest.com',          domain: 'pinterest.com',            trust: 0.72 },
+    // ── Tier S — Mercado brasileiro / LATAM ──────────────────────────────────
+    { name: 'El Ojo de Iberoamérica', sourceType: 'site', baseUrl: 'https://www.elojodeiberoamerica.com', domain: 'elojodeiberoamerica.com', trust: 0.90 },
+    { name: 'Meio & Mensagem',     sourceType: 'site',   baseUrl: 'https://www.meioemensagem.com.br',   domain: 'meioemensagem.com.br',     trust: 0.80 },
+    // ── Search engine ─────────────────────────────────────────────────────────
+    { name: 'Serper Search',       sourceType: 'search', baseUrl: 'https://google.serper.dev',          domain: 'google.serper.dev',        trust: 0.70 },
   ];
 
   for (const source of defaults) {
@@ -739,7 +755,7 @@ export async function discoverArtDirectionReferences(input: DiscoverArtDirection
 
   const sources = await listArtDirectionReferenceSources({ tenantId: input.tenantId, enabledOnly: true });
   const searchSource = sources.find((source) => source.name === 'Serper Search');
-  const siteSources = sources.filter((source) => source.source_type === 'site' && source.domain).slice(0, 4);
+  const siteSources = sources.filter((source) => source.source_type === 'site' && source.domain).slice(0, 6);
   const queries = uniq([
     ...input.queries.slice(0, 4),
     ...input.queries.slice(0, 2).flatMap((searchQuery) =>
