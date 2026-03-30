@@ -7,13 +7,17 @@ import { generateImageWithFal, generateImg2ImgWithFal, isFalConfigured } from '.
 export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v2';
 
 const EDRO_AVATAR_PROMPT = `
-transform the uploaded portrait into a clearly AI-generated stylized 3D avatar bust portrait. preserve the person's identity markers from the source photo such as face shape, skin tone, hairline, beard or mustache, eyebrow weight, and overall recognizability, but do not keep it photographic. the result must look unmistakably like a designed 3D character, not a retouched photo and not realistic portrait photography.
+translate the person in the reference photo into a stylized 3D avatar character, faithfully preserving their distinctive facial features, skin tone, hair color, hair length and style, face shape, and any defining visual characteristics. the goal is that someone who knows this person would immediately recognize this avatar as them. do not invent a generic face — use the reference photo as the direct source for who this character is.
 
-show a single character from the upper chest upward on a plain very light gray background. use a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never looking straight into the camera. the visual language must be dry, simple, slightly weird, modern, stylized 3D, with matte rendering, clean shapes, slightly disproportionate head, slightly elongated cranium, simplified facial planes, thick dark blocky eyebrows, tiny simple nose, and understated materials.
+render the character as a single bust portrait from the upper chest upward, isolated on a plain very light gray background, in a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never looking straight into the camera.
 
-the character must wear an orange baseball cap and a plain black t-shirt with no print, no logo, no text, no hoodie, no accessories, and no props. the black t-shirt must include visible shoulders and upper sleeves so the bust feels complete. use soft studio lighting and gentle shadows.
+apply the following established visual style: dry, simple, slightly weird, highly stylized 3D avatar language, with a subtly disproportionate cartoon head, slightly top-heavy elongated cranium, slightly narrower facial area, moderately sized round chimp-like ears, thick dark blocky eyebrows (matching the person's eyebrow color), tiny simple nose, restrained matte rendering, and clean understated materials. keep the skin tone faithful to the reference photo. keep the hair color and general hair style faithful to the reference photo, translated into the simplified stylized 3D language. keep the eye color and general eye shape faithful to the reference photo.
 
-the expression must feel pleasantly surprised, excited, and happy. eyes slightly more open, eyebrows lifted, mouth open in a cheerful surprised way, but still restrained and graphic. the final result should feel like an intentional Edro avatar, visibly transformed by AI into a stylized 3D bust, while remaining recognizable as the same person from the uploaded image.
+the character must wear an orange baseball cap and a plain black t-shirt with no print, no logo, no text, no hoodie, no accessories, no extra props. the orange cap should be simple and stylized, slightly chunky, with a curved brim, smooth clean surfaces, and minimal seam detail. the black t-shirt must read clearly as a full upper garment in the bust portrait, with visible shoulders, visible upper sleeves, and the beginning of both upper arms included in the silhouette so the bust feels complete and natural.
+
+the facial expression must be pleasantly surprised, excited, and happy — delighted surprise, upbeat excitement, amused enthusiasm, as if the character has just seen something unexpectedly cool. eyes more open showing alertness and excitement, eyebrows lifted but still thick and blocky, mouth open in a cheerful excited way, not scared, not alarmed, not screaming. if teeth are visible keep them minimal and simplified. the expression overall should feel animated, excited, impressed, and happy.
+
+keep the rendering soft, matte, and clean, with soft studio lighting and gentle shadows, plain pale gray background, no environment, no text, no watermark, no extra characters. one character only.
 `.trim();
 
 const EDRO_AVATAR_NEGATIVE_PROMPT = `
@@ -138,7 +142,7 @@ export async function generateEdroAvatarForFreelancer(params: {
         aspectRatio: '1:1',
         numImages: 1,
         referenceImageUrl: dataUrl,
-        referenceImageStrength: 0.22,
+        referenceImageStrength: 0.78,
       });
     })();
 

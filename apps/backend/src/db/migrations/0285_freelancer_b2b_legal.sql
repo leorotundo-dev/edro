@@ -6,11 +6,19 @@
 ALTER TABLE freelancer_profiles
   ADD COLUMN IF NOT EXISTS tenant_id TEXT;
 
--- Backfill tenant_id from edro_users
-UPDATE freelancer_profiles fp
-SET tenant_id = u.tenant_id
-FROM edro_users u
-WHERE fp.user_id = u.id AND fp.tenant_id IS NULL;
+-- Backfill tenant_id from edro_users (only if column exists on edro_users)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'edro_users' AND column_name = 'tenant_id'
+  ) THEN
+    UPDATE freelancer_profiles fp
+    SET tenant_id = u.tenant_id
+    FROM edro_users u
+    WHERE fp.user_id = u.id AND fp.tenant_id IS NULL;
+  END IF;
+END $$;
 
 -- ── 1. CNPJ & PJ fields on freelancer_profiles ─────────────────────────────
 ALTER TABLE freelancer_profiles

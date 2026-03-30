@@ -165,10 +165,10 @@ export async function buildServer() {
     // Tighten body size for routes that don't need large payloads
     if (isAuth || isPublicApproval || isExport) {
       routeOptions.bodyLimit = 64 * 1024; // 64KB
-    } else if (!isWebhook && !isAiGen && !url.includes('/upload') && !url.includes('/library')) {
+    } else if (!isWebhook && !isAiGen && !url.includes('/upload') && !url.includes('/library') && !url.includes('/avatar')) {
       routeOptions.bodyLimit = 512 * 1024; // 512KB for standard API calls
     }
-    // Webhooks, AI gen, uploads and library keep the global 10MB
+    // Webhooks, AI gen, uploads, library, and avatar keep the global 10MB
   });
 
   app.addHook('preHandler', async (request) => {

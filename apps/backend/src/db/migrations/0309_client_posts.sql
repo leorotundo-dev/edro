@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS client_posts (
   id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id         UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  client_id         UUID        NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id         TEXT        NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
 
   platform          TEXT        NOT NULL, -- instagram | facebook
   external_id       TEXT        NOT NULL, -- platform-specific post/media ID
