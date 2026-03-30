@@ -1,5 +1,6 @@
 import { query } from '../db';
 import { discoverArtDirectionReferences } from '../services/ai/artDirectionMemoryService';
+import { getVisualProfile } from '../services/segmentVisualMap';
 
 let running = false;
 let lastRunBucket = '';
@@ -40,10 +41,11 @@ export async function runArtDirectionReferenceWorkerOnce(): Promise<void> {
 
     let totalInserted = 0;
     for (const client of clients) {
-      const segment = client.segment_primary || 'marketing';
+      const profile = getVisualProfile(client.segment_primary);
+
+      // Queries: 4 discipline-specific + 1 client-brand query
       const queries = [
-        `${segment} advertising design references ${new Date().getFullYear()}`,
-        `${segment} instagram campaign visual direction examples`,
+        ...profile.queries,
         `${client.name} brand campaign design inspiration`,
       ];
 
@@ -52,7 +54,7 @@ export async function runArtDirectionReferenceWorkerOnce(): Promise<void> {
           tenantId: client.tenant_id,
           clientId: client.id,
           clientName: client.name,
-          segment,
+          segment: profile.creativeCategory,   // disciplina visual, não o negócio
           platform: 'Instagram',
           queries,
           maxResultsPerQuery: 3,
