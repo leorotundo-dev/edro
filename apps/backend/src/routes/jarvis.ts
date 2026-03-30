@@ -460,4 +460,15 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       return reply.status(500).send({ success: false, error: e?.message });
     }
   });
+
+  // ── POST /jarvis/creation/run — trigger Jarvis creation loop manually (admin) ──
+  app.post('/jarvis/creation/run', { preHandler: [authGuard] }, async (request: any, reply) => {
+    try {
+      const { triggerJarvisCreationNow } = await import('../jobs/jarvisCreationWorker') as any;
+      await triggerJarvisCreationNow();
+      return reply.send({ success: true });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
 }

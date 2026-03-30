@@ -45,6 +45,7 @@ import { runWebhookRetryWorkerOnce } from './webhookRetryWorker';
 import { runAgencyDigestWorkerOnce } from './agencyDigestWorker';
 import { runClientPostsWorkerOnce } from './clientPostsWorker';
 import { runJarvisBackgroundWorkerOnce } from './jarvisBackgroundWorker';
+import { runJarvisCreationWorkerOnce } from './jarvisCreationWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -189,4 +190,6 @@ export function startJobsRunner() {
   // Art Direction Trend Memory — opt-in, analyzes discovered references and consolidates daily
   startWorkerLoop('artDirectionTrend', runArtDirectionTrendWorkerOnce, 21000, 300_000, 60_000);
   startWorkerLoop('agencyDigest', runAgencyDigestWorkerOnce, 22000, 60_000, 60_000);
+  // Jarvis Creation Worker — 1x/day at ~09h, closes the production loop (alert → briefing → copy → arte → handoff)
+  startWorkerLoop('jarvisCreation', runJarvisCreationWorkerOnce, 23000, 120_000, 60_000);
 }
