@@ -17,6 +17,8 @@ import InputBase from '@mui/material/InputBase';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import Divider from '@mui/material/Divider';
+import LinearProgress from '@mui/material/LinearProgress';
 import {
   IconArrowLeft,
   IconBrandTrello,
@@ -25,6 +27,7 @@ import {
   IconExternalLink,
   IconPlus,
   IconRefresh,
+  IconUserCheck,
   IconX,
 } from '@tabler/icons-react';
 
@@ -73,6 +76,15 @@ type ProjectBoard = {
 type CardDetail = ProjectCard & {
   checklists: { id: string; name: string; items: { text: string; checked: boolean }[] }[];
   comments: { id: string; body: string; author_name: string; commented_at: string }[];
+};
+
+type AllocSuggestion = {
+  display_name: string;
+  email: string;
+  score: number;
+  reason: string;
+  active_cards: number;
+  sla_rate: number | null;
 };
 
 // ─── Label colors ─────────────────────────────────────────────────────────────
@@ -142,8 +154,8 @@ function getJarvisAction(card: ProjectCard, listName: string): JarvisAction | nu
 // ─── KanbanCard ───────────────────────────────────────────────────────────────
 
 function KanbanCard({
-  card, index, listName, onClick,
-}: { card: ProjectCard; index: number; listName: string; onClick: () => void }) {
+  card, index, listName, onClick, onAllocate,
+}: { card: ProjectCard; index: number; listName: string; onClick: () => void; onAllocate: (card: ProjectCard) => void }) {
   const overdue = isDueOverdue(card.due_date, card.due_complete);
   const jarvisAction = getJarvisAction(card, listName);
 
@@ -196,7 +208,10 @@ function KanbanCard({
                 size="small"
                 color={jarvisAction.color}
                 sx={{ height: 18, fontSize: 10, fontWeight: 700, mr: 0.5, cursor: 'pointer' }}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (jarvisAction.label === 'Alocar') onAllocate(card);
+                }}
               />
             )}
             {card.members?.length > 0 && (
@@ -277,6 +292,10 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
   const [selectedCard, setSelectedCard] = useState<CardDetail | null>(null);
   const [loadingCard, setLoadingCard] = useState(false);
   const [addingToList, setAddingToList] = useState<string | null>(null);
+  const [allocatingCard, setAllocatingCard] = useState<ProjectCard | null>(null);
+  const [allocSuggestions, setAllocSuggestions] = useState<AllocSuggestion[]>([]);
+  const [allocLoading, setAllocLoading] = useState(false);
+  const [allocAssigning, setAllocAssigning] = useState<string | null>(null);
 
   const loadBoard = useCallback(async () => {
     setLoading(true);
@@ -383,6 +402,32 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
     await loadBoard();
   }
 
+  // ── Allocation ───────────────────────────────────────────────────────────────
+
+  async function openAllocate(card: ProjectCard) {
+    setAllocatingCard(card);
+    setAllocSuggestions([]);
+    setAllocLoading(true);
+    try {
+      const data = await apiGet(`/trello/ops-suggest-owner/${card.id}`);
+      setAllocSuggestions(data.suggestions ?? []);
+    } finally {
+      setAllocLoading(false);
+    }
+  }
+
+  async function assignOwner(email: string) {
+    if (!allocatingCard) return;
+    setAllocAssigning(email);
+    try {
+      await apiPost(`/trello/ops-cards/${allocatingCard.id}/assign`, { email });
+      setAllocatingCard(null);
+      await loadBoard();
+    } finally {
+      setAllocAssigning(null);
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const Shell = noShell ? Box : ({ children }: { children: React.ReactNode }) => <AppShell title="Projetos" fullBleed>{children}</AppShell>;
@@ -477,6 +522,7 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
                             index={index}
                             listName={list.name}
                             onClick={() => openCard(card)}
+                            onAllocate={openAllocate}
                           />
                         ))}
                         {provided.placeholder}
@@ -512,6 +558,83 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
           })}
         </Box>
       </DragDropContext>
+
+      {/* Allocation drawer */}
+      <Drawer
+        anchor="right"
+        open={!!allocatingCard}
+        onClose={() => setAllocatingCard(null)}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 400 } } }}
+      >
+        <Box sx={{ p: 3, height: '100%', overflowY: 'auto' }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <IconUserCheck size={20} />
+              <Typography variant="h6" fontWeight={700}>Alocar responsável</Typography>
+            </Stack>
+            <IconButton size="small" onClick={() => setAllocatingCard(null)}>
+              <IconX size={18} />
+            </IconButton>
+          </Stack>
+
+          {allocatingCard && (
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              {allocatingCard.title}
+            </Typography>
+          )}
+
+          <Divider sx={{ mb: 2 }} />
+
+          {allocLoading ? (
+            <Box>
+              <LinearProgress sx={{ mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">Buscando sugestões...</Typography>
+            </Box>
+          ) : allocSuggestions.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Nenhum membro encontrado. Adicione membros ao board primeiro.
+            </Typography>
+          ) : (
+            <Stack spacing={1.5}>
+              {allocSuggestions.map((s, i) => (
+                <Box
+                  key={s.email}
+                  sx={{
+                    border: '1px solid', borderColor: 'divider', borderRadius: 1.5,
+                    p: 1.5, bgcolor: i === 0 ? 'primary.lighter' : 'background.paper',
+                  }}
+                >
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                    <Box flex={1} mr={1}>
+                      <Stack direction="row" spacing={1} alignItems="center" mb={0.25}>
+                        <Typography variant="body2" fontWeight={700}>{s.display_name}</Typography>
+                        {i === 0 && (
+                          <Chip label="Recomendado" size="small" color="primary"
+                            sx={{ height: 16, fontSize: 10, fontWeight: 700 }} />
+                        )}
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">{s.reason}</Typography>
+                    </Box>
+                    <Stack alignItems="flex-end" spacing={0.5}>
+                      <Typography variant="caption" fontWeight={700} color={s.score >= 70 ? 'success.main' : 'warning.main'}>
+                        {s.score}pts
+                      </Typography>
+                      <Button
+                        size="small" variant={i === 0 ? 'contained' : 'outlined'}
+                        disabled={allocAssigning !== null}
+                        onClick={() => assignOwner(s.email)}
+                        sx={{ fontSize: 11, py: 0.25, px: 1, minWidth: 80 }}
+                      >
+                        {allocAssigning === s.email ? <CircularProgress size={12} /> : 'Atribuir'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </Box>
+      </Drawer>
 
       {/* Card detail drawer */}
       <Drawer

@@ -1782,7 +1782,7 @@ Regras:
     const PASS_THRESHOLD = 72;
 
     // Gemini Vision — real multimodal analysis
-    const apiKey = env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       try {
         const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
