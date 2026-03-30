@@ -16,8 +16,10 @@ import { alpha } from '@mui/material/styles';
 import {
   IconBrain, IconSend, IconMessage,
   IconFileText, IconAlertTriangle, IconSparkles,
-  IconMicrophone, IconChevronRight,
+  IconMicrophone, IconChevronRight, IconInfoCircle,
+  IconCheck, IconX,
 } from '@tabler/icons-react';
+import { apiPost } from '@/lib/api';
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiGet } from '@/lib/api';
 
@@ -37,10 +39,12 @@ type FeedItem = {
   kind: 'briefing' | 'alert' | 'auto_briefing' | 'proposal' | 'opportunity';
   title: string;
   subtitle?: string;
+  reasoning?: string;   // fontes/raciocínio — transparência do Jarvis
   href?: string;
   color: string;
   icon: React.ReactNode;
   cta: string;
+  proposalId?: string;  // para proposals com approve/discard inline
 };
 
 type JarvisFeed = {
@@ -61,6 +65,7 @@ function buildFeedItems(feed: JarvisFeed): FeedItem[] {
       kind: 'briefing',
       title: j.title || 'Job sem título',
       subtitle: j.client_name,
+      reasoning: 'Job em intake sem briefing preenchido',
       href: `/admin/operacoes/jobs/${j.id}/briefing`,
       color: '#FFAE1F',
       icon: <IconFileText size={14} />,
@@ -74,6 +79,7 @@ function buildFeedItems(feed: JarvisFeed): FeedItem[] {
       kind: 'alert',
       title: a.title,
       subtitle: a.client_name,
+      reasoning: a.body || undefined,
       href: `/clients/${a.client_id}`,
       color: '#ef4444',
       icon: <IconAlertTriangle size={14} />,
@@ -86,7 +92,8 @@ function buildFeedItems(feed: JarvisFeed): FeedItem[] {
       id: `ab-${b.id}`,
       kind: 'auto_briefing',
       title: b.title,
-      subtitle: b.client_name + (b.drop_pct ? ` · queda de ${b.drop_pct}%` : ''),
+      subtitle: b.client_name,
+      reasoning: b.drop_pct ? `Queda de ${b.drop_pct}% de engajamento detectada` : 'Briefing gerado automaticamente pelo Jarvis',
       href: `/edro/${b.id}`,
       color: '#a855f7',
       icon: <IconSparkles size={14} />,
@@ -94,16 +101,18 @@ function buildFeedItems(feed: JarvisFeed): FeedItem[] {
     });
   }
 
-  for (const p of feed.proposals.slice(0, 2)) {
+  for (const p of feed.proposals.slice(0, 3)) {
     items.push({
       id: `pr-${p.id}`,
       kind: 'proposal',
       title: p.title || p.meeting_title,
       subtitle: p.client_name,
+      reasoning: p.reasoning ?? (p.meeting_title ? `Da reunião: "${p.meeting_title}"` : undefined),
       href: '/edro/jarvis',
       color: '#5D87FF',
       icon: <IconMicrophone size={14} />,
-      cta: 'Ver proposta',
+      cta: 'Aprovar',
+      proposalId: p.id,
     });
   }
 
@@ -112,7 +121,8 @@ function buildFeedItems(feed: JarvisFeed): FeedItem[] {
       id: `op-${o.id}`,
       kind: 'opportunity',
       title: o.title,
-      subtitle: o.client_name + ` · ${o.confidence}% confiança`,
+      subtitle: o.client_name,
+      reasoning: `${o.confidence}% de confiança · detectado via clipping/social`,
       href: `/clients/${o.client_id}`,
       color: '#13DEB9',
       icon: <IconSparkles size={14} />,
@@ -164,6 +174,7 @@ export default function JarvisHomeSection() {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
+  const [proposalAction, setProposalAction] = useState<Record<string, 'approving' | 'discarding' | 'done'>>({});
 
   useEffect(() => {
     try {
@@ -200,6 +211,17 @@ export default function JarvisHomeSection() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  const handleProposalAction = async (proposalId: string, action: 'approve' | 'discard') => {
+    setProposalAction((prev) => ({ ...prev, [proposalId]: action === 'approve' ? 'approving' : 'discarding' }));
+    try {
+      await apiPost(`/jarvis/proposals/${proposalId}/${action}`, {});
+      setProposalAction((prev) => ({ ...prev, [proposalId]: 'done' }));
+      setFeedItems((prev) => prev.filter((item) => item.proposalId !== proposalId));
+    } catch {
+      setProposalAction((prev) => { const next = { ...prev }; delete next[proposalId]; return next; });
+    }
   };
 
   return (
@@ -247,11 +269,13 @@ export default function JarvisHomeSection() {
             <Stack spacing={0.5}>
               {loading
                 ? [1, 2, 3].map((i) => <Skeleton key={i} height={44} sx={{ borderRadius: 1.5 }} />)
-                : feedItems.map((item) => (
+                : feedItems.map((item) => {
+                    const isProposal = item.kind === 'proposal' && !!item.proposalId;
+                    const pAction = item.proposalId ? proposalAction[item.proposalId] : undefined;
+
+                    return (
                     <Box
                       key={item.id}
-                      component={Link}
-                      href={item.href ?? '#'}
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
@@ -259,7 +283,6 @@ export default function JarvisHomeSection() {
                         px: 1.25,
                         py: 0.75,
                         borderRadius: 1.5,
-                        textDecoration: 'none',
                         border: `1px solid ${alpha(item.color, 0.18)}`,
                         bgcolor: alpha(item.color, 0.05),
                         transition: 'all 120ms ease',
@@ -267,7 +290,11 @@ export default function JarvisHomeSection() {
                       }}
                     >
                       <Box sx={{ color: item.color, display: 'flex', flexShrink: 0 }}>{item.icon}</Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box
+                        component={isProposal ? 'div' : Link}
+                        href={!isProposal ? (item.href ?? '#') : undefined}
+                        sx={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
+                      >
                         <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }} noWrap>
                           {item.title}
                         </Typography>
@@ -276,22 +303,64 @@ export default function JarvisHomeSection() {
                             {item.subtitle}
                           </Typography>
                         )}
+                        {item.reasoning && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.15 }}>
+                            <IconInfoCircle size={10} style={{ color: 'var(--mui-palette-text-disabled)', flexShrink: 0 }} />
+                            <Typography
+                              variant="caption"
+                              sx={{ fontSize: '0.6rem', color: 'text.disabled', lineHeight: 1.2, fontStyle: 'italic' }}
+                              noWrap
+                            >
+                              {item.reasoning}
+                            </Typography>
+                          </Box>
+                        )}
                       </Box>
-                      <Chip
-                        label={item.cta}
-                        size="small"
-                        sx={{
-                          height: 20,
-                          fontSize: '0.62rem',
-                          fontWeight: 600,
-                          bgcolor: alpha(item.color, 0.12),
-                          color: item.color,
-                          flexShrink: 0,
-                          '& .MuiChip-label': { px: 0.75 },
-                        }}
-                      />
+
+                      {/* Proposal: inline approve/discard */}
+                      {isProposal ? (
+                        <Stack direction="row" spacing={0.4} flexShrink={0}>
+                          <Chip
+                            label={pAction === 'approving' ? '…' : <IconCheck size={11} />}
+                            size="small"
+                            onClick={() => !pAction && handleProposalAction(item.proposalId!, 'approve')}
+                            sx={{
+                              height: 22, width: 28, cursor: 'pointer',
+                              bgcolor: alpha('#13DEB9', 0.12), color: '#13DEB9',
+                              '& .MuiChip-label': { px: 0.5 },
+                              '&:hover': { bgcolor: alpha('#13DEB9', 0.25) },
+                            }}
+                          />
+                          <Chip
+                            label={pAction === 'discarding' ? '…' : <IconX size={11} />}
+                            size="small"
+                            onClick={() => !pAction && handleProposalAction(item.proposalId!, 'discard')}
+                            sx={{
+                              height: 22, width: 28, cursor: 'pointer',
+                              bgcolor: alpha('#EF4444', 0.12), color: '#EF4444',
+                              '& .MuiChip-label': { px: 0.5 },
+                              '&:hover': { bgcolor: alpha('#EF4444', 0.25) },
+                            }}
+                          />
+                        </Stack>
+                      ) : (
+                        <Chip
+                          label={item.cta}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.62rem',
+                            fontWeight: 600,
+                            bgcolor: alpha(item.color, 0.12),
+                            color: item.color,
+                            flexShrink: 0,
+                            '& .MuiChip-label': { px: 0.75 },
+                          }}
+                        />
+                      )}
                     </Box>
-                  ))}
+                    );
+                  })}
             </Stack>
           </Box>
         )}

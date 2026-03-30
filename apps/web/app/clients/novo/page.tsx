@@ -24,6 +24,7 @@ import {
   IconBuilding, IconTag, IconBrandInstagram,
   IconCheck, IconArrowRight, IconArrowLeft, IconSparkles,
   IconRocket, IconPalette, IconSettings2, IconWorldSearch,
+  IconPhoto, IconCalendar, IconBrain, IconExternalLink,
 } from '@tabler/icons-react';
 import { apiPost } from '@/lib/api';
 import AppShell from '@/components/AppShell';
@@ -233,27 +234,97 @@ export default function NewClientWizardPage() {
 
   // Done screen
   if (step === STEPS.length) {
+    const NEXT_STEPS = [
+      {
+        icon: <IconPhoto size={22} color="#A855F7" />,
+        title: 'Configurar Modelo Visual (LoRA)',
+        desc: 'Envie imagens de referência da marca para treinar o modelo visual personalizado.',
+        action: () => router.push(`/clients/${createdId}/identidade`),
+        label: 'Ir para Identidade',
+        color: '#A855F7',
+        priority: true,
+      },
+      {
+        icon: <IconCalendar size={22} color="#5D87FF" />,
+        title: 'Criar Primeiro Calendário',
+        desc: 'Defina as datas e eventos do mês para começar a gerar conteúdo automaticamente.',
+        action: () => router.push(`/clients/${createdId}/calendar`),
+        label: 'Ir para Calendário',
+        color: '#5D87FF',
+        priority: false,
+      },
+      {
+        icon: <IconBrain size={22} color="#F59E0B" />,
+        title: 'Criar Briefing Inaugural',
+        desc: 'Lance o primeiro job de produção de conteúdo com o motor de IA.',
+        action: () => router.push(`/clients/${createdId}/briefings`),
+        label: 'Criar Briefing',
+        color: '#F59E0B',
+        priority: false,
+      },
+    ];
+
     return (
       <AppShell title="Novo Cliente">
-      <Box sx={{ maxWidth: 600, mx: 'auto', textAlign: 'center', py: 6 }}>
-        <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: '#13DEB920', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3 }}>
-          <IconCheck size={40} color="#13DEB9" />
-        </Box>
-        <Typography variant="h4" fontWeight={800} sx={{ mb: 1 }}>Cliente criado!</Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-          <strong>{data.name}</strong> foi configurado e já está disponível na plataforma.
-          O sistema está processando clipping, calendário e oportunidades em segundo plano.
+      <Box sx={{ maxWidth: 640, mx: 'auto', py: 6, px: 2 }}>
+        {/* Success header */}
+        <Stack alignItems="center" sx={{ mb: 5 }}>
+          <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: '#13DEB920', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+            <IconCheck size={40} color="#13DEB9" />
+          </Box>
+          <Typography variant="h4" fontWeight={800} sx={{ mb: 1 }}>Cliente criado!</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 460 }}>
+            <strong>{data.name}</strong> está configurado. Clipping, oportunidades e inteligência de mercado
+            estão sendo inicializados em segundo plano.
+          </Typography>
+        </Stack>
+
+        {/* Next steps */}
+        <Typography variant="overline" color="text.disabled" sx={{ display: 'block', mb: 1.5, letterSpacing: '0.1em' }}>
+          Próximos passos recomendados
         </Typography>
-        <Stack direction="row" spacing={2} justifyContent="center">
-          <Button variant="contained" onClick={() => router.push(`/clients/${createdId}`)}
+        <Stack spacing={1.5} sx={{ mb: 4 }}>
+          {NEXT_STEPS.map((ns) => (
+            <Card
+              key={ns.title}
+              variant="outlined"
+              sx={{
+                cursor: 'pointer',
+                borderColor: ns.priority ? `${ns.color}55` : 'divider',
+                bgcolor: ns.priority ? `${ns.color}08` : 'transparent',
+                transition: 'all 0.15s',
+                '&:hover': { borderColor: ns.color, bgcolor: `${ns.color}10` },
+              }}
+              onClick={ns.action}
+            >
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Box sx={{ flexShrink: 0 }}>{ns.icon}</Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>{ns.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">{ns.desc}</Typography>
+                  </Box>
+                  <IconExternalLink size={16} color="#555" />
+                </Stack>
+              </CardContent>
+            </Card>
+          ))}
+        </Stack>
+
+        {/* Secondary actions */}
+        <Stack direction="row" spacing={1.5} flexWrap="wrap">
+          <Button variant="contained"
+            onClick={() => router.push(`/clients/${createdId}`)}
             sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c43e10' } }}>
             Abrir Painel do Cliente
           </Button>
-          <Button variant="outlined" onClick={() => router.push(`/clients/${createdId}/analytics`)}>
+          <Button variant="outlined"
+            onClick={() => router.push(`/clients/${createdId}/analytics`)}>
             Ver Analytics
           </Button>
-          <Button variant="text" onClick={() => { setData(EMPTY); setCreatedId(''); setStep(0); }}>
-            Criar outro
+          <Button variant="text"
+            onClick={() => { setData(EMPTY); setCreatedId(''); setStep(0); }}>
+            Criar outro cliente
           </Button>
         </Stack>
       </Box>

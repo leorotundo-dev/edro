@@ -39,6 +39,7 @@ const ENTRIES: Entry[] = [
       { label: 'Security Logs', value: 'security-logs',  kind: 'internal' },
       { label: 'Jobs',          value: 'jobs',            kind: 'internal' },
       { label: 'Health',        value: 'health',          kind: 'route', href: '/admin/health' },
+      { label: 'Central de Saúde', value: 'saude',       kind: 'route', href: '/admin/saude' },
     ],
   },
   { label: 'Usuários', value: 'users', kind: 'route', href: '/admin/users' },

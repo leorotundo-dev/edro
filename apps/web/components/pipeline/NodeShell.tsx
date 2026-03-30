@@ -4,7 +4,18 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
-import { IconPencil, IconLock, IconPlus, IconX, IconRefresh } from '@tabler/icons-react';
+import Tooltip from '@mui/material/Tooltip';
+import {
+  IconPencil,
+  IconLock,
+  IconPlus,
+  IconX,
+  IconRefresh,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconCopy,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import type { NodeStatus } from './PipelineContext';
 
@@ -15,7 +26,7 @@ export type NodeOption = {
   color?: string;
   icon?: React.ReactNode;
   onClick: () => void;
-  added?: boolean;   // already in canvas — greyed out
+  added?: boolean;
   disabled?: boolean;
 };
 
@@ -27,36 +38,38 @@ interface NodeShellProps {
   collapsedSummary?: React.ReactNode;
   onEdit?: () => void;
   onRerun?: () => void;
+  onRun?: () => void;
+  onStop?: () => void;
+  onDuplicate?: () => void;
+  onDelete?: () => void;
   accentColor?: string;
-  nodeOptions?: NodeOption[];   // contextual child actions for this node
+  nodeOptions?: NodeOption[];
   children: React.ReactNode;
 }
 
-const STATUS_COLORS: Record<NodeStatus, string> = {
-  done:    '#13DEB9',
-  active:  '#E85219',
-  running: '#E85219',
-  locked:  '#444444',
-};
-
-const STATUS_BG: Record<NodeStatus, string> = {
-  done:    'rgba(19,222,185,0.05)',
-  active:  'rgba(232,82,25,0.06)',
-  running: 'rgba(232,82,25,0.06)',
-  locked:  'transparent',
-};
-
 export default function NodeShell({
-  title, icon, status, width = 300, collapsedSummary, onEdit, onRerun, accentColor, nodeOptions, children,
+  title,
+  icon,
+  status,
+  width = 380,
+  collapsedSummary,
+  onEdit,
+  onRerun,
+  onRun,
+  onStop,
+  onDuplicate,
+  onDelete,
+  accentColor,
+  nodeOptions,
+  children,
 }: NodeShellProps) {
-  const color = accentColor && status !== 'done' && status !== 'locked'
-    ? accentColor
-    : STATUS_COLORS[status];
-  const isDone = status === 'done';
-  const isLocked = status === 'locked';
+  const isDone    = status === 'done';
+  const isLocked  = status === 'locked';
   const isRunning = status === 'running';
+  const isActive  = status === 'active';
+  const accent = accentColor ?? '#E85219';
 
-  // Entrance animation: slide-in from right on first mount
+  // Entrance animation
   const [visible, setVisible] = useState(false);
   const mounted = useRef(false);
   useEffect(() => {
@@ -66,184 +79,396 @@ export default function NodeShell({
     }
   }, []);
 
-  // Contextual node options panel
   const [showOptions, setShowOptions] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  // Determine which action groups exist (for divider logic)
+  const hasLeftGroup =
+    (isActive && !!onRun) ||
+    (isRunning && !!onStop) ||
+    (isDone && !!onRerun) ||
+    !!onEdit ||
+    (!!nodeOptions && !isLocked);
+  const hasRightGroup = !!onDuplicate || !!onDelete;
 
   return (
-    <Box sx={{
-      width,
-      borderRadius: 2,
-      border: `1.5px solid ${color}`,
-      opacity: visible ? 1 : 0,
-      transform: visible ? 'translateY(0) scale(1)' : 'translateY(18px) scale(0.97)',
-      transition: 'opacity 0.45s cubic-bezier(0.34,1.56,0.64,1), transform 0.45s cubic-bezier(0.34,1.56,0.64,1), border-color 0.35s ease, box-shadow 0.35s ease',
-      bgcolor: STATUS_BG[status],
-      boxShadow: status === 'active' ? `0 0 0 4px ${color}22` : status === 'done' ? `0 0 0 2px ${color}18` : 'none',
-      overflow: 'hidden',
-      position: 'relative',
-    }}>
-      {/* Header */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={1}
+    <Box
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      sx={{
+        width,
+        position: 'relative',
+        overflow: 'visible',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.98)',
+        transition: 'opacity 0.35s ease, transform 0.35s ease',
+      }}
+    >
+      {/* ── Floating action bar (above card) ────────────────────────────────── */}
+      {!isLocked && (hasLeftGroup || hasRightGroup) && (
+        <Stack
+          direction="row"
+          alignItems="center"
+          sx={{
+            position: 'absolute',
+            top: -36,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 20,
+            bgcolor: '#111',
+            border: '1px solid #2a2a2a',
+            borderRadius: '20px',
+            px: 0.5,
+            py: 0.375,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+            opacity: hovered ? 1 : 0,
+            transition: 'opacity 0.15s',
+            pointerEvents: hovered ? 'auto' : 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {/* Left group */}
+          {isActive && onRun && (
+            <Tooltip title="Executar" placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={onRun}
+                sx={{ p: 0.3, color: '#555', '&:hover': { color: '#13DEB9' } }}
+              >
+                <IconPlayerPlay size={12} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {isRunning && onStop && (
+            <Tooltip title="Parar" placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={onStop}
+                sx={{ p: 0.3, color: '#555', '&:hover': { color: '#E85219' } }}
+              >
+                <IconPlayerStop size={12} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {isDone && onRerun && (
+            <Tooltip title="Re-executar" placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={onRerun}
+                sx={{ p: 0.3, color: '#555', '&:hover': { color: '#ccc' } }}
+              >
+                <IconRefresh size={12} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {onEdit && (
+            <Tooltip title="Editar" placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={onEdit}
+                sx={{ p: 0.3, color: '#555', '&:hover': { color: '#ccc' } }}
+              >
+                <IconPencil size={12} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {nodeOptions && !isLocked && (
+            <Tooltip title={showOptions ? 'Fechar opções' : 'Adicionar ao canvas'} placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={() => setShowOptions((p) => !p)}
+                sx={{
+                  p: 0.3,
+                  color: showOptions ? accent : '#555',
+                  '&:hover': { color: accent },
+                }}
+              >
+                {showOptions ? <IconX size={12} /> : <IconPlus size={12} />}
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {/* Divider between left and right groups */}
+          {hasLeftGroup && hasRightGroup && (
+            <Box sx={{ width: 1, height: 14, bgcolor: '#2a2a2a', mx: 0.25, flexShrink: 0 }} />
+          )}
+
+          {/* Right group */}
+          {onDuplicate && (
+            <Tooltip title="Duplicar" placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={onDuplicate}
+                sx={{ p: 0.3, color: '#555', '&:hover': { color: '#ccc' } }}
+              >
+                <IconCopy size={12} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {onDelete && (
+            <Tooltip title="Excluir" placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={onDelete}
+                sx={{ p: 0.3, color: '#555', '&:hover': { color: '#EF4444' } }}
+              >
+                <IconTrash size={12} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
+      )}
+
+      {/* ── Card visual shell ────────────────────────────────────────────────── */}
+      <Box
         sx={{
-          px: 1.5, py: 1,
-          borderBottom: `1px solid ${color}33`,
-          bgcolor: `${color}08`,
+          width: '100%',
+          borderRadius: '14px',
+          border: `1px solid ${isDone ? '#272727' : isActive ? '#252525' : '#1c1c1c'}`,
+          bgcolor: '#0e0e0e',
+          overflow: 'hidden',
+          position: 'relative',
+          opacity: isLocked ? 0.55 : 1,
+          transition: 'border-color 0.2s, box-shadow 0.2s, opacity 0.35s ease',
+          boxShadow: isRunning
+            ? `0 0 0 1px ${accent}33, 0 4px 32px ${accent}18`
+            : hovered && !isLocked
+            ? '0 0 0 1px #2a2a2a, 0 4px 24px rgba(0,0,0,0.4)'
+            : '0 2px 12px rgba(0,0,0,0.3)',
+          cursor: isLocked ? 'not-allowed' : 'default',
         }}
       >
-        <Box sx={{ color, display: 'flex', alignItems: 'center' }}>{icon}</Box>
-        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color, flex: 1 }}>
-          {title}
-        </Typography>
-        {isRunning && <CircularProgress size={14} sx={{ color }} />}
-        {isDone && (
-          <Box sx={{
-            width: 18, height: 18, borderRadius: '50%', bgcolor: color,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-              <path d="M5 13l4 4L19 7" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </Box>
-        )}
-        {isLocked && (
-          <IconLock size={14} color={color} />
-        )}
-        {isDone && onRerun && (
-          <IconButton size="small" onClick={onRerun} title="Re-executar" sx={{ p: 0.25, color: 'text.disabled', ml: 0.25, '&:hover': { color: '#F8A800' } }}>
-            <IconRefresh size={12} />
-          </IconButton>
-        )}
-        {isDone && onEdit && (
-          <IconButton size="small" onClick={onEdit} sx={{ p: 0.25, color: 'text.disabled', ml: 0.25 }}>
-            <IconPencil size={12} />
-          </IconButton>
-        )}
-        {/* Contextual options toggle — shown on all non-locked nodes when options are defined */}
-        {nodeOptions && !isLocked && (
-          <IconButton
-            size="small"
-            onClick={() => setShowOptions((p) => !p)}
+        {/* ── Label row ──────────────────────────────────────────────────────── */}
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={0.75}
+          sx={{
+            px: 1.75,
+            pt: 1.25,
+            pb: isDone && collapsedSummary ? 0.75 : 0.5,
+            opacity: hovered || isRunning || !isDone ? 1 : 0.6,
+            transition: 'opacity 0.2s',
+          }}
+        >
+          <Box
             sx={{
-              p: 0.25, ml: 0.25,
-              color: showOptions ? color : '#444',
-              bgcolor: showOptions ? `${color}18` : 'transparent',
-              border: `1px solid ${showOptions ? `${color}55` : 'transparent'}`,
-              borderRadius: 1,
-              transition: 'all 0.15s',
-              '&:hover': { color, bgcolor: `${color}12`, borderColor: `${color}44` },
+              color: isDone ? '#444' : isRunning ? accent : '#3a3a3a',
+              display: 'flex',
+              transition: 'color 0.2s',
             }}
           >
-            {showOptions ? <IconX size={11} /> : <IconPlus size={11} />}
-          </IconButton>
-        )}
-      </Stack>
-
-      {/* Contextual options panel — expands inline below header */}
-      {nodeOptions && showOptions && (
-        <Box sx={{
-          borderBottom: `1px solid ${color}22`,
-          bgcolor: '#0a0a0a',
-          px: 1.25, py: 1,
-          animation: 'fadeSlideIn 0.18s ease',
-          '@keyframes fadeSlideIn': {
-            from: { opacity: 0, transform: 'translateY(-4px)' },
-            to:   { opacity: 1, transform: 'translateY(0)' },
-          },
-        }}>
-          <Typography sx={{ fontSize: '0.52rem', color: '#444', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75 }}>
-            Opções deste node
+            {icon}
+          </Box>
+          <Typography
+            sx={{
+              fontSize: '0.62rem',
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: isDone ? '#444' : isRunning ? accent : '#3a3a3a',
+              transition: 'color 0.2s',
+              flex: 1,
+            }}
+          >
+            {title}
           </Typography>
-          <Stack spacing={0.4}>
-            {nodeOptions.map((opt) => {
-              const optColor = opt.color ?? color;
-              return (
-                <Box
-                  key={opt.id}
-                  onClick={() => {
-                    if (opt.added || opt.disabled) return;
-                    opt.onClick();
-                    setShowOptions(false);
-                  }}
-                  sx={{
-                    display: 'flex', alignItems: 'center', gap: 0.75,
-                    px: 0.875, py: 0.5, borderRadius: 1.5, cursor: opt.added || opt.disabled ? 'default' : 'pointer',
-                    border: `1px solid ${opt.added ? '#1e1e1e' : `${optColor}33`}`,
-                    bgcolor: opt.added ? 'transparent' : `${optColor}08`,
-                    opacity: opt.added || opt.disabled ? 0.45 : 1,
-                    transition: 'all 0.12s',
-                    '&:hover': opt.added || opt.disabled ? {} : {
-                      bgcolor: `${optColor}16`,
-                      borderColor: optColor,
-                    },
-                  }}
-                >
-                  {opt.icon && (
-                    <Box sx={{ color: optColor, display: 'flex', flexShrink: 0 }}>
-                      {opt.icon}
-                    </Box>
-                  )}
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 600, color: opt.added ? '#555' : 'text.primary', lineHeight: 1.3 }}>
-                      {opt.label}
-                      {opt.added && (
-                        <Typography component="span" sx={{ fontSize: '0.52rem', color: '#555', ml: 0.5 }}>· já adicionado</Typography>
-                      )}
-                    </Typography>
-                    {opt.description && (
-                      <Typography sx={{ fontSize: '0.57rem', color: 'text.disabled', lineHeight: 1.3 }}>
-                        {opt.description}
-                      </Typography>
-                    )}
-                  </Box>
-                </Box>
-              );
-            })}
-          </Stack>
-        </Box>
-      )}
 
-      {/* Body */}
-      <Box sx={{ position: 'relative' }}>
-        {/* Locked overlay */}
-        {isLocked && (
-          <Box sx={{
-            position: 'absolute', inset: 0, zIndex: 10,
-            backdropFilter: 'blur(3px)',
-            bgcolor: 'rgba(10,10,10,0.5)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            gap: 0.75, py: 2,
-          }}>
-            <IconLock size={20} color="#555" />
-            <Typography variant="caption" sx={{ color: '#555', fontSize: '0.65rem' }}>
-              Complete o step anterior
+          {/* Running spinner in header */}
+          {isRunning && (
+            <CircularProgress size={10} sx={{ color: accent }} />
+          )}
+
+          {/* Lock indicator */}
+          {isLocked && <IconLock size={11} color="#333" />}
+        </Stack>
+
+        {/* ── Options panel ──────────────────────────────────────────────────── */}
+        {nodeOptions && showOptions && (
+          <Box
+            sx={{
+              mx: 1.5,
+              mb: 1,
+              borderRadius: 2,
+              bgcolor: '#0a0a0a',
+              border: '1px solid #1e1e1e',
+              px: 1.25,
+              py: 1,
+              animation: 'spacesSlideIn 0.14s ease',
+              '@keyframes spacesSlideIn': {
+                from: { opacity: 0, transform: 'translateY(-3px)' },
+                to:   { opacity: 1, transform: 'translateY(0)' },
+              },
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: '0.5rem',
+                color: '#333',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                mb: 0.75,
+              }}
+            >
+              Adicionar ao canvas
             </Typography>
+            <Stack spacing={0.35}>
+              {nodeOptions.map((opt) => {
+                const c = opt.color ?? accent;
+                return (
+                  <Box
+                    key={opt.id}
+                    onClick={() => {
+                      if (!opt.added && !opt.disabled) {
+                        opt.onClick();
+                        setShowOptions(false);
+                      }
+                    }}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.75,
+                      px: 1,
+                      py: 0.6,
+                      borderRadius: 1.5,
+                      cursor: opt.added || opt.disabled ? 'default' : 'pointer',
+                      opacity: opt.added || opt.disabled ? 0.35 : 1,
+                      '&:hover': opt.added || opt.disabled ? {} : { bgcolor: `${c}10` },
+                      transition: 'background 0.1s',
+                    }}
+                  >
+                    {opt.icon && (
+                      <Box sx={{ color: c, display: 'flex', flexShrink: 0 }}>{opt.icon}</Box>
+                    )}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontSize: '0.64rem', fontWeight: 600, color: '#ccc' }}>
+                        {opt.label}
+                        {opt.added && (
+                          <Typography
+                            component="span"
+                            sx={{ fontSize: '0.52rem', color: '#444', ml: 0.5 }}
+                          >
+                            · adicionado
+                          </Typography>
+                        )}
+                      </Typography>
+                      {opt.description && (
+                        <Typography sx={{ fontSize: '0.57rem', color: '#444', lineHeight: 1.3 }}>
+                          {opt.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Stack>
           </Box>
         )}
 
-        {/* Done: collapsed summary */}
-        {isDone && collapsedSummary ? (
-          <Box sx={{ px: 1.5, py: 1.25 }}>{collapsedSummary}</Box>
-        ) : (
-          <Box sx={{ px: 1.5, py: 1.5 }}>{children}</Box>
+        {/* ── Body ───────────────────────────────────────────────────────────── */}
+        <Box sx={{ position: 'relative' }}>
+          {isLocked && (
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 10,
+                backdropFilter: 'blur(2px)',
+                bgcolor: 'rgba(8,8,8,0.6)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 0.5,
+                py: 2.5,
+                borderRadius: '0 0 14px 14px',
+              }}
+            >
+              <IconLock size={18} color="#2a2a2a" />
+              <Typography sx={{ fontSize: '0.58rem', color: '#333' }}>
+                Complete o step anterior
+              </Typography>
+            </Box>
+          )}
+
+          <Box sx={{ px: 1.75, pb: 1.75 }}>
+            {isDone && collapsedSummary ? collapsedSummary : children}
+          </Box>
+        </Box>
+
+        {/* ── Run / Running pill button (bottom-right) ─────────────────────── */}
+        {(isActive || isRunning) && onRun && (
+          <Box
+            onClick={onRun}
+            sx={{
+              position: 'absolute',
+              bottom: 10,
+              right: 10,
+              zIndex: 5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.4,
+              bgcolor: accent,
+              color: '#fff',
+              borderRadius: '20px',
+              px: 1,
+              py: 0.3,
+              fontSize: '0.58rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              userSelect: 'none',
+              animation: isRunning
+                ? 'runPulse 1.8s ease-in-out infinite'
+                : undefined,
+              '@keyframes runPulse': {
+                '0%,100%': { opacity: 0.8 },
+                '50%':     { opacity: 1 },
+              },
+              '&:hover': {
+                filter: 'brightness(1.15)',
+              },
+              transition: 'filter 0.15s',
+            }}
+          >
+            {isRunning ? (
+              <>
+                <CircularProgress size={9} sx={{ color: '#fff', mr: 0.5 }} />
+                Rodando…
+              </>
+            ) : (
+              <>
+                <IconPlayerPlay size={10} />
+                Run
+              </>
+            )}
+          </Box>
+        )}
+
+        {/* ── Running shimmer bar at bottom ────────────────────────────────── */}
+        {isRunning && (
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              bgcolor: accent,
+              animation: 'spacesShimmer 1.8s ease-in-out infinite',
+              '@keyframes spacesShimmer': {
+                '0%':   { transform: 'scaleX(0.05)', transformOrigin: 'left',  opacity: 0.8 },
+                '50%':  { transform: 'scaleX(0.9)',  transformOrigin: 'left',  opacity: 1 },
+                '100%': { transform: 'scaleX(0.05)', transformOrigin: 'right', opacity: 0.8 },
+              },
+            }}
+          />
         )}
       </Box>
-
-      {/* Running shimmer strip */}
-      {isRunning && (
-        <Box sx={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 2,
-          bgcolor: color,
-          animation: 'shimmerBar 1.5s ease-in-out infinite',
-          '@keyframes shimmerBar': {
-            '0%': { transform: 'scaleX(0)', transformOrigin: 'left' },
-            '50%': { transform: 'scaleX(1)', transformOrigin: 'left' },
-            '100%': { transform: 'scaleX(0)', transformOrigin: 'right' },
-          },
-        }} />
-      )}
     </Box>
   );
 }

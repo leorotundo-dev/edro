@@ -51,14 +51,7 @@ export default async function systemHealthRoutes(app: FastifyInstance) {
   app.get('/admin/system-health', { preHandler: guards }, async (req: any, reply) => {
     const tenantId: string = req.user.tenant_id;
 
-    const [
-      gapRows,
-      connectorErrors,
-      jarvisAlerts,
-      opSignals,
-      perfAlerts,
-      healthCritical,
-    ] = await Promise.all([
+    const settled = await Promise.allSettled([
 
       // 1. Gaps de configuração por cliente ativo
       query<{
@@ -187,6 +180,19 @@ export default async function systemHealthRoutes(app: FastifyInstance) {
         [tenantId]
       ),
     ]);
+
+    // Unwrap settled results — any failed query returns empty rows
+    const empty = { rows: [] as any[] };
+    const [
+      gapRows,
+      connectorErrors,
+      jarvisAlerts,
+      opSignals,
+      perfAlerts,
+      healthCritical,
+    ] = settled.map((r) => r.status === 'fulfilled' ? r.value : empty) as [
+      typeof empty, typeof empty, typeof empty, typeof empty, typeof empty, typeof empty
+    ];
 
     // ── Build client_gaps ──────────────────────────────────────────────────────
 
