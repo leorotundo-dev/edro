@@ -43,7 +43,7 @@ const TASKS: TaskDef[] = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AssistantNode({ id }: NodeProps) {
-  const { nodeStatus } = usePipeline();
+  const { nodeStatus, rerunCopy, handleGenerateArte } = usePipeline();
   const { duplicateNode, deleteNode } = useCanvasContext();
 
   const [task, setTask] = useState<TaskId>('refinar_prompt');
@@ -53,6 +53,7 @@ export default function AssistantNode({ id }: NodeProps) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [applied, setApplied] = useState(false);
 
   // ── Derived status ──────────────────────────────────────────────────────
   const status = result ? 'done' : running ? 'running' : 'active';
@@ -287,21 +288,30 @@ export default function AssistantNode({ id }: NodeProps) {
                 </Tooltip>
               </Stack>
 
-              {/* Apply as prompt (stub) */}
               <Button
                 size="small"
-                onClick={() => console.log('[AssistantNode] Apply as prompt:', result)}
+                disabled={applied}
+                onClick={() => {
+                  if (!result) return;
+                  if (task === 'descrever_imagem') {
+                    handleGenerateArte(true, { refinement: result });
+                  } else {
+                    rerunCopy(result);
+                  }
+                  setApplied(true);
+                  setTimeout(() => setApplied(false), 2500);
+                }}
                 sx={{
                   mt: 0.75,
                   fontSize: '0.58rem',
                   textTransform: 'none',
-                  color: ACCENT,
+                  color: applied ? '#13DEB9' : ACCENT,
                   px: 0.75,
                   py: 0.25,
                   '&:hover': { bgcolor: `${ACCENT}10` },
                 }}
               >
-                Aplicar como prompt
+                {applied ? 'Aplicado ✓' : 'Aplicar como prompt'}
               </Button>
             </Box>
           )}

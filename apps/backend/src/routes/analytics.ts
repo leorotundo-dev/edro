@@ -1667,4 +1667,52 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       return reply.status(500).send({ error: e.message });
     }
   });
+
+  // ── GET /analytics/posts ──────────────────────────────────────────────────
+  // Post-level performance for PerformanceNode in Pipeline Studio
+  app.get('/analytics/posts', {
+    preHandler: [authGuard],
+  }, async (req: any, reply: any) => {
+    const tenantId = req.user?.tenant_id as string;
+    const { client_id, limit = '10' } = req.query as { client_id?: string; limit?: string };
+    const lim = Math.min(parseInt(limit) || 10, 50);
+
+    const params: any[] = [tenantId];
+    let clientFilter = '';
+    if (client_id) {
+      params.push(client_id);
+      clientFilter = `AND fpm.client_id = $${params.length}`;
+    }
+
+    const { rows } = await query<any>(
+      `SELECT
+         fpm.id,
+         fpm.client_id,
+         cf.platform,
+         cf.format_name AS format,
+         fpm.measurement_date,
+         fpm.impressions,
+         fpm.reach,
+         fpm.engagement_rate,
+         CASE WHEN fpm.impressions > 0
+              THEN ROUND((fpm.clicks::numeric / fpm.impressions * 100), 2)
+              ELSE 0
+         END AS ctr,
+         fpm.likes,
+         fpm.comments,
+         fpm.saves,
+         fpm.spend_brl,
+         fpm.roas
+       FROM format_performance_metrics fpm
+       JOIN campaign_formats cf ON cf.id = fpm.campaign_format_id
+       WHERE fpm.tenant_id = $1
+         ${clientFilter}
+         AND fpm.measurement_date >= now() - interval '90 days'
+       ORDER BY fpm.measurement_date DESC
+       LIMIT $${params.length + 1}`,
+      [...params, lim],
+    );
+
+    return reply.send({ success: true, data: { posts: rows } });
+  });
 }

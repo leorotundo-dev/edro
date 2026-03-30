@@ -39,7 +39,7 @@ export async function runExperimentResultsJob(tenantId?: string | null) {
     }
 
     const { rows: variants } = await query<any>(
-      `SELECT variant_key FROM experiment_variants WHERE experiment_id=$1`,
+      `SELECT variant_key, payload, weight FROM experiment_variants WHERE experiment_id=$1`,
       [exp.id]
     );
 
@@ -47,7 +47,12 @@ export async function runExperimentResultsJob(tenantId?: string | null) {
       await query(
         `INSERT INTO experiment_results (experiment_id, variant_key, time_window, metrics)
          VALUES ($1,$2,$3,$4::jsonb)`,
-        [exp.id, v.variant_key, '7d', JSON.stringify({ performance: perf, note: 'stub' })]
+        [exp.id, v.variant_key, '7d', JSON.stringify({
+          performance: perf,
+          variant_payload: v.payload,
+          variant_weight: v.weight,
+          recorded_at: new Date().toISOString(),
+        })]
       );
     }
   }

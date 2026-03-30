@@ -1263,6 +1263,298 @@ Regras:
     }
   });
 
+  // ── Arte Chain — SSE streaming endpoint ─────────────────────────────────
+  app.post('/studio/creative/arte-chain/stream', async (request: any, reply) => {
+    const body = arteChainSchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+
+    reply.raw.setHeader('Content-Type', 'text/event-stream');
+    reply.raw.setHeader('Cache-Control', 'no-cache');
+    reply.raw.setHeader('Connection', 'keep-alive');
+    reply.raw.flushHeaders();
+
+    const emit = (event: string, data: object) => {
+      reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const { runAgentDiretorArte } = await import('../services/ai/agentDiretorArte') as any;
+      const result = await runAgentDiretorArte({
+        ...body,
+        tenantId,
+        onProgress: emit,
+      });
+      emit('done', { success: true, data: result });
+    } catch (e: any) {
+      emit('error', { success: false, error: e?.message ?? 'Erro ao gerar arte' });
+    } finally {
+      reply.raw.end();
+    }
+  });
+
+  // ── Schedule — persist a scheduled post ─────────────────────────────────
+  const scheduleSchema = z.object({
+    platform:     z.string().min(1),
+    scheduled_at: z.string().datetime(),
+    copy_text:    z.string().optional(),
+    image_url:    z.string().url().optional(),
+    briefing_id:  z.string().uuid().optional(),
+  });
+
+  app.post('/studio/creative/schedule', async (request: any, reply) => {
+    const body = scheduleSchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ success: false, error: 'unauthorized' });
+
+    try {
+      const { rows } = await query<{ id: string }>(
+        `INSERT INTO scheduled_posts (tenant_id, platform, scheduled_at, copy_text, image_url, briefing_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [
+          tenantId,
+          body.platform,
+          body.scheduled_at,
+          body.copy_text ?? null,
+          body.image_url ?? null,
+          body.briefing_id ?? null,
+        ],
+      );
+      return reply.send({ success: true, scheduled_id: rows[0]?.id });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Compare Models — run same prompt across multiple Fal.ai models ───────
+  const compareModelsSchema = z.object({
+    prompt:          z.string().min(1),
+    negative_prompt: z.string().optional(),
+    models:          z.array(z.string()).min(2).max(4).default(['flux-pro', 'flux-realism', 'ideogram-v2']),
+    aspect_ratio:    z.string().optional().default('1:1'),
+    client_id:       z.string().optional(),
+  });
+
+  app.post('/studio/creative/compare-models', async (request: any, reply) => {
+    const body = compareModelsSchema.parse(request.body);
+    try {
+      const { generateImageWithFal } = await import('../services/ai/falAiService');
+      const MODEL_LABELS: Record<string, string> = {
+        'flux-pro':         'Flux Pro',
+        'flux-pro-ultra':   'Flux Ultra',
+        'flux-realism':     'Flux Realism',
+        'flux-dev':         'Flux Dev',
+        'flux-lora':        'Flux LoRA',
+        'ideogram-v2':      'Ideogram v2',
+        'recraft-v3':       'Recraft v3',
+        'hidream-i1':       'HiDream',
+        'nano-banana-pro':  'Gemini Pro',
+        'nano-banana-2':    'Gemini Flash',
+      };
+      const results = await Promise.all(
+        body.models.map(async (model) => {
+          const start = Date.now();
+          try {
+            const res = await generateImageWithFal({
+              prompt: body.prompt,
+              negativePrompt: body.negative_prompt,
+              aspectRatio: body.aspect_ratio,
+              model,
+              numImages: 1,
+            });
+            return {
+              model,
+              label: MODEL_LABELS[model] ?? model,
+              image_url: res.imageUrl,
+              image_urls: res.imageUrls,
+              ms: Date.now() - start,
+            };
+          } catch (e: any) {
+            return {
+              model,
+              label: MODEL_LABELS[model] ?? model,
+              image_url: '',
+              image_urls: [],
+              ms: Date.now() - start,
+              error: e?.message ?? 'failed',
+            };
+          }
+        }),
+      );
+      return reply.send({ success: true, results });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Assistant — AI text task runner ─────────────────────────────────────
+  const assistantSchema = z.object({
+    task:     z.enum(['refinar_prompt', 'descrever_imagem', 'gerar_variacoes', 'traduzir']),
+    text:     z.string().min(1).max(4000),
+    language: z.string().optional().default('pt-BR'),
+  });
+
+  app.post('/studio/creative/assistant', async (request: any, reply) => {
+    const body = assistantSchema.parse(request.body);
+    const TASK_PROMPTS: Record<string, string> = {
+      refinar_prompt: `Você é um especialista em engenharia de prompts para geração de imagens com IA (Flux, Stable Diffusion, Midjourney). Receba o texto abaixo e reescreva-o como um prompt otimizado em inglês para geração de imagens publicitárias. Mantenha a intenção criativa, adicione detalhes visuais (iluminação, composição, estilo), seja específico e conciso. Retorne APENAS o prompt otimizado, sem explicações.`,
+      descrever_imagem: `Você é um diretor de arte. Analise o texto ou URL de imagem abaixo e escreva uma descrição visual detalhada em português. Inclua: composição, paleta de cores, iluminação, mood, estilo artístico e elementos-chave. Máximo 150 palavras. Retorne APENAS a descrição.`,
+      gerar_variacoes: `Você é um redator criativo especializado em copy publicitário. Gere 3 variações criativas do texto abaixo, mantendo a mensagem principal mas variando o ângulo, tom e estrutura. Numere cada variação (1. 2. 3.). Retorne APENAS as variações.`,
+      traduzir: `Você é um tradutor especializado em copy publicitário. Traduza o texto abaixo para ${body.language} preservando o tom, impacto emocional e calls-to-action. Adapte expressões culturalmente quando necessário. Retorne APENAS a tradução.`,
+    };
+    try {
+      const { generateCompletion } = await import('../services/ai/claudeService');
+      const res = await generateCompletion({
+        prompt: `${TASK_PROMPTS[body.task]}\n\nTexto:\n${body.text}`,
+        maxTokens: 800,
+        temperature: 0.7,
+      });
+      return reply.send({ success: true, result: res.text.trim() });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Campanha — sequential multi-piece campaign generator ─────────────────
+  const campanhaSchema = z.object({
+    template:    z.string().optional().default('nurture'),
+    conceito:    z.any().optional(),
+    briefing: z.object({
+      produto:        z.string(),
+      objetivo_final: z.string(),
+      mensagem_chave: z.string(),
+      audiencia:      z.string(),
+      tom:            z.string(),
+      restricoes:     z.array(z.string()).optional(),
+    }),
+    clientId:    clientIdSchema.optional(),
+    plataformas: z.array(z.string()).optional(),
+  });
+
+  app.post('/studio/creative/campanha', async (request: any, reply) => {
+    const body = campanhaSchema.parse(request.body);
+    try {
+      const { runAgentCampanha } = await import('../services/ai/agentCampanha') as any;
+      const result = await runAgentCampanha({
+        template: body.template,
+        conceito: body.conceito ?? null,
+        briefing: body.briefing,
+        plataformas: body.plataformas ?? ['instagram'],
+      });
+      return reply.send({ success: true, data: result });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── DA Analytics — dashboard data for art direction memory ───────────────
+  app.get('/studio/creative/da-analytics', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const { days = '30' } = request.query as { days?: string };
+    const windowDays = Math.min(parseInt(days) || 30, 365);
+
+    try {
+      const [triggers, concepts, trends, matrix] = await Promise.all([
+        // Trigger analytics — from studio_creatives approvals
+        query<any>(
+          `SELECT trigger_id,
+                  COUNT(*) FILTER (WHERE status = 'approved')::int AS positive,
+                  COUNT(*) FILTER (WHERE status != 'approved')::int AS negative,
+                  ROUND(COUNT(*) FILTER (WHERE status = 'approved') * 100.0 / NULLIF(COUNT(*), 0), 1) AS approval_rate
+             FROM studio_creatives
+            WHERE ${tenantId ? 'tenant_id = $1 AND' : ''} created_at >= now() - ($${tenantId ? 2 : 1} || ' days')::interval
+              AND trigger_id IS NOT NULL
+            GROUP BY trigger_id
+            ORDER BY approval_rate DESC NULLS LAST`,
+          tenantId ? [tenantId, windowDays] : [windowDays],
+        ),
+        // Concept analytics — from da_concepts
+        query<any>(
+          `SELECT slug, title, category,
+                  ROUND(trust_score * 100, 1) AS score,
+                  0 AS rejection_rate
+             FROM da_concepts
+            WHERE (tenant_id = $1 OR tenant_id IS NULL)
+              AND status = 'active'
+            ORDER BY trust_score DESC
+            LIMIT 20`,
+          [tenantId ?? null],
+        ),
+        // Trend snapshots
+        query<any>(
+          `SELECT DISTINCT ON (cluster_key, platform) tag, cluster_key, platform, segment,
+                  momentum, trend_score, recent_count, previous_count
+             FROM da_trend_snapshots
+            WHERE tenant_id = $1
+              AND snapshot_at >= now() - ($2 || ' days')::interval
+            ORDER BY cluster_key, platform, trend_score DESC`,
+          [tenantId ?? '', windowDays],
+        ),
+        // Platform × style matrix from studio_creatives
+        query<any>(
+          `SELECT platform, recipe_name AS style, COUNT(*)::int AS count,
+                  0.75 AS avg_confidence
+             FROM studio_creatives
+            WHERE ${tenantId ? 'tenant_id = $1 AND' : ''} created_at >= now() - ($${tenantId ? 2 : 1} || ' days')::interval
+              AND platform IS NOT NULL AND recipe_name IS NOT NULL
+            GROUP BY platform, recipe_name
+            ORDER BY count DESC`,
+          tenantId ? [tenantId, windowDays] : [windowDays],
+        ),
+      ]);
+
+      return reply.send({
+        success: true,
+        data: {
+          triggers:             triggers.rows,
+          concepts:             concepts.rows,
+          trends:               trends.rows,
+          platform_style_matrix: matrix.rows,
+          window_days:          windowDays,
+        },
+      });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
+  // ── Upload Asset — accept file, store in S3/local, return public URL ──────
+  app.post('/studio/creative/upload-asset', async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    try {
+      const data = await request.file({ limits: { fileSize: 30 * 1024 * 1024 } });
+      if (!data) return reply.status(400).send({ success: false, error: 'no_file' });
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) chunks.push(chunk);
+      const buffer = Buffer.concat(chunks);
+
+      const safeName = (data.filename as string).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const { saveFile } = await import('../library/storage');
+      const key = `studio-assets/${tenantId ?? 'anonymous'}/${Date.now()}_${safeName}`;
+      await saveFile(buffer, key);
+
+      // Build public URL
+      const s3Endpoint = process.env.S3_ENDPOINT?.replace(/\/$/, '') ?? '';
+      const s3Bucket   = process.env.S3_BUCKET ?? '';
+      const s3Region   = process.env.S3_REGION ?? '';
+      let assetUrl: string;
+      if (s3Endpoint && s3Bucket) {
+        assetUrl = `${s3Endpoint}/${s3Bucket}/${key}`;
+      } else if (s3Bucket && s3Region) {
+        assetUrl = `https://${s3Bucket}.s3.${s3Region}.amazonaws.com/${key}`;
+      } else {
+        const apiBase = (process.env.API_URL ?? '').replace(/\/$/, '');
+        assetUrl = `${apiBase}/api/studio/creative/asset/${encodeURIComponent(key)}`;
+      }
+
+      const mimeType = (data.mimetype as string) || 'application/octet-stream';
+      return reply.send({ success: true, assetUrl, mimeType, key });
+    } catch (e: any) {
+      return reply.status(500).send({ success: false, error: e?.message });
+    }
+  });
+
   // ── Visual Insights — search reference images for DA context ────────────
   const visualInsightsSchema = z.object({
     category: z.string().min(2),

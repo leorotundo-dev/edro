@@ -1734,7 +1734,7 @@ export default function EquipePage() {
                     : p,
                 ).filter((p) => p.is_internal));
                 setEditPerson(null);
-              } catch { /* TODO: show error */ }
+              } catch (e: any) { setError(e?.message ?? 'Erro ao salvar pessoa'); }
               finally { setEditSaving(false); }
             }}
           >
