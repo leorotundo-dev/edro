@@ -146,6 +146,7 @@ const daReferenceListSchema = z.object({
   client_id: clientIdSchema.optional(),
   platform: z.string().optional(),
   segment: z.string().optional(),
+  domain: z.string().optional(),
   statuses: z.array(daReferenceStatuses).max(4).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
@@ -581,6 +582,7 @@ export default async function studioCreativeRoutes(app: FastifyInstance) {
       clientId: input.client_id,
       platform: input.platform,
       segment: input.segment,
+      domain: input.domain,
       statuses: input.statuses,
       limit: input.limit ?? 50,
     });

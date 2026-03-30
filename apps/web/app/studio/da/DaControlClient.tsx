@@ -29,6 +29,7 @@ import {
   IconSparkles,
   IconTargetArrow,
 } from '@tabler/icons-react';
+import ReferenceGallerySection from './ReferenceGallerySection';
 
 type StoredClient = {
   id: string;
@@ -1015,6 +1016,13 @@ export default function DaControlClient() {
             />
           </Grid>
         </Grid>
+
+        <SectionCard
+          title="Acervo de referências"
+          subtitle="Catálogo visual completo — Cannes, Behance, Ads of the World, D&AD e mais. Filtre por categoria, aprove ou rejeite direto no card."
+        >
+          <ReferenceGallerySection />
+        </SectionCard>
 
         <SectionCard
           title="Curadoria de referências"

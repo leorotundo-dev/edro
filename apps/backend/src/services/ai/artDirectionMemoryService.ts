@@ -25,6 +25,7 @@ export type ArtDirectionReferenceSummary = {
   id: string;
   title: string;
   source_url: string;
+  image_url: string | null;
   platform: string | null;
   format: string | null;
   segment: string | null;
@@ -36,6 +37,7 @@ export type ArtDirectionReferenceSummary = {
   typography_tags: string[];
   trend_score: number | null;
   confidence_score: number | null;
+  trust_score: number | null;
   rationale: string | null;
   discovered_at: string;
 };
@@ -1408,6 +1410,7 @@ export async function listArtDirectionReferences(params: {
   clientId?: string | null;
   platform?: string | null;
   segment?: string | null;
+  domain?: string | null;
   statuses?: Array<'discovered' | 'analyzed' | 'rejected' | 'archived'>;
   limit?: number;
 }): Promise<ArtDirectionReferenceRecord[]> {
@@ -1426,6 +1429,10 @@ export async function listArtDirectionReferences(params: {
     values.push(params.segment);
     where.push(`(r.segment = $${values.length} OR r.segment IS NULL)`);
   }
+  if (params.domain) {
+    values.push(params.domain);
+    where.push(`r.domain = $${values.length}`);
+  }
   if (params.statuses?.length) {
     values.push(params.statuses);
     where.push(`r.status = ANY($${values.length}::text[])`);
@@ -1438,6 +1445,7 @@ export async function listArtDirectionReferences(params: {
        r.id,
        r.title,
        r.source_url,
+       r.image_url,
        r.platform,
        r.format,
        r.segment,
@@ -1449,6 +1457,7 @@ export async function listArtDirectionReferences(params: {
        COALESCE(r.typography_tags, '[]'::jsonb) AS typography_tags,
        r.trend_score,
        r.confidence_score,
+       r.trust_score,
        r.rationale,
        r.discovered_at::text AS discovered_at,
        r.status,
