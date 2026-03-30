@@ -20,4 +20,4 @@ WORKDIR /app/apps/backend
 
 EXPOSE 3333
 
-CMD ["node", "-e", "require('ts-node/register/transpile-only'); require('./src/index.ts')"]
+CMD ["sh", "-c", "node -e \"require('ts-node/register/transpile-only'); require('./src/db/migrate.ts')\" && node -e \"require('ts-node/register/transpile-only'); require('./src/index.ts')\""]
