@@ -38,6 +38,26 @@ function formatHours(minutes: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
+function normalizeDigits(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function isValidCnpj(value: string) {
+  const digits = normalizeDigits(value);
+  if (digits.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(digits)) return false;
+
+  const calc = (base: string, weights: number[]) => {
+    const sum = weights.reduce((acc, weight, index) => acc + Number(base[index]) * weight, 0);
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+
+  const first = calc(digits.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const second = calc(`${digits.slice(0, 12)}${first}`, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return digits === `${digits.slice(0, 12)}${first}${second}`;
+}
+
 async function loadFreelancerIdentitySnapshot(freelancerId: string) {
   const res = await pool.query(
     `SELECT fp.id,
@@ -1859,25 +1879,62 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // ── B2B LEGAL COMPLIANCE ROUTES ──────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════
 
-  // GET /freelancers/portal/cnpj/:cnpj — proxy BrasilAPI for CNPJ auto-fill
+  // GET /freelancers/portal/cnpj/:cnpj — structured BrasilAPI lookup for CNPJ auto-fill
   app.get('/freelancers/portal/cnpj/:cnpj', async (request: any, reply) => {
     const token = request.headers.authorization?.replace('Bearer ', '');
     if (!token) return reply.status(401).send({ error: 'Unauthorized' });
 
     const { cnpj } = request.params as { cnpj: string };
-    const clean = cnpj.replace(/\D/g, '');
-    if (clean.length !== 14) return reply.status(400).send({ error: 'CNPJ inválido' });
+    const clean = normalizeDigits(cnpj);
+    if (!isValidCnpj(clean)) {
+      return reply.send({
+        status: 'invalid_cnpj',
+        provider: 'validation',
+        source: 'validation',
+        cnpj: clean,
+        message: 'CNPJ inválido. Confira os dígitos e tente novamente.',
+        allow_manual_entry: true,
+      });
+    }
 
     try {
       // codeql[js/request-forgery] domain hardcoded to brasilapi.com.br; ${clean} is digits-only (regex + length validated)
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
-      if (!res.ok) return reply.status(404).send({ error: 'CNPJ não encontrado na Receita Federal' });
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`, { signal: AbortSignal.timeout(8000) });
+      if (res.status === 404) {
+        return reply.send({
+          status: 'not_found',
+          provider: 'brasilapi',
+          source: 'brasilapi',
+          cnpj: clean,
+          message: 'Não encontramos esse CNPJ na consulta automática. Você pode preencher os campos manualmente e continuar.',
+          allow_manual_entry: true,
+        });
+      }
+      if (!res.ok) {
+        return reply.send({
+          status: 'provider_unavailable',
+          provider: 'brasilapi',
+          source: 'brasilapi',
+          cnpj: clean,
+          message: 'A consulta automática de CNPJ está indisponível agora. Você pode preencher os campos manualmente e continuar.',
+          allow_manual_entry: true,
+        });
+      }
       const data = await res.json() as any;
+      const situacao = data.descricao_situacao_cadastral ?? null;
+      const isActive = !situacao || String(situacao).toLowerCase().includes('ativa');
       return reply.send({
+        status: isActive ? 'found_active' : 'found_inactive',
+        provider: 'brasilapi',
+        source: 'brasilapi',
         cnpj: clean,
+        message: isActive
+          ? 'CNPJ encontrado e dados preenchidos automaticamente.'
+          : `CNPJ encontrado com situação "${situacao}". Confira os dados antes de continuar.`,
+        allow_manual_entry: true,
         razao_social: data.razao_social ?? null,
         nome_fantasia: data.nome_fantasia ?? null,
-        situacao: data.descricao_situacao_cadastral ?? null,
+        situacao,
         logradouro: data.logradouro ?? null,
         numero: data.numero ?? null,
         complemento: data.complemento ?? null,
@@ -1887,7 +1944,14 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         cep: data.cep ?? null,
       });
     } catch {
-      return reply.status(502).send({ error: 'Erro ao consultar BrasilAPI' });
+      return reply.send({
+        status: 'provider_unavailable',
+        provider: 'brasilapi',
+        source: 'brasilapi',
+        cnpj: clean,
+        message: 'A consulta automática de CNPJ está indisponível agora. Você pode preencher os campos manualmente e continuar.',
+        allow_manual_entry: true,
+      });
     }
   });
 

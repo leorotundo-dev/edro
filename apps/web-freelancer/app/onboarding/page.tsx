@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
+import { isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
 
 const STEPS = ['empresa', 'representante', 'pagamento', 'skills', 'avatar'] as const;
@@ -141,12 +142,16 @@ export default function OnboardingPage() {
   }, []);
 
   async function lookupCnpj() {
-    const clean = form.cnpj.replace(/\D/g, '');
-    if (clean.length !== 14) { setError('Digite os 14 dígitos do CNPJ.'); return; }
+    const clean = normalizeDigits(form.cnpj);
+    if (!isValidCnpj(clean)) { setError('CNPJ inválido. Confira os dígitos e tente novamente.'); return; }
     setError('');
     setCnpjLoading(true);
     try {
-      const data = await apiGet<any>(`/freelancers/portal/cnpj/${clean}`);
+      const data = await apiGet<CnpjLookupResponse>(`/freelancers/portal/cnpj/${clean}`);
+      if (data.status === 'invalid_cnpj' || data.status === 'not_found' || data.status === 'provider_unavailable') {
+        setError(data.message);
+        return;
+      }
       setForm(prev => ({
         ...prev,
         razao_social:    data.razao_social    ?? prev.razao_social,
@@ -157,13 +162,13 @@ export default function OnboardingPage() {
         address_district:data.bairro          ?? prev.address_district,
         address_city:    data.municipio       ?? prev.address_city,
         address_state:   data.uf              ?? prev.address_state,
-        address_cep:     (data.cep ?? '').replace(/\D/g, ''),
+        address_cep:     (data.cep ?? '').replace(/\D/g, '') || prev.address_cep,
       }));
-      if (data.situacao && !data.situacao.toLowerCase().includes('ativa')) {
-        setError(`Atenção: CNPJ com situação "${data.situacao}" na Receita Federal.`);
+      if (data.status === 'found_inactive' || (data.situacao && !data.situacao.toLowerCase().includes('ativa'))) {
+        setError(data.message);
       }
     } catch {
-      setError('CNPJ não encontrado na Receita Federal. Verifique e tente novamente.');
+      setError('A consulta automática de CNPJ falhou agora. Você pode preencher manualmente e continuar.');
     } finally {
       setCnpjLoading(false);
     }
@@ -171,7 +176,7 @@ export default function OnboardingPage() {
 
   function validateStep(): string | null {
     if (step === 0) {
-      if (!form.cnpj.replace(/\D/g, '').match(/^\d{14}$/)) return 'CNPJ inválido.';
+      if (!isValidCnpj(form.cnpj)) return 'CNPJ inválido.';
       if (!form.razao_social.trim()) return 'Razão Social é obrigatória.';
     }
     if (step === 1) {
@@ -276,7 +281,7 @@ export default function OnboardingPage() {
           {/* ── Bloco 1: Empresa ─── */}
           {currentStep === 'empresa' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <Field label="CNPJ" required hint="Somente números. O cadastro será preenchido automaticamente.">
+              <Field label="CNPJ" required hint="Somente números. Se a consulta automática falhar, você pode preencher os campos manualmente.">
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     style={inputStyle}

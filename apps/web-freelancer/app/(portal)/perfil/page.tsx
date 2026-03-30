@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import clsx from 'clsx';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
 import { apiGet, apiPatch, apiPostFormData, swrFetcher } from '@/lib/api';
+import { isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
 
 type Profile = {
   display_name: string;
@@ -175,15 +176,19 @@ export default function PerfilPage() {
   }
 
   async function lookupCnpj() {
-    const clean = legal.cnpj.replace(/\D/g, '');
-    if (clean.length !== 14) {
-      setError((prev) => ({ ...prev, legal: 'Digite os 14 dígitos do CNPJ.' }));
+    const clean = normalizeDigits(legal.cnpj);
+    if (!isValidCnpj(clean)) {
+      setError((prev) => ({ ...prev, legal: 'CNPJ inválido. Confira os dígitos e tente novamente.' }));
       return;
     }
     setSaving((prev) => ({ ...prev, legal_lookup: true }));
     setError((prev) => ({ ...prev, legal: '' }));
     try {
-      const data = await apiGet<any>(`/freelancers/portal/cnpj/${clean}`);
+      const data = await apiGet<CnpjLookupResponse>(`/freelancers/portal/cnpj/${clean}`);
+      if (data.status === 'invalid_cnpj' || data.status === 'not_found' || data.status === 'provider_unavailable') {
+        setError((prev) => ({ ...prev, legal: data.message }));
+        return;
+      }
       setLegal((prev) => ({
         ...prev,
         razao_social: data?.razao_social ?? prev.razao_social,
@@ -196,8 +201,11 @@ export default function PerfilPage() {
         address_state: data?.uf ?? prev.address_state,
         address_cep: (data?.cep ?? '').replace(/\D/g, '') || prev.address_cep,
       }));
+      if (data.status === 'found_inactive') {
+        setError((prev) => ({ ...prev, legal: data.message }));
+      }
     } catch {
-      setError((prev) => ({ ...prev, legal: 'Não foi possível consultar esse CNPJ agora.' }));
+      setError((prev) => ({ ...prev, legal: 'A consulta automática de CNPJ falhou agora. Você pode preencher os campos manualmente.' }));
     } finally {
       setSaving((prev) => ({ ...prev, legal_lookup: false }));
     }
