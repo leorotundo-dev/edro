@@ -450,22 +450,78 @@ function phaseColor(phaseId: string | null | undefined): string {
   return PHASE_COLORS[phaseId] || '#6366f1';
 }
 
+type AiConceptSuggestion = {
+  concept_id: string;
+  headline_concept: string;
+  emotional_truth: string;
+  cultural_angle: string;
+  visual_direction: string;
+  suggested_structure: string;
+  risk_level: 'safe' | 'bold' | 'disruptive';
+  rationale: string;
+};
+
+const RISK_COLOR: Record<string, string> = { safe: '#22c55e', bold: '#f59e0b', disruptive: '#ef4444' };
+
 function ConceptDialog({
   open,
   campaignId,
+  clientId,
+  campaignName,
+  campaignObjective,
   phases,
   onClose,
   onCreated,
 }: {
   open: boolean;
   campaignId: string;
+  clientId: string;
+  campaignName: string;
+  campaignObjective: string;
   phases: Phase[];
   onClose: () => void;
   onCreated: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiConcepts, setAiConcepts] = useState<AiConceptSuggestion[]>([]);
+  const [selectedAiIdx, setSelectedAiIdx] = useState<number | null>(null);
   const [form, setForm] = useState({ phase_id: '', name: '', insight: '', triggers: '', example_copy: '', hero_piece: '' });
   const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setAiError('');
+    setAiConcepts([]);
+    setSelectedAiIdx(null);
+    try {
+      const res = await apiPost<{ success: boolean; data?: { concepts: AiConceptSuggestion[] }; error?: string }>(
+        '/studio/creative/conceito',
+        { briefing: { title: campaignName, objective: campaignObjective }, clientId: clientId || undefined },
+      );
+      if (res.success && res.data?.concepts?.length) {
+        setAiConcepts(res.data.concepts);
+      } else {
+        setAiError(res.error || 'Nenhum conceito gerado');
+      }
+    } catch (e: any) {
+      setAiError(e?.message || 'Erro ao gerar conceitos');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const applyAiConcept = (c: AiConceptSuggestion, idx: number) => {
+    setSelectedAiIdx(idx);
+    setForm((f) => ({
+      ...f,
+      name: c.headline_concept,
+      insight: c.emotional_truth,
+      example_copy: c.rationale,
+      hero_piece: c.visual_direction,
+    }));
+  };
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
@@ -481,6 +537,8 @@ function ConceptDialog({
         hero_piece: form.hero_piece.trim() || null,
       });
       setForm({ phase_id: '', name: '', insight: '', triggers: '', example_copy: '', hero_piece: '' });
+      setAiConcepts([]);
+      setSelectedAiIdx(null);
       onCreated();
       onClose();
     } catch { /* silent */ } finally { setSaving(false); }
@@ -496,6 +554,72 @@ function ConceptDialog({
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          {/* AI suggestion strip */}
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="caption" color="text.secondary">Sugestões da IA</Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={generating ? <CircularProgress size={12} /> : <IconSparkles size={14} />}
+              onClick={handleGenerate}
+              disabled={generating}
+              sx={{ fontSize: '0.72rem', textTransform: 'none', borderColor: 'divider' }}
+            >
+              {generating ? 'Gerando…' : 'Sugerir com IA'}
+            </Button>
+          </Stack>
+
+          {aiError && <Alert severity="warning" sx={{ py: 0.5, fontSize: '0.75rem' }}>{aiError}</Alert>}
+
+          {aiConcepts.length > 0 && (
+            <Stack spacing={0.75}>
+              {aiConcepts.map((c, i) => (
+                <Box
+                  key={c.concept_id}
+                  onClick={() => applyAiConcept(c, i)}
+                  sx={{
+                    p: 1.25,
+                    borderRadius: 1.5,
+                    border: '1px solid',
+                    borderColor: selectedAiIdx === i ? 'primary.main' : 'divider',
+                    bgcolor: selectedAiIdx === i ? 'primary.lighter' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.12s',
+                    '&:hover': { borderColor: 'primary.light' },
+                  }}
+                >
+                  <Stack direction="row" alignItems="flex-start" spacing={1}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
+                        {c.headline_concept}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                        {c.emotional_truth}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={c.risk_level}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: '0.6rem',
+                        bgcolor: `${RISK_COLOR[c.risk_level]}20`,
+                        color: RISK_COLOR[c.risk_level],
+                        border: 'none',
+                        flexShrink: 0,
+                      }}
+                    />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontStyle: 'italic' }}>
+                    {c.suggested_structure} · {c.cultural_angle}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+
+          <Divider />
+
           <FormControl size="small" fullWidth>
             <InputLabel>Fase</InputLabel>
             <Select value={form.phase_id} label="Fase" onChange={(e) => setF('phase_id', e.target.value)}>
@@ -1727,6 +1851,9 @@ function CampaignDetail({
       <ConceptDialog
         open={conceptDialogOpen}
         campaignId={campaign.id}
+        clientId={clientId}
+        campaignName={campaign.name}
+        campaignObjective={campaign.objective}
         phases={phases}
         onClose={() => setConceptDialogOpen(false)}
         onCreated={loadDetail}
