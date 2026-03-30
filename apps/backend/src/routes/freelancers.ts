@@ -880,15 +880,64 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const freelancerId = fpRes.rows[0].id;
 
     const body = request.body as Record<string, any>;
-    const scalarAllowed = ['phone', 'whatsapp_jid', 'department', 'role_title', 'email_personal', 'notes',
-      'available_hours_start', 'available_hours_end', 'weekly_capacity_hours', 'unavailable_until'];
-    const arrayAllowed = ['available_days'];
+    if (body.pix_key_type === 'cpf') {
+      return reply.status(400).send({ error: 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF.' });
+    }
+
+    const scalarAllowed = [
+      'display_name',
+      'phone',
+      'whatsapp_jid',
+      'department',
+      'role_title',
+      'email_personal',
+      'notes',
+      'available_hours_start',
+      'available_hours_end',
+      'weekly_capacity_hours',
+      'weekly_capacity',
+      'unavailable_until',
+      'pix_key',
+      'pix_key_type',
+      'portfolio_url',
+      'cnpj',
+      'razao_social',
+      'nome_fantasia',
+      'inscricao_municipal',
+      'address_street',
+      'address_number',
+      'address_complement',
+      'address_district',
+      'address_city',
+      'address_state',
+      'address_cep',
+      'representante_nome',
+      'representante_cpf',
+      'estado_civil',
+      'bank_name',
+      'bank_agency',
+      'bank_account',
+    ];
+    const arrayAllowed = ['available_days', 'skills'];
+    const jsonAllowed = ['skills_json'];
     const sets: string[] = [];
     const vals: any[] = [];
     let idx = 1;
     for (const key of scalarAllowed) {
       if (body[key] !== undefined) {
         sets.push(`${key} = $${idx++}`);
+        if (key === 'cnpj' || key === 'representante_cpf' || key === 'address_cep') {
+          vals.push(typeof body[key] === 'string' ? body[key].replace(/\D/g, '') || null : null);
+          continue;
+        }
+        if (key === 'address_state') {
+          vals.push(typeof body[key] === 'string' ? body[key].toUpperCase() || null : null);
+          continue;
+        }
+        if (key === 'unavailable_until') {
+          vals.push(body[key] ? new Date(body[key]) : null);
+          continue;
+        }
         vals.push(body[key] || null);
       }
     }
@@ -896,6 +945,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       if (body[key] !== undefined) {
         sets.push(`${key} = $${idx++}::text[]`);
         vals.push(Array.isArray(body[key]) ? body[key] : null);
+      }
+    }
+    for (const key of jsonAllowed) {
+      if (body[key] !== undefined) {
+        sets.push(`${key} = $${idx++}::jsonb`);
+        vals.push(JSON.stringify(Array.isArray(body[key]) ? body[key] : []));
       }
     }
     if (!sets.length) return reply.status(400).send({ error: 'No fields to update' });
