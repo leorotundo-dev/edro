@@ -1906,35 +1906,111 @@ export default function EditorClient() {
   return (
     <>
       <Stack spacing={3}>
-        {/* Page Header */}
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
-          <Box>
-            <Typography variant="h4" fontWeight={700}>Copy Studio</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Gere e refine copies com base no briefing e nas boas praticas.
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-            {(() => {
-              const ac = resolveActiveClient();
-              return ac?.name ? (
-                <Chip
-                  size="small"
-                  label={ac.name}
-                  sx={{
-                    fontWeight: 700,
-                    bgcolor: clientBrandColor ? `${clientBrandColor}22` : 'action.selected',
-                    color: clientBrandColor || 'text.primary',
-                    border: `1.5px solid ${clientBrandColor || 'transparent'}`,
-                  }}
-                />
-              ) : null;
-            })()}
-            {activeFormat?.platform ? <Chip size="small" variant="outlined" label={activeFormat.platform} /> : null}
-            {formatLabel ? <Chip size="small" variant="outlined" label={formatLabel} /> : null}
-            {activeCopyLabel ? <Chip size="small" label={activeCopyLabel} /> : null}
-          </Stack>
-        </Stack>
+        <Card
+          variant="outlined"
+          sx={{
+            borderRadius: 4,
+            borderColor: clientBrandColor ? `${clientBrandColor}55` : 'divider',
+            background: clientBrandColor
+              ? `linear-gradient(135deg, ${clientBrandColor}16 0%, rgba(93,135,255,0.04) 52%, #fff 100%)`
+              : 'linear-gradient(135deg, rgba(93,135,255,0.08) 0%, rgba(73,190,255,0.05) 52%, #fff 100%)',
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+            <Stack spacing={2.5}>
+              <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', md: 'center' }}
+                spacing={2}
+              >
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 0.8 }}>
+                    AI workspace
+                  </Typography>
+                  <Typography variant="h4" fontWeight={800}>
+                    Studio Criativo
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 720 }}>
+                    Gere copy, construa prompt visual, aprove a melhor direção e siga para mockup e exportação sem sair do mesmo fluxo.
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                  {(() => {
+                    const ac = resolveActiveClient();
+                    return ac?.name ? (
+                      <Chip
+                        size="small"
+                        label={ac.name}
+                        sx={{
+                          fontWeight: 700,
+                          bgcolor: clientBrandColor ? `${clientBrandColor}22` : 'action.selected',
+                          color: clientBrandColor || 'text.primary',
+                          border: `1.5px solid ${clientBrandColor || 'transparent'}`,
+                        }}
+                      />
+                    ) : null;
+                  })()}
+                  <Chip
+                    size="small"
+                    color="primary"
+                    label={criarTab === 0 ? 'Modo criar' : 'Modo mockups'}
+                    sx={{ fontWeight: 700 }}
+                  />
+                  {activeFormat?.platform ? <Chip size="small" variant="outlined" label={activeFormat.platform} /> : null}
+                  {formatLabel ? <Chip size="small" variant="outlined" label={formatLabel} /> : null}
+                  {activeCopyLabel ? <Chip size="small" label={activeCopyLabel} /> : null}
+                </Stack>
+              </Stack>
+
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                {[
+                  {
+                    label: 'Copys prontas',
+                    value: String(options.length),
+                    helper: options.length ? 'Variações disponíveis para decidir' : 'Nenhuma variação gerada ainda',
+                    tone: '#5D87FF',
+                  },
+                  {
+                    label: 'Arte',
+                    value: arteImageUrl ? 'Pronta' : 'Pendente',
+                    helper: arteImageUrl ? 'Já existe imagem aprovada para seguir' : 'Gere ou refine o visual',
+                    tone: arteImageUrl ? '#13DEB9' : '#E85219',
+                  },
+                  {
+                    label: 'Motor visual',
+                    value: imageProvider === 'gemini' ? 'Gemini / Imagen' : imageProvider === 'leonardo' ? 'Leonardo' : 'FAL',
+                    helper: imageModel,
+                    tone: '#7C3AED',
+                  },
+                ].map((item) => (
+                  <Box
+                    key={item.label}
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      borderRadius: 3,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'background.paper',
+                      p: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                      {item.label}
+                    </Typography>
+                    <Typography variant="h5" fontWeight={800} sx={{ color: item.tone }}>
+                      {item.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {item.helper}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
         {success ? <Alert severity="success">{success}</Alert> : null}

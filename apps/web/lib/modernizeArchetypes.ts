@@ -46,7 +46,7 @@ export const MODERNIZE_FAMILIES: ModernizeFamily[] = [
     label: 'Studio Image',
     archetype: 'ai-image',
     mode: 'adapt',
-    status: 'planned',
+    status: 'in_progress',
     priority: 4,
     routes: ['/studio/editor'],
     notes: 'Gerador visual, prompt, variantes e preview.',
