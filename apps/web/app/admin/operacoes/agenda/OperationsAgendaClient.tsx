@@ -41,7 +41,7 @@ import {
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
-import { formatSourceLabel, getNextAction, type OperationsJob } from '@/components/operations/model';
+import { formatSourceLabel, getNextAction, getRisk, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -122,6 +122,21 @@ function agendaWeekdayKey(job: OperationsJob) {
   if (Number.isNaN(date.getTime())) return null;
   const day = date.getUTCDay();
   return day === 0 ? 7 : day;
+}
+
+function summarizeAgendaJobs(jobs: OperationsJob[]) {
+  const ordered = [...jobs].sort(sortByOperationalPriority);
+  return {
+    primaryJob: ordered[0] || null,
+    unassigned: jobs.filter((job) => !job.owner_id).length,
+    waitingClient: jobs.filter((job) => job.status === 'awaiting_approval').length,
+    blocked: jobs.filter((job) => job.status === 'blocked').length,
+    urgent: jobs.filter((job) => job.is_urgent).length,
+    risky: jobs.filter((job) => {
+      const level = getRisk(job).level;
+      return level === 'critical' || level === 'high';
+    }).length,
+  };
 }
 
 export default function OperationsAgendaClient() {
@@ -242,6 +257,7 @@ export default function OperationsAgendaClient() {
           return sum + Number(allocation?.planned_minutes ?? job.estimated_minutes ?? 0);
         }, 0);
         const state = opsDayState(jobsForDay.length, plannedMinutes);
+        const summary = summarizeAgendaJobs(jobsForDay);
         return {
           ...day,
           dayLabel: day.label,
@@ -249,6 +265,7 @@ export default function OperationsAgendaClient() {
           plannedMinutes,
           stateLabel: state.label,
           tone: state.tone,
+          ...summary,
         };
       }),
     [filteredJobs]
@@ -466,12 +483,23 @@ export default function OperationsAgendaClient() {
                       return (
                         <Box
                           key={day.key}
+                          onClick={() => {
+                            if (day.primaryJob) setSelectedJob(day.primaryJob);
+                          }}
                           sx={(theme) => ({
                             p: 1.15,
                             borderRadius: 2,
                             border: `1px solid ${alpha(color, day.tone === 'neutral' ? 0.18 : 0.24)}`,
                             borderTop: `3px solid ${color}`,
                             bgcolor: theme.palette.mode === 'dark' ? alpha(color, day.tone === 'neutral' ? 0.04 : 0.08) : alpha(color, day.tone === 'neutral' ? 0.03 : 0.04),
+                            cursor: day.primaryJob ? 'pointer' : 'default',
+                            transition: 'transform 160ms ease, box-shadow 160ms ease',
+                            '&:hover': day.primaryJob
+                              ? {
+                                  transform: 'translateY(-2px)',
+                                  boxShadow: theme.shadows[2],
+                                }
+                              : undefined,
                           })}
                         >
                           <Stack spacing={0.55}>
@@ -487,12 +515,30 @@ export default function OperationsAgendaClient() {
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                               {day.jobCount ? `${day.dayLabel.toLowerCase()} · ${day.stateLabel === 'Livre' ? 'sem pressão' : `${day.stateLabel.toLowerCase()} na agenda`}` : 'Sem impacto'}
                             </Typography>
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                              {day.unassigned ? <Chip size="small" label={`${day.unassigned} sem dono`} /> : null}
+                              {day.waitingClient ? <Chip size="small" color="warning" label={`${day.waitingClient} cliente`} /> : null}
+                              {day.risky ? <Chip size="small" color="error" label={`${day.risky} risco`} /> : null}
+                            </Stack>
                             <Chip
                               size="small"
                               color={day.tone === 'error' ? 'error' : day.tone === 'warning' ? 'warning' : day.tone === 'success' ? 'success' : 'default'}
                               label={day.stateLabel}
                               sx={{ alignSelf: 'flex-start' }}
                             />
+                            {day.primaryJob ? (
+                              <Button
+                                variant="text"
+                                size="small"
+                                sx={{ alignSelf: 'flex-start', px: 0 }}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSelectedJob(day.primaryJob);
+                                }}
+                              >
+                                Abrir mais crítica
+                              </Button>
+                            ) : null}
                           </Stack>
                         </Box>
                       );
@@ -603,6 +649,9 @@ export default function OperationsAgendaClient() {
                     groupedDays.length ? (
                     <Stack spacing={0}>
                       {groupedDays.map((group, index) => (
+                        (() => {
+                          const summary = summarizeAgendaJobs(group.jobs);
+                          return (
                         <Box
                           key={group.day}
                           sx={(theme) => ({
@@ -612,40 +661,71 @@ export default function OperationsAgendaClient() {
                             borderColor: index === 0 ? 'transparent' : theme.palette.divider,
                           })}
                         >
-                          <Stack spacing={1.5}>
-                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }}>
-                              <Box>
-                                <Typography variant="h6" fontWeight={900}>
-                                  {group.day}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                  {group.jobs.length} {OPS_COPY.agenda.dayImpactSuffix}
-                                </Typography>
-                              </Box>
-                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                {group.layerSummary.map((item) => (
-                                  <Chip key={item.key} size="small" label={`${item.label} ${item.count}`} />
+                            <Stack spacing={1.5}>
+                              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }}>
+                                <Box>
+                                  <Typography variant="h6" fontWeight={900}>
+                                    {group.day}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {group.jobs.length} {OPS_COPY.agenda.dayImpactSuffix}
+                                  </Typography>
+                                </Box>
+                                <Stack spacing={1} alignItems={{ xs: 'flex-start', md: 'flex-end' }}>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {group.layerSummary.map((item) => (
+                                      <Chip key={item.key} size="small" label={`${item.label} ${item.count}`} />
+                                    ))}
+                                    {summary.unassigned ? <Chip size="small" label={`${summary.unassigned} sem dono`} /> : null}
+                                    {summary.waitingClient ? <Chip size="small" color="warning" label={`${summary.waitingClient} cliente`} /> : null}
+                                    {summary.risky ? <Chip size="small" color="error" label={`${summary.risky} risco`} /> : null}
+                                  </Stack>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {summary.primaryJob ? (
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => setSelectedJob(summary.primaryJob)}
+                                      >
+                                        Abrir mais crítica
+                                      </Button>
+                                    ) : null}
+                                    {summary.unassigned && currentUserId ? (
+                                      <Button
+                                        size="small"
+                                        variant="text"
+                                        onClick={async () => {
+                                          const target = group.jobs.find((job) => !job.owner_id);
+                                          if (!target) return;
+                                          await handleAssign(target.id, currentUserId);
+                                        }}
+                                      >
+                                        Puxar sem dono
+                                      </Button>
+                                    ) : null}
+                                  </Stack>
+                                </Stack>
+                              </Stack>
+
+                              <Stack spacing={0.35}>
+                                {group.jobs.map((job) => (
+                                  <OpsJobRow
+                                    key={job.id}
+                                    job={job}
+                                    selected={selectedJob?.id === job.id}
+                                    onClick={() => setSelectedJob(job)}
+                                    showStage
+                                    timeValue={agendaAnchor(job)}
+                                    onAdvance={handleAdvance}
+                                    onAssign={handleAssign}
+                                    owners={lookups.owners}
+                                  />
                                 ))}
                               </Stack>
                             </Stack>
-
-                            <Stack spacing={0.35}>
-                              {group.jobs.map((job) => (
-                                <OpsJobRow
-                                  key={job.id}
-                                  job={job}
-                                  selected={selectedJob?.id === job.id}
-                                  onClick={() => setSelectedJob(job)}
-                                  showStage
-                                  timeValue={agendaAnchor(job)}
-                                  onAdvance={handleAdvance}
-                                  onAssign={handleAssign}
-                                  owners={lookups.owners}
-                                />
-                              ))}
-                            </Stack>
-                          </Stack>
-                        </Box>
+                          </Box>
+                          );
+                        })()
                       ))}
                     </Stack>
                     ) : (
@@ -814,8 +894,14 @@ export default function OperationsAgendaClient() {
 
                             <Grid container spacing={1}>
                               {row.days.map((day) => (
+                                (() => {
+                                  const summary = summarizeAgendaJobs(day.jobs);
+                                  return (
                                 <Grid key={day.key} size={{ xs: 12, sm: 6, md: 2.4 }}>
                                   <Box
+                                    onClick={() => {
+                                      if (summary.primaryJob) setSelectedJob(summary.primaryJob);
+                                    }}
                                     sx={(theme) => ({
                                       px: 1,
                                       py: 1,
@@ -827,6 +913,14 @@ export default function OperationsAgendaClient() {
                                       border: '1px solid',
                                       borderColor: theme.palette.divider,
                                       borderTop: `2px solid ${opsDayAccent(theme, day.jobs.length, day.plannedMinutes)}`,
+                                      cursor: summary.primaryJob ? 'pointer' : 'default',
+                                      transition: 'transform 160ms ease, box-shadow 160ms ease',
+                                      '&:hover': summary.primaryJob
+                                        ? {
+                                            transform: 'translateY(-2px)',
+                                            boxShadow: theme.shadows[2],
+                                          }
+                                        : undefined,
                                     })}
                                   >
                                     <Stack spacing={0.8}>
@@ -837,6 +931,25 @@ export default function OperationsAgendaClient() {
                                           </Typography>
                                         </Box>
                                         {day.plannedMinutes ? <Chip size="small" label={`${Math.round(day.plannedMinutes / 60)}h`} /> : null}
+                                      </Stack>
+                                      <Chip
+                                        size="small"
+                                        color={
+                                          day.jobs.length
+                                            ? day.plannedMinutes >= 6 * 60
+                                              ? 'error'
+                                              : day.plannedMinutes >= 3 * 60
+                                                ? 'warning'
+                                                : 'success'
+                                            : 'default'
+                                        }
+                                        label={day.jobs.length ? opsDayState(day.jobs.length, day.plannedMinutes).label : 'Livre'}
+                                        sx={{ alignSelf: 'flex-start' }}
+                                      />
+                                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                        {summary.waitingClient ? <Chip size="small" color="warning" label={`${summary.waitingClient} cliente`} /> : null}
+                                        {summary.blocked ? <Chip size="small" color="error" label={`${summary.blocked} bloqueado`} /> : null}
+                                        {summary.urgent ? <Chip size="small" color="error" label={`${summary.urgent} urgente`} /> : null}
                                       </Stack>
                                       <Stack spacing={0.45}>
                                         {day.jobs.slice(0, 2).map((job) => (
@@ -868,9 +981,38 @@ export default function OperationsAgendaClient() {
                                           </Typography>
                                         ) : null}
                                       </Stack>
+                                      {summary.primaryJob ? (
+                                        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                                          <Button
+                                            size="small"
+                                            variant="text"
+                                            sx={{ px: 0 }}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              setSelectedJob(summary.primaryJob);
+                                            }}
+                                          >
+                                            Abrir crítica
+                                          </Button>
+                                          <Button
+                                            size="small"
+                                            variant="text"
+                                            sx={{ px: 0 }}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              setDetailOpen(true);
+                                              setSelectedJob(summary.primaryJob);
+                                            }}
+                                          >
+                                            Abrir comandos
+                                          </Button>
+                                        </Stack>
+                                      ) : null}
                                     </Stack>
                                   </Box>
                                 </Grid>
+                                  );
+                                })()
                               ))}
                             </Grid>
                           </Stack>
