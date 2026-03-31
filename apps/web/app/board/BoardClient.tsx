@@ -376,17 +376,24 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                       <Card
                         key={campaign.id}
                         variant="outlined"
-                        sx={{
+                        sx={(theme) => ({
                           cursor: 'pointer',
-                          transition: 'box-shadow 0.15s',
-                          '&:hover': { boxShadow: 3 },
                           borderLeft: `3px solid ${cfg.color}`,
+                          borderRadius: 2.25,
+                          borderColor: alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08),
+                          bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.92) : '#fff',
+                          boxShadow: `0 4px 16px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.05)}`,
                           opacity: movingId === campaign.id ? 0.5 : 1,
-                        }}
+                          transition: 'all 140ms ease',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.26 : 0.08)}`,
+                          },
+                        })}
                         onClick={() => setDrawerCampaign(campaign)}
                       >
-                        <CardContent sx={{ p: '12px !important' }}>
-                          <Stack spacing={1}>
+                        <CardContent sx={{ p: '14px !important' }}>
+                          <Stack spacing={1.1}>
                             {/* Label dots */}
                             {(campaign.labels ?? []).length > 0 && (
                               <Stack direction="row" spacing={0.4} flexWrap="wrap">
@@ -402,39 +409,76 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                               </Stack>
                             )}
                             {/* Name */}
-                            <Typography variant="subtitle2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
+                            <Typography
+                              variant="body2"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: '0.97rem',
+                                lineHeight: 1.35,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                minHeight: '2.7em',
+                              }}
+                            >
                               {campaign.name}
                             </Typography>
 
                             {/* Objective chip */}
                             {campaign.objective && (
-                              <Stack direction="row" spacing={0.5} alignItems="center">
-                                <IconTarget size={12} color="#94a3b8" />
-                                <Typography variant="caption" color="text.secondary" noWrap>
-                                  {campaign.objective}
-                                </Typography>
-                              </Stack>
+                              <Chip
+                                size="small"
+                                icon={<IconTarget size={11} />}
+                                label={campaign.objective}
+                                sx={{
+                                  alignSelf: 'flex-start',
+                                  maxWidth: '100%',
+                                  height: 24,
+                                  fontSize: '0.64rem',
+                                  fontWeight: 800,
+                                  bgcolor: alpha(cfg.color, 0.1),
+                                  color: cfg.color,
+                                  border: `1px solid ${alpha(cfg.color, 0.2)}`,
+                                  '& .MuiChip-label': {
+                                    px: 0.75,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  },
+                                  '& .MuiChip-icon': { color: 'inherit', ml: 0.45, mr: -0.1 },
+                                }}
+                              />
                             )}
 
                             <Divider />
 
                             {/* Dates + Budget */}
-                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
                               {(campaign.start_date || campaign.end_date) ? (
-                                <Stack direction="row" spacing={0.5} alignItems="center">
-                                  <IconCalendar size={12} color="#94a3b8" />
-                                  <Typography variant="caption" color="text.secondary">
-                                    {formatDate(campaign.start_date) || '?'} → {formatDate(campaign.end_date) || '?'}
-                                  </Typography>
-                                </Stack>
-                              ) : <Box />}
+                                <Chip
+                                  size="small"
+                                  icon={<IconCalendar size={11} />}
+                                  label={`${formatDate(campaign.start_date) || '?'} → ${formatDate(campaign.end_date) || '?'}`}
+                                  sx={{
+                                    height: 24,
+                                    fontSize: '0.64rem',
+                                    '& .MuiChip-label': { px: 0.75 },
+                                    '& .MuiChip-icon': { ml: 0.45, mr: -0.1 },
+                                  }}
+                                />
+                              ) : null}
                               {campaign.budget_brl ? (
-                                <Stack direction="row" spacing={0.25} alignItems="center">
-                                  <IconCurrencyDollar size={12} color="#94a3b8" />
-                                  <Typography variant="caption" color="text.secondary">
-                                    {formatCurrency(campaign.budget_brl)}
-                                  </Typography>
-                                </Stack>
+                                <Chip
+                                  size="small"
+                                  icon={<IconCurrencyDollar size={11} />}
+                                  label={formatCurrency(campaign.budget_brl)}
+                                  sx={{
+                                    height: 24,
+                                    fontSize: '0.64rem',
+                                    '& .MuiChip-label': { px: 0.75 },
+                                    '& .MuiChip-icon': { ml: 0.45, mr: -0.1 },
+                                  }}
+                                />
                               ) : null}
                             </Stack>
 
@@ -447,22 +491,33 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                               const nextCfg = getStatusCfg(nextStatus);
                               return (
                                 <Tooltip title={`Mover para ${nextCfg.label}`}>
-                                  <Button
-                                    size="small"
-                                    variant="text"
-                                    fullWidth
-                                    disabled={movingId === campaign.id}
-                                    onClick={(e) => { e.stopPropagation(); moveStatus(campaign, nextStatus); }}
+                                  <Box
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (movingId !== campaign.id) moveStatus(campaign, nextStatus);
+                                    }}
                                     sx={{
-                                      fontSize: '0.68rem',
-                                      textTransform: 'none',
+                                      px: 0.95,
+                                      height: 28,
+                                      borderRadius: 1.25,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: 0.45,
+                                      bgcolor: alpha(nextCfg.color, 0.12),
                                       color: nextCfg.color,
-                                      py: 0.25,
-                                      '&:hover': { bgcolor: `${nextCfg.color}12` },
+                                      cursor: movingId === campaign.id ? 'progress' : 'pointer',
+                                      opacity: movingId === campaign.id ? 0.6 : 0.9,
+                                      alignSelf: 'flex-end',
+                                      transition: 'opacity 120ms, background-color 120ms',
+                                      '&:hover': { bgcolor: alpha(nextCfg.color, 0.24), opacity: 1 },
                                     }}
                                   >
-                                    → Mover para {nextCfg.label}
-                                  </Button>
+                                    <IconExternalLink size={13} />
+                                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, lineHeight: 1 }}>
+                                      Mover para {nextCfg.label}
+                                    </Typography>
+                                  </Box>
                                 </Tooltip>
                               );
                             })()}
