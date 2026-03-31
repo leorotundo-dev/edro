@@ -59,6 +59,7 @@ import {
   formatDateTime,
   formatMinutes,
   getNextAction,
+  getRisk,
   isIntakeComplete,
   STAGE_LABELS,
   type OperationsJob,
@@ -518,6 +519,36 @@ function buildDraft(job: OperationsJob | null, lookups: { jobTypes: OperationsLo
   };
 }
 
+function getMissingDecisionItems(form: JobDraft) {
+  const missing: string[] = [];
+  if (!form.title.trim()) missing.push('pedido');
+  if (!form.client_id) missing.push('cliente');
+  if (!form.job_type) missing.push('tipo');
+  if (!form.required_skill) missing.push('especialidade');
+  if (!form.owner_id) missing.push('responsavel');
+  if (!form.deadline_at) missing.push('prazo');
+  return missing;
+}
+
+function formatMissingDecisionLabel(item: string) {
+  switch (item) {
+    case 'pedido':
+      return 'Nome do pedido';
+    case 'cliente':
+      return 'Cliente';
+    case 'tipo':
+      return 'Tipo';
+    case 'especialidade':
+      return 'Especialidade';
+    case 'responsavel':
+      return 'Responsavel';
+    case 'prazo':
+      return 'Prazo';
+    default:
+      return item;
+  }
+}
+
 /* ─── Time Entries Panel ──────────────────────────────────────── */
 
 type TimeEntry = { id: string; user_name: string; minutes: number; notes?: string | null; logged_at: string };
@@ -933,14 +964,22 @@ export default function JobWorkbenchDrawer({
 
   const progressTarget = nextStatus(detailJob, intakeComplete);
   const nextAction = getNextAction(detailJob || { ...payload, priority_band: priorityPreview.priorityBand } as Partial<OperationsJob>);
+  const detailRisk = detailJob ? getRisk(detailJob) : null;
+  const missingDecisionItems = getMissingDecisionItems(form);
+  const createReady = Boolean(form.title.trim()) && missingDecisionItems.length === 0;
+  const saveLabel = submitting
+    ? 'Salvando...'
+    : mode === 'create'
+      ? (createReady ? 'Entrar na fila' : 'Salvar rascunho')
+      : 'Salvar mudancas';
 
   return (
     <ContextDrawer
       open={open}
       title={mode === 'create' ? 'Nova Demanda' : detailJob?.title || 'Demanda operacional'}
       subtitle={mode === 'create'
-        ? 'Use travas fortes e classificação guiada para não deixar nada solto.'
-        : `${selectedClient?.name || detailJob?.client_name || 'Sem cliente'} · ${formatSourceLabel(detailJob?.source || form.source)}`}
+        ? 'Diga o que entrou, escolha dono e prazo. A Central organiza o resto.'
+        : `${selectedClient?.name || detailJob?.client_name || 'Sem cliente'} · ${STAGE_LABELS[detailJob?.status || 'intake'] || 'Na fila'} · ${formatSourceLabel(detailJob?.source || form.source)}`}
       onClose={onClose}
       actions={
         <Stack spacing={2}>
@@ -966,7 +1005,49 @@ export default function JobWorkbenchDrawer({
               <Chip size="small" label={`Estimativa ${formatMinutes(estimatePreview)}`} />
             )}
           </Stack>
-          {detailJob ? (
+          {mode === 'create' ? (
+            <Box
+              sx={(theme) => ({
+                p: 1.5,
+                borderRadius: 2.5,
+                border: '1px solid',
+                borderColor: createReady
+                  ? alpha(theme.palette.success.main, 0.28)
+                  : alpha(theme.palette.warning.main, 0.28),
+                bgcolor: createReady
+                  ? alpha(theme.palette.success.main, 0.06)
+                  : alpha(theme.palette.warning.main, 0.06),
+              })}
+            >
+              <Stack spacing={1}>
+                <Typography
+                  variant="caption"
+                  fontWeight={900}
+                  sx={{ color: createReady ? 'success.dark' : 'warning.dark', textTransform: 'uppercase', letterSpacing: 0.3 }}
+                >
+                  {createReady ? 'Pronta para entrar na fila' : 'Falta decidir'}
+                </Typography>
+                <Typography variant="body2" fontWeight={700}>
+                  {createReady
+                    ? 'A demanda ja tem cliente, dono, especialidade e prazo para entrar na operacao sem travar.'
+                    : 'Feche os pontos abaixo para a Central entender para quem vai, quando vence e o quanto pesa na semana.'}
+                </Typography>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  {createReady ? (
+                    <>
+                      <Chip size="small" color="success" label="Vai para a Fila" />
+                      <Chip size="small" color="success" label="Aparece na Semana" />
+                      <Chip size="small" color="success" label="Ja entra com dono" />
+                    </>
+                  ) : (
+                    missingDecisionItems.map((item) => (
+                      <Chip key={item} size="small" color="warning" variant="outlined" label={formatMissingDecisionLabel(item)} />
+                    ))
+                  )}
+                </Stack>
+              </Stack>
+            </Box>
+          ) : detailJob ? (
             <NextActionBar
               job={{ ...detailJob, ...payload, priority_band: priorityPreview.priorityBand, owner_name: selectedOwner?.name || detailJob.owner_name }}
               onPrimaryAction={progressTarget ? () => handleStatusChange(progressTarget) : undefined}
@@ -981,8 +1062,8 @@ export default function JobWorkbenchDrawer({
         {detailJob?.status === 'blocked' ? <BlockReason reason={detailJob.urgency_reason || 'Bloqueio ativo na etapa atual.'} onResolve={() => handleStatusChange(intakeComplete ? 'ready' : 'planned')} /> : null}
 
         <GuidedFormSection
-          title="Entrada estruturada"
-          subtitle="Cliente, tipo, origem e contexto mínimo."
+          title="O que entrou"
+          subtitle={mode === 'create' ? 'Nomeie o pedido, diga de onde veio e deixe o contexto claro.' : 'Ajuste o pedido, a origem e o combinado do que precisa ficar pronto.'}
           completed={Boolean(form.client_id && form.title.trim() && form.job_type && form.source)}
         >
           <Grid container spacing={2}>
@@ -1067,8 +1148,8 @@ export default function JobWorkbenchDrawer({
         )}
 
         <GuidedFormSection
-          title="Planejamento e responsável"
-          subtitle="Tudo o que permite alocar e mover a demanda no fluxo."
+          title="Quem faz e ate quando"
+          subtitle={mode === 'create' ? 'Escolha dono, especialidade e janela de entrega.' : 'Aqui voce decide dono, prazo, urgencia e encaixe na semana.'}
           completed={Boolean(form.owner_id && form.required_skill && form.deadline_at)}
         >
           <Stack spacing={2}>
@@ -1269,8 +1350,8 @@ export default function JobWorkbenchDrawer({
         </GuidedFormSection>
 
         <GuidedFormSection
-          title="Governança e risco"
-          subtitle="O sistema usa esses sinais para priorizar e evitar caos operacional."
+          title="Quanto isso mexe na operacao"
+          subtitle="Ajude a Central a entender se isso pode furar a fila ou destravar outras demandas."
           completed={Boolean(form.impact_level >= 0 && form.dependency_level >= 0)}
         >
           <Grid container spacing={2}>
@@ -1296,9 +1377,20 @@ export default function JobWorkbenchDrawer({
         </GuidedFormSection>
 
         <Alert severity={intakeComplete ? 'success' : 'warning'}>
-          {intakeComplete
-            ? 'Entrada completa. Esta demanda já pode seguir para planejamento e alocação.'
-            : 'Faltam cliente, especialidade, responsável, prazo ou contexto mínimo. O sistema vai travar o avanço até isso ser resolvido.'}
+          <Stack spacing={1}>
+            <Typography variant="body2" fontWeight={700}>
+              {intakeComplete
+                ? 'Tudo certo. Esta demanda ja consegue andar pela operacao sem travar.'
+                : 'Ainda faltam definicoes para a Central saber dono, prazo e destino desta demanda.'}
+            </Typography>
+            {!intakeComplete ? (
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                {missingDecisionItems.map((item) => (
+                  <Chip key={item} size="small" variant="outlined" color="warning" label={formatMissingDecisionLabel(item)} />
+                ))}
+              </Stack>
+            ) : null}
+          </Stack>
         </Alert>
 
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
@@ -1356,7 +1448,7 @@ export default function JobWorkbenchDrawer({
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button variant="outlined" onClick={onClose}>Fechar</Button>
             <Button variant="contained" startIcon={<IconDeviceFloppy size={16} />} onClick={handleSave} disabled={submitting || !form.title.trim()}>
-              {submitting ? 'Salvando...' : mode === 'create' ? 'Criar demanda' : 'Salvar demanda'}
+              {saveLabel}
             </Button>
           </Stack>
         </Stack>
@@ -1365,7 +1457,23 @@ export default function JobWorkbenchDrawer({
           <>
             <Divider />
             <Stack spacing={2}>
-              <Typography variant="h6" fontWeight={800}>Fluxo e contexto</Typography>
+              <Typography variant="h6" fontWeight={800}>Painel da demanda</Typography>
+              <Grid container spacing={1.5}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <EntityLinkCard
+                    label="Proxima decisao"
+                    value={nextAction.label}
+                    subtitle={`${STAGE_LABELS[detailJob.status] || detailJob.status} · ${detailRisk?.label || 'Sem leitura de risco'}`}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <EntityLinkCard
+                    label="Dono e prazo"
+                    value={detailJob.owner_name || 'Sem responsavel'}
+                    subtitle={detailJob.deadline_at ? `Prazo ${formatDateTime(detailJob.deadline_at)}` : 'Defina um prazo para tirar a demanda do escuro'}
+                  />
+                </Grid>
+              </Grid>
               <StageRail status={detailJob.status} />
               <Grid container spacing={1.5}>
                 {detailJob.client_id ? (
@@ -1374,16 +1482,16 @@ export default function JobWorkbenchDrawer({
                   </Grid>
                 ) : null}
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <EntityLinkCard label="Studio criativo" value="Abrir contexto criativo" href={`/studio?jobId=${detailJob.id}`} subtitle="Execução criativa vinculada à demanda atual" />
+                  <EntityLinkCard label="Studio criativo" value="Abrir contexto criativo" href={`/studio?jobId=${detailJob.id}`} subtitle="Criacao, briefing e IA ligados a esta demanda" />
                 </Grid>
                 {detailJob.source === 'meeting' ? (
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <EntityLinkCard label="Origem" value="Reuniões" href="/admin/reunioes" subtitle="Ação derivada de reunião" />
+                    <EntityLinkCard label="Origem" value="Reunioes" href="/admin/reunioes" subtitle="Pedido nasceu de uma reuniao" />
                   </Grid>
                 ) : null}
                 {detailJob.job_type === 'publication' ? (
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <EntityLinkCard label="Calendário Editorial" value="Contexto de publicação" href="/calendar" subtitle="Agenda editorial permanece separada da agenda operacional" />
+                    <EntityLinkCard label="Calendario editorial" value="Contexto de publicacao" href="/calendar" subtitle="Pauta e publicacao seguem ligadas a esta demanda" />
                   </Grid>
                 ) : null}
               </Grid>
