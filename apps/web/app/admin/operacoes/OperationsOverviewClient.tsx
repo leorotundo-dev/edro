@@ -7,6 +7,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -406,12 +407,13 @@ export default function OperationsOverviewClient() {
                     count: overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total,
                     countColor: overviewRuntime.summary.approvals_blocked_total ? 'error' as const : 'default' as const,
                   },
-                ].map((section) => (
-                  <Box key={section.label}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                ].map((section, idx) => (
+                  <Box key={section.key}>
+                    {idx > 0 && <Divider sx={{ mb: 2.5 }} />}
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Box sx={{
-                          width: 28, height: 28, borderRadius: 1.5,
+                          width: 30, height: 30, borderRadius: 1.5,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           bgcolor: alpha(section.color, 0.12), color: section.color,
                         }}>
@@ -419,9 +421,14 @@ export default function OperationsOverviewClient() {
                         </Box>
                         <Typography variant="body2" fontWeight={700}>{section.label}</Typography>
                       </Stack>
-                      <Chip size="small" color={section.countColor} label={`${section.count}`} />
+                      <Chip
+                        size="small"
+                        color={section.countColor}
+                        label={`${section.count}`}
+                        sx={{ fontWeight: 700, minWidth: 32 }}
+                      />
                     </Stack>
-                    <Stack spacing={0}>
+                    <Stack spacing={0.5}>
                       {section.key === 'unassigned' && unassignedJobs.slice(0, 4).map((job) => (
                         <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} onAssign={handleAssign} owners={lookups.owners} />
                       ))}
@@ -431,9 +438,21 @@ export default function OperationsOverviewClient() {
                       {section.key === 'approvals' && overviewRuntime.approvals.slice(0, 4).map((job) => (
                         <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
                       ))}
-                      {(section.key === 'unassigned' && !unassignedJobs.length) && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{OPS_COPY.overview.emptyUnassigned}</Typography>}
-                      {(section.key === 'today' && !todayJobs.length) && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{OPS_COPY.overview.emptyToday}</Typography>}
-                      {(section.key === 'approvals' && !overviewRuntime.approvals.length) && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{OPS_COPY.overview.emptyApprovals}</Typography>}
+                      {(section.key === 'unassigned' && !unassignedJobs.length) && (
+                        <Box sx={(theme) => ({ py: 1.5, px: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.success.main, 0.06), border: `1px solid ${alpha(theme.palette.success.main, 0.15)}` })}>
+                          <Typography variant="body2" color="success.main" fontWeight={600} fontSize="0.8rem">{OPS_COPY.overview.emptyUnassigned}</Typography>
+                        </Box>
+                      )}
+                      {(section.key === 'today' && !todayJobs.length) && (
+                        <Box sx={(theme) => ({ py: 1.5, px: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.text.primary, 0.025) })}>
+                          <Typography variant="body2" color="text.secondary" fontSize="0.8rem">{OPS_COPY.overview.emptyToday}</Typography>
+                        </Box>
+                      )}
+                      {(section.key === 'approvals' && !overviewRuntime.approvals.length) && (
+                        <Box sx={(theme) => ({ py: 1.5, px: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.text.primary, 0.025) })}>
+                          <Typography variant="body2" color="text.secondary" fontSize="0.8rem">{OPS_COPY.overview.emptyApprovals}</Typography>
+                        </Box>
+                      )}
                     </Stack>
                   </Box>
                 ))}
