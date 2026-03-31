@@ -8,7 +8,7 @@
  * On completion, redirects to /onboarding/termos for clickwrap acceptance.
  */
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
 import { describeCnpjLookupSource, formatLookupTimestamp, isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
@@ -145,7 +145,7 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-export default function OnboardingPage() {
+function OnboardingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(0);
@@ -763,6 +763,29 @@ export default function OnboardingPage() {
           Seus dados são tratados conforme a LGPD (Lei nº 13.709/2018)
         </p>
       </div>
+    </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<OnboardingPageFallback />}>
+      <OnboardingPageContent />
+    </Suspense>
+  );
+}
+
+function OnboardingPageFallback() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--portal-bg, #0f0f0f)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px 16px',
+    }}>
+      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Carregando onboarding...</div>
     </div>
   );
 }
