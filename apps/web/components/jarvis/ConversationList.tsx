@@ -25,6 +25,7 @@ type Props = {
   clientId: string | null;
   onSelect: (conv: Conversation) => void;
   onBack: () => void;
+  hideBack?: boolean;
 };
 
 function groupByDate(conversations: Conversation[]) {
@@ -41,7 +42,7 @@ function groupByDate(conversations: Conversation[]) {
   return groups;
 }
 
-export default function ConversationList({ clientId, onSelect, onBack }: Props) {
+export default function ConversationList({ clientId, onSelect, onBack, hideBack = false }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,10 +78,14 @@ export default function ConversationList({ clientId, onSelect, onBack }: Props) 
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-        <IconButton size="small" onClick={onBack}>
-          <IconArrowLeft size={18} />
-        </IconButton>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Histórico</Typography>
+        {!hideBack ? (
+          <IconButton size="small" onClick={onBack}>
+            <IconArrowLeft size={18} />
+          </IconButton>
+        ) : null}
+        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          {hideBack ? 'Conversas' : 'Histórico'}
+        </Typography>
       </Box>
 
       {/* List */}

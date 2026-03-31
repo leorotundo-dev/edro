@@ -28,43 +28,8 @@ import AppShell from '@/components/AppShell';
 type AttachedFile = { name: string; text: string; chars: number; is_audio?: boolean };
 type ChatMessage = { role: 'user' | 'assistant'; content: string; timestamp: string; artifacts?: Artifact[]; observability?: JarvisObservability | null };
 type ClientOption = { id: string; name: string };
-type ConversationMemory = {
-  id: string;
-  source_type: string;
-  title: string;
-  excerpt: string;
-  published_at?: string | null;
-  metadata?: Record<string, any>;
-};
 
 const EDRO_ORANGE = '#E85219';
-
-function formatMemoryLabel(sourceType: string) {
-  switch (sourceType) {
-    case 'whatsapp_message':
-      return 'WhatsApp';
-    case 'whatsapp_insight':
-      return 'Insight';
-    case 'whatsapp_digest':
-      return 'Digest';
-    case 'meeting':
-      return 'Reunião';
-    default:
-      return 'Memória';
-  }
-}
-
-function formatMemoryDate(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
 
 // ── Typing dots ──────────────────────────────────────────────────────
 function TypingDots() {
@@ -165,7 +130,6 @@ export default function JarvisFullClient() {
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
-  const [conversationMemories, setConversationMemories] = useState<ConversationMemory[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -232,27 +196,6 @@ export default function JarvisFullClient() {
       })));
     }).catch(() => {});
   }, [conversationId, clientId]);
-
-  useEffect(() => {
-    if (!clientId) {
-      setConversationMemories([]);
-      return;
-    }
-
-    let cancelled = false;
-    apiGet<{ memories?: ConversationMemory[] }>(`/clients/${clientId}/intelligence`)
-      .then((response) => {
-        if (cancelled) return;
-        setConversationMemories((response?.memories ?? []).slice(0, 6));
-      })
-      .catch(() => {
-        if (!cancelled) setConversationMemories([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -340,11 +283,11 @@ export default function JarvisFullClient() {
     <AppShell title="Jarvis">
       <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', maxHeight: 'calc(100vh - 64px)', overflow: 'hidden' }}>
 
-        {/* Sidebar — history */}
+        {/* Sidebar — history mobile */}
         <Slide direction="right" in={showHistory} mountOnEnter unmountOnExit>
           <Box sx={{
             width: 320, flexShrink: 0, borderRight: 1, borderColor: 'divider',
-            bgcolor: 'background.paper', overflow: 'hidden',
+            bgcolor: 'background.paper', overflow: 'hidden', display: { xs: 'block', md: 'none' },
           }}>
             <ConversationList
               clientId={clientId}
@@ -353,6 +296,26 @@ export default function JarvisFullClient() {
             />
           </Box>
         </Slide>
+
+        {/* Sidebar — history desktop */}
+        <Box
+          sx={{
+            width: 320,
+            flexShrink: 0,
+            borderRight: 1,
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            overflow: 'hidden',
+            display: { xs: 'none', md: 'block' },
+          }}
+        >
+          <ConversationList
+            clientId={clientId}
+            onSelect={handleSelectConversation}
+            onBack={() => {}}
+            hideBack
+          />
+        </Box>
 
         {/* Main chat area */}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -416,76 +379,6 @@ export default function JarvisFullClient() {
             flex: 1, overflowY: 'auto', px: { xs: 2, md: 6, lg: 10 }, py: 3,
             display: 'flex', flexDirection: 'column', gap: 2.5,
           }}>
-            {!!clientId && conversationMemories.length > 0 && (
-              <Box
-                sx={{
-                  maxWidth: 800,
-                  width: '100%',
-                  alignSelf: 'center',
-                  p: 2,
-                  borderRadius: 3,
-                  border: 1,
-                  borderColor: 'divider',
-                  bgcolor: 'background.paper',
-                  boxShadow: 1,
-                }}
-              >
-                <Typography variant="overline" sx={{ color: EDRO_ORANGE, fontWeight: 700, letterSpacing: '0.08em' }}>
-                  Memoria do cliente
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Historico recente de WhatsApp e reunioes usado pelo Jarvis nesta conversa.
-                </Typography>
-                <Box sx={{ display: 'grid', gap: 1 }}>
-                  {conversationMemories.map((memory) => (
-                    <Box
-                      key={memory.id}
-                      sx={{
-                        p: 1.25,
-                        borderRadius: 2,
-                        bgcolor: 'background.default',
-                        border: 1,
-                        borderColor: 'divider',
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', mb: 0.5 }}>
-                        <Chip
-                          label={formatMemoryLabel(memory.source_type)}
-                          size="small"
-                          variant="outlined"
-                          sx={{
-                            height: 22,
-                            fontSize: '0.7rem',
-                            borderColor: `${EDRO_ORANGE}40`,
-                            color: EDRO_ORANGE,
-                          }}
-                        />
-                        <Typography variant="caption" color="text.disabled">
-                          {formatMemoryDate(memory.published_at)}
-                        </Typography>
-                      </Box>
-                      <Typography variant="subtitle2" sx={{ lineHeight: 1.35, mb: 0.25 }}>
-                        {memory.title || 'Memoria sem titulo'}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          lineHeight: 1.55,
-                        }}
-                      >
-                        {memory.excerpt || 'Sem resumo disponivel.'}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            )}
-
             {/* Empty state */}
             {messages.length === 0 && !loading && (
               <Box sx={{ textAlign: 'center', pt: 8 }}>
@@ -500,20 +393,47 @@ export default function JarvisFullClient() {
                 </Typography>
 
                 {!noClient && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', maxWidth: 600, mx: 'auto' }}>
-                    {quickActions.map(qa => (
-                      <Chip
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                      gap: 2,
+                      maxWidth: 900,
+                      mx: 'auto',
+                    }}
+                  >
+                    {quickActions.slice(0, 6).map((qa) => (
+                      <Box
                         key={qa}
-                        label={qa}
-                        variant="outlined"
-                        clickable
                         onClick={() => sendMessage(qa)}
                         sx={{
-                          fontSize: '0.8rem', py: 0.5, cursor: 'pointer',
-                          borderColor: `${EDRO_ORANGE}40`, color: 'text.secondary',
-                          '&:hover': { borderColor: EDRO_ORANGE, color: EDRO_ORANGE },
+                          p: 2,
+                          textAlign: 'left',
+                          borderRadius: 3,
+                          border: 1,
+                          borderColor: 'divider',
+                          bgcolor: 'background.paper',
+                          cursor: 'pointer',
+                          transition: 'all .18s ease',
+                          '&:hover': {
+                            borderColor: `${EDRO_ORANGE}66`,
+                            boxShadow: 2,
+                            transform: 'translateY(-1px)',
+                          },
                         }}
-                      />
+                      >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                          {qa}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {qa === 'Quais briefings estão em aberto?' && 'Abrir a fila viva de briefings e pendências.'}
+                          {qa === 'Mostra pendências por cliente' && 'Separar gargalos por cliente para decidir rápido.'}
+                          {qa === 'Quais são as próximas datas relevantes?' && 'Ver prazos, marcos e entregas mais próximas.'}
+                          {qa === 'Recalcula a inteligência dos clientes' && 'Atualizar leitura e sinais que guiam a operação.'}
+                          {qa === 'Gera um brief estratégico para este mês' && 'Começar um novo plano com direção clara.'}
+                          {qa === 'Resumo do pipeline de hoje' && 'Ler o pulso operacional do dia em uma resposta.'}
+                        </Typography>
+                      </Box>
                     ))}
                   </Box>
                 )}
