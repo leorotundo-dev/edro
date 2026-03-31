@@ -12,6 +12,10 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import { alpha } from '@mui/material/styles';
 import { IconDeviceFloppy, IconSettings } from '@tabler/icons-react';
 import { apiGet, apiPatch } from '@/lib/api';
 
@@ -71,18 +75,76 @@ export default function ConfiguracoesPage() {
   };
 
   return (
-    <AppShell title="Configurações">
+    <AppShell title="Configurações da Agência">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <Card
+          variant="outlined"
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+            background:
+              'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
+          }}
+        >
+          <CardContent sx={{ p: '24px !important' }}>
+            <Stack spacing={2.25}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label="Agency Settings" color="primary" size="small" sx={{ fontWeight: 700 }} />
+                <Chip label="Fiscal" size="small" variant="outlined" />
+                <Chip label="Contratos" size="small" variant="outlined" />
+              </Stack>
+
+              <Box>
+                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
+                  Configurações da agência
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  Dados fiscais, endereço e representante legal usados em recibos, contratos e
+                  fluxos administrativos.
+                </Typography>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
         <AdminSubmenu value="configuracoes" />
       </Box>
       <Box sx={{ p: 3, maxWidth: 700 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5} mb={0.5}>
-          <IconSettings size={22} />
-          <Typography variant="h5" fontWeight={700}>Configurações da Agência</Typography>
-        </Stack>
-        <Typography variant="body2" color="text.secondary" mb={3}>
-          Dados utilizados nos recibos e documentos enviados aos freelancers.
-        </Typography>
+        {!loading ? (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {[
+              { label: 'Razão social', value: form.agency_name || '—', helper: 'entidade contratante', color: '#5D87FF' },
+              { label: 'CNPJ', value: form.agency_cnpj || '—', helper: 'base fiscal', color: '#13DEB9' },
+              { label: 'Cidade / Estado', value: form.agency_city || '—', helper: 'praça da agência', color: '#E85219' },
+              { label: 'Representante', value: form.agency_representative || '—', helper: 'assinatura jurídica', color: '#7B61FF' },
+            ].map((item) => (
+              <Grid key={item.label} size={{ xs: 12, md: 6 }}>
+                <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                  <CardContent sx={{ p: '18px !important' }}>
+                    <Stack spacing={1.25}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                          {item.label}
+                        </Typography>
+                        <Box
+                          sx={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            bgcolor: item.color,
+                            boxShadow: `0 0 0 6px ${alpha(item.color, 0.12)}`,
+                          }}
+                        />
+                      </Stack>
+                      <Typography variant="h6" fontWeight={800}>{item.value}</Typography>
+                      <Typography variant="body2" color="text.secondary">{item.helper}</Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        ) : null}
 
         {loading ? (
           <Stack alignItems="center" py={6}><CircularProgress /></Stack>

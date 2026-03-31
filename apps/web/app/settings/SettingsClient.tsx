@@ -16,6 +16,7 @@ import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/material/styles';
 import {
   IconShield,
   IconAlertTriangle,
@@ -160,18 +161,79 @@ export default function SettingsClient() {
   }
 
   return (
-    <AppShell title="System Admin">
+    <AppShell title="Configurações do Sistema">
       <Box>
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" gutterBottom>Configurações</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Visão geral de segurança e flags operacionais.
-          </Typography>
-        </Box>
+        <Card
+          variant="outlined"
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+            background:
+              'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
+          }}
+        >
+          <CardContent sx={{ p: '24px !important' }}>
+            <Stack spacing={2.25}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label="Settings" color="primary" size="small" sx={{ fontWeight: 700 }} />
+                <Chip label="Segurança" size="small" variant="outlined" />
+                <Chip label="Feature Flags" size="small" variant="outlined" />
+              </Stack>
 
-        <AdminSubmenu value="settings" />
+              <Box>
+                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
+                  Configurações do sistema
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  O workspace para segurança, auditoria, diagnósticos e flags operacionais da
+                  plataforma.
+                </Typography>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <AdminSubmenu value="configuracoes" />
 
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
+
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          {[
+            { label: 'Auditorias', value: formatNumber(security?.immutable_audit?.total), helper: 'eventos imutáveis', icon: <IconShield size={18} />, color: '#5D87FF' },
+            { label: 'Risco alto', value: formatNumber(security?.immutable_audit?.high_risk), helper: 'itens para olhar agora', icon: <IconAlertTriangle size={18} />, color: '#FA896B' },
+            { label: 'Bloqueadas', value: formatNumber(security?.immutable_audit?.blocked), helper: 'ações travadas', icon: <IconLock size={18} />, color: '#FFAE1F' },
+            { label: 'Suspeitos', value: formatNumber(security?.access_log?.suspicious), helper: 'acessos fora do padrão', icon: <IconEye size={18} />, color: '#E85219' },
+          ].map((item) => (
+            <Grid key={item.label} size={{ xs: 6, md: 3 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                <CardContent sx={{ p: '18px !important' }}>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                        {item.label}
+                      </Typography>
+                      <Box
+                        sx={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 2,
+                          display: 'grid',
+                          placeItems: 'center',
+                          bgcolor: alpha(item.color, 0.1),
+                          color: item.color,
+                        }}
+                      >
+                        {item.icon}
+                      </Box>
+                    </Stack>
+                    <Typography variant="h4" fontWeight={800}>{item.value}</Typography>
+                    <Typography variant="body2" color="text.secondary">{item.helper}</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
 
         {/* Stats row */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
