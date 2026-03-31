@@ -278,6 +278,18 @@ export default function OperationsAgendaClient() {
     setPlannerData(plannerResponse?.data || { owners: [], unassigned_jobs: [] });
   }
 
+  const handleAdvance = async (jobId: string, nextStatus: string) => {
+    const updated = await changeStatus(jobId, nextStatus);
+    await reloadAgenda();
+    if (updated) setSelectedJob(updated as OperationsJob);
+  };
+
+  const handleAssign = async (jobId: string, ownerId: string) => {
+    const updated = await updateJob(jobId, { owner_id: ownerId, assignee_ids: [ownerId] });
+    await reloadAgenda();
+    if (updated) setSelectedJob(updated as OperationsJob);
+  };
+
   const handleViewModeChange = (_event: React.MouseEvent<HTMLElement>, next: AgendaViewMode | null) => {
     if (!next) return;
     setViewMode(next);
@@ -626,6 +638,9 @@ export default function OperationsAgendaClient() {
                                   onClick={() => setSelectedJob(job)}
                                   showStage
                                   timeValue={agendaAnchor(job)}
+                                  onAdvance={handleAdvance}
+                                  onAssign={handleAssign}
+                                  owners={lookups.owners}
                                 />
                               ))}
                             </Stack>
@@ -698,6 +713,9 @@ export default function OperationsAgendaClient() {
                                 onClick={() => setSelectedJob(job)}
                                 showStage
                                 timeValue={agendaAnchor(job)}
+                                onAdvance={handleAdvance}
+                                onAssign={handleAssign}
+                                owners={lookups.owners}
                               />
                             ))}
                             {plannerData.unassigned_jobs.length > 4 ? (
@@ -874,9 +892,9 @@ export default function OperationsAgendaClient() {
             <Stack spacing={3}>
               <JobFocusRail
                 job={selectedJob}
-                title={OPS_COPY.common.focusTitle}
-                subtitle={OPS_COPY.agenda.focusSubtitle}
-                primaryLabel={isNativeMeeting ? 'Abrir reuniões' : focusedAction?.label}
+                title="Mesa da semana"
+                subtitle="Resolva dono, prazo e contexto sem perder a leitura da distribuicao."
+                primaryLabel={isNativeMeeting ? 'Abrir reunioes' : 'Abrir comandos'}
                 onPrimaryAction={() => {
                   if (!selectedJob) return;
                   if (isNativeMeeting) {
@@ -886,7 +904,8 @@ export default function OperationsAgendaClient() {
                   setDetailOpen(true);
                 }}
                 emptyTitle="Selecione uma demanda"
-                emptyDescription={OPS_COPY.agenda.focusEmptySubtitle}
+                emptyDescription="Clique em uma demanda da semana para ver o pulso, os atalhos e o que precisa ser resolvido."
+                eyebrow="SEMANA EM FOCO"
                 links={
                   selectedJob ? (
                     <Grid container spacing={1.25}>
@@ -902,8 +921,8 @@ export default function OperationsAgendaClient() {
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
                       <EntityLinkCard
-                        label="Responsável"
-                        value={selectedJob.owner_name || 'Sem responsável'}
+                        label="Dono"
+                        value={selectedJob.owner_name || 'Sem responsavel'}
                         href={(() => {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
@@ -974,8 +993,27 @@ export default function OperationsAgendaClient() {
                         }}
                         disabled={!selectedJob}
                       >
-                        {isNativeMeeting ? 'Abrir reuniões' : OPS_COPY.common.openDetail}
+                        {isNativeMeeting ? 'Abrir reunioes' : 'Abrir prazo e comandos'}
                       </Button>
+                      {!isNativeMeeting && selectedJob && !selectedJob.owner_id && currentUserId ? (
+                        <Button
+                          variant="outlined"
+                          onClick={async () => {
+                            await handleAssign(selectedJob.id, currentUserId);
+                          }}
+                        >
+                          Assumir agora
+                        </Button>
+                      ) : null}
+                      {!isNativeMeeting && selectedJob?.owner_id ? (
+                        <Button
+                          variant="outlined"
+                          component={Link}
+                          href="/admin/operacoes/semana?view=distribution"
+                        >
+                          Ver distribuicao
+                        </Button>
+                      ) : null}
                       <Button
                         variant="outlined"
                         onClick={async () => {
@@ -991,7 +1029,7 @@ export default function OperationsAgendaClient() {
                         onClick={() => selectedJob && fetchJob(selectedJob.id).then((job) => setSelectedJob(job))}
                         disabled={!selectedJob || isStandaloneAgendaItem}
                       >
-                        {isNativeMeeting ? 'Demanda indisponível' : OPS_COPY.common.refreshDetail}
+                        {isNativeMeeting ? 'Demanda indisponivel' : OPS_COPY.common.refreshDetail}
                       </Button>
                     </Stack>
                   </Stack>
