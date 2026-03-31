@@ -2023,20 +2023,26 @@ export function PipelineCard({
           return {
             display: 'flex',
             flexDirection: 'column',
-            gap: 0.9,
-            px: 1.2,
-            py: 1.05,
-            borderRadius: 2,
+            gap: 1.1,
+            px: 1.35,
+            py: 1.25,
+            borderRadius: 2.25,
             cursor: onClick ? 'pointer' : 'default',
+            borderLeft: `3px solid ${vis.color}`,
             border: selected
               ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
-              : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+              : `1px solid ${dark ? alpha(theme.palette.common.white, 0.08) : alpha(theme.palette.common.black, 0.08)}`,
             bgcolor: selected
-              ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04)
-              : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
-            transition: 'all 120ms ease',
+              ? alpha(theme.palette.primary.main, dark ? 0.09 : 0.04)
+              : dark ? alpha(theme.palette.background.paper, 0.92) : '#fff',
+            boxShadow: selected
+              ? `0 10px 24px ${alpha(theme.palette.primary.main, dark ? 0.18 : 0.12)}`
+              : `0 4px 16px ${alpha(theme.palette.common.black, dark ? 0.22 : 0.05)}`,
+            transition: 'all 140ms ease',
             '&:hover': {
-              bgcolor: dark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.02),
+              transform: 'translateY(-2px)',
+              boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, dark ? 0.26 : 0.08)}`,
+              bgcolor: dark ? alpha(theme.palette.background.paper, 0.98) : '#fff',
               '& .pipeline-advance': { opacity: 1 },
             },
           };
@@ -2046,8 +2052,8 @@ export function PipelineCard({
           <Avatar
             src={job.client_logo_url || undefined}
             sx={{
-              width: 28, height: 28, borderRadius: 1,
-              fontSize: '0.64rem', fontWeight: 900,
+              width: 32, height: 32, borderRadius: 1.5,
+              fontSize: '0.68rem', fontWeight: 900,
               bgcolor: alpha(clientAccent(job), 0.14),
               color: clientAccent(job),
               flexShrink: 0,
@@ -2058,20 +2064,20 @@ export function PipelineCard({
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Stack direction="row" spacing={0.6} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.35 }}>
-              <Typography variant="caption" sx={{ fontSize: '0.64rem', fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <Typography variant="caption" sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'text.secondary' }}>
                 {job.client_name || 'Sem cliente'}
               </Typography>
               <Chip
                 size="small"
                 label={vis.label}
                 sx={{
-                  height: 18,
-                  fontSize: '0.6rem',
+                  height: 20,
+                  fontSize: '0.62rem',
                   fontWeight: 800,
                   bgcolor: alpha(vis.color, 0.12),
                   color: vis.color,
                   border: `1px solid ${alpha(vis.color, 0.22)}`,
-                  '& .MuiChip-label': { px: 0.55 },
+                  '& .MuiChip-label': { px: 0.7 },
                 }}
               />
               {!job.owner_name ? (
@@ -2079,33 +2085,36 @@ export function PipelineCard({
                   size="small"
                   label="Sem dono"
                   sx={{
-                    height: 18,
-                    fontSize: '0.6rem',
+                    height: 20,
+                    fontSize: '0.62rem',
                     fontWeight: 800,
                     bgcolor: alpha('#FFAE1F', 0.12),
                     color: '#d97706',
                     border: `1px solid ${alpha('#FFAE1F', 0.3)}`,
-                    '& .MuiChip-label': { px: 0.55 },
+                    '& .MuiChip-label': { px: 0.7 },
                   }}
                 />
               ) : null}
             </Stack>
             <Typography
               variant="body2"
-              fontWeight={800}
+              fontWeight={700}
               sx={{
-                lineHeight: 1.3,
+                fontSize: '0.97rem',
+                lineHeight: 1.35,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                minHeight: '2.6em',
+                minHeight: '2.7em',
               }}
             >
               {job.title}
             </Typography>
           </Box>
         </Stack>
+
+        <Divider />
 
         <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
           {job.owner_name ? (
@@ -2118,10 +2127,10 @@ export function PipelineCard({
               }
               label={job.owner_name}
               sx={{
-                height: 22,
-                maxWidth: 140,
+                height: 24,
+                maxWidth: 148,
                 '& .MuiChip-label': {
-                  px: 0.6,
+                  px: 0.7,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 },
@@ -2133,13 +2142,13 @@ export function PipelineCard({
             icon={<IconArrowRight size={11} />}
             label={nextAction.label}
             sx={{
-              height: 22,
-              fontSize: '0.62rem',
+              height: 24,
+              fontSize: '0.64rem',
               fontWeight: 800,
               bgcolor: alpha(vis.color, 0.1),
               color: vis.color,
               border: `1px solid ${alpha(vis.color, 0.2)}`,
-              '& .MuiChip-label': { px: 0.65 },
+              '& .MuiChip-label': { px: 0.75 },
               '& .MuiChip-icon': { color: 'inherit', ml: 0.45, mr: -0.1 },
             }}
           />
@@ -2153,13 +2162,13 @@ export function PipelineCard({
                 className="pipeline-advance"
                 onClick={(e) => { e.stopPropagation(); setConfirmAnchor(e.currentTarget); }}
                 sx={{
-                  px: 0.8,
-                  height: 24,
-                  borderRadius: 1,
+                  px: 0.95,
+                  height: 28,
+                  borderRadius: 1.25,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 0.35,
+                  gap: 0.45,
                   bgcolor: alpha(vis.color, 0.12),
                   color: vis.color,
                   opacity: 0.86,
@@ -2248,33 +2257,53 @@ export function PipelineColumn({
     <Box sx={(theme) => {
       const dark = theme.palette.mode === 'dark';
       return {
-        width: { xs: 288, md: 324, xl: 340 },
+        width: { xs: 296, md: 328, xl: 340 },
         flexShrink: 0,
-        borderRadius: 2,
-        border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
-        bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.common.black, 0.015),
+        borderRadius: 2.5,
+        border: `1px solid ${alpha(color, dark ? 0.2 : 0.14)}`,
+        bgcolor: dark ? alpha(color, 0.06) : alpha(color, 0.035),
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        boxShadow: `0 2px 14px ${alpha(theme.palette.common.black, dark ? 0.2 : 0.035)}`,
       };
     }}>
-      {/* Column header with colored top border */}
-      <Box sx={{ borderTop: `3px solid ${color}`, px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.72rem' }}>
-          {label}
-        </Typography>
-        <Box sx={{
-          minWidth: 20, height: 20, borderRadius: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          bgcolor: alpha(color, 0.12), color,
-          fontSize: '0.68rem', fontWeight: 900, px: 0.5,
-        }}>
-          {allJobsCount}
-        </Box>
-      </Box>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        sx={(theme) => ({
+          px: 1.5,
+          py: 1.05,
+          mx: 1,
+          mt: 1,
+          mb: 0.9,
+          borderRadius: 1.5,
+          bgcolor: alpha(color, theme.palette.mode === 'dark' ? 0.12 : 0.08),
+          border: `1px solid ${alpha(color, theme.palette.mode === 'dark' ? 0.3 : 0.18)}`,
+        })}
+      >
+        <Stack direction="row" spacing={0.75} alignItems="center">
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+          <Typography variant="subtitle2" fontWeight={800} sx={{ color }}>
+            {label}
+          </Typography>
+        </Stack>
+        <Chip
+          size="small"
+          label={allJobsCount}
+          sx={{
+            height: 22,
+            fontSize: '0.68rem',
+            bgcolor: alpha(color, 0.14),
+            color,
+            fontWeight: 800,
+          }}
+        />
+      </Stack>
 
       {/* Cards */}
-      <Stack spacing={0.75} sx={{ px: 0.9, pb: 1.1, flex: 1 }}>
+      <Stack spacing={1.1} sx={{ px: 1, pb: 1.2, flex: 1 }}>
         {visible.length === 0 ? (
           <Typography variant="caption" sx={(theme) => ({ textAlign: 'center', py: 3, color: alpha(theme.palette.text.primary, 0.3), fontSize: '0.72rem' })}>
             Nenhum item
@@ -2294,7 +2323,7 @@ export function PipelineColumn({
           <Button
             size="small"
             onClick={() => onShowAll(columnKey)}
-            sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', color, py: 0.25 }}
+            sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', color, py: 0.35 }}
           >
             +{remaining} mais
           </Button>
@@ -2338,7 +2367,7 @@ export function PipelineBoard({
       sx={(theme) => ({
         width: '100%',
         overflowX: 'auto',
-        pb: 0.5,
+        pb: 0.75,
         '&::-webkit-scrollbar': { height: 8 },
         '&::-webkit-scrollbar-thumb': {
           backgroundColor: alpha(theme.palette.text.primary, 0.16),
@@ -2346,7 +2375,7 @@ export function PipelineBoard({
         },
       })}
     >
-      <Stack direction="row" spacing={1.5} sx={{ minWidth: 'max-content', width: 'max-content', alignItems: 'stretch' }}>
+      <Stack direction="row" spacing={2} sx={{ minWidth: 'max-content', width: 'max-content', alignItems: 'stretch' }}>
         {PIPELINE_COLUMNS.map((col) => {
           const colJobs = col.stages.flatMap((s) => grouped[s] || []);
           const isBottleneck = colJobs.length === maxCount && maxCount > 0 && columnCounts.filter((c) => c === maxCount).length === 1;
