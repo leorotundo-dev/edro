@@ -49,7 +49,7 @@ function lastMonths(n = 12) {
   return months;
 }
 
-export default function RelatoriosMensaisClient() {
+export default function RelatoriosMensaisClient({ embedded = false }: { embedded?: boolean } = {}) {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -132,17 +132,23 @@ export default function RelatoriosMensaisClient() {
   }
   const sortedMonths = Object.keys(byMonth).sort((a, b) => b.localeCompare(a));
 
-  return (
-    <AppShell title="Relatórios Mensais">
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
+  const content = (
+      <Box sx={{ p: embedded ? 0 : { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
-          <Box>
-            <Typography variant="h5" fontWeight={700}>Relatórios Mensais</Typography>
-            <Typography variant="body2" color="text.secondary">
-              PDFs gerados automaticamente no dia 1 de cada mês para todos os clientes ativos.
-            </Typography>
-          </Box>
+          {!embedded ? (
+            <Box>
+              <Typography variant="h5" fontWeight={700}>Relatórios Mensais</Typography>
+              <Typography variant="body2" color="text.secondary">
+                PDFs gerados automaticamente no dia 1 de cada mês para todos os clientes ativos.
+              </Typography>
+            </Box>
+          ) : (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`${reports.length} relatórios`} size="small" variant="outlined" />
+              <Chip label={monthLabel(selectedMonth)} size="small" color="primary" variant="outlined" />
+            </Stack>
+          )}
           <Stack direction="row" spacing={1} alignItems="center">
             <Button
               variant="outlined"
@@ -274,6 +280,13 @@ export default function RelatoriosMensaisClient() {
           </Stack>
         )}
       </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="Relatórios Mensais">
+      {content}
     </AppShell>
   );
 }
