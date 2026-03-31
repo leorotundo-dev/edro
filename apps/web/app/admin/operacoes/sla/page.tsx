@@ -1,5 +1,5 @@
-import SlaClient from './SlaClient';
+import { redirect } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 export default function SlaPage() {
-  return <SlaClient />;
+  redirect('/admin/operacoes/qualidade?tab=sla');
 }

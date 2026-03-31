@@ -269,7 +269,7 @@ function EntryRow({ entry }: { entry: CalibrationEntry }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function CalibracaoClient() {
+export default function CalibracaoClient({ embedded = false }: { embedded?: boolean }) {
   const [report, setReport] = useState<CalibrationReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -300,8 +300,8 @@ export default function CalibracaoClient() {
     ? entries.reduce((a, b) => a.driftPercent > b.driftPercent ? a : b)
     : null;
 
-  return (
-    <OperationsShell section="calibracao">
+  const content = (
+    <>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {/* Controls */}
@@ -435,6 +435,14 @@ export default function CalibracaoClient() {
           )}
         </>
       )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <OperationsShell section="quality">
+      {content}
     </OperationsShell>
   );
 }

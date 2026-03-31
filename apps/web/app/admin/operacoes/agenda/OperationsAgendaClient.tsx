@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -104,15 +104,22 @@ function agendaWeekdayKey(job: OperationsJob) {
 
 export default function OperationsAgendaClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<AgendaViewMode>('calendar');
+  const queryView = searchParams.get('view');
+  const initialViewMode: AgendaViewMode = queryView === 'distribution' ? 'distribution' : 'calendar';
+  const [viewMode, setViewMode] = useState<AgendaViewMode>(initialViewMode);
   const [layers, setLayers] = useState<AgendaLayer[]>(['deadlines', 'approvals', 'publications', 'production', 'meetings', 'risks']);
   const [agendaLoading, setAgendaLoading] = useState(true);
   const [agendaError, setAgendaError] = useState('');
   const [agendaDays, setAgendaDays] = useState<Array<{ day: string; jobs: OperationsJob[]; layerSummary: Array<{ key: string; label: string; count: number }> }>>([]);
   const [plannerData, setPlannerData] = useState<PlannerData>({ owners: [], unassigned_jobs: [] });
+
+  useEffect(() => {
+    setViewMode(initialViewMode);
+  }, [initialViewMode]);
 
   useEffect(() => {
     let active = true;
@@ -219,6 +226,16 @@ export default function OperationsAgendaClient() {
     setPlannerData(plannerResponse?.data || { owners: [], unassigned_jobs: [] });
   }
 
+  const handleViewModeChange = (_event: React.MouseEvent<HTMLElement>, next: AgendaViewMode | null) => {
+    if (!next) return;
+    setViewMode(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'calendar') params.delete('view');
+    else params.set('view', next);
+    const qs = params.toString();
+    router.replace(qs ? `/admin/operacoes/semana?${qs}` : '/admin/operacoes/semana', { scroll: false });
+  };
+
   useEffect(() => {
     if (!selectedJob) return;
     const fresh = filteredJobs.find((job) => job.id === selectedJob.id) || jobs.find((job) => job.id === selectedJob.id);
@@ -231,7 +248,7 @@ export default function OperationsAgendaClient() {
 
   return (
     <OperationsShell
-      section="agenda"
+      section="semana"
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
           {[
@@ -282,7 +299,7 @@ export default function OperationsAgendaClient() {
                     <ToggleButtonGroup
                       value={viewMode}
                       exclusive
-                      onChange={(_event, next) => next && setViewMode(next)}
+                      onChange={handleViewModeChange}
                       sx={{ flexWrap: 'wrap', gap: 1 }}
                     >
                       <ToggleButton value="calendar" sx={{ borderRadius: 1.25 }}>

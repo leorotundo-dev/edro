@@ -319,7 +319,7 @@ export default function OperationsPlannerClient() {
 
   return (
     <OperationsShell
-      section="planner"
+      section="semana"
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
           {[

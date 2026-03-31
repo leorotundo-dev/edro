@@ -1,7 +1,7 @@
-import CalibracaoClient from './CalibracaoClient';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
 export default function CalibracaoPage() {
-  return <CalibracaoClient />;
+  redirect('/admin/operacoes/qualidade?tab=calibracao');
 }
