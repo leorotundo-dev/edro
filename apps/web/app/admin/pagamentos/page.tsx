@@ -212,7 +212,7 @@ function buildMonthOptions(): { value: string; label: string }[] {
   return opts;
 }
 
-export default function PagamentosPage() {
+export function PagamentosView({ embedded = false }: { embedded?: boolean }) {
   const monthOptions = buildMonthOptions();
   const [tab, setTab]                     = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
@@ -295,8 +295,7 @@ export default function PagamentosPage() {
 
   const hasPayables = payables.length > 0;
 
-  return (
-    <AppShell title="Pagamentos">
+  const content = (
       <Box sx={{ p: 3, maxWidth: 1100 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -454,8 +453,9 @@ export default function PagamentosPage() {
         )}
         </>}
       </Box>
+  );
 
-      {/* Close month confirmation dialog */}
+  const dialog = (
       <Dialog open={closeDialog} onClose={() => setCloseDialog(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Fechar mês {selectedMonth}?</DialogTitle>
         <DialogContent>
@@ -475,6 +475,25 @@ export default function PagamentosPage() {
           </Button>
         </DialogActions>
       </Dialog>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {content}
+        {dialog}
+      </>
+    );
+  }
+
+  return (
+    <AppShell title="Pagamentos">
+      {content}
+      {dialog}
     </AppShell>
   );
+}
+
+export default function PagamentosPage() {
+  return <PagamentosView />;
 }

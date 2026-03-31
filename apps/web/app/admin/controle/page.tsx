@@ -1,12 +1,7 @@
-import { Suspense } from 'react';
-import CentralDeControleClient from './CentralDeControleClient';
+import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Central de Controle | Edro' };
 
 export default function Page() {
-  return (
-    <Suspense>
-      <CentralDeControleClient />
-    </Suspense>
-  );
+  redirect('/admin/system?tab=overview');
 }

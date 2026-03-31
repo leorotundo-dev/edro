@@ -80,7 +80,7 @@ const MenuItems: MenuGroupType[] = [
         id: 'admin-system',
         title: 'Admin',
         icon: IconShieldCheck,
-        href: '/admin/system',
+        href: '/admin/system?tab=overview',
         requiredRole: ['admin'],
       },
     ],

@@ -85,7 +85,7 @@ function periodOptions(): string[] {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export default function FinanceiroCruzadoClient() {
+export default function FinanceiroCruzadoClient({ embedded = false }: { embedded?: boolean }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
 
@@ -130,8 +130,7 @@ export default function FinanceiroCruzadoClient() {
     { label: 'Custo DAs', value: fmt(summary.da_cost), color: '#A78BFA', note: null },
   ] : [];
 
-  return (
-    <AppShell title="Financeiro Cruzado">
+  const content = (
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
@@ -300,6 +299,13 @@ export default function FinanceiroCruzadoClient() {
           </>
         )}
       </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="Financeiro Cruzado">
+      {content}
     </AppShell>
   );
 }

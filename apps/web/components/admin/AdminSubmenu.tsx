@@ -31,34 +31,10 @@ const isGroup = (e: Entry): e is Group => 'children' in e;
 // ── Menu structure ─────────────────────────────────────────────────────────────
 
 const ENTRIES: Entry[] = [
-  { label: 'Dashboard',    value: 'dashboard',    kind: 'internal' },
-  {
-    label: 'Sistema', value: 'group-sistema',
-    children: [
-      { label: 'Central de Controle', value: 'controle',      kind: 'route', href: '/admin/controle' },
-      { label: 'Central de Saúde',    value: 'saude',         kind: 'route', href: '/admin/saude' },
-      { label: 'Health',              value: 'health',        kind: 'route', href: '/admin/health' },
-      { label: 'Feature Flags',       value: 'feature-flags', kind: 'internal' },
-      { label: 'Security Logs',       value: 'security-logs', kind: 'internal' },
-      { label: 'Jobs',                value: 'jobs',          kind: 'internal' },
-    ],
-  },
-  { label: 'Usuários', value: 'users', kind: 'route', href: '/admin/users' },
-  {
-    label: 'Pessoas & Equipe', value: 'group-pessoas',
-    children: [
-      { label: 'Equipe',      value: 'equipe',  kind: 'route', href: '/admin/equipe' },
-      { label: 'Diretório',   value: 'pessoas', kind: 'route', href: '/admin/pessoas' },
-      { label: 'Freelancers', value: 'freelancers-admin', kind: 'route', href: '/admin/users?tab=freelancers' },
-    ],
-  },
-  {
-    label: 'Financeiro', value: 'group-financeiro',
-    children: [
-      { label: 'Pagamentos',    value: 'pagamentos', kind: 'route', href: '/admin/pagamentos' },
-      { label: 'AI Costs',      value: 'ai-costs',   kind: 'route', href: '/admin/ai-costs' },
-    ],
-  },
+  { label: 'Visão Geral', value: 'overview', kind: 'route', href: '/admin/system?tab=overview' },
+  { label: 'Sistema', value: 'system', kind: 'route', href: '/admin/system' },
+  { label: 'Pessoas', value: 'pessoas', kind: 'route', href: '/admin/pessoas' },
+  { label: 'Financeiro', value: 'financeiro', kind: 'route', href: '/admin/financeiro' },
   {
     label: 'Relatórios', value: 'group-relatorios',
     children: [
@@ -86,7 +62,6 @@ const ENTRIES: Entry[] = [
     ],
   },
   { label: 'Configurações', value: 'configuracoes', kind: 'route', href: '/admin/configuracoes' },
-  { label: 'Settings',      value: 'settings',      kind: 'route', href: '/settings' },
 ];
 
 // Flatten all items for lookup

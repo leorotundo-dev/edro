@@ -52,7 +52,7 @@ type HealthData = {
 
 const STATUS_ORDER = ['critical', 'warning', 'good', 'excellent', 'no_data', 'error'];
 
-export default function AdminHealthPage() {
+export function AdminHealthView({ embedded = false }: { embedded?: boolean }) {
   const [data, setData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -88,9 +88,8 @@ export default function AdminHealthPage() {
     excellent: 'Excelente', good: 'Bom', warning: 'Atenção', critical: 'Crítico', no_data: 'Sem dados', error: 'Erro',
   };
 
-  return (
-    <AppShell title="System Admin">
-      <Box>
+  const content = (
+    <Box>
       <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
         <IconHeartbeat size={28} color="#E85219" />
         <Box flex={1}>
@@ -102,8 +101,6 @@ export default function AdminHealthPage() {
           Atualizar
         </LoadingButton>
       </Stack>
-
-      <AdminSubmenu value="health" />
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -237,7 +234,21 @@ export default function AdminHealthPage() {
           )}
         </Grid>
       )}
+    </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="System Admin">
+      <Box>
+        <AdminSubmenu value="system" />
+        {content}
       </Box>
     </AppShell>
   );
+}
+
+export default function AdminHealthPage() {
+  return <AdminHealthView />;
 }

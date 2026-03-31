@@ -143,7 +143,7 @@ function IntegrationIcon({ iconKey, size = 20 }: { iconKey: string; size?: numbe
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function CentralDeControleClient() {
+export default function CentralDeControleClient({ embedded = false }: { embedded?: boolean }) {
   const [data, setData] = useState<ControleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -193,12 +193,8 @@ export default function CentralDeControleClient() {
     : data.summary.warnings > 0 || data.summary.alerts_warning > 0 ? 'Avisos pendentes'
     : 'Tudo operacional';
 
-  return (
-    <AppShell title="Central de Controle">
-      <Box sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2, md: 3 } }}>
-        <AdminSubmenu value="controle" />
-      </Box>
-      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
+  const content = (
+    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: embedded ? undefined : 'auto' }}>
 
         {/* ── Header ── */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={1}>
@@ -402,7 +398,17 @@ export default function CentralDeControleClient() {
             )}
           </>
         )}
+    </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="Central de Controle">
+      <Box sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2, md: 3 } }}>
+        <AdminSubmenu value="overview" />
       </Box>
+      {content}
     </AppShell>
   );
 }

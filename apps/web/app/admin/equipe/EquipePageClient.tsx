@@ -1096,7 +1096,7 @@ function TeamScoreGrid({ scores, freelancers, loading }: {
   );
 }
 
-export default function EquipePage() {
+export default function EquipePage({ embedded = false }: { embedded?: boolean }) {
   const [tab, setTab] = useState(0);
 
   const [freelancers, setFreelancers]         = useState<FreelancerProfile[]>([]);
@@ -1304,8 +1304,8 @@ export default function EquipePage() {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   };
 
-  return (
-    <AppShell title="Equipe">
+  const content = (
+      <>
       <Box sx={{ p: 3, maxWidth: 1200 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -2140,6 +2140,14 @@ export default function EquipePage() {
           50% { opacity: 0.3; }
         }
       `}</style>
+      </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="Equipe">
+      {content}
     </AppShell>
   );
 }

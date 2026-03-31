@@ -390,7 +390,7 @@ function EditDrawer({ person, onClose, onSaved }: {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 
-export default function PeopleDirectoryClient() {
+export default function PeopleDirectoryClient({ embedded = false }: { embedded?: boolean }) {
   const theme = useTheme();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
@@ -525,11 +525,7 @@ export default function PeopleDirectoryClient() {
     !isNameless(p) && people.some((other) => !isNameless(other) && other.id !== p.id && other.display_name.trim().toLowerCase() === p.display_name.trim().toLowerCase()),
   ).length;
 
-  return (
-    <AppShell title="Pessoas">
-      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 } }}>
-        <AdminSubmenu value="pessoas" />
-      </Box>
+  const content = (
       <Box sx={{ p: { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
@@ -685,9 +681,11 @@ export default function PeopleDirectoryClient() {
           </Grid>
         )}
       </Box>
+  );
 
-      {/* Edit Drawer */}
-      <EditDrawer
+  const overlays = (
+      <>
+        <EditDrawer
         person={editPerson}
         onClose={() => setEditPerson(null)}
         onSaved={() => load(q, filter)}
@@ -741,6 +739,25 @@ export default function PeopleDirectoryClient() {
           </Button>
         </DialogActions>
       </Dialog>
+      </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {content}
+        {overlays}
+      </>
+    );
+  }
+
+  return (
+    <AppShell title="Pessoas">
+      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 } }}>
+        <AdminSubmenu value="pessoas" />
+      </Box>
+      {content}
+      {overlays}
     </AppShell>
   );
 }

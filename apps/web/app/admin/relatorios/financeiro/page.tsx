@@ -1,12 +1,7 @@
-import { Suspense } from 'react';
-import FinanceiroCruzadoClient from './FinanceiroCruzadoClient';
+import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Financeiro | Edro' };
 
 export default function Page() {
-  return (
-    <Suspense>
-      <FinanceiroCruzadoClient />
-    </Suspense>
-  );
+  redirect('/admin/financeiro');
 }

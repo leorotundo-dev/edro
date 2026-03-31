@@ -40,7 +40,7 @@ const ROLE_COLORS: Record<string, 'error' | 'warning' | 'primary' | 'info' | 'de
   viewer: 'default',
 };
 
-export default function AdminUsersPage() {
+export function AdminUsersView({ embedded = false }: { embedded?: boolean }) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,9 +73,8 @@ export default function AdminUsersPage() {
     }
   };
 
-  return (
-    <AppShell title="System Admin">
-      <Box>
+  const content = (
+    <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <IconUsers size={28} stroke={1.5} />
           <Box>
@@ -85,8 +84,6 @@ export default function AdminUsersPage() {
             </Typography>
           </Box>
         </Box>
-
-        <AdminSubmenu value="users" />
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
@@ -160,6 +157,20 @@ export default function AdminUsersPage() {
           </TableContainer>
         )}
       </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="System Admin">
+      <Box>
+        <AdminSubmenu value="pessoas" />
+        {content}
+      </Box>
     </AppShell>
   );
+}
+
+export default function AdminUsersPage() {
+  return <AdminUsersView />;
 }

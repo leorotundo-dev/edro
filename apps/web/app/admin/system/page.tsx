@@ -1,8 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import CentralDeControleClient from '@/app/admin/controle/CentralDeControleClient';
+import { AdminHealthView } from '@/app/admin/health/page';
+import SystemHealthClient from '@/app/admin/saude/SystemHealthClient';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -17,12 +21,14 @@ import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
+import Tab from '@mui/material/Tab';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import {
   IconRefresh,
@@ -67,8 +73,8 @@ type SecurityDashboard = {
   top_users_by_activity: any[];
 };
 
-export default function AdminSystemPage() {
-  const [activeSection, setActiveSection] = useState('feature-flags');
+export function AdminSystemInternalsView({ initialSection = 'feature-flags' }: { initialSection?: string }) {
+  const [activeSection, setActiveSection] = useState(initialSection);
 
   // Feature Flags
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
@@ -95,6 +101,10 @@ export default function AdminSystemPage() {
       loadSecurityDashboard();
     }
   }, [activeSection]);
+
+  useEffect(() => {
+    setActiveSection(initialSection);
+  }, [initialSection]);
 
   const loadFlags = async () => {
     setLoadingFlags(true);
@@ -521,23 +531,99 @@ export default function AdminSystemPage() {
   );
 
   return (
+    <Box>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1.5} sx={{ mb: 3 }}>
+        <Box>
+          <Typography variant="h5" gutterBottom>Interno do Sistema</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Feature flags, segurança e jobs internos da plataforma.
+          </Typography>
+        </Box>
+      </Stack>
+
+      <Tabs
+        value={activeSection}
+        onChange={(_, value) => setActiveSection(value)}
+        variant="scrollable"
+        allowScrollButtonsMobile
+        scrollButtons="auto"
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab value="dashboard" label="Dashboard" />
+        <Tab value="feature-flags" label="Feature Flags" />
+        <Tab value="security-logs" label="Security Logs" />
+        <Tab value="jobs" label="Jobs" />
+      </Tabs>
+
+      <Box>
+        {activeSection === 'feature-flags' && renderFeatureFlags()}
+        {activeSection === 'security-logs' && renderSecurityLogs()}
+        {activeSection === 'jobs' && renderJobs()}
+        {activeSection === 'dashboard' && renderSecurityDashboard()}
+      </Box>
+    </Box>
+  );
+}
+
+const SYSTEM_TABS = [
+  { value: 'overview', label: 'Visão Geral' },
+  { value: 'clients', label: 'Saúde dos Clientes' },
+  { value: 'alerts', label: 'Alertas & Gaps' },
+  { value: 'internals', label: 'Interno' },
+] as const;
+
+type SystemTabValue = (typeof SYSTEM_TABS)[number]['value'];
+
+function isSystemTab(value: string | null): value is SystemTabValue {
+  return SYSTEM_TABS.some((tab) => tab.value === value);
+}
+
+export default function AdminSystemPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = isSystemTab(searchParams.get('tab')) ? searchParams.get('tab') : 'internals';
+  const submenuValue = activeTab === 'overview' ? 'overview' : 'system';
+
+  const handleTabChange = (_: unknown, value: SystemTabValue) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'internals') {
+      params.delete('tab');
+    } else {
+      params.set('tab', value);
+    }
+    const query = params.toString();
+    router.replace(query ? `/admin/system?${query}` : '/admin/system');
+  };
+
+  return (
     <AppShell title="System Admin">
       <Box>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" gutterBottom>System Administration</Typography>
           <Typography variant="body2" color="text.secondary">
-            Gerencie configurações avançadas do sistema
+            Visão consolidada do sistema, saúde de clientes e configuração interna.
           </Typography>
         </Box>
 
-        <AdminSubmenu value={activeSection} onInternalChange={setActiveSection} />
+        <AdminSubmenu value={submenuValue} />
 
-        <Box>
-          {activeSection === 'feature-flags' && renderFeatureFlags()}
-          {activeSection === 'security-logs' && renderSecurityLogs()}
-          {activeSection === 'jobs' && renderJobs()}
-          {activeSection === 'dashboard' && renderSecurityDashboard()}
-        </Box>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          allowScrollButtonsMobile
+          scrollButtons="auto"
+          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+        >
+          {SYSTEM_TABS.map((tab) => (
+            <Tab key={tab.value} value={tab.value} label={tab.label} />
+          ))}
+        </Tabs>
+
+        {activeTab === 'overview' && <CentralDeControleClient embedded />}
+        {activeTab === 'clients' && <AdminHealthView embedded />}
+        {activeTab === 'alerts' && <SystemHealthClient />}
+        {activeTab === 'internals' && <AdminSystemInternalsView initialSection="feature-flags" />}
       </Box>
     </AppShell>
   );
