@@ -118,6 +118,21 @@ type SuggestionsPayload = {
   intelligence_score?: number;
 };
 
+export type IdentityWorkspaceTab = 'dna' | 'editorial' | 'contatos' | 'biblioteca';
+
+type PerfilPageProps = {
+  clientId?: string;
+  activeTab?: IdentityWorkspaceTab;
+  showTabs?: boolean;
+};
+
+const WORKSPACE_TABS: Array<{ value: IdentityWorkspaceTab; label: string }> = [
+  { value: 'dna', label: 'DNA' },
+  { value: 'editorial', label: 'Editorial' },
+  { value: 'contatos', label: 'Contatos' },
+  { value: 'biblioteca', label: 'Biblioteca' },
+];
+
 const SOCIAL_ICONS: Record<string, { icon: typeof IconBrandInstagram; color: string; label: string }> = {
   instagram: { icon: IconBrandInstagram, color: '#E4405F', label: 'Instagram' },
   facebook: { icon: IconBrandFacebook, color: '#1877F2', label: 'Facebook' },
@@ -141,10 +156,10 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString('pt-BR');
 }
 
-export default function PerfilPage() {
+export default function PerfilPage({ clientId: clientIdProp, activeTab, showTabs = true }: PerfilPageProps = {}) {
   const params = useParams();
-  const clientId = params.id as string;
-  const [tab, setTab] = useState(0);
+  const clientId = clientIdProp || (params.id as string);
+  const [tab, setTab] = useState<IdentityWorkspaceTab>(activeTab ?? 'dna');
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<ClientData | null>(null);
   const [connectors, setConnectors] = useState<ConnectorRow[]>([]);
@@ -162,6 +177,12 @@ export default function PerfilPage() {
   const [editingContent, setEditingContent] = useState(false);
   const [contentForm, setContentForm] = useState({ pillars: '', keywords: '' });
   const [savingContent, setSavingContent] = useState(false);
+
+  useEffect(() => {
+    if (activeTab) {
+      setTab(activeTab);
+    }
+  }, [activeTab]);
 
   const openContentEdit = () => {
     setContentForm({
@@ -383,21 +404,37 @@ export default function PerfilPage() {
 
   return (
     <Box>
-      <Tabs
-        value={tab}
-        onChange={(_, v) => setTab(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
-      >
-        <Tab label="Identidade" />
-        <Tab label="DNA de Marca" />
-        <Tab label="Conteúdo" />
-        <Tab icon={<IconUsers size={16} />} iconPosition="start" label="Contatos" sx={{ fontSize: '0.85rem' }} />
-        <Tab icon={<IconBooks size={16} />} iconPosition="start" label="Library" sx={{ fontSize: '0.85rem' }} />
-      </Tabs>
+      {showTabs && (
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
+        >
+          {WORKSPACE_TABS.map((workspaceTab) => {
+            const icon =
+              workspaceTab.value === 'contatos'
+                ? <IconUsers size={16} />
+                : workspaceTab.value === 'biblioteca'
+                  ? <IconBooks size={16} />
+                  : undefined;
 
-      {tab === 0 && (
+            return (
+              <Tab
+                key={workspaceTab.value}
+                value={workspaceTab.value}
+                label={workspaceTab.label}
+                icon={icon}
+                iconPosition="start"
+                sx={{ fontSize: '0.85rem' }}
+              />
+            );
+          })}
+        </Tabs>
+      )}
+
+      {tab === 'dna' && (
         <Stack spacing={3}>
           <IntelligenceScoreBar
             score={Number(suggestionsPayload.intelligence_score || 0)}
@@ -513,45 +550,11 @@ export default function PerfilPage() {
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <SectionEnrichmentCard
-                clientId={clientId}
-                sectionKey="strategy"
-                title="Sugestões de Estratégia"
-                description="Pilares, keywords e mix de conteúdo."
-                suggestion={profileSuggestions.strategy}
-                refreshedAt={sectionRefreshedAt.strategy}
-                existingValues={sectionExistingValues.strategy}
-                onChanged={onProfileChanged}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <SectionEnrichmentCard
-                clientId={clientId}
-                sectionKey="competitors"
-                title="Sugestões de Concorrentes"
-                description="Concorrentes para monitoramento e comparação."
-                suggestion={profileSuggestions.competitors}
-                refreshedAt={sectionRefreshedAt.competitors}
-                existingValues={sectionExistingValues.competitors}
-                onChanged={onProfileChanged}
-              />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <SectionEnrichmentCard
-                clientId={clientId}
-                sectionKey="calendar"
-                title="Sugestões de Calendário"
-                description="Datas estratégicas com maior potencial para o cliente."
-                suggestion={profileSuggestions.calendar}
-                refreshedAt={sectionRefreshedAt.calendar}
-                existingValues={sectionExistingValues.calendar}
-                onChanged={onProfileChanged}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
               <VisualStyleCard clientId={clientId} />
             </Grid>
           </Grid>
+
+          <BrandVoiceSection clientId={clientId} />
 
           <Card variant="outlined">
             <CardContent>
@@ -740,12 +743,47 @@ export default function PerfilPage() {
         </Stack>
       )}
 
-      {tab === 1 && (
-        <BrandVoiceSection clientId={clientId} />
-      )}
-
-      {tab === 2 && (
+      {tab === 'editorial' && (
         <Stack spacing={3}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <SectionEnrichmentCard
+                clientId={clientId}
+                sectionKey="strategy"
+                title="Sugestões de Estratégia Editorial"
+                description="Pilares, keywords e mix de conteúdo."
+                suggestion={profileSuggestions.strategy}
+                refreshedAt={sectionRefreshedAt.strategy}
+                existingValues={sectionExistingValues.strategy}
+                onChanged={onProfileChanged}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <SectionEnrichmentCard
+                clientId={clientId}
+                sectionKey="competitors"
+                title="Sugestões de Concorrentes"
+                description="Referências para monitoramento e comparação editorial."
+                suggestion={profileSuggestions.competitors}
+                refreshedAt={sectionRefreshedAt.competitors}
+                existingValues={sectionExistingValues.competitors}
+                onChanged={onProfileChanged}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <SectionEnrichmentCard
+                clientId={clientId}
+                sectionKey="calendar"
+                title="Sugestões de Calendário"
+                description="Datas estratégicas com maior potencial para o cliente."
+                suggestion={profileSuggestions.calendar}
+                refreshedAt={sectionRefreshedAt.calendar}
+                existingValues={sectionExistingValues.calendar}
+                onChanged={onProfileChanged}
+              />
+            </Grid>
+          </Grid>
+
           <Card variant="outlined">
             <CardContent>
               <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
@@ -827,9 +865,9 @@ export default function PerfilPage() {
         </Stack>
       )}
 
-      {tab === 3 && <ContactsManager clientId={clientId} />}
+      {tab === 'contatos' && <ContactsManager clientId={clientId} />}
 
-      {tab === 4 && <ClientLibraryClient clientId={clientId} />}
+      {tab === 'biblioteca' && <ClientLibraryClient clientId={clientId} />}
     </Box>
   );
 }

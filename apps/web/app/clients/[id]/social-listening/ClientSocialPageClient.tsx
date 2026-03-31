@@ -447,7 +447,7 @@ export default function ClientSocialPageClient({ clientId }: { clientId: string 
               </Typography>
               <Button
                 variant="contained" size="small"
-                href={`/clients/${clientId}/identidade?sub=integracoes`}
+                href={`/clients/${clientId}/identidade?sub=config`}
               >
                 Conectar Instagram
               </Button>

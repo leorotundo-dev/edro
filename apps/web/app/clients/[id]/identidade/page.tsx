@@ -6,26 +6,32 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBook2, IconFingerprint, IconSettings } from '@tabler/icons-react';
-import PerfilPage from '../perfil/page';
-import ClientLibraryClient from '../library/ClientLibraryClient';
+import { IconBook2, IconBulb, IconDna, IconSettings, IconUsers } from '@tabler/icons-react';
+import PerfilPage, { type IdentityWorkspaceTab } from '../perfil/page';
 import ClientConnectorsPage from '../connectors/page';
 import ClientPermissionsPage from '../permissions/page';
 
-type IdentidadeSub = 'perfil' | 'biblioteca' | 'config';
+type IdentidadeSub = IdentityWorkspaceTab | 'config';
 
 const SUB_TABS = [
-  { value: 'perfil' as const,     label: 'Perfil & Marca', icon: <IconFingerprint size={16} /> },
-  { value: 'biblioteca' as const, label: 'Biblioteca',     icon: <IconBook2 size={16} /> },
-  { value: 'config' as const,     label: 'Config',         icon: <IconSettings size={16} /> },
+  { value: 'dna' as const,        label: 'DNA',           icon: <IconDna size={16} /> },
+  { value: 'editorial' as const,  label: 'Editorial',     icon: <IconBulb size={16} /> },
+  { value: 'contatos' as const,   label: 'Contatos',      icon: <IconUsers size={16} /> },
+  { value: 'biblioteca' as const, label: 'Biblioteca',    icon: <IconBook2 size={16} /> },
+  { value: 'config' as const,     label: 'Configurações', icon: <IconSettings size={16} /> },
 ];
 
 function parseSub(v: string | null): IdentidadeSub {
+  if (v === 'dna') return 'dna';
+  if (v === 'editorial' || v === 'conteudo') return 'editorial';
+  if (v === 'contatos') return 'contatos';
   if (v === 'biblioteca') return 'biblioteca';
   if (v === 'config') return 'config';
   // backward compat: old 'integracoes' and 'acesso' → config
   if (v === 'integracoes' || v === 'acesso') return 'config';
-  return 'perfil';
+  if (v === 'perfil' || v === 'identidade') return 'dna';
+  if (v === 'library') return 'biblioteca';
+  return 'dna';
 }
 
 // ── Config — Integrações + Acesso ─────────────────────────────────────────────
@@ -56,7 +62,7 @@ export default function IdentidadePage() {
   const changeTab = (value: IdentidadeSub) => {
     setTab(value);
     const next = new URLSearchParams(searchParams.toString());
-    if (value === 'perfil') {
+    if (value === 'dna') {
       next.delete('sub');
     } else {
       next.set('sub', value);
@@ -79,9 +85,9 @@ export default function IdentidadePage() {
         ))}
       </Tabs>
 
-      {tab === 'perfil'     && <PerfilPage />}
-      {tab === 'biblioteca' && <ClientLibraryClient clientId={clientId} />}
-      {tab === 'config'     && <ConfigSection />}
+      {tab === 'config'
+        ? <ConfigSection />
+        : <PerfilPage clientId={clientId} activeTab={tab} showTabs={false} />}
     </Box>
   );
 }

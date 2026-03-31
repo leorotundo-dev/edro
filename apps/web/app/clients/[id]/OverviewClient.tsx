@@ -642,7 +642,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
     const hrefs: Record<string, string> = {
       social: `/clients/${clientId}/inteligencia?sub=social`,
       clipping: `/clients/${clientId}/inteligencia`,
-      library: `/clients/${clientId}/inteligencia?sub=insights`,
+      library: `/clients/${clientId}/identidade?sub=biblioteca`,
       calendar: `/clients/${clientId}/calendar`,
       opportunities: `/clients/${clientId}/planning`,
       antiRepetition: `/clients/${clientId}/planning`,
@@ -911,9 +911,9 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
         if (incomplete < 2) return null;
         const steps = [
           { done: hasCalendar, label: 'Calendário gerado', href: `/calendar?clientId=${clientId}` },
-          { done: hasIntegration, label: 'Integração configurada (Meta ou Reportei)', href: `/clients/${clientId}/integrations` },
+          { done: hasIntegration, label: 'Integração configurada (Meta ou Reportei)', href: `/clients/${clientId}/identidade?sub=config` },
           { done: hasIntelligence, label: 'Inteligência de mercado', href: `/clients/${clientId}/inteligencia` },
-          { done: hasKnowledge, label: 'Palavras-chave e pilares definidos', href: `/clients/${clientId}/perfil` },
+          { done: hasKnowledge, label: 'Palavras-chave e pilares definidos', href: `/clients/${clientId}/identidade?sub=editorial` },
         ];
         return (
           <Card variant="outlined" sx={{ borderColor: '#FFAE1F50', bgcolor: '#fffbeb' }}>
@@ -1576,13 +1576,13 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 bgcolor: planningHealth?.overall === 'healthy' ? 'success.light' : planningHealth?.overall === 'warning' ? 'warning.light' : 'grey.100',
                 color: planningHealth?.overall === 'healthy' ? 'success.main' : planningHealth?.overall === 'warning' ? 'warning.main' : 'text.secondary' }} />
             <Box flex={1} />
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/perfil`} sx={{ color: SECTION_COLORS.creative.fg }}>
-              Perfil
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/identidade`} sx={{ color: SECTION_COLORS.creative.fg }}>
+              DNA
             </Button>
             <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/planning`} sx={{ color: SECTION_COLORS.planning.fg }}>
               Planning
             </Button>
-            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/planning`} sx={{ color: SECTION_COLORS.library.fg }}>
+            <Button size="small" variant="text" component={Link} href={`/clients/${clientId}/identidade?sub=biblioteca`} sx={{ color: SECTION_COLORS.library.fg }}>
               Biblioteca
             </Button>
           </Stack>
@@ -1720,7 +1720,7 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 <Grid container spacing={1}>
                   <Grid size={{ xs: 6 }}>
                     <Button fullWidth size="small" startIcon={<IconBook2 size={14} />}
-                      component={Link} href={`/clients/${clientId}/planning`}
+                      component={Link} href={`/clients/${clientId}/identidade?sub=biblioteca`}
                       sx={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', '&:hover': { color: 'white' } }}>
                       Biblioteca
                     </Button>
