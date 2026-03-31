@@ -32,6 +32,8 @@ import {
   IconChevronUp,
   IconFilter,
   IconInbox,
+  IconLayoutKanban,
+  IconLayoutList,
   IconLoader2,
   IconPlayerPlay,
   IconSearch,
@@ -85,6 +87,8 @@ export default function OperationsJobsClient() {
   const shouldOpenComposer = searchParams.get('new') === '1';
   const shouldFilterUnassigned = searchParams.get('unassigned') === 'true';
   const ownerIdParam = searchParams.get('owner_id') || '';
+  const rawView = searchParams.get('view');
+  const validView = rawView === 'board' ? 'board' : 'list';
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob, deleteJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -102,6 +106,7 @@ export default function OperationsJobsClient() {
   const [deadlineFilter, setDeadlineFilter] = useState<string | null>(null);
   const [deliveryFilter, setDeliveryFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [viewMode, setViewModeState] = useState<'list' | 'board'>(validView);
 
   const rawGroup = searchParams.get('group');
   const validGroup = rawGroup === 'client' || rawGroup === 'owner' || rawGroup === 'risk' ? rawGroup : 'status';
@@ -112,10 +117,17 @@ export default function OperationsJobsClient() {
     if (v === 'status') params.delete('group'); else params.set('group', v);
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
+  const setViewMode = useCallback((v: 'list' | 'board') => {
+    setViewModeState(v);
+    const params = new URLSearchParams(searchParams.toString());
+    if (v === 'list') params.delete('view'); else params.set('view', 'board');
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
 
   useEffect(() => { if (shouldOpenComposer) setComposerOpen(true); }, [shouldOpenComposer]);
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);
   useEffect(() => { if (ownerIdParam) setOwnerFilter(ownerIdParam); }, [ownerIdParam]);
+  useEffect(() => { setViewModeState(validView); }, [validView]);
 
   const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -547,42 +559,91 @@ export default function OperationsJobsClient() {
                 committedMinutesFn={ownerCommittedMinutes}
               />
 
-              {/* Zone 2: Pipeline Board — horizontal kanban */}
-              <PipelineBoard
-                jobs={filteredJobs}
-                selectedJob={selectedJob}
-                onSelectJob={setSelectedJob}
-                onAdvance={handleAdvance}
-                onShowAll={() => setGroupMode('status')}
-              />
+              <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={1}
+                alignItems={{ md: 'center' }}
+                justifyContent="space-between"
+              >
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem' }}>
+                    Visualização:
+                  </Typography>
+                  <ToggleButtonGroup
+                    value={viewMode}
+                    exclusive
+                    onChange={(_e, v) => { if (v) setViewMode(v); }}
+                    size="small"
+                  >
+                    <ToggleButton value="list" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                      <IconLayoutList size={13} style={{ marginRight: 4 }} /> Lista
+                    </ToggleButton>
+                    <ToggleButton value="board" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                      <IconLayoutKanban size={13} style={{ marginRight: 4 }} /> Quadro
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                </Stack>
 
-              {/* Group-by selector */}
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem' }}>Agrupar:</Typography>
-                <ToggleButtonGroup
-                  value={groupMode}
-                  exclusive
-                  onChange={(_e, v) => { if (v) setGroupMode(v); }}
-                  size="small"
-                >
-                  <ToggleButton value="status" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconInbox size={13} style={{ marginRight: 4 }} /> Status
-                  </ToggleButton>
-                  <ToggleButton value="client" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconUsers size={13} style={{ marginRight: 4 }} /> Cliente
-                  </ToggleButton>
-                  <ToggleButton value="owner" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconUserOff size={13} style={{ marginRight: 4 }} /> Responsável
-                  </ToggleButton>
-                  <ToggleButton value="risk" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconAlertTriangle size={13} style={{ marginRight: 4 }} /> Risco
-                  </ToggleButton>
-                </ToggleButtonGroup>
+                {viewMode === 'list' ? (
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem' }}>
+                      Agrupar:
+                    </Typography>
+                    <ToggleButtonGroup
+                      value={groupMode}
+                      exclusive
+                      onChange={(_e, v) => { if (v) setGroupMode(v); }}
+                      size="small"
+                    >
+                      <ToggleButton value="status" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconInbox size={13} style={{ marginRight: 4 }} /> Status
+                      </ToggleButton>
+                      <ToggleButton value="client" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconUsers size={13} style={{ marginRight: 4 }} /> Cliente
+                      </ToggleButton>
+                      <ToggleButton value="owner" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconUserOff size={13} style={{ marginRight: 4 }} /> Responsável
+                      </ToggleButton>
+                      <ToggleButton value="risk" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconAlertTriangle size={13} style={{ marginRight: 4 }} /> Risco
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  </Stack>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                    Quadro visual do fluxo. Use a lista quando precisar decidir por cliente, dono ou risco.
+                  </Typography>
+                )}
               </Stack>
 
-              {/* Job list */}
+              {/* Job list / board */}
               {filteredJobs.length === 0 ? (
                 <EmptyOperationState title="Nenhuma demanda encontrada" description="Mude os filtros ou crie uma nova demanda." actionLabel={OPS_COPY.shell.newDemand} onAction={() => setComposerOpen(true)} />
+              ) : viewMode === 'board' ? (
+                <OpsPanel
+                  eyebrow="KANBAN"
+                  title="Fluxo visual da fila"
+                  subtitle="Veja a passagem das demandas pelo fluxo e volte para a lista quando precisar tomar decisões mais detalhadas."
+                  action={(
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip size="small" label="Quadro canônico" color="primary" variant="outlined" />
+                      <Button size="small" variant="outlined" onClick={() => setViewMode('list')}>
+                        Voltar para lista
+                      </Button>
+                    </Stack>
+                  )}
+                >
+                  <PipelineBoard
+                    jobs={filteredJobs}
+                    selectedJob={selectedJob}
+                    onSelectJob={setSelectedJob}
+                    onAdvance={handleAdvance}
+                    onShowAll={() => {
+                      setViewMode('list');
+                      setGroupMode('status');
+                    }}
+                  />
+                </OpsPanel>
               ) : groupMode === 'status' ? (
                 <Stack spacing={1.5}>
                   {BUCKETS.map((bucket) => {

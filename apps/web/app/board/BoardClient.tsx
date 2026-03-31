@@ -20,6 +20,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/material/styles';
 import {
   IconCalendar,
   IconCheck,
@@ -166,6 +167,14 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
   }, [campaigns]);
 
   const totalCampaigns = campaigns.length;
+  const activeCount = grouped.find((column) => column.status === 'active')?.items.length ?? 0;
+  const draftCount = grouped.find((column) => column.status === 'draft')?.items.length ?? 0;
+  const pausedCount = grouped.find((column) => column.status === 'paused')?.items.length ?? 0;
+  const completedCount = grouped.find((column) => column.status === 'completed')?.items.length ?? 0;
+  const totalBudget = useMemo(
+    () => campaigns.reduce((sum, campaign) => sum + (Number(campaign.budget_brl) || 0), 0),
+    [campaigns],
+  );
 
   if (loading && clients.length === 0) {
     return (
@@ -199,12 +208,86 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
       }
     >
       <Stack spacing={3}>
+        <Card
+          variant="outlined"
+          sx={{
+            borderRadius: 3,
+            background:
+              'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
+          }}
+        >
+          <Box sx={{ p: { xs: 2.5, md: 3 } }}>
+            <Stack spacing={2.25}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label="Kanban" color="primary" size="small" sx={{ fontWeight: 700 }} />
+                <Chip label={`${totalCampaigns} campanhas`} size="small" variant="outlined" />
+                {selectedClient?.name ? (
+                  <Chip label={selectedClient.name} size="small" variant="outlined" />
+                ) : null}
+              </Stack>
+
+              <Box>
+                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
+                  Pipeline de Campanhas
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  O quadro visual das campanhas para mover estágio, entender o volume e abrir a
+                  campanha certa sem ruído.
+                </Typography>
+              </Box>
+            </Stack>
+          </Box>
+        </Card>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(5, minmax(0, 1fr))' },
+            gap: 1.5,
+          }}
+        >
+          {[
+            { label: 'Ativas', value: activeCount, helper: 'rodando agora', color: '#16a34a' },
+            { label: 'Rascunho', value: draftCount, helper: 'ainda montando', color: '#64748b' },
+            { label: 'Pausadas', value: pausedCount, helper: 'fora de jogo', color: '#d97706' },
+            { label: 'Concluídas', value: completedCount, helper: 'fechadas', color: '#2563eb' },
+            { label: 'Budget total', value: formatCurrency(totalBudget) || '—', helper: 'volume planejado', color: '#5D87FF' },
+          ].map((item) => (
+            <Card key={item.label} variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+              <CardContent sx={{ p: '18px !important' }}>
+                <Stack spacing={1.25}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                      {item.label}
+                    </Typography>
+                    <Box
+                      sx={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        bgcolor: item.color,
+                        boxShadow: `0 0 0 6px ${alpha(item.color, 0.12)}`,
+                      }}
+                    />
+                  </Stack>
+                  <Typography variant="h4" fontWeight={800}>
+                    {item.value}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {item.helper}
+                  </Typography>
+                </Stack>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
+
         {/* Header */}
         <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
           <Box>
-            <Typography variant="h4">Pipeline de Campanhas</Typography>
+            <Typography variant="h5" fontWeight={800}>Quadro de fluxo</Typography>
             <Typography variant="body2" color="text.secondary">
-              {selectedClient?.name ? `${selectedClient.name} · ` : ''}{totalCampaigns} campanha{totalCampaigns !== 1 ? 's' : ''}
+              Veja o andamento por estágio e mova cada campanha sem sair do quadro.
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">
