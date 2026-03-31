@@ -45,6 +45,7 @@ export default function OperationsRadarClient() {
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'cockpit' | 'signals' | 'risks'>('cockpit');
 
   // ── Operational signals ──────────────────────────────────────────────────
   type Signal = {
@@ -167,6 +168,11 @@ export default function OperationsRadarClient() {
     setSelectedJob(null);
   }, [critical, high, jobs, selectedJob]);
 
+  const handleViewModeChange = (next: 'cockpit' | 'signals' | 'risks') => {
+    setViewMode(next);
+    if (next === 'signals') setSelectedJob(null);
+  };
+
   return (
     <OperationsShell
       section="radar"
@@ -193,6 +199,22 @@ export default function OperationsRadarClient() {
       {error ? <Alert severity="error">{error}</Alert> : null}
       {riskError ? <Alert severity="error">{riskError}</Alert> : null}
 
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
+        {[
+          { key: 'cockpit' as const, label: 'Cockpit', subtitle: 'Sinais + riscos' },
+          { key: 'signals' as const, label: 'Sinais', subtitle: 'Tudo que acabou de acender' },
+          { key: 'risks' as const, label: 'Riscos', subtitle: 'Demandas que podem estourar' },
+        ].map((item) => (
+          <Button
+            key={item.key}
+            variant={viewMode === item.key ? 'contained' : 'outlined'}
+            onClick={() => handleViewModeChange(item.key)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </Stack>
+
       {loading || riskLoading ? (
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
       ) : (
@@ -201,7 +223,7 @@ export default function OperationsRadarClient() {
             <Stack spacing={3}>
 
               {/* ── Operational Signals ─────────────────────────────── */}
-              {(signalsLoading || signals.length > 0) && (
+              {viewMode !== 'risks' && (signalsLoading || signals.length > 0) && (
                 <Box>
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
                     <Stack direction="row" spacing={0.75} alignItems="center">
@@ -299,8 +321,9 @@ export default function OperationsRadarClient() {
               )}
 
               {/* ── Jarvis Cross-Source Alerts ──────────────────────── */}
-              <JarvisAlertsSectionClient />
+              {viewMode === 'cockpit' && <JarvisAlertsSectionClient />}
 
+              {viewMode !== 'signals' && (
               <OpsSection
                 eyebrow="Pontos de atenção"
                 title={OPS_COPY.radar.title}
@@ -396,6 +419,7 @@ export default function OperationsRadarClient() {
                   </Box>
                 </Stack>
               </OpsSection>
+              )}
             </Stack>
           </Grid>
 

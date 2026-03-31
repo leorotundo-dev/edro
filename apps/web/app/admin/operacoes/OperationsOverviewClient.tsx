@@ -19,6 +19,10 @@ import {
   IconCircleCheckFilled,
   IconInbox,
   IconCalendarClock,
+  IconAlertTriangle,
+  IconUsers,
+  IconBell,
+  IconPlus,
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
 import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
@@ -97,6 +101,7 @@ function flowBucketForStatus(status?: string | null) {
 export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [syncing, setSyncing] = useState(false);
+  const [signalStats, setSignalStats] = useState({ total: 0, critical: 0, attention: 0 });
 
   const handleSyncNow = async () => {
     setSyncing(true);
@@ -155,6 +160,10 @@ export default function OperationsOverviewClient() {
         .slice(0, 4),
     [jobs, lookups.owners]
   );
+  const overloadedOwners = useMemo(
+    () => ownerLoads.filter((item) => item.committedMinutes + item.tentativeMinutes > item.allocableMinutes).length,
+    [ownerLoads]
+  );
 
   const loadOverviewRuntime = useCallback(async () => {
     try {
@@ -162,6 +171,20 @@ export default function OperationsOverviewClient() {
       if (response?.data) setOverviewRuntime(response.data);
     } catch {
       setOverviewRuntime((current) => current);
+    }
+  }, []);
+
+  const loadSignalStats = useCallback(async () => {
+    try {
+      const response = await apiGet<{ data?: Array<{ severity: number }> }>('/operations/signals?limit=50');
+      const signals = response?.data || [];
+      setSignalStats({
+        total: signals.length,
+        critical: signals.filter((signal) => signal.severity >= 90).length,
+        attention: signals.filter((signal) => signal.severity >= 70 && signal.severity < 90).length,
+      });
+    } catch {
+      setSignalStats({ total: 0, critical: 0, attention: 0 });
     }
   }, []);
 
@@ -183,12 +206,14 @@ export default function OperationsOverviewClient() {
   useEffect(() => {
     if (loading) return;
     void loadOverviewRuntime();
-  }, [loadOverviewRuntime, loading]);
+    void loadSignalStats();
+  }, [loadOverviewRuntime, loadSignalStats, loading]);
 
   const handleRefreshOverview = useCallback(async () => {
     await refresh();
     await loadOverviewRuntime();
-  }, [loadOverviewRuntime, refresh]);
+    await loadSignalStats();
+  }, [loadOverviewRuntime, loadSignalStats, refresh]);
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const focusedBucketKey = flowBucketForStatus(selectedJob?.status);
@@ -257,6 +282,106 @@ export default function OperationsOverviewClient() {
         </Box>
       ) : (
         <Grid container spacing={3}>
+          <Grid size={{ xs: 12 }}>
+            <OpsPanel
+              eyebrow="Mesa de comando"
+              title="O que decidir agora"
+              subtitle="Tudo abaixo combina Trello ao vivo, leitura operacional e estimativas da Edro para você agir sem interpretar a tela."
+              action={
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                  <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
+                  <Chip size="small" variant="outlined" color="info" label="Estimado pela Edro" />
+                </Stack>
+              }
+            >
+              <Stack spacing={2.5}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(6, minmax(0, 1fr))' },
+                    gap: 1.25,
+                  }}
+                >
+                  {[
+                    { label: 'Pegando fogo', value: criticalJobs.length + signalStats.critical, subtitle: `${criticalJobs.length} demandas · ${signalStats.critical} sinais`, href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} />, color: '#FA896B' },
+                    { label: 'Vence hoje', value: todayJobs.length, subtitle: 'Demandas com prazo imediato', href: '/admin/operacoes/jobs?group=status', icon: <IconCalendarClock size={16} />, color: '#5D87FF' },
+                    { label: 'Sem dono', value: unassignedJobs.length, subtitle: 'Demandas que precisam de responsável', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconInbox size={16} />, color: '#FFAE1F' },
+                    { label: 'Esperando cliente', value: overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total, subtitle: 'Aprovações e retornos', href: '/admin/operacoes/jobs', icon: <IconCircleCheckFilled size={16} />, color: '#FFAE1F' },
+                    { label: 'Sinais ativos', value: signalStats.total, subtitle: `${signalStats.attention} em atenção`, href: '/admin/operacoes/radar', icon: <IconBell size={16} />, color: '#E85219' },
+                    { label: 'Capacidade pressionada', value: overloadedOwners, subtitle: 'Pessoas acima da folga', href: '/admin/operacoes/semana?view=distribution', icon: <IconUsers size={16} />, color: '#13DEB9' },
+                  ].map((item) => (
+                    <Box
+                      key={item.label}
+                      component={Link}
+                      href={item.href}
+                      sx={(theme) => ({
+                        display: 'block',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        p: 1.75,
+                        borderRadius: 2,
+                        border: `1px solid ${alpha(item.color, 0.22)}`,
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
+                        transition: 'all 180ms ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          borderColor: alpha(item.color, 0.35),
+                          bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
+                        },
+                      })}
+                    >
+                      <Stack spacing={0.8}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Box
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 1.5,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: alpha(item.color, 0.14),
+                              color: item.color,
+                            }}
+                          >
+                            {item.icon}
+                          </Box>
+                          <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.5rem', lineHeight: 1 }}>
+                            {item.value}
+                          </Typography>
+                        </Stack>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            {item.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                            {item.subtitle}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Box>
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button variant="contained" startIcon={<IconPlus size={16} />} component={Link} href="/admin/operacoes/jobs?new=1">
+                    Nova demanda
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                    Organizar fila
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                    Replanejar semana
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
+                    Abrir riscos
+                  </Button>
+                </Stack>
+              </Stack>
+            </OpsPanel>
+          </Grid>
+
           <Grid size={{ xs: 12, lg: 3 }}>
             <OpsPanel eyebrow={OPS_COPY.overview.pulseEyebrow} title={OPS_COPY.overview.pulseTitle} subtitle={OPS_COPY.overview.pulseSubtitle}>
               <Stack spacing={2}>
