@@ -623,12 +623,13 @@ export default function OperationsJobsClient() {
           <Grid size={{ xs: 12, lg: 4 }}>
             <JobFocusRail
               job={selectedJob}
-              title={OPS_COPY.common.focusTitle}
-              subtitle={OPS_COPY.jobs.focusSubtitle}
-              primaryLabel={focusedAction?.label}
+              title="Mesa da demanda"
+              subtitle="Veja a trava, o dono e o proximo passo antes de abrir o painel completo."
+              primaryLabel="Abrir comandos"
               onPrimaryAction={() => setDetailOpen(true)}
               emptyTitle="Selecione uma demanda"
-              emptyDescription={OPS_COPY.jobs.focusEmptySubtitle}
+              emptyDescription="Clique em uma demanda da fila para ver o pulso, os atalhos e os links de contexto."
+              eyebrow="DECISAO RAPIDA"
               links={
                 selectedJob ? (
                   <Grid container spacing={1.25}>
@@ -639,7 +640,7 @@ export default function OperationsJobsClient() {
                         thumbnail={<ClientThumb name={selectedJob.client_name} logoUrl={selectedJob.client_logo_url} accent={selectedJob.client_brand_color || '#E85219'} size={26} />} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Responsável" value={selectedJob.owner_name || 'Sem responsável'}
+                      <EntityLinkCard label="Dono" value={selectedJob.owner_name || 'Sem responsavel'}
                         href={(() => {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
@@ -650,7 +651,7 @@ export default function OperationsJobsClient() {
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Studio criativo" value="Abrir produção" href="/edro" subtitle="Entrar na execução criativa"
+                      <EntityLinkCard label="Studio" value="Abrir producao" href="/edro" subtitle="Entrar na execucao criativa"
                         thumbnail={<SourceThumb source="creative_studio" jobType="design_static" accent="#5D87FF" />} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
@@ -666,7 +667,7 @@ export default function OperationsJobsClient() {
                 if (!ownerPulse) return [];
                 const barColor = ownerPulse.pct > 90 ? '#FA896B' : ownerPulse.pct > 75 ? '#FFAE1F' : '#13DEB9';
                 return [{
-                  title: 'Capacidade do responsável',
+                  title: 'Pulso do dono',
                   content: (
                     <Box sx={{ px: 0.5 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>

@@ -735,6 +735,19 @@ export function OpsJobRow({
   const stagePct = Math.round(((stageIdx + 1) / STAGE_FLOW.length) * 100);
   const nextStatus = getNextStatus(job);
   const nextAction = getNextAction(job);
+  const attentionFlags: Array<{ label: string; color: string; border: string; text: string }> = [];
+  if (!job.owner_id) {
+    attentionFlags.push({ label: 'Sem dono', color: alpha('#FFAE1F', 0.14), border: alpha('#FFAE1F', 0.3), text: '#d97706' });
+  }
+  if (job.status === 'awaiting_approval') {
+    attentionFlags.push({ label: 'Cliente', color: alpha('#FFAE1F', 0.14), border: alpha('#FFAE1F', 0.3), text: '#d97706' });
+  }
+  if (job.status === 'blocked') {
+    attentionFlags.push({ label: 'Bloqueado', color: alpha('#FA896B', 0.14), border: alpha('#FA896B', 0.3), text: '#dc2626' });
+  }
+  if (job.is_urgent) {
+    attentionFlags.push({ label: 'Urgente', color: alpha('#E85219', 0.12), border: alpha('#E85219', 0.3), text: '#E85219' });
+  }
 
   return (
     <Box
@@ -794,7 +807,7 @@ export function OpsJobRow({
                 {job.title}
               </Typography>
             </Stack>
-            <Stack direction="row" spacing={0.75} alignItems="center">
+            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
               <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.72rem' }}>
                 {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
               </Typography>
@@ -827,6 +840,54 @@ export function OpsJobRow({
                 </Box>
               ) : job.automation_status && job.automation_status !== 'none' ? (
                 <AutomationPipeline automationStatus={job.automation_status} compact />
+              ) : null}
+            </Stack>
+            <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 0.4 }}>
+              <Chip
+                size="small"
+                icon={<IconArrowRight size={11} />}
+                label={nextAction.label}
+                sx={{
+                  height: 20,
+                  fontSize: '0.66rem',
+                  fontWeight: 800,
+                  bgcolor: alpha(vis.color, 0.1),
+                  color: vis.color,
+                  border: `1px solid ${alpha(vis.color, 0.24)}`,
+                  '& .MuiChip-label': { px: 0.7 },
+                  '& .MuiChip-icon': { color: 'inherit', ml: 0.45, mr: -0.1 },
+                }}
+              />
+              {attentionFlags.map((flag) => (
+                <Chip
+                  key={flag.label}
+                  size="small"
+                  label={flag.label}
+                  sx={{
+                    height: 20,
+                    fontSize: '0.64rem',
+                    fontWeight: 800,
+                    bgcolor: flag.color,
+                    color: flag.text,
+                    border: `1px solid ${flag.border}`,
+                    '& .MuiChip-label': { px: 0.65 },
+                  }}
+                />
+              ))}
+              {job.required_skill ? (
+                <Chip
+                  size="small"
+                  label={formatSkillLabel(job.required_skill)}
+                  sx={{
+                    height: 20,
+                    fontSize: '0.64rem',
+                    fontWeight: 700,
+                    bgcolor: alpha('#5D87FF', 0.08),
+                    color: '#5D87FF',
+                    border: `1px solid ${alpha('#5D87FF', 0.18)}`,
+                    '& .MuiChip-label': { px: 0.65 },
+                  }}
+                />
               ) : null}
             </Stack>
             {/* Inline stage progress */}
@@ -1724,6 +1785,50 @@ export function OperationsContextRail({
               </Typography>
             </Box>
 
+            <Box
+              sx={(theme) => ({
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: alpha(theme.palette.primary.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.16)}`,
+              })}
+            >
+              <Stack spacing={1}>
+                <Typography variant="overline" sx={{ fontSize: '0.62rem', fontWeight: 900, letterSpacing: '0.12em', color: 'primary.main' }}>
+                  DECISAO DE AGORA
+                </Typography>
+                <Typography variant="body1" fontWeight={900}>
+                  {getNextAction(job).label}
+                </Typography>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" label={STAGE_LABELS[job.status] || job.status} sx={{ fontWeight: 800 }} />
+                  <Chip
+                    size="small"
+                    label={getRisk(job).label}
+                    sx={(theme) => ({
+                      fontWeight: 800,
+                      bgcolor: alpha(
+                        getRisk(job).level === 'critical'
+                          ? theme.palette.error.main
+                          : getRisk(job).level === 'high'
+                            ? theme.palette.warning.main
+                            : theme.palette.success.main,
+                        0.12,
+                      ),
+                      color:
+                        getRisk(job).level === 'critical'
+                          ? theme.palette.error.dark
+                          : getRisk(job).level === 'high'
+                            ? theme.palette.warning.dark
+                            : theme.palette.success.dark,
+                    })}
+                  />
+                  {!job.owner_id ? <Chip size="small" color="warning" variant="outlined" label="Sem dono" /> : null}
+                  {job.status === 'awaiting_approval' ? <Chip size="small" color="warning" variant="outlined" label="Esperando cliente" /> : null}
+                </Stack>
+              </Stack>
+            </Box>
+
             <Box sx={(theme) => ({
               p: 1.5,
               borderRadius: 2,
@@ -1734,8 +1839,8 @@ export function OperationsContextRail({
                 <Grid size={{ xs: 12, md: 6 }}>
                   <ContextMetaRow
                     icon={<IconUser size={15} />}
-                    label="Responsável"
-                    value={job.owner_name || 'Sem responsável'}
+                    label="Dono"
+                    value={job.owner_name || 'Sem responsavel'}
                     accent="#5D87FF"
                   />
                 </Grid>
