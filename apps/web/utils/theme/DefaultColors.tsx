@@ -59,7 +59,7 @@ const DefaultColors = {
   },
   divider: '#e5e7eb',
   background: {
-    default: '#f5f5f5',
+    default: '#f8f9fb',
     paper: '#ffffff',
   },
 };
