@@ -143,7 +143,7 @@ export const MODERNIZE_FAMILIES: ModernizeFamily[] = [
     mode: 'use_ready',
     status: 'ready',
     priority: 5,
-    routes: ['/admin/relatorios', '/clients/[id]/reports'],
+    routes: ['/admin/relatorios', '/clients/[id]/reports', '/insights'],
   },
   {
     key: 'calendar',
