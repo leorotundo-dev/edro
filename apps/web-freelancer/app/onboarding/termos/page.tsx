@@ -13,14 +13,41 @@ interface ContractState {
   sent_at: string | null;
 }
 
-function parseUiErrorMessage(error: unknown, fallback: string) {
+type OnboardingMissingField = {
+  field: string;
+  label: string;
+  step: string;
+  step_label: string;
+};
+
+type ParsedContractError = {
+  message: string;
+  missingFields: OnboardingMissingField[];
+  redirectTo: string | null;
+  nextStep: string | null;
+};
+
+function parseContractError(error: unknown, fallback: string): ParsedContractError {
   const message = error instanceof Error ? error.message : '';
-  if (!message) return fallback;
+  if (!message) {
+    return { message: fallback, missingFields: [], redirectTo: null, nextStep: null };
+  }
   try {
-    const parsed = JSON.parse(message) as { error?: string; message?: string };
-    return parsed.error || parsed.message || fallback;
+    const parsed = JSON.parse(message) as {
+      error?: string;
+      message?: string;
+      redirect_to?: string | null;
+      next_step?: string | null;
+      missing_fields?: OnboardingMissingField[];
+    };
+    return {
+      message: parsed.error || parsed.message || fallback,
+      missingFields: Array.isArray(parsed.missing_fields) ? parsed.missing_fields : [],
+      redirectTo: parsed.redirect_to ?? null,
+      nextStep: parsed.next_step ?? null,
+    };
   } catch {
-    return message;
+    return { message, missingFields: [], redirectTo: null, nextStep: null };
   }
 }
 
@@ -30,6 +57,9 @@ export default function TermosPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [missingFields, setMissingFields] = useState<OnboardingMissingField[]>([]);
+  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
+  const [resumeStep, setResumeStep] = useState<string | null>(null);
 
   const loadContract = useCallback(async () => {
     try {
@@ -55,11 +85,18 @@ export default function TermosPage() {
   const sendContract = async () => {
     setSending(true);
     setError('');
+    setMissingFields([]);
+    setResumeUrl(null);
+    setResumeStep(null);
     try {
       await apiPost('/freelancers/portal/me/contract/send', {});
       await loadContract();
     } catch (e: any) {
-      setError(parseUiErrorMessage(e, 'Erro ao enviar contrato. Tente novamente.'));
+      const parsed = parseContractError(e, 'Erro ao enviar contrato. Tente novamente.');
+      setError(parsed.message);
+      setMissingFields(parsed.missingFields);
+      setResumeUrl(parsed.redirectTo);
+      setResumeStep(parsed.nextStep);
     } finally {
       setSending(false);
     }
@@ -68,12 +105,19 @@ export default function TermosPage() {
   const resend = async () => {
     setSending(true);
     setError('');
+    setMissingFields([]);
+    setResumeUrl(null);
+    setResumeStep(null);
     try {
       await apiPost('/freelancers/portal/me/contract/send', {});
       setError('');
       await loadContract();
     } catch (e: any) {
-      setError(parseUiErrorMessage(e, 'Erro ao reenviar.'));
+      const parsed = parseContractError(e, 'Erro ao reenviar.');
+      setError(parsed.message);
+      setMissingFields(parsed.missingFields);
+      setResumeUrl(parsed.redirectTo);
+      setResumeStep(parsed.nextStep);
     } finally {
       setSending(false);
     }
@@ -127,7 +171,42 @@ export default function TermosPage() {
               </ol>
             </div>
 
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && (
+              <div style={errorStyle}>
+                <div>{error}</div>
+                {missingFields.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Falta concluir:</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                      {missingFields.map((item) => (
+                        <li key={`${item.step}:${item.field}`}>
+                          {item.label} na etapa <strong>{item.step_label}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {resumeUrl && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(resumeUrl)}
+                    style={{
+                      marginTop: 14,
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(250,137,107,0.35)',
+                      background: 'rgba(250,137,107,0.14)',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Corrigir agora{resumeStep ? ` → ${resumeStep}` : ''}
+                  </button>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
@@ -165,7 +244,39 @@ export default function TermosPage() {
               </p>
             )}
 
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && (
+              <div style={errorStyle}>
+                <div>{error}</div>
+                {missingFields.length > 0 && (
+                  <ul style={{ margin: '10px 0 0', paddingLeft: 18, lineHeight: 1.7 }}>
+                    {missingFields.map((item) => (
+                      <li key={`${item.step}:${item.field}`}>
+                        {item.label} na etapa <strong>{item.step_label}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {resumeUrl && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(resumeUrl)}
+                    style={{
+                      marginTop: 14,
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(250,137,107,0.35)',
+                      background: 'rgba(250,137,107,0.14)',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Corrigir agora{resumeStep ? ` → ${resumeStep}` : ''}
+                  </button>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
@@ -188,7 +299,39 @@ export default function TermosPage() {
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 24 }}>
               O contrato anterior foi cancelado. Gere um novo para continuar.
             </p>
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && (
+              <div style={errorStyle}>
+                <div>{error}</div>
+                {missingFields.length > 0 && (
+                  <ul style={{ margin: '10px 0 0', paddingLeft: 18, lineHeight: 1.7 }}>
+                    {missingFields.map((item) => (
+                      <li key={`${item.step}:${item.field}`}>
+                        {item.label} na etapa <strong>{item.step_label}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {resumeUrl && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(resumeUrl)}
+                    style={{
+                      marginTop: 14,
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(250,137,107,0.35)',
+                      background: 'rgba(250,137,107,0.14)',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Corrigir agora{resumeStep ? ` → ${resumeStep}` : ''}
+                  </button>
+                )}
+              </div>
+            )}
             <button type="button" onClick={sendContract} disabled={sending} style={{ ...btnStyle, opacity: sending ? 0.6 : 1 }}>
               {sending ? 'Gerando...' : 'Gerar novo contrato'}
             </button>

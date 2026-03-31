@@ -169,6 +169,78 @@ async function loadFreelancerIdentitySnapshot(freelancerId: string) {
   return res.rows[0] ?? null;
 }
 
+type OnboardingStep = 'empresa' | 'representante' | 'pagamento' | 'skills' | 'avatar';
+
+type OnboardingMissingField = {
+  field: string;
+  label: string;
+  step: OnboardingStep;
+  step_label: string;
+};
+
+const ONBOARDING_STEP_LABELS: Record<OnboardingStep, string> = {
+  empresa: 'Dados da Empresa',
+  representante: 'Representante Legal',
+  pagamento: 'Dados de Pagamento',
+  skills: 'Especialidades',
+  avatar: 'Avatar Edro',
+};
+
+function hasValue(value: unknown) {
+  return typeof value === 'string' ? value.trim().length > 0 : value != null;
+}
+
+function parseStoredSkills(raw: unknown): Array<{ id?: string; label?: string }> {
+  if (Array.isArray(raw)) return raw.filter(Boolean) as Array<{ id?: string; label?: string }>;
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildFreelancerOnboardingState(profile: Record<string, any>) {
+  const missing: OnboardingMissingField[] = [];
+  const pushMissing = (field: string, label: string, step: OnboardingStep) => {
+    missing.push({ field, label, step, step_label: ONBOARDING_STEP_LABELS[step] });
+  };
+
+  const cnpj = normalizeDigits(String(profile.cnpj ?? ''));
+  if (!isValidCnpj(cnpj)) pushMissing('cnpj', 'CNPJ válido', 'empresa');
+  if (!hasValue(profile.razao_social)) pushMissing('razao_social', 'Razão Social', 'empresa');
+
+  if (!hasValue(profile.representante_nome)) pushMissing('representante_nome', 'Nome do representante', 'representante');
+  if (!/^\d{11}$/.test(normalizeDigits(String(profile.representante_cpf ?? '')))) {
+    pushMissing('representante_cpf', 'CPF do representante', 'representante');
+  }
+
+  if (!hasValue(profile.pix_key)) pushMissing('pix_key', 'Chave PIX', 'pagamento');
+
+  const skillsJson = parseStoredSkills(profile.skills_json);
+  const skills = Array.isArray(profile.skills) ? profile.skills.filter(Boolean) : [];
+  if (skillsJson.length === 0 && skills.length === 0) {
+    pushMissing('skills', 'Ao menos uma especialidade', 'skills');
+  }
+
+  const hasAvatar = Boolean(
+    hasValue(profile.avatar_url)
+    || hasValue(profile.person_avatar_url)
+    || hasValue(profile.avatar_generated_key)
+    || hasValue(profile.avatar_source_key),
+  );
+  if (!hasAvatar) pushMissing('avatar', 'Avatar Edro gerado', 'avatar');
+
+  const nextStep = missing[0]?.step ?? null;
+  return {
+    missing_fields: missing,
+    next_step: nextStep,
+    redirect_to: nextStep ? `/onboarding?step=${nextStep}` : null,
+    complete: missing.length === 0,
+  };
+}
+
 // ── PDF generation (requires: pnpm add pdfkit @types/pdfkit in apps/backend) ──
 // Falls back to plain text if pdfkit is not available.
 async function generateReceiptPdf(params: {
@@ -2089,10 +2161,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         address_district = $9, address_city = $10, address_state = $11, address_cep = $12,
         representante_nome = $13, representante_cpf = $14, estado_civil = $15,
         pix_key = $16, pix_key_type = $17,
-        portfolio_url = $18, weekly_capacity = $19,
-        skills = COALESCE($20::text[], skills),
-        skills_json = $22::jsonb,
-        phone = COALESCE($21, phone),
+        bank_name = $18, bank_agency = $19, bank_account = $20,
+        portfolio_url = $21, weekly_capacity = $22,
+        skills = COALESCE($23::text[], skills),
+        phone = COALESCE($24, phone),
+        skills_json = $25::jsonb,
         onboarding_complete = true,
         updated_at = now()
        WHERE user_id = $1`,
@@ -2114,6 +2187,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         body.estado_civil ?? null,
         body.pix_key,
         body.pix_key_type ?? 'cnpj',
+        body.bank_name ?? null,
+        body.bank_agency ?? null,
+        body.bank_account ?? null,
         body.portfolio_url ?? null,
         body.weekly_capacity ?? 40,
         skillIds,
@@ -2241,28 +2317,48 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     } catch { return reply.status(401).send({ error: 'Token inválido' }); }
 
     const { rows } = await pool.query(
-      `SELECT onboarding_complete, terms_accepted_at, cnpj, razao_social,
-              pix_key, skills, sla_score,
-              contract_status, contract_signed_at, contract_pdf_url, avatar_url
-         FROM freelancer_profiles WHERE user_id = $1`,
+      `SELECT fp.onboarding_complete,
+              fp.terms_accepted_at,
+              fp.cnpj,
+              fp.razao_social,
+              fp.representante_nome,
+              fp.representante_cpf,
+              fp.pix_key,
+              fp.skills,
+              fp.skills_json,
+              fp.sla_score,
+              fp.contract_status,
+              fp.contract_signed_at,
+              fp.contract_pdf_url,
+              fp.avatar_url,
+              p.avatar_url AS person_avatar_url,
+              p.avatar_generated_key,
+              p.avatar_source_key
+         FROM freelancer_profiles fp
+         LEFT JOIN people p ON p.id = fp.person_id
+        WHERE fp.user_id = $1`,
       [userId],
     );
     const profile = rows[0];
     if (!profile) return reply.status(404).send({ error: 'Perfil não encontrado' });
+    const onboardingState = buildFreelancerOnboardingState(profile);
 
     return reply.send({
       onboarding_complete: profile.onboarding_complete ?? false,
       terms_accepted: !!profile.terms_accepted_at,
       has_cnpj: !!profile.cnpj,
       has_pix: !!profile.pix_key,
-      has_skills: !!(profile.skills?.length),
-      has_avatar: !!profile.avatar_url,
-      avatar_url: profile.avatar_url ?? null,
+      has_skills: !onboardingState.missing_fields.some((field) => field.field === 'skills'),
+      has_avatar: !onboardingState.missing_fields.some((field) => field.field === 'avatar'),
+      avatar_url: profile.person_avatar_url ?? profile.avatar_url ?? null,
       razao_social: profile.razao_social ?? null,
       sla_score: parseFloat(profile.sla_score) || 100,
       contract_status: profile.contract_status ?? 'none',
       contract_signed_at: profile.contract_signed_at ?? null,
       contract_pdf_url: profile.contract_pdf_url ?? null,
+      missing_fields: onboardingState.missing_fields,
+      next_step: onboardingState.next_step,
+      redirect_to: onboardingState.redirect_to,
     });
   });
 
@@ -3080,20 +3176,33 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     // Load freelancer profile
     const { rows: profRows } = await pool.query(
-      `SELECT cnpj, razao_social, nome_fantasia,
+      `SELECT fp.cnpj, fp.razao_social, fp.nome_fantasia,
+              fp.pix_key, fp.pix_key_type, fp.bank_name, fp.bank_agency, fp.bank_account,
+              fp.skills, fp.skills_json,
               address_street, address_number, address_complement,
               address_district, address_city, address_state, address_cep,
-              representante_nome, representante_cpf, estado_civil,
-              onboarding_complete, contract_status,
-              terms_accepted_at
-         FROM freelancer_profiles WHERE user_id = $1`,
+              fp.representante_nome, fp.representante_cpf, fp.estado_civil,
+              fp.onboarding_complete, fp.contract_status,
+              fp.terms_accepted_at,
+              fp.avatar_url,
+              p.avatar_url AS person_avatar_url,
+              p.avatar_generated_key,
+              p.avatar_source_key
+         FROM freelancer_profiles fp
+         LEFT JOIN people p ON p.id = fp.person_id
+        WHERE fp.user_id = $1`,
       [userId],
     );
     const prof = profRows[0];
     if (!prof) return reply.status(404).send({ error: 'Perfil não encontrado.' });
-    if (!prof.cnpj) return reply.status(400).send({ error: 'CNPJ não preenchido no perfil.' });
-    if (!prof.razao_social || !prof.representante_nome || !prof.pix_key) {
-      return reply.status(400).send({ error: 'Complete os dados principais do onboarding antes de solicitar o contrato.' });
+    const onboardingState = buildFreelancerOnboardingState(prof);
+    if (!onboardingState.complete) {
+      return reply.status(400).send({
+        error: 'Complete os dados do onboarding antes de solicitar o contrato.',
+        missing_fields: onboardingState.missing_fields,
+        next_step: onboardingState.next_step,
+        redirect_to: onboardingState.redirect_to,
+      });
     }
     if (prof.contract_status === 'pending_signature') {
       return reply.send({ ok: true, message: 'Contrato já enviado. Verifique seu e-mail para assinar.' });
@@ -3163,6 +3272,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       representante_nome: prof.representante_nome ?? '',
       representante_cpf: prof.representante_cpf ?? '',
       estado_civil: prof.estado_civil,
+      pix_key: prof.pix_key ?? null,
+      pix_key_type: prof.pix_key_type ?? null,
+      bank_name: prof.bank_name ?? null,
+      bank_agency: prof.bank_agency ?? null,
+      bank_account: prof.bank_account ?? null,
       contract_date: contractDate,
     });
 

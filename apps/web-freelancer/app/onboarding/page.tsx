@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
 import { describeCnpjLookupSource, formatLookupTimestamp, isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
@@ -24,6 +24,71 @@ const STEP_LABELS: Record<Step, string> = {
   skills:        'Especialidades',
   avatar:        'Avatar Edro',
 };
+
+type FreelancerProfileResponse = {
+  cnpj?: string | null;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  inscricao_municipal?: string | null;
+  address_street?: string | null;
+  address_number?: string | null;
+  address_complement?: string | null;
+  address_district?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_cep?: string | null;
+  representante_nome?: string | null;
+  representante_cpf?: string | null;
+  estado_civil?: string | null;
+  phone?: string | null;
+  pix_key?: string | null;
+  pix_key_type?: 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria' | null;
+  bank_name?: string | null;
+  bank_agency?: string | null;
+  bank_account?: string | null;
+  portfolio_url?: string | null;
+  weekly_capacity?: number | null;
+  skills?: string[] | null;
+  skills_json?: SelectedSkill[] | string | null;
+  avatar_url?: string | null;
+  avatar_prompt_version?: string | null;
+};
+
+function parseStoredSkills(raw: FreelancerProfileResponse['skills_json'], fallback?: string[] | null): SelectedSkill[] {
+  const normalizeSkill = (skill: any): SelectedSkill | null => {
+    if (!skill) return null;
+    if (typeof skill === 'string') {
+      return { id: skill, label: skill, category: 'disciplinas', level: 'pleno' };
+    }
+    if (typeof skill === 'object' && typeof skill.id === 'string' && typeof skill.label === 'string') {
+      const category = skill.category === 'softwares' || skill.category === 'ia' || skill.category === 'tech'
+        ? skill.category
+        : 'disciplinas';
+      const level = skill.level === 'junior' || skill.level === 'ninja' ? skill.level : 'pleno';
+      return { id: skill.id, label: skill.label, category, level };
+    }
+    return null;
+  };
+
+  const parsed = Array.isArray(raw)
+    ? raw
+    : typeof raw === 'string' && raw.trim()
+      ? (() => {
+          try {
+            const value = JSON.parse(raw);
+            return Array.isArray(value) ? value : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+  const normalized = parsed.map(normalizeSkill).filter(Boolean) as SelectedSkill[];
+  if (normalized.length > 0) return normalized;
+  return Array.isArray(fallback)
+    ? fallback.map((skill) => normalizeSkill(skill)).filter(Boolean) as SelectedSkill[]
+    : [];
+}
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -82,6 +147,7 @@ const inputStyle: React.CSSProperties = {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -129,13 +195,46 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
+    const requestedStep = searchParams.get('step');
+    if (!requestedStep) return;
+    const nextIndex = STEPS.indexOf(requestedStep as Step);
+    if (nextIndex >= 0) setStep(nextIndex);
+  }, [searchParams]);
+
+  useEffect(() => {
     let cancelled = false;
 
-    apiGet<{ avatar_url?: string | null; avatar_prompt_version?: string | null }>('/freelancers/portal/me')
+    apiGet<FreelancerProfileResponse>('/freelancers/portal/me')
       .then((data) => {
         if (cancelled) return;
         setAvatarGeneratedUrl(data?.avatar_url ?? '');
         setAvatarPromptVersion(data?.avatar_prompt_version ?? '');
+        setForm((prev) => ({
+          ...prev,
+          cnpj: data?.cnpj ?? prev.cnpj,
+          razao_social: data?.razao_social ?? prev.razao_social,
+          nome_fantasia: data?.nome_fantasia ?? prev.nome_fantasia,
+          inscricao_municipal: data?.inscricao_municipal ?? prev.inscricao_municipal,
+          address_street: data?.address_street ?? prev.address_street,
+          address_number: data?.address_number ?? prev.address_number,
+          address_complement: data?.address_complement ?? prev.address_complement,
+          address_district: data?.address_district ?? prev.address_district,
+          address_city: data?.address_city ?? prev.address_city,
+          address_state: data?.address_state ?? prev.address_state,
+          address_cep: data?.address_cep ?? prev.address_cep,
+          representante_nome: data?.representante_nome ?? prev.representante_nome,
+          representante_cpf: data?.representante_cpf ?? prev.representante_cpf,
+          estado_civil: data?.estado_civil ?? prev.estado_civil,
+          phone: data?.phone ?? prev.phone,
+          pix_key: data?.pix_key ?? prev.pix_key,
+          pix_key_type: data?.pix_key_type ?? prev.pix_key_type,
+          bank_name: data?.bank_name ?? prev.bank_name,
+          bank_agency: data?.bank_agency ?? prev.bank_agency,
+          bank_account: data?.bank_account ?? prev.bank_account,
+          portfolio_url: data?.portfolio_url ?? prev.portfolio_url,
+          weekly_capacity: typeof data?.weekly_capacity === 'number' ? data.weekly_capacity : prev.weekly_capacity,
+          skills: parseStoredSkills(data?.skills_json ?? null, data?.skills ?? null),
+        }));
       })
       .catch(() => null);
 
