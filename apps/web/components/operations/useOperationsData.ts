@@ -85,7 +85,7 @@ export function useOperationsData(query = '?active=true') {
     setError('');
     try {
       // Use Trello as the data source for the Operations Center
-      const feed = await apiGet<{ jobs: OperationsJob[]; owners: any[]; clients: any[]; sync_health?: SyncHealth }>('/trello/ops-feed');
+      const feed = await apiGet<{ jobs: OperationsJob[]; owners: any[]; clients: any[]; sync_health?: SyncHealth }>(`/trello/ops-feed${query}`);
       setJobs(feed?.jobs ?? []);
       setLookups({
         jobTypes: [],

@@ -811,6 +811,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   app.get('/trello/ops-feed', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const activeOnly = ['1', 'true', 'yes'].includes(String((request.query as any)?.active ?? ''));
+    const clientIdFilter: string | null = (request.query as any)?.client_id ?? null;
 
     // Load explicit list-status overrides for this tenant
     const { rows: overrideRows } = await query<{ list_id: string; ops_status: string }>(
@@ -818,6 +819,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
       [tenantId],
     );
     const listStatusOverrides = new Map(overrideRows.map((r) => [r.list_id, r.ops_status]));
+
+    // $1 = tenantId, $2 = activeOnly boolean, $3 = client_id (optional)
+    const baseParams: unknown[] = [tenantId, activeOnly];
+    const clientParam = clientIdFilter ?? null;
+    const clientClause = clientParam ? `AND pb.client_id = $3` : '';
+    if (clientParam) baseParams.push(clientParam);
 
     const { rows: cards } = await query<{
       id: string; title: string; description: string | null;
@@ -850,8 +857,22 @@ export default async function trelloRoutes(app: FastifyInstance) {
          AND pc.is_archived = false
          AND pl.is_archived = false
          AND pc.created_at >= date_trunc('year', CURRENT_DATE)
+         AND (
+           NOT $2::boolean
+           OR pl.id::text NOT IN (
+             -- exclude lists explicitly mapped as done/published
+             SELECT list_id::text FROM trello_list_status_map
+              WHERE tenant_id = $1
+                AND ops_status IN ('done', 'published')
+           )
+         )
+         AND (
+           NOT $2::boolean
+           OR pl.name !~* '(conclu[íi]do|done|publicado|entregue|finalizado|arquivado|cancelled|cancelado)'
+         )
+         ${clientClause}
        ORDER BY pc.due_date ASC NULLS LAST, pc.position ASC`,
-      [tenantId],
+      baseParams,
     );
 
     const INACTIVE_STATUSES = new Set(['done', 'published']);

@@ -15,10 +15,17 @@ import {
   IconCircleCheckFilled,
   IconInbox,
   IconCalendarClock,
-  IconAlertTriangle,
-  IconUsers,
+  IconFlame,
+  IconClock,
+  IconUserOff,
+  IconChecklist,
   IconBell,
+  IconUsers,
+  IconUsersGroup,
   IconPlus,
+  IconLayoutKanban,
+  IconCalendarTime,
+  IconAlertTriangle,
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
 import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
@@ -117,6 +124,21 @@ export default function OperationsOverviewClient() {
   const overloadedOwners = useMemo(
     () => ownerLoads.filter((item) => item.committedMinutes + item.tentativeMinutes > item.allocableMinutes).length,
     [ownerLoads]
+  );
+
+  const capacidadePressionada = useMemo(
+    () =>
+      lookups.owners.filter((owner) => {
+        const committed = ownerCommittedMinutes(jobs, owner.id);
+        const tentative = ownerTentativeMinutes(jobs, owner.id);
+        return committed + tentative > ownerAllocableMinutes(owner);
+      }).length,
+    [jobs, lookups.owners]
+  );
+
+  const esperandoClienteJobs = useMemo(
+    () => jobs.filter((j) => j.status === 'awaiting_approval'),
+    [jobs]
   );
 
   const loadOverviewRuntime = useCallback(async () => {
@@ -233,6 +255,193 @@ export default function OperationsOverviewClient() {
           )}
         </Alert>
       )}
+
+      {/* ── Mesa de Comando ── */}
+      <Box sx={(theme) => ({
+        mb: 3,
+        borderRadius: 3,
+        border: `1px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.08) : alpha(theme.palette.common.black, 0.07)}`,
+        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : '#fff',
+        overflow: 'hidden',
+      })}>
+        {/* Header */}
+        <Box sx={{ px: 3, pt: 2.5, pb: 1.5 }}>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={1}>
+            <Box>
+              <Typography variant="overline" sx={{ fontWeight: 800, color: 'warning.main', letterSpacing: '0.12em', lineHeight: 1, display: 'block', fontSize: '0.65rem' }}>
+                MESA DE COMANDO
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2, mt: 0.25 }}>
+                O que decidir agora
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
+                Combina Trello ao vivo, leitura operacional e estimativas da Edro para você agir sem interpretar a tela.
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              {[
+                { label: 'Ao vivo do Trello', active: false },
+                { label: 'Calculado pela Edro', active: true },
+                { label: 'Estimado pela Edro', active: false },
+              ].map((tag) => (
+                <Chip
+                  key={tag.label}
+                  label={tag.label}
+                  size="small"
+                  variant={tag.active ? 'filled' : 'outlined'}
+                  sx={{
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    height: 22,
+                    ...(tag.active ? { bgcolor: 'warning.main', color: '#fff' } : {}),
+                  }}
+                />
+              ))}
+            </Stack>
+          </Stack>
+        </Box>
+
+        {/* KPI Grid */}
+        <Box sx={{ px: 2, pb: 2 }}>
+          {loading ? (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1.5 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Box key={i} sx={{ height: 80, borderRadius: 2, bgcolor: 'action.hover' }} />
+              ))}
+            </Box>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' }, gap: 1.5 }}>
+              {[
+                {
+                  icon: <IconFlame size={18} />,
+                  value: criticalJobs.length + signalStats.critical,
+                  label: 'PEGANDO FOGO',
+                  sub: `${criticalJobs.length} demandas · ${signalStats.critical} sinais`,
+                  color: '#FA896B',
+                  hot: criticalJobs.length + signalStats.critical > 0,
+                },
+                {
+                  icon: <IconClock size={18} />,
+                  value: todayJobs.length,
+                  label: 'VENCE HOJE',
+                  sub: 'Demandas com prazo imediato',
+                  color: '#FFAE1F',
+                  hot: todayJobs.length > 0,
+                },
+                {
+                  icon: <IconUserOff size={18} />,
+                  value: unassignedJobs.length,
+                  label: 'SEM DONO',
+                  sub: 'Demandas que precisam de responsável',
+                  color: '#FFAE1F',
+                  hot: unassignedJobs.length > 0,
+                },
+                {
+                  icon: <IconChecklist size={18} />,
+                  value: esperandoClienteJobs.length,
+                  label: 'ESPERANDO CLIENTE',
+                  sub: 'Aprovações e retornos',
+                  color: '#5D87FF',
+                  hot: esperandoClienteJobs.length > 0,
+                },
+                {
+                  icon: <IconBell size={18} />,
+                  value: signalStats.total,
+                  label: 'SINAIS ATIVOS',
+                  sub: `${signalStats.attention} em atenção`,
+                  color: '#13DEB9',
+                  hot: signalStats.total > 0,
+                },
+                {
+                  icon: <IconUsersGroup size={18} />,
+                  value: capacidadePressionada,
+                  label: 'CAPACIDADE PRESSIONADA',
+                  sub: 'Pessoas acima da folga',
+                  color: '#FA896B',
+                  hot: capacidadePressionada > 0,
+                },
+              ].map((kpi) => (
+                <Box
+                  key={kpi.label}
+                  sx={(theme) => ({
+                    p: 2,
+                    borderRadius: 2,
+                    border: `1px solid ${kpi.hot ? alpha(kpi.color, 0.22) : alpha(theme.palette.divider, 0.8)}`,
+                    bgcolor: kpi.hot
+                      ? alpha(kpi.color, theme.palette.mode === 'dark' ? 0.06 : 0.04)
+                      : theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.015),
+                    transition: 'all 150ms ease',
+                  })}
+                >
+                  <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.75 }}>
+                    <Box sx={{ color: kpi.hot ? kpi.color : 'text.disabled' }}>{kpi.icon}</Box>
+                  </Stack>
+                  <Typography sx={{
+                    fontWeight: 900,
+                    fontSize: '1.75rem',
+                    lineHeight: 1,
+                    fontVariantNumeric: 'tabular-nums',
+                    color: kpi.hot ? kpi.color : 'text.disabled',
+                  }}>
+                    {kpi.value}
+                  </Typography>
+                  <Typography variant="caption" sx={{
+                    fontWeight: 800,
+                    fontSize: '0.58rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: 'text.secondary',
+                    display: 'block',
+                    mt: 0.5,
+                  }}>
+                    {kpi.label}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.disabled', display: 'block', mt: 0.25, lineHeight: 1.3 }}>
+                    {kpi.sub}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Box>
+
+        {/* Action buttons */}
+        <Box sx={(theme) => ({
+          px: 3, py: 1.75,
+          borderTop: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+          bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.common.black, 0.01),
+        })}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<IconPlus size={15} />}
+              href="/admin/operacoes/jobs?new=1"
+              component="a"
+              sx={{ bgcolor: 'warning.main', '&:hover': { bgcolor: 'warning.dark' }, fontWeight: 700, fontSize: '0.78rem' }}
+            >
+              Nova demanda
+            </Button>
+            {[
+              { label: 'Organizar fila', href: '/admin/operacoes/jobs', icon: <IconLayoutKanban size={14} /> },
+              { label: 'Replanejar semana', href: '/admin/operacoes/planner', icon: <IconCalendarTime size={14} /> },
+              { label: 'Abrir riscos', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={14} /> },
+            ].map((btn) => (
+              <Button
+                key={btn.label}
+                variant="outlined"
+                size="small"
+                startIcon={btn.icon}
+                href={btn.href}
+                component="a"
+                sx={{ fontWeight: 600, fontSize: '0.78rem', color: 'text.secondary', borderColor: 'divider', '&:hover': { borderColor: 'warning.main', color: 'warning.main' } }}
+              >
+                {btn.label}
+              </Button>
+            ))}
+          </Stack>
+        </Box>
+      </Box>
 
       {loading ? (
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}>
