@@ -20,6 +20,7 @@ import {
   IconBell,
   IconCheck,
   IconClockPause,
+  IconFlag,
   IconRefresh,
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
@@ -30,6 +31,7 @@ import {
   EntityLinkCard,
   OperationsContextRail,
   OpsJobRow,
+  OpsPanel,
   OpsSection,
   PersonThumb,
   SourceThumb,
@@ -154,6 +156,13 @@ export default function OperationsRadarClient() {
   const critical = riskData.critical;
   const high = riskData.high;
   const clientRisk = riskData.client_risk;
+  const blockedJobs = useMemo(() => jobs.filter((job) => job.status === 'blocked'), [jobs]);
+  const waitingClientJobs = useMemo(() => jobs.filter((job) => job.status === 'awaiting_approval'), [jobs]);
+  const unassignedJobs = useMemo(() => jobs.filter((job) => !job.owner_id && job.status !== 'archived'), [jobs]);
+  const attentionSignals = useMemo(
+    () => signals.filter((signal) => signal.severity >= 70 && signal.severity < 90).length,
+    [signals]
+  );
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const isStandaloneRiskItem = Boolean(selectedJob?.metadata?.calendar_item?.standalone);
   const isNativeMeeting = selectedJob?.metadata?.calendar_item?.source_type === 'meeting';
@@ -221,6 +230,102 @@ export default function OperationsRadarClient() {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, lg: 7.6 }}>
             <Stack spacing={3}>
+              <OpsPanel
+                eyebrow="Semáforo dos riscos"
+                title="O que pode quebrar a operação"
+                subtitle="Aqui ficam sinais do momento e demandas que realmente podem estourar. Primeiro veja o semáforo, depois desça para o detalhe."
+                action={
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                    <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
+                  </Stack>
+                }
+              >
+                <Stack spacing={2.25}>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+                      gap: 1.25,
+                    }}
+                  >
+                    {[
+                      { label: 'Críticos', value: critical.length, subtitle: 'Precisam de ação agora', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} />, color: '#FA896B' },
+                      { label: 'Altos', value: high.length, subtitle: 'Ainda cabem, mas já apertam', href: '/admin/operacoes/radar', icon: <IconFlag size={16} />, color: '#FFAE1F' },
+                      { label: 'Sinais ativos', value: signals.length, subtitle: `${attentionSignals} em atenção`, href: '/admin/operacoes/radar', icon: <IconBell size={16} />, color: '#E85219' },
+                      { label: 'Bloqueados', value: blockedJobs.length, subtitle: 'Parados por dependência', href: '/admin/operacoes/radar', icon: <IconClockPause size={16} />, color: '#FA896B' },
+                      { label: 'Esperando cliente', value: waitingClientJobs.length, subtitle: 'Aprovação ou retorno', href: '/admin/operacoes/jobs', icon: <IconCheck size={16} />, color: '#FFAE1F' },
+                      { label: 'Sem dono', value: unassignedJobs.length, subtitle: 'Sem responsável definido', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconRefresh size={16} />, color: '#5D87FF' },
+                    ].map((item) => (
+                      <Box
+                        key={item.label}
+                        component={Link}
+                        href={item.href}
+                        sx={(theme) => ({
+                          display: 'block',
+                          textDecoration: 'none',
+                          color: 'inherit',
+                          p: 1.5,
+                          borderRadius: 2,
+                          border: `1px solid ${alpha(item.color, 0.22)}`,
+                          bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
+                          transition: 'all 180ms ease',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            borderColor: alpha(item.color, 0.35),
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
+                          },
+                        })}
+                      >
+                        <Stack spacing={0.7}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Box
+                              sx={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(item.color, 0.14),
+                                color: item.color,
+                              }}
+                            >
+                              {item.icon}
+                            </Box>
+                            <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.4rem', lineHeight: 1 }}>
+                              {item.value}
+                            </Typography>
+                          </Stack>
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                              {item.label}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                              {item.subtitle}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Box>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button variant="contained" onClick={() => handleViewModeChange('cockpit')}>
+                      Ver cockpit
+                    </Button>
+                    <Button variant="outlined" onClick={() => handleViewModeChange('signals')}>
+                      Ver sinais
+                    </Button>
+                    <Button variant="outlined" onClick={() => handleViewModeChange('risks')}>
+                      Ver riscos
+                    </Button>
+                    <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                      Resolver sem dono
+                    </Button>
+                  </Stack>
+                </Stack>
+              </OpsPanel>
 
               {/* ── Operational Signals ─────────────────────────────── */}
               {viewMode !== 'risks' && (signalsLoading || signals.length > 0) && (
@@ -461,7 +566,7 @@ export default function OperationsRadarClient() {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
                             ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/planner';
+                            : '/admin/operacoes/semana?view=distribution';
                         })()}
                         subtitle="Quem precisa agir primeiro"
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}
@@ -471,7 +576,7 @@ export default function OperationsRadarClient() {
                       <EntityLinkCard
                         label="Agenda"
                         value={selectedJob.deadline_at ? 'Prazo em andamento' : 'Sem prazo'}
-                        href="/admin/operacoes/agenda"
+                        href="/admin/operacoes/semana?view=calendar"
                         subtitle={selectedJob.deadline_at ? 'Acompanhar impacto no calendário' : 'Defina prazo para medir risco'}
                         thumbnail={<SourceThumb source="agenda" jobType="meeting" accent="#13DEB9" />}
                       />

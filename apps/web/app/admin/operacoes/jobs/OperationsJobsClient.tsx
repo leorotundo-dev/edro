@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -48,10 +49,10 @@ import {
   EntityLinkCard,
   JobFocusRail,
   OpsJobRow,
+  OpsPanel,
   PersonThumb,
   PipelineBoard,
   SourceThumb,
-  StatusDot,
 } from '@/components/operations/primitives';
 import {
   criticalAlerts,
@@ -174,6 +175,30 @@ export default function OperationsJobsClient() {
   }, [filteredJobs, jobs, selectedJob]);
 
   const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
+  const overdueJobs = useMemo(
+    () =>
+      jobs.filter((job) => {
+        if (!job.deadline_at || ['published', 'done', 'archived'].includes(job.status)) return false;
+        return new Date(job.deadline_at) < new Date();
+      }).sort(sortByOperationalPriority),
+    [jobs]
+  );
+  const waitingClientJobs = useMemo(
+    () => jobs.filter((job) => job.status === 'awaiting_approval').sort(sortByOperationalPriority),
+    [jobs]
+  );
+  const urgentJobs = useMemo(
+    () => jobs.filter((job) => job.is_urgent || job.priority_band === 'p0').sort(sortByOperationalPriority),
+    [jobs]
+  );
+  const inProgressCount = useMemo(
+    () => BUCKETS.find((bucket) => bucket.key === 'producao')?.stages.flatMap((stage) => grouped[stage] || []).length || 0,
+    [grouped]
+  );
+  const intakeCount = useMemo(
+    () => BUCKETS.find((bucket) => bucket.key === 'entrou')?.stages.flatMap((stage) => grouped[stage] || []).length || 0,
+    [grouped]
+  );
 
   const groupedSections = useMemo((): GroupedSection[] | null => {
     if (groupMode === 'status') return null; // use BUCKETS layout
@@ -273,6 +298,103 @@ export default function OperationsJobsClient() {
           {/* Main column */}
           <Grid size={{ xs: 12, lg: 8 }}>
             <Stack spacing={2}>
+              <OpsPanel
+                eyebrow="Semáforo da fila"
+                title="O que organizar agora"
+                subtitle="A fila junta tudo que entrou do Trello e deixa claro o que precisa de dono, prazo ou cobrança antes de virar gargalo."
+                action={
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                    <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
+                  </Stack>
+                }
+              >
+                <Stack spacing={2.25}>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+                      gap: 1.25,
+                    }}
+                  >
+                    {[
+                      { label: 'Entrou', value: intakeCount, subtitle: 'Ainda precisa organizar', href: '/admin/operacoes/jobs?group=status', icon: <IconInbox size={16} />, color: '#5D87FF' },
+                      { label: 'Produção', value: inProgressCount, subtitle: 'Já está rodando', href: '/admin/operacoes/jobs?group=status', icon: <IconPlayerPlay size={16} />, color: '#13DEB9' },
+                      { label: 'Sem dono', value: unassignedCount(filteredJobs), subtitle: 'Precisa de responsável', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconUserOff size={16} />, color: '#FFAE1F' },
+                      { label: 'Atrasadas', value: overdueJobs.length, subtitle: 'Já passaram do prazo', href: '/admin/operacoes/jobs', icon: <IconCalendarDue size={16} />, color: '#FA896B' },
+                      { label: 'Esperando cliente', value: waitingClientJobs.length, subtitle: 'Aprovação ou retorno', href: '/admin/operacoes/jobs', icon: <IconLoader2 size={16} />, color: '#FFAE1F' },
+                      { label: 'Urgentes', value: urgentJobs.length, subtitle: 'P0 ou marcadas como urgente', href: '/admin/operacoes/radar', icon: <IconUrgent size={16} />, color: '#E85219' },
+                    ].map((item) => (
+                      <Box
+                        key={item.label}
+                        component={Link}
+                        href={item.href}
+                        sx={(theme) => ({
+                          display: 'block',
+                          textDecoration: 'none',
+                          color: 'inherit',
+                          p: 1.5,
+                          borderRadius: 2,
+                          border: `1px solid ${alpha(item.color, 0.22)}`,
+                          bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
+                          transition: 'all 180ms ease',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            borderColor: alpha(item.color, 0.35),
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
+                          },
+                        })}
+                      >
+                        <Stack spacing={0.7}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Box
+                              sx={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(item.color, 0.14),
+                                color: item.color,
+                              }}
+                            >
+                              {item.icon}
+                            </Box>
+                            <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.4rem', lineHeight: 1 }}>
+                              {item.value}
+                            </Typography>
+                          </Stack>
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                              {item.label}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                              {item.subtitle}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Box>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button variant="contained" component={Link} href="/admin/operacoes/jobs?new=1">
+                      Nova demanda
+                    </Button>
+                    <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                      Resolver sem dono
+                    </Button>
+                    <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                      Distribuir semana
+                    </Button>
+                    <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
+                      Abrir riscos
+                    </Button>
+                  </Stack>
+                </Stack>
+              </OpsPanel>
+
               {/* Search + filter bar */}
               <Box sx={{
                 borderRadius: 2, overflow: 'hidden',
@@ -522,7 +644,7 @@ export default function OperationsJobsClient() {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
                             ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/planner';
+                            : '/admin/operacoes/semana?view=distribution';
                         })()}
                         subtitle={formatSkillLabel(selectedJob.required_skill)}
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />} />
@@ -658,6 +780,10 @@ export default function OperationsJobsClient() {
       </Dialog>
     </OperationsShell>
   );
+}
+
+function unassignedCount(jobs: OperationsJob[]) {
+  return jobs.filter((job) => !job.owner_id && !job.assignees?.length).length;
 }
 
 /* ─── Bucket Group ─── */
