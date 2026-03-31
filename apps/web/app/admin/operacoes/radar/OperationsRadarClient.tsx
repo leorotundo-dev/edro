@@ -47,6 +47,8 @@ export default function OperationsRadarClient() {
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
+  const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
   const [viewMode, setViewMode] = useState<'cockpit' | 'signals' | 'risks'>('cockpit');
 
   // ── Operational signals ──────────────────────────────────────────────────
@@ -194,9 +196,23 @@ export default function OperationsRadarClient() {
     if (updated) setSelectedJob(updated as OperationsJob);
   }, [refreshRadar, updateJob]);
 
+  const openCreate = useCallback((path: 'briefing' | 'job' | 'adjustment' | 'client_request' = 'client_request') => {
+    setSelectedJob(null);
+    setCreateComposerPath(path);
+    setDrawerMode('create');
+    setDetailOpen(true);
+  }, []);
+
+  const openCommands = useCallback((job: OperationsJob) => {
+    setSelectedJob(job);
+    setDrawerMode('edit');
+    setDetailOpen(true);
+  }, []);
+
   return (
     <OperationsShell
       section="radar"
+      onNewDemand={() => openCreate('client_request')}
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
           {[
@@ -325,6 +341,9 @@ export default function OperationsRadarClient() {
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Button variant="contained" onClick={() => handleViewModeChange('cockpit')}>
                       Ver cockpit
+                    </Button>
+                    <Button variant="outlined" onClick={() => openCreate('client_request')}>
+                      Nova demanda
                     </Button>
                     <Button variant="outlined" onClick={() => handleViewModeChange('signals')}>
                       Ver sinais
@@ -734,7 +753,7 @@ export default function OperationsRadarClient() {
                             router.push('/admin/reunioes');
                             return;
                           }
-                          setDetailOpen(true);
+                          openCommands(selectedJob);
                         }}
                         disabled={!selectedJob}
                       >
@@ -784,9 +803,10 @@ export default function OperationsRadarClient() {
       )}
 
       <JobWorkbenchDrawer
-        open={detailOpen && Boolean(selectedJob) && !isStandaloneRiskItem}
-        mode="edit"
+        open={detailOpen && (drawerMode === 'create' || (Boolean(selectedJob) && !isStandaloneRiskItem))}
+        mode={drawerMode}
         job={selectedJob}
+        initialComposerPath={createComposerPath}
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}
         channels={lookups.channels}

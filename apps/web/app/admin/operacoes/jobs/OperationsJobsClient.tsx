@@ -264,6 +264,7 @@ export default function OperationsJobsClient() {
   return (
     <OperationsShell
       section="jobs"
+      onNewDemand={() => setComposerOpen(true)}
       summary={
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
           {BUCKETS.map((b) => {
@@ -379,7 +380,7 @@ export default function OperationsJobsClient() {
                   </Box>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Button variant="contained" component={Link} href="/admin/operacoes/jobs?new=1">
+                    <Button variant="contained" onClick={() => setComposerOpen(true)}>
                       Nova demanda
                     </Button>
                     <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">

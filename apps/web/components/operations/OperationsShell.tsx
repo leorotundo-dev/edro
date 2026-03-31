@@ -69,10 +69,12 @@ export default function OperationsShell({
   section,
   children,
   summary,
+  onNewDemand,
 }: {
   section: OperationsSection;
   children: ReactNode;
   summary?: ReactNode;
+  onNewDemand?: () => void;
 }) {
   const router = useRouter();
   const [commandInput, setCommandInput] = useState('');
@@ -86,7 +88,9 @@ export default function OperationsShell({
     if (!value || (!trimmed && typeof value === 'string')) return;
 
     if (typeof value !== 'string') {
-      if (value.kind === 'route' && value.href) {
+      if (value.kind === 'route' && value.label === OPS_COPY.shell.newDemand && onNewDemand) {
+        onNewDemand();
+      } else if (value.kind === 'route' && value.href) {
         router.push(value.href);
       } else if (value.kind === 'jarvis' && value.prompt) {
         setJarvisOpen(true);
@@ -108,7 +112,7 @@ export default function OperationsShell({
     <AppShell
       title={copy.title}
       meta={copy.subtitle}
-      action={{ label: OPS_COPY.shell.newDemand, icon: <IconPlus size={16} />, onClick: () => router.push('/admin/operacoes/jobs?new=1') }}
+      action={{ label: OPS_COPY.shell.newDemand, icon: <IconPlus size={16} />, onClick: () => (onNewDemand ? onNewDemand() : router.push('/admin/operacoes/jobs?new=1')) }}
     >
       {/* Ops navigation bar — glass + pill nav */}
       <Box

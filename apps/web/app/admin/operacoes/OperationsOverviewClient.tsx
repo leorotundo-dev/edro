@@ -221,6 +221,7 @@ export default function OperationsOverviewClient() {
   return (
     <OperationsShell
       section="overview"
+      onNewDemand={() => openCreate('client_request')}
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
           {[

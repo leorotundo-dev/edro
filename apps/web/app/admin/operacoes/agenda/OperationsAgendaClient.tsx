@@ -145,6 +145,8 @@ export default function OperationsAgendaClient() {
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
+  const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
   const queryView = searchParams.get('view');
   const initialViewMode: AgendaViewMode = queryView === 'distribution' ? 'distribution' : 'calendar';
   const [viewMode, setViewMode] = useState<AgendaViewMode>(initialViewMode);
@@ -317,6 +319,19 @@ export default function OperationsAgendaClient() {
     router.replace(qs ? `/admin/operacoes/semana?${qs}` : '/admin/operacoes/semana', { scroll: false });
   };
 
+  const openCreate = (path: 'briefing' | 'job' | 'adjustment' | 'client_request' = 'client_request') => {
+    setSelectedJob(null);
+    setCreateComposerPath(path);
+    setDrawerMode('create');
+    setDetailOpen(true);
+  };
+
+  const openCommands = (job: OperationsJob) => {
+    setSelectedJob(job);
+    setDrawerMode('edit');
+    setDetailOpen(true);
+  };
+
   useEffect(() => {
     if (!selectedJob) return;
     const fresh = filteredJobs.find((job) => job.id === selectedJob.id) || jobs.find((job) => job.id === selectedJob.id);
@@ -330,6 +345,7 @@ export default function OperationsAgendaClient() {
   return (
     <OperationsShell
       section="semana"
+      onNewDemand={() => openCreate('client_request')}
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
           {[
@@ -547,7 +563,7 @@ export default function OperationsAgendaClient() {
                 </Box>
 
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button variant="contained" component={Link} href="/admin/operacoes/jobs?new=1">
+                  <Button variant="contained" onClick={() => openCreate('client_request')}>
                     Nova demanda
                   </Button>
                   <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
@@ -1000,8 +1016,7 @@ export default function OperationsAgendaClient() {
                                             sx={{ px: 0 }}
                                             onClick={(event) => {
                                               event.stopPropagation();
-                                              setDetailOpen(true);
-                                              setSelectedJob(summary.primaryJob);
+                                              openCommands(summary.primaryJob);
                                             }}
                                           >
                                             Abrir comandos
@@ -1043,7 +1058,7 @@ export default function OperationsAgendaClient() {
                     router.push('/admin/reunioes');
                     return;
                   }
-                  setDetailOpen(true);
+                  openCommands(selectedJob);
                 }}
                 emptyTitle="Selecione uma demanda"
                 emptyDescription="Clique em uma demanda da semana para ver o pulso, os atalhos e o que precisa ser resolvido."
@@ -1131,7 +1146,7 @@ export default function OperationsAgendaClient() {
                             router.push('/admin/reunioes');
                             return;
                           }
-                          setDetailOpen(true);
+                          openCommands(selectedJob);
                         }}
                         disabled={!selectedJob}
                       >
@@ -1183,9 +1198,10 @@ export default function OperationsAgendaClient() {
       )}
 
       <JobWorkbenchDrawer
-        open={detailOpen && Boolean(selectedJob) && !isStandaloneAgendaItem}
-        mode="edit"
+        open={detailOpen && (drawerMode === 'create' || (Boolean(selectedJob) && !isStandaloneAgendaItem))}
+        mode={drawerMode}
         job={selectedJob}
+        initialComposerPath={createComposerPath}
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}
         channels={lookups.channels}
