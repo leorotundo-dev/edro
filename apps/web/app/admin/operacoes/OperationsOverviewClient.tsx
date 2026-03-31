@@ -33,7 +33,6 @@ import {
   OpsDivider,
   OpsJobRow,
   OpsPanel,
-  PipelineBoard,
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
@@ -51,6 +50,13 @@ import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, type Opera
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
 import { OPS_COPY } from '@/components/operations/copy';
+
+const FLOW_COLUMNS = [
+  { key: 'entrada', label: 'Entrada', color: '#5D87FF', stages: ['intake', 'planned', 'ready'] },
+  { key: 'producao', label: 'Produção', color: '#E85219', stages: ['allocated', 'in_progress', 'in_review'] },
+  { key: 'esperando', label: 'Esperando', color: '#FFAE1F', stages: ['awaiting_approval', 'approved', 'scheduled', 'blocked'] },
+  { key: 'entregue', label: 'Entregue', color: '#13DEB9', stages: ['published', 'done'] },
+] as const;
 
 export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
@@ -210,6 +216,14 @@ export default function OperationsOverviewClient() {
   }, []);
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
+  const flowColumns = useMemo(() => {
+    return FLOW_COLUMNS.map((column) => {
+      const items = jobs
+        .filter((job) => job.status !== 'archived' && column.stages.some((stage) => stage === job.status))
+        .sort(sortByOperationalPriority);
+      return { ...column, items };
+    });
+  }, [jobs]);
 
   return (
     <OperationsShell
@@ -527,12 +541,187 @@ export default function OperationsOverviewClient() {
                   committedMinutesFn={ownerCommittedMinutes}
                 />
 
-                <PipelineBoard
-                  jobs={jobs.filter((job) => job.status !== 'archived')}
-                  selectedJob={selectedJob}
-                  onSelectJob={setSelectedJob}
-                  onAdvance={handleAdvance}
-                />
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
+                    gap: 1.5,
+                  }}
+                >
+                  {flowColumns.map((column) => (
+                    <Box
+                      key={column.key}
+                      sx={(theme) => ({
+                        minWidth: 0,
+                        borderRadius: 2.5,
+                        border: `1px solid ${alpha(column.color, 0.16)}`,
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(column.color, 0.06) : alpha(column.color, 0.035),
+                        boxShadow: `0 2px 14px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.2 : 0.035)}`,
+                        overflow: 'hidden',
+                      })}
+                    >
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        sx={{
+                          px: 1.6,
+                          py: 1.15,
+                          bgcolor: alpha(column.color, 0.08),
+                          borderBottom: `1px solid ${alpha(column.color, 0.14)}`,
+                        }}
+                      >
+                        <Stack direction="row" spacing={0.8} alignItems="center">
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: column.color, flexShrink: 0 }} />
+                          <Typography variant="subtitle2" fontWeight={800} sx={{ color: column.color }}>
+                            {column.label}
+                          </Typography>
+                        </Stack>
+                        <Chip
+                          size="small"
+                          label={column.items.length}
+                          sx={{
+                            height: 22,
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            bgcolor: alpha(column.color, 0.14),
+                            color: column.color,
+                          }}
+                        />
+                      </Stack>
+
+                      <Stack spacing={1.2} sx={{ p: 1.3 }}>
+                        {column.items.length ? (
+                          <>
+                            {column.items.slice(0, 3).map((job) => (
+                              <Box
+                                key={job.id}
+                                onClick={() => setSelectedJob(job)}
+                                sx={(theme) => ({
+                                  p: 1.35,
+                                  borderRadius: 2,
+                                  border: selectedJob?.id === job.id
+                                    ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
+                                    : `1px solid ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08)}`,
+                                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.92) : '#fff',
+                                  cursor: 'pointer',
+                                  transition: 'all 140ms ease',
+                                  '&:hover': {
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.26 : 0.08)}`,
+                                  },
+                                })}
+                              >
+                                <Stack spacing={1}>
+                                  <Stack direction="row" spacing={0.9} alignItems="flex-start">
+                                    <ClientThumb
+                                      name={job.client_name}
+                                      logoUrl={job.client_logo_url}
+                                      accent={job.client_brand_color || column.color}
+                                      size={28}
+                                    />
+                                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                                      <Stack direction="row" spacing={0.6} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.35 }}>
+                                        <Typography variant="caption" sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'text.secondary' }}>
+                                          {job.client_name || 'Sem cliente'}
+                                        </Typography>
+                                        {!job.owner_name ? (
+                                          <Chip
+                                            size="small"
+                                            label="Sem dono"
+                                            sx={{
+                                              height: 20,
+                                              fontSize: '0.62rem',
+                                              fontWeight: 800,
+                                              bgcolor: alpha('#FFAE1F', 0.12),
+                                              color: '#d97706',
+                                              border: `1px solid ${alpha('#FFAE1F', 0.3)}`,
+                                              '& .MuiChip-label': { px: 0.7 },
+                                            }}
+                                          />
+                                        ) : null}
+                                      </Stack>
+                                      <Typography
+                                        variant="body2"
+                                        fontWeight={700}
+                                        sx={{
+                                          fontSize: '0.97rem',
+                                          lineHeight: 1.35,
+                                          display: '-webkit-box',
+                                          WebkitLineClamp: 2,
+                                          WebkitBoxOrient: 'vertical',
+                                          overflow: 'hidden',
+                                        }}
+                                      >
+                                        {job.title}
+                                      </Typography>
+                                    </Box>
+                                  </Stack>
+
+                                  <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    {job.owner_name ? (
+                                      <Chip
+                                        size="small"
+                                        avatar={<PersonThumb name={job.owner_name} accent="#5D87FF" size={18} />}
+                                        label={job.owner_name}
+                                        sx={{
+                                          height: 24,
+                                          maxWidth: 148,
+                                          '& .MuiChip-label': {
+                                            px: 0.7,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                          },
+                                        }}
+                                      />
+                                    ) : null}
+                                    <Chip
+                                      size="small"
+                                      label={getNextAction(job).label}
+                                      sx={{
+                                        height: 24,
+                                        fontSize: '0.64rem',
+                                        fontWeight: 800,
+                                        bgcolor: alpha(column.color, 0.1),
+                                        color: column.color,
+                                        border: `1px solid ${alpha(column.color, 0.2)}`,
+                                        '& .MuiChip-label': { px: 0.75 },
+                                      }}
+                                    />
+                                  </Stack>
+                                </Stack>
+                              </Box>
+                            ))}
+
+                            {column.items.length > 3 ? (
+                              <Button
+                                size="small"
+                                component={Link}
+                                href="/admin/operacoes/jobs?view=board"
+                                sx={{ alignSelf: 'flex-start', textTransform: 'none', fontWeight: 700, color: column.color }}
+                              >
+                                +{column.items.length - 3} mais no quadro
+                              </Button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <Box
+                            sx={{
+                              border: `2px dashed ${alpha(column.color, 0.24)}`,
+                              borderRadius: 2,
+                              p: 2.5,
+                              textAlign: 'center',
+                            }}
+                          >
+                            <Typography variant="body2" color="text.secondary">
+                              Nada aqui agora.
+                            </Typography>
+                          </Box>
+                        )}
+                      </Stack>
+                    </Box>
+                  ))}
+                </Box>
 
                 <OpsDivider />
 
