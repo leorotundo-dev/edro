@@ -526,41 +526,66 @@ export default function PeopleDirectoryClient({ embedded = false }: { embedded?:
   ).length;
 
   const content = (
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
+      <Box sx={{ p: embedded ? 0 : { xs: 2, md: 3 } }}>
         {/* Header */}
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
-          <Box sx={{
-            width: 40, height: 40, borderRadius: 2,
-            bgcolor: alpha(theme.palette.primary.main, 0.12),
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main',
-          }}>
-            <IconAddressBook size={22} />
-          </Box>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" fontWeight={800}>Diretório de Pessoas</Typography>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="caption" color="text.secondary">
-                {internal} internos · {external} externos · {people.length} total
-              </Typography>
+        {!embedded ? (
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
+            <Box sx={{
+              width: 40, height: 40, borderRadius: 2,
+              bgcolor: alpha(theme.palette.primary.main, 0.12),
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main',
+            }}>
+              <IconAddressBook size={22} />
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" fontWeight={800}>Diretório de Pessoas</Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="caption" color="text.secondary">
+                  {internal} internos · {external} externos · {people.length} total
+                </Typography>
+                {duplicateGroups > 0 && (
+                  <Chip label={`${duplicateGroups} duplicados`} size="small" color="warning"
+                    sx={{ fontSize: '0.65rem', height: 18, fontWeight: 700 }} />
+                )}
+              </Stack>
+            </Box>
+            <Tooltip title="Importar contatos do Google Contacts">
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleSyncContacts}
+                disabled={syncing}
+                startIcon={syncing ? <CircularProgress size={14} color="inherit" /> : <IconBrandGoogle size={14} />}
+                sx={{ fontWeight: 700, fontSize: '0.72rem', textTransform: 'none', whiteSpace: 'nowrap' }}
+              >
+                {syncing ? 'Sincronizando...' : 'Google Contacts'}
+              </Button>
+            </Tooltip>
+          </Stack>
+        ) : (
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ mb: 2.5 }}>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ flex: 1 }}>
+              <Chip label={`${people.length} pessoas`} size="small" variant="outlined" />
+              <Chip label={`${internal} internos`} size="small" color="primary" variant="outlined" />
+              <Chip label={`${external} externos`} size="small" variant="outlined" />
               {duplicateGroups > 0 && (
-                <Chip label={`${duplicateGroups} duplicados`} size="small" color="warning"
-                  sx={{ fontSize: '0.65rem', height: 18, fontWeight: 700 }} />
+                <Chip label={`${duplicateGroups} duplicados`} size="small" color="warning" variant="outlined" />
               )}
             </Stack>
-          </Box>
-          <Tooltip title="Importar contatos do Google Contacts">
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={handleSyncContacts}
-              disabled={syncing}
-              startIcon={syncing ? <CircularProgress size={14} color="inherit" /> : <IconBrandGoogle size={14} />}
-              sx={{ fontWeight: 700, fontSize: '0.72rem', textTransform: 'none', whiteSpace: 'nowrap' }}
-            >
-              {syncing ? 'Sincronizando...' : 'Google Contacts'}
-            </Button>
-          </Tooltip>
-        </Stack>
+            <Tooltip title="Importar contatos do Google Contacts">
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleSyncContacts}
+                disabled={syncing}
+                startIcon={syncing ? <CircularProgress size={14} color="inherit" /> : <IconBrandGoogle size={14} />}
+                sx={{ fontWeight: 700, fontSize: '0.72rem', textTransform: 'none', whiteSpace: 'nowrap' }}
+              >
+                {syncing ? 'Sincronizando...' : 'Google Contacts'}
+              </Button>
+            </Tooltip>
+          </Stack>
+        )}
 
         {syncResult && (
           <Alert

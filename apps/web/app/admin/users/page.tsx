@@ -60,6 +60,10 @@ export function AdminUsersView({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => { loadUsers(); }, []);
 
+  const activeUsers = users.filter((user) => user.status === 'active').length;
+  const adminUsers = users.filter((user) => user.role === 'admin').length;
+  const inactiveUsers = users.length - activeUsers;
+
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
       setError('');
@@ -75,15 +79,24 @@ export function AdminUsersView({ embedded = false }: { embedded?: boolean }) {
 
   const content = (
     <Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-          <IconUsers size={28} stroke={1.5} />
-          <Box>
-            <Typography variant="h5" fontWeight={700}>Gerenciamento de Usuários</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Gerencie papéis e permissões dos membros da equipe.
-            </Typography>
+        {!embedded ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <IconUsers size={28} stroke={1.5} />
+            <Box>
+              <Typography variant="h5" fontWeight={700}>Gerenciamento de Usuários</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Gerencie papéis e permissões dos membros da equipe.
+              </Typography>
+            </Box>
           </Box>
-        </Box>
+        ) : (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2.5 }}>
+            <Chip label={`${users.length} contas`} size="small" variant="outlined" />
+            <Chip label={`${activeUsers} ativas`} size="small" color="primary" variant="outlined" />
+            <Chip label={`${adminUsers} admins`} size="small" color="error" variant="outlined" />
+            <Chip label={`${inactiveUsers} inativas`} size="small" color="default" variant="outlined" />
+          </Box>
+        )}
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}

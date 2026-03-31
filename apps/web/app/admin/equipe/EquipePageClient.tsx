@@ -1306,13 +1306,21 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
 
   const content = (
       <>
-      <Box sx={{ p: 3, maxWidth: 1200 }}>
+      <Box sx={{ p: embedded ? 0 : 3, maxWidth: embedded ? 'none' : 1200 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <IconUserCheck size={22} />
-            <Typography variant="h5" fontWeight={700}>Equipe</Typography>
-          </Stack>
-          <Stack direction="row" spacing={1}>
+          {!embedded ? (
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <IconUserCheck size={22} />
+              <Typography variant="h5" fontWeight={700}>Equipe</Typography>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Chip label={`${freelancers.length} freelancers`} size="small" variant="outlined" />
+              <Chip label={`${activeCount} ativos`} size="small" color="success" variant="outlined" />
+              <Chip label={`${timerCount} timers`} size="small" color="primary" variant="outlined" />
+            </Stack>
+          )}
+          <Stack direction="row" spacing={1} sx={{ ml: embedded ? 'auto' : 0 }}>
             <Button
               variant="outlined"
               size="small"
