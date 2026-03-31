@@ -763,59 +763,50 @@ export function OpsJobRow({
           cursor: onClick ? 'pointer' : 'default',
           mx: 0,
           my: 0.5,
-          borderRadius: Number(theme.shape.borderRadius) * 1.5,
+          borderRadius: theme.shape.borderRadius,
           overflow: 'hidden',
           border: selected
-            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.35)}`
-            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.07) : alpha(theme.palette.common.black, 0.07)}`,
+            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.3)}`
+            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
           bgcolor: selected
-            ? alpha(theme.palette.primary.main, dark ? 0.09 : 0.05)
-            : dark ? alpha(theme.palette.common.white, 0.025) : '#fff',
-          boxShadow: selected
-            ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`
-            : theme.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.04)',
+            ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04)
+            : dark ? alpha(theme.palette.common.white, 0.02) : theme.palette.background.paper,
           transition: 'all 150ms ease',
           '&:hover': onClick ? {
             bgcolor: selected
-              ? alpha(theme.palette.primary.main, dark ? 0.13 : 0.07)
-              : dark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.02),
-            boxShadow: dark ? 'none' : '0 2px 8px rgba(0,0,0,0.08)',
-            transform: 'translateY(-1px)',
+              ? alpha(theme.palette.primary.main, dark ? 0.12 : 0.06)
+              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.primary.main, 0.03),
+            borderColor: selected
+              ? alpha(theme.palette.primary.main, 0.4)
+              : alpha(theme.palette.primary.main, 0.2),
             '& .ops-row-actions': { opacity: 1 },
           } : {},
         };
       }}
     >
-      {/* Status color bar */}
-      <Box sx={{ width: 5, flexShrink: 0, bgcolor: vis.color }} />
-
-      <Box sx={{ flex: 1, px: 1.75, py: 1.5 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
+      <Box sx={{ flex: 1, px: 1.5, py: 1.25 }}>
+        <Stack direction="row" spacing={1.25} alignItems="center">
           <Avatar
             src={job.client_logo_url || undefined}
             alt={job.client_name || 'Cliente'}
             sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 1.5,
-              fontSize: '0.72rem',
-              fontWeight: 900,
-              bgcolor: alpha(clientAccent(job), 0.14),
+              width: 36,
+              height: 36,
+              borderRadius: 1,
+              fontSize: '0.7rem',
+              fontWeight: 800,
+              bgcolor: alpha(clientAccent(job), 0.12),
               color: clientAccent(job),
-              border: `2px solid ${alpha(clientAccent(job), 0.22)}`,
               flexShrink: 0,
             }}
           >
             {initials(job.client_name)}
           </Avatar>
 
-          <Stack spacing={0.2} sx={{ minWidth: 0, flex: 1 }}>
-            <Stack direction="row" spacing={0.6} alignItems="center">
-              <JobTypeIcon jobType={job.job_type} size={18} />
-              <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
-                {job.title}
-              </Typography>
-            </Stack>
+          <Stack spacing={0.3} sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="body2" fontWeight={700} noWrap sx={{ lineHeight: 1.3 }}>
+              {job.title}
+            </Typography>
             <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
               <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.72rem' }}>
                 {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'}
