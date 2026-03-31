@@ -2022,11 +2022,11 @@ export function PipelineCard({
           const dark = theme.palette.mode === 'dark';
           return {
             display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            px: 1.25,
-            py: 0.75,
-            borderRadius: 1.5,
+            flexDirection: 'column',
+            gap: 0.9,
+            px: 1.2,
+            py: 1.05,
+            borderRadius: 2,
             cursor: onClick ? 'pointer' : 'default',
             border: selected
               ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
@@ -2042,51 +2042,141 @@ export function PipelineCard({
           };
         }}
       >
-        <Avatar
-          src={job.client_logo_url || undefined}
-          sx={{
-            width: 24, height: 24, borderRadius: 0.75,
-            fontSize: '0.6rem', fontWeight: 900,
-            bgcolor: alpha(clientAccent(job), 0.14),
-            color: clientAccent(job),
-            flexShrink: 0,
-          }}
-        >
-          {initials(job.client_name)}
-        </Avatar>
+        <Stack direction="row" spacing={0.9} alignItems="flex-start">
+          <Avatar
+            src={job.client_logo_url || undefined}
+            sx={{
+              width: 28, height: 28, borderRadius: 1,
+              fontSize: '0.64rem', fontWeight: 900,
+              bgcolor: alpha(clientAccent(job), 0.14),
+              color: clientAccent(job),
+              flexShrink: 0,
+            }}
+          >
+            {initials(job.client_name)}
+          </Avatar>
 
-        <Typography variant="caption" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0, fontSize: '0.72rem', lineHeight: 1.2 }}>
-          {job.title}
-        </Typography>
-
-        {job.owner_name ? (
-          <Tooltip title={job.owner_name} arrow>
-            <Avatar sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', flexShrink: 0 }}>
-              {initials(job.owner_name)}
-            </Avatar>
-          </Tooltip>
-        ) : null}
-
-        <DeadlineCountdown deadline={job.deadline_at} compact />
-
-        {nextStatus && onAdvance ? (
-          <Tooltip title={nextAction.label} arrow>
-            <Box
-              className="pipeline-advance"
-              onClick={(e) => { e.stopPropagation(); setConfirmAnchor(e.currentTarget); }}
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Stack direction="row" spacing={0.6} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.35 }}>
+              <Typography variant="caption" sx={{ fontSize: '0.64rem', fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                {job.client_name || 'Sem cliente'}
+              </Typography>
+              <Chip
+                size="small"
+                label={vis.label}
+                sx={{
+                  height: 18,
+                  fontSize: '0.6rem',
+                  fontWeight: 800,
+                  bgcolor: alpha(vis.color, 0.12),
+                  color: vis.color,
+                  border: `1px solid ${alpha(vis.color, 0.22)}`,
+                  '& .MuiChip-label': { px: 0.55 },
+                }}
+              />
+              {!job.owner_name ? (
+                <Chip
+                  size="small"
+                  label="Sem dono"
+                  sx={{
+                    height: 18,
+                    fontSize: '0.6rem',
+                    fontWeight: 800,
+                    bgcolor: alpha('#FFAE1F', 0.12),
+                    color: '#d97706',
+                    border: `1px solid ${alpha('#FFAE1F', 0.3)}`,
+                    '& .MuiChip-label': { px: 0.55 },
+                  }}
+                />
+              ) : null}
+            </Stack>
+            <Typography
+              variant="body2"
+              fontWeight={800}
               sx={{
-                width: 20, height: 20, borderRadius: 0.75,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                bgcolor: alpha(vis.color, 0.12), color: vis.color,
-                opacity: 0, cursor: 'pointer', flexShrink: 0,
-                transition: 'opacity 120ms',
-                '&:hover': { bgcolor: alpha(vis.color, 0.24) },
+                lineHeight: 1.3,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                minHeight: '2.6em',
               }}
             >
-              <IconChevronRight size={14} />
-            </Box>
-          </Tooltip>
-        ) : null}
+              {job.title}
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
+          {job.owner_name ? (
+            <Chip
+              size="small"
+              avatar={
+                <Avatar sx={{ width: 18, height: 18, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF' }}>
+                  {initials(job.owner_name)}
+                </Avatar>
+              }
+              label={job.owner_name}
+              sx={{
+                height: 22,
+                maxWidth: 140,
+                '& .MuiChip-label': {
+                  px: 0.6,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                },
+              }}
+            />
+          ) : null}
+          <Chip
+            size="small"
+            icon={<IconArrowRight size={11} />}
+            label={nextAction.label}
+            sx={{
+              height: 22,
+              fontSize: '0.62rem',
+              fontWeight: 800,
+              bgcolor: alpha(vis.color, 0.1),
+              color: vis.color,
+              border: `1px solid ${alpha(vis.color, 0.2)}`,
+              '& .MuiChip-label': { px: 0.65 },
+              '& .MuiChip-icon': { color: 'inherit', ml: 0.45, mr: -0.1 },
+            }}
+          />
+        </Stack>
+
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+          <DeadlineCountdown deadline={job.deadline_at} compact />
+          {nextStatus && onAdvance ? (
+            <Tooltip title={nextAction.label} arrow>
+              <Box
+                className="pipeline-advance"
+                onClick={(e) => { e.stopPropagation(); setConfirmAnchor(e.currentTarget); }}
+                sx={{
+                  px: 0.8,
+                  height: 24,
+                  borderRadius: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 0.35,
+                  bgcolor: alpha(vis.color, 0.12),
+                  color: vis.color,
+                  opacity: 0.86,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'opacity 120ms, background-color 120ms',
+                  '&:hover': { bgcolor: alpha(vis.color, 0.24), opacity: 1 },
+                }}
+              >
+                <IconChevronRight size={14} />
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, lineHeight: 1 }}>
+                  Avançar
+                </Typography>
+              </Box>
+            </Tooltip>
+          ) : null}
+        </Stack>
       </Box>
 
       <Popover
@@ -2158,8 +2248,8 @@ export function PipelineColumn({
     <Box sx={(theme) => {
       const dark = theme.palette.mode === 'dark';
       return {
-        flex: 1,
-        minWidth: 0,
+        width: { xs: 288, md: 324, xl: 340 },
+        flexShrink: 0,
         borderRadius: 2,
         border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
         bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.common.black, 0.015),
@@ -2184,9 +2274,9 @@ export function PipelineColumn({
       </Box>
 
       {/* Cards */}
-      <Stack spacing={0.5} sx={{ px: 0.75, pb: 1, flex: 1 }}>
+      <Stack spacing={0.75} sx={{ px: 0.9, pb: 1.1, flex: 1 }}>
         {visible.length === 0 ? (
-          <Typography variant="caption" sx={(theme) => ({ textAlign: 'center', py: 2, color: alpha(theme.palette.text.primary, 0.3), fontSize: '0.7rem' })}>
+          <Typography variant="caption" sx={(theme) => ({ textAlign: 'center', py: 3, color: alpha(theme.palette.text.primary, 0.3), fontSize: '0.72rem' })}>
             Nenhum item
           </Typography>
         ) : (
@@ -2244,37 +2334,50 @@ export function PipelineBoard({
   const maxCount = Math.max(...columnCounts);
 
   return (
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: '100%' }}>
-      {PIPELINE_COLUMNS.map((col, idx) => {
-        const colJobs = col.stages.flatMap((s) => grouped[s] || []);
-        const isBottleneck = colJobs.length === maxCount && maxCount > 0 && columnCounts.filter((c) => c === maxCount).length === 1;
-        return (
-          <Box key={col.key} sx={{ flex: 1, minWidth: 0, position: 'relative' }}>
-            {isBottleneck ? (
-              <Box sx={{
-                position: 'absolute', top: -8, left: '50%', transform: 'translateX(-50%)',
-                px: 1, py: 0.15, borderRadius: 1,
-                bgcolor: alpha(col.color, 0.12), color: col.color,
-                fontSize: '0.58rem', fontWeight: 900, whiteSpace: 'nowrap', zIndex: 1,
-              }}>
-                Gargalo
-              </Box>
-            ) : null}
-            <PipelineColumn
-              columnKey={col.key}
-              label={col.label}
-              color={col.color}
-              jobs={colJobs}
-              allJobsCount={colJobs.length}
-              selectedJob={selectedJob}
-              onSelectJob={onSelectJob}
-              onAdvance={onAdvance}
-              onShowAll={onShowAll}
-            />
-          </Box>
-        );
+    <Box
+      sx={(theme) => ({
+        width: '100%',
+        overflowX: 'auto',
+        pb: 0.5,
+        '&::-webkit-scrollbar': { height: 8 },
+        '&::-webkit-scrollbar-thumb': {
+          backgroundColor: alpha(theme.palette.text.primary, 0.16),
+          borderRadius: 99,
+        },
       })}
-    </Stack>
+    >
+      <Stack direction="row" spacing={1.5} sx={{ minWidth: 'max-content', width: 'max-content', alignItems: 'stretch' }}>
+        {PIPELINE_COLUMNS.map((col) => {
+          const colJobs = col.stages.flatMap((s) => grouped[s] || []);
+          const isBottleneck = colJobs.length === maxCount && maxCount > 0 && columnCounts.filter((c) => c === maxCount).length === 1;
+          return (
+            <Box key={col.key} sx={{ position: 'relative', pt: isBottleneck ? 1 : 0 }}>
+              {isBottleneck ? (
+                <Box sx={{
+                  position: 'absolute', top: 0, left: 16,
+                  px: 1, py: 0.15, borderRadius: 1,
+                  bgcolor: alpha(col.color, 0.12), color: col.color,
+                  fontSize: '0.58rem', fontWeight: 900, whiteSpace: 'nowrap', zIndex: 1,
+                }}>
+                  Gargalo
+                </Box>
+              ) : null}
+              <PipelineColumn
+                columnKey={col.key}
+                label={col.label}
+                color={col.color}
+                jobs={colJobs}
+                allJobsCount={colJobs.length}
+                selectedJob={selectedJob}
+                onSelectJob={onSelectJob}
+                onAdvance={onAdvance}
+                onShowAll={onShowAll}
+              />
+            </Box>
+          );
+        })}
+      </Stack>
+    </Box>
   );
 }
 
@@ -2298,37 +2401,69 @@ export function AlertCard({
       sx={(theme) => {
         const dark = theme.palette.mode === 'dark';
         return {
-          display: 'flex', alignItems: 'center', gap: 1,
-          px: 1.25, py: 0.75,
-          borderRadius: 1.5, cursor: onClick ? 'pointer' : 'default',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: 0.8,
+          px: 1.25, py: 1,
+          borderRadius: 2, cursor: onClick ? 'pointer' : 'default',
           border: `1px solid ${alpha(riskColor, 0.3)}`,
           bgcolor: alpha(riskColor, dark ? 0.08 : 0.04),
-          minWidth: 180, maxWidth: 260, flexShrink: 0,
+          minWidth: 240, maxWidth: 320, flexShrink: 0,
           transition: 'all 120ms ease',
           '&:hover': onClick ? { bgcolor: alpha(riskColor, dark ? 0.14 : 0.08) } : {},
         };
       }}
     >
-      <Avatar
-        src={job.client_logo_url || undefined}
+      <Stack direction="row" spacing={0.9} alignItems="center">
+        <Avatar
+          src={job.client_logo_url || undefined}
+          sx={{
+            width: 26, height: 26, borderRadius: 0.9,
+            fontSize: '0.62rem', fontWeight: 900,
+            bgcolor: alpha(clientAccent(job), 0.14),
+            color: clientAccent(job), flexShrink: 0,
+          }}
+        >
+          {initials(job.client_name)}
+        </Avatar>
+        <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.62rem', flex: 1, minWidth: 0 }}>
+          {job.client_name || 'Sem cliente'}
+        </Typography>
+        <Chip
+          size="small"
+          label={risk.label}
+          sx={{
+            height: 18,
+            fontSize: '0.6rem',
+            fontWeight: 800,
+            bgcolor: alpha(riskColor, 0.12),
+            color: riskColor,
+            border: `1px solid ${alpha(riskColor, 0.24)}`,
+            '& .MuiChip-label': { px: 0.55 },
+          }}
+        />
+      </Stack>
+      <Typography
+        variant="body2"
+        fontWeight={800}
         sx={{
-          width: 24, height: 24, borderRadius: 0.75,
-          fontSize: '0.6rem', fontWeight: 900,
-          bgcolor: alpha(clientAccent(job), 0.14),
-          color: clientAccent(job), flexShrink: 0,
+          lineHeight: 1.3,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          minHeight: '2.6em',
         }}
       >
-        {initials(job.client_name)}
-      </Avatar>
-      <Stack spacing={0} sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="caption" fontWeight={700} noWrap sx={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
-          {job.title}
+        {job.title}
+      </Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+          {job.owner_name || 'Sem dono'}
         </Typography>
-        <Typography variant="caption" sx={{ fontSize: '0.58rem', color: riskColor, fontWeight: 800, lineHeight: 1 }}>
-          {risk.label}
-        </Typography>
+        <DeadlineCountdown deadline={job.deadline_at} compact />
       </Stack>
-      <DeadlineCountdown deadline={job.deadline_at} compact />
     </Box>
   );
 }
@@ -2415,15 +2550,15 @@ export function ActionStrip({
         px: 2, py: 1.25,
       };
     }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
+      <Stack spacing={1.5}>
         {/* Alerts side */}
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ minWidth: 0 }}>
           {alerts.length > 0 ? (
             <Stack spacing={0.5}>
               <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Atenção agora
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: 3 } }}>
+              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: 6 } }}>
                 {alerts.map((job) => (
                   <AlertCard key={job.id} job={job} onClick={() => onSelectJob(job)} />
                 ))}
@@ -2441,7 +2576,7 @@ export function ActionStrip({
 
         {/* Team pulse side */}
         {owners.length > 0 ? (
-          <Box sx={{ flexShrink: 0 }}>
+          <Box sx={{ pt: 0.25 }}>
             <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
               Equipe
             </Typography>
