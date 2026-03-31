@@ -106,6 +106,70 @@ type CreativeDraft = {
   created_at: string;
 };
 
+type ComposerPath = 'briefing' | 'job' | 'adjustment' | 'client_request';
+
+const COMPOSER_PATHS: Array<{
+  key: ComposerPath;
+  title: string;
+  subtitle: string;
+  helper: string;
+  source: string;
+  preferredTypes: string[];
+  definitionOfDone: string;
+  titlePlaceholder: string;
+  summaryPlaceholder: string;
+  icon: React.ReactNode;
+}> = [
+  {
+    key: 'briefing',
+    title: 'Novo briefing',
+    subtitle: 'Quando a demanda ainda precisa nascer com contexto e direcionamento.',
+    helper: 'Bom para pedidos grandes, campanhas e demandas que ainda precisam virar plano.',
+    source: 'briefing',
+    preferredTypes: ['briefing'],
+    definitionOfDone: 'Briefing preenchido, aprovado e pronto para gerar a execucao.',
+    titlePlaceholder: 'Ex.: Briefing campanha de abril',
+    summaryPlaceholder: 'Explique o objetivo, o contexto do cliente e o que ainda precisa ser decidido antes da execucao.',
+    icon: <IconFileText size={18} />,
+  },
+  {
+    key: 'job',
+    title: 'Novo job',
+    subtitle: 'Quando ja esta claro o que precisa ser produzido e por quem.',
+    helper: 'Bom para peças, producoes e entregas que ja podem entrar direto na fila.',
+    source: 'internal',
+    preferredTypes: ['copy', 'design_static', 'design_carousel', 'video_edit', 'publication'],
+    definitionOfDone: 'Peca produzida, revisada e pronta para entregar ou publicar.',
+    titlePlaceholder: 'Ex.: Card institucional para feira de abril',
+    summaryPlaceholder: 'Descreva o pedido com foco no que precisa sair e no criterio de entrega.',
+    icon: <IconBrush size={18} />,
+  },
+  {
+    key: 'adjustment',
+    title: 'Novo ajuste',
+    subtitle: 'Quando algo que ja existe precisa voltar para correcao ou refinamento.',
+    helper: 'Bom para retrabalho, correcao de material, ajuste de copy e troca de prazo.',
+    source: 'whatsapp',
+    preferredTypes: ['copy', 'design_static', 'design_carousel', 'publication'],
+    definitionOfDone: 'Ajuste aplicado, validado e liberado para seguir o fluxo.',
+    titlePlaceholder: 'Ex.: Ajuste no panfleto de abril',
+    summaryPlaceholder: 'Explique o que mudou, o que deve ser corrigido e o que nao pode se perder do material original.',
+    icon: <IconRefresh size={18} />,
+  },
+  {
+    key: 'client_request',
+    title: 'Novo pedido do cliente',
+    subtitle: 'Quando o cliente puxou algo novo por WhatsApp, reuniao ou mensagem solta.',
+    helper: 'Bom para entradas novas, urgencias e tudo que ainda precisa ser triado na agencia.',
+    source: 'whatsapp',
+    preferredTypes: ['briefing', 'copy', 'design_static'],
+    definitionOfDone: 'Pedido entendido, dono definido e proximo passo combinado com a operacao.',
+    titlePlaceholder: 'Ex.: Pedido da Fabiola para o calendario de abril',
+    summaryPlaceholder: 'Conte o que o cliente pediu, por onde chegou e o que precisa ser respondido ou entregue agora.',
+    icon: <IconUserPlus size={18} />,
+  },
+];
+
 function FoggBar({ label, value }: { label: string; value?: number | null }) {
   const pct = Math.max(0, Math.min(100, Number(value ?? 0)));
   const color = pct >= 70 ? '#13DEB9' : pct >= 40 ? '#FFAE1F' : '#FA896B';
@@ -549,6 +613,14 @@ function formatMissingDecisionLabel(item: string) {
   }
 }
 
+function pickPreferredJobType(jobTypes: OperationsLookup[], preferredTypes: string[]) {
+  for (const code of preferredTypes) {
+    const found = jobTypes.find((item) => item.code === code);
+    if (found) return found.code;
+  }
+  return jobTypes[0]?.code || 'briefing';
+}
+
 /* ─── Time Entries Panel ──────────────────────────────────────── */
 
 type TimeEntry = { id: string; user_name: string; minutes: number; notes?: string | null; logged_at: string };
@@ -748,6 +820,7 @@ export default function JobWorkbenchDrawer({
   onFetchDetail?: (jobId: string) => Promise<OperationsJob>;
 }) {
   const [form, setForm] = useState<JobDraft>(() => buildDraft(job, { jobTypes }));
+  const [composerPath, setComposerPath] = useState<ComposerPath>('client_request');
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -788,6 +861,7 @@ export default function JobWorkbenchDrawer({
   useEffect(() => {
     if (!open) return;
     setForm(buildDraft(job, { jobTypes }));
+    setComposerPath('client_request');
     setDetailJob(job);
     setError('');
     setDeleteConfirmOpen(false);
@@ -847,6 +921,7 @@ export default function JobWorkbenchDrawer({
   const selectedClient = clients.find((item) => item.id === form.client_id) || null;
   const selectedOwner = owners.find((item) => item.id === form.owner_id) || null;
   const selectedType = jobTypes.find((item) => item.code === form.job_type) || null;
+  const selectedComposer = COMPOSER_PATHS.find((item) => item.key === composerPath) || COMPOSER_PATHS[0];
 
   const estimatePreview = useMemo(
     () => estimateJobMinutes({ jobType: form.job_type, complexity: form.complexity, channel: form.channel }),
@@ -898,6 +973,20 @@ export default function JobWorkbenchDrawer({
 
   const handleChange = <K extends keyof JobDraft>(field: K, value: JobDraft[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleComposerPath = (path: ComposerPath) => {
+    const preset = COMPOSER_PATHS.find((item) => item.key === path);
+    if (!preset) return;
+    setComposerPath(path);
+    setForm((current) => ({
+      ...current,
+      source: preset.source,
+      job_type: pickPreferredJobType(jobTypes, preset.preferredTypes),
+      definition_of_done: current.definition_of_done.trim() ? current.definition_of_done : preset.definitionOfDone,
+      impact_level: path === 'client_request' ? Math.max(current.impact_level, 3) : current.impact_level,
+      dependency_level: path === 'briefing' ? Math.max(current.dependency_level, 3) : current.dependency_level,
+    }));
   };
 
   const handleSave = async () => {
@@ -976,9 +1065,9 @@ export default function JobWorkbenchDrawer({
   return (
     <ContextDrawer
       open={open}
-      title={mode === 'create' ? 'Nova Demanda' : detailJob?.title || 'Demanda operacional'}
+      title={mode === 'create' ? selectedComposer.title : detailJob?.title || 'Demanda operacional'}
       subtitle={mode === 'create'
-        ? 'Diga o que entrou, escolha dono e prazo. A Central organiza o resto.'
+        ? selectedComposer.subtitle
         : `${selectedClient?.name || detailJob?.client_name || 'Sem cliente'} · ${STAGE_LABELS[detailJob?.status || 'intake'] || 'Na fila'} · ${formatSourceLabel(detailJob?.source || form.source)}`}
       onClose={onClose}
       actions={
@@ -1033,6 +1122,7 @@ export default function JobWorkbenchDrawer({
                     : 'Feche os pontos abaixo para a Central entender para quem vai, quando vence e o quanto pesa na semana.'}
                 </Typography>
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" color="info" label={selectedComposer.title} />
                   {createReady ? (
                     <>
                       <Chip size="small" color="success" label="Vai para a Fila" />
@@ -1061,6 +1151,89 @@ export default function JobWorkbenchDrawer({
       <Stack spacing={3}>
         {detailJob?.status === 'blocked' ? <BlockReason reason={detailJob.urgency_reason || 'Bloqueio ativo na etapa atual.'} onResolve={() => handleStatusChange(intakeComplete ? 'ready' : 'planned')} /> : null}
 
+        {mode === 'create' ? (
+          <Box
+            sx={(theme) => ({
+              p: 2,
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: alpha(theme.palette.primary.main, 0.16),
+              bgcolor: alpha(theme.palette.primary.main, 0.03),
+            })}
+          >
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.5 }}>
+                  COMO ESSA DEMANDA ENTRA
+                </Typography>
+                <Typography variant="h6" fontWeight={800}>
+                  Escolha o caminho mais parecido com o que chegou na agencia
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Isso ja organiza origem, tipo sugerido e o jeito certo de descrever a entrada.
+                </Typography>
+              </Box>
+              <Grid container spacing={1.5}>
+                {COMPOSER_PATHS.map((path) => {
+                  const active = composerPath === path.key;
+                  return (
+                    <Grid key={path.key} size={{ xs: 12, md: 6 }}>
+                      <Box
+                        onClick={() => handleComposerPath(path.key)}
+                        sx={(theme) => ({
+                          cursor: 'pointer',
+                          p: 1.5,
+                          borderRadius: 2.5,
+                          border: '1px solid',
+                          borderColor: active ? alpha(theme.palette.primary.main, 0.4) : alpha(theme.palette.divider, 0.9),
+                          bgcolor: active ? alpha(theme.palette.primary.main, 0.08) : alpha(theme.palette.background.paper, 0.6),
+                          transition: 'all 160ms ease',
+                          '&:hover': {
+                            borderColor: alpha(theme.palette.primary.main, 0.34),
+                            bgcolor: alpha(theme.palette.primary.main, 0.06),
+                          },
+                        })}
+                      >
+                        <Stack spacing={1.2}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Box
+                              sx={(theme) => ({
+                                width: 34,
+                                height: 34,
+                                borderRadius: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(theme.palette.primary.main, active ? 0.16 : 0.1),
+                                color: 'primary.main',
+                                border: `1px solid ${alpha(theme.palette.primary.main, active ? 0.3 : 0.18)}`,
+                              })}
+                            >
+                              {path.icon}
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="body2" fontWeight={800}>
+                                {path.title}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {path.subtitle}
+                              </Typography>
+                            </Box>
+                            {active ? <Chip size="small" color="primary" label="Selecionado" /> : null}
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                            {path.helper}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Stack>
+          </Box>
+        ) : null}
+
         <GuidedFormSection
           title="O que entrou"
           subtitle={mode === 'create' ? 'Nomeie o pedido, diga de onde veio e deixe o contexto claro.' : 'Ajuste o pedido, a origem e o combinado do que precisa ficar pronto.'}
@@ -1084,7 +1257,13 @@ export default function JobWorkbenchDrawer({
               </TextField>
             </Grid>
             <Grid size={{ xs: 12 }}>
-              <TextField fullWidth label="Título" value={form.title} onChange={(event) => handleChange('title', event.target.value)} />
+              <TextField
+                fullWidth
+                label="Titulo"
+                value={form.title}
+                onChange={(event) => handleChange('title', event.target.value)}
+                placeholder={mode === 'create' ? selectedComposer.titlePlaceholder : undefined}
+              />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField select fullWidth label="Origem" value={form.source} onChange={(event) => handleChange('source', event.target.value)}>
@@ -1099,7 +1278,9 @@ export default function JobWorkbenchDrawer({
                 fullWidth
                 value={form.definition_of_done}
                 onChange={(event) => handleChange('definition_of_done', event.target.value)}
-                placeholder={selectedType?.default_definition_of_done || 'O que precisa acontecer para esta demanda ser considerada pronta?'}
+                placeholder={mode === 'create'
+                  ? selectedComposer.definitionOfDone
+                  : selectedType?.default_definition_of_done || 'O que precisa acontecer para esta demanda ser considerada pronta?'}
               />
             </Grid>
             <Grid size={{ xs: 12 }}>
@@ -1110,7 +1291,9 @@ export default function JobWorkbenchDrawer({
                 label="Resumo operacional"
                 value={form.summary}
                 onChange={(event) => handleChange('summary', event.target.value)}
-                placeholder="Explique o contexto do pedido com o mínimo necessário para produção e decisão."
+                placeholder={mode === 'create'
+                  ? selectedComposer.summaryPlaceholder
+                  : 'Explique o contexto do pedido com o minimo necessario para producao e decisao.'}
               />
             </Grid>
           </Grid>
