@@ -1145,30 +1145,42 @@ export default function OverviewClient({ clientId }: OverviewClientProps) {
                 <Box
                   {...(stat.href ? ({ component: Link, href: stat.href } as any) : {})}
                   sx={{
-                    p: 2, borderRadius: 2, position: 'relative', overflow: 'hidden',
+                    p: 2.5, borderRadius: 2, position: 'relative', overflow: 'hidden',
                     cursor: stat.href ? 'pointer' : 'default',
                     textDecoration: 'none',
-                    transition: 'all 0.2s',
-                    '&:hover': stat.href ? { bgcolor: 'action.hover' } : {},
+                    textAlign: 'center',
+                    bgcolor: stat.color.bg,
+                    border: '1px solid transparent',
+                    transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+                    '&:hover': stat.href ? {
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 6px 20px ${stat.color.fg}20`,
+                      borderColor: `${stat.color.fg}22`,
+                    } : {},
                   }}
                 >
                   {stat.alert && (
                     <Box sx={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main', animation: 'pulse 1.4s infinite' }} />
                   )}
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <Avatar sx={{ bgcolor: stat.color.bg, width: 48, height: 48, boxShadow: `0 4px 12px ${stat.color.fg}20` }}>
-                      <stat.icon size={24} color={stat.color.fg} />
-                    </Avatar>
-                    <Box flex={1} sx={{ minWidth: 0 }}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
-                        {stat.label}
-                      </Typography>
-                      <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.1, color: stat.color.fg }}>
-                        {stat.value}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary" noWrap sx={{ mt: 1, display: 'block' }}>
+                  <Avatar
+                    sx={{
+                      bgcolor: `${stat.color.fg}18`,
+                      width: 52, height: 52,
+                      mx: 'auto', mb: 1.5,
+                    }}
+                  >
+                    <stat.icon size={26} color={stat.color.fg} />
+                  </Avatar>
+                  <Typography
+                    fontWeight={800}
+                    sx={{ fontSize: '1.75rem', lineHeight: 1, color: stat.color.fg, mb: 0.5, fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {stat.value}
+                  </Typography>
+                  <Typography variant="caption" fontWeight={700} sx={{ color: `${stat.color.fg}bb`, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.62rem', display: 'block' }}>
+                    {stat.label}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.4, display: 'block', fontSize: '0.67rem', lineHeight: 1.3 }} noWrap>
                     {stat.sub}{stat.sub2 ? ` · ${stat.sub2}` : ''}
                   </Typography>
                 </Box>
