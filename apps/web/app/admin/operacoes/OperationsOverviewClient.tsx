@@ -347,75 +347,85 @@ export default function OperationsOverviewClient() {
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' }, gap: 1.5 }}>
               {[
                 {
-                  icon: <IconFlame size={18} />,
+                  icon: <IconFlame size={22} />,
                   value: criticalJobs.length + signalCounts.critical,
                   label: 'PEGANDO FOGO',
                   sub: `${criticalJobs.length} demandas · ${signalCounts.critical} sinais`,
                   color: '#FA896B',
+                  light: '#FDEDE8',
                   hot: criticalJobs.length + signalCounts.critical > 0,
                 },
                 {
-                  icon: <IconClock size={18} />,
+                  icon: <IconClock size={22} />,
                   value: todayJobs.length,
                   label: 'VENCE HOJE',
                   sub: 'Demandas com prazo imediato',
                   color: '#FFAE1F',
+                  light: '#FEF5E5',
                   hot: todayJobs.length > 0,
                 },
                 {
-                  icon: <IconUserOff size={18} />,
+                  icon: <IconUserOff size={22} />,
                   value: unassignedJobs.length,
                   label: 'SEM DONO',
-                  sub: 'Demandas que precisam de responsável',
+                  sub: 'Precisa de responsável',
                   color: '#FFAE1F',
+                  light: '#FEF5E5',
                   hot: unassignedJobs.length > 0,
                 },
                 {
-                  icon: <IconChecklist size={18} />,
+                  icon: <IconChecklist size={22} />,
                   value: esperandoClienteJobs.length,
                   label: 'ESPERANDO CLIENTE',
                   sub: 'Aprovações e retornos',
-                  color: '#5D87FF',
+                  color: '#E85219',
+                  light: '#fdeee8',
                   hot: esperandoClienteJobs.length > 0,
                 },
                 {
-                  icon: <IconBell size={18} />,
+                  icon: <IconBell size={22} />,
                   value: signalCounts.total,
                   label: 'SINAIS ATIVOS',
                   sub: `${signalCounts.attention} em atenção`,
                   color: '#13DEB9',
+                  light: '#E6FFFA',
                   hot: signalCounts.total > 0,
                 },
                 {
-                  icon: <IconUsersGroup size={18} />,
+                  icon: <IconUsersGroup size={22} />,
                   value: capacidadePressionada,
-                  label: 'CAPACIDADE PRESSIONADA',
+                  label: 'CAP. PRESSIONADA',
                   sub: 'Pessoas acima da folga',
                   color: '#FA896B',
+                  light: '#FDEDE8',
                   hot: capacidadePressionada > 0,
                 },
               ].map((kpi) => (
                 <Box
                   key={kpi.label}
                   sx={(theme) => ({
-                    p: 2,
+                    p: 2.5,
                     borderRadius: 2,
-                    border: `1px solid ${kpi.hot ? alpha(kpi.color, 0.22) : alpha(theme.palette.divider, 0.8)}`,
+                    textAlign: 'center',
                     bgcolor: kpi.hot
-                      ? alpha(kpi.color, theme.palette.mode === 'dark' ? 0.06 : 0.04)
-                      : theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.015),
-                    transition: 'all 150ms ease',
+                      ? (theme.palette.mode === 'dark' ? alpha(kpi.color, 0.12) : kpi.light)
+                      : (theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : '#fafafa'),
+                    border: `1px solid ${kpi.hot ? alpha(kpi.color, 0.2) : alpha(theme.palette.divider, 0.6)}`,
+                    transition: 'transform 150ms ease, box-shadow 150ms ease',
+                    '&:hover': kpi.hot ? {
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 4px 16px ${alpha(kpi.color, 0.2)}`,
+                    } : {},
                   })}
                 >
-                  <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.75 }}>
-                    <Box sx={{ color: kpi.hot ? kpi.color : 'text.disabled' }}>{kpi.icon}</Box>
-                  </Stack>
+                  <Box sx={{ color: kpi.hot ? kpi.color : 'text.disabled', mb: 1 }}>{kpi.icon}</Box>
                   <Typography sx={{
                     fontWeight: 900,
-                    fontSize: '1.75rem',
+                    fontSize: '2rem',
                     lineHeight: 1,
                     fontVariantNumeric: 'tabular-nums',
                     color: kpi.hot ? kpi.color : 'text.disabled',
+                    mb: 0.75,
                   }}>
                     {kpi.value}
                   </Typography>
@@ -424,13 +434,13 @@ export default function OperationsOverviewClient() {
                     fontSize: '0.58rem',
                     textTransform: 'uppercase',
                     letterSpacing: '0.08em',
-                    color: 'text.secondary',
+                    color: kpi.hot ? alpha(kpi.color, 0.8) : 'text.secondary',
                     display: 'block',
-                    mt: 0.5,
+                    lineHeight: 1.3,
                   }}>
                     {kpi.label}
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.disabled', display: 'block', mt: 0.25, lineHeight: 1.3 }}>
+                  <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.disabled', display: 'block', mt: 0.4, lineHeight: 1.3 }}>
                     {kpi.sub}
                   </Typography>
                 </Box>

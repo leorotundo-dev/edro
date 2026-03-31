@@ -139,23 +139,24 @@ export default function PainelExecutivoClient() {
           <>
             {/* Summary KPIs */}
             {summary && (
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1.5, mb: 3 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' }, gap: 1.5, mb: 3 }}>
                 {[
-                  { value: summary.total, label: 'Total', color: theme.palette.primary.main },
-                  { value: summary.critical, label: 'Críticos', color: theme.palette.error.main },
-                  { value: summary.warning, label: 'Atenção', color: theme.palette.warning.main },
-                  { value: summary.ok, label: 'Saudáveis', color: '#13DEB9' },
-                  { value: summary.avg_health !== null ? `${summary.avg_health}/100` : '—', label: 'Saúde média', color: '#5D87FF' },
+                  { value: summary.total,        label: 'Total',        color: '#E85219', light: '#fdeee8' },
+                  { value: summary.critical,     label: 'Críticos',     color: '#FA896B', light: '#FDEDE8' },
+                  { value: summary.warning,      label: 'Atenção',      color: '#FFAE1F', light: '#FEF5E5' },
+                  { value: summary.ok,           label: 'Saudáveis',    color: '#13DEB9', light: '#E6FFFA' },
+                  { value: summary.avg_health !== null ? `${summary.avg_health}/100` : '—', label: 'Saúde média', color: '#E85219', light: '#fdeee8' },
                 ].map((k) => (
                   <Paper key={k.label} elevation={0} sx={{
-                    p: 2, textAlign: 'center', borderRadius: 2,
-                    border: `1px solid ${dark ? alpha('#fff', 0.06) : alpha('#000', 0.06)}`,
-                    bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
+                    p: 3, textAlign: 'center', borderRadius: 2,
+                    border: `1px solid ${alpha(k.color, 0.18)}`,
+                    bgcolor: dark ? alpha(k.color, 0.1) : k.light,
+                    boxShadow: 'none',
                   }}>
-                    <Typography sx={{ fontWeight: 900, fontSize: '2rem', lineHeight: 1, color: k.color, fontVariantNumeric: 'tabular-nums' }}>
+                    <Typography sx={{ fontWeight: 900, fontSize: '2.25rem', lineHeight: 1, color: k.color, fontVariantNumeric: 'tabular-nums', mb: 0.75 }}>
                       {k.value}
                     </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: '0.1em' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: `${k.color}aa`, textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: '0.1em' }}>
                       {k.label}
                     </Typography>
                   </Paper>

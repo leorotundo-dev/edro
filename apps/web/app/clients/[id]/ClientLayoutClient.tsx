@@ -279,7 +279,7 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
         <Card sx={{
           background: headerBg,
-          borderRadius: '12px',
+          borderRadius: 2,
           boxShadow: headerShadow,
           border: 'none',
           p: { xs: 2, sm: 3 },
