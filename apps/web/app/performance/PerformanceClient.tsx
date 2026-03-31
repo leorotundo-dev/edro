@@ -20,6 +20,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconRefresh, IconCloudDownload } from '@tabler/icons-react';
+import { alpha } from '@mui/material/styles';
 
 type ClientRow = {
   id: string;
@@ -254,6 +255,12 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
     const sum = formats.reduce((acc, row) => acc + Number(row.predicted_ml_score || 0), 0);
     return Math.round(sum / formats.length);
   }, [formats]);
+  const avgSuccessRate = useMemo(() => {
+    if (!formats.length) return 0;
+    const sum = formats.reduce((acc, row) => acc + Number(row.predicted_success_probability || 0), 0);
+    return Math.round(sum / formats.length);
+  }, [formats]);
+  const topFormat = [...formats].sort((a, b) => Number(b.predicted_ml_score || 0) - Number(a.predicted_ml_score || 0))[0];
 
   // Chart data for formats
   const formatChartOptions: ApexCharts.ApexOptions = {
@@ -281,12 +288,93 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Box>
-        <Typography variant="h4">Performance</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Visão consolidada de formatos e previsões do catálogo.
-        </Typography>
-      </Box>
+      <Card
+        variant="outlined"
+        sx={{
+          borderRadius: 4,
+          borderColor: alpha('#5D87FF', 0.18),
+          background: `linear-gradient(135deg, ${alpha('#5D87FF', 0.08)} 0%, ${alpha('#13DEB9', 0.04)} 52%, #fff 100%)`,
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+          <Stack spacing={2.5}>
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: 'flex-start', md: 'center' }}
+            >
+              <Box>
+                <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 0.8 }}>
+                  Reports workspace
+                </Typography>
+                <Typography variant="h4" fontWeight={800}>
+                  Performance
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 720 }}>
+                  Compare formatos, previsões e leituras do Reportei para decidir onde a campanha tem mais potência e mensurabilidade.
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                <Chip
+                  label={selectedClient?.name || 'Base global'}
+                  color="primary"
+                  sx={{ fontWeight: 700 }}
+                />
+                {campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name ? (
+                  <Chip label={campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name || ''} variant="outlined" />
+                ) : null}
+              </Stack>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+              {[
+                {
+                  label: 'Formatos ativos',
+                  value: formatNumber(totalFormats),
+                  helper: topFormat ? `Lidera: ${topFormat.format_name}` : 'Nenhum formato carregado ainda',
+                  tone: '#5D87FF',
+                },
+                {
+                  label: 'Score ML médio',
+                  value: formatNumber(avgMlScore),
+                  helper: avgMlScore >= 70 ? 'Leitura positiva do catálogo' : 'Espaço para recalibrar formatos',
+                  tone: '#E85219',
+                },
+                {
+                  label: 'Sucesso previsto',
+                  value: `${formatNumber(avgSuccessRate)}%`,
+                  helper: reporteiItems.length ? `${reporteiItems.length} leitura(s) do Reportei` : 'Sem leitura do Reportei ainda',
+                  tone: '#13DEB9',
+                },
+              ].map((item) => (
+                <Box
+                  key={item.label}
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    borderRadius: 3,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    p: 2,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                    {item.label}
+                  </Typography>
+                  <Typography variant="h5" fontWeight={800} sx={{ color: item.tone }}>
+                    {item.value}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {item.helper}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
 
       {error ? (
         <Card variant="outlined">
@@ -300,7 +388,7 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
         <CardContent>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
             <Box>
-              <Typography variant="overline" color="text.secondary">Filtros</Typography>
+              <Typography variant="overline" color="text.secondary">Recorte</Typography>
               <Typography variant="body2" color="text.secondary">
                 {selectedClient?.name || 'Global'} · {totalFormats} formatos
               </Typography>
