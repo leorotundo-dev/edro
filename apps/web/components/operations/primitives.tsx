@@ -763,7 +763,7 @@ export function OpsJobRow({
           cursor: onClick ? 'pointer' : 'default',
           mx: 0,
           my: 0.5,
-          borderRadius: theme.shape.borderRadius,
+          borderRadius: `${theme.shape.borderRadius}px`,
           overflow: 'hidden',
           border: selected
             ? `1.5px solid ${alpha(theme.palette.primary.main, 0.3)}`
