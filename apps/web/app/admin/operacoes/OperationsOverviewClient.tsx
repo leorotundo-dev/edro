@@ -63,6 +63,8 @@ export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [syncing, setSyncing] = useState(false);
   const [signalStats, setSignalStats] = useState({ total: 0, critical: 0, attention: 0 });
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
+  const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
 
   const handleSyncNow = async () => {
     setSyncing(true);
@@ -195,6 +197,24 @@ export default function OperationsOverviewClient() {
     await changeStatus(jobId, nextStatus);
     await handleRefreshOverview();
   }, [changeStatus, handleRefreshOverview]);
+
+  const handleAssign = useCallback(async (jobId: string, ownerId: string) => {
+    await updateJob(jobId, { owner_id: ownerId, assignee_ids: [ownerId] });
+    await handleRefreshOverview();
+  }, [handleRefreshOverview, updateJob]);
+
+  const openCommands = useCallback((job: OperationsJob) => {
+    setSelectedJob(job);
+    setDrawerMode('edit');
+    setDrawerOpen(true);
+  }, []);
+
+  const openCreate = useCallback((path: 'briefing' | 'job' | 'adjustment' | 'client_request' = 'client_request') => {
+    setSelectedJob(null);
+    setCreateComposerPath(path);
+    setDrawerMode('create');
+    setDrawerOpen(true);
+  }, []);
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
 
@@ -426,15 +446,22 @@ export default function OperationsOverviewClient() {
               variant="contained"
               size="small"
               startIcon={<IconPlus size={15} />}
-              href="/admin/operacoes/jobs?new=1"
-              component="a"
+              onClick={() => openCreate('client_request')}
               sx={{ bgcolor: 'warning.main', '&:hover': { bgcolor: 'warning.dark' }, fontWeight: 700, fontSize: '0.78rem' }}
             >
               Nova demanda
             </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => openCreate('briefing')}
+              sx={{ fontWeight: 600, fontSize: '0.78rem', color: 'text.secondary', borderColor: 'divider', '&:hover': { borderColor: 'warning.main', color: 'warning.main' } }}
+            >
+              Novo briefing
+            </Button>
             {[
               { label: 'Organizar fila', href: '/admin/operacoes/jobs', icon: <IconLayoutKanban size={14} /> },
-              { label: 'Replanejar semana', href: '/admin/operacoes/planner', icon: <IconCalendarTime size={14} /> },
+              { label: 'Replanejar semana', href: '/admin/operacoes/semana?view=distribution', icon: <IconCalendarTime size={14} /> },
               { label: 'Abrir riscos', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={14} /> },
             ].map((btn) => (
               <Button
@@ -542,8 +569,14 @@ export default function OperationsOverviewClient() {
                 </Box>
 
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button variant="contained" startIcon={<IconPlus size={16} />} component={Link} href="/admin/operacoes/jobs?new=1">
+                  <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => openCreate('client_request')}>
                     Nova demanda
+                  </Button>
+                  <Button variant="outlined" onClick={() => openCreate('briefing')}>
+                    Novo briefing
+                  </Button>
+                  <Button variant="outlined" onClick={() => openCreate('adjustment')}>
+                    Novo ajuste
                   </Button>
                   <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
                     Organizar fila
@@ -585,7 +618,14 @@ export default function OperationsOverviewClient() {
                   </Stack>
                   <Stack spacing={0.35}>
                     {unassignedJobs.slice(0, 4).map((job) => (
-                      <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} />
+                      <OpsJobRow
+                        key={job.id}
+                        job={job}
+                        selected={selectedJob?.id === job.id}
+                        onClick={() => setSelectedJob(job)}
+                        onAssign={handleAssign}
+                        owners={lookups.owners}
+                      />
                     ))}
                     {!unassignedJobs.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyUnassigned}</Typography> : null}
                   </Stack>
@@ -616,7 +656,15 @@ export default function OperationsOverviewClient() {
                   </Stack>
                   <Stack spacing={0.35}>
                     {todayJobs.slice(0, 4).map((job) => (
-                      <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} />
+                      <OpsJobRow
+                        key={job.id}
+                        job={job}
+                        selected={selectedJob?.id === job.id}
+                        onClick={() => setSelectedJob(job)}
+                        onAdvance={handleAdvance}
+                        onAssign={handleAssign}
+                        owners={lookups.owners}
+                      />
                     ))}
                     {!todayJobs.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyToday}</Typography> : null}
                   </Stack>
@@ -647,7 +695,16 @@ export default function OperationsOverviewClient() {
                   </Stack>
                   <Stack spacing={0.35}>
                     {overviewRuntime.approvals.slice(0, 4).map((job) => (
-                      <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
+                      <OpsJobRow
+                        key={job.id}
+                        job={job}
+                        selected={selectedJob?.id === job.id}
+                        onClick={() => setSelectedJob(job)}
+                        showStage
+                        onAdvance={handleAdvance}
+                        onAssign={handleAssign}
+                        owners={lookups.owners}
+                      />
                     ))}
                     {!overviewRuntime.approvals.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyApprovals}</Typography> : null}
                   </Stack>
@@ -731,7 +788,10 @@ export default function OperationsOverviewClient() {
               title={OPS_COPY.overview.supportTitle}
               subtitle={OPS_COPY.overview.supportSubtitle}
               primaryLabel={focusedAction?.label}
-              onPrimaryAction={() => setDrawerOpen(true)}
+              onPrimaryAction={() => {
+                if (!selectedJob) return;
+                openCommands(selectedJob);
+              }}
               emptyTitle="Selecione um item"
               emptyDescription={OPS_COPY.jobs.emptyFocus}
               links={
@@ -750,7 +810,7 @@ export default function OperationsOverviewClient() {
                     <Grid size={{ xs: 12, md: 6 }}>
                       <EntityLinkCard
                         label="Responsável"
-                        value={selectedJob.owner_name || 'Sem responsável'}
+                      value={selectedJob.owner_name || 'Sem responsável'}
                         href={(() => {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
@@ -863,9 +923,10 @@ export default function OperationsOverviewClient() {
       )}
 
       <JobWorkbenchDrawer
-        open={drawerOpen && Boolean(selectedJob)}
-        mode="edit"
+        open={drawerOpen}
+        mode={drawerMode}
         job={selectedJob}
+        initialComposerPath={createComposerPath}
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}
         channels={lookups.channels}

@@ -790,6 +790,7 @@ export default function JobWorkbenchDrawer({
   open,
   mode,
   job,
+  initialComposerPath,
   jobTypes,
   skills,
   channels,
@@ -806,6 +807,7 @@ export default function JobWorkbenchDrawer({
   open: boolean;
   mode: 'create' | 'edit';
   job: OperationsJob | null;
+  initialComposerPath?: ComposerPath;
   jobTypes: OperationsLookup[];
   skills: OperationsLookup[];
   channels: OperationsLookup[];
@@ -861,12 +863,12 @@ export default function JobWorkbenchDrawer({
   useEffect(() => {
     if (!open) return;
     setForm(buildDraft(job, { jobTypes }));
-    setComposerPath('client_request');
+    setComposerPath(initialComposerPath ?? 'client_request');
     setDetailJob(job);
     setError('');
     setDeleteConfirmOpen(false);
     setDeleteConfirmation('');
-  }, [open, job, jobTypes]);
+  }, [initialComposerPath, open, job, jobTypes]);
 
   useEffect(() => {
     if (!open || mode !== 'edit' || !job?.id || !onFetchDetail) return;
