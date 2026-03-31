@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -13,7 +14,14 @@ import { alpha } from '@mui/material/styles';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { IconUserQuestion } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconCalendarClock,
+  IconCircleCheckFilled,
+  IconInbox,
+  IconUserQuestion,
+  IconUsers,
+} from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
@@ -26,6 +34,7 @@ import {
   JobFocusRail,
   OpsDivider,
   OpsJobRow,
+  OpsPanel,
   OpsSection,
   OpsSurface,
   OpsToolbar,
@@ -90,6 +99,19 @@ function opsDayAccent(theme: any, jobCount: number, plannedMinutes: number) {
   if (plannedMinutes >= 6 * 60) return theme.palette.error.main;
   if (plannedMinutes >= 3 * 60) return theme.palette.warning.main;
   return theme.palette.success.main;
+}
+
+function opsDayState(jobCount: number, plannedMinutes: number) {
+  if (!jobCount) return { label: 'Livre', tone: 'neutral' as const };
+  if (plannedMinutes >= 6 * 60) return { label: 'Pesado', tone: 'error' as const };
+  if (plannedMinutes >= 3 * 60) return { label: 'Atenção', tone: 'warning' as const };
+  return { label: 'Leve', tone: 'success' as const };
+}
+
+function ownerLoadState(usage: number) {
+  if (usage >= 1) return { label: 'Estourado', color: 'error' as const };
+  if (usage >= 0.85) return { label: 'Atenção', color: 'warning' as const };
+  return { label: 'Com folga', color: 'success' as const };
 }
 
 function agendaWeekdayKey(job: OperationsJob) {
@@ -207,6 +229,36 @@ export default function OperationsAgendaClient() {
       })),
     [layers, plannerData.owners]
   );
+  const layerCountMap = useMemo(
+    () => Object.fromEntries(layerCounts.map((item) => [item.key, item.count])) as Record<AgendaLayer, number>,
+    [layerCounts]
+  );
+  const weekPulseDays = useMemo(
+    () =>
+      WEEK_DAYS.map((day) => {
+        const jobsForDay = filteredJobs.filter((job) => agendaWeekdayKey(job) === day.key);
+        const plannedMinutes = jobsForDay.reduce((sum, job) => {
+          const allocation = job.metadata?.allocation as { planned_minutes?: number | null } | undefined;
+          return sum + Number(allocation?.planned_minutes ?? job.estimated_minutes ?? 0);
+        }, 0);
+        const state = opsDayState(jobsForDay.length, plannedMinutes);
+        return {
+          ...day,
+          dayLabel: day.label,
+          jobCount: jobsForDay.length,
+          plannedMinutes,
+          stateLabel: state.label,
+          tone: state.tone,
+        };
+      }),
+    [filteredJobs]
+  );
+  const overloadedOwners = useMemo(() => distributionRows.filter((row) => row.usage >= 0.85).length, [distributionRows]);
+  const ownersWithSlack = useMemo(() => distributionRows.filter((row) => row.usage < 0.55).length, [distributionRows]);
+  const busiestDay = useMemo(
+    () => [...weekPulseDays].sort((a, b) => b.plannedMinutes - a.plannedMinutes || b.jobCount - a.jobCount)[0],
+    [weekPulseDays]
+  );
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const selectedLayer = selectedJob ? (agendaLayer(selectedJob) as AgendaLayer) : null;
@@ -278,6 +330,182 @@ export default function OperationsAgendaClient() {
         </Box>
       ) : (
         <Grid container spacing={3}>
+          <Grid size={{ xs: 12 }}>
+            <OpsPanel
+              eyebrow="Semáforo da semana"
+              title="Onde mexer primeiro"
+              subtitle="Veja quem está apertado, o que ficou sem dono e quais dias já estão pesados antes de redistribuir a semana."
+              action={
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                  <Chip size="small" variant="outlined" color="info" label="Estimado pela Edro" />
+                </Stack>
+              }
+            >
+              <Stack spacing={2.25}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(5, minmax(0, 1fr))' },
+                    gap: 1.25,
+                  }}
+                >
+                  {[
+                    { label: 'Aperto', value: overloadedOwners, subtitle: 'Pessoas sob pressão', href: '/admin/operacoes/semana?view=distribution', icon: <IconAlertTriangle size={16} />, color: '#FA896B' },
+                    { label: 'Folga', value: ownersWithSlack, subtitle: 'Pessoas com espaço', href: '/admin/operacoes/semana?view=distribution', icon: <IconUsers size={16} />, color: '#13DEB9' },
+                    { label: 'Sem dono', value: plannerData.unassigned_jobs.length, subtitle: 'Demandas soltas', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconInbox size={16} />, color: '#FFAE1F' },
+                    { label: 'Aprovações', value: layerCountMap.approvals || 0, subtitle: 'Esperando cliente', href: '/admin/operacoes/radar', icon: <IconCircleCheckFilled size={16} />, color: '#FFAE1F' },
+                    { label: 'Riscos', value: layerCountMap.risks || 0, subtitle: 'Podem estourar', href: '/admin/operacoes/radar', icon: <IconCalendarClock size={16} />, color: '#E85219' },
+                  ].map((item) => (
+                    <Box
+                      key={item.label}
+                      component={Link}
+                      href={item.href}
+                      sx={(theme) => ({
+                        display: 'block',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        p: 1.5,
+                        borderRadius: 2,
+                        border: `1px solid ${alpha(item.color, 0.22)}`,
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
+                        transition: 'all 180ms ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          borderColor: alpha(item.color, 0.35),
+                          bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
+                        },
+                      })}
+                    >
+                      <Stack spacing={0.7}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Box
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 1.5,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: alpha(item.color, 0.14),
+                              color: item.color,
+                            }}
+                          >
+                            {item.icon}
+                          </Box>
+                          <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.4rem', lineHeight: 1 }}>
+                            {item.value}
+                          </Typography>
+                        </Stack>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            {item.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                            {item.subtitle}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Box>
+
+                <Box
+                  sx={(theme) => ({
+                    p: 1.25,
+                    borderRadius: 2,
+                    border: `1px solid ${theme.palette.divider}`,
+                    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.015),
+                  })}
+                >
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }} sx={{ mb: 1.25 }}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={900}>
+                        Pulso dos dias úteis
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Cada bloco mostra quantas demandas e quantas horas previstas puxam o dia.
+                      </Typography>
+                    </Box>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={busiestDay ? `${busiestDay.dayLabel} mais puxado: ${busiestDay.jobCount} demanda(s)` : 'Nenhum dia puxado'}
+                    />
+                  </Stack>
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(5, minmax(0, 1fr))' },
+                      gap: 1,
+                    }}
+                  >
+                    {weekPulseDays.map((day) => {
+                      const color =
+                        day.tone === 'error'
+                          ? '#FA896B'
+                          : day.tone === 'warning'
+                            ? '#FFAE1F'
+                            : day.tone === 'success'
+                              ? '#13DEB9'
+                              : alpha('#111827', 0.38);
+
+                      return (
+                        <Box
+                          key={day.key}
+                          sx={(theme) => ({
+                            p: 1.15,
+                            borderRadius: 2,
+                            border: `1px solid ${alpha(color, day.tone === 'neutral' ? 0.18 : 0.24)}`,
+                            borderTop: `3px solid ${color}`,
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(color, day.tone === 'neutral' ? 0.04 : 0.08) : alpha(color, day.tone === 'neutral' ? 0.03 : 0.04),
+                          })}
+                        >
+                          <Stack spacing={0.55}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                {day.dayLabel}
+                              </Typography>
+                              <Chip size="small" label={day.jobCount ? `${Math.round(day.plannedMinutes / 60)}h` : '0h'} />
+                            </Stack>
+                            <Typography sx={{ fontWeight: 900, color, fontSize: '1.2rem', lineHeight: 1 }}>
+                              {day.jobCount}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {day.jobCount ? `${day.dayLabel.toLowerCase()} · ${day.stateLabel === 'Livre' ? 'sem pressão' : `${day.stateLabel.toLowerCase()} na agenda`}` : 'Sem impacto'}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              color={day.tone === 'error' ? 'error' : day.tone === 'warning' ? 'warning' : day.tone === 'success' ? 'success' : 'default'}
+                              label={day.stateLabel}
+                              sx={{ alignSelf: 'flex-start' }}
+                            />
+                          </Stack>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button variant="contained" component={Link} href="/admin/operacoes/jobs?new=1">
+                    Nova demanda
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                    Ver capacidade
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=calendar">
+                    Ver calendário
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
+                    Abrir riscos
+                  </Button>
+                </Stack>
+              </Stack>
+            </OpsPanel>
+          </Grid>
+
           <Grid size={{ xs: 12, lg: 7.6 }}>
             <Stack spacing={3}>
               <OpsSection
@@ -526,7 +754,11 @@ export default function OperationsAgendaClient() {
                               </Stack>
                               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                 <Chip size="small" label={`${row.jobs.length} demanda(s)`} />
-                                <Chip size="small" color={row.usage >= 0.85 ? 'warning' : 'default'} label={row.usage >= 0.85 ? 'Sob pressão' : 'Com folga'} />
+                                <Chip
+                                  size="small"
+                                  color={ownerLoadState(row.usage).color}
+                                  label={ownerLoadState(row.usage).label}
+                                />
                               </Stack>
                             </Stack>
 
@@ -676,7 +908,7 @@ export default function OperationsAgendaClient() {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
                             ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/planner';
+                            : '/admin/operacoes/semana?view=distribution';
                         })()}
                         subtitle="Quem precisa agir primeiro"
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
-import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -13,9 +12,6 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import {
-  IconTargetArrow,
-  IconTimeline,
-  IconBrush,
   IconCircleCheckFilled,
   IconInbox,
   IconCalendarClock,
@@ -29,18 +25,20 @@ import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
+  ActionStrip,
   CapacityBar,
   ClientThumb,
-  EmptyOperationState,
   EntityLinkCard,
   OperationsContextRail,
   OpsDivider,
   OpsJobRow,
   OpsPanel,
+  PipelineBoard,
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
 import {
+  criticalAlerts,
   jobsByAttentionClient,
   jobsForToday,
   ownerActiveJobs,
@@ -53,50 +51,6 @@ import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, type Opera
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
 import { OPS_COPY } from '@/components/operations/copy';
-
-function buildFlowBuckets(jobs: OperationsJob[]) {
-  return [
-    {
-      key: 'intake',
-      title: '01 Entrada',
-      subtitle: 'captar, classificar e completar o contexto',
-      jobs: jobs.filter((job) => ['intake', 'planned'].includes(job.status)).sort(sortByOperationalPriority).slice(0, 4),
-    },
-    {
-      key: 'ready',
-      title: '02 Planejamento',
-      subtitle: 'definir responsável, prazo e capacidade',
-      jobs: jobs.filter((job) => ['ready', 'allocated'].includes(job.status)).sort(sortByOperationalPriority).slice(0, 4),
-    },
-    {
-      key: 'production',
-      title: '03 Produção',
-      subtitle: 'executar, revisar e resolver bloqueios',
-      jobs: jobs.filter((job) => ['in_progress', 'in_review', 'blocked'].includes(job.status)).sort(sortByOperationalPriority).slice(0, 4),
-    },
-    {
-      key: 'delivery',
-      title: '04 Entrega',
-      subtitle: 'aprovar, agendar e concluir',
-      jobs: jobs.filter((job) => ['awaiting_approval', 'approved', 'scheduled', 'published'].includes(job.status)).sort(sortByOperationalPriority).slice(0, 4),
-    },
-  ];
-}
-
-const FLOW_VISUALS = {
-  intake: { icon: IconTargetArrow, accent: '#E85219' },
-  ready: { icon: IconTimeline, accent: '#FFAE1F' },
-  production: { icon: IconBrush, accent: '#5D87FF' },
-  delivery: { icon: IconCircleCheckFilled, accent: '#13DEB9' },
-} as const;
-
-function flowBucketForStatus(status?: string | null) {
-  if (['intake', 'planned'].includes(status || '')) return 'intake';
-  if (['ready', 'allocated'].includes(status || '')) return 'ready';
-  if (['in_progress', 'in_review', 'blocked'].includes(status || '')) return 'production';
-  if (['awaiting_approval', 'approved', 'scheduled', 'published'].includes(status || '')) return 'delivery';
-  return 'intake';
-}
 
 export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
@@ -145,7 +99,7 @@ export default function OperationsOverviewClient() {
   );
   const todayJobs = useMemo(() => jobsForToday(jobs).sort(sortByOperationalPriority), [jobs]);
   const attentionClients = useMemo(() => jobsByAttentionClient(jobs).slice(0, 5), [jobs]);
-  const flowBuckets = useMemo(() => buildFlowBuckets(jobs), [jobs]);
+  const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
   const ownerLoads = useMemo(
     () =>
       lookups.owners
@@ -215,8 +169,12 @@ export default function OperationsOverviewClient() {
     await loadSignalStats();
   }, [loadOverviewRuntime, loadSignalStats, refresh]);
 
+  const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
+    await changeStatus(jobId, nextStatus);
+    await handleRefreshOverview();
+  }, [changeStatus, handleRefreshOverview]);
+
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
-  const focusedBucketKey = flowBucketForStatus(selectedJob?.status);
 
   return (
     <OperationsShell
@@ -481,186 +439,67 @@ export default function OperationsOverviewClient() {
 
           <Grid size={{ xs: 12, lg: 5 }}>
             <OpsPanel
-              eyebrow={OPS_COPY.overview.flowEyebrow}
-              title={OPS_COPY.overview.flowTitle}
-              subtitle={OPS_COPY.overview.flowSubtitle}
+              eyebrow="Mapa visual da operação"
+              title="Como a agência está andando"
+              subtitle="Use o fluxo e o semáforo abaixo para decidir sem ler relatório. Tudo parte do Trello e só ganha leitura operacional por cima."
               action={
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip size="small" variant="outlined" label={`${jobs.length} demandas ativas`} />
-                  <Button variant="outlined" size="small" onClick={handleRefreshOverview}>{OPS_COPY.overview.flowRefresh}</Button>
+                  <Button variant="outlined" size="small" onClick={handleRefreshOverview}>
+                    {OPS_COPY.overview.flowRefresh}
+                  </Button>
                 </Stack>
               }
             >
               <Stack spacing={2}>
-                <Box sx={{ px: 0.25, py: 0.25 }}>
-                  <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={{ xs: 1.5, md: 0.75 }}
-                    sx={{ alignItems: { md: 'stretch' } }}
-                  >
-                    {flowBuckets.map((bucket) => {
-                      const spotlight = bucket.jobs[0];
-                      const isFocused = focusedBucketKey === bucket.key;
-                      const Icon = FLOW_VISUALS[bucket.key as keyof typeof FLOW_VISUALS]?.icon || IconTargetArrow;
-                      const accent = FLOW_VISUALS[bucket.key as keyof typeof FLOW_VISUALS]?.accent || '#E85219';
-                      return (
-                        <Box
-                          key={bucket.key}
-                          sx={(theme) => ({
-                            flex: 1,
-                            minWidth: 0,
-                            px: { xs: 0, md: 0.75 },
-                            py: 0.75,
-                            borderTop: `2px solid ${isFocused ? accent : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.14)}`,
-                          })}
-                        >
-                          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                            <Stack direction="row" spacing={0.85} alignItems="center" sx={{ minWidth: 0 }}>
-                              <Box
-                                sx={{
-                                  width: 22,
-                                  height: 22,
-                                  borderRadius: 1,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  bgcolor: alpha(accent, 0.14),
-                                  color: accent,
-                                  flexShrink: 0,
-                                }}
-                              >
-                                <Icon size={13} />
-                              </Box>
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="caption" sx={{ color: accent, fontWeight: 900, display: 'block', lineHeight: 1.1 }}>
-                                  {bucket.title}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
-                                  {bucket.subtitle}
-                                </Typography>
-                              </Box>
-                            </Stack>
-                            <Chip size="small" label={`${bucket.jobs.length}`} />
-                          </Stack>
+                <ActionStrip
+                  alerts={alerts}
+                  owners={lookups.owners}
+                  jobs={jobs}
+                  onSelectJob={(job) => setSelectedJob(job)}
+                  allocableMinutesFn={ownerAllocableMinutes}
+                  committedMinutesFn={ownerCommittedMinutes}
+                />
 
-                          {spotlight ? (
-                            <Stack
-                              direction="row"
-                              spacing={0.85}
-                              alignItems="center"
-                              onClick={() => setSelectedJob(spotlight)}
-                              sx={(theme) => ({
-                                mt: 1,
-                                cursor: 'pointer',
-                                minWidth: 0,
-                                '&:hover .flow-spotlight-title': { color: theme.palette.text.primary },
-                              })}
-                            >
-                              <ClientThumb
-                                name={spotlight.client_name}
-                                logoUrl={spotlight.client_logo_url}
-                                accent={spotlight.client_brand_color || accent}
-                                size={24}
-                              />
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography className="flow-spotlight-title" variant="caption" sx={(theme) => ({ display: 'block', color: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.78 : 0.82) })} noWrap>
-                                  {spotlight.title}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" noWrap>
-                                  {spotlight.client_name || 'Sem cliente'}
-                                </Typography>
-                              </Box>
-                            </Stack>
-                          ) : (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                              Sem pressão nesta etapa.
-                            </Typography>
-                          )}
-                        </Box>
-                      );
-                    })}
-                  </Stack>
-                </Box>
-
-                {selectedJob ? (
-                  <Box sx={(theme) => ({ py: 1.1, borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}`, borderBottom: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}` })}>
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }}>
-                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-                        <ClientThumb
-                          name={selectedJob.client_name}
-                          logoUrl={selectedJob.client_logo_url}
-                          accent={selectedJob.client_brand_color || '#E85219'}
-                        />
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            Demanda em foco · {flowBuckets.find((bucket) => bucket.key === focusedBucketKey)?.title || '01 Entrada'}
-                          </Typography>
-                          <Typography variant="body2" fontWeight={800} noWrap>
-                            {selectedJob.title}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Chip size="small" variant="outlined" label={focusedAction?.label || 'Sem próxima ação'} />
-                        <Button variant="outlined" size="small" onClick={() => setDrawerOpen(true)}>Abrir detalhe</Button>
-                      </Stack>
-                    </Stack>
-                  </Box>
-                ) : null}
-
-                <Box>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                    <Typography variant="body2" fontWeight={900}>Demandas por etapa</Typography>
-                    <Typography variant="caption" color="text.secondary">As demandas que estão puxando a operação agora</Typography>
-                  </Stack>
-                  <Stack spacing={1.5}>
-                    {flowBuckets.map((bucket) => (
-                      <Box key={bucket.key} sx={(theme) => ({ pt: 1.35, borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}` })}>
-                        <Grid container spacing={1.5}>
-                          <Grid size={{ xs: 12, md: 4 }}>
-                            <Stack spacing={0.35}>
-                              <Typography variant="body2" fontWeight={900}>{bucket.title}</Typography>
-                              <Typography variant="caption" color="text.secondary">{bucket.subtitle}</Typography>
-                            </Stack>
-                          </Grid>
-                          <Grid size={{ xs: 12, md: 8 }}>
-                            <Stack spacing={0.35}>
-                              {bucket.jobs.length ? bucket.jobs.slice(0, 3).map((job) => (
-                                <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
-                              )) : <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyStage}</Typography>}
-                            </Stack>
-                          </Grid>
-                        </Grid>
-                      </Box>
-                    ))}
-                  </Stack>
-                </Box>
+                <PipelineBoard
+                  jobs={jobs.filter((job) => job.status !== 'archived')}
+                  selectedJob={selectedJob}
+                  onSelectJob={setSelectedJob}
+                  onAdvance={handleAdvance}
+                />
 
                 <OpsDivider />
 
-                <Box>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                    <Typography variant="body2" fontWeight={900}>Checkpoints operacionais</Typography>
-                    <Chip size="small" variant="outlined" label={`${overviewRuntime.summary.checkpoints_total}`} />
-                  </Stack>
-                  <Stack spacing={0.35} sx={{ mb: 2 }}>
-                    {overviewRuntime.checkpoints.slice(0, 4).map((job) => (
-                      <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
-                    ))}
-                    {!overviewRuntime.checkpoints.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyCheckpoints}</Typography> : null}
-                  </Stack>
-
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                    <Typography variant="body2" fontWeight={900}>Exceções operacionais</Typography>
-                    <Button component={Link} href="/admin/operacoes/radar" variant="outlined" size="small">Abrir radar</Button>
-                  </Stack>
-                  <Stack spacing={0.35}>
-                    {criticalJobs.slice(0, 4).map((job) => (
-                      <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
-                    ))}
-                    {!criticalJobs.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyExceptions}</Typography> : null}
-                  </Stack>
-                </Box>
+                <Grid container spacing={1.25}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <EntityLinkCard
+                      label="Checkpoints"
+                      value={overviewRuntime.summary.checkpoints_total ? `${overviewRuntime.summary.checkpoints_total} pontos ativos` : OPS_COPY.overview.emptyCheckpoints}
+                      subtitle="Itens que pedem conferência operacional agora"
+                      href="/admin/operacoes/jobs?group=status"
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <EntityLinkCard
+                      label="Esperando cliente"
+                      value={
+                        overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total
+                          ? `${overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total} pendências`
+                          : OPS_COPY.overview.emptyApprovals
+                      }
+                      subtitle="Aprovações e retornos que seguram a fila"
+                      href="/admin/operacoes/jobs"
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <EntityLinkCard
+                      label="Radar"
+                      value={criticalJobs.length ? `${criticalJobs.length} exceções abertas` : OPS_COPY.overview.emptyExceptions}
+                      subtitle="O que pode estourar se ninguém agir"
+                      href="/admin/operacoes/radar"
+                    />
+                  </Grid>
+                </Grid>
               </Stack>
             </OpsPanel>
           </Grid>
@@ -697,7 +536,7 @@ export default function OperationsOverviewClient() {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
                             ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/planner';
+                            : '/admin/operacoes/semana?view=distribution';
                         })()}
                         subtitle={formatSkillLabel(selectedJob.required_skill)}
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}
@@ -716,7 +555,7 @@ export default function OperationsOverviewClient() {
                       <EntityLinkCard
                         label="Agenda"
                         value={selectedJob.deadline_at ? 'Já está na agenda' : 'Sem prazo'}
-                        href="/admin/operacoes/agenda"
+                        href="/admin/operacoes/semana?view=calendar"
                         subtitle={selectedJob.deadline_at ? 'A demanda já mexe na agenda da semana' : 'Defina um prazo para ela entrar na agenda'}
                         thumbnail={<SourceThumb source="agenda" jobType="meeting" accent="#13DEB9" />}
                       />
