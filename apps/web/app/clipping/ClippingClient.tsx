@@ -23,6 +23,8 @@ import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -107,6 +109,8 @@ type CompetitiveIntelResponse = {
   draft?: string;
   assets_used?: number;
 };
+
+type ClippingViewTab = 'feed' | 'manage';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos status' },
@@ -302,6 +306,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [competitiveBrief, setCompetitiveBrief] = useState('');
   const [pautaLoadingId, setPautaLoadingId] = useState<string | null>(null);
   const [pautaModal, setPautaModal] = useState<{ open: boolean; suggestion: PautaSuggestion | null }>({ open: false, suggestion: null });
+  const [viewTab, setViewTab] = useState<ClippingViewTab>('feed');
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestSources, setSuggestSources] = useState<SuggestedSource[]>([]);
@@ -833,8 +838,20 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
         </Stack>
       </DashboardCard>
 
+      <Tabs
+        value={viewTab}
+        onChange={(_, value) => setViewTab(value)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
+      >
+        <Tab value="feed" label="Feed" icon={<IconNews size={16} />} iconPosition="start" />
+        <Tab value="manage" label="Fontes" icon={<IconRss size={16} />} iconPosition="start" />
+      </Tabs>
+
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 8 }}>
+        {viewTab === 'feed' ? (
+        <Grid size={{ xs: 12 }}>
           <DashboardCard
             title="Itens"
             action={
@@ -1036,9 +1053,21 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
             )}
           </DashboardCard>
         </Grid>
+        ) : null}
 
-        <Grid size={{ xs: 12, lg: 4 }}>
+        {viewTab === 'manage' ? (
+        <Grid size={{ xs: 12 }}>
           <Stack spacing={2}>
+            <DashboardCard
+              title="Gestão de fontes"
+              subtitle="Catálogo de ingestão e manutenção do radar"
+              action={<Chip size="small" label={`${sources.length} fontes`} color="info" variant="outlined" />}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Este modo concentra o que é gestão: fontes, ingestão manual e diagnóstico. O feed editorial fica separado para leitura e triagem.
+              </Typography>
+            </DashboardCard>
+
             <DashboardCard
               title="Fontes"
               action={
@@ -1230,6 +1259,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
             </DashboardCard>
           </Stack>
         </Grid>
+        ) : null}
       </Grid>
 
       {/* ── Suggest sources dialog ── */}
