@@ -704,7 +704,6 @@ export default function OperationsOverviewClient() {
 
           <Grid size={{ xs: 12, lg: 4 }}>
             <OperationsContextRail
-              lead={<JarvisHomeSection />}
               job={selectedJob}
               eyebrow={OPS_COPY.common.contextEyebrow}
               title={OPS_COPY.overview.supportTitle}
