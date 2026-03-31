@@ -129,11 +129,12 @@ const STATUS_LABELS: Record<string, string> = {
 
 // ── Sub-components ────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon, color, href }: {
+function StatCard({ label, value, icon, color, light, href }: {
   label: string;
   value: number;
   icon: React.ReactNode;
   color: string;
+  light: string;
   href?: string;
 }) {
   const router = useRouter();
@@ -142,27 +143,36 @@ function StatCard({ label, value, icon, color, href }: {
       sx={{
         flex: 1,
         cursor: href ? 'pointer' : 'default',
-        transition: 'box-shadow 0.2s',
-        '&:hover': href ? { boxShadow: 4 } : {},
+        bgcolor: light,
+        boxShadow: 'none',
+        transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+        '&:hover': href ? {
+          transform: 'translateY(-3px)',
+          boxShadow: `0 8px 24px ${color}28`,
+        } : {},
       }}
       onClick={() => href && router.push(href)}
     >
-      <CardContent>
-        <Stack direction="row" alignItems="center" spacing={2}>
-          <Box
-            sx={{
-              width: 44, height: 44, borderRadius: 2, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              bgcolor: `${color}18`, color,
-            }}
-          >
-            {icon}
-          </Box>
-          <Box>
-            <Typography variant="h4" fontWeight={700}>{value}</Typography>
-            <Typography variant="body2" color="text.secondary" noWrap>{label}</Typography>
-          </Box>
-        </Stack>
+      <CardContent sx={{ textAlign: 'center', py: 3.5, px: 2 }}>
+        <Box
+          sx={{
+            width: 60, height: 60, borderRadius: '50%', mx: 'auto', mb: 2,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            bgcolor: `${color}1a`, color,
+          }}
+        >
+          {icon}
+        </Box>
+        <Typography
+          variant="h3"
+          fontWeight={800}
+          sx={{ lineHeight: 1, mb: 0.75, fontSize: { xs: '2rem', sm: '2.25rem' } }}
+        >
+          {value}
+        </Typography>
+        <Typography variant="body2" fontWeight={500} sx={{ color: `${color}cc` }} noWrap>
+          {label}
+        </Typography>
       </CardContent>
     </Card>
   );
@@ -289,46 +299,51 @@ export default function DashboardClient() {
 
   return (
     <AppShell title="Dashboard">
-      <Stack spacing={3}>
+      <Stack spacing={3.5}>
 
         {/* ── Jarvis ────────────────────────────────────────────── */}
         <JarvisHomeSection />
 
         {/* ── Quick Stats ───────────────────────────────────────── */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
           <StatCard
             label="Jobs ativos"
             value={active || (metrics?.total ?? 0)}
-            icon={<IconTrendingUp size={22} />}
-            color="#f59e0b"
+            icon={<IconTrendingUp size={28} />}
+            color="#FFAE1F"
+            light="#FEF5E5"
             href="/admin/operacoes"
           />
           <StatCard
             label="Aguardando aprovação"
             value={pendingApprovals}
-            icon={<IconClipboardList size={22} />}
+            icon={<IconClipboardList size={28} />}
             color="#E85219"
+            light="#fdeee8"
             href="/admin/operacoes"
           />
           <StatCard
             label="Atrasados"
             value={metrics?.overdue ?? 0}
-            icon={<IconAlertTriangle size={22} />}
-            color="#ef4444"
+            icon={<IconAlertTriangle size={28} />}
+            color="#FA896B"
+            light="#FDEDE8"
             href="/admin/operacoes"
           />
           <StatCard
             label="Peças criadas"
             value={metrics?.totalCopies ?? 0}
-            icon={<IconCheck size={22} />}
-            color="#6366f1"
+            icon={<IconCheck size={28} />}
+            color="#13DEB9"
+            light="#E6FFFA"
             href="/studio"
           />
           <StatCard
             label="Ops críticas"
             value={opsCritical}
-            icon={<IconFlame size={22} />}
+            icon={<IconFlame size={28} />}
             color="#dc2626"
+            light="#fee2e2"
             href="/admin/operacoes/jobs?group=risk"
           />
         </Stack>
