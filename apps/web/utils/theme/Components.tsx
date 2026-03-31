@@ -22,44 +22,32 @@ const Components: Components<Theme> = {
   },
   MuiCssBaseline: {
     styleOverrides: {
-      '*': {
-        boxSizing: 'border-box',
-      },
-      html: {
-        scrollBehavior: 'smooth',
-      },
-      a: {
-        textDecoration: 'none',
-      },
+      '*': { boxSizing: 'border-box' },
+      html: { scrollBehavior: 'smooth' },
+      a: { textDecoration: 'none' },
     },
   },
   MuiCard: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: '16px',
-        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: Number(theme.shape.borderRadius) * 2,
+        border: 'none',
         boxShadow: theme.palette.mode === 'dark'
-          ? '0 2px 8px rgba(0, 0, 0, 0.32)'
-          : '0 2px 8px rgba(0, 0, 0, 0.06)',
-        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+          ? '0 2px 12px rgba(0,0,0,0.3)'
+          : '0 2px 12px rgba(0,0,0,0.07)',
+        transition: 'box-shadow 0.2s ease',
         '&:hover': {
-          borderColor: `${theme.palette.primary.main}40`,
           boxShadow: theme.palette.mode === 'dark'
-            ? `0 4px 16px rgba(0,0,0,0.4), 0 0 0 1px ${theme.palette.primary.main}20`
-            : `0 4px 16px rgba(0,0,0,0.1), 0 0 0 1px ${theme.palette.primary.main}18`,
+            ? '0 6px 24px rgba(0,0,0,0.4)'
+            : '0 6px 24px rgba(0,0,0,0.11)',
         },
       }),
     },
   },
   MuiCardHeader: {
     styleOverrides: {
-      root: {
-        padding: '24px 24px 0',
-      },
-      title: {
-        fontSize: '1.125rem',
-        fontWeight: 600,
-      },
+      root: { padding: '24px 24px 0' },
+      title: { fontSize: '1.125rem', fontWeight: 600 },
       subheader: ({ theme }) => ({
         fontSize: '0.75rem',
         color: theme.palette.text.secondary,
@@ -70,89 +58,71 @@ const Components: Components<Theme> = {
     styleOverrides: {
       root: {
         padding: '24px',
-        '&:last-child': {
-          paddingBottom: '24px',
-        },
+        '&:last-child': { paddingBottom: '24px' },
       },
     },
   },
   MuiButton: {
     styleOverrides: {
-      root: {
-        borderRadius: '12px',
+      root: ({ theme }) => ({
+        borderRadius: theme.shape.borderRadius,
         textTransform: 'none',
         fontWeight: 600,
         padding: '8px 20px',
         boxShadow: 'none',
-        '&:hover': {
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
-        },
-      },
-      sizeSmall: {
+        '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
+      }),
+      sizeSmall: ({ theme }) => ({
         padding: '4px 12px',
         fontSize: '0.75rem',
-        borderRadius: '8px',
-      },
-      sizeLarge: {
+        borderRadius: theme.shape.borderRadius,
+      }),
+      sizeLarge: ({ theme }) => ({
         padding: '12px 28px',
         fontSize: '1rem',
-        borderRadius: '14px',
-      },
+        borderRadius: theme.shape.borderRadius,
+      }),
       containedPrimary: ({ theme }) => ({
-        '&:hover': {
-          backgroundColor: theme.palette.primary.dark,
-        },
+        '&:hover': { backgroundColor: theme.palette.primary.dark },
       }),
     },
   },
-  /* LoadingButton inherits Button styles + loading indicator polish */
   MuiLoadingButton: {
-    defaultProps: {
-      loadingPosition: 'start',
-    },
+    defaultProps: { loadingPosition: 'start' },
     styleOverrides: {
-      root: {
-        borderRadius: '12px',
+      root: ({ theme }) => ({
+        borderRadius: theme.shape.borderRadius,
         textTransform: 'none',
         fontWeight: 600,
         padding: '8px 20px',
         boxShadow: 'none',
-        '&:hover': {
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
-        },
-        '&.MuiLoadingButton-loading': {
-          opacity: 0.75,
-        },
-      },
-      loadingIndicator: {
-        color: 'inherit',
-      },
-      sizeSmall: {
+        '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
+        '&.MuiLoadingButton-loading': { opacity: 0.75 },
+      }),
+      loadingIndicator: { color: 'inherit' },
+      sizeSmall: ({ theme }) => ({
         padding: '4px 12px',
         fontSize: '0.75rem',
-        borderRadius: '8px',
-      },
+        borderRadius: theme.shape.borderRadius,
+      }),
     },
   },
   MuiIconButton: {
     styleOverrides: {
-      root: {
-        borderRadius: '12px',
+      root: ({ theme }) => ({
+        borderRadius: theme.shape.borderRadius,
         transition: 'all 0.2s ease',
-      },
+      }),
     },
   },
   MuiChip: {
     styleOverrides: {
-      root: {
-        borderRadius: '8px',
+      root: ({ theme }) => ({
+        borderRadius: theme.shape.borderRadius,
         fontWeight: 600,
         fontSize: '0.75rem',
-      },
-      sizeSmall: {
-        height: '24px',
-        fontSize: '0.6875rem',
-      },
+      }),
+      sizeSmall: { height: '24px', fontSize: '0.6875rem' },
       colorPrimary: ({ theme }) => ({
         backgroundColor: theme.palette.primary.light,
         color: theme.palette.mode === 'dark' ? theme.palette.primary.dark : theme.palette.primary.main,
@@ -176,14 +146,11 @@ const Components: Components<Theme> = {
     },
   },
   MuiTextField: {
-    defaultProps: {
-      variant: 'outlined',
-      size: 'small',
-    },
+    defaultProps: { variant: 'outlined', size: 'small' },
     styleOverrides: {
       root: ({ theme }) => ({
         '& .MuiOutlinedInput-root': {
-          borderRadius: '12px',
+          borderRadius: theme.shape.borderRadius,
           '&:hover .MuiOutlinedInput-notchedOutline': {
             borderColor: theme.palette.primary.main,
           },
@@ -196,27 +163,20 @@ const Components: Components<Theme> = {
     },
   },
   MuiSelect: {
-    defaultProps: {
-      size: 'small',
-    },
+    defaultProps: { size: 'small' },
     styleOverrides: {
-      root: {
-        borderRadius: '12px',
-      },
+      root: ({ theme }) => ({ borderRadius: theme.shape.borderRadius }),
     },
   },
-  /* Autocomplete: small by default, rounded paper, styled options */
   MuiAutocomplete: {
-    defaultProps: {
-      size: 'small',
-    },
+    defaultProps: { size: 'small' },
     styleOverrides: {
-      paper: {
-        borderRadius: '12px',
+      paper: ({ theme }) => ({
+        borderRadius: theme.shape.borderRadius,
         marginTop: '4px',
-      },
+      }),
       option: ({ theme }) => ({
-        borderRadius: '6px',
+        borderRadius: theme.shape.borderRadius,
         fontSize: '0.875rem',
         '&[aria-selected="true"]': {
           backgroundColor: `${theme.palette.primary.main}14`,
@@ -226,16 +186,13 @@ const Components: Components<Theme> = {
           backgroundColor: `${theme.palette.primary.main}24`,
         },
       }),
-      listbox: {
-        padding: '4px',
-      },
+      listbox: { padding: '4px' },
     },
   },
-  /* ToggleButton: consistent sizing and active-state with app orange */
   MuiToggleButton: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: '10px',
+        borderRadius: theme.shape.borderRadius,
         textTransform: 'none',
         fontWeight: 600,
         fontSize: '0.8125rem',
@@ -251,31 +208,25 @@ const Components: Components<Theme> = {
           backgroundColor: `${theme.palette.primary.main}12`,
           color: theme.palette.primary.main,
           borderColor: `${theme.palette.primary.main}44`,
-          '&:hover': {
-            backgroundColor: `${theme.palette.primary.main}1e`,
-          },
+          '&:hover': { backgroundColor: `${theme.palette.primary.main}1e` },
         },
         '&.MuiToggleButton-sizeSmall': {
           padding: '3px 10px',
           fontSize: '0.75rem',
-          borderRadius: '8px',
         },
       }),
     },
   },
   MuiToggleButtonGroup: {
     styleOverrides: {
-      root: {
+      root: ({ theme }) => ({
         gap: '4px',
         '& .MuiToggleButtonGroup-grouped': {
-          borderRadius: '10px !important',
+          borderRadius: `${theme.shape.borderRadius}px !important`,
           border: 'inherit !important',
           marginLeft: '0 !important',
         },
-        '& .MuiToggleButtonGroup-grouped.MuiToggleButton-sizeSmall': {
-          borderRadius: '8px !important',
-        },
-      },
+      }),
     },
   },
   MuiAppBar: {
@@ -294,23 +245,17 @@ const Components: Components<Theme> = {
   MuiListItemButton: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: '14px',
+        borderRadius: theme.shape.borderRadius,
         gap: '12px',
         marginBottom: '2px',
         padding: '8px 12px',
         transition: 'all 0.2s ease',
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
+        '&:hover': { backgroundColor: theme.palette.action.hover },
         '&.Mui-selected': {
           backgroundColor: `${theme.palette.primary.main}14`,
           color: theme.palette.primary.main,
-          '&:hover': {
-            backgroundColor: `${theme.palette.primary.main}24`,
-          },
-          '& .MuiListItemIcon-root': {
-            color: theme.palette.primary.main,
-          },
+          '&:hover': { backgroundColor: `${theme.palette.primary.main}24` },
+          '& .MuiListItemIcon-root': { color: theme.palette.primary.main },
         },
       }),
     },
@@ -326,7 +271,7 @@ const Components: Components<Theme> = {
   MuiLinearProgress: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: '8px',
+        borderRadius: theme.shape.borderRadius,
         height: '6px',
         backgroundColor: theme.palette.mode === 'dark'
           ? 'rgba(255,255,255,0.12)'
@@ -336,10 +281,7 @@ const Components: Components<Theme> = {
   },
   MuiAvatar: {
     styleOverrides: {
-      root: {
-        fontSize: '0.875rem',
-        fontWeight: 600,
-      },
+      root: { fontSize: '0.875rem', fontWeight: 600 },
     },
   },
   MuiTableHead: {
@@ -360,12 +302,8 @@ const Components: Components<Theme> = {
     styleOverrides: {
       root: ({ theme }) => ({
         transition: 'background-color 0.15s ease',
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
-        '&:last-child .MuiTableCell-root': {
-          borderBottom: 'none',
-        },
+        '&:hover': { backgroundColor: theme.palette.action.hover },
+        '&:last-child .MuiTableCell-root': { borderBottom: 'none' },
       }),
     },
   },
@@ -386,80 +324,64 @@ const Components: Components<Theme> = {
           backgroundColor: theme.palette.background.paper,
         }),
       }),
-      rounded: {
-        borderRadius: '12px',
-      },
+      rounded: ({ theme }) => ({
+        borderRadius: Number(theme.shape.borderRadius) * 2,
+      }),
     },
   },
   MuiMenu: {
     styleOverrides: {
       paper: ({ theme }) => ({
-        borderRadius: '12px',
+        borderRadius: theme.shape.borderRadius,
         border: `1px solid ${theme.palette.divider}`,
         boxShadow: theme.palette.mode === 'dark'
           ? '0 8px 32px rgba(0,0,0,0.5)'
           : '0 8px 32px rgba(0,0,0,0.12)',
         padding: '4px',
       }),
-      list: {
-        padding: '4px 0',
-      },
+      list: { padding: '4px 0' },
     },
   },
   MuiMenuItem: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: '8px',
+        borderRadius: theme.shape.borderRadius,
         fontSize: '0.875rem',
         padding: '8px 12px',
         transition: 'background-color 0.15s ease',
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
+        '&:hover': { backgroundColor: theme.palette.action.hover },
         '&.Mui-selected': {
           backgroundColor: `${theme.palette.primary.main}12`,
-          '&:hover': {
-            backgroundColor: `${theme.palette.primary.main}20`,
-          },
+          '&:hover': { backgroundColor: `${theme.palette.primary.main}20` },
         },
       }),
     },
   },
-  /* All dialogs slide up — feels much more intentional than default fade */
   MuiDialog: {
     defaultProps: {
       TransitionComponent: SlideUp,
       transitionDuration: { enter: 220, exit: 160 },
     },
     styleOverrides: {
-      paper: {
-        borderRadius: '16px',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.12)',
-      },
+      paper: ({ theme }) => ({
+        borderRadius: Number(theme.shape.borderRadius) * 2,
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.12)',
+      }),
     },
   },
   MuiDialogTitle: {
     styleOverrides: {
-      root: {
-        fontSize: '1rem',
-        fontWeight: 700,
-        padding: '20px 24px 12px',
-      },
+      root: { fontSize: '1rem', fontWeight: 700, padding: '20px 24px 12px' },
     },
   },
   MuiDialogContent: {
     styleOverrides: {
-      root: {
-        padding: '8px 24px 16px',
-      },
+      root: { padding: '8px 24px 16px' },
     },
   },
   MuiDialogActions: {
     styleOverrides: {
-      root: {
-        padding: '12px 24px 20px',
-        gap: '8px',
-      },
+      root: { padding: '12px 24px 20px', gap: '8px' },
     },
   },
   MuiTab: {
@@ -469,7 +391,7 @@ const Components: Components<Theme> = {
         fontWeight: 600,
         fontSize: '0.875rem',
         minHeight: 42,
-        borderRadius: '10px',
+        borderRadius: theme.shape.borderRadius,
         marginRight: theme.spacing(0.5),
         '&.Mui-selected': {
           color: theme.palette.primary.main,
@@ -480,17 +402,13 @@ const Components: Components<Theme> = {
   },
   MuiTabs: {
     styleOverrides: {
-      root: {
-        minHeight: 42,
-      },
+      root: { minHeight: 42 },
       indicator: ({ theme }) => ({
         height: 3,
         borderRadius: 999,
         backgroundColor: theme.palette.primary.main,
       }),
-      scroller: {
-        overflow: 'visible !important',
-      },
+      scroller: { overflow: 'visible !important' },
     },
   },
   MuiDrawer: {
@@ -505,17 +423,13 @@ const Components: Components<Theme> = {
   MuiAlert: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: '12px',
+        borderRadius: theme.shape.borderRadius,
         border: `1px solid ${theme.palette.divider}`,
       }),
     },
   },
   MuiStepper: {
-    styleOverrides: {
-      root: {
-        padding: 0,
-      },
-    },
+    styleOverrides: { root: { padding: 0 } },
   },
   MuiStepConnector: {
     styleOverrides: {
@@ -527,12 +441,10 @@ const Components: Components<Theme> = {
     },
   },
   MuiTooltip: {
-    defaultProps: {
-      arrow: true,
-    },
+    defaultProps: { arrow: true },
     styleOverrides: {
       tooltip: ({ theme }) => ({
-        borderRadius: '8px',
+        borderRadius: theme.shape.borderRadius,
         fontSize: '0.72rem',
         fontWeight: 500,
         padding: '6px 10px',
@@ -544,14 +456,11 @@ const Components: Components<Theme> = {
       }),
     },
   },
-  /* Skeleton: wave animation is smoother than pulse for dense layouts */
   MuiSkeleton: {
-    defaultProps: {
-      animation: 'wave',
-    },
+    defaultProps: { animation: 'wave' },
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: '8px',
+        borderRadius: theme.shape.borderRadius,
         backgroundColor: theme.palette.mode === 'dark'
           ? 'rgba(255,255,255,0.07)'
           : 'rgba(0,0,0,0.06)',
@@ -566,18 +475,13 @@ const Components: Components<Theme> = {
   MuiInputLabel: {
     styleOverrides: {
       root: ({ theme }) => ({
-        '&.Mui-focused': {
-          color: theme.palette.primary.main,
-        },
+        '&.Mui-focused': { color: theme.palette.primary.main },
       }),
     },
   },
   MuiBadge: {
     styleOverrides: {
-      badge: {
-        fontWeight: 600,
-        fontSize: '0.6875rem',
-      },
+      badge: { fontWeight: 600, fontSize: '0.6875rem' },
     },
   },
 };
