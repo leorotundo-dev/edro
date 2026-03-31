@@ -137,6 +137,16 @@ export const MODERNIZE_FAMILIES: ModernizeFamily[] = [
     routes: ['/admin/financeiro', '/admin/pagamentos', '/financeiro'],
   },
   {
+    key: 'proposal',
+    label: 'Proposta Comercial',
+    archetype: 'invoice',
+    mode: 'adapt',
+    status: 'ready',
+    priority: 5,
+    routes: ['/proposta/[token]'],
+    notes: 'Superfície pública de aceite comercial alinhada ao arquétipo financeiro.',
+  },
+  {
     key: 'reports',
     label: 'Relatórios',
     archetype: 'reports',
