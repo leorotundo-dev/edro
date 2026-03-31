@@ -19,6 +19,8 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -252,6 +254,7 @@ function watchChip(calendar: CalendarStatus | null) {
 
 export default function IntegrationsClient() {
   const searchParams = useSearchParams();
+  const [view, setView] = useState<'catalog' | 'monitor'>('catalog');
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
@@ -504,6 +507,58 @@ export default function IntegrationsClient() {
           </Alert>
         )}
 
+        <Card
+          variant="outlined"
+          sx={{
+            mb: 2,
+            borderRadius: 3,
+            background:
+              'linear-gradient(135deg, rgba(232,82,25,0.08) 0%, rgba(232,82,25,0.02) 45%, rgba(15,23,42,0.02) 100%)',
+          }}
+        >
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Chip
+                  label={`${sortedMonitor?.filter((svc) => svc.configured).length ?? 0} integrações configuradas`}
+                  color="primary"
+                  variant="outlined"
+                  size="small"
+                />
+                <Chip
+                  label={`${attentionMonitor.length} exigem atenção`}
+                  color={attentionMonitor.some((svc) => svc.status === 'error') ? 'error' : attentionMonitor.length ? 'warning' : 'success'}
+                  variant={attentionMonitor.length ? 'filled' : 'outlined'}
+                  size="small"
+                />
+              </Stack>
+
+              <Stack spacing={0.75}>
+                <Typography variant="overline" color="primary.main" sx={{ fontWeight: 800, letterSpacing: 0.8 }}>
+                  Hub de integrações
+                </Typography>
+                <Typography variant="h5" fontWeight={800}>
+                  Catálogo primeiro, monitor depois
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  A home desta área precisa parecer um catálogo claro de providers. O monitor ao vivo continua aqui, mas como modo secundário de operação.
+                </Typography>
+              </Stack>
+
+              <Tabs
+                value={view}
+                onChange={(_, value) => setView(value)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
+              >
+                <Tab value="catalog" label="Integrações" icon={<IconPlugConnected size={16} />} iconPosition="start" />
+                <Tab value="monitor" label="Monitor" icon={<IconRefresh size={16} />} iconPosition="start" />
+              </Tabs>
+            </Stack>
+          </CardContent>
+        </Card>
+
         <IntegrationSetupDialog
           open={Boolean(setupDialog)}
           type={setupDialog}
@@ -646,7 +701,7 @@ export default function IntegrationsClient() {
           <Stack spacing={2}>
 
             {/* ── Monitor ao vivo ── */}
-            {sortedMonitor && (
+            {view === 'monitor' && sortedMonitor && (
               <Card variant="outlined">
                 <CardContent>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -751,6 +806,8 @@ export default function IntegrationsClient() {
               </Card>
             )}
 
+            {view === 'catalog' && (
+              <>
             {/* ── Gmail ── */}
             <Card variant="outlined" sx={{ cursor: !gmail?.configured ? 'pointer' : 'default', '&:hover': !gmail?.configured ? { boxShadow: 2 } : {} }}
               onClick={!gmail?.configured ? () => setSetupDialog('google-oauth') : undefined}>
@@ -1416,6 +1473,8 @@ META_VERIFY_TOKEN=seu-token-secreto`}
                 </Typography>
               </CardContent>
             </Card>
+              </>
+            )}
 
           </Stack>
         )}

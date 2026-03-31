@@ -86,6 +86,10 @@ type AvailableProvider = {
   }[];
 };
 
+type ClientConnectorsPageProps = {
+  embedded?: boolean;
+};
+
 const AVAILABLE_PROVIDERS: AvailableProvider[] = [
   {
     id: 'reportei',
@@ -197,7 +201,7 @@ const AVAILABLE_PROVIDERS: AvailableProvider[] = [
   },
 ];
 
-export default function ClientConnectorsPage() {
+export default function ClientConnectorsPage({ embedded = false }: ClientConnectorsPageProps) {
   const router = useRouter();
   const params = useParams();
   const clientId = params?.id as string;
@@ -388,21 +392,29 @@ export default function ClientConnectorsPage() {
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Button
-          size="small"
-          variant="text"
-          startIcon={<IconArrowLeft size={14} />}
-          onClick={() => router.push(`/clients/${clientId}`)}
-          sx={{ mb: 1, textTransform: 'none' }}
-        >
-          Voltar para Cliente
-        </Button>
-        <Typography variant="h5">Integrações &amp; Connectors</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Configure integrações com plataformas externas.
-        </Typography>
-      </Box>
+      {!embedded ? (
+        <Box>
+          <Button
+            size="small"
+            variant="text"
+            startIcon={<IconArrowLeft size={14} />}
+            onClick={() => router.push(`/clients/${clientId}`)}
+            sx={{ mb: 1, textTransform: 'none' }}
+          >
+            Voltar para Cliente
+          </Button>
+          <Typography variant="h5">Integrações &amp; Connectors</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Configure integrações com plataformas externas.
+          </Typography>
+        </Box>
+      ) : (
+        <Box>
+          <Typography variant="body2" color="text.secondary">
+            Cada card representa uma plataforma conectável. O centro da decisão aqui é simples: configurar, testar e manter saudável.
+          </Typography>
+        </Box>
+      )}
 
       <Grid container spacing={2}>
         {loading
@@ -473,6 +485,7 @@ export default function ClientConnectorsPage() {
                       height: '100%',
                       display: 'flex',
                       flexDirection: 'column',
+                      borderRadius: 3,
                       transition: 'border-color 0.2s, box-shadow 0.2s',
                       '&:hover': { borderColor: `${visual.color}60`, boxShadow: `0 4px 16px ${visual.color}18` },
                     }}
@@ -494,7 +507,10 @@ export default function ClientConnectorsPage() {
                       {/* Name + description */}
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="h6" fontWeight={700}>{provider.name}</Typography>
-                        <Typography variant="body2" color={statusColor} sx={{ mt: 0.5, lineHeight: 1.4 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.5 }}>
+                          {provider.description}
+                        </Typography>
+                        <Typography variant="caption" color={statusColor} sx={{ mt: 1.25, display: 'block', lineHeight: 1.4 }}>
                           {statusLine}
                         </Typography>
                       </Box>
@@ -503,7 +519,7 @@ export default function ClientConnectorsPage() {
 
                       {/* Footer: settings + button + switch */}
                       <Stack direction="row" alignItems="center" spacing={1}>
-                        <Tooltip title="Configurar">
+                        <Tooltip title="Detalhes">
                           <IconButton size="small" onClick={() => openConfigModal(provider.id)}>
                             <IconSettings size={18} />
                           </IconButton>

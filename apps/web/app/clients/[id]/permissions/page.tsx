@@ -43,7 +43,11 @@ const PERM_LABELS: Record<string, string> = {
   publish: 'Publicação',
 };
 
-export default function ClientPermissionsPage() {
+type ClientPermissionsPageProps = {
+  embedded?: boolean;
+};
+
+export default function ClientPermissionsPage({ embedded = false }: ClientPermissionsPageProps) {
   const params = useParams();
   const clientId = params.id as string;
   const { isAdmin } = useRole();
@@ -126,15 +130,23 @@ export default function ClientPermissionsPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <IconShieldCheck size={28} stroke={1.5} />
-        <Box>
-          <Typography variant="h5" fontWeight={700}>Permissões do Cliente</Typography>
+      {!embedded ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <IconShieldCheck size={28} stroke={1.5} />
+          <Box>
+            <Typography variant="h5" fontWeight={700}>Permissões do Cliente</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Controle quais usuários têm acesso a este cliente e com quais permissões.
+            </Typography>
+          </Box>
+        </Box>
+      ) : (
+        <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary">
-            Controle quais usuários têm acesso a este cliente e com quais permissões.
+            Esta área define quem lê, escreve, revisa e publica. Integração conecta sistema; permissão libera gente.
           </Typography>
         </Box>
-      </Box>
+      )}
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}

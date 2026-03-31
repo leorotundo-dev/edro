@@ -3,13 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import { IconBook2, IconBulb, IconDna, IconSettings, IconUsers } from '@tabler/icons-react';
 import PerfilPage, { type IdentityWorkspaceTab } from '../perfil/page';
-import ClientConnectorsPage from '../connectors/page';
-import ClientPermissionsPage from '../permissions/page';
+import ClientConfigWorkspace from './ClientConfigWorkspace';
 
 type IdentidadeSub = IdentityWorkspaceTab | 'config';
 
@@ -32,18 +30,6 @@ function parseSub(v: string | null): IdentidadeSub {
   if (v === 'perfil' || v === 'identidade') return 'dna';
   if (v === 'library') return 'biblioteca';
   return 'dna';
-}
-
-// ── Config — Integrações + Acesso ─────────────────────────────────────────────
-
-function ConfigSection() {
-  return (
-    <Box>
-      <ClientConnectorsPage />
-      <Divider sx={{ my: 5 }} />
-      <ClientPermissionsPage />
-    </Box>
-  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -86,7 +72,7 @@ export default function IdentidadePage() {
       </Tabs>
 
       {tab === 'config'
-        ? <ConfigSection />
+        ? <ClientConfigWorkspace />
         : <PerfilPage clientId={clientId} activeTab={tab} showTabs={false} />}
     </Box>
   );
