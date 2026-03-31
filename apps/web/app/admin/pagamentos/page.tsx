@@ -296,12 +296,20 @@ export function PagamentosView({ embedded = false }: { embedded?: boolean }) {
   const hasPayables = payables.length > 0;
 
   const content = (
-      <Box sx={{ p: 3, maxWidth: 1100 }}>
+      <Box sx={{ p: embedded ? 0 : 3, maxWidth: embedded ? 'none' : 1100 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <IconReceipt2 size={22} />
-            <Typography variant="h5" fontWeight={700}>Pagamentos</Typography>
-          </Stack>
+          {!embedded ? (
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <IconReceipt2 size={22} />
+              <Typography variant="h5" fontWeight={700}>Pagamentos</Typography>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Chip label={`${payables.length} repasses`} size="small" variant="outlined" />
+              <Chip label={`${openCount} a pagar`} size="small" color="warning" variant="outlined" />
+              <Chip label={`${paidCount} pagos`} size="small" color="success" variant="outlined" />
+            </Stack>
+          )}
 
           {tab === 0 && (
             <Stack direction="row" spacing={1.5} alignItems="center">

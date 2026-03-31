@@ -131,13 +131,25 @@ export default function FinanceiroCruzadoClient({ embedded = false }: { embedded
   ] : [];
 
   const content = (
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
+      <Box sx={{ p: embedded ? 0 : { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
-          <Stack>
-            <Typography variant="h5" fontWeight={800}>Financeiro Cruzado</Typography>
-            <Typography variant="body2" color="text.secondary">Faturamento, contratos e mídia por período.</Typography>
-          </Stack>
+          {!embedded ? (
+            <Stack>
+              <Typography variant="h5" fontWeight={800}>Financeiro Cruzado</Typography>
+              <Typography variant="body2" color="text.secondary">Faturamento, contratos e mídia por período.</Typography>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Chip label={period} size="small" variant="outlined" />
+              {summary && (
+                <>
+                  <Chip label={`Recebido ${fmt(summary.paid)}`} size="small" color="success" variant="outlined" />
+                  <Chip label={`Em aberto ${fmt(summary.overdue)}`} size="small" color={summary.overdue > 0 ? 'error' : 'default'} variant="outlined" />
+                </>
+              )}
+            </Stack>
+          )}
           <Stack direction="row" spacing={1.5} alignItems="center">
             <TextField select size="small" value={period} onChange={(e) => setPeriod(e.target.value)} sx={{ minWidth: 140 }}>
               {periodOptions().map((p) => (
