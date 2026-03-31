@@ -14,7 +14,7 @@ const baselightTheme = createTheme({
   shadows,
   components: ComponentOverrides,
   shape: {
-    borderRadius: 12,
+    borderRadius: 4,
   },
 });
 
@@ -27,7 +27,7 @@ const basedarkTheme = createTheme({
   shadows,
   components: ComponentOverrides,
   shape: {
-    borderRadius: 12,
+    borderRadius: 4,
   },
 });
 
