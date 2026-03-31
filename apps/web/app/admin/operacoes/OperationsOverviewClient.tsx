@@ -289,7 +289,7 @@ export default function OperationsOverviewClient() {
           <CircularProgress />
         </Box>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={3.5}>
           <Grid size={{ xs: 12 }}>
             <OpsPanel
               eyebrow="Mesa de comando"
@@ -341,18 +341,7 @@ export default function OperationsOverviewClient() {
                     >
                       <Stack spacing={0.8}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center">
-                          <Box
-                            sx={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 1.5,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              bgcolor: alpha(item.color, 0.14),
-                              color: item.color,
-                            }}
-                          >
+                          <Box sx={{ width: 28, height: 28, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(item.color, 0.14), color: item.color }}>
                             {item.icon}
                           </Box>
                           <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.5rem', lineHeight: 1 }}>
@@ -373,148 +362,83 @@ export default function OperationsOverviewClient() {
                 </Box>
 
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => openCreate('client_request')}>
-                    Nova demanda
-                  </Button>
-                  <Button variant="outlined" onClick={() => openCreate('briefing')}>
-                    Novo briefing
-                  </Button>
-                  <Button variant="outlined" onClick={() => openCreate('adjustment')}>
-                    Novo ajuste
-                  </Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
-                    Organizar fila
-                  </Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
-                    Replanejar semana
-                  </Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
-                    Abrir riscos
-                  </Button>
+                  <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => openCreate('client_request')}>Nova demanda</Button>
+                  <Button variant="outlined" onClick={() => openCreate('briefing')}>Novo briefing</Button>
+                  <Button variant="outlined" onClick={() => openCreate('adjustment')}>Novo ajuste</Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">Organizar fila</Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">Replanejar semana</Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/radar">Abrir riscos</Button>
                 </Stack>
               </Stack>
             </OpsPanel>
           </Grid>
 
           <Grid size={{ xs: 12, lg: 3 }}>
-            <OpsPanel eyebrow={OPS_COPY.overview.pulseEyebrow} title={OPS_COPY.overview.pulseTitle} subtitle={OPS_COPY.overview.pulseSubtitle}>
-              <Stack spacing={2}>
-                <Box>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box
-                        sx={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: alpha('#E85219', 0.12),
-                          color: '#E85219',
-                        }}
-                      >
-                        <IconInbox size={14} />
-                      </Box>
-                      <Typography variant="body2" fontWeight={900}>Sem responsável</Typography>
+            <Stack spacing={2.5}>
+              {/* Card: Sem responsável */}
+              <OpsPanel
+                eyebrow="O QUE ENTROU"
+                title="Demandas para organizar"
+                subtitle="Itens que ainda precisam de responsável, prazo ou decisão."
+              >
+                {[
+                  {
+                    key: 'unassigned',
+                    icon: <IconInbox size={16} />,
+                    color: '#E85219',
+                    label: 'Sem responsável',
+                    count: unassignedJobs.length,
+                    countColor: 'warning' as const,
+                  },
+                  {
+                    key: 'today',
+                    icon: <IconCalendarClock size={16} />,
+                    color: '#FFAE1F',
+                    label: 'Vence hoje',
+                    count: todayJobs.length,
+                    countColor: 'default' as const,
+                  },
+                  {
+                    key: 'approvals',
+                    icon: <IconCircleCheckFilled size={16} />,
+                    color: '#13DEB9',
+                    label: 'Aprovações do cliente',
+                    count: overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total,
+                    countColor: overviewRuntime.summary.approvals_blocked_total ? 'error' as const : 'default' as const,
+                  },
+                ].map((section) => (
+                  <Box key={section.label}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box sx={{
+                          width: 28, height: 28, borderRadius: 1.5,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          bgcolor: alpha(section.color, 0.12), color: section.color,
+                        }}>
+                          {section.icon}
+                        </Box>
+                        <Typography variant="body2" fontWeight={700}>{section.label}</Typography>
+                      </Stack>
+                      <Chip size="small" color={section.countColor} label={`${section.count}`} />
                     </Stack>
-                    <Chip size="small" color="warning" label={`${unassignedJobs.length}`} />
-                  </Stack>
-                  <Stack spacing={0.35}>
-                    {unassignedJobs.slice(0, 4).map((job) => (
-                      <OpsJobRow
-                        key={job.id}
-                        job={job}
-                        selected={selectedJob?.id === job.id}
-                        onClick={() => setSelectedJob(job)}
-                        onAssign={handleAssign}
-                        owners={lookups.owners}
-                      />
-                    ))}
-                    {!unassignedJobs.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyUnassigned}</Typography> : null}
-                  </Stack>
-                </Box>
-
-                <OpsDivider />
-
-                <Box>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box
-                        sx={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: alpha('#5D87FF', 0.12),
-                          color: '#5D87FF',
-                        }}
-                      >
-                        <IconCalendarClock size={14} />
-                      </Box>
-                      <Typography variant="body2" fontWeight={900}>Vence hoje</Typography>
+                    <Stack spacing={0}>
+                      {section.key === 'unassigned' && unassignedJobs.slice(0, 4).map((job) => (
+                        <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} onAssign={handleAssign} owners={lookups.owners} />
+                      ))}
+                      {section.key === 'today' && todayJobs.slice(0, 4).map((job) => (
+                        <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
+                      ))}
+                      {section.key === 'approvals' && overviewRuntime.approvals.slice(0, 4).map((job) => (
+                        <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
+                      ))}
+                      {(section.key === 'unassigned' && !unassignedJobs.length) && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{OPS_COPY.overview.emptyUnassigned}</Typography>}
+                      {(section.key === 'today' && !todayJobs.length) && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{OPS_COPY.overview.emptyToday}</Typography>}
+                      {(section.key === 'approvals' && !overviewRuntime.approvals.length) && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>{OPS_COPY.overview.emptyApprovals}</Typography>}
                     </Stack>
-                    <Chip size="small" label={`${todayJobs.length}`} />
-                  </Stack>
-                  <Stack spacing={0.35}>
-                    {todayJobs.slice(0, 4).map((job) => (
-                      <OpsJobRow
-                        key={job.id}
-                        job={job}
-                        selected={selectedJob?.id === job.id}
-                        onClick={() => setSelectedJob(job)}
-                        onAdvance={handleAdvance}
-                        onAssign={handleAssign}
-                        owners={lookups.owners}
-                      />
-                    ))}
-                    {!todayJobs.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyToday}</Typography> : null}
-                  </Stack>
-                </Box>
-
-                <OpsDivider />
-
-                <Box>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box
-                        sx={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          bgcolor: alpha('#FFAE1F', 0.12),
-                          color: '#FFAE1F',
-                        }}
-                      >
-                        <IconCircleCheckFilled size={14} />
-                      </Box>
-                      <Typography variant="body2" fontWeight={900}>Aprovações do cliente</Typography>
-                    </Stack>
-                    <Chip size="small" color={overviewRuntime.summary.approvals_blocked_total ? 'error' : 'default'} label={`${overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total}`} />
-                  </Stack>
-                  <Stack spacing={0.35}>
-                    {overviewRuntime.approvals.slice(0, 4).map((job) => (
-                      <OpsJobRow
-                        key={job.id}
-                        job={job}
-                        selected={selectedJob?.id === job.id}
-                        onClick={() => setSelectedJob(job)}
-                        showStage
-                        onAdvance={handleAdvance}
-                        onAssign={handleAssign}
-                        owners={lookups.owners}
-                      />
-                    ))}
-                    {!overviewRuntime.approvals.length ? <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyApprovals}</Typography> : null}
-                  </Stack>
-                </Box>
-              </Stack>
-            </OpsPanel>
+                  </Box>
+                ))}
+              </OpsPanel>
+            </Stack>
           </Grid>
 
           <Grid size={{ xs: 12, lg: 5 }}>

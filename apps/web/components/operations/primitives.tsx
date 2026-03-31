@@ -450,27 +450,31 @@ export function OpsPanel({
 }) {
   return (
     <Paper
-      variant="outlined"
-      sx={{
+      elevation={0}
+      sx={(theme) => ({
         position: sticky ? 'sticky' : 'relative',
         top: sticky ? 112 : 'auto',
-        p: { xs: 2, md: 2.25 },
-        borderRadius: 2,
+        p: { xs: 2.5, md: 3 },
+        borderRadius: Number(theme.shape.borderRadius) * 2,
+        border: 'none',
+        boxShadow: theme.palette.mode === 'dark'
+          ? '0 2px 12px rgba(0,0,0,0.3)'
+          : '0 2px 12px rgba(0,0,0,0.07)',
         ...sx,
-      }}
+      })}
     >
       {(eyebrow || title || subtitle || action) ? (
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }} sx={{ mb: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'flex-start' }} sx={{ mb: 2.5 }}>
           <Box>
             {eyebrow ? (
-              <Typography variant="overline" sx={(theme) => ({ color: opsTokens(theme).accentText, letterSpacing: '0.14em' })}>
+              <Typography variant="overline" sx={(theme) => ({ color: opsTokens(theme).accentText, letterSpacing: '0.14em', fontSize: '0.65rem', fontWeight: 800 })}>
                 {eyebrow}
               </Typography>
             ) : null}
-            {title ? <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.05 }}>{title}</Typography> : null}
-            {subtitle ? <Typography variant="body2" color="text.secondary">{subtitle}</Typography> : null}
+            {title ? <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2, mt: 0.25 }}>{title}</Typography> : null}
+            {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{subtitle}</Typography> : null}
           </Box>
-          {action ? <Box>{action}</Box> : null}
+          {action ? <Box sx={{ flexShrink: 0 }}>{action}</Box> : null}
         </Stack>
       ) : null}
       {children}
@@ -757,43 +761,48 @@ export function OpsJobRow({
         return {
           display: 'flex',
           cursor: onClick ? 'pointer' : 'default',
-          mx: 0.5,
-          my: 0.35,
-          borderRadius: 2,
+          mx: 0,
+          my: 0.5,
+          borderRadius: Number(theme.shape.borderRadius) * 1.5,
           overflow: 'hidden',
           border: selected
-            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.4)}`
-            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.35)}`
+            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.07) : alpha(theme.palette.common.black, 0.07)}`,
           bgcolor: selected
-            ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04)
-            : dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+            ? alpha(theme.palette.primary.main, dark ? 0.09 : 0.05)
+            : dark ? alpha(theme.palette.common.white, 0.025) : '#fff',
+          boxShadow: selected
+            ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`
+            : theme.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.04)',
           transition: 'all 150ms ease',
           '&:hover': onClick ? {
             bgcolor: selected
-              ? alpha(theme.palette.primary.main, dark ? 0.12 : 0.06)
-              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.015),
+              ? alpha(theme.palette.primary.main, dark ? 0.13 : 0.07)
+              : dark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.02),
+            boxShadow: dark ? 'none' : '0 2px 8px rgba(0,0,0,0.08)',
+            transform: 'translateY(-1px)',
             '& .ops-row-actions': { opacity: 1 },
           } : {},
         };
       }}
     >
       {/* Status color bar */}
-      <Box sx={{ width: 4, flexShrink: 0, bgcolor: vis.color }} />
+      <Box sx={{ width: 5, flexShrink: 0, bgcolor: vis.color }} />
 
-      <Box sx={{ flex: 1, px: 1.5, py: 1.1 }}>
-        <Stack direction="row" spacing={1.25} alignItems="center">
+      <Box sx={{ flex: 1, px: 1.75, py: 1.5 }}>
+        <Stack direction="row" spacing={1.5} alignItems="center">
           <Avatar
             src={job.client_logo_url || undefined}
             alt={job.client_name || 'Cliente'}
             sx={{
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               borderRadius: 1.5,
               fontSize: '0.72rem',
               fontWeight: 900,
               bgcolor: alpha(clientAccent(job), 0.14),
               color: clientAccent(job),
-              border: `2px solid ${alpha(clientAccent(job), 0.25)}`,
+              border: `2px solid ${alpha(clientAccent(job), 0.22)}`,
               flexShrink: 0,
             }}
           >
@@ -1714,26 +1723,28 @@ export function OperationsContextRail({
   lead?: React.ReactNode;
 }) {
   return (
-    <Box
-      sx={(theme) => {
-        const dark = theme.palette.mode === 'dark';
-        return {
-          position: 'sticky',
-          top: 104,
-          pl: { xs: 0, md: 2.5 },
-          borderLeft: { xs: 'none', md: `2px solid ${alpha(theme.palette.primary.main, dark ? 0.15 : 0.12)}` },
-        };
-      }}
+    <Paper
+      elevation={0}
+      sx={(theme) => ({
+        position: 'sticky',
+        top: 104,
+        p: { xs: 2.5, md: 3 },
+        borderRadius: Number(theme.shape.borderRadius) * 2,
+        border: 'none',
+        boxShadow: theme.palette.mode === 'dark'
+          ? '0 2px 12px rgba(0,0,0,0.3)'
+          : '0 2px 12px rgba(0,0,0,0.07)',
+      })}
     >
-      <Stack spacing={2}>
+      <Stack spacing={2.5}>
         <Box>
-          <Typography variant="overline" sx={(theme) => ({ color: opsTokens(theme).accentText, letterSpacing: '0.14em' })}>
+          <Typography variant="overline" sx={(theme) => ({ color: opsTokens(theme).accentText, letterSpacing: '0.14em', fontSize: '0.65rem', fontWeight: 800 })}>
             {eyebrow}
           </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.05 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2, mt: 0.25 }}>
             {title}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
             {subtitle}
           </Typography>
         </Box>
@@ -1969,7 +1980,7 @@ export function OperationsContextRail({
               {section.title || section.action ? (
                 <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} sx={{ mb: 1 }}>
                   {section.title ? (
-                    <Typography variant="body2" fontWeight={900}>
+                    <Typography variant="body2" fontWeight={700}>
                       {section.title}
                     </Typography>
                   ) : <Box />}
@@ -1981,7 +1992,7 @@ export function OperationsContextRail({
           </Box>
         ))}
       </Stack>
-    </Box>
+    </Paper>
   );
 }
 
