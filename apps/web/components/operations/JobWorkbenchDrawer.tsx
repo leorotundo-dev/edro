@@ -1036,6 +1036,25 @@ export default function JobWorkbenchDrawer({
     }
   };
 
+  const handleAssignOwner = async (ownerId: string) => {
+    if (!detailJob) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const result = await onUpdate(detailJob.id, { owner_id: ownerId });
+      setDetailJob(result);
+      setForm((current) => ({
+        ...current,
+        owner_id: ownerId,
+        assignee_ids: current.assignee_ids.includes(ownerId) ? current.assignee_ids : [...current.assignee_ids, ownerId],
+      }));
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao trocar o responsavel.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!detailJob || !onDelete) return;
     setDeleting(true);
@@ -1056,6 +1075,9 @@ export default function JobWorkbenchDrawer({
   const detailRisk = detailJob ? getRisk(detailJob) : null;
   const missingDecisionItems = getMissingDecisionItems(form);
   const createReady = Boolean(form.title.trim()) && missingDecisionItems.length === 0;
+  const quickAllocationOptions = allocationProposals
+    .filter((proposal) => proposal.freelancerId !== detailJob?.owner_id)
+    .slice(0, 2);
   const saveLabel = submitting
     ? 'Salvando...'
     : mode === 'create'
@@ -1657,6 +1679,83 @@ export default function JobWorkbenchDrawer({
                   />
                 </Grid>
               </Grid>
+              <Box
+                sx={(theme) => ({
+                  p: 1.5,
+                  borderRadius: 2.5,
+                  border: '1px solid',
+                  borderColor: alpha(theme.palette.primary.main, 0.18),
+                  bgcolor: alpha(theme.palette.primary.main, 0.04),
+                })}
+              >
+                <Stack spacing={1.5}>
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45 }}>
+                      COMANDOS RAPIDOS
+                    </Typography>
+                    <Typography variant="body2" fontWeight={700}>
+                      O que voce pode fazer agora sem sair da Central
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Tudo abaixo mexe na operacao real e reflete no Trello quando a acao existe no fluxo.
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {progressTarget ? (
+                      <Button
+                        variant="contained"
+                        startIcon={<IconBolt size={16} />}
+                        onClick={() => handleStatusChange(progressTarget)}
+                        disabled={submitting}
+                      >
+                        {nextAction.label}
+                      </Button>
+                    ) : null}
+                    {!detailJob.owner_id && currentUserId ? (
+                      <Button variant="outlined" startIcon={<IconUserPlus size={16} />} onClick={handleTakeOwnership} disabled={submitting}>
+                        Assumir agora
+                      </Button>
+                    ) : null}
+                    {quickAllocationOptions.map((proposal) => (
+                      <Button
+                        key={proposal.freelancerId}
+                        variant="outlined"
+                        onClick={() => handleAssignOwner(proposal.freelancerId)}
+                        disabled={submitting}
+                      >
+                        Alocar {proposal.name.split(' ')[0]}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outlined"
+                      color={detailJob.status === 'blocked' ? 'success' : 'warning'}
+                      startIcon={detailJob.status === 'blocked' ? <IconPlayerPlay size={16} /> : <IconPlayerPause size={16} />}
+                      onClick={() => handleStatusChange(detailJob.status === 'blocked' ? (intakeComplete ? 'ready' : 'planned') : 'blocked')}
+                      disabled={submitting}
+                    >
+                      {detailJob.status === 'blocked' ? 'Desbloquear' : 'Bloquear'}
+                    </Button>
+                    <Button variant="outlined" component={Link} href={`/studio?jobId=${detailJob.id}`} startIcon={<IconBrush size={16} />}>
+                      Abrir studio
+                    </Button>
+                    {detailJob.client_id ? (
+                      <Button variant="outlined" component={Link} href={`/clients/${detailJob.client_id}`}>
+                        Abrir cliente
+                      </Button>
+                    ) : null}
+                    {detailJob.source === 'meeting' ? (
+                      <Button variant="outlined" component={Link} href="/admin/reunioes">
+                        Ver reunioes
+                      </Button>
+                    ) : null}
+                    {detailJob.job_type === 'publication' ? (
+                      <Button variant="outlined" component={Link} href="/calendar">
+                        Ver calendario
+                      </Button>
+                    ) : null}
+                  </Stack>
+                </Stack>
+              </Box>
               <StageRail status={detailJob.status} />
               <Grid container spacing={1.5}>
                 {detailJob.client_id ? (
