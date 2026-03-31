@@ -14,6 +14,8 @@ import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Chart from '@/components/charts/Chart';
@@ -118,6 +120,8 @@ type SocialListeningClientProps = {
   embedded?: boolean;
 };
 
+type SocialViewTab = 'feed' | 'insights' | 'monitoring';
+
 const PLATFORM_OPTIONS = [
   { value: '', label: 'Todas plataformas' },
   { value: 'instagram', label: 'Instagram' },
@@ -215,6 +219,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
   const [success, setSuccess] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
+  const [viewTab, setViewTab] = useState<SocialViewTab>('feed');
   const [platformFilter, setPlatformFilter] = useState('');
   const [sentimentFilter, setSentimentFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -495,8 +500,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
         ))}
       </Grid>
 
-      {/* Charts row */}
-      {hasSentimentData ? (
+      {viewTab === 'insights' && hasSentimentData ? (
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 4 }}>
             <Card variant="outlined">
@@ -589,6 +593,17 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
       </Card>
 
       <Card variant="outlined">
+        <CardContent sx={{ py: 1 }}>
+          <Tabs value={viewTab} onChange={(_, next) => setViewTab(next)} variant="scrollable" allowScrollButtonsMobile>
+            <Tab value="feed" label="Feed" />
+            <Tab value="insights" label="Insights" />
+            <Tab value="monitoring" label="Monitoramento" />
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {viewTab === 'insights' ? (
+      <Card variant="outlined">
         <CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
             <Typography variant="overline" color="text.secondary">Reportei Performance</Typography>
@@ -661,10 +676,13 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
           )}
         </CardContent>
       </Card>
+      ) : null}
 
+      {viewTab !== 'insights' ? (
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 4 }}>
           <Stack spacing={2}>
+            {viewTab === 'monitoring' ? (
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="overline" color="text.secondary">Keywords ativas</Typography>
@@ -709,6 +727,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
                 </Stack>
               </CardContent>
             </Card>
+            ) : null}
 
             <Card variant="outlined">
               <CardContent>
@@ -772,11 +791,16 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
           </Stack>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 8 }}>
+        <Grid size={{ xs: 12, lg: viewTab === 'feed' ? 8 : 8 }}>
           <Card variant="outlined">
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="overline" color="text.secondary">Menções recentes</Typography>
+                <Box>
+                  <Typography variant="overline" color="text.secondary">Menções recentes</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {viewTab === 'feed' ? 'Feed central de leitura e triagem.' : 'Menções acompanhadas junto das regras de monitoramento.'}
+                  </Typography>
+                </Box>
                 <TextField
                   select
                   size="small"
@@ -832,6 +856,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
           </Card>
         </Grid>
       </Grid>
+      ) : null}
     </Stack>
   );
 
