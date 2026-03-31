@@ -452,11 +452,30 @@ type PortalTab = 'jobs' | 'capacidade' | 'extrato';
 export default function MinhaAreaClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const jobsSummary = useSWR<{ success: boolean; data: DAJob[] }>('/jobs/mine', swrFetcher);
+  const capacitySummary = useSWR<{ success: boolean; data: CapacitySlot[] }>('/api/da-billing/capacity', swrFetcher);
+  const billingSummary = useSWR<{ success: boolean; data: BillingEntry[] }>(
+    `/api/da-billing/me?period=${currentPeriod()}`,
+    swrFetcher,
+  );
   const [tab, setTab] = useState<PortalTab>(() => {
     const t = searchParams.get('tab');
     if (t === 'capacidade' || t === 'extrato') return t;
     return 'jobs';
   });
+
+  const jobs = jobsSummary.data?.data ?? [];
+  const slots = capacitySummary.data?.data ?? [];
+  const billing = billingSummary.data?.data ?? [];
+  const activeJobs = jobs.filter((job) => !['done', 'archived'].includes(job.status));
+  const overdueJobs = activeJobs.filter((job) => isOverdue(job.deadline_at));
+  const availableSlots = slots.reduce((sum, slot) => sum + slot.slots_available, 0);
+  const pendingCents = billing
+    .filter((entry) => entry.status === 'pending' || entry.status === 'approved')
+    .reduce((sum, entry) => sum + entry.rate_cents, 0);
+  const finishedJobs = jobs.filter((job) => ['done', 'archived'].includes(job.status)).length;
+  const activeTabLabel =
+    tab === 'jobs' ? 'Jobs e entregas' : tab === 'capacidade' ? 'Capacidade da semana' : 'Extrato e repasses';
 
   const changeTab = (value: PortalTab) => {
     setTab(value);
@@ -466,7 +485,113 @@ export default function MinhaAreaClient() {
 
   return (
     <AppShell title="Minha Área">
-      <Box>
+      <Stack spacing={3}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: { xs: 2.5, md: 3 },
+            borderRadius: 4,
+            borderColor: 'divider',
+            background:
+              'linear-gradient(135deg, rgba(79,70,229,0.08) 0%, rgba(59,130,246,0.03) 52%, rgba(255,255,255,1) 100%)',
+          }}
+        >
+          <Stack spacing={2.5}>
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: 'flex-start', md: 'center' }}
+            >
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar
+                  sx={{
+                    width: 52,
+                    height: 52,
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    fontWeight: 800,
+                  }}
+                >
+                  MA
+                </Avatar>
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 0.9 }}>
+                    Workspace pessoal
+                  </Typography>
+                  <Typography variant="h4" fontWeight={800}>
+                    Minha Área
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Acompanhe suas entregas, sua carga desta semana e o que ainda falta virar repasse.
+                  </Typography>
+                </Box>
+              </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip
+                  icon={<IconCircleCheck size={14} />}
+                  label={`${finishedJobs} concluídos`}
+                  color="success"
+                  variant="outlined"
+                />
+                <Chip
+                  icon={<IconClock size={14} />}
+                  label={activeTabLabel}
+                  color="primary"
+                  sx={{ fontWeight: 700 }}
+                />
+              </Stack>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+              {[
+                {
+                  label: 'Jobs ativos',
+                  value: String(activeJobs.length),
+                  tone: '#4f46e5',
+                  helper: overdueJobs.length ? `${overdueJobs.length} em atraso` : 'Tudo em movimento',
+                },
+                {
+                  label: 'Capacidade livre',
+                  value: `${availableSlots}`,
+                  tone: '#0f766e',
+                  helper: slots.length ? 'Slots disponíveis nesta semana' : 'Sem leitura disponível',
+                },
+                {
+                  label: 'A receber',
+                  value: brl(pendingCents),
+                  tone: '#ea580c',
+                  helper: 'Pendentes e aprovados do mês atual',
+                },
+              ].map((item) => (
+                <Box
+                  key={item.label}
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    borderRadius: 3,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    p: 2,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                    {item.label}
+                  </Typography>
+                  <Typography variant="h5" fontWeight={800} sx={{ color: item.tone }}>
+                    {item.value}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {item.helper}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Stack>
+        </Paper>
+
+        <Box>
         <Tabs
           value={tab}
           onChange={(_, v) => changeTab(v)}
@@ -498,7 +623,8 @@ export default function MinhaAreaClient() {
         {tab === 'jobs' && <JobsTab />}
         {tab === 'capacidade' && <CapacidadeTab />}
         {tab === 'extrato' && <ExtratoTab />}
-      </Box>
+        </Box>
+      </Stack>
     </AppShell>
   );
 }
