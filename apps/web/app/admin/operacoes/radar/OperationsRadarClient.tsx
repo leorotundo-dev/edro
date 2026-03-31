@@ -131,27 +131,22 @@ export default function OperationsRadarClient() {
     }>;
   }>({ critical: [], high: [], client_risk: [] });
 
+  const loadRisks = useCallback(async () => {
+    setRiskLoading(true);
+    setRiskError('');
+    try {
+      const response = await apiGet<{ data?: typeof riskData }>('/operations/risks');
+      setRiskData(response?.data || { critical: [], high: [], client_risk: [] });
+    } catch (err: any) {
+      setRiskError(err?.message || 'Falha ao carregar os riscos.');
+    } finally {
+      setRiskLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let active = true;
-    const loadRisks = async () => {
-      setRiskLoading(true);
-      setRiskError('');
-      try {
-        const response = await apiGet<{ data?: typeof riskData }>('/operations/risks');
-        if (!active) return;
-        setRiskData(response?.data || { critical: [], high: [], client_risk: [] });
-      } catch (err: any) {
-        if (!active) return;
-        setRiskError(err?.message || 'Falha ao carregar os riscos.');
-      } finally {
-        if (active) setRiskLoading(false);
-      }
-    };
-    loadRisks();
-    return () => {
-      active = false;
-    };
-  }, [jobs.length]);
+    void loadRisks();
+  }, [jobs.length, loadRisks]);
 
   const critical = riskData.critical;
   const high = riskData.high;
@@ -181,6 +176,23 @@ export default function OperationsRadarClient() {
     setViewMode(next);
     if (next === 'signals') setSelectedJob(null);
   };
+
+  const refreshRadar = useCallback(async () => {
+    await refresh();
+    await Promise.all([loadRisks(), loadSignals()]);
+  }, [loadRisks, loadSignals, refresh]);
+
+  const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
+    const updated = await changeStatus(jobId, nextStatus);
+    await refreshRadar();
+    if (updated) setSelectedJob(updated as OperationsJob);
+  }, [changeStatus, refreshRadar]);
+
+  const handleAssign = useCallback(async (jobId: string, ownerId: string) => {
+    const updated = await updateJob(jobId, { owner_id: ownerId, assignee_ids: [ownerId] });
+    await refreshRadar();
+    if (updated) setSelectedJob(updated as OperationsJob);
+  }, [refreshRadar, updateJob]);
 
   return (
     <OperationsShell
@@ -322,6 +334,9 @@ export default function OperationsRadarClient() {
                     </Button>
                     <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
                       Resolver sem dono
+                    </Button>
+                    <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                      Abrir semana
                     </Button>
                   </Stack>
                 </Stack>
@@ -474,10 +489,42 @@ export default function OperationsRadarClient() {
                         {critical.length}
                       </Typography>
                     </Stack>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
+                      {critical[0] ? (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setSelectedJob(critical[0])}
+                        >
+                          Abrir mais crítico
+                        </Button>
+                      ) : null}
+                      {critical.some((job) => !job.owner_id) && currentUserId ? (
+                        <Button
+                          variant="text"
+                          size="small"
+                          onClick={async () => {
+                            const target = critical.find((job) => !job.owner_id);
+                            if (!target) return;
+                            await handleAssign(target.id, currentUserId);
+                          }}
+                        >
+                          Assumir sem dono
+                        </Button>
+                      ) : null}
+                    </Stack>
                     <Stack spacing={0.5}>
                       {critical.length ? critical.map((job) => (
                         <Box key={job.id}>
-                          <OpsJobRow job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
+                          <OpsJobRow
+                            job={job}
+                            selected={selectedJob?.id === job.id}
+                            onClick={() => setSelectedJob(job)}
+                            showStage
+                            onAdvance={handleAdvance}
+                            onAssign={handleAssign}
+                            owners={lookups.owners}
+                          />
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 1, pt: 0.4 }}>
                             Próxima ação sugerida: {getNextAction(job).label}
                           </Typography>
@@ -509,10 +556,42 @@ export default function OperationsRadarClient() {
                         {high.length}
                       </Typography>
                     </Stack>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
+                      {high[0] ? (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setSelectedJob(high[0])}
+                        >
+                          Abrir mais urgente
+                        </Button>
+                      ) : null}
+                      {high.some((job) => !job.owner_id) && currentUserId ? (
+                        <Button
+                          variant="text"
+                          size="small"
+                          onClick={async () => {
+                            const target = high.find((job) => !job.owner_id);
+                            if (!target) return;
+                            await handleAssign(target.id, currentUserId);
+                          }}
+                        >
+                          Assumir sem dono
+                        </Button>
+                      ) : null}
+                    </Stack>
                     <Stack spacing={0.5}>
                       {high.length ? high.map((job) => (
                         <Box key={job.id}>
-                          <OpsJobRow job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage />
+                          <OpsJobRow
+                            job={job}
+                            selected={selectedJob?.id === job.id}
+                            onClick={() => setSelectedJob(job)}
+                            showStage
+                            onAdvance={handleAdvance}
+                            onAssign={handleAssign}
+                            owners={lookups.owners}
+                          />
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 1, pt: 0.4 }}>
                             Próxima ação sugerida: {getNextAction(job).label}
                           </Typography>
@@ -661,12 +740,29 @@ export default function OperationsRadarClient() {
                       >
                         {isNativeMeeting ? 'Abrir reuniões' : OPS_COPY.common.openDetail}
                       </Button>
+                      {!isStandaloneRiskItem && selectedJob && !selectedJob.owner_id && currentUserId ? (
+                        <Button
+                          variant="outlined"
+                          onClick={async () => {
+                            await handleAssign(selectedJob.id, currentUserId);
+                          }}
+                        >
+                          Assumir agora
+                        </Button>
+                      ) : null}
+                      {selectedJob ? (
+                        <Button
+                          variant="outlined"
+                          component={Link}
+                          href="/admin/operacoes/semana?view=distribution"
+                        >
+                          Ver semana
+                        </Button>
+                      ) : null}
                       <Button
                         variant="outlined"
                         onClick={async () => {
-                          await refresh();
-                          const response = await apiGet<{ data?: typeof riskData }>('/operations/risks');
-                          setRiskData(response?.data || { critical: [], high: [], client_risk: [] });
+                          await refreshRadar();
                         }}
                       >
                         {OPS_COPY.radar.refresh}
@@ -701,17 +797,13 @@ export default function OperationsRadarClient() {
         onCreate={createJob}
         onUpdate={async (jobId, payload) => {
           const updated = await updateJob(jobId, payload);
-          await refresh();
-          const response = await apiGet<{ data?: typeof riskData }>('/operations/risks');
-          setRiskData(response?.data || { critical: [], high: [], client_risk: [] });
+          await refreshRadar();
           setSelectedJob(updated as OperationsJob);
           return updated;
         }}
         onStatusChange={async (jobId, status, reason) => {
           const updated = await changeStatus(jobId, status, reason);
-          await refresh();
-          const response = await apiGet<{ data?: typeof riskData }>('/operations/risks');
-          setRiskData(response?.data || { critical: [], high: [], client_risk: [] });
+          await refreshRadar();
           setSelectedJob(updated as OperationsJob);
           return updated;
         }}
