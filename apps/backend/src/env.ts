@@ -91,6 +91,7 @@ const envSchema = z.object({
   WHATSAPP_PHONE_ID: z.string().optional(),
   WHATSAPP_API_VERSION: z.string().optional(),
   WHATSAPP_WEBHOOK_SECRET: z.string().optional(),
+  WHATSAPP_AGENCY_PHONES: z.string().optional(), // comma-separated: +5511999990000,+5511888880000
   EVOLUTION_API_URL: z.string().url().optional(),
   EVOLUTION_API_KEY: z.string().optional(),
   EVOLUTION_WEBHOOK_SECRET: z.string().optional(),

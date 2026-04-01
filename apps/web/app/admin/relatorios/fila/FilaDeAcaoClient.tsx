@@ -240,6 +240,32 @@ export default function FilaDeAcaoClient({ embedded = false }: { embedded?: bool
           <Stack alignItems="center" py={8}><CircularProgress /></Stack>
         ) : (
           <>
+            {/* Summary KPIs */}
+            {queueSummary && (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1.5, mb: 3 }}>
+                {[
+                  { value: queueSummary.total,    label: 'Total',     color: '#E85219', light: '#fdeee8' },
+                  { value: queueSummary.critical,  label: 'Críticos',  color: '#FA896B', light: '#FDEDE8' },
+                  { value: queueSummary.warning,   label: 'Atenção',   color: '#FFAE1F', light: '#FEF5E5' },
+                  { value: queueSummary.info,      label: 'Info',      color: '#13DEB9', light: '#E6FFFA' },
+                ].map((k) => (
+                  <Paper key={k.label} elevation={0} sx={{
+                    p: 3, textAlign: 'center', borderRadius: 2,
+                    border: `1px solid ${alpha(k.color, 0.18)}`,
+                    bgcolor: theme.palette.mode === 'dark' ? alpha(k.color, 0.1) : k.light,
+                    boxShadow: 'none',
+                  }}>
+                    <Typography sx={{ fontWeight: 900, fontSize: '2.25rem', lineHeight: 1, color: k.color, fontVariantNumeric: 'tabular-nums', mb: 0.75 }}>
+                      {k.value}
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: `${k.color}bb`, textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: '0.1em' }}>
+                      {k.label}
+                    </Typography>
+                  </Paper>
+                ))}
+              </Box>
+            )}
+
             <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ mb: 3, borderBottom: `1px solid ${theme.palette.divider}` }}>
               {tabs.map((t, i) => (
                 <Tab key={i} label={t.label} />

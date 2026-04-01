@@ -7,6 +7,7 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconUserCircle,
+  IconInbox,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -41,6 +42,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Clientes',
         icon: IconUsers,
         href: '/clients',
+      },
+      {
+        id: 'solicitacoes',
+        title: 'Solicitações',
+        icon: IconInbox,
+        href: '/admin/solicitacoes',
       },
       {
         id: 'calendar',

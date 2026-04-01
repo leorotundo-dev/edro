@@ -27,15 +27,17 @@ import {
   IconReceipt,
   IconLogout,
   IconMenu2,
+  IconPlus,
 } from '@tabler/icons-react';
 import { clearToken } from '@/lib/api';
 
 const NAV = [
-  { href: '/',           label: 'Início',     icon: <IconLayoutDashboard size={18} />, match: (p: string) => p === '/' },
-  { href: '/jobs',       label: 'Projetos',   icon: <IconBriefcase size={18} />,       match: (p: string) => p.startsWith('/jobs') },
-  { href: '/aprovacoes', label: 'Aprovações', icon: <IconCheckbox size={18} />,        match: (p: string) => p.startsWith('/aprovacoes') },
-  { href: '/relatorios', label: 'Relatórios', icon: <IconChartBar size={18} />,        match: (p: string) => p.startsWith('/relatorios') },
-  { href: '/faturas',    label: 'Faturas',    icon: <IconReceipt size={18} />,         match: (p: string) => p.startsWith('/faturas') },
+  { href: '/',           label: 'Início',       icon: <IconLayoutDashboard size={18} />, match: (p: string) => p === '/' },
+  { href: '/jobs',       label: 'Projetos',     icon: <IconBriefcase size={18} />,       match: (p: string) => p.startsWith('/jobs') },
+  { href: '/aprovacoes', label: 'Aprovações',   icon: <IconCheckbox size={18} />,        match: (p: string) => p.startsWith('/aprovacoes') },
+  { href: '/briefing',   label: 'Solicitações', icon: <IconPlus size={18} />,            match: (p: string) => p.startsWith('/briefing') },
+  { href: '/relatorios', label: 'Relatórios',   icon: <IconChartBar size={18} />,        match: (p: string) => p.startsWith('/relatorios') },
+  { href: '/faturas',    label: 'Faturas',      icon: <IconReceipt size={18} />,         match: (p: string) => p.startsWith('/faturas') },
 ];
 
 function getInitials(name: string) {
@@ -48,6 +50,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [name, setName] = useState('');
+  const [clientLogoUrl, setClientLogoUrl] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
@@ -57,7 +60,12 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         if (!res.ok) { clearToken(); window.location.href = '/login'; return null; }
         return res.json();
       })
-      .then((data) => { if (!cancelled && data) setName(data?.user?.name ?? data?.user?.email ?? 'Cliente'); })
+      .then((data) => {
+        if (!cancelled && data) {
+          setName(data?.user?.name ?? data?.user?.client_name ?? data?.user?.email ?? 'Cliente');
+          setClientLogoUrl(data?.user?.client_logo_url ?? null);
+        }
+      })
       .catch(() => null);
     return () => { cancelled = true; };
   }, []);
@@ -75,13 +83,41 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       {/* AppBar */}
       <AppBar position="sticky" elevation={0}>
         <Toolbar sx={{ gap: 2, px: { xs: 2, md: 4 }, minHeight: '64px !important' }}>
-          <Box
-            component="img"
-            src="/brand/logo-studio.png"
-            alt="Edro Studio"
-            sx={{ height: 24, width: 'auto', objectFit: 'contain', cursor: 'pointer', flexShrink: 0 }}
+          <Stack
+            direction="row" alignItems="center" spacing={1}
             onClick={() => router.push('/')}
-          />
+            sx={{ cursor: 'pointer', flexShrink: 0 }}
+          >
+            {clientLogoUrl ? (
+              <Box
+                component="img"
+                src={clientLogoUrl}
+                alt="Logo"
+                sx={{ height: 32, maxWidth: 130, objectFit: 'contain' }}
+                onError={(e: any) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <Box
+                component="img"
+                src="/brand/logo-studio.png"
+                alt="Edro Studio"
+                sx={{ height: 24, width: 'auto', objectFit: 'contain' }}
+              />
+            )}
+            {clientLogoUrl && (
+              <Stack direction="row" alignItems="center" spacing={0.5} sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 1 }}>
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>
+                  by
+                </Typography>
+                <Box
+                  component="img"
+                  src="/brand/logo-studio.png"
+                  alt="Edro"
+                  sx={{ height: 14, width: 'auto', objectFit: 'contain', opacity: 0.45 }}
+                />
+              </Stack>
+            )}
+          </Stack>
 
           {!isMobile && (
             <Stack direction="row" spacing={0.5} sx={{ ml: 3 }}>
@@ -142,6 +178,26 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 240, pt: 2 }}>
           <Box sx={{ px: 2, pb: 2 }}>
+            {clientLogoUrl ? (
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                <Box
+                  component="img"
+                  src={clientLogoUrl}
+                  alt="Logo"
+                  sx={{ height: 28, maxWidth: 110, objectFit: 'contain' }}
+                  onError={(e: any) => { e.target.style.display = 'none'; }}
+                />
+                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 1 }}>
+                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>by</Typography>
+                  <Box
+                    component="img"
+                    src="/brand/logo-studio.png"
+                    alt="Edro"
+                    sx={{ height: 12, width: 'auto', objectFit: 'contain', opacity: 0.4 }}
+                  />
+                </Stack>
+              </Stack>
+            ) : null}
             <Typography variant="caption" color="text.secondary" display="block">Portal do Cliente</Typography>
             {name && <Typography variant="body2" fontWeight={600}>{name}</Typography>}
           </Box>

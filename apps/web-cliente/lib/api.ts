@@ -23,9 +23,10 @@ async function request<T = any>(method: string, path: string, body?: unknown): P
   try { return JSON.parse(text); } catch { return text as any; }
 }
 
-export const apiGet   = <T = any>(path: string) => request<T>('GET', path);
-export const apiPost  = <T = any>(path: string, body?: unknown) => request<T>('POST', path, body);
-export const apiPatch = <T = any>(path: string, body?: unknown) => request<T>('PATCH', path, body);
+export const apiGet    = <T = any>(path: string) => request<T>('GET', path);
+export const apiPost   = <T = any>(path: string, body?: unknown) => request<T>('POST', path, body);
+export const apiPatch  = <T = any>(path: string, body?: unknown) => request<T>('PATCH', path, body);
+export const apiDelete = <T = any>(path: string) => request<T>('DELETE', path);
 
 export function swrFetcher(path: string) {
   return apiGet(path);

@@ -12,6 +12,10 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -21,6 +25,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconAlertTriangle,
+  IconArrowRight,
   IconCalendar,
   IconCheck,
   IconClipboardList,
@@ -31,6 +36,7 @@ import {
   IconTrendingUp,
   IconChartBar,
   IconCurrencyReal,
+  IconInbox,
 } from '@tabler/icons-react';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -115,6 +121,13 @@ type TrelloBoard = {
   trello_board_id: string | null;
 };
 
+type PendingBriefingRequest = {
+  id: string;
+  client_name: string;
+  form_data: { type?: string; objective?: string; platform?: string };
+  created_at: string;
+};
+
 // ── Constants ─────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, string> = {
@@ -194,6 +207,8 @@ export default function DashboardClient() {
   const [clientsHealth, setClientsHealth] = useState<ClientHealth[]>([]);
   const [roiDist, setRoiDist] = useState<RoiDistribution | null>(null);
   const [trelloBoards, setTrelloBoards] = useState<TrelloBoard[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingBriefingRequest[]>([]);
+  const [requestsPopupOpen, setRequestsPopupOpen] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -202,7 +217,7 @@ export default function DashboardClient() {
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes, opsJobsRes, healthRes, roiRes, trelloRes] = await Promise.all([
+      const [metricsRes, briefingsRes, tasksRes, calendarRes, pendingRes, opsJobsRes, healthRes, roiRes, trelloRes, briefingRequestsRes] = await Promise.all([
         apiGet<{ success: boolean; data: Metrics }>('/edro/metrics').catch(() => null),
         apiGet<{ success: boolean; data: Briefing[] }>('/edro/briefings?limit=10').catch(() => null),
         apiGet<{ success: boolean; data: Task[] }>('/edro/tasks?status=pending').catch(() => null),
@@ -214,6 +229,7 @@ export default function DashboardClient() {
         apiGet<{ clients: ClientHealth[] }>('/admin/clients-health').catch(() => null),
         apiGet<{ distribution: RoiDistribution }>('/admin/roi-distribution').catch(() => null),
         apiGet<{ boards: TrelloBoard[] }>('/trello/project-boards').catch(() => null),
+        apiGet<{ requests: PendingBriefingRequest[] }>('/admin/briefing-requests?status=submitted&limit=20').catch(() => null),
       ]);
 
       if (metricsRes?.data) setMetrics(metricsRes.data);
@@ -232,6 +248,10 @@ export default function DashboardClient() {
       if (healthRes?.clients) setClientsHealth(healthRes.clients);
       if (roiRes?.distribution) setRoiDist(roiRes.distribution);
       if (trelloRes?.boards) setTrelloBoards(trelloRes.boards);
+      if (briefingRequestsRes?.requests?.length) {
+        setPendingRequests(briefingRequestsRes.requests);
+        setRequestsPopupOpen(true);
+      }
 
       if (calendarRes?.days) {
         const todaysList = calendarRes.days[today] || [];
@@ -299,8 +319,74 @@ export default function DashboardClient() {
 
   return (
     <AppShell title="Dashboard">
-      <Stack spacing={3.5}>
 
+      {/* ── Popup: Solicitações pendentes do portal ──────────────────── */}
+      <Dialog
+        open={requestsPopupOpen}
+        onClose={() => setRequestsPopupOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Box sx={{ p: 1, bgcolor: 'warning.light', borderRadius: 1.5, display: 'flex' }}>
+              <IconInbox size={20} color="#b45309" />
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                {pendingRequests.length === 1
+                  ? '1 nova solicitação de job'
+                  : `${pendingRequests.length} novas solicitações de job`}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Enviadas pelo portal do cliente — aguardando seu retorno
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 0 }}>
+          <Stack spacing={1} divider={<Divider />}>
+            {pendingRequests.map((req) => (
+              <Box key={req.id} sx={{ py: 1 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Box sx={{ flex: 1, minWidth: 0, pr: 2 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                      <Typography variant="subtitle2" fontWeight={700}>{req.client_name}</Typography>
+                      {req.form_data.type && (
+                        <Chip label={req.form_data.type} size="small" variant="outlined" />
+                      )}
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{
+                      overflow: 'hidden', display: '-webkit-box',
+                      WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                    }}>
+                      {req.form_data.objective}
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                    {new Date(req.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                  </Typography>
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="text" color="inherit" onClick={() => setRequestsPopupOpen(false)}>
+            Fechar
+          </Button>
+          <Button
+            variant="contained"
+            endIcon={<IconArrowRight size={16} />}
+            onClick={() => { setRequestsPopupOpen(false); router.push('/admin/solicitacoes'); }}
+          >
+            Ver fila de solicitações
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Stack spacing={3.5}>
         {/* ── Quick Stats ───────────────────────────────────────── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
           <StatCard

@@ -172,6 +172,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       clientId, clientName, setClientId,
       conversationId, setConversationId,
       unreadCount, bump, clearUnread,
+      pageData, setPageData,
       pageContext,
       pageData, setPageData,
     }}>

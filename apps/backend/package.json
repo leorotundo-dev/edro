@@ -8,7 +8,7 @@
     "prebuild": "node -e \"console.log('Skipping build clean step')\"",
     "build": "echo \"Skipping TypeScript compilation\"",
     "typecheck": "tsc --noEmit",
-    "start": "node -e \"console.log('[start] backend start override'); require('ts-node/register/transpile-only'); require('./src/index.ts')\"",
+    "start": "ts-node --transpile-only src/db/migrate.ts && node -e \"console.log('[start] backend start override'); require('ts-node/register/transpile-only'); require('./src/index.ts')\"",
     "db:migrate": "ts-node --transpile-only src/db/migrate.ts",
     "calendar:generate": "ts-node --transpile-only src/scripts/generateEdroCalendarMaster.ts",
     "calendar:import": "ts-node --transpile-only src/scripts/importCalendarCsv.ts",

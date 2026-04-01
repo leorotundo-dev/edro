@@ -4,16 +4,11 @@ import {
   decodeJwtPayload,
   getBackendBaseUrl,
   getSessionCookieConfig,
-  isSameOriginWrite,
 } from '@/lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  if (!isSameOriginWrite(request)) {
-    return NextResponse.json({ error: 'forbidden_origin' }, { status: 403 });
-  }
-
   const rawBody = await request.text();
   const upstream = await fetch(`${getBackendBaseUrl()}/api/auth/magic-link/verify`, {
     method: 'POST',
