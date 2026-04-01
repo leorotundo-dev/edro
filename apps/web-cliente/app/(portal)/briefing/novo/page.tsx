@@ -128,8 +128,7 @@ export default function NovoBriefingPage() {
   }
 
   return (
-    <PortalShell>
-      <Box sx={{ maxWidth: 640, mx: 'auto', py: 4, px: { xs: 2, md: 0 } }}>
+    <Box sx={{ maxWidth: 640, mx: 'auto', py: 4, px: { xs: 2, md: 0 } }}>
         <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>Solicitar novo job</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           Preencha os detalhes — nossa IA vai organizar e encaminhar para a equipe.
@@ -173,8 +172,7 @@ export default function NovoBriefingPage() {
             </Button>
           )}
         </Stack>
-      </Box>
-    </PortalShell>
+    </Box>
   );
 }
 
