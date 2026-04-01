@@ -156,7 +156,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
                         mb: 0.25,
                         px: open ? 1.5 : 'auto',
                         justifyContent: open ? 'initial' : 'center',
-                        color: active ? '#fff' : EDRO_TEXT,
+                        color: active ? EDRO_ORANGE : EDRO_TEXT,
                         bgcolor: active ? EDRO_ORANGE_MUTED : 'transparent',
                         borderLeft: active ? `3px solid ${EDRO_ORANGE}` : '3px solid transparent',
                         '&:hover': {
@@ -184,7 +184,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
                             primaryTypographyProps={{
                               fontSize: '0.84rem',
                               fontWeight: active ? 600 : 400,
-                              color: active ? '#fff' : EDRO_TEXT,
+                              color: active ? EDRO_ORANGE : EDRO_TEXT,
                               noWrap: true,
                             }}
                           />
