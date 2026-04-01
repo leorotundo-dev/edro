@@ -389,13 +389,23 @@ function EditDrawer({ person, onClose, onSaved }: {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 
-export default function PeopleDirectoryClient() {
+export default function PeopleDirectoryClient({
+  embedded = false,
+  fixedFilter,
+  title = 'Diretório de Pessoas',
+  description,
+}: {
+  embedded?: boolean;
+  fixedFilter?: 'all' | 'internal' | 'external';
+  title?: string;
+  description?: string;
+}) {
   const theme = useTheme();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<'all' | 'internal' | 'external'>('all');
+  const [filter, setFilter] = useState<'all' | 'internal' | 'external'>(fixedFilter ?? 'all');
 
   // Edit
   const [editPerson, setEditPerson] = useState<Person | null>(null);
@@ -427,7 +437,7 @@ export default function PeopleDirectoryClient() {
         setSyncResult('Reconecte o Gmail em Integrações para autorizar o acesso aos contatos.');
       } else {
         setSyncResult(`${res?.upserted ?? 0} contatos sincronizados.`);
-        await load(q, filter);
+        await load(q, fixedFilter ?? filter);
       }
     } catch (err: any) {
       setSyncResult(err?.message ?? 'Erro ao sincronizar contatos.');
@@ -454,6 +464,10 @@ export default function PeopleDirectoryClient() {
 
   const selectedPeople = people.filter((p) => selectedIds.has(p.id));
 
+  useEffect(() => {
+    if (fixedFilter) setFilter(fixedFilter);
+  }, [fixedFilter]);
+
   const load = useCallback(async (search: string, f: typeof filter) => {
     setLoading(true);
     setError('');
@@ -472,9 +486,9 @@ export default function PeopleDirectoryClient() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => load(q, filter), q ? 300 : 0);
+    const timer = setTimeout(() => load(q, fixedFilter ?? filter), q ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [q, filter, load]);
+  }, [q, filter, fixedFilter, load]);
 
   const handleDelete = async () => {
     if (!deletePerson) return;
@@ -523,12 +537,10 @@ export default function PeopleDirectoryClient() {
   const duplicateGroups = people.filter((p) =>
     !isNameless(p) && people.some((other) => !isNameless(other) && other.id !== p.id && other.display_name.trim().toLowerCase() === p.display_name.trim().toLowerCase()),
   ).length;
+  const activeFilter = fixedFilter ?? filter;
 
-  return (
-    <AdminShell section="equipe">
-      <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 } }}>
-      </Box>
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
+  const content = (
+      <Box sx={{ p: embedded ? 0 : { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
           <Box sx={{
@@ -539,11 +551,16 @@ export default function PeopleDirectoryClient() {
             <IconAddressBook size={22} />
           </Box>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" fontWeight={800}>Diretório de Pessoas</Typography>
+            <Typography variant="h6" fontWeight={800}>{title}</Typography>
             <Stack direction="row" spacing={1} alignItems="center">
               <Typography variant="caption" color="text.secondary">
                 {internal} internos · {external} externos · {people.length} total
               </Typography>
+              {description && (
+                <Typography variant="caption" color="text.secondary">
+                  · {description}
+                </Typography>
+              )}
               {duplicateGroups > 0 && (
                 <Chip label={`${duplicateGroups} duplicados`} size="small" color="warning"
                   sx={{ fontSize: '0.65rem', height: 18, fontWeight: 700 }} />
@@ -587,16 +604,18 @@ export default function PeopleDirectoryClient() {
             }}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
-          <ToggleButtonGroup value={filter} exclusive onChange={(_e, v) => { if (v) setFilter(v); }}
-            size="small" sx={{ flexShrink: 0 }}>
-            <ToggleButton value="all" sx={{ px: 1.5, py: 0.5, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>Todos</ToggleButton>
-            <ToggleButton value="internal" sx={{ px: 1.5, py: 0.5, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
-              <IconUsersGroup size={13} style={{ marginRight: 4 }} />Internos
-            </ToggleButton>
-            <ToggleButton value="external" sx={{ px: 1.5, py: 0.5, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
-              <IconUser size={13} style={{ marginRight: 4 }} />Externos
-            </ToggleButton>
-          </ToggleButtonGroup>
+          {!fixedFilter && (
+            <ToggleButtonGroup value={filter} exclusive onChange={(_e, v) => { if (v) setFilter(v); }}
+              size="small" sx={{ flexShrink: 0 }}>
+              <ToggleButton value="all" sx={{ px: 1.5, py: 0.5, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>Todos</ToggleButton>
+              <ToggleButton value="internal" sx={{ px: 1.5, py: 0.5, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
+                <IconUsersGroup size={13} style={{ marginRight: 4 }} />Internos
+              </ToggleButton>
+              <ToggleButton value="external" sx={{ px: 1.5, py: 0.5, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
+                <IconUser size={13} style={{ marginRight: 4 }} />Externos
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
           <Tooltip title="Selecione 2 cards para unificar manualmente">
             <Button
               size="small"
@@ -683,15 +702,16 @@ export default function PeopleDirectoryClient() {
           </Grid>
         )}
       </Box>
+  );
 
-      {/* Edit Drawer */}
+  const overlays = (
+    <>
       <EditDrawer
         person={editPerson}
         onClose={() => setEditPerson(null)}
-        onSaved={() => load(q, filter)}
+        onSaved={() => load(q, activeFilter)}
       />
 
-      {/* Delete Dialog */}
       <Dialog open={Boolean(deletePerson)} onClose={() => setDeletePerson(null)} maxWidth="xs" fullWidth>
         <DialogTitle fontWeight={800}>Excluir pessoa</DialogTitle>
         <DialogContent>
@@ -709,7 +729,6 @@ export default function PeopleDirectoryClient() {
         </DialogActions>
       </Dialog>
 
-      {/* Merge Dialog */}
       <Dialog open={Boolean(mergeKeep && mergeDiscard)} onClose={() => { setMergeKeep(null); setMergeDiscard(null); }}
         maxWidth="sm" fullWidth>
         <DialogTitle fontWeight={800}>Merge de duplicatas</DialogTitle>
@@ -739,6 +758,22 @@ export default function PeopleDirectoryClient() {
           </Button>
         </DialogActions>
       </Dialog>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {content}
+        {overlays}
+      </>
+    );
+  }
+
+  return (
+    <AdminShell section="equipe">
+      {content}
+      {overlays}
     </AdminShell>
   );
 }
