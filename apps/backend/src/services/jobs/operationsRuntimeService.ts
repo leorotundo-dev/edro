@@ -1864,7 +1864,7 @@ export async function buildOverviewSnapshot(tenantId: string) {
        JOIN jobs j ON j.id = ci.job_id
        LEFT JOIN clients c ON c.id = ci.client_id
        LEFT JOIN edro_users u ON u.id = ci.owner_id
-       LEFT JOIN tenant_users tu ON tu.user_id = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
+       LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
        LEFT JOIN freelancer_profiles fp ON fp.user_id = ci.owner_id
       WHERE ci.tenant_id = $1
         AND ci.source_type = 'checkpoint'
