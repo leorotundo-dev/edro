@@ -222,6 +222,11 @@ export default function ClientsListClient() {
           { label: `${clients.length} clientes` },
           { label: `${unlinkedBoards.length} boards sem vínculo` },
         ]}
+        rightContent={(
+          <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/clients/novo')}>
+            Novo cliente
+          </Button>
+        )}
       />
 
       <Box
@@ -265,18 +270,6 @@ export default function ClientsListClient() {
           </Card>
         ))}
       </Box>
-
-      <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" spacing={2}>
-        <Box>
-          <Typography variant="h5" fontWeight={800}>Diretório de contas</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Busque, priorize e abra a conta certa sem perder o contexto operacional.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/clients/novo')}>
-          Novo cliente
-        </Button>
-      </Stack>
 
       <Card variant="outlined">
         <CardContent>
