@@ -725,8 +725,8 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
   }, async (_request, reply) => {
     const publicApiUrl = env.PUBLIC_API_URL?.replace(/\/$/, '') || null;
     return reply.send({
-      google_redirect_uri_gmail:     publicApiUrl ? `${publicApiUrl}/auth/google/callback` : null,
-      google_redirect_uri_calendar:  publicApiUrl ? `${publicApiUrl}/auth/google/calendar/callback` : null,
+      google_redirect_uri_gmail:     publicApiUrl ? `${publicApiUrl}/api/auth/google/callback` : null,
+      google_redirect_uri_calendar:  publicApiUrl ? `${publicApiUrl}/api/auth/google/calendar/callback` : null,
       webhook_base_url:              publicApiUrl,
       meta_verify_token_set:         has('META_VERIFY_TOKEN'),
     });

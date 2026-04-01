@@ -5,7 +5,7 @@
  * ENV vars:
  *   GOOGLE_CLIENT_ID       — Google OAuth client ID
  *   GOOGLE_CLIENT_SECRET   — Google OAuth client secret
- *   GOOGLE_REDIRECT_URI    — e.g. https://api.edro.digital/auth/google/callback
+ *   GOOGLE_REDIRECT_URI    — e.g. https://edro-backend-production.up.railway.app/api/auth/google/callback
  *   GOOGLE_PUBSUB_TOPIC    — e.g. projects/my-project/topics/gmail-watch
  *
  * Flow:
@@ -59,7 +59,7 @@ function resolveGmailRedirectUri(): string {
   if (!publicBase) {
     throw new Error('Configure GOOGLE_REDIRECT_URI ou PUBLIC_API_URL para o OAuth do Gmail.');
   }
-  return `${publicBase}/auth/google/callback`;
+  return `${publicBase}/api/auth/google/callback`;
 }
 
 // ── OAuth helpers ─────────────────────────────────────────────────────────
