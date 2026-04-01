@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -161,8 +160,7 @@ export default function ReporteiAdminPage() {
   const igIntegrations = integrations.filter(i => i.slug === 'instagram_business');
 
   return (
-    <AppShell title="Reportei — Intelligence">
-      <AdminSubmenu value="reportei" />
+    <AdminShell section="sistema">
 
       <Box sx={{ maxWidth: 1100, mx: 'auto', px: 2 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
@@ -463,6 +461,6 @@ export default function ReporteiAdminPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </AppShell>
+    </AdminShell>
   );
 }

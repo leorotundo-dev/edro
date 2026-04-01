@@ -1535,7 +1535,12 @@ export default async function calendarRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: 'client_not_found' });
       }
 
-      const client = buildClientProfile(clients[0]);
+      let client: ReturnType<typeof buildClientProfile>;
+      try {
+        client = buildClientProfile(clients[0]);
+      } catch (e: any) {
+        return reply.status(422).send({ error: 'invalid_client_profile', message: e?.message });
+      }
       const year = Number(params.month.split('-')[0]);
       const sourceEvents = await buildSourceEvents({ tenantId, client, year });
       const hits = expandEventsForMonth(sourceEvents, params.month as any);

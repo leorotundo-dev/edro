@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Table from '@mui/material/Table';
@@ -74,7 +73,7 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <AppShell title="System Admin">
+    <AdminShell section="equipe">
       <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <IconUsers size={28} stroke={1.5} />
@@ -85,8 +84,6 @@ export default function AdminUsersPage() {
             </Typography>
           </Box>
         </Box>
-
-        <AdminSubmenu value="users" />
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
@@ -160,6 +157,6 @@ export default function AdminUsersPage() {
           </TableContainer>
         )}
       </Box>
-    </AppShell>
+    </AdminShell>
   );
 }

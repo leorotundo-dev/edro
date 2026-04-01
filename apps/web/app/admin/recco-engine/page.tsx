@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import { apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -332,9 +331,8 @@ export default function ReccoEnginePage() {
   const totalMs = result?.processing_log?.reduce((s, p) => s + p.duration_ms, 0) ?? 0;
 
   return (
-    <AppShell title="Recco Engine">
+    <AdminShell section="sistema">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
-        <AdminSubmenu value="recco-engine" />
 
         {/* Header */}
         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 3 }}>
@@ -629,6 +627,6 @@ export default function ReccoEnginePage() {
           </Grid>
         </Grid>
       </Box>
-    </AppShell>
+    </AdminShell>
   );
 }

@@ -2,14 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
@@ -194,11 +191,8 @@ export default function CentralDeControleClient() {
     : 'Tudo operacional';
 
   return (
-    <AppShell title="Central de Controle">
-      <Box sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2, md: 3 } }}>
-        <AdminSubmenu value="controle" />
-      </Box>
-      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
+    <AdminShell section="controle">
+      <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
 
         {/* ── Header ── */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={1}>
@@ -247,27 +241,32 @@ export default function CentralDeControleClient() {
 
         {data && (
           <>
-            {/* ── Summary chips ── */}
-            <Stack direction="row" spacing={2} mb={3} flexWrap="wrap" useFlexGap>
+            {/* ── Summary KPIs — Modernize pastel cards ── */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(4,1fr)' }, gap: 1.5, mb: 3 }}>
               {[
-                { label: 'OK', value: data.summary.ok, color: '#2e7d32', icon: <IconCircleCheck size={18} /> },
-                { label: 'Avisos', value: data.summary.warnings, color: '#ed6c02', icon: <IconAlertTriangle size={18} /> },
-                { label: 'Erros', value: data.summary.errors, color: '#d32f2f', icon: <IconAlertCircle size={18} /> },
-                { label: 'Alertas críticos', value: data.summary.alerts_critical, color: '#d32f2f', icon: <IconAlertCircle size={18} /> },
-              ].map((s) => (
-                <Paper key={s.label} variant="outlined" sx={{ px: 2, py: 1.5, minWidth: 110 }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Box sx={{ color: s.value > 0 ? s.color : 'text.disabled' }}>{s.icon}</Box>
-                    <Box>
-                      <Typography variant="h6" fontWeight={800} sx={{ color: s.value > 0 ? s.color : 'text.secondary', lineHeight: 1 }}>
-                        {s.value}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">{s.label}</Typography>
-                    </Box>
-                  </Stack>
+                { label: 'Operacionais', value: data.summary.ok,              color: '#13DEB9', light: '#E6FFFA', icon: <IconCircleCheck size={22} /> },
+                { label: 'Avisos',       value: data.summary.warnings,         color: '#FFAE1F', light: '#FEF5E5', icon: <IconAlertTriangle size={22} /> },
+                { label: 'Erros',        value: data.summary.errors,           color: '#FA4D56', light: '#fdeee8', icon: <IconAlertCircle size={22} /> },
+                { label: 'Críticos',     value: data.summary.alerts_critical,  color: '#E85219', light: '#fdeee8', icon: <IconAlertCircle size={22} /> },
+              ].map((k) => (
+                <Paper key={k.label} elevation={0} sx={(theme) => ({
+                  p: 3, textAlign: 'center', borderRadius: '8px',
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(k.color, 0.1) : k.light,
+                  border: `1px solid ${alpha(k.color, 0.18)}`,
+                  boxShadow: 'none',
+                })}>
+                  <Box sx={{ width: 44, height: 44, borderRadius: '50%', bgcolor: alpha(k.color, 0.15), display: 'flex', alignItems: 'center', justifyContent: 'center', color: k.color, mx: 'auto', mb: 1 }}>
+                    {k.icon}
+                  </Box>
+                  <Typography sx={{ fontWeight: 900, fontSize: '2rem', lineHeight: 1, color: k.color, fontVariantNumeric: 'tabular-nums', mb: 0.5 }}>
+                    {k.value}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: `${k.color}bb`, textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: '0.1em' }}>
+                    {k.label}
+                  </Typography>
                 </Paper>
               ))}
-            </Stack>
+            </Box>
 
             {/* ── Alerts ── */}
             {data.alerts.length > 0 && (
@@ -298,49 +297,53 @@ export default function CentralDeControleClient() {
                 const color = STATUS_COLOR[integ.status];
                 return (
                   <Grid key={integ.key} size={{ xs: 12, sm: 6, md: 4 }}>
-                    <Card variant="outlined" sx={{ height: '100%', borderColor: integ.status !== 'ok' ? alpha(color, 0.4) : 'divider' }}>
-                      <CardContent sx={{ pb: '12px !important' }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Box sx={{ color, opacity: integ.status === 'disconnected' ? 0.4 : 1 }}>
-                              <IntegrationIcon iconKey={integ.icon} />
-                            </Box>
-                            <Typography variant="body2" fontWeight={700}>{integ.label}</Typography>
-                          </Stack>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <Chip
-                              label={STATUS_LABEL[integ.status]}
-                              size="small"
-                              sx={{ bgcolor: alpha(color, 0.1), color, fontWeight: 600, fontSize: '0.68rem' }}
-                            />
-                            <Tooltip title="Abrir configurações">
-                              <Box component="a" href={integ.action_url} sx={{ color: 'text.disabled', display: 'flex', '&:hover': { color: 'text.primary' } }}>
-                                <IconExternalLink size={14} />
-                              </Box>
-                            </Tooltip>
-                          </Stack>
+                    <Paper elevation={0} sx={(theme) => ({
+                      p: 2.5, height: '100%', borderRadius: '8px',
+                      border: `1px solid ${integ.status !== 'ok' ? alpha(color, 0.35) : alpha(theme.palette.divider, 1)}`,
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                      transition: 'box-shadow 0.15s, transform 0.15s',
+                      '&:hover': { boxShadow: '0 4px 18px rgba(0,0,0,0.1)', transform: 'translateY(-2px)' },
+                    })}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Box sx={{ color, opacity: integ.status === 'disconnected' ? 0.4 : 1 }}>
+                            <IntegrationIcon iconKey={integ.icon} />
+                          </Box>
+                          <Typography variant="body2" fontWeight={700}>{integ.label}</Typography>
                         </Stack>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <Chip
+                            label={STATUS_LABEL[integ.status]}
+                            size="small"
+                            sx={{ bgcolor: alpha(color, 0.1), color, fontWeight: 600, fontSize: '0.68rem' }}
+                          />
+                          <Tooltip title="Abrir configurações">
+                            <Box component="a" href={integ.action_url} sx={{ color: 'text.disabled', display: 'flex', '&:hover': { color: 'text.primary' } }}>
+                              <IconExternalLink size={14} />
+                            </Box>
+                          </Tooltip>
+                        </Stack>
+                      </Stack>
 
-                        <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                          {integ.details}
-                        </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                        {integ.details}
+                      </Typography>
 
-                        {integ.last_activity && (
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <IconClockHour4 size={12} color="#9e9e9e" />
-                            <Typography variant="caption" color="text.disabled">
-                              {fmtAgo(integ.last_activity)}
-                            </Typography>
-                          </Stack>
-                        )}
+                      {integ.last_activity && (
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <IconClockHour4 size={12} color="#9e9e9e" />
+                          <Typography variant="caption" color="text.disabled">
+                            {fmtAgo(integ.last_activity)}
+                          </Typography>
+                        </Stack>
+                      )}
 
-                        {integ.warning && (
-                          <Alert severity="warning" sx={{ mt: 1, py: 0, px: 1, '& .MuiAlert-message': { fontSize: '0.7rem' } }}>
-                            {integ.warning}
-                          </Alert>
-                        )}
-                      </CardContent>
-                    </Card>
+                      {integ.warning && (
+                        <Alert severity="warning" sx={{ mt: 1, py: 0, px: 1, '& .MuiAlert-message': { fontSize: '0.7rem' } }}>
+                          {integ.warning}
+                        </Alert>
+                      )}
+                    </Paper>
                   </Grid>
                 );
               })}
@@ -350,50 +353,42 @@ export default function CentralDeControleClient() {
             <Typography variant="subtitle1" fontWeight={700} mb={1.5}>
               Frescor dos Dados por Domínio
             </Typography>
-            <Card variant="outlined">
-              <CardContent sx={{ p: 0 }}>
-                {data.domains.map((domain, i) => {
-                  const color = FRESHNESS_COLOR[domain.freshness];
-                  return (
-                    <Box key={domain.key}>
-                      {i > 0 && <Divider />}
-                      <Stack
-                        direction={{ xs: 'column', sm: 'row' }}
-                        spacing={2}
-                        alignItems={{ sm: 'center' }}
-                        sx={{ px: 2, py: 1.5 }}
-                      >
-                        <Box flex={1}>
-                          <Typography variant="body2" fontWeight={600}>{domain.label}</Typography>
-                          <Typography variant="caption" color="text.secondary">Fonte: {domain.source}</Typography>
+            <Paper elevation={0} sx={{ borderRadius: '8px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+              {data.domains.map((domain, i) => {
+                const color = FRESHNESS_COLOR[domain.freshness];
+                return (
+                  <Box key={domain.key}>
+                    {i > 0 && <Divider />}
+                    <Stack
+                      direction={{ xs: 'column', sm: 'row' }}
+                      spacing={2}
+                      alignItems={{ sm: 'center' }}
+                      sx={{ px: 2.5, py: 1.75 }}
+                    >
+                      <Box flex={1}>
+                        <Typography variant="body2" fontWeight={600}>{domain.label}</Typography>
+                        <Typography variant="caption" color="text.secondary">Fonte: {domain.source}</Typography>
+                      </Box>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <Box sx={{ minWidth: 100, textAlign: 'right' }}>
+                          <Typography variant="caption" color="text.secondary" display="block">Última escrita</Typography>
+                          <Typography variant="body2" fontWeight={600}>{fmtAgo(domain.last_write)}</Typography>
                         </Box>
-                        <Stack direction="row" spacing={2} alignItems="center">
-                          <Box sx={{ minWidth: 100, textAlign: 'right' }}>
-                            <Typography variant="caption" color="text.secondary" display="block">
-                              Última escrita
-                            </Typography>
-                            <Typography variant="body2" fontWeight={600}>
-                              {fmtAgo(domain.last_write)}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ minWidth: 80, textAlign: 'right' }}>
-                            <Typography variant="caption" color="text.secondary" display="block">
-                              Limite
-                            </Typography>
-                            <Typography variant="caption">{domain.threshold_h}h</Typography>
-                          </Box>
-                          <Chip
-                            label={FRESHNESS_LABEL[domain.freshness]}
-                            size="small"
-                            sx={{ bgcolor: alpha(color, 0.1), color, fontWeight: 600, minWidth: 90, fontSize: '0.7rem' }}
-                          />
-                        </Stack>
+                        <Box sx={{ minWidth: 60, textAlign: 'right' }}>
+                          <Typography variant="caption" color="text.secondary" display="block">Limite</Typography>
+                          <Typography variant="caption">{domain.threshold_h}h</Typography>
+                        </Box>
+                        <Chip
+                          label={FRESHNESS_LABEL[domain.freshness]}
+                          size="small"
+                          sx={{ bgcolor: alpha(color, 0.1), color, fontWeight: 600, minWidth: 90, fontSize: '0.7rem' }}
+                        />
                       </Stack>
-                    </Box>
-                  );
-                })}
-              </CardContent>
-            </Card>
+                    </Stack>
+                  </Box>
+                );
+              })}
+            </Paper>
 
             {data.alerts.length === 0 && (
               <Alert severity="success" sx={{ mt: 3 }} icon={<IconShieldCheck size={20} />}>
@@ -403,6 +398,6 @@ export default function CentralDeControleClient() {
           </>
         )}
       </Box>
-    </AppShell>
+    </AdminShell>
   );
 }

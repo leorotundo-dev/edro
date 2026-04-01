@@ -223,7 +223,7 @@ export async function listBriefings(params?: {
 
   if (params?.tenantId) {
     values.push(params.tenantId);
-    filters.push(`b.tenant_id = $${values.length}`);
+    filters.push(`cl.tenant_id = $${values.length}`);
   }
 
   if (params?.status) {
@@ -256,6 +256,7 @@ export async function listBriefings(params?: {
       SELECT COUNT(*) AS count
       FROM edro_briefings b
       LEFT JOIN edro_clients c ON c.id = b.client_id
+      LEFT JOIN clients cl ON cl.id = b.main_client_id
       ${whereClause}
     `,
     values

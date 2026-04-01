@@ -4,7 +4,7 @@
  *
  * ENV vars:
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
- *   GOOGLE_CALENDAR_REDIRECT_URI  — e.g. https://api.edro.digital/auth/google/calendar/callback
+ *   GOOGLE_CALENDAR_REDIRECT_URI  — e.g. https://edro-backend-production.up.railway.app/api/auth/google/calendar/callback
  *   GOOGLE_CALENDAR_WEBHOOK_URL   — e.g. https://api.edro.digital/webhook/google-calendar
  *
  * Flow:
@@ -67,7 +67,7 @@ function resolveCalendarRedirectUri(): string {
   if (!publicBase) {
     throw new Error('Configure GOOGLE_CALENDAR_REDIRECT_URI ou PUBLIC_API_URL para o OAuth do Google Calendar.');
   }
-  return `${publicBase}/auth/google/calendar/callback`;
+  return `${publicBase}/api/auth/google/calendar/callback`;
 }
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';

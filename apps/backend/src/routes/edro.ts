@@ -5017,31 +5017,6 @@ Retorne APENAS JSON válido (sem markdown):
     return reply.send({ success: true, ...rows[0] });
   });
 
-  // ── Pipeline Schedule — register a planned publication ────────────────────
-  app.post('/studio/creative/schedule', async (request: any, reply) => {
-    const tenantId = request.tenantId as string;
-    const { briefing_id, platform, scheduled_at, copy_text, image_url } = request.body as {
-      briefing_id?: string;
-      platform: string;
-      scheduled_at: string;
-      copy_text?: string;
-      image_url?: string;
-    };
-
-    if (!platform || !scheduled_at) {
-      return reply.status(400).send({ success: false, error: 'platform and scheduled_at required' });
-    }
-
-    const { rows } = await query(
-      `INSERT INTO scheduled_publications
-         (tenant_id, briefing_id, platform, scheduled_at, copy_text, image_url, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled')
-       RETURNING id, scheduled_at`,
-      [tenantId, briefing_id || null, platform, scheduled_at, copy_text || null, image_url || null]
-    );
-    return reply.send({ success: true, data: rows[0] });
-  });
-
   // ── POST /edro/briefings/:id/approve-and-schedule ─────────────────────────
   // Approves an auto-generated briefing in one click and schedules it for
   // optimal publish time (next business day 10h BRT = 13h UTC by default).

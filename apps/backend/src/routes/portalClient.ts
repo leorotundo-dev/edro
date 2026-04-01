@@ -31,7 +31,11 @@ import {
   recordArtDirectionFeedbackEvent,
   resolveArtDirectionCreativeContext,
 } from '../services/ai/artDirectionMemoryService';
-import { runBriefingAutoPipeline } from '../services/briefingAutoPipelineService';
+import {
+  runBriefingAutoPipeline,
+  createBriefingTrelloCard,
+  sendBriefingAcceptedWhatsApp,
+} from '../services/briefingAutoPipelineService';
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
@@ -917,12 +921,14 @@ export async function portalTokenRoutes(app: FastifyInstance) {
       `UPDATE portal_briefing_requests
        SET status = $1, agency_notes = COALESCE($2, agency_notes), updated_at = now()
        WHERE id = $3 AND tenant_id = $4
-       RETURNING id, status, client_id, contact_id, form_data`,
+       RETURNING id, status, client_id, contact_id, form_data, ai_enriched, trello_card_id`,
       [newStatus, agency_notes ?? null, id, tenantId],
     );
     if (!result.rows.length) return reply.status(404).send({ error: 'Not found' });
 
     const row = result.rows[0];
+    const clientRes = await pool.query(`SELECT name FROM clients WHERE id = $1`, [row.client_id]);
+    const clientName = clientRes.rows[0]?.name ?? row.client_id;
 
     // Notify contact by email if accepted/declined
     if (row.contact_id) {
@@ -932,8 +938,6 @@ export async function portalTokenRoutes(app: FastifyInstance) {
       );
       const contact = contactRes.rows[0];
       if (contact && isEmailConfigured()) {
-        const clientRes = await pool.query(`SELECT name FROM clients WHERE id = $1`, [row.client_id]);
-        const clientName = clientRes.rows[0]?.name ?? '';
         const title = (row.form_data as any)?.objective?.slice(0, 60) ?? 'sua solicitação';
         await sendEmail({
           to: contact.email,
@@ -944,6 +948,37 @@ export async function portalTokenRoutes(app: FastifyInstance) {
           html: buildBriefingStatusEmail({ name: contact.name ?? contact.email, clientName, action, title, agencyNotes: agency_notes }),
         }).catch(() => {});
       }
+    }
+
+    // On accept: create Trello card (if not already created) + WhatsApp
+    if (action === 'accept') {
+      setImmediate(async () => {
+        let trelloCardUrl = undefined as string | undefined;
+        if (!row.trello_card_id) {
+          const card = await createBriefingTrelloCard({
+            briefingId: row.id,
+            tenantId,
+            clientName,
+            formData: row.form_data as any,
+            aiEnriched: row.ai_enriched as any,
+            label: '✅ ACEITO',
+          }).catch(() => null);
+          if (card) {
+            trelloCardUrl = card.cardUrl;
+            await pool.query(
+              `UPDATE portal_briefing_requests SET trello_card_id = $1 WHERE id = $2`,
+              [card.cardId, row.id],
+            ).catch(() => {});
+          }
+        }
+        await sendBriefingAcceptedWhatsApp({
+          tenantId,
+          clientName,
+          formData: row.form_data as any,
+          aiEnriched: row.ai_enriched as any,
+          trelloUrl: trelloCardUrl,
+        }).catch(() => {});
+      });
     }
 
     return reply.send({ ok: true, status: newStatus });

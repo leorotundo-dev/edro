@@ -181,7 +181,7 @@ export async function apiGet<T = any>(path: string): Promise<T> {
 export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   return requestWithRefresh<T>(path, {
     method: 'POST',
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify(body ?? {}),
   });
 }
 
@@ -203,7 +203,14 @@ export async function apiPostFormData<T = any>(path: string, formData: FormData)
 export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
   return requestWithRefresh<T>(path, {
     method: 'PATCH',
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
+  return requestWithRefresh<T>(path, {
+    method: 'PUT',
+    body: JSON.stringify(body ?? {}),
   });
 }
 

@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -74,9 +73,8 @@ export default function BriefingRatingsPage() {
   const criticalJobs = ratings.filter((r) => r.avg_briefing_quality < 3);
 
   return (
-    <AppShell title="Avaliações de Briefing">
+    <AdminShell section="relatorios">
       <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 } }}>
-        <AdminSubmenu value="briefing-ratings" />
       </Box>
       <Box sx={{ p: 3, maxWidth: 1100 }}>
         <Typography variant="h5" fontWeight={800} mb={0.5}>Avaliação Reversa</Typography>
@@ -155,6 +153,6 @@ export default function BriefingRatingsPage() {
           </>
         )}
       </Box>
-    </AppShell>
+    </AdminShell>
   );
 }

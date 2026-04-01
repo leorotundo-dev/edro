@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
@@ -114,7 +113,7 @@ export default function AutomationsPage() {
     ACTION_TYPES.find((a) => a.id === action) || { label: action, color: 'default' as const };
 
   return (
-    <AppShell title="System Admin">
+    <AdminShell section="sistema">
       <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -130,8 +129,6 @@ export default function AutomationsPage() {
             Nova Automação
           </Button>
         </Box>
-
-        <AdminSubmenu value="automacoes" />
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
@@ -213,6 +210,6 @@ export default function AutomationsPage() {
           </DialogActions>
         </Dialog>
       </Box>
-    </AppShell>
+    </AdminShell>
   );
 }

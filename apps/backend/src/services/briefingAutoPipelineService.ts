@@ -144,8 +144,19 @@ export async function runBriefingAutoPipeline(input: PipelineInput): Promise<voi
       client.main_product && `Produto principal: ${client.main_product}`,
     ].filter(Boolean).join('\n');
 
-    // ── 2. Generate concept + copy + pre-call brief via Claude ─────────────────
-    const prompt = `Você é o Jarvis, agente de inteligência criativa da Edro Studio.
+    // ── 2. Generate concept + copy + pre-call brief via Claude (best-effort) ────
+    const output: PipelineOutput = {
+      concept:             { angles: [], strategy: '' },
+      draft_copy:          { hook: '', body: '', cta: '' },
+      pre_call_brief:      '',
+      learning_highlights: [],
+      risk_flags:          [],
+      whatsapp_sent:       false,
+      pipeline_ran_at:     new Date().toISOString(),
+    };
+
+    try {
+      const prompt = `Você é o Jarvis, agente de inteligência criativa da Edro Studio.
 
 Um cliente acabou de submeter um briefing de job. Sua função é:
 1. Gerar 3 ângulos criativos para este job
@@ -195,27 +206,19 @@ Responda em JSON com esta estrutura exata:
   "risk_flags": ["risco 1 se houver", "risco 2 se houver"]
 }`;
 
-    const aiResult = await generateCompletion({
-      prompt,
-      temperature: 0.7,
-      maxTokens: 1500,
-    });
-
-    let parsed: Partial<PipelineOutput> = {};
-    try {
+      const aiResult = await generateCompletion({ prompt, temperature: 0.7, maxTokens: 1500 });
       const jsonMatch = aiResult.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
-    } catch { /* use empty */ }
-
-    const output: PipelineOutput = {
-      concept:            parsed.concept ?? { angles: [], strategy: '' },
-      draft_copy:         parsed.draft_copy ?? { hook: '', body: '', cta: '' },
-      pre_call_brief:     parsed.pre_call_brief ?? '',
-      learning_highlights: parsed.learning_highlights ?? [],
-      risk_flags:         parsed.risk_flags ?? [],
-      whatsapp_sent:      false,
-      pipeline_ran_at:    new Date().toISOString(),
-    };
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as Partial<PipelineOutput>;
+        output.concept             = parsed.concept             ?? output.concept;
+        output.draft_copy          = parsed.draft_copy          ?? output.draft_copy;
+        output.pre_call_brief      = parsed.pre_call_brief      ?? '';
+        output.learning_highlights = parsed.learning_highlights ?? [];
+        output.risk_flags          = parsed.risk_flags          ?? [];
+      }
+    } catch (aiErr) {
+      console.warn('[briefingPipeline] AI step skipped (will continue with Trello+WA):', (aiErr as any)?.message?.slice(0, 120));
+    }
 
     // ── 3. Create Trello card ──────────────────────────────────────────────────
     const trelloCreds = await getTrelloCredentials(tenantId).catch(() => null);
@@ -328,5 +331,94 @@ Responda em JSON com esta estrutura exata:
 
   } catch (err) {
     console.error('[briefingAutoPipeline] Pipeline error for briefing', briefingId, err);
+  }
+}
+
+// ── Exported helpers (reused when admin accepts a briefing) ──────────────────
+
+export interface BriefingCardParams {
+  briefingId: string;
+  tenantId: string;
+  clientName: string;
+  formData: PipelineInput['formData'];
+  aiEnriched?: PipelineInput['aiEnriched'];
+  label?: string; // e.g. "✅ ACEITO" prefix for accepted cards
+}
+
+export async function createBriefingTrelloCard(p: BriefingCardParams): Promise<{ cardId: string; cardUrl: string } | null> {
+  const trelloCreds = await getTrelloCredentials(p.tenantId).catch(() => null);
+  if (!trelloCreds) return null;
+  const listId = await findTrelloInboxList(p.tenantId);
+  if (!listId) return null;
+
+  const prefix = p.label ? `${p.label} ` : '';
+  const cardName = `${prefix}${p.aiEnriched?.suggested_title ?? p.formData.type ?? 'Novo Job'} — ${p.clientName}`;
+  const urgencyEmoji = ({ urgent: '🔴', high: '🟠', medium: '🟡', low: '🟢' } as Record<string, string>)[p.aiEnriched?.urgency ?? ''] ?? '⚪';
+  const cardDesc = [
+    `${urgencyEmoji} Urgência: ${urgencyLabel(p.aiEnriched?.urgency)} | Porte: ${complexityLabel(p.aiEnriched?.estimated_complexity)}`,
+    '',
+    `**Objetivo do cliente:**\n${p.formData.objective}`,
+    '',
+    p.aiEnriched?.key_deliverables?.length
+      ? `**Entregas esperadas:**\n${p.aiEnriched.key_deliverables.map((d: string) => `• ${d}`).join('\n')}`
+      : '',
+    '',
+    `**Plataforma:** ${p.formData.platform ?? '—'} | **Prazo:** ${p.formData.deadline ?? '—'}`,
+    '',
+    p.formData.notes ? `**Observações:** ${p.formData.notes}` : '',
+    '',
+    `**ID:** ${p.briefingId}`,
+  ].filter(Boolean).join('\n');
+
+  const dueDate = p.formData.deadline ? new Date(p.formData.deadline).toISOString() : undefined;
+  const qs = new URLSearchParams({
+    key: trelloCreds.apiKey, token: trelloCreds.apiToken,
+    idList: listId, name: cardName, desc: cardDesc,
+    ...(dueDate ? { due: dueDate } : {}),
+  });
+  const res = await fetch(`https://api.trello.com/1/cards?${qs}`, {
+    method: 'POST', signal: AbortSignal.timeout(10_000),
+  }).catch(() => null);
+  if (!res?.ok) {
+    console.warn(`[briefingTrello] Card creation failed: ${res?.status}`);
+    return null;
+  }
+  const card = await res.json() as { id: string; shortUrl: string };
+  return { cardId: card.id, cardUrl: card.shortUrl };
+}
+
+export async function sendBriefingAcceptedWhatsApp(p: {
+  tenantId: string;
+  clientName: string;
+  formData: PipelineInput['formData'];
+  aiEnriched?: PipelineInput['aiEnriched'];
+  trelloUrl?: string;
+}): Promise<void> {
+  const agencyPhones = (process.env.WHATSAPP_AGENCY_PHONES ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!isWhatsAppConfigured() || !agencyPhones.length) return;
+
+  const deadline = p.formData.deadline
+    ? new Date(p.formData.deadline + 'T00:00').toLocaleDateString('pt-BR')
+    : '—';
+  const trelloLine = p.trelloUrl ? `\n🗂 Trello: ${p.trelloUrl}` : '';
+  const adminUrl = process.env.PORTAL_BASE_URL
+    ? `${process.env.PORTAL_BASE_URL.replace('cliente.', '').replace('/portal', '')}/admin/solicitacoes`
+    : '';
+
+  const msg = [
+    `✅ *JOB ACEITO — ${p.clientName}*`,
+    '',
+    `📌 *${p.aiEnriched?.suggested_title ?? p.formData.type ?? 'Job'}*`,
+    `📱 Plataforma: ${p.formData.platform ?? '—'}`,
+    `⏰ Prazo: ${deadline}`,
+    `📊 Urgência: ${urgencyLabel(p.aiEnriched?.urgency)} | Porte: ${complexityLabel(p.aiEnriched?.estimated_complexity)}`,
+    '',
+    `📝 Objetivo:\n${(p.formData.objective ?? '').slice(0, 200)}`,
+    trelloLine,
+    adminUrl ? `\n👉 Ver fila: ${adminUrl}` : '',
+  ].filter((s) => s !== '').join('\n');
+
+  for (const phone of agencyPhones) {
+    await sendWhatsAppText(phone, msg, { tenantId: p.tenantId, event: 'briefing_accepted' }).catch(() => {});
   }
 }

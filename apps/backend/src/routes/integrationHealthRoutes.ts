@@ -460,10 +460,10 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
          FROM project_boards WHERE tenant_id = $1 AND is_archived = false`,
         [tenantId],
       ),
-      // Trello unmapped lists (active cards, no explicit status override → fall to 'intake')
+      // Trello unmapped lists — uses EXISTS instead of COUNT(*) subquery to avoid O(n) scan
       safeQuery<{ count: number; board_names: string }>(
         `SELECT
-           COUNT(DISTINCT pl.id)::int as count,
+           COUNT(pl.id)::int as count,
            STRING_AGG(DISTINCT pb.name, ', ' ORDER BY pb.name) AS board_names
          FROM project_lists pl
          JOIN project_boards pb ON pb.id = pl.board_id
@@ -472,16 +472,19 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
            AND NOT EXISTS (
              SELECT 1 FROM trello_list_status_map m WHERE m.list_id = pl.id AND m.tenant_id = $1
            )
-           AND (SELECT COUNT(*) FROM project_cards pc WHERE pc.list_id = pl.id AND pc.is_archived = false) > 0`,
+           AND EXISTS (
+             SELECT 1 FROM project_cards pc WHERE pc.list_id = pl.id AND pc.is_archived = false
+           )`,
         [tenantId],
       ),
-      // Trello members without email (can't resolve to Edro team)
+      // Trello members without email — limit scan to active boards only
       safeQuery<{ count: number }>(
         `SELECT COUNT(DISTINCT pcm.trello_member_id)::int as count
          FROM project_card_members pcm
          JOIN project_cards pc ON pc.id = pcm.card_id
-         JOIN project_boards pb ON pb.id = pc.board_id
-         WHERE pb.tenant_id = $1 AND pcm.email IS NULL`,
+         WHERE pc.board_id IN (
+           SELECT id FROM project_boards WHERE tenant_id = $1 AND is_archived = false
+         ) AND pcm.email IS NULL`,
         [tenantId],
       ),
       // Meta connectors failing > 24h (across all clients)
@@ -725,8 +728,8 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
   }, async (_request, reply) => {
     const publicApiUrl = env.PUBLIC_API_URL?.replace(/\/$/, '') || null;
     return reply.send({
-      google_redirect_uri_gmail:     publicApiUrl ? `${publicApiUrl}/auth/google/callback` : null,
-      google_redirect_uri_calendar:  publicApiUrl ? `${publicApiUrl}/auth/google/calendar/callback` : null,
+      google_redirect_uri_gmail:     publicApiUrl ? `${publicApiUrl}/api/auth/google/callback` : null,
+      google_redirect_uri_calendar:  publicApiUrl ? `${publicApiUrl}/api/auth/google/calendar/callback` : null,
       webhook_base_url:              publicApiUrl,
       meta_verify_token_set:         has('META_VERIFY_TOKEN'),
     });

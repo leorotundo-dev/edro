@@ -455,7 +455,7 @@ export function OpsPanel({
         position: sticky ? 'sticky' : 'relative',
         top: sticky ? 112 : 'auto',
         p: { xs: 2.5, md: 3 },
-        borderRadius: Number(theme.shape.borderRadius) * 2,
+        borderRadius: `${Number(theme.shape.borderRadius) * 2}px`,
         border: 'none',
         boxShadow: theme.palette.mode === 'dark'
           ? '0 2px 12px rgba(0,0,0,0.3)'
@@ -750,7 +750,7 @@ export function OpsJobRow({
           cursor: onClick ? 'pointer' : 'default',
           mx: 0,
           my: 0.5,
-          borderRadius: Number(theme.shape.borderRadius) * 1.5,
+          borderRadius: `${Number(theme.shape.borderRadius) * 1.5}px`,
           overflow: 'hidden',
           border: selected
             ? `1.5px solid ${alpha(theme.palette.primary.main, 0.35)}`
@@ -1651,7 +1651,7 @@ export function OperationsContextRail({
         position: 'sticky',
         top: 104,
         p: { xs: 2.5, md: 3 },
-        borderRadius: Number(theme.shape.borderRadius) * 2,
+        borderRadius: `${Number(theme.shape.borderRadius) * 2}px`,
         border: 'none',
         boxShadow: theme.palette.mode === 'dark'
           ? '0 2px 12px rgba(0,0,0,0.3)'

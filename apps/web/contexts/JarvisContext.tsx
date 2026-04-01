@@ -28,6 +28,9 @@ type JarvisContextValue = {
   clearUnread: () => void;
   // Page context — auto-detected from URL
   pageContext: { type: 'client' | 'job' | 'global'; id: string | null; label: string | null };
+  // Arbitrary page data registered by useJarvisPage
+  pageData: Record<string, any> | null;
+  setPageData: (data: Record<string, any> | null) => void;
 };
 
 const JarvisContext = createContext<JarvisContextValue | null>(null);
@@ -56,6 +59,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const [clientName, setClientName] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pageData, setPageData] = useState<Record<string, any> | null>(null);
   const [pageContext, setPageContext] = useState<{ type: 'client' | 'job' | 'global'; id: string | null; label: string | null }>(
     { type: 'global', id: null, label: null }
   );
@@ -168,6 +172,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       clientId, clientName, setClientId,
       conversationId, setConversationId,
       unreadCount, bump, clearUnread,
+      pageData, setPageData,
       pageContext,
     }}>
       {children}

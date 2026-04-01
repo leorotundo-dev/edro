@@ -1863,10 +1863,10 @@ export async function buildOverviewSnapshot(tenantId: string) {
        FROM calendar_items ci
        JOIN jobs j ON j.id = ci.job_id
        LEFT JOIN clients c ON c.id = ci.client_id
-       LEFT JOIN edro_users u ON u.id = ci.owner_id
-       LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id AND tu.tenant_id::text = ci.tenant_id
-       LEFT JOIN freelancer_profiles fp ON fp.user_id = ci.owner_id
-      WHERE ci.tenant_id = $1
+       LEFT JOIN edro_users u ON u.id::text = ci.owner_id
+       LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id AND tu.tenant_id::text = ci.tenant_id::text
+       LEFT JOIN freelancer_profiles fp ON fp.user_id::text = ci.owner_id
+      WHERE ci.tenant_id::text = $1
         AND ci.source_type = 'checkpoint'
         AND ci.status = 'active'
       ORDER BY ci.starts_at ASC, j.priority_score DESC
@@ -1886,9 +1886,9 @@ export async function buildOverviewSnapshot(tenantId: string) {
          CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS owner_person_type
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
-       LEFT JOIN edro_users u ON u.id::text = j.owner_id
-       LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id AND tu.tenant_id::text = j.tenant_id
-       LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id
+       LEFT JOIN edro_users u ON u.id::text = j.owner_id::text
+       LEFT JOIN tenant_users tu ON tu.user_id::text = j.owner_id::text AND tu.tenant_id::text = j.tenant_id::text
+       LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id::text
       WHERE j.tenant_id = $1
         AND j.source = 'approval'
         AND j.status IN ('awaiting_approval', 'blocked')

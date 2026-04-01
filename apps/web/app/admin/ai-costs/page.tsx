@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Chart from '@/components/charts/Chart';
 import { apiGet, apiPatch } from '@/lib/api';
@@ -298,9 +297,8 @@ export default function AiCostsPage() {
   ];
 
   return (
-    <AppShell title="System Admin">
+    <AdminShell section="financeiro">
       <Box>
-        <AdminSubmenu value="ai-costs" />
 
         {/* Header row */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
@@ -802,7 +800,7 @@ export default function AiCostsPage() {
           </>
         )}
       </Box>
-    </AppShell>
+    </AdminShell>
   );
 }
 
