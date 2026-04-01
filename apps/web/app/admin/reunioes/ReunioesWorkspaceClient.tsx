@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import CalendarHubPage from '@/app/calendar/CalendarClient';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
@@ -52,34 +53,15 @@ export default function ReunioesWorkspaceClient() {
   return (
     <AppShell title="Reuniões">
       <Stack spacing={3}>
-        <Card
-          variant="outlined"
-          sx={{
-            borderRadius: 3,
-            background:
-              'linear-gradient(135deg, rgba(232,82,25,0.10) 0%, rgba(232,82,25,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-          }}
-        >
-          <Box sx={{ p: { xs: 2.5, md: 3 } }}>
-            <Stack spacing={2.25}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label="Calendar" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                <Chip icon={<IconRobot size={14} />} label="reuniões com Jarvis Bot" size="small" variant="outlined" />
-                <Chip icon={<IconCalendarEvent size={14} />} label="agenda editorial + operacional" size="small" variant="outlined" />
-              </Stack>
-
-              <Box>
-                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                  Reuniões
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  A família de calendário da agência agora vive num workspace só:
-                  reuniões inteligentes de um lado, agenda operacional do outro.
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
-        </Card>
+        <WorkspaceHero
+          eyebrow="Calendar"
+          title="Reuniões"
+          description="A família de calendário da agência agora vive num workspace só: reuniões inteligentes de um lado, agenda operacional do outro."
+          leftChips={[
+            { label: 'reuniões com Jarvis Bot', icon: <IconRobot size={14} /> },
+            { label: 'agenda editorial + operacional', icon: <IconCalendarEvent size={14} /> },
+          ]}
+        />
 
         <Card variant="outlined" sx={{ borderRadius: 3 }}>
           <Box sx={{ p: { xs: 2, md: 3 } }}>

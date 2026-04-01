@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
@@ -58,35 +59,16 @@ export default function RelatoriosWorkspaceClient() {
   return (
     <AppShell title="Relatórios">
       <Stack spacing={3}>
-        <Card
-          variant="outlined"
-          sx={{
-            borderRadius: 3,
-            background:
-              'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-          }}
-        >
-          <Box sx={{ p: { xs: 2.5, md: 3 } }}>
-            <Stack spacing={2.25}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label="Reports" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                <Chip icon={<IconChartBar size={14} />} label="painel executivo" size="small" variant="outlined" />
-                <Chip icon={<IconChecklist size={14} />} label="fila de ação" size="small" variant="outlined" />
-                <Chip icon={<IconFileTypePdf size={14} />} label="relatórios mensais" size="small" variant="outlined" />
-              </Stack>
-
-              <Box>
-                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                  Relatórios
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  A família de leitura gerencial da agência agora vive num workspace só:
-                  painel executivo, fila de ação e relatórios mensais na mesma gramática.
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
-        </Card>
+        <WorkspaceHero
+          eyebrow="Reports"
+          title="Relatórios"
+          description="A família de leitura gerencial da agência agora vive num workspace só: painel executivo, fila de ação e relatórios mensais na mesma gramática."
+          leftChips={[
+            { label: 'painel executivo', icon: <IconChartBar size={14} /> },
+            { label: 'fila de ação', icon: <IconChecklist size={14} /> },
+            { label: 'relatórios mensais', icon: <IconFileTypePdf size={14} /> },
+          ]}
+        />
 
         <Card variant="outlined" sx={{ borderRadius: 3 }}>
           <Box sx={{ p: { xs: 2, md: 3 } }}>

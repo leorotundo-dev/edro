@@ -25,6 +25,7 @@ import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import IntegrationSetupDialog, { type IntegrationType } from './IntegrationSetupDialog';
 import {
   IconBrandGmail,
@@ -507,57 +508,38 @@ export default function IntegrationsClient() {
           </Alert>
         )}
 
-        <Card
-          variant="outlined"
-          sx={{
-            mb: 2,
-            borderRadius: 3,
-            background:
-              'linear-gradient(135deg, rgba(232,82,25,0.08) 0%, rgba(232,82,25,0.02) 45%, rgba(15,23,42,0.02) 100%)',
-          }}
-        >
-          <CardContent>
-            <Stack spacing={2.5}>
-              <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Chip
-                  label={`${sortedMonitor?.filter((svc) => svc.configured).length ?? 0} integrações configuradas`}
-                  color="primary"
-                  variant="outlined"
-                  size="small"
-                />
-                <Chip
-                  label={`${attentionMonitor.length} exigem atenção`}
-                  color={attentionMonitor.some((svc) => svc.status === 'error') ? 'error' : attentionMonitor.length ? 'warning' : 'success'}
-                  variant={attentionMonitor.length ? 'filled' : 'outlined'}
-                  size="small"
-                />
-              </Stack>
+        <Box sx={{ mb: 2 }}>
+          <WorkspaceHero
+            eyebrow="Integration"
+            title="Integrações"
+            description="Catálogo primeiro, monitor depois. Aqui você vê os providers ativos da agência e o monitor ao vivo só como apoio operacional."
+            leftChips={[
+              {
+                label: `${sortedMonitor?.filter((svc) => svc.configured).length ?? 0} integrações configuradas`,
+                color: 'primary',
+                variant: 'outlined',
+              },
+              {
+                label: `${attentionMonitor.length} exigem atenção`,
+                color: attentionMonitor.some((svc) => svc.status === 'error') ? 'error' : attentionMonitor.length ? 'warning' : 'success',
+                variant: attentionMonitor.length ? 'filled' : 'outlined',
+              },
+            ]}
+          />
+        </Box>
 
-              <Stack spacing={0.75}>
-                <Typography variant="overline" color="primary.main" sx={{ fontWeight: 800, letterSpacing: 0.8 }}>
-                  Hub de integrações
-                </Typography>
-                <Typography variant="h5" fontWeight={800}>
-                  Catálogo primeiro, monitor depois
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  A home desta área precisa parecer um catálogo claro de providers. O monitor ao vivo continua aqui, mas como modo secundário de operação.
-                </Typography>
-              </Stack>
-
-              <Tabs
-                value={view}
-                onChange={(_, value) => setView(value)}
-                variant="scrollable"
-                scrollButtons="auto"
-                sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
-              >
-                <Tab value="catalog" label="Integrações" icon={<IconPlugConnected size={16} />} iconPosition="start" />
-                <Tab value="monitor" label="Monitor" icon={<IconRefresh size={16} />} iconPosition="start" />
-              </Tabs>
-            </Stack>
-          </CardContent>
-        </Card>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs
+            value={view}
+            onChange={(_, value) => setView(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ '& .MuiTab-root': { minHeight: 44 } }}
+          >
+            <Tab value="catalog" label="Integrações" icon={<IconPlugConnected size={16} />} iconPosition="start" />
+            <Tab value="monitor" label="Monitor" icon={<IconRefresh size={16} />} iconPosition="start" />
+          </Tabs>
+        </Box>
 
         <IntegrationSetupDialog
           open={Boolean(setupDialog)}

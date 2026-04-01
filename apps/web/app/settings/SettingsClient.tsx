@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet, apiPost } from '@/lib/api';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Alert from '@mui/material/Alert';
@@ -163,35 +164,17 @@ export default function SettingsClient() {
   return (
     <AppShell title="Configurações do Sistema">
       <Box>
-        <Card
-          variant="outlined"
-          sx={{
-            mb: 3,
-            borderRadius: 3,
-            background:
-              'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-          }}
-        >
-          <CardContent sx={{ p: '24px !important' }}>
-            <Stack spacing={2.25}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label="Settings" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                <Chip label="Segurança" size="small" variant="outlined" />
-                <Chip label="Feature Flags" size="small" variant="outlined" />
-              </Stack>
-
-              <Box>
-                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                  Configurações do sistema
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  O workspace para segurança, auditoria, diagnósticos e flags operacionais da
-                  plataforma.
-                </Typography>
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
+        <Box sx={{ mb: 3 }}>
+          <WorkspaceHero
+            eyebrow="Settings"
+            title="Configurações do sistema"
+            description="O workspace para segurança, auditoria, diagnósticos e flags operacionais da plataforma."
+            leftChips={[
+              { label: 'Segurança' },
+              { label: 'Feature Flags' },
+            ]}
+          />
+        </Box>
 
         <AdminSubmenu value="configuracoes" />
 
