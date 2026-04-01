@@ -12,7 +12,6 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import PortalShell from '@/components/PortalShell';
 import { IconPlus } from '@tabler/icons-react';
 
 type BriefingRequest = {
@@ -47,7 +46,7 @@ export default function BriefingListPage() {
   }, []);
 
   return (
-    <PortalShell>
+    <>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Box>
           <Typography variant="h5" fontWeight={700}>Solicitações de Job</Typography>
@@ -126,6 +125,6 @@ export default function BriefingListPage() {
           })}
         </Stack>
       )}
-    </PortalShell>
+    </>
   );
 }

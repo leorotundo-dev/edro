@@ -16,8 +16,6 @@ import StepLabel from '@mui/material/StepLabel';
 import Stepper from '@mui/material/Stepper';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import PortalShell from '@/components/PortalShell';
-
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const JOB_TYPES = [
@@ -113,7 +111,7 @@ export default function NovoBriefingPage() {
 
   if (done) {
     return (
-      <PortalShell>
+      <>
         <Box sx={{ maxWidth: 520, mx: 'auto', py: 6, textAlign: 'center' }}>
           <Box sx={{ fontSize: '3rem', mb: 2 }}>✅</Box>
           <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>Solicitação enviada!</Typography>
@@ -125,7 +123,7 @@ export default function NovoBriefingPage() {
             <Button variant="contained" onClick={() => router.push('/')}>Voltar ao início</Button>
           </Stack>
         </Box>
-      </PortalShell>
+      </>
     );
   }
 
