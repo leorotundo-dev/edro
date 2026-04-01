@@ -681,8 +681,8 @@ async function getExistingScheduledMeeting(
 
   if (!autoJoinId) return null;
 
-  const { rows } = await query<{ meeting_id: string | null; bot_id: string | null }>(
-    `SELECT caj.meeting_id, COALESCE(caj.bot_id, m.bot_id) AS bot_id
+  const { rows } = await query<{ meeting_id: string | null; bot_id: string | null; status: string | null }>(
+    `SELECT caj.meeting_id, COALESCE(caj.bot_id, m.bot_id) AS bot_id, m.status
        FROM calendar_auto_joins caj
        LEFT JOIN meetings m ON m.id = caj.meeting_id
       WHERE caj.id = $1
@@ -691,9 +691,11 @@ async function getExistingScheduledMeeting(
   );
 
   if (!rows[0]?.meeting_id) return null;
+  // Don't reuse a bot from a failed meeting — a new bot will be created below.
+  const isFailed = rows[0].status === 'failed';
   return {
     meetingId: rows[0].meeting_id,
-    botId: rows[0].bot_id ?? null,
+    botId: isFailed ? null : (rows[0].bot_id ?? null),
   };
 }
 
