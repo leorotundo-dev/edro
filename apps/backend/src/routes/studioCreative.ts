@@ -2503,32 +2503,6 @@ Retorne APENAS JSON válido:
     }
   });
 
-  // ── Schedule post ────────────────────────────────────────────────────────────
-  const scheduleSchema = z.object({
-    platform:     z.string(),
-    scheduled_at: z.string(),
-    copy_text:    z.string().optional(),
-    image_url:    z.string().url().optional(),
-    briefing_id:  z.string().optional(),
-  });
-
-  app.post('/studio/creative/schedule', async (request: any, reply) => {
-    const body = scheduleSchema.parse(request.body);
-    const tenantId = (request.user as any)?.tenant_id as string | undefined;
-    try {
-      await query(
-        `INSERT INTO scheduled_posts
-           (tenant_id, briefing_id, platform, scheduled_at, copy_text, image_url, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', now())
-         ON CONFLICT DO NOTHING`,
-        [tenantId ?? null, body.briefing_id ?? null, body.platform, body.scheduled_at, body.copy_text ?? null, body.image_url ?? null],
-      ).catch(() => { /* table may not exist yet — ignore */ });
-      return reply.send({ success: true, scheduled_at: body.scheduled_at, platform: body.platform });
-    } catch (e: any) {
-      return reply.status(500).send({ success: false, error: e?.message });
-    }
-  });
-
   // ── Arte-chain SSE stream ─────────────────────────────────────────────────────
   app.post('/studio/creative/arte-chain/stream', async (request: any, reply) => {
     const body = arteChainSchema.parse(request.body);
