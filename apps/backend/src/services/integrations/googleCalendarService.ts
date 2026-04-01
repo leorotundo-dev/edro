@@ -405,7 +405,11 @@ async function processCalendarEvent(tenantId: string, event: any) {
 
   console.log(`[googleCalendarService] Detected video meeting: "${event.summary}" at ${scheduledAt.toISOString()} — ${platform} — ${videoLink}`);
 
-  if (existing[0]?.job_enqueued_at || existing[0]?.meeting_id || existing[0]?.status === 'done') return;
+  // Skip only if the meeting completed successfully or if a bot is currently in-flight.
+  // Allow re-scheduling when the previous bot failed (status = 'failed').
+  const prevStatus = existing[0]?.status as string | undefined;
+  const inFlight = prevStatus && !['failed', 'detected'].includes(prevStatus);
+  if (inFlight) return;
 
   const resolvedClient = await resolveClientForEvent(tenantId, event, attendees, organizer);
   if (!resolvedClient) {

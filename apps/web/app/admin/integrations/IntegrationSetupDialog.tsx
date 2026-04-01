@@ -599,17 +599,20 @@ function WhatsAppMetaSetup({ health }: { health: IntegrationHealth | null }) {
 
 // ── Recall.ai dialog ─────────────────────────────────────────────────────────
 
-function RecallSetup({ health }: { health: IntegrationHealth | null }) {
+function RecallSetup({ health, hints }: { health: IntegrationHealth | null; hints: ConfigHints | null }) {
   const apiKeyOk = health?.recall.api_key;
   const webhookOk = health?.recall.webhook_secret;
   const loginGroupOk = health?.recall.google_login_group;
+  const webhookUrl = hints?.webhook_base_url
+    ? `${hints.webhook_base_url}/webhook/recall`
+    : 'https://api.edro.digital/webhook/recall';
 
   return (
     <Stack spacing={2.5}>
-      <Alert severity={apiKeyOk ? 'success' : 'info'} sx={{ fontSize: '0.8rem' }}>
-        {apiKeyOk
+      <Alert severity={apiKeyOk && webhookOk ? 'success' : 'info'} sx={{ fontSize: '0.8rem' }}>
+        {apiKeyOk && webhookOk
           ? 'Recall.ai configurado. O bot entra automaticamente nas reuniões detectadas pelo Calendar.'
-          : 'Configure a RECALL_API_KEY para ativar o bot de reuniões.'}
+          : 'Configure a RECALL_API_KEY e o webhook para ativar o bot de reuniões.'}
       </Alert>
 
       <Stack spacing={1.5}>
@@ -623,17 +626,38 @@ function RecallSetup({ health }: { health: IntegrationHealth | null }) {
           <Stack spacing={1}>
             <RailwayCommand vars={{
               RECALL_API_KEY: 'seu-recall-api-key',
-              RECALL_WEBHOOK_SECRET: 'seu-webhook-secret',
+              RECALL_WEBHOOK_SECRET: 'seu-webhook-secret-do-recall',
             }} />
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label={`RECALL_API_KEY: ${apiKeyOk ? '✓' : '✗'}`} size="small" color={apiKeyOk ? 'success' : 'error'} variant="outlined" />
               <Chip label={`RECALL_WEBHOOK_SECRET: ${webhookOk ? '✓' : '✗'}`} size="small" color={webhookOk ? 'success' : 'error'} variant="outlined" />
-              <Chip label={`RECALL_GOOGLE_LOGIN_GROUP_ID: ${loginGroupOk ? '✓' : 'Opcional'}`} size="small" color={loginGroupOk ? 'success' : 'default'} variant="outlined" />
             </Stack>
           </Stack>
         </Step>
 
-        <Step n={3} label="Conectar Google Calendar" done={false}>
+        <Step n={3} label="Registrar webhook no painel do Recall.ai" done={!!webhookOk}>
+          <Stack spacing={1}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+              No painel Recall.ai → <strong>Webhooks</strong> → adicione o endpoint abaixo e copie o <strong>Signing Secret</strong> gerado para o Railway como <code>RECALL_WEBHOOK_SECRET</code>.
+            </Typography>
+            <CopyField label="Webhook URL" value={webhookUrl} />
+            <Typography variant="caption" color="text.secondary">
+              Events a ativar: <strong>bot.joining_call</strong>, <strong>bot.in_call_recording</strong>, <strong>bot.call_ended</strong>, <strong>bot.done</strong>, <strong>bot.fatal</strong>, <strong>transcript.done</strong>, <strong>transcript.failed</strong>
+            </Typography>
+          </Stack>
+        </Step>
+
+        <Step n={4} label="Google Meet — Login Group (recomendado)" done={!!loginGroupOk}>
+          <Stack spacing={1}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+              Sem isso, o bot entra como convidado anônimo e pode ser bloqueado. No painel Recall.ai → <strong>Google Login</strong> → crie um grupo e copie o ID.
+            </Typography>
+            <RailwayCommand vars={{ RECALL_GOOGLE_LOGIN_GROUP_ID: 'id-do-grupo-google-login' }} />
+            <Chip label={`RECALL_GOOGLE_LOGIN_GROUP_ID: ${loginGroupOk ? '✓ Configurado' : '✗ Não configurado — bot pode ser rejeitado no Meet'}`} size="small" color={loginGroupOk ? 'success' : 'warning'} variant="outlined" />
+          </Stack>
+        </Step>
+
+        <Step n={5} label="Conectar Google Calendar" done={false}>
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
             Com o Calendar conectado, o bot é enfileirado automaticamente para cada reunião detectada.
             Configure o Google OAuth (card acima) e o bot funciona sem mais configuração.
@@ -762,7 +786,7 @@ export default function IntegrationSetupDialog({ open, type, health, onClose, on
       case 'whatsapp-meta':
         return <WhatsAppMetaSetup health={health} />;
       case 'recall':
-        return <RecallSetup health={health} />;
+        return <RecallSetup health={health} hints={hints} />;
       case 'instagram':
         return <InstagramSetup health={health} hints={hints} />;
     }
