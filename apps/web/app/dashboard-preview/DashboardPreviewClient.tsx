@@ -182,62 +182,66 @@ function ClientCard({ c }: { c: typeof CLIENTS[0] }) {
         '&:hover': { boxShadow: '0 6px 24px rgba(0,0,0,0.09)', transform: 'translateY(-2px)' },
       }}
     >
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
 
         {/* Row 1: avatar + name + status + health score */}
-        <Stack direction="row" alignItems="flex-start" spacing={1.5} mb={1}>
-          <Avatar sx={{ bgcolor: c.color, width: 36, height: 36, fontSize: '0.72rem', fontWeight: 800, flexShrink: 0 }}>
+        <Stack direction="row" alignItems="flex-start" spacing={2} mb={1.75}>
+          <Avatar sx={{ bgcolor: c.color, width: 44, height: 44, fontSize: '0.85rem', fontWeight: 800, flexShrink: 0, borderRadius: 2 }}>
             {c.initials}
           </Avatar>
           <Box flex={1} minWidth={0}>
-            <Stack direction="row" alignItems="center" spacing={0.75} mb={0.2}>
-              <Typography fontWeight={800} fontSize="0.88rem" noWrap>{c.name}</Typography>
+            <Stack direction="row" alignItems="center" spacing={1} mb={0.4}>
+              <Typography fontWeight={800} fontSize="1rem" noWrap>{c.name}</Typography>
               <Chip
                 label={c.tempLabel}
                 size="small"
-                sx={{ height: 17, fontSize: '0.65rem', fontWeight: 700, bgcolor: `${tc}18`, color: tc, border: 'none', flexShrink: 0 }}
+                sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: `${tc}18`, color: tc, border: 'none', flexShrink: 0 }}
               />
             </Stack>
-            <Typography variant="caption" color="text.secondary" fontSize="0.72rem" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <Typography variant="body2" color="text.secondary" fontSize="0.78rem" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {c.pulse}
             </Typography>
           </Box>
-          {/* Health score — right-aligned hero number */}
+          {/* Health score */}
           <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-            <Typography fontSize="1.5rem" fontWeight={900} color={hc} lineHeight={1}>{c.health}</Typography>
+            <Typography fontSize="2rem" fontWeight={900} color={hc} lineHeight={1}>{c.health}</Typography>
+            <Typography variant="caption" color="text.disabled" fontSize="0.65rem" display="block" mt={0.25}>saúde</Typography>
             <LinearProgress
               variant="determinate"
               value={c.health}
-              sx={{ height: 3, borderRadius: 2, mt: 0.5, width: 36, bgcolor: `${hc}22`, '& .MuiLinearProgress-bar': { bgcolor: hc } }}
+              sx={{ height: 4, borderRadius: 2, mt: 0.5, width: 44, bgcolor: `${hc}22`, '& .MuiLinearProgress-bar': { bgcolor: hc } }}
             />
           </Box>
         </Stack>
 
-        {/* Row 2: KPI chips */}
-        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+        {/* Divider */}
+        <Divider sx={{ mb: 1.5 }} />
+
+        {/* Row 2: KPI chips + deadline */}
+        <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
           <Chip
             size="small"
             label={`${c.jobs} jobs`}
-            sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, bgcolor: 'action.hover', color: 'text.secondary' }}
+            sx={{ height: 22, fontSize: '0.72rem', fontWeight: 600, bgcolor: 'action.hover', color: 'text.secondary' }}
           />
           {c.approval > 0 && (
             <Chip
               size="small"
               label={`${c.approval} aprovação`}
-              sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: '#ff660015', color: '#ff6600' }}
+              sx={{ height: 22, fontSize: '0.72rem', fontWeight: 700, bgcolor: '#ff660015', color: '#ff6600' }}
             />
           )}
           {c.overdue > 0 && (
             <Chip
               size="small"
               label={`${c.overdue} atrasado`}
-              sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: '#ff3b3015', color: '#ff3b30' }}
+              sx={{ height: 22, fontSize: '0.72rem', fontWeight: 700, bgcolor: '#ff3b3015', color: '#ff3b30' }}
             />
           )}
           <Box flex={1} />
-          <Stack direction="row" alignItems="center" spacing={0.4}>
-            <IconClock size={11} color={isToday ? '#ff3b30' : '#94a3b8'} />
-            <Typography variant="caption" fontSize="0.68rem" fontWeight={isToday ? 700 : 400} color={isToday ? '#ff3b30' : 'text.disabled'}>
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <IconClock size={13} color={isToday ? '#ff3b30' : '#94a3b8'} />
+            <Typography variant="caption" fontSize="0.72rem" fontWeight={isToday ? 700 : 400} color={isToday ? '#ff3b30' : 'text.disabled'}>
               {c.nextDeadline}
             </Typography>
           </Stack>
