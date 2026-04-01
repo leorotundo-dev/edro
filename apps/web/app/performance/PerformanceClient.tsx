@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
@@ -288,93 +289,24 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Card
-        variant="outlined"
-        sx={{
-          borderRadius: 4,
-          borderColor: alpha('#5D87FF', 0.18),
-          background: `linear-gradient(135deg, ${alpha('#5D87FF', 0.08)} 0%, ${alpha('#13DEB9', 0.04)} 52%, #fff 100%)`,
-        }}
-      >
-        <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-          <Stack spacing={2.5}>
-            <Stack
-              direction={{ xs: 'column', md: 'row' }}
-              spacing={2}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', md: 'center' }}
-            >
-              <Box>
-                <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 0.8 }}>
-                  Reports workspace
-                </Typography>
-                <Typography variant="h4" fontWeight={800}>
-                  Performance
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 720 }}>
-                  Compare formatos, previsões e leituras do Reportei para decidir onde a campanha tem mais potência e mensurabilidade.
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                <Chip
-                  label={selectedClient?.name || 'Base global'}
-                  color="primary"
-                  sx={{ fontWeight: 700 }}
-                />
-                {campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name ? (
-                  <Chip label={campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name || ''} variant="outlined" />
-                ) : null}
-              </Stack>
-            </Stack>
-
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-              {[
-                {
-                  label: 'Formatos ativos',
-                  value: formatNumber(totalFormats),
-                  helper: topFormat ? `Lidera: ${topFormat.format_name}` : 'Nenhum formato carregado ainda',
-                  tone: '#5D87FF',
-                },
-                {
-                  label: 'Score ML médio',
-                  value: formatNumber(avgMlScore),
-                  helper: avgMlScore >= 70 ? 'Leitura positiva do catálogo' : 'Espaço para recalibrar formatos',
-                  tone: '#E85219',
-                },
-                {
-                  label: 'Sucesso previsto',
-                  value: `${formatNumber(avgSuccessRate)}%`,
-                  helper: reporteiItems.length ? `${reporteiItems.length} leitura(s) do Reportei` : 'Sem leitura do Reportei ainda',
-                  tone: '#13DEB9',
-                },
-              ].map((item) => (
-                <Box
-                  key={item.label}
-                  sx={{
-                    flex: 1,
-                    minWidth: 0,
-                    borderRadius: 3,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    bgcolor: 'background.paper',
-                    p: 2,
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                    {item.label}
-                  </Typography>
-                  <Typography variant="h5" fontWeight={800} sx={{ color: item.tone }}>
-                    {item.value}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.helper}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
+      <WorkspaceHero
+        eyebrow="Reports workspace"
+        title="Performance"
+        description="Compare formatos, previsões e leituras do Reportei para decidir onde a campanha tem mais potência e mensurabilidade."
+        leftChips={[
+          { label: selectedClient?.name || 'Base global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name
+            ? [{ label: campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name || '' }]
+            : []),
+        ]}
+        rightContent={
+          <>
+            <Chip label={`${formatNumber(totalFormats)} formatos`} size="small" color="primary" variant="outlined" />
+            <Chip label={`ML ${formatNumber(avgMlScore)}`} size="small" color="warning" variant="outlined" />
+            <Chip label={`Sucesso ${formatNumber(avgSuccessRate)}%`} size="small" color="success" variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card variant="outlined">

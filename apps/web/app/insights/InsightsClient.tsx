@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
@@ -386,101 +387,23 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Card
-        variant="outlined"
-        sx={{
-          borderRadius: 4,
-          borderColor: alpha('#5D87FF', 0.18),
-          background: `linear-gradient(135deg, ${alpha('#5D87FF', 0.08)} 0%, ${alpha('#49BEFF', 0.05)} 52%, #fff 100%)`,
-        }}
-      >
-        <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-          <Stack spacing={2.5}>
-            <Stack
-              direction={{ xs: 'column', md: 'row' }}
-              spacing={2}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', md: 'center' }}
-            >
-              <Box>
-                <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 0.8 }}>
-                  Reports workspace
-                </Typography>
-                <Typography variant="h4" fontWeight={800}>
-                  Insights Estratégicos
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 720 }}>
-                  Consolide menções, tendências, calendário e oportunidades em um só lugar para decidir o que merece ação agora.
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                <Chip
-                  label={selectedClient?.name || 'Base global'}
-                  color="primary"
-                  sx={{ fontWeight: 700 }}
-                />
-                {selectedClient?.segment_primary ? (
-                  <Chip label={selectedClient.segment_primary} variant="outlined" />
-                ) : null}
-                {selectedClient?.city ? (
-                  <Chip label={selectedClient.city} variant="outlined" />
-                ) : null}
-              </Stack>
-            </Stack>
-
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-              {[
-                {
-                  label: 'Volume social',
-                  value: formatNumber(summary.total),
-                  helper: strongestPlatform ? `Pico em ${strongestPlatform.platform}` : 'Sem plataforma dominante ainda',
-                  tone: '#5D87FF',
-                },
-                {
-                  label: 'Sentimento médio',
-                  value: `${formatNumber(summary.avg_score)}%`,
-                  helper:
-                    Number(summary.negative || 0) > Number(summary.positive || 0)
-                      ? 'Clima pede atenção'
-                      : 'Leitura geral sob controle',
-                  tone: '#E85219',
-                },
-                {
-                  label: 'Oportunidades abertas',
-                  value: formatNumber(openOpportunities.length),
-                  helper: urgentCalendarItems.length
-                    ? `${urgentCalendarItems.length} datas quentes próximas`
-                    : 'Sem datas urgentes no calendário',
-                  tone: '#13DEB9',
-                },
-              ].map((item) => (
-                <Box
-                  key={item.label}
-                  sx={{
-                    flex: 1,
-                    minWidth: 0,
-                    borderRadius: 3,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    bgcolor: 'background.paper',
-                    p: 2,
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                    {item.label}
-                  </Typography>
-                  <Typography variant="h5" fontWeight={800} sx={{ color: item.tone }}>
-                    {item.value}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.helper}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
+      <WorkspaceHero
+        eyebrow="Reports workspace"
+        title="Insights Estratégicos"
+        description="Consolide menções, tendências, calendário e oportunidades em um só lugar para decidir o que merece ação agora."
+        leftChips={[
+          { label: selectedClient?.name || 'Base global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(selectedClient?.segment_primary ? [{ label: selectedClient.segment_primary }] : []),
+          ...(selectedClient?.city ? [{ label: selectedClient.city }] : []),
+        ]}
+        rightContent={
+          <>
+            <Chip label={`Volume ${formatNumber(summary.total)}`} size="small" color="primary" variant="outlined" />
+            <Chip label={`Sentimento ${formatNumber(summary.avg_score)}%`} size="small" color="warning" variant="outlined" />
+            <Chip label={`${formatNumber(openOpportunities.length)} oportunidades`} size="small" color="success" variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card variant="outlined">
