@@ -1,7 +1,7 @@
-import { redirect } from 'next/navigation';
+import CentralDeControleClient from './CentralDeControleClient';
 
 export const metadata = { title: 'Central de Controle | Edro' };
 
 export default function Page() {
-  redirect('/admin/system?tab=overview');
+  return <CentralDeControleClient />;
 }
