@@ -484,64 +484,54 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
       >
         {drawerCampaign && (
           <Stack spacing={2.25}>
-            <Card
-              variant="outlined"
-              sx={{
-                borderRadius: 3,
-                background: 'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-              }}
-            >
-              <CardContent sx={{ p: '20px !important' }}>
-                <Stack spacing={1.5}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
-                        <Chip label="Painel da campanha" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                        <Chip
-                          size="small"
-                          label={getStatusCfg(drawerCampaign.status ?? 'draft').label}
-                          sx={{
-                            bgcolor: getStatusCfg(drawerCampaign.status ?? 'draft').bg,
-                            color: getStatusCfg(drawerCampaign.status ?? 'draft').color,
-                            fontWeight: 700,
-                          }}
-                        />
-                      </Stack>
-                      <Typography variant="h5" fontWeight={800} sx={{ lineHeight: 1.2, mb: 0.5 }}>
-                        {drawerCampaign.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {drawerCampaign.objective || 'Acompanhe a campanha, leia a janela e decida o próximo movimento sem sair do quadro.'}
-                      </Typography>
-                    </Box>
-                    <IconButton size="small" onClick={() => setDrawerCampaign(null)}>
-                      <IconX size={16} />
-                    </IconButton>
-                  </Stack>
-
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    {selectedClient ? (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<IconExternalLink size={16} />}
-                        onClick={() => router.push(`/clients/${selectedClient.id}`)}
-                      >
-                        Abrir cliente
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<IconExternalLink size={16} />}
-                      onClick={() => router.push(`/clients/${selectedClient?.id || ''}?campaign=${drawerCampaign.id}`)}
-                    >
-                      Abrir studio
-                    </Button>
-                  </Stack>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                    Campaign Detail
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={getStatusCfg(drawerCampaign.status ?? 'draft').label}
+                    sx={{
+                      bgcolor: getStatusCfg(drawerCampaign.status ?? 'draft').bg,
+                      color: getStatusCfg(drawerCampaign.status ?? 'draft').color,
+                      fontWeight: 700,
+                    }}
+                  />
                 </Stack>
-              </CardContent>
-            </Card>
+                <Typography variant="h5" fontWeight={800} sx={{ lineHeight: 1.2, mb: 0.5 }}>
+                  {drawerCampaign.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {drawerCampaign.objective || 'Acompanhe a campanha, leia a janela e decida o próximo movimento sem sair do quadro.'}
+                </Typography>
+              </Box>
+              <IconButton size="small" onClick={() => setDrawerCampaign(null)}>
+                <IconX size={16} />
+              </IconButton>
+            </Stack>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {selectedClient ? (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<IconExternalLink size={16} />}
+                  onClick={() => router.push(`/clients/${selectedClient.id}`)}
+                >
+                  Abrir cliente
+                </Button>
+              ) : null}
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<IconExternalLink size={16} />}
+                onClick={() => router.push(`/clients/${selectedClient?.id || ''}?campaign=${drawerCampaign.id}`)}
+              >
+                Abrir studio
+              </Button>
+            </Stack>
 
             <Box
               sx={(theme) => ({
@@ -551,8 +541,8 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                 bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.9) : '#fff',
               })}
             >
-              <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: '0.08em' }}>
-                Resumo rápido
+              <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 800, letterSpacing: '0.08em' }}>
+                Overview
               </Typography>
               <Box
                 sx={{
@@ -597,8 +587,8 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                 bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.9) : '#fff',
               })}
             >
-              <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: '0.08em' }}>
-                Painel da campanha
+              <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 800, letterSpacing: '0.08em' }}>
+                Actions
               </Typography>
               <Box
                 sx={{
@@ -617,7 +607,7 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                   })}
                 >
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                    Próxima decisão
+                    Próximo movimento
                   </Typography>
                   {(() => {
                     const currentIdx = STATUS_ORDER.indexOf(drawerCampaign.status ?? '');
@@ -682,7 +672,7 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
               })}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
-                <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: '0.08em' }}>
+                <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 800, letterSpacing: '0.08em' }}>
                   Labels
                 </Typography>
                 <Tooltip title="Adicionar label">
