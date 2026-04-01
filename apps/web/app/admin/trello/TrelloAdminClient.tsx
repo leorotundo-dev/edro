@@ -23,6 +23,7 @@ import {
   IconPlugOff,
   IconRefresh,
   IconExternalLink,
+  IconLinkOff,
   IconTrash,
 } from '@tabler/icons-react';
 
@@ -191,6 +192,27 @@ export default function TrelloAdminClient() {
       await loadProjectBoards();
     } catch (err: any) {
       setImportResult((prev) => ({ ...prev, [boardId]: `Erro: ${err?.message ?? 'Falha ao vincular board.'}` }));
+    } finally {
+      setSavingBoardId(null);
+    }
+  }
+
+  async function handleDetachProjectBoard(boardId: string) {
+    setSavingBoardId(boardId);
+    setImportResult((prev) => ({ ...prev, [boardId]: '' }));
+    try {
+      await apiPatch(`/trello/project-boards/${boardId}`, { client_id: null });
+      setImportClientId((prev) => ({ ...prev, [boardId]: '' }));
+      setImportResult((prev) => ({
+        ...prev,
+        [boardId]: '✓ Board desvinculado do cliente',
+      }));
+      await loadProjectBoards();
+    } catch (err: any) {
+      setImportResult((prev) => ({
+        ...prev,
+        [boardId]: `Erro: ${err?.message ?? 'Falha ao desvincular board.'}`,
+      }));
     } finally {
       setSavingBoardId(null);
     }
@@ -426,6 +448,16 @@ export default function TrelloAdminClient() {
                             disabled={savingBoardId === board.id}
                           >
                             {savingBoardId === board.id ? 'Salvando...' : 'Salvar vínculo'}
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="inherit"
+                            startIcon={<IconLinkOff size={15} />}
+                            onClick={() => handleDetachProjectBoard(board.id)}
+                            disabled={savingBoardId === board.id || !board.client_id}
+                          >
+                            Desvincular
                           </Button>
                           <Button
                             size="small"
