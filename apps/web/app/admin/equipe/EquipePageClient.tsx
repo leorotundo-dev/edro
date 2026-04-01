@@ -1331,12 +1331,75 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
           </Stack>
         </Stack>
 
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
-          <Chip label={`${activeCount} freelancers ativos`} size="small" variant="outlined" />
-          <Chip label={`${timerCount} timers rodando`} size="small" color={timerCount > 0 ? 'success' : 'default'} variant="outlined" />
-          <Chip label={`${fmtH(totalHoursMonth)} em ${currentMonth}`} size="small" variant="outlined" />
-          <Chip label={`${brl(totalCostMonth)} no mês`} size="small" color="warning" variant="outlined" />
-        </Stack>
+        <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
+          {[
+            {
+              key: 'ativos',
+              title: 'Freelancers ativos',
+              value: activeCount,
+              helper: 'Disponíveis na operação',
+              icon: <IconUserCheck size={18} />,
+              accent: '#E85219',
+            },
+            {
+              key: 'timers',
+              title: 'Timers rodando',
+              value: timerCount,
+              helper: timerCount > 0 ? 'Pessoas em execução agora' : 'Nada em execução agora',
+              icon: <IconClock size={18} />,
+              accent: '#13DEB9',
+            },
+            {
+              key: 'horas',
+              title: `Horas em ${currentMonth}`,
+              value: fmtH(totalHoursMonth),
+              helper: 'Carga registrada no mês',
+              icon: <IconChartBar size={18} />,
+              accent: '#5D87FF',
+            },
+            {
+              key: 'custo',
+              title: 'Custo do mês',
+              value: brl(totalCostMonth),
+              helper: 'Estimativa financeira atual',
+              icon: <IconCurrencyDollar size={18} />,
+              accent: '#f59e0b',
+            },
+          ].map((item) => (
+            <Grid key={item.key} size={{ xs: 12, sm: 6, xl: 3 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                <CardContent sx={{ p: '18px !important' }}>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                        {item.title}
+                      </Typography>
+                      <Box
+                        sx={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 2,
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: item.accent,
+                          bgcolor: alpha(item.accent, 0.12),
+                        }}
+                      >
+                        {item.icon}
+                      </Box>
+                    </Stack>
+                    <Typography variant="h4" fontWeight={800}>
+                      {item.value}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {item.helper}
+                    </Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
 
         {forcedTab === undefined && (
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
