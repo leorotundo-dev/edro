@@ -334,7 +334,7 @@ export default function ReccoEnginePage() {
   return (
     <AppShell title="Recco Engine">
       <Box sx={{ p: { xs: 2, md: 3 } }}>
-        <AdminSubmenu value="recco-engine" />
+        <AdminSubmenu value="intelligence" />
 
         {/* Header */}
         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 3 }}>

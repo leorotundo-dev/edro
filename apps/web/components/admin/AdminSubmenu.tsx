@@ -31,37 +31,46 @@ const isGroup = (e: Entry): e is Group => 'children' in e;
 // ── Menu structure ─────────────────────────────────────────────────────────────
 
 const ENTRIES: Entry[] = [
-  { label: 'Visão Geral', value: 'overview', kind: 'route', href: '/admin/system?tab=overview' },
-  { label: 'Sistema', value: 'system', kind: 'route', href: '/admin/system' },
-  { label: 'Pessoas', value: 'pessoas', kind: 'route', href: '/admin/pessoas' },
-  { label: 'Financeiro', value: 'financeiro', kind: 'route', href: '/admin/financeiro' },
+  { label: 'Visão Geral', value: 'controle', kind: 'route', href: '/admin/controle' },
+  {
+    label: 'Pessoas', value: 'group-pessoas',
+    children: [
+      { label: 'Equipe',        value: 'equipe',           kind: 'route', href: '/admin/equipe' },
+      { label: 'Diretório',     value: 'pessoas',          kind: 'route', href: '/admin/pessoas' },
+      { label: 'Usuários',      value: 'users',            kind: 'route', href: '/admin/users' },
+      { label: 'Freelancers',   value: 'freelancers-admin', kind: 'route', href: '/admin/users?tab=freelancers' },
+    ],
+  },
+  {
+    label: 'Financeiro', value: 'group-financeiro',
+    children: [
+      { label: 'Pagamentos',        value: 'pagamentos',         kind: 'route', href: '/admin/pagamentos' },
+      { label: 'Custos IA',         value: 'ai-costs',           kind: 'route', href: '/admin/ai-costs' },
+      { label: 'Rel. Financeiro',   value: 'relatorios-fin',     kind: 'route', href: '/admin/relatorios/financeiro' },
+    ],
+  },
   {
     label: 'Relatórios', value: 'group-relatorios',
     children: [
-      { label: 'Painel Executivo', value: 'painel-executivo', kind: 'route', href: '/admin/relatorios/painel' },
-      { label: 'Fila de Ação',     value: 'fila-de-acao',     kind: 'route', href: '/admin/relatorios/fila' },
-      { label: 'Briefing Ratings', value: 'briefing-ratings', kind: 'route', href: '/admin/analytics/briefing-ratings' },
-      { label: 'Relatórios Mensais', value: 'relatorios-mensais', kind: 'route', href: '/admin/relatorios' },
+      { label: 'Painel Executivo',  value: 'painel-executivo',   kind: 'route', href: '/admin/relatorios/painel' },
+      { label: 'Fila de Ação',      value: 'fila-de-acao',       kind: 'route', href: '/admin/relatorios/fila' },
+      { label: 'Mensais',           value: 'relatorios-mensais', kind: 'route', href: '/admin/relatorios' },
+      { label: 'Briefing Ratings',  value: 'briefing-ratings',   kind: 'route', href: '/admin/analytics/briefing-ratings' },
+      { label: 'Diário',            value: 'diario',             kind: 'route', href: '/admin/diario' },
     ],
   },
   {
-    label: 'IA & Automação', value: 'group-ia',
+    label: 'Sistema', value: 'group-sistema',
     children: [
-      { label: 'Automações',      value: 'automacoes',   kind: 'route', href: '/admin/automations' },
-      { label: 'Recco Engine',    value: 'recco-engine', kind: 'route', href: '/admin/recco-engine' },
-      { label: 'Inteligência IA', value: 'intelligence', kind: 'route', href: '/admin/intelligence' },
+      { label: 'Saúde',         value: 'saude',           kind: 'route', href: '/admin/saude' },
+      { label: 'Integrações',   value: 'integracoes',     kind: 'route', href: '/admin/integrations' },
+      { label: 'Automações',    value: 'automacoes',      kind: 'route', href: '/admin/automations' },
+      { label: 'IA Engine',     value: 'intelligence',    kind: 'route', href: '/admin/intelligence' },
+      { label: 'WhatsApp',      value: 'whatsapp-groups', kind: 'route', href: '/admin/whatsapp-groups' },
+      { label: 'Reportei',      value: 'reportei',        kind: 'route', href: '/admin/reportei' },
+      { label: 'Configurações', value: 'configuracoes',   kind: 'route', href: '/admin/configuracoes' },
     ],
   },
-  {
-    label: 'Integrações', value: 'group-integracoes',
-    children: [
-      { label: 'Canais & APIs',   value: 'integracoes',     kind: 'route', href: '/admin/integrations' },
-      { label: 'WhatsApp Grupos', value: 'whatsapp-groups', kind: 'route', href: '/admin/whatsapp-groups' },
-      { label: 'Reportei',        value: 'reportei',        kind: 'route', href: '/admin/reportei' },
-      { label: 'Import Events',   value: 'import-events',   kind: 'route', href: '/admin/events/import' },
-    ],
-  },
-  { label: 'Configurações', value: 'configuracoes', kind: 'route', href: '/admin/configuracoes' },
 ];
 
 // Flatten all items for lookup
