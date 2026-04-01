@@ -207,6 +207,13 @@ export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
   });
 }
 
+export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
+  return requestWithRefresh<T>(path, {
+    method: 'PUT',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export async function apiDelete<T = any>(path: string): Promise<T> {
   return requestWithRefresh<T>(path, { method: 'DELETE' });
 }
