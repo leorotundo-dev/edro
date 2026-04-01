@@ -1737,28 +1737,30 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       <DashboardCard>
         <Stack spacing={2}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+            {/* Month name + navigation — left side, prominent */}
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <IconButton size="small" onClick={handlePrev} sx={{ color: 'text.secondary' }}>
+                <IconChevronLeft size={20} />
+              </IconButton>
+              <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: '-0.5px', userSelect: 'none', minWidth: 200 }}>
+                {headerLabel}
+              </Typography>
+              <IconButton size="small" onClick={handleNext} sx={{ color: 'text.secondary' }}>
+                <IconChevronRight size={20} />
+              </IconButton>
+            </Stack>
+
+            {/* View toggle — right side */}
             <ToggleButtonGroup
               value={view}
               exclusive
               size="small"
               onChange={(_, newView) => { if (newView) setView(newView); }}
             >
-              <ToggleButton value="month">Month</ToggleButton>
-              <ToggleButton value="week">Week</ToggleButton>
-              <ToggleButton value="day">Day</ToggleButton>
+              <ToggleButton value="month">Mês</ToggleButton>
+              <ToggleButton value="week">Semana</ToggleButton>
+              <ToggleButton value="day">Dia</ToggleButton>
             </ToggleButtonGroup>
-
-            <Stack direction="row" spacing={1} alignItems="center">
-              <IconButton size="small" onClick={handlePrev}>
-                <IconChevronLeft size={20} />
-              </IconButton>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, minWidth: 180, textAlign: 'center' }}>
-                {headerLabel}
-              </Typography>
-              <IconButton size="small" onClick={handleNext}>
-                <IconChevronRight size={20} />
-              </IconButton>
-            </Stack>
           </Stack>
 
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
