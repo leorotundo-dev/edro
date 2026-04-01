@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
@@ -43,6 +43,7 @@ function getActive(pathname: string, href: string) {
 
 export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const EDRO_BG = isDark ? '#111111' : '#ffffff';
@@ -81,6 +82,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
     >
       {/* Logo */}
       <Box
+        onClick={() => router.push('/')}
         sx={{
           px: open ? 3 : 1.5,
           py: 2.5,
@@ -89,6 +91,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
           justifyContent: open ? 'flex-start' : 'center',
           borderBottom: `1px solid ${EDRO_BORDER}`,
           minHeight: 72,
+          cursor: 'pointer',
         }}
       >
         {open ? (
