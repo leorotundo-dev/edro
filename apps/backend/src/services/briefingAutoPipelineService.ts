@@ -16,6 +16,7 @@ import { generateCompletion } from './ai/claudeService';
 import { loadLearningRules } from './learningEngine';
 import { getTrelloCredentials } from './trelloSyncService';
 import { sendWhatsAppText, isWhatsAppConfigured } from './whatsappService';
+import { sendDirectMessage as evolutionSendDirect } from './integrations/evolutionApiService';
 import { sendEmail, isEmailConfigured } from './emailService';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -279,9 +280,9 @@ Responda em JSON com esta estrutura exata:
       }
     }
 
-    // ── 4. WhatsApp alert via Meta Cloud API ──────────────────────────────────
+    // ── 4. WhatsApp alert (Meta Cloud API → fallback Evolution API) ──────────
     const agencyPhones = (process.env.WHATSAPP_AGENCY_PHONES ?? '').split(',').map(s => s.trim()).filter(Boolean);
-    if (isWhatsAppConfigured() && agencyPhones.length) {
+    if (agencyPhones.length) {
       const deadline = formData.deadline
         ? new Date(formData.deadline + 'T00:00').toLocaleDateString('pt-BR')
         : '—';
@@ -313,8 +314,18 @@ Responda em JSON com esta estrutura exata:
 
       let allSent = true;
       for (const phone of agencyPhones) {
-        const result = await sendWhatsAppText(phone, wamsg, { tenantId, event: 'briefing_alert' }).catch(() => ({ ok: false }));
-        if (!result.ok) allSent = false;
+        let sent = false;
+        // Try Meta Cloud API first
+        if (isWhatsAppConfigured()) {
+          const result = await sendWhatsAppText(phone, wamsg, { tenantId, event: 'briefing_alert' }).catch(() => ({ ok: false as const }));
+          sent = result.ok;
+        }
+        // Fallback: Evolution API (real WhatsApp session connected via QR)
+        if (!sent && process.env.EVOLUTION_API_KEY) {
+          await evolutionSendDirect(tenantId, phone, wamsg).catch(() => {});
+          sent = true; // best-effort
+        }
+        if (!sent) allSent = false;
       }
       output.whatsapp_sent = allSent;
     }
@@ -395,7 +406,10 @@ export async function sendBriefingAcceptedWhatsApp(p: {
   trelloUrl?: string;
 }): Promise<void> {
   const agencyPhones = (process.env.WHATSAPP_AGENCY_PHONES ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (!isWhatsAppConfigured() || !agencyPhones.length) return;
+  if (!agencyPhones.length) return;
+  const hasMetaApi = isWhatsAppConfigured();
+  const hasEvolution = Boolean(process.env.EVOLUTION_API_KEY);
+  if (!hasMetaApi && !hasEvolution) return;
 
   const deadline = p.formData.deadline
     ? new Date(p.formData.deadline + 'T00:00').toLocaleDateString('pt-BR')
@@ -419,6 +433,13 @@ export async function sendBriefingAcceptedWhatsApp(p: {
   ].filter((s) => s !== '').join('\n');
 
   for (const phone of agencyPhones) {
-    await sendWhatsAppText(phone, msg, { tenantId: p.tenantId, event: 'briefing_accepted' }).catch(() => {});
+    let sent = false;
+    if (hasMetaApi) {
+      const result = await sendWhatsAppText(phone, msg, { tenantId: p.tenantId, event: 'briefing_accepted' }).catch(() => ({ ok: false as const }));
+      sent = result.ok;
+    }
+    if (!sent && hasEvolution) {
+      await evolutionSendDirect(p.tenantId, phone, msg).catch(() => {});
+    }
   }
 }

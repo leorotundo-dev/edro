@@ -101,9 +101,10 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         api_url: has('EVOLUTION_API_URL'),
       },
       whatsapp_meta: {
-        token:        has('WHATSAPP_TOKEN'),
-        phone_id:     has('WHATSAPP_PHONE_ID'),
-        verify_token: has('META_VERIFY_TOKEN'),
+        token:         has('WHATSAPP_TOKEN'),
+        phone_id:      has('WHATSAPP_PHONE_ID'),
+        verify_token:  has('META_VERIFY_TOKEN'),
+        agency_phones: Boolean(process.env.WHATSAPP_AGENCY_PHONES?.trim()),
       },
       recall: {
         api_key:          has('RECALL_API_KEY'),
@@ -727,9 +728,21 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],
   }, async (_request, reply) => {
     const publicApiUrl = env.PUBLIC_API_URL?.replace(/\/$/, '') || null;
+
+    // Mirror the same resolution logic used by gmailService and googleCalendarService
+    // so the dialog shows the EXACT URI that will be sent to Google — not a guess.
+    const gmailRedirectUri = env.GOOGLE_REDIRECT_URI
+      ? env.GOOGLE_REDIRECT_URI
+      : publicApiUrl ? `${publicApiUrl}/api/auth/google/callback` : null;
+
+    const calendarRedirectUri = env.GOOGLE_CALENDAR_REDIRECT_URI
+      ? env.GOOGLE_CALENDAR_REDIRECT_URI
+      : publicApiUrl ? `${publicApiUrl}/api/auth/google/calendar/callback` : null;
+
     return reply.send({
-      google_redirect_uri_gmail:     publicApiUrl ? `${publicApiUrl}/api/auth/google/callback` : null,
-      google_redirect_uri_calendar:  publicApiUrl ? `${publicApiUrl}/api/auth/google/calendar/callback` : null,
+      google_redirect_uri_gmail:     gmailRedirectUri,
+      google_redirect_uri_calendar:  calendarRedirectUri,
+      google_redirect_uri_explicit:  Boolean(env.GOOGLE_REDIRECT_URI),
       webhook_base_url:              publicApiUrl,
       meta_verify_token_set:         has('META_VERIFY_TOKEN'),
     });
