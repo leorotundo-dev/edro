@@ -958,6 +958,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
           const card = await createBriefingTrelloCard({
             briefingId: row.id,
             tenantId,
+            clientId: row.client_id,
             clientName,
             formData: row.form_data as any,
             aiEnriched: row.ai_enriched as any,
