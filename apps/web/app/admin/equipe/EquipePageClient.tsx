@@ -1322,27 +1322,12 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
           </Stack>
         </Stack>
 
-        {/* Summary cards */}
-        <Grid container spacing={2} mb={2}>
-          {[
-            { label: 'Freelancers ativos', value: String(activeCount), icon: <IconUserCheck size={20} /> },
-            { label: 'Timers rodando agora', value: String(timerCount), icon: <IconClock size={20} /> },
-            { label: `Horas em ${currentMonth}`, value: fmtH(totalHoursMonth), icon: <IconChartBar size={20} /> },
-            { label: 'Custo do mês', value: brl(totalCostMonth), icon: <IconCurrencyDollar size={20} /> },
-          ].map((c) => (
-            <Grid key={c.label} size={{ xs: 6, sm: 3 }}>
-              <Card variant="outlined">
-                <CardContent sx={{ py: 1.5 }}>
-                  <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-                    <Box sx={{ color: 'primary.main' }}>{c.icon}</Box>
-                    <Typography variant="caption" color="text.secondary">{c.label}</Typography>
-                  </Stack>
-                  <Typography variant="h5" fontWeight={700}>{c.value}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
+          <Chip label={`${activeCount} freelancers ativos`} size="small" variant="outlined" />
+          <Chip label={`${timerCount} timers rodando`} size="small" color={timerCount > 0 ? 'success' : 'default'} variant="outlined" />
+          <Chip label={`${fmtH(totalHoursMonth)} em ${currentMonth}`} size="small" variant="outlined" />
+          <Chip label={`${brl(totalCostMonth)} no mês`} size="small" color="warning" variant="outlined" />
+        </Stack>
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Tab label="Operação" />
