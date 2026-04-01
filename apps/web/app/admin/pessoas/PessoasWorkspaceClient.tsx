@@ -12,7 +12,6 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
@@ -20,9 +19,7 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconAddressBook,
-  IconShieldCheck,
   IconUserCheck,
-  IconUsersGroup,
 } from '@tabler/icons-react';
 
 type PersonSummary = {
@@ -107,61 +104,6 @@ function computeDuplicatePeople(people: PersonSummary[]) {
   return duplicates;
 }
 
-function WorkspaceStatCard({
-  label,
-  value,
-  helper,
-  icon,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-  icon: React.ReactNode;
-}) {
-  const theme = useTheme();
-
-  return (
-    <Card
-      variant="outlined"
-      sx={{
-        borderRadius: 3,
-        px: 2.25,
-        py: 2,
-        height: '100%',
-        borderColor: alpha(theme.palette.primary.main, 0.14),
-        backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.04)} 0%, transparent 100%)`,
-      }}
-    >
-      <Stack spacing={1.5}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-            {label}
-          </Typography>
-          <Box
-            sx={{
-              width: 34,
-              height: 34,
-              borderRadius: 2,
-              display: 'grid',
-              placeItems: 'center',
-              bgcolor: alpha(theme.palette.primary.main, 0.1),
-              color: 'primary.main',
-            }}
-          >
-            {icon}
-          </Box>
-        </Stack>
-        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1 }}>
-          {value}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {helper}
-        </Typography>
-      </Stack>
-    </Card>
-  );
-}
-
 export default function PessoasWorkspaceClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -222,8 +164,6 @@ export default function PessoasWorkspaceClient() {
     const query = params.toString();
     router.replace(query ? `/admin/pessoas?${query}` : '/admin/pessoas');
   };
-
-  const currentTab = PEOPLE_TABS.find((tab) => tab.value === activeTab) ?? PEOPLE_TABS[0];
 
   return (
     <AppShell title="Pessoas">
@@ -311,41 +251,6 @@ export default function PessoasWorkspaceClient() {
 
         <AdminSubmenu value="pessoas" />
 
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-            <WorkspaceStatCard
-              label="Equipe"
-              value={String(stats.activeFreelancers)}
-              helper={`${stats.runningTimers} com timer rodando agora`}
-              icon={<IconUserCheck size={18} />}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-            <WorkspaceStatCard
-              label="Acessos"
-              value={String(stats.activeUsers)}
-              helper={`${stats.adminUsers} admins entre ${stats.usersTotal} contas`}
-              icon={<IconShieldCheck size={18} />}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-            <WorkspaceStatCard
-              label="Diretório"
-              value={String(stats.peopleTotal)}
-              helper={`${stats.internalPeople} internos e ${stats.externalPeople} externos`}
-              icon={<IconUsersGroup size={18} />}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-            <WorkspaceStatCard
-              label="Higiene"
-              value={String(stats.duplicatePeople)}
-              helper="contatos com nome duplicado para merge"
-              icon={<IconAddressBook size={18} />}
-            />
-          </Grid>
-        </Grid>
-
         <Box
           sx={(theme) => ({
             borderRadius: 4,
@@ -355,37 +260,18 @@ export default function PessoasWorkspaceClient() {
           })}
         >
           <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 2.5 }, pb: 1.5 }}>
-            <Tabs
-              value={activeTab}
-              onChange={handleTabChange}
-              variant="scrollable"
-              allowScrollButtonsMobile
-              scrollButtons="auto"
-            >
-              {PEOPLE_TABS.map((tab) => (
-                <Tab key={tab.value} value={tab.value} label={tab.label} />
-              ))}
-            </Tabs>
-          </Box>
-
-          <Box
-            sx={(theme) => ({
-              px: { xs: 2, md: 3 },
-              py: 2,
-              borderTop: `1px solid ${theme.palette.divider}`,
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              bgcolor: alpha(theme.palette.primary.main, 0.03),
-            })}
-          >
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between">
-              <Box>
-                <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>
-                  {currentTab.label}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {currentTab.description}
-                </Typography>
-              </Box>
+              <Tabs
+                value={activeTab}
+                onChange={handleTabChange}
+                variant="scrollable"
+                allowScrollButtonsMobile
+                scrollButtons="auto"
+              >
+                {PEOPLE_TABS.map((tab) => (
+                  <Tab key={tab.value} value={tab.value} label={tab.label} />
+                ))}
+              </Tabs>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                 {activeTab === 'equipe' && (
                   <>
@@ -396,7 +282,7 @@ export default function PessoasWorkspaceClient() {
                 {activeTab === 'acessos' && (
                   <>
                     <Chip label={`${stats.usersTotal} contas`} size="small" variant="outlined" />
-                    <Chip label={`${stats.activeUsers} ativas`} size="small" color="primary" variant="outlined" />
+                    <Chip label={`${stats.adminUsers} admins`} size="small" color="warning" variant="outlined" />
                   </>
                 )}
                 {activeTab === 'diretorio' && (
