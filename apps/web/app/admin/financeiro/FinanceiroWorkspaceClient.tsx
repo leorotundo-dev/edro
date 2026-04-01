@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { PagamentosView } from '@/app/admin/pagamentos/page';
 import { AiCostsView } from '@/app/admin/ai-costs/page';
 import FinanceiroCruzadoClient from '@/app/admin/relatorios/financeiro/FinanceiroCruzadoClient';
@@ -216,72 +217,36 @@ export default function FinanceiroWorkspaceClient() {
   return (
     <AppShell title="Financeiro">
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <Box
-          sx={(theme) => ({
-            borderRadius: 4,
-            px: { xs: 2.5, md: 3.5 },
-            py: { xs: 2.5, md: 3 },
-            border: `1px solid ${alpha(theme.palette.success.main, 0.14)}`,
-            backgroundImage: `linear-gradient(140deg, ${alpha(theme.palette.success.main, 0.08)} 0%, ${alpha(theme.palette.background.paper, 0.98)} 58%)`,
-          })}
-        >
-          <Stack
-            direction={{ xs: 'column', lg: 'row' }}
-            spacing={2.5}
-            justifyContent="space-between"
-            alignItems={{ xs: 'flex-start', lg: 'center' }}
-          >
-            <Stack spacing={1.25} sx={{ maxWidth: 780 }}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Chip
-                  label="Invoice / Reports"
-                  color="success"
-                  size="small"
-                  sx={{ fontWeight: 700 }}
-                />
-                <Chip label={brl(stats.invoiced)} size="small" variant="outlined" />
-                <Chip label={`${stats.trackedPlatforms} plataformas monitoradas`} size="small" variant="outlined" />
-              </Stack>
-              <Box>
-                <Typography variant="h3" sx={{ fontWeight: 800, mb: 0.75 }}>
-                  Financeiro
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Receita, repasses e custos no mesmo lugar. Aqui a agência decide margem,
-                  caixa e o que está entrando ou saindo do bolso.
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
-              {loadingStats ? (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CircularProgress size={18} />
-                  <Typography variant="body2" color="text.secondary">
-                    Carregando retrato financeiro...
-                  </Typography>
-                </Stack>
-              ) : (
-                <>
-                  <Chip
-                    icon={<IconReceipt2 size={14} />}
-                    label={`${brl(stats.payablesOpen)} a repassar`}
-                    size="small"
-                    color="warning"
-                    variant="outlined"
-                  />
-                  <Chip
-                    icon={<IconCoin size={14} />}
-                    label={`${brl(stats.platformCost)} em plataforma`}
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                  />
-                </>
-              )}
-            </Stack>
-          </Stack>
-        </Box>
+        <WorkspaceHero
+          eyebrow="Invoice / Reports"
+          eyebrowColor="success"
+          title="Financeiro"
+          description="Receita, repasses e custos no mesmo lugar. Aqui a agência decide margem, caixa e o que está entrando ou saindo do bolso."
+          leftChips={[
+            { label: brl(stats.invoiced) },
+            { label: `${stats.trackedPlatforms} plataformas monitoradas` },
+          ]}
+          loading={loadingStats}
+          loadingLabel="Carregando retrato financeiro..."
+          rightContent={
+            <>
+              <Chip
+                icon={<IconReceipt2 size={14} />}
+                label={`${brl(stats.payablesOpen)} a repassar`}
+                size="small"
+                color="warning"
+                variant="outlined"
+              />
+              <Chip
+                icon={<IconCoin size={14} />}
+                label={`${brl(stats.platformCost)} em plataforma`}
+                size="small"
+                color="default"
+                variant="outlined"
+              />
+            </>
+          }
+        />
 
         <AdminSubmenu value="financeiro" />
 

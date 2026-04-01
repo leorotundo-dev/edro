@@ -5,15 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import EquipePageClient from '@/app/admin/equipe/EquipePageClient';
 import PeopleDirectoryClient from './PeopleDirectoryClient';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { alpha } from '@mui/material/styles';
 import { IconAddressBook, IconUserCheck } from '@tabler/icons-react';
 
 type PersonSummary = {
@@ -156,66 +155,35 @@ export default function PessoasWorkspaceClient() {
   return (
     <AppShell title="Pessoas">
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <Box
-          sx={(theme) => ({
-            borderRadius: 4,
-            px: { xs: 2.5, md: 3.5 },
-            py: { xs: 2.5, md: 3 },
-            border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
-            backgroundImage: `linear-gradient(140deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.background.paper, 0.98)} 58%)`,
-          })}
-        >
-          <Stack
-            direction={{ xs: 'column', lg: 'row' }}
-            spacing={2.5}
-            justifyContent="space-between"
-            alignItems={{ xs: 'flex-start', lg: 'center' }}
-          >
-            <Stack spacing={1.25} sx={{ maxWidth: 780 }}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Chip label="Contacts / Users" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                <Chip label={`${stats.activeFreelancers} freelas ativos`} size="small" variant="outlined" />
-                <Chip label={`${stats.externalPeople} contatos externos`} size="small" variant="outlined" />
-              </Stack>
-              <Box>
-                <Typography variant="h3" sx={{ fontWeight: 800, mb: 0.75 }}>
-                  Pessoas
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Um único menu para decidir rápido entre operação, cadastro, financeiro e contatos dos clientes.
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
-              {loadingStats ? (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CircularProgress size={18} />
-                  <Typography variant="body2" color="text.secondary">
-                    Carregando retrato da equipe...
-                  </Typography>
-                </Stack>
-              ) : (
-                <>
-                  <Chip
-                    icon={<IconUserCheck size={14} />}
-                    label={`${stats.runningTimers} timers rodando`}
-                    size="small"
-                    color="success"
-                    variant="outlined"
-                  />
-                  <Chip
-                    icon={<IconAddressBook size={14} />}
-                    label={`${stats.duplicatePeople} contatos para revisar`}
-                    size="small"
-                    color={stats.duplicatePeople > 0 ? 'warning' : 'default'}
-                    variant="outlined"
-                  />
-                </>
-              )}
-            </Stack>
-          </Stack>
-        </Box>
+        <WorkspaceHero
+          eyebrow="Contacts / Users"
+          title="Pessoas"
+          description="Um único menu para decidir rápido entre operação, cadastro, financeiro e contatos dos clientes."
+          leftChips={[
+            { label: `${stats.activeFreelancers} freelas ativos` },
+            { label: `${stats.externalPeople} contatos externos` },
+          ]}
+          loading={loadingStats}
+          loadingLabel="Carregando retrato da equipe..."
+          rightContent={
+            <>
+              <Chip
+                icon={<IconUserCheck size={14} />}
+                label={`${stats.runningTimers} timers rodando`}
+                size="small"
+                color="success"
+                variant="outlined"
+              />
+              <Chip
+                icon={<IconAddressBook size={14} />}
+                label={`${stats.duplicatePeople} contatos para revisar`}
+                size="small"
+                color={stats.duplicatePeople > 0 ? 'warning' : 'default'}
+                variant="outlined"
+              />
+            </>
+          }
+        />
 
         <Box
           sx={(theme) => ({

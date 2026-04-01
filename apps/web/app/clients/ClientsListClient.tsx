@@ -6,6 +6,7 @@ import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 import { useConfirm } from '@/hooks/useConfirm';
 import EdroAvatar from '@/components/shared/EdroAvatar';
 import PlatformIcon from '@/components/shared/PlatformIcon';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -213,34 +214,15 @@ export default function ClientsListClient() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-      <Card
-        variant="outlined"
-        sx={{
-          borderRadius: 3,
-          background:
-            'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-        }}
-      >
-        <CardContent sx={{ p: '24px !important' }}>
-          <Stack spacing={2.25}>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label="Clients" color="primary" size="small" sx={{ fontWeight: 700 }} />
-              <Chip label={`${clients.length} clientes`} size="small" variant="outlined" />
-              <Chip label={`${unlinkedBoards.length} boards sem vínculo`} size="small" variant="outlined" />
-            </Stack>
-
-            <Box>
-              <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                Portfólio de clientes
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                O diretório vivo de contas da agência, com leitura rápida de operação, inteligência
-                e vínculo com o Trello.
-              </Typography>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+      <WorkspaceHero
+        eyebrow="Clients"
+        title="Portfólio de clientes"
+        description="O diretório vivo de contas da agência, com leitura rápida de operação, inteligência e vínculo com o Trello."
+        leftChips={[
+          { label: `${clients.length} clientes` },
+          { label: `${unlinkedBoards.length} boards sem vínculo` },
+        ]}
+      />
 
       <Box
         sx={{
