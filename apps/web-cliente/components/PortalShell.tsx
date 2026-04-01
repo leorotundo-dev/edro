@@ -83,24 +83,41 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       {/* AppBar */}
       <AppBar position="sticky" elevation={0}>
         <Toolbar sx={{ gap: 2, px: { xs: 2, md: 4 }, minHeight: '64px !important' }}>
-          {clientLogoUrl ? (
-            <Box
-              component="img"
-              src={clientLogoUrl}
-              alt="Logo"
-              sx={{ height: 32, maxWidth: 140, objectFit: 'contain', cursor: 'pointer', flexShrink: 0 }}
-              onClick={() => router.push('/')}
-              onError={(e: any) => { e.target.style.display = 'none'; }}
-            />
-          ) : (
-            <Box
-              component="img"
-              src="/brand/logo-studio.png"
-              alt="Edro Studio"
-              sx={{ height: 24, width: 'auto', objectFit: 'contain', cursor: 'pointer', flexShrink: 0 }}
-              onClick={() => router.push('/')}
-            />
-          )}
+          <Stack
+            direction="row" alignItems="center" spacing={1}
+            onClick={() => router.push('/')}
+            sx={{ cursor: 'pointer', flexShrink: 0 }}
+          >
+            {clientLogoUrl ? (
+              <Box
+                component="img"
+                src={clientLogoUrl}
+                alt="Logo"
+                sx={{ height: 32, maxWidth: 130, objectFit: 'contain' }}
+                onError={(e: any) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <Box
+                component="img"
+                src="/brand/logo-studio.png"
+                alt="Edro Studio"
+                sx={{ height: 24, width: 'auto', objectFit: 'contain' }}
+              />
+            )}
+            {clientLogoUrl && (
+              <Stack direction="row" alignItems="center" spacing={0.5} sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 1 }}>
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>
+                  by
+                </Typography>
+                <Box
+                  component="img"
+                  src="/brand/logo-studio.png"
+                  alt="Edro"
+                  sx={{ height: 14, width: 'auto', objectFit: 'contain', opacity: 0.45 }}
+                />
+              </Stack>
+            )}
+          </Stack>
 
           {!isMobile && (
             <Stack direction="row" spacing={0.5} sx={{ ml: 3 }}>
@@ -161,15 +178,26 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 240, pt: 2 }}>
           <Box sx={{ px: 2, pb: 2 }}>
-            {clientLogoUrl && (
-              <Box
-                component="img"
-                src={clientLogoUrl}
-                alt="Logo"
-                sx={{ height: 28, maxWidth: 120, objectFit: 'contain', mb: 1, display: 'block' }}
-                onError={(e: any) => { e.target.style.display = 'none'; }}
-              />
-            )}
+            {clientLogoUrl ? (
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                <Box
+                  component="img"
+                  src={clientLogoUrl}
+                  alt="Logo"
+                  sx={{ height: 28, maxWidth: 110, objectFit: 'contain' }}
+                  onError={(e: any) => { e.target.style.display = 'none'; }}
+                />
+                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 1 }}>
+                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>by</Typography>
+                  <Box
+                    component="img"
+                    src="/brand/logo-studio.png"
+                    alt="Edro"
+                    sx={{ height: 12, width: 'auto', objectFit: 'contain', opacity: 0.4 }}
+                  />
+                </Stack>
+              </Stack>
+            ) : null}
             <Typography variant="caption" color="text.secondary" display="block">Portal do Cliente</Typography>
             {name && <Typography variant="body2" fontWeight={600}>{name}</Typography>}
           </Box>
