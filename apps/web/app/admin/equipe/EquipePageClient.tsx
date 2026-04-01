@@ -1290,6 +1290,13 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
   }, 0);
   const activeCount = freelancers.filter((f) => f.is_active).length;
   const timerCount = freelancers.filter((f) => (f.active_timers ?? []).length > 0).length;
+  const freelancersWithContactCount = freelancers.filter(
+    (f) => Boolean(f.phone || f.whatsapp_jid || f.email_personal),
+  ).length;
+  const freelancerReviewCount = freelancers.filter(
+    (f) => !Boolean(f.phone || f.whatsapp_jid || f.email_personal || f.cpf || f.pix_key || f.bank_name),
+  ).length;
+  const internalWithIdentityCount = internalPeople.filter((p) => (p.identities?.length ?? 0) > 0).length;
 
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtH = (mins: number) => {
@@ -1542,49 +1549,140 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
               </Typography>
             </Box>
 
-            <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
+            <Grid container spacing={1.5}>
+              {[
+                {
+                  key: 'freelas',
+                  title: 'Freelancers cadastrados',
+                  value: freelancers.length,
+                  helper: `${activeCount} ativos na operação`,
+                  icon: <IconUsers size={18} />,
+                  accent: '#E85219',
+                },
+                {
+                  key: 'contato',
+                  title: 'Com contato direto',
+                  value: freelancersWithContactCount,
+                  helper: 'Telefone, e-mail ou WhatsApp',
+                  icon: <IconMail size={18} />,
+                  accent: '#13DEB9',
+                },
+                {
+                  key: 'internos',
+                  title: 'Equipe interna',
+                  value: internalPeople.length,
+                  helper: `${internalWithIdentityCount} com identidade registrada`,
+                  icon: <IconUserCheck size={18} />,
+                  accent: '#5D87FF',
+                },
+                {
+                  key: 'revisao',
+                  title: 'Pedem revisão',
+                  value: freelancerReviewCount,
+                  helper: 'Cadastros quase vazios',
+                  icon: <IconId size={18} />,
+                  accent: '#f59e0b',
+                },
+              ].map((item) => (
+                <Grid key={item.key} size={{ xs: 12, sm: 6, xl: 3 }}>
+                  <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                    <CardContent sx={{ p: '18px !important' }}>
+                      <Stack spacing={1.25}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            {item.title}
+                          </Typography>
+                          <Box
+                            sx={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 2,
+                              display: 'grid',
+                              placeItems: 'center',
+                              color: item.accent,
+                              bgcolor: alpha(item.accent, 0.12),
+                            }}
+                          >
+                            {item.icon}
+                          </Box>
+                        </Stack>
+                        <Typography variant="h4" fontWeight={800}>
+                          {item.value}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {item.helper}
+                        </Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: '22px !important' }}>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
+                      Freelancers da rede
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Ajuste dados de contato, documentos, Pix e perfil operacional sem sair desta área.
+                    </Typography>
+                  </Box>
+                  <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
+                </Stack>
+              </CardContent>
+            </Card>
 
             {internalPeople.length > 0 && (
-              <Box>
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-                  <IconUserCheck size={18} color="#E85219" />
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    Pessoas internas da Edro ({internalPeople.length})
-                  </Typography>
-                  <Chip label="diretório interno" size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
-                </Stack>
-                <Grid container spacing={1.5}>
-                  {internalPeople.map((p) => {
-                    const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
-                    const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
-                    return (
-                      <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                        <Card
-                          variant="outlined"
-                          sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { borderColor: 'primary.main' } }}
-                          onClick={() => {
-                            setEditPerson(p);
-                            setEditForm({ display_name: p.display_name, is_internal: p.is_internal ?? false, notes: p.notes ?? '' });
-                          }}
-                        >
-                          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-                            <Stack direction="row" spacing={1.5} alignItems="center">
-                              <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
-                                {!p.avatar_url ? initials(p.display_name) : null}
-                              </Avatar>
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
-                                {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
-                                {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
-                              </Box>
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    );
-                  })}
-                </Grid>
-              </Box>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: '22px !important' }}>
+                  <Stack spacing={2}>
+                    <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+                      <IconUserCheck size={18} color="#E85219" />
+                      <Typography variant="h6" fontWeight={800}>
+                        Equipe interna da Edro
+                      </Typography>
+                      <Chip label={`${internalPeople.length} pessoas`} size="small" variant="outlined" />
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary">
+                      Diretório interno para leitura rápida e ajuste cadastral do time fixo da Edro.
+                    </Typography>
+                    <Grid container spacing={1.5}>
+                      {internalPeople.map((p) => {
+                        const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
+                        const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
+                        return (
+                          <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                            <Card
+                              variant="outlined"
+                              sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { borderColor: 'primary.main' } }}
+                              onClick={() => {
+                                setEditPerson(p);
+                                setEditForm({ display_name: p.display_name, is_internal: p.is_internal ?? false, notes: p.notes ?? '' });
+                              }}
+                            >
+                              <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                  <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
+                                    {!p.avatar_url ? initials(p.display_name) : null}
+                                  </Avatar>
+                                  <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
+                                    {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
+                                    {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
+                                  </Box>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </Stack>
+                </CardContent>
+              </Card>
             )}
           </Stack>
         )}
