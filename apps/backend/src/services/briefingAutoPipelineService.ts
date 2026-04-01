@@ -15,7 +15,7 @@ import { pool } from '../db';
 import { generateCompletion } from './ai/claudeService';
 import { loadLearningRules } from './learningEngine';
 import { getTrelloCredentials } from './trelloSyncService';
-import { sendTwilioWhatsApp, isTwilioConfigured } from './twilioService';
+import { sendWhatsAppText, isWhatsAppConfigured } from './whatsappService';
 import { sendEmail, isEmailConfigured } from './emailService';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -276,8 +276,9 @@ Responda em JSON com esta estrutura exata:
       }
     }
 
-    // ── 4. WhatsApp alert via Twilio ───────────────────────────────────────────
-    if (isTwilioConfigured()) {
+    // ── 4. WhatsApp alert via Meta Cloud API ──────────────────────────────────
+    const agencyPhones = (process.env.WHATSAPP_AGENCY_PHONES ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    if (isWhatsAppConfigured() && agencyPhones.length) {
       const deadline = formData.deadline
         ? new Date(formData.deadline + 'T00:00').toLocaleDateString('pt-BR')
         : '—';
@@ -307,8 +308,12 @@ Responda em JSON com esta estrutura exata:
         adminUrl ? `\n👉 Revisar: ${adminUrl}` : '',
       ].filter(s => s !== '').join('\n');
 
-      const sent = await sendTwilioWhatsApp(wamsg).catch(() => false);
-      output.whatsapp_sent = sent;
+      let allSent = true;
+      for (const phone of agencyPhones) {
+        const result = await sendWhatsAppText(phone, wamsg, { tenantId, event: 'briefing_alert' }).catch(() => ({ ok: false }));
+        if (!result.ok) allSent = false;
+      }
+      output.whatsapp_sent = allSent;
     }
 
     // ── 5. Persist output ──────────────────────────────────────────────────────
