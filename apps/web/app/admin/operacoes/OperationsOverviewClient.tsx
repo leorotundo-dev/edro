@@ -63,6 +63,7 @@ export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [syncing, setSyncing] = useState(false);
   const [signalStats, setSignalStats] = useState({ total: 0, critical: 0, attention: 0 });
+  const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; client_name: string; form_data: { type?: string; objective?: string } }>>([]);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
 
@@ -185,6 +186,9 @@ export default function OperationsOverviewClient() {
     if (loading) return;
     void loadOverviewRuntime();
     void loadSignalStats();
+    apiGet<{ requests: typeof pendingRequests }>('/admin/briefing-requests?status=submitted&limit=20')
+      .then(r => setPendingRequests(r?.requests ?? []))
+      .catch(() => {});
   }, [loadOverviewRuntime, loadSignalStats, loading]);
 
   const handleRefreshOverview = useCallback(async () => {
@@ -283,6 +287,81 @@ export default function OperationsOverviewClient() {
             <span>{syncHealth.unmapped_lists} lista(s) sem status mapeado — cards aparecem como Intake incorretamente. <a href="/admin/trello?tab=mapping" style={{ color: 'inherit', fontWeight: 600 }}>Mapear →</a></span>
           )}
         </Alert>
+      )}
+
+      {pendingRequests.length > 0 && (
+        <Box
+          sx={{
+            mb: 2,
+            borderRadius: 2,
+            overflow: 'hidden',
+            border: '2px solid #E85219',
+            background: 'linear-gradient(90deg, rgba(232,82,25,0.08) 0%, rgba(255,174,31,0.08) 100%)',
+            '@keyframes pulse-border': {
+              '0%, 100%': { borderColor: '#E85219' },
+              '50%': { borderColor: '#FFAE1F' },
+            },
+            animation: 'pulse-border 1.8s ease-in-out infinite',
+          }}
+        >
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            alignItems={{ sm: 'center' }}
+            justifyContent="space-between"
+            spacing={1.5}
+            sx={{ px: 2.5, py: 1.75 }}
+          >
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box
+                sx={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  bgcolor: 'rgba(232,82,25,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#E85219', flexShrink: 0,
+                  '@keyframes ring': {
+                    '0%': { transform: 'rotate(-15deg)' },
+                    '10%': { transform: 'rotate(15deg)' },
+                    '20%': { transform: 'rotate(-10deg)' },
+                    '30%': { transform: 'rotate(10deg)' },
+                    '40%, 100%': { transform: 'rotate(0deg)' },
+                  },
+                  animation: 'ring 2s ease-in-out infinite',
+                }}
+              >
+                <IconInbox size={20} />
+              </Box>
+              <Box>
+                <Typography variant="body2" fontWeight={800} sx={{ color: '#E85219', lineHeight: 1.2 }}>
+                  {pendingRequests.length === 1
+                    ? `🔔 JOB NOVO — ${pendingRequests[0].client_name}`
+                    : `🔔 ${pendingRequests.length} JOBS NOVOS do portal`}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
+                  {pendingRequests.length === 1
+                    ? (pendingRequests[0].form_data?.objective?.slice(0, 80) ?? pendingRequests[0].form_data?.type ?? 'Aguardando revisão')
+                    : pendingRequests.slice(0, 3).map(r => r.client_name).join(' · ') + (pendingRequests.length > 3 ? ` +${pendingRequests.length - 3}` : '')}
+                </Typography>
+              </Box>
+            </Stack>
+            <Stack direction="row" spacing={1} flexShrink={0}>
+              <Button
+                size="small" variant="contained"
+                sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c8581a' }, fontWeight: 700, fontSize: '0.75rem' }}
+                href="/admin/solicitacoes"
+                component="a"
+              >
+                Ver solicitações
+              </Button>
+              <Button
+                size="small" variant="outlined"
+                sx={{ borderColor: '#E85219', color: '#E85219', fontSize: '0.75rem' }}
+                onClick={() => setPendingRequests([])}
+              >
+                Dispensar
+              </Button>
+            </Stack>
+          </Stack>
+        </Box>
       )}
 
       {loading ? (
