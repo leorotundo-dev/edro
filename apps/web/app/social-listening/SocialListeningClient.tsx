@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -467,12 +468,22 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Box>
-        <Typography variant="h4">Social Listening</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Feed de menções no centro, leitura editorial primeiro e monitoramento separado.
-        </Typography>
-      </Box>
+      <WorkspaceHero
+        eyebrow="Blog / Posts"
+        title="Social Listening"
+        description="Feed de menções no centro, leitura editorial primeiro e monitoramento separado."
+        leftChips={[
+          { label: selectedClient?.name || 'Base global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(selectedClient?.segment_primary ? [{ label: selectedClient.segment_primary }] : []),
+        ]}
+        rightContent={
+          <>
+            <Chip size="small" label={`Total 7 dias: ${summary.total || 0}`} color="primary" variant="outlined" />
+            <Chip size="small" label={`Positivas: ${summary.positive || 0}`} color="success" variant="outlined" />
+            <Chip size="small" label={`Negativas: ${summary.negative || 0}`} color="error" variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card variant="outlined">
@@ -488,32 +499,6 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
           </CardContent>
         </Card>
       ) : null}
-
-      <Card variant="outlined" sx={{ borderRadius: 4 }}>
-        <CardContent>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
-            <Box>
-              <Typography variant="overline" color="text.secondary">Sala de monitoramento</Typography>
-              <Typography variant="h6" sx={{ mt: 0.5 }}>
-                {selectedClient?.name || 'Global'} · {selectedClient?.segment_primary || 'Base global'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                Use o feed para leitura e triagem. Insights e keywords ficam em modos separados.
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {[
-                { label: 'Total 7 dias', value: summary.total },
-                { label: 'Positivas', value: summary.positive },
-                { label: 'Negativas', value: summary.negative },
-                { label: 'Sentimento médio', value: `${formatNumber(summary.avg_score)}%` },
-              ].map((metric) => (
-                <Chip key={metric.label} size="small" label={`${metric.label}: ${metric.value || 0}`} variant="outlined" />
-              ))}
-            </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
 
       {viewTab === 'insights' && hasSentimentData ? (
         <Grid container spacing={2}>

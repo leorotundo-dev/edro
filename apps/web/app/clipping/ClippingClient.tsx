@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
 import { useConfirm } from '@/hooks/useConfirm';
 import Avatar from '@mui/material/Avatar';
@@ -800,12 +801,22 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Box>
-        <Typography variant="h4" fontWeight={700}>Clipping</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Feed editorial do radar, com leitura primeiro e gestão de fontes separada.
-        </Typography>
-      </Box>
+      <WorkspaceHero
+        eyebrow="Blog / Posts"
+        title="Clipping"
+        description="Feed editorial do radar, com leitura primeiro e gestão de fontes separada."
+        leftChips={[
+          { label: selectedClient?.name || 'Radar global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(selectedClient?.segment_primary ? [{ label: selectedClient.segment_primary }] : []),
+          { label: `${sources.length} fontes` },
+        ]}
+        rightContent={
+          <>
+            <Chip size="small" label={totalLabel} color="primary" variant="outlined" />
+            <Chip size="small" label={`${selectedItemIds.length} selecionados`} variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card sx={{ bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light' }}>

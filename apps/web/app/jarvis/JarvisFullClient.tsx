@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
@@ -285,17 +286,34 @@ export default function JarvisFullClient() {
 
   return (
     <AppShell title="Jarvis">
-      <Box
-        sx={(theme) => ({
-          display: 'flex',
-          height: 'calc(100vh - 64px)',
-          maxHeight: 'calc(100vh - 64px)',
-          overflow: 'hidden',
-          bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : '#f6f8fc',
-          gap: 2,
-          p: 2,
-        })}
-      >
+      <Stack spacing={2} sx={{ height: 'calc(100vh - 64px)', minHeight: 0 }}>
+        <WorkspaceHero
+          eyebrow="AI / Chat"
+          title="Jarvis"
+          description="Converse com o Jarvis, use atalhos de contexto e mantenha o histórico no mesmo workspace."
+          leftChips={[
+            { label: clientName || 'Contexto global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+            { label: conversationId ? 'Conversa ativa' : 'Nova conversa' },
+          ]}
+          rightContent={
+            <>
+              <Chip size="small" label={`${clients.length} clientes`} variant="outlined" />
+              <Chip size="small" label={`${messages.length} mensagens`} variant="outlined" />
+            </>
+          }
+        />
+        <Box
+          sx={(theme) => ({
+            display: 'flex',
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
+            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : '#f6f8fc',
+            gap: 2,
+            p: 2,
+            borderRadius: 4,
+          })}
+        >
 
         {/* Sidebar — history mobile */}
         <Slide direction="right" in={showHistory} mountOnEnter unmountOnExit>
@@ -610,7 +628,8 @@ export default function JarvisFullClient() {
             </Paper>
           </Box>
         </Paper>
-      </Box>
+        </Box>
+      </Stack>
     </AppShell>
   );
 }
