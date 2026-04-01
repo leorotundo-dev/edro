@@ -49,10 +49,10 @@ export default function DashboardPage() {
 
       <Grid container spacing={2}>
         {([
-          { icon: <IconBriefcase size={22} />, value: jobs.length, label: 'Projetos recentes', bg: 'primary.light', color: 'primary.main' },
+          { icon: <IconBriefcase size={22} />, value: jobs.length, label: 'Projetos recentes', bg: 'primary.light', color: 'primary.main', highlight: false },
           { icon: <IconCheckbox size={22} />, value: pendingApprovals, label: 'Aguardando aprovação', bg: 'warning.light', color: 'warning.dark', highlight: pendingApprovals > 0 },
-          { icon: <IconReceipt size={22} />, value: lastInvoice ? parseFloat(lastInvoice.amount_brl).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—', label: 'Última fatura', bg: 'success.light', color: 'success.dark' },
-        ] as const).map((kpi, i) => (
+          { icon: <IconReceipt size={22} />, value: lastInvoice ? parseFloat(lastInvoice.amount_brl).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—', label: 'Última fatura', bg: 'success.light', color: 'success.dark', highlight: false },
+        ]).map((kpi, i) => (
           <Grid key={i} size={{ xs: 12, sm: 4 }}>
             <Card sx={{ borderRadius: 3, ...(kpi.highlight ? { border: '1px solid', borderColor: 'warning.main' } : {}) }}>
               <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
