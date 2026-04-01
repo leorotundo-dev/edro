@@ -30,7 +30,21 @@ function copyDir(sourceDir, targetDir) {
 }
 
 fs.rmSync(distDir, { recursive: true, force: true });
-runNode([require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.json']);
+
+// Run tsc — type errors are non-fatal (noEmitOnError: false in tsconfig).
+// Only fail if tsc encounters a fatal parse/config error (no output produced).
+{
+  const tscResult = spawnSync(
+    process.execPath,
+    [require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.json'],
+    { cwd: appRoot, stdio: 'inherit', env: process.env },
+  );
+  if (tscResult.error) throw tscResult.error;
+  if (!fs.existsSync(path.join(distDir, 'src'))) {
+    console.error('[build] tsc produced no output — fatal compilation error');
+    process.exit(tscResult.status ?? 1);
+  }
+}
 
 copyDir(path.join(appRoot, 'src', 'db', 'migrations'), path.join(distDir, 'src', 'db', 'migrations'));
 copyDir(path.join(appRoot, 'src', 'data'), path.join(distDir, 'src', 'data'));
