@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Chart from '@/components/charts/Chart';
 import { apiGet, apiPatch } from '@/lib/api';
@@ -172,7 +171,7 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export function AiCostsView({ embedded = false }: { embedded?: boolean }) {
+export default function AiCostsPage() {
   const { isDark } = useThemeMode();
   const [days, setDays] = useState(30);
   const [data, setData] = useState<CostsData | null>(null);
@@ -297,8 +296,10 @@ export function AiCostsView({ embedded = false }: { embedded?: boolean }) {
     },
   ];
 
-  const content = (
+  return (
+    <AdminShell section="financeiro">
       <Box>
+
         {/* Header row */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
           <ToggleButtonGroup
@@ -799,22 +800,8 @@ export function AiCostsView({ embedded = false }: { embedded?: boolean }) {
           </>
         )}
       </Box>
+    </AdminShell>
   );
-
-  if (embedded) return content;
-
-  return (
-    <AppShell title="System Admin">
-      <Box>
-        <AdminSubmenu value="financeiro" />
-        {content}
-      </Box>
-    </AppShell>
-  );
-}
-
-export default function AiCostsPage() {
-  return <AiCostsView />;
 }
 
 // ── Chart builders ─────────────────────────────────────────────

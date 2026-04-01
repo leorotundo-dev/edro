@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
 import Box from '@mui/material/Box';
@@ -141,7 +140,7 @@ function IntegrationIcon({ iconKey, size = 20 }: { iconKey: string; size?: numbe
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-function CentralDeControleContent({ embedded = false }: { embedded?: boolean }) {
+export default function CentralDeControleClient() {
   const [data, setData] = useState<ControleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -191,14 +190,9 @@ function CentralDeControleContent({ embedded = false }: { embedded?: boolean }) 
     : data.summary.warnings > 0 || data.summary.alerts_warning > 0 ? 'Avisos pendentes'
     : 'Tudo operacional';
 
-  const content = (
-    <>
-      {!embedded ? (
-        <Box sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2, md: 3 } }}>
-          <AdminSubmenu value="controle" />
-        </Box>
-      ) : null}
-      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: 'auto' }}>
+  return (
+    <AdminShell section="controle">
+      <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
 
         {/* ── Header ── */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={1}>
@@ -404,18 +398,6 @@ function CentralDeControleContent({ embedded = false }: { embedded?: boolean }) 
           </>
         )}
       </Box>
-    </>
+    </AdminShell>
   );
-
-  if (embedded) return content;
-
-  return <AppShell title="Central de Controle">{content}</AppShell>;
-}
-
-export function EmbeddedCentralDeControleClient() {
-  return <CentralDeControleContent embedded />;
-}
-
-export default function CentralDeControleClient() {
-  return <CentralDeControleContent />;
 }

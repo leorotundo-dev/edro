@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
+import AdminShell from '@/components/admin/AdminShell';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
@@ -244,8 +243,7 @@ export default function AdminIntelligencePage() {
   }, {} as Record<string, { client_name: string; items: PendingInsight[] }>) ?? {};
 
   return (
-    <AppShell title="Inteligência IA">
-      <AdminSubmenu value="intelligence" />
+    <AdminShell section="sistema">
 
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
@@ -832,6 +830,6 @@ export default function AdminIntelligencePage() {
         )}
         </>
       )}
-    </AppShell>
+    </AdminShell>
   );
 }
