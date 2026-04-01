@@ -1,14 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import { clearToken } from '@/lib/api';
 
-const FEATURES = [
-  'Aprovacoes centralizadas',
-  'Projetos em tempo real',
-  'Relatorios e faturas',
-  'Contexto direto com a agencia',
-];
+const FEATURES = ['Aprovações centralizadas', 'Projetos em tempo real', 'Relatórios e faturas', 'Contexto direto com a agência'];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,137 +22,80 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const handleRequestLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+    e.preventDefault(); setLoading(true); setError('');
     try {
-      const res = await fetch('/api/auth/magic-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, role: 'client' }),
-      });
+      const res = await fetch('/api/auth/magic-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role: 'client' }) });
       if (!res.ok) throw new Error(await res.text());
       setSent(true);
-    } catch (err: any) {
-      setError(err.message ?? 'Erro ao enviar link');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { setError(err.message ?? 'Erro ao enviar link'); } finally { setLoading(false); }
   };
 
   const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+    e.preventDefault(); setLoading(true); setError('');
     try {
-      const res = await fetch('/api/auth/magic-link/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: token, role: 'client' }),
-      });
+      const res = await fetch('/api/auth/magic-link/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code: token, role: 'client' }) });
       if (!res.ok) throw new Error(await res.text());
-      clearToken();
-      window.location.href = '/';
-    } catch (err: any) {
-      setError(err.message ?? 'Token invalido ou expirado');
-    } finally {
-      setLoading(false);
-    }
+      clearToken(); window.location.href = '/';
+    } catch (err: any) { setError(err.message ?? 'Token inválido ou expirado'); } finally { setLoading(false); }
   };
 
   return (
-    <div className="portal-login">
-      <section className="portal-login-hero">
-        <div className="portal-brand-lockup">
-          <div className="portal-brand-mark" aria-hidden="true" />
-          <div className="portal-brand-copy">
-            <span className="portal-brand-label">Edro Studio</span>
-            <h1 className="portal-brand-title">Portal do Cliente</h1>
-            <p className="portal-brand-subtitle">
-              A mesma linguagem visual do Edro Web, agora aplicada ao acesso do cliente.
-            </p>
-          </div>
-        </div>
-
-        <div className="portal-login-display">
-          <span className="portal-kicker">Workspace cliente</span>
-          <h2 className="portal-login-title">
-            Sua agencia, seus materiais e suas aprovacoes em um unico <em>painel</em>.
-          </h2>
-          <p className="portal-login-copy">
-            Entre com seu email para acompanhar jobs, aprovar entregas, consultar relatorios e revisar faturamento sem depender de troca manual por WhatsApp ou email.
-          </p>
-
-          <div className="portal-login-features">
-            {FEATURES.map((feature) => (
-              <span key={feature} className="portal-login-pill">{feature}</span>
+    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.default' }}>
+      {/* Left — brand */}
+      <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', justifyContent: 'space-between', width: '55%', bgcolor: 'primary.main', p: 6, color: 'white' }}>
+        <Box component="img" src="/brand/logo-studio-white.png" alt="Edro Studio" onError={(e: any) => { e.target.style.display = 'none'; }} sx={{ height: 28, width: 'auto', objectFit: 'contain', alignSelf: 'flex-start' }} />
+        <Box>
+          <Typography variant="overline" sx={{ opacity: 0.7, letterSpacing: '0.12em' }}>Workspace cliente</Typography>
+          <Typography variant="h2" sx={{ color: 'white', mt: 1, mb: 2, fontWeight: 700, lineHeight: 1.15 }}>
+            Seus projetos,<br />suas aprovações,<br />em um só lugar.
+          </Typography>
+          <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.8)', mb: 4, maxWidth: 400 }}>
+            Acompanhe o andamento do trabalho, aprove entregas e consulte relatórios sem precisar de WhatsApp ou e-mail.
+          </Typography>
+          <Stack direction="row" flexWrap="wrap" gap={1}>
+            {FEATURES.map((f) => (
+              <Chip key={f} label={f} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 500, border: '1px solid rgba(255,255,255,0.25)' }} />
             ))}
-          </div>
-        </div>
+          </Stack>
+        </Box>
+        <Typography variant="caption" sx={{ opacity: 0.5 }}>Edro.Digital · operação orientada por contexto</Typography>
+      </Box>
 
-        <p className="portal-brand-subtitle">Edro.Digital · operacao orientada por contexto</p>
-      </section>
-
-      <aside className="portal-login-side">
-        <div className="portal-login-card">
-          <span className="portal-kicker">Acesso seguro</span>
-          <h2>{sent ? 'Validar codigo' : 'Entrar no portal'}</h2>
-          <p>
-            {sent
-              ? 'Use o codigo enviado para seu email para concluir a autenticacao.'
-              : 'Digite o email autorizado para receber o link de acesso.'}
-          </p>
-
-          {error && <div className="portal-alert portal-alert-error">{error}</div>}
-
-          {!sent ? (
-            <form onSubmit={handleRequestLink} className="portal-login-form">
-              <div>
-                <label className="portal-field-label" htmlFor="client-email">Email</label>
-                <input
-                  id="client-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="voce@empresa.com"
-                  className="portal-input"
-                />
-              </div>
-
-              <button type="submit" disabled={loading} className="portal-button">
-                {loading ? 'Enviando acesso...' : 'Enviar link de acesso'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerify} className="portal-login-form">
-              <div className="portal-note">
-                Verifique o email <strong style={{ color: '#fff' }}>{email}</strong> e cole o codigo abaixo.
-              </div>
-
-              <div>
-                <label className="portal-field-label" htmlFor="client-code">Codigo</label>
-                <input
-                  id="client-code"
-                  type="text"
-                  required
-                  value={token}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Cole o codigo aqui"
-                  className="portal-input"
-                />
-              </div>
-
-              <button type="submit" disabled={loading} className="portal-button">
-                {loading ? 'Validando...' : 'Entrar'}
-              </button>
-              <button type="button" onClick={() => setSent(false)} className="portal-button-ghost">
-                Reenviar link
-              </button>
-            </form>
-          )}
-        </div>
-      </aside>
-    </div>
+      {/* Right — form */}
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: { xs: 3, md: 6 } }}>
+        <Box sx={{ width: '100%', maxWidth: 400 }}>
+          <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 4, textAlign: 'center' }}>
+            <Box component="img" src="/brand/logo-studio.png" alt="Edro Studio" sx={{ height: 28, width: 'auto' }} />
+          </Box>
+          <Typography variant="overline" color="text.secondary">Acesso seguro</Typography>
+          <Typography variant="h4" sx={{ mt: 0.5, mb: 0.75 }}>{sent ? 'Valide o código' : 'Entrar no portal'}</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            {sent ? `Use o código enviado para ${email} para concluir o acesso.` : 'Digite o email autorizado para receber o link de acesso.'}
+          </Typography>
+          {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
+          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent sx={{ p: 3 }}>
+              {!sent ? (
+                <Stack component="form" onSubmit={handleRequestLink} spacing={2}>
+                  <TextField label="Email" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@empresa.com" autoFocus />
+                  <Button type="submit" variant="contained" size="large" disabled={loading} fullWidth>
+                    {loading ? 'Enviando...' : 'Enviar link de acesso'}
+                  </Button>
+                </Stack>
+              ) : (
+                <Stack component="form" onSubmit={handleVerify} spacing={2}>
+                  <Alert severity="info" sx={{ borderRadius: 2 }}>Verifique seu email e cole o código abaixo.</Alert>
+                  <TextField label="Código" required fullWidth value={token} onChange={(e) => setTokenInput(e.target.value)} placeholder="Cole o código aqui" autoFocus />
+                  <Button type="submit" variant="contained" size="large" disabled={loading} fullWidth>
+                    {loading ? 'Validando...' : 'Entrar'}
+                  </Button>
+                  <Button variant="text" size="small" onClick={() => setSent(false)} sx={{ color: 'text.secondary' }}>Reenviar link</Button>
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      </Box>
+    </Box>
   );
 }

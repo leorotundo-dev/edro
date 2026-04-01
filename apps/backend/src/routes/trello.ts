@@ -126,7 +126,16 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const fetchBoards = async (linkedClientId?: string | null) => query<any>(
       `SELECT b.id, b.name, b.description, b.color, b.client_id, b.trello_board_id, b.last_synced_at,
               b.is_archived, b.created_at,
-              COUNT(c.id)::int AS card_count
+              COUNT(c.id)::int AS card_count,
+              (SELECT COUNT(*)::int
+               FROM project_cards pc
+               JOIN project_lists pl ON pl.id = pc.list_id
+               WHERE pc.board_id = b.id AND pc.is_archived = false
+                 AND (UPPER(pl.name) LIKE '%ANDAMENTO%'
+                      OR UPPER(pl.name) LIKE '%PRODUÇÃO%'
+                      OR UPPER(pl.name) LIKE '%FAZENDO%'
+                      OR UPPER(pl.name) LIKE '%EXECUÇÃO%')
+              ) AS in_progress_count
        FROM project_boards b
        LEFT JOIN project_cards c ON c.board_id = b.id AND c.is_archived = false
        WHERE b.tenant_id = $1

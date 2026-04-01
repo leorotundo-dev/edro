@@ -1,55 +1,33 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
-import Link from 'next/link';
-import clsx from 'clsx';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import { IconBriefcase, IconCheckbox, IconReceipt, IconArrowRight, IconPlus } from '@tabler/icons-react';
 
-type ClientMe = {
-  id: string;
-  name: string;
-  status: string;
+type ClientMe = { id: string; name: string; status: string };
+type Job = { id: string; title: string; status: string; updated_at: string };
+type Invoice = { id: string; description: string; amount_brl: string; status: string; due_date: string | null };
+
+const JOB_STATUS: Record<string, { label: string; color: 'default' | 'warning' | 'success' | 'info' }> = {
+  in_progress: { label: 'Em andamento', color: 'info' },
+  review:      { label: 'Aguardando aprovação', color: 'warning' },
+  done:        { label: 'Concluído', color: 'success' },
 };
-
-type Job = {
-  id: string;
-  title: string;
-  status: string;
-  updated_at: string;
-};
-
-type Invoice = {
-  id: string;
-  description: string;
-  amount_brl: string;
-  status: string;
-  due_date: string | null;
-};
-
-function formatDate(value: string | null) {
-  if (!value) return 'Sem data';
-  return new Date(value).toLocaleDateString('pt-BR');
-}
-
-function formatCurrency(value: string) {
-  return parseFloat(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function invoiceTone(status: string) {
-  if (status === 'paid') return 'portal-pill-success';
-  if (status === 'overdue') return 'portal-pill-danger';
-  if (status === 'sent') return 'portal-pill-warning';
-  return 'portal-pill-neutral';
-}
-
-function invoiceLabel(status: string) {
-  if (status === 'paid') return 'Paga';
-  if (status === 'overdue') return 'Vencida';
-  if (status === 'sent') return 'Em aberto';
-  return 'Rascunho';
-}
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { data: me } = useSWR<{ client: ClientMe }>('/portal/client/me', swrFetcher);
   const { data: jobsData } = useSWR<{ jobs: Job[] }>('/portal/client/jobs?limit=3', swrFetcher);
   const { data: invoicesData } = useSWR<{ invoices: Invoice[] }>('/portal/client/invoices?limit=1', swrFetcher);
@@ -57,97 +35,81 @@ export default function DashboardPage() {
   const jobs = jobsData?.jobs ?? [];
   const lastInvoice = invoicesData?.invoices?.[0];
   const firstName = me?.client?.name?.split(' ')[0] ?? 'cliente';
+  const pendingApprovals = jobs.filter((j) => j.status === 'review').length;
 
   return (
-    <div className="portal-page">
-      <div className="portal-page-header">
-        <div>
-          <span className="portal-kicker">Workspace cliente</span>
-          <h2 className="portal-page-title">Ola, {firstName}</h2>
-          <p className="portal-page-subtitle">
-            Aqui voce acompanha o que esta em andamento, o que precisa de aprovacao e o status financeiro do seu relacionamento com a Edro.
-          </p>
-        </div>
-      </div>
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="overline" color="text.secondary">Workspace cliente</Typography>
+        <Typography variant="h4" sx={{ mt: 0.25 }}>Olá, {firstName}</Typography>
+        <Typography variant="body1" color="text.secondary">
+          Acompanhe o que está em andamento, o que precisa de aprovação e o status do seu trabalho com a agência.
+        </Typography>
+      </Box>
 
-      <section className="portal-hero-card">
-        <div className="portal-section-head">
-          <div>
-            <h3 className="portal-section-title">Resumo operacional</h3>
-            <p className="portal-card-subtitle">Visao rapida do que ja esta sendo executado pela agencia.</p>
-          </div>
-        </div>
-        <div className="portal-stat-grid">
-          <div className="portal-stat-card">
-            <div className="portal-stat-label">Projetos recentes</div>
-            <div className="portal-stat-value">{jobs.length}</div>
-            <div className="portal-stat-meta">Jobs ativos ou atualizados no periodo mais recente.</div>
-          </div>
-          <div className="portal-stat-card">
-            <div className="portal-stat-label">Ultima fatura</div>
-            <div className="portal-stat-value">{lastInvoice ? formatCurrency(lastInvoice.amount_brl) : 'Sem emissao'}</div>
-            <div className="portal-stat-meta">
-              {lastInvoice ? `${invoiceLabel(lastInvoice.status)} · ${formatDate(lastInvoice.due_date)}` : 'Nenhuma cobranca registrada.'}
-            </div>
-          </div>
-        </div>
-      </section>
+      <Grid container spacing={2}>
+        {([
+          { icon: <IconBriefcase size={22} />, value: jobs.length, label: 'Projetos recentes', bg: 'primary.light', color: 'primary.main' },
+          { icon: <IconCheckbox size={22} />, value: pendingApprovals, label: 'Aguardando aprovação', bg: 'warning.light', color: 'warning.dark', highlight: pendingApprovals > 0 },
+          { icon: <IconReceipt size={22} />, value: lastInvoice ? parseFloat(lastInvoice.amount_brl).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—', label: 'Última fatura', bg: 'success.light', color: 'success.dark' },
+        ] as const).map((kpi, i) => (
+          <Grid key={i} size={{ xs: 12, sm: 4 }}>
+            <Card sx={{ borderRadius: 3, ...(kpi.highlight ? { border: '1px solid', borderColor: 'warning.main' } : {}) }}>
+              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ p: 1.25, bgcolor: kpi.bg, borderRadius: 2, color: kpi.color, display: 'flex' }}>{kpi.icon}</Box>
+                <Box>
+                  <Typography variant="h5">{kpi.value}</Typography>
+                  <Typography variant="caption" color="text.secondary">{kpi.label}</Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
 
-      <section className="portal-card">
-        <div className="portal-section-head">
-          <div>
-            <h3 className="portal-section-title">Projetos recentes</h3>
-            <p className="portal-card-subtitle">Acesse rapidamente o que foi atualizado por ultimo.</p>
-          </div>
-          <Link href="/jobs" className="portal-section-link">Ver todos</Link>
-        </div>
+      <Card sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">Projetos recentes</Typography>
+            <Button size="small" endIcon={<IconArrowRight size={14} />} onClick={() => router.push('/jobs')}>Ver todos</Button>
+          </Stack>
+          {!jobsData ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} /></Box>
+          ) : jobs.length === 0 ? (
+            <Alert severity="info" sx={{ borderRadius: 2 }}>Nenhum projeto disponível ainda.</Alert>
+          ) : (
+            <Stack divider={<Divider />}>
+              {jobs.map((job) => {
+                const st = JOB_STATUS[job.status] ?? { label: job.status, color: 'default' as const };
+                return (
+                  <Box key={job.id} onClick={() => router.push(`/jobs/${job.id}`)}
+                    sx={{ py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, px: 1, borderRadius: 1, mx: -1 }}>
+                    <Box>
+                      <Typography variant="subtitle2">{job.title}</Typography>
+                      <Typography variant="caption" color="text.secondary">Atualizado em {new Date(job.updated_at).toLocaleDateString('pt-BR')}</Typography>
+                    </Box>
+                    <Chip label={st.label} color={st.color} size="small" variant="outlined" />
+                  </Box>
+                );
+              })}
+            </Stack>
+          )}
+        </CardContent>
+      </Card>
 
-        {jobs.length === 0 ? (
-          <div className="portal-empty">
-            <div>
-              <p className="portal-card-title">Nenhum projeto encontrado</p>
-              <p className="portal-card-subtitle">Quando a agencia publicar novos jobs, eles aparecerao aqui.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="portal-list">
-            {jobs.map((job) => (
-              <Link key={job.id} href={`/jobs/${job.id}`} className="portal-list-card">
-                <div className="portal-list-row">
-                  <div>
-                    <p className="portal-card-title">{job.title}</p>
-                    <p className="portal-card-subtitle">Atualizado em {formatDate(job.updated_at)}</p>
-                  </div>
-                  <span
-                    className={clsx(
-                      'portal-pill',
-                      job.status === 'review'
-                        ? 'portal-pill-warning'
-                        : job.status === 'done'
-                          ? 'portal-pill-success'
-                          : 'portal-pill-neutral',
-                    )}
-                  >
-                    {job.status === 'review' ? 'Em aprovacao' : job.status === 'done' ? 'Concluido' : 'Em andamento'}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {lastInvoice && (
-        <section className="portal-note">
-          <div className="portal-section-head" style={{ marginBottom: 0 }}>
-            <div>
-              <h3 className="portal-section-title">Financeiro em foco</h3>
-              <p className="portal-card-subtitle">Ultimo documento emitido para sua conta.</p>
-            </div>
-            <span className={clsx('portal-pill', invoiceTone(lastInvoice.status))}>{invoiceLabel(lastInvoice.status)}</span>
-          </div>
-        </section>
-      )}
-    </div>
+      <Card sx={{ borderRadius: 3, bgcolor: 'primary.light', border: '1px solid', borderColor: 'primary.main' }}>
+        <CardContent>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2}>
+            <Box>
+              <Typography variant="h6" color="primary.dark">Precisa de algo novo?</Typography>
+              <Typography variant="body2" color="primary.dark" sx={{ opacity: 0.8 }}>Envie um briefing e nossa equipe entrará em contato em até 24h.</Typography>
+            </Box>
+            <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/briefing/novo')} sx={{ flexShrink: 0 }}>
+              Solicitar novo job
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }

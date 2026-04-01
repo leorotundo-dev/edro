@@ -776,27 +776,22 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       const response = await apiGet('/clients');
       setClients(response || []);
       if (response?.length) {
-        const desired = initialClientId || searchParams.get('clientId');
-        let match = desired ? response.find((client: ClientRow) => client.id === desired) : null;
-        if (!match && typeof window !== 'undefined') {
-          const stored = window.localStorage.getItem('edro_active_client_id');
-          if (stored === 'all') {
-            setSelectedClient(null);
-            return;
-          }
-          if (stored) {
-            match = response.find((client: ClientRow) => client.id === stored) || null;
-          }
-        }
-        if (!match) {
-          match = response[0] || null;
-        }
-        if (isLocked && match) {
-          setClients([match]);
+        // If embedded/locked with a specific client, use that
+        if (isLocked && initialClientId) {
+          const match = response.find((client: ClientRow) => client.id === initialClientId) || null;
+          setClients(match ? [match] : response);
           setSelectedClient(match);
-        } else {
-          setSelectedClient(match || null);
+          return;
         }
+        // URL param takes priority (e.g. deep link)
+        const desired = initialClientId || searchParams.get('clientId');
+        if (desired) {
+          const match = response.find((client: ClientRow) => client.id === desired) || null;
+          setSelectedClient(match);
+          return;
+        }
+        // Default: no client selected — show global calendar
+        setSelectedClient(null);
       } else {
         setSelectedClient(null);
       }
@@ -850,6 +845,11 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       setEventsByDate(map);
     } catch (err: any) {
       setEventsByDate(new Map());
+      // If client not found (stale clientId), fall back to global calendar silently
+      if (err?.message === 'client_not_found' || err?.status === 404) {
+        setSelectedClient(null);
+        return;
+      }
       setError(err?.message || 'Falha ao carregar datas do calendario.');
     } finally {
       setEventsLoading(false);
@@ -1737,28 +1737,30 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       <DashboardCard>
         <Stack spacing={2}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+            {/* Month name + navigation — left side, prominent */}
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <IconButton size="small" onClick={handlePrev} sx={{ color: 'text.secondary' }}>
+                <IconChevronLeft size={20} />
+              </IconButton>
+              <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: '-0.5px', userSelect: 'none', minWidth: 200 }}>
+                {headerLabel}
+              </Typography>
+              <IconButton size="small" onClick={handleNext} sx={{ color: 'text.secondary' }}>
+                <IconChevronRight size={20} />
+              </IconButton>
+            </Stack>
+
+            {/* View toggle — right side */}
             <ToggleButtonGroup
               value={view}
               exclusive
               size="small"
               onChange={(_, newView) => { if (newView) setView(newView); }}
             >
-              <ToggleButton value="month">Month</ToggleButton>
-              <ToggleButton value="week">Week</ToggleButton>
-              <ToggleButton value="day">Day</ToggleButton>
+              <ToggleButton value="month">Mês</ToggleButton>
+              <ToggleButton value="week">Semana</ToggleButton>
+              <ToggleButton value="day">Dia</ToggleButton>
             </ToggleButtonGroup>
-
-            <Stack direction="row" spacing={1} alignItems="center">
-              <IconButton size="small" onClick={handlePrev}>
-                <IconChevronLeft size={20} />
-              </IconButton>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, minWidth: 180, textAlign: 'center' }}>
-                {headerLabel}
-              </Typography>
-              <IconButton size="small" onClick={handleNext}>
-                <IconChevronRight size={20} />
-              </IconButton>
-            </Stack>
           </Stack>
 
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">

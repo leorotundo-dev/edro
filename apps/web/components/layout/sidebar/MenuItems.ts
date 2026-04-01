@@ -7,12 +7,7 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconUserCircle,
-  IconReportAnalytics,
-  IconAlertSquare,
-  IconCalendarStats,
-  IconBuildingBank,
-  IconHeartbeat,
-  IconFileTypePdf,
+  IconInbox,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -49,6 +44,12 @@ const MenuItems: MenuGroupType[] = [
         href: '/clients',
       },
       {
+        id: 'solicitacoes',
+        title: 'Solicitações',
+        icon: IconInbox,
+        href: '/admin/solicitacoes',
+      },
+      {
         id: 'calendar',
         title: 'Calendário',
         icon: IconCalendar,
@@ -74,42 +75,6 @@ const MenuItems: MenuGroupType[] = [
     ],
   },
   {
-    subheader: 'Relatórios',
-    requiredGroupRole: ['admin', 'manager'],
-    items: [
-      {
-        id: 'painel-executivo',
-        title: 'Painel Executivo',
-        icon: IconReportAnalytics,
-        href: '/admin/relatorios/painel',
-      },
-      {
-        id: 'fila-de-acao',
-        title: 'Fila de Ação',
-        icon: IconAlertSquare,
-        href: '/admin/relatorios/fila',
-      },
-      {
-        id: 'diario',
-        title: 'Diário',
-        icon: IconCalendarStats,
-        href: '/admin/diario',
-      },
-      {
-        id: 'financeiro-cruzado',
-        title: 'Financeiro',
-        icon: IconBuildingBank,
-        href: '/admin/relatorios/financeiro',
-      },
-      {
-        id: 'relatorios-mensais',
-        title: 'Relatórios Mensais',
-        icon: IconFileTypePdf,
-        href: '/admin/relatorios',
-      },
-    ],
-  },
-  {
     subheader: 'Agência',
     requiredGroupRole: ['admin', 'manager'],
     items: [
@@ -126,17 +91,10 @@ const MenuItems: MenuGroupType[] = [
         href: '/admin/equipe',
       },
       {
-        id: 'controle',
-        title: 'Central de Controle',
-        icon: IconHeartbeat,
-        href: '/admin/controle',
-        requiredRole: ['admin'],
-      },
-      {
         id: 'admin-system',
         title: 'Admin',
         icon: IconShieldCheck,
-        href: '/admin/system',
+        href: '/admin/controle',
         requiredRole: ['admin'],
       },
     ],

@@ -32,7 +32,6 @@ import {
   IconChartBar,
   IconCurrencyReal,
 } from '@tabler/icons-react';
-import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -112,6 +111,7 @@ type TrelloBoard = {
   id: string;
   name: string;
   card_count: number;
+  in_progress_count: number;
   trello_board_id: string | null;
 };
 
@@ -300,9 +300,6 @@ export default function DashboardClient() {
   return (
     <AppShell title="Dashboard">
       <Stack spacing={3.5}>
-
-        {/* ── Jarvis ────────────────────────────────────────────── */}
-        <JarvisHomeSection />
 
         {/* ── Quick Stats ───────────────────────────────────────── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
@@ -559,7 +556,7 @@ export default function DashboardClient() {
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                 <Box>
                   <Typography variant="h6" fontWeight={700}>Produção em andamento</Typography>
-                  <Typography variant="caption" color="text.secondary">Boards Trello · cards totais por cliente</Typography>
+                  <Typography variant="caption" color="text.secondary">Boards Trello · cards em andamento por cliente</Typography>
                 </Box>
                 <Button size="small" startIcon={<IconLayoutKanban size={14} />} onClick={() => router.push('/projetos')}>
                   Ver kanban
@@ -581,7 +578,7 @@ export default function DashboardClient() {
                       <IconLayoutKanban size={16} color="#E85219" />
                       <Box sx={{ minWidth: 0 }}>
                         <Typography variant="caption" fontWeight={700} noWrap display="block">{board.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{board.card_count} cards</Typography>
+                        <Typography variant="caption" color="text.secondary">{board.in_progress_count ?? 0} em andamento</Typography>
                       </Box>
                     </Stack>
                   </Box>
