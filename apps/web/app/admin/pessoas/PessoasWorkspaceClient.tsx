@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import EquipePageClient from '@/app/admin/equipe/EquipePageClient';
 import PeopleDirectoryClient from './PeopleDirectoryClient';
 import { apiGet } from '@/lib/api';
@@ -240,8 +239,6 @@ export default function PessoasWorkspaceClient() {
             </Stack>
           </Stack>
         </Box>
-
-        <AdminSubmenu value="pessoas" />
 
         <Box
           sx={(theme) => ({
