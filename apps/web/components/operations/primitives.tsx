@@ -29,6 +29,7 @@ import Tooltip from '@mui/material/Tooltip';
 import {
   IconArrowRight,
   IconBriefcase,
+  IconCalendar,
   IconCalendarEvent,
   IconCalendarTime,
   IconCamera,
