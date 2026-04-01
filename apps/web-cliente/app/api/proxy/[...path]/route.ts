@@ -4,7 +4,6 @@ import {
   CLIENT_PORTAL_COOKIE,
   getSessionCookieConfig,
   isPortalSessionValid,
-  isSameOriginWrite,
 } from '@/lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
@@ -19,10 +18,6 @@ async function proxyRequest(
     const response = NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
     response.cookies.set(CLIENT_PORTAL_COOKIE, '', { ...getSessionCookieConfig(), maxAge: 0 });
     return response;
-  }
-
-  if (!['GET', 'HEAD'].includes(method) && !isSameOriginWrite(request)) {
-    return NextResponse.json({ error: 'forbidden_origin' }, { status: 403 });
   }
 
   const { path } = await params;
