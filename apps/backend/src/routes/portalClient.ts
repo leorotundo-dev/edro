@@ -625,7 +625,8 @@ export async function portalTokenRoutes(app: FastifyInstance) {
     // 1. Check portal_contacts invite tokens first
     const contactRes = await pool.query(
       `SELECT pc.id AS contact_id, pc.client_id, pc.tenant_id, pc.email, pc.name, pc.role,
-              c.name AS client_name
+              c.name AS client_name,
+              c.profile->>'logo_url' AS client_logo_url
        FROM portal_contacts pc
        JOIN clients c ON c.id = pc.client_id
        WHERE pc.invite_token = $1 AND pc.is_active = true`,
@@ -651,6 +652,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
           contact_id: c.contact_id,
           contact_role: c.role,
           client_name: c.client_name,
+          client_logo_url: c.client_logo_url ?? null,
           name: c.name ?? c.email,
         },
         { expiresIn: '30d' },
@@ -661,7 +663,8 @@ export async function portalTokenRoutes(app: FastifyInstance) {
     // 2. Fall back to client_portal_tokens (generic magic link)
     const result = await pool.query(
       `SELECT cpt.id, cpt.tenant_id, cpt.client_id, cpt.expires_at,
-              c.name AS client_name
+              c.name AS client_name,
+              c.profile->>'logo_url' AS client_logo_url
        FROM client_portal_tokens cpt
        JOIN clients c ON c.id = cpt.client_id
        WHERE cpt.token = $1`,
@@ -693,6 +696,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
         client_id: row.client_id,
         tenant_id: row.tenant_id,
         client_name: row.client_name,
+        client_logo_url: row.client_logo_url ?? null,
         portal_token: token,
       },
       { expiresIn: '7d' },
