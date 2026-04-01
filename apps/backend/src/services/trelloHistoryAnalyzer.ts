@@ -603,7 +603,7 @@ export interface BoardInsights {
 }
 
 export async function getBoardInsights(boardId: string, tenantId: string): Promise<BoardInsights | null> {
-  const [boardRes, summaryRes] = await Promise.all([
+  const [boardRes, summaryRes, inProgressRes] = await Promise.all([
     query<{ id: string; name: string; client_id: string | null }>(
       `SELECT id, name, client_id FROM project_boards WHERE id = $1 AND tenant_id = $2`,
       [boardId, tenantId],
@@ -612,11 +612,26 @@ export async function getBoardInsights(boardId: string, tenantId: string): Promi
       `SELECT * FROM project_board_analytics WHERE board_id = $1`,
       [boardId],
     ),
+    query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count
+       FROM project_cards c
+       JOIN project_lists l ON l.id = c.list_id
+       WHERE c.board_id = $1
+         AND c.is_archived = false
+         AND (
+           UPPER(l.name) LIKE '%ANDAMENTO%'
+           OR UPPER(l.name) LIKE '%PRODUÇÃO%'
+           OR UPPER(l.name) LIKE '%FAZENDO%'
+           OR UPPER(l.name) LIKE '%EXECUÇÃO%'
+         )`,
+      [boardId],
+    ),
   ]);
 
   if (!boardRes.rows.length) return null;
   const board = boardRes.rows[0];
   const s = summaryRes.rows[0];
+  const cardsInProgressLive = inProgressRes.rows[0]?.count ?? 0;
 
   // By-format breakdown
   const fmtRes = await query<{ format: string; count: number; median_cycle: number; avg_rev: number }>(
@@ -656,7 +671,7 @@ export async function getBoardInsights(boardId: string, tenantId: string): Promi
     summary: {
       total_cards: s?.total_cards ?? 0,
       cards_done: s?.cards_done ?? 0,
-      cards_in_progress: s?.cards_in_progress ?? 0,
+      cards_in_progress: cardsInProgressLive,
       cards_cancelled: s?.cards_cancelled ?? 0,
       pct_completion: s?.total_cards ? Math.round((s.cards_done / s.total_cards) * 100) : 0,
       pct_on_time: s?.pct_on_time ? Number(s.pct_on_time) : null,
