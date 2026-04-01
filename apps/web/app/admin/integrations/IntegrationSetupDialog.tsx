@@ -212,6 +212,26 @@ function EvolutionSetup({ health, onRefresh }: { health: IntegrationHealth | nul
     }
   };
 
+  const handleForceReset = async () => {
+    setPhase('connecting');
+    setErrorMsg('');
+    setQrBase64('');
+    try {
+      const res = await apiPost<{ success: boolean; qr: { base64: string; code: string } }>('/whatsapp-groups/restart', { force_recreate: true });
+      if (res.qr?.base64) {
+        setQrBase64(res.qr.base64);
+        setPhase('qr');
+        pollRef.current = setInterval(pollStatus, 3000);
+      } else {
+        setPhase('error');
+        setErrorMsg('Sessão reiniciada mas QR não disponível. Clique em Atualizar QR.');
+      }
+    } catch (e: any) {
+      setPhase('error');
+      setErrorMsg(e.message || 'Falha ao reiniciar sessão.');
+    }
+  };
+
   if (!configured) {
     return (
       <Stack spacing={2}>
@@ -287,14 +307,22 @@ function EvolutionSetup({ health, onRefresh }: { health: IntegrationHealth | nul
       {phase === 'error' && (
         <Stack spacing={1}>
           <Alert severity="error">{errorMsg}</Alert>
-          <Button variant="outlined" onClick={handleConnect}>Tentar novamente</Button>
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" onClick={handleConnect} sx={{ flex: 1 }}>Tentar novamente</Button>
+            <Button variant="contained" color="warning" onClick={handleForceReset} sx={{ flex: 1 }}>
+              Forçar reconexão
+            </Button>
+          </Stack>
         </Stack>
       )}
 
       <Divider />
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row" spacing={1} flexWrap="wrap">
         <Button size="small" variant="outlined" startIcon={<IconRefresh size={13} />} onClick={handleReconfigure}>
           Reconfigurar webhook
+        </Button>
+        <Button size="small" variant="outlined" color="warning" startIcon={<IconRefresh size={13} />} onClick={handleForceReset}>
+          Resetar sessão
         </Button>
         <Button size="small" href="/admin/whatsapp-groups" endIcon={<IconExternalLink size={13} />}>
           Gerenciar grupos
