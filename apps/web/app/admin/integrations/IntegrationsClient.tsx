@@ -398,6 +398,7 @@ export default function IntegrationsClient() {
 
   const gmailConnected = searchParams.get('gmail_connected');
   const gmailError = searchParams.get('gmail_error');
+  const gmailWarn = searchParams.get('gmail_warn');
   const calendarConnected = searchParams.get('calendar_connected');
   const calendarError = searchParams.get('calendar_error');
   const sortedMonitor = monitor
@@ -469,7 +470,13 @@ export default function IntegrationsClient() {
         </Stack>
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-        {gmailConnected && <Alert severity="success" sx={{ mb: 2 }}>Gmail conectado: {gmailConnected}</Alert>}
+        {gmailConnected && !gmailWarn && <Alert severity="success" sx={{ mb: 2 }}>Gmail conectado: {gmailConnected}</Alert>}
+        {gmailConnected && gmailWarn && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <strong>Gmail conectado ({gmailConnected})</strong> — mas o Pub/Sub watch falhou: {gmailWarn}
+            <br /><small>Emails em tempo real não funcionarão até corrigir GOOGLE_PUBSUB_TOPIC no Railway.</small>
+          </Alert>
+        )}
         {gmailError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Gmail: {gmailError}</Alert>}
         {calendarConnected && <Alert severity="success" sx={{ mb: 2 }}>Google Calendar conectado: {calendarConnected}</Alert>}
         {calendarError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Google Calendar: {calendarError}</Alert>}
