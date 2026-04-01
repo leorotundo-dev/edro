@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
-import CentralDeControleClient from '@/app/admin/controle/CentralDeControleClient';
-import { AdminHealthView } from '@/app/admin/health/page';
+import { EmbeddedCentralDeControleClient } from '@/app/admin/controle/CentralDeControleClient';
+import { EmbeddedAdminHealthView } from '@/app/admin/health/AdminHealthView';
 import SystemHealthClient from '@/app/admin/saude/SystemHealthClient';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
@@ -620,8 +620,8 @@ export default function AdminSystemPage() {
           ))}
         </Tabs>
 
-        {activeTab === 'overview' && <CentralDeControleClient embedded />}
-        {activeTab === 'clients' && <AdminHealthView embedded />}
+        {activeTab === 'overview' && <EmbeddedCentralDeControleClient />}
+        {activeTab === 'clients' && <EmbeddedAdminHealthView />}
         {activeTab === 'alerts' && <SystemHealthClient />}
         {activeTab === 'internals' && <AdminSystemInternalsView initialSection="feature-flags" />}
       </Box>

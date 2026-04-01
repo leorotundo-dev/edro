@@ -13,6 +13,10 @@ import Tooltip from '@mui/material/Tooltip';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Slide from '@mui/material/Slide';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
+import { alpha } from '@mui/material/styles';
 import {
   IconSend, IconBrain, IconUser, IconPaperclip, IconX,
   IconFile, IconPlus, IconClockHour3, IconArrowsMinimize,
@@ -281,32 +285,48 @@ export default function JarvisFullClient() {
 
   return (
     <AppShell title="Jarvis">
-      <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', maxHeight: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+      <Box
+        sx={(theme) => ({
+          display: 'flex',
+          height: 'calc(100vh - 64px)',
+          maxHeight: 'calc(100vh - 64px)',
+          overflow: 'hidden',
+          bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : '#f6f8fc',
+          gap: 2,
+          p: 2,
+        })}
+      >
 
         {/* Sidebar — history mobile */}
         <Slide direction="right" in={showHistory} mountOnEnter unmountOnExit>
-          <Box sx={{
-            width: 320, flexShrink: 0, borderRight: 1, borderColor: 'divider',
-            bgcolor: 'background.paper', overflow: 'hidden', display: { xs: 'block', md: 'none' },
-          }}>
+          <Paper
+            variant="outlined"
+            sx={{
+              width: 320,
+              flexShrink: 0,
+              overflow: 'hidden',
+              display: { xs: 'block', md: 'none' },
+              borderRadius: 4,
+            }}
+          >
             <ConversationList
               clientId={clientId}
               onSelect={handleSelectConversation}
               onBack={() => setShowHistory(false)}
+              onNewConversation={handleNewConversation}
             />
-          </Box>
+          </Paper>
         </Slide>
 
         {/* Sidebar — history desktop */}
-        <Box
+        <Paper
+          variant="outlined"
           sx={{
             width: 320,
             flexShrink: 0,
-            borderRight: 1,
-            borderColor: 'divider',
-            bgcolor: 'background.paper',
             overflow: 'hidden',
             display: { xs: 'none', md: 'block' },
+            borderRadius: 4,
           }}
         >
           <ConversationList
@@ -314,15 +334,19 @@ export default function JarvisFullClient() {
             onSelect={handleSelectConversation}
             onBack={() => {}}
             hideBack
+            onNewConversation={handleNewConversation}
           />
-        </Box>
+        </Paper>
 
         {/* Main chat area */}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <Paper
+          variant="outlined"
+          sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderRadius: 4, overflow: 'hidden' }}
+        >
 
           {/* Top bar */}
           <Box sx={{
-            display: 'flex', alignItems: 'center', gap: 2, px: 3, py: 1.5,
+            display: 'flex', alignItems: 'center', gap: 2, px: 3, py: 2,
             borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', flexShrink: 0,
           }}>
             <Avatar sx={{ width: 36, height: 36, bgcolor: EDRO_ORANGE }}>
@@ -330,11 +354,11 @@ export default function JarvisFullClient() {
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                Jarvis{clientName ? ` · ${clientName}` : ''}
+                Chat with Jarvis{clientName ? ` · ${clientName}` : ''}
               </Typography>
-              {conversationId && (
-                <Typography variant="caption" color="text.disabled">Conversa ativa</Typography>
-              )}
+              <Typography variant="caption" color="text.disabled">
+                {conversationId ? 'Conversa ativa' : 'Nova conversa'}
+              </Typography>
             </Box>
 
             {/* Client selector */}
@@ -376,20 +400,17 @@ export default function JarvisFullClient() {
 
           {/* Messages */}
           <Box ref={scrollRef} sx={{
-            flex: 1, overflowY: 'auto', px: { xs: 2, md: 6, lg: 10 }, py: 3,
+            flex: 1, overflowY: 'auto', px: { xs: 2, md: 4, lg: 5 }, py: 3,
             display: 'flex', flexDirection: 'column', gap: 2.5,
           }}>
             {/* Empty state */}
             {messages.length === 0 && !loading && (
-              <Box sx={{ textAlign: 'center', pt: 8 }}>
-                <Box sx={{ display: 'inline-flex', p: 3, borderRadius: '50%', bgcolor: `${EDRO_ORANGE}12`, mb: 3 }}>
-                  <IconBrain size={48} style={{ color: EDRO_ORANGE }} />
-                </Box>
-                <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                  {clientName ? `Jarvis · ${clientName}` : 'Jarvis'}
+              <Box sx={{ maxWidth: 1040, width: '100%', mx: 'auto', pt: { xs: 2, md: 5 } }}>
+                <Typography variant="h2" sx={{ fontWeight: 800, mb: 1, letterSpacing: '-0.03em' }}>
+                  Hey there!
                 </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                  {noClient ? 'Selecione um cliente acima para começar.' : 'O que fazemos hoje?'}
+                <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>
+                  {noClient ? 'Selecione um cliente para começar.' : 'What would you like to explore today?'}
                 </Typography>
 
                 {!noClient && (
@@ -398,21 +419,17 @@ export default function JarvisFullClient() {
                       display: 'grid',
                       gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
                       gap: 2,
-                      maxWidth: 900,
-                      mx: 'auto',
                     }}
                   >
                     {quickActions.slice(0, 6).map((qa) => (
-                      <Box
+                      <Paper
                         key={qa}
+                        variant="outlined"
                         onClick={() => sendMessage(qa)}
                         sx={{
-                          p: 2,
+                          p: 2.5,
                           textAlign: 'left',
-                          borderRadius: 3,
-                          border: 1,
-                          borderColor: 'divider',
-                          bgcolor: 'background.paper',
+                          borderRadius: 4,
                           cursor: 'pointer',
                           transition: 'all .18s ease',
                           '&:hover': {
@@ -422,7 +439,22 @@ export default function JarvisFullClient() {
                           },
                         }}
                       >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                        <Box
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 2.5,
+                            bgcolor: `${EDRO_ORANGE}12`,
+                            color: EDRO_ORANGE,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mb: 2,
+                          }}
+                        >
+                          <IconBrain size={20} />
+                        </Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.75 }}>
                           {qa}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
@@ -433,7 +465,7 @@ export default function JarvisFullClient() {
                           {qa === 'Gera um brief estratégico para este mês' && 'Começar um novo plano com direção clara.'}
                           {qa === 'Resumo do pipeline de hoje' && 'Ler o pulso operacional do dia em uma resposta.'}
                         </Typography>
-                      </Box>
+                      </Paper>
                     ))}
                   </Box>
                 )}
@@ -458,15 +490,17 @@ export default function JarvisFullClient() {
                   {msg.role === 'user' ? <IconUser size={16} /> : <IconBrain size={16} />}
                 </Avatar>
                 <Box sx={{ maxWidth: '90%', minWidth: 0 }}>
-                  <Box sx={{
-                    px: 2, py: 1.5,
-                    borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-                    bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
-                    color: msg.role === 'user' ? '#fff' : 'text.primary',
-                    border: msg.role === 'assistant' ? 1 : 0,
-                    borderColor: 'divider',
-                    boxShadow: msg.role === 'assistant' ? 1 : 0,
-                  }}>
+                  <Paper
+                    variant={msg.role === 'assistant' ? 'outlined' : undefined}
+                    sx={{
+                      px: 2,
+                      py: 1.5,
+                      borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                      bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
+                      color: msg.role === 'user' ? '#fff' : 'text.primary',
+                      boxShadow: msg.role === 'assistant' ? 0 : 0,
+                    }}
+                  >
                     {msg.role === 'user' ? (
                       <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '0.88rem' }}>
                         {msg.content}
@@ -474,7 +508,7 @@ export default function JarvisFullClient() {
                     ) : (
                       <MarkdownText text={msg.content} />
                     )}
-                  </Box>
+                  </Paper>
                   {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
                   {msg.artifacts?.map((artifact, ai) => (
                     <ArtifactCard key={ai} artifact={artifact} clientId={clientId} />
@@ -489,15 +523,15 @@ export default function JarvisFullClient() {
                 <Avatar sx={{ width: 34, height: 34, bgcolor: EDRO_ORANGE }}>
                   <IconBrain size={16} />
                 </Avatar>
-                <Box sx={{ px: 2, py: 1, borderRadius: '4px 16px 16px 16px', bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+                <Paper variant="outlined" sx={{ px: 2, py: 1, borderRadius: '4px 16px 16px 16px' }}>
                   <TypingDots />
-                </Box>
+                </Paper>
               </Box>
             )}
           </Box>
 
           {/* Input area */}
-          <Box sx={{ px: { xs: 2, md: 6, lg: 10 }, py: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0, bgcolor: 'background.paper' }}>
+          <Box sx={{ px: { xs: 2, md: 4, lg: 5 }, py: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0, bgcolor: 'background.paper' }}>
             {attachedFiles.length > 0 && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
                 {attachedFiles.map((f, i) => (
@@ -514,7 +548,10 @@ export default function JarvisFullClient() {
               </Box>
             )}
 
-            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', maxWidth: 800, mx: 'auto' }}>
+            <Paper
+              variant="outlined"
+              sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-end', maxWidth: 960, mx: 'auto', p: 1.25, borderRadius: 3.5 }}
+            >
               <Box component="label" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
                 <input
                   ref={fileInputRef}
@@ -552,7 +589,8 @@ export default function JarvisFullClient() {
                 disabled={loading || noClient}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    borderRadius: 3, fontSize: '0.9rem',
+                    borderRadius: 3,
+                    fontSize: '0.9rem',
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: EDRO_ORANGE },
                   },
                 }}
@@ -569,9 +607,9 @@ export default function JarvisFullClient() {
               >
                 <IconSend size={18} />
               </IconButton>
-            </Box>
+            </Paper>
           </Box>
-        </Box>
+        </Paper>
       </Box>
     </AppShell>
   );
