@@ -5,11 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import EquipePageClient from '@/app/admin/equipe/EquipePageClient';
-import PeopleDirectoryClient from './PeopleDirectoryClient';
 import { AdminUsersView } from '@/app/admin/users/page';
 import { apiGet } from '@/lib/api';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
@@ -42,19 +40,14 @@ type FreelancerSummary = {
 
 const PEOPLE_TABS = [
   {
-    value: 'equipe',
-    label: 'Equipe & Freelancers',
-    description: 'Freelas ativos, timers, cobrança e contatos operacionais.',
+    value: 'pessoas',
+    label: 'Pessoas',
+    description: 'Equipe, freelancers, diretório e contatos operacionais no mesmo lugar.',
   },
   {
     value: 'acessos',
     label: 'Acessos',
     description: 'Papéis, status de conta e governança de acesso do sistema.',
-  },
-  {
-    value: 'diretorio',
-    label: 'Diretório',
-    description: 'Contatos, duplicados, sync e merge de pessoas da operação.',
   },
 ] as const;
 
@@ -107,7 +100,7 @@ function computeDuplicatePeople(people: PersonSummary[]) {
 export default function PessoasWorkspaceClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = isPeopleTab(searchParams.get('tab')) ? searchParams.get('tab') : 'equipe';
+  const activeTab = isPeopleTab(searchParams.get('tab')) ? searchParams.get('tab') : 'pessoas';
   const [stats, setStats] = useState<PeopleWorkspaceStats>(EMPTY_STATS);
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -156,7 +149,7 @@ export default function PessoasWorkspaceClient() {
 
   const handleTabChange = (_: unknown, value: PeopleTabValue) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === 'equipe') {
+    if (value === 'pessoas') {
       params.delete('tab');
     } else {
       params.set('tab', value);
@@ -207,8 +200,7 @@ export default function PessoasWorkspaceClient() {
                   Pessoas
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  Um workspace só para equipe, acessos e diretório. A lógica aqui é simples:
-                  quem faz, quem acessa e quem existe no ecossistema da agência.
+                  Um workspace só para quem faz, quem acessa e quem existe no ecossistema da agência.
                 </Typography>
               </Box>
             </Stack>
@@ -273,9 +265,10 @@ export default function PessoasWorkspaceClient() {
                 ))}
               </Tabs>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                {activeTab === 'equipe' && (
+                {activeTab === 'pessoas' && (
                   <>
                     <Chip label={`${stats.freelancersTotal} freelancers`} size="small" variant="outlined" />
+                    <Chip label={`${stats.peopleTotal} pessoas no diretório`} size="small" variant="outlined" />
                     <Chip label={`${stats.runningTimers} em execução`} size="small" color="success" variant="outlined" />
                   </>
                 )}
@@ -285,25 +278,13 @@ export default function PessoasWorkspaceClient() {
                     <Chip label={`${stats.adminUsers} admins`} size="small" color="warning" variant="outlined" />
                   </>
                 )}
-                {activeTab === 'diretorio' && (
-                  <>
-                    <Chip label={`${stats.peopleTotal} pessoas`} size="small" variant="outlined" />
-                    <Chip
-                      label={`${stats.duplicatePeople} duplicadas`}
-                      size="small"
-                      color={stats.duplicatePeople > 0 ? 'warning' : 'default'}
-                      variant="outlined"
-                    />
-                  </>
-                )}
               </Stack>
             </Stack>
           </Box>
 
           <Box sx={{ px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
-            {activeTab === 'equipe' && <EquipePageClient embedded />}
+            {activeTab === 'pessoas' && <EquipePageClient embedded />}
             {activeTab === 'acessos' && <AdminUsersView embedded />}
-            {activeTab === 'diretorio' && <PeopleDirectoryClient embedded />}
           </Box>
         </Box>
       </Box>
