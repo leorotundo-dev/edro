@@ -12,7 +12,7 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { IconPlus } from '@tabler/icons-react';
+import { IconPlus, IconCheck, IconBriefcase, IconChevronRight } from '@tabler/icons-react';
 
 type BriefingRequest = {
   id: string;
@@ -28,7 +28,7 @@ const STATUS_MAP: Record<string, { label: string; color: 'default' | 'info' | 'w
   submitted: { label: 'Aguardando', color: 'warning' },
   accepted:  { label: 'Aceita', color: 'success' },
   declined:  { label: 'Recusada', color: 'error' },
-  converted: { label: 'Em produção', color: 'success' },
+  converted: { label: 'Em produção', color: 'warning' },
 };
 
 export default function BriefingListPage() {
@@ -84,8 +84,17 @@ export default function BriefingListPage() {
           {briefings.map(b => {
             const s = STATUS_MAP[b.status] ?? { label: b.status, color: 'default' };
             const title = b.form_data?.type ?? 'Solicitação';
+            const isAccepted = b.status === 'accepted';
+            const isConverted = b.status === 'converted';
             return (
-              <Card key={b.id} variant="outlined">
+              <Card key={b.id} variant="outlined" sx={isConverted ? {
+                borderColor: '#FFAE1F',
+                '@keyframes pulse-border': {
+                  '0%, 100%': { borderColor: '#FFAE1F' },
+                  '50%': { borderColor: '#FFD06B' },
+                },
+                animation: 'pulse-border 2.5s ease-in-out infinite',
+              } : {}}>
                 <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                   <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -106,6 +115,68 @@ export default function BriefingListPage() {
                           Prazo: {new Date(b.form_data.deadline + 'T00:00').toLocaleDateString('pt-BR')}
                         </Typography>
                       )}
+
+                      {/* Accepted strip */}
+                      {isAccepted && (
+                        <Box sx={{
+                          mt: 1.5, px: 1.5, py: 1, borderRadius: 1.5,
+                          bgcolor: 'success.light',
+                          border: '1px solid', borderColor: 'success.main',
+                          display: 'flex', alignItems: 'flex-start', gap: 1,
+                        }}>
+                          <IconCheck size={16} color="#2e7d32" style={{ marginTop: 1, flexShrink: 0 }} />
+                          <Box>
+                            <Typography variant="caption" fontWeight={600} color="success.dark" display="block">
+                              Solicitação aceita — a equipe está organizando sua demanda.
+                            </Typography>
+                            {b.agency_notes && (
+                              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                                {b.agency_notes}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      )}
+
+                      {/* In production strip */}
+                      {isConverted && (
+                        <Box sx={{
+                          mt: 1.5, px: 1.5, py: 1, borderRadius: 1.5,
+                          bgcolor: 'warning.light',
+                          border: '1px solid', borderColor: 'warning.main',
+                        }}>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between">
+                            <Stack direction="row" alignItems="center" gap={1}>
+                              <Box sx={{
+                                width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main',
+                                '@keyframes blink': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.3 } },
+                                animation: 'blink 1.4s ease-in-out infinite',
+                              }} />
+                              <Box>
+                                <Typography variant="caption" fontWeight={600} color="warning.dark" display="block">
+                                  Em produção — a equipe está trabalhando na sua demanda.
+                                </Typography>
+                                {b.agency_notes && (
+                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                                    {b.agency_notes}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Stack>
+                            <Button
+                              size="small"
+                              variant="text"
+                              endIcon={<IconChevronRight size={14} />}
+                              onClick={() => router.push('/jobs')}
+                              sx={{ flexShrink: 0, fontSize: '0.7rem', color: 'warning.dark' }}
+                            >
+                              Ver jobs
+                            </Button>
+                          </Stack>
+                        </Box>
+                      )}
+
+                      {/* Declined note */}
                       {b.agency_notes && b.status === 'declined' && (
                         <Typography variant="caption" color="error.main" sx={{ mt: 0.5, display: 'block' }}>
                           Nota: {b.agency_notes}

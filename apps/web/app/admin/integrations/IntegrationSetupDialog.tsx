@@ -50,9 +50,10 @@ export type IntegrationType =
   | 'instagram';
 
 type ConfigHints = {
-  google_redirect_uri_gmail: string;
-  google_redirect_uri_calendar: string;
-  webhook_base_url: string;
+  google_redirect_uri_gmail: string | null;
+  google_redirect_uri_calendar: string | null;
+  google_redirect_uri_explicit: boolean;
+  webhook_base_url: string | null;
   meta_verify_token_set: boolean;
 };
 
@@ -62,7 +63,7 @@ type IntegrationHealth = {
   search: { serper: boolean; tavily: boolean; google_trends: boolean };
   meta: { app_id: boolean; app_secret: boolean; redirect_uri: boolean; verify_token: boolean };
   whatsapp_evolution: { api_key: boolean; api_url: boolean };
-  whatsapp_meta: { token: boolean; phone_id: boolean; verify_token: boolean };
+  whatsapp_meta: { token: boolean; phone_id: boolean; verify_token: boolean; agency_phones: boolean };
   recall: { api_key: boolean; webhook_secret: boolean; google_login_group: boolean };
   reportei: { token: boolean; base_url: boolean };
   omie: { app_key: boolean; app_secret: boolean };
@@ -366,14 +367,29 @@ function GoogleOAuthSetup({
 
         <Step n={2} label="Adicionar URIs de redirecionamento autorizados" done={!!bothOk}>
           <Stack spacing={1}>
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
-              No OAuth Client ID, adicione estas URLs em &quot;Authorized redirect URIs&quot;:
-            </Typography>
-            {hints?.google_redirect_uri_gmail && (
-              <CopyField label="Redirect URI — Gmail" value={hints.google_redirect_uri_gmail} />
-            )}
-            {hints?.google_redirect_uri_calendar && (
-              <CopyField label="Redirect URI — Calendar" value={hints.google_redirect_uri_calendar} />
+            {!hints?.google_redirect_uri_gmail ? (
+              <Alert severity="warning" sx={{ fontSize: '0.78rem' }}>
+                Configure <strong>PUBLIC_API_URL</strong> no Railway para gerar as URIs corretas.
+                Exemplo: <code>https://edro-backend-production.up.railway.app</code>
+              </Alert>
+            ) : (
+              <>
+                <Alert severity="error" sx={{ fontSize: '0.78rem', fontWeight: 500 }}>
+                  Estas URIs devem ser cadastradas <strong>exatamente</strong> no Google Cloud Console.
+                  Qualquer diferença (incluindo barra final) causa o erro <em>redirect_uri_mismatch</em>.
+                </Alert>
+                <CopyField label="Redirect URI — Gmail" value={hints.google_redirect_uri_gmail!} />
+                {hints.google_redirect_uri_calendar && (
+                  <CopyField label="Redirect URI — Google Calendar" value={hints.google_redirect_uri_calendar!} />
+                )}
+                {!hints.google_redirect_uri_explicit && (
+                  <Typography variant="caption" color="warning.dark" sx={{ display: 'block' }}>
+                    ⚠ Estas URIs são <em>derivadas de PUBLIC_API_URL</em>. Para fixá-las permanentemente
+                    (evitar quebra em redeploys), adicione <strong>GOOGLE_REDIRECT_URI</strong> e{' '}
+                    <strong>GOOGLE_CALENDAR_REDIRECT_URI</strong> explicitamente no Railway com os valores acima.
+                  </Typography>
+                )}
+              </>
             )}
           </Stack>
         </Step>
@@ -381,18 +397,26 @@ function GoogleOAuthSetup({
         <Step n={3} label="Configurar variáveis de ambiente no Railway" done={!!bothOk}>
           <Stack spacing={1}>
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
-              Copie o Client ID e Client Secret gerados e adicione no Railway:
+              Copie o Client ID e Client Secret e adicione no Railway. Inclua as URIs explícitas para evitar
+              quebra em futuras mudanças de URL:
             </Typography>
             <RailwayCommand vars={{
               GOOGLE_CLIENT_ID: 'cole-seu-client-id-aqui',
               GOOGLE_CLIENT_SECRET: 'cole-seu-client-secret-aqui',
-              GOOGLE_REDIRECT_URI: hints?.google_redirect_uri_gmail ?? 'https://api.edro.digital/auth/google/callback',
+              GOOGLE_REDIRECT_URI: hints?.google_redirect_uri_gmail ?? 'https://SEU-BACKEND.railway.app/api/auth/google/callback',
+              GOOGLE_CALENDAR_REDIRECT_URI: hints?.google_redirect_uri_calendar ?? 'https://SEU-BACKEND.railway.app/api/auth/google/calendar/callback',
             }} />
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label={`CLIENT_ID: ${clientIdOk ? '✓ Configurado' : '✗ Faltando'}`} size="small"
+              <Chip label={`CLIENT_ID: ${clientIdOk ? '✓' : '✗ Faltando'}`} size="small"
                 color={clientIdOk ? 'success' : 'error'} variant="outlined" />
-              <Chip label={`CLIENT_SECRET: ${clientSecretOk ? '✓ Configurado' : '✗ Faltando'}`} size="small"
+              <Chip label={`CLIENT_SECRET: ${clientSecretOk ? '✓' : '✗ Faltando'}`} size="small"
                 color={clientSecretOk ? 'success' : 'error'} variant="outlined" />
+              <Chip
+                label={`REDIRECT_URI: ${hints?.google_redirect_uri_explicit ? '✓ explícita' : hints?.google_redirect_uri_gmail ? '⚠ derivada' : '✗ sem URL base'}`}
+                size="small"
+                color={hints?.google_redirect_uri_explicit ? 'success' : hints?.google_redirect_uri_gmail ? 'warning' : 'error'}
+                variant="outlined"
+              />
             </Stack>
           </Stack>
         </Step>
@@ -466,6 +490,7 @@ function GoogleOAuthSetup({
 function WhatsAppMetaSetup({ health }: { health: IntegrationHealth | null }) {
   const tokenOk = health?.whatsapp_meta.token;
   const phoneOk = health?.whatsapp_meta.phone_id;
+  const agencyPhonesOk = health?.whatsapp_meta.agency_phones;
   const bothOk = tokenOk && phoneOk;
   const [testPhone, setTestPhone] = useState('');
   const [sending, setSending] = useState(false);
@@ -513,7 +538,7 @@ function WhatsAppMetaSetup({ health }: { health: IntegrationHealth | null }) {
               WHATSAPP_TOKEN: 'seu-access-token-permanente',
               WHATSAPP_PHONE_ID: 'seu-phone-number-id',
             }} />
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label={`WHATSAPP_TOKEN: ${tokenOk ? '✓' : '✗'}`} size="small"
                 color={tokenOk ? 'success' : 'error'} variant="outlined" />
               <Chip label={`WHATSAPP_PHONE_ID: ${phoneOk ? '✓' : '✗'}`} size="small"
@@ -522,7 +547,25 @@ function WhatsAppMetaSetup({ health }: { health: IntegrationHealth | null }) {
           </Stack>
         </Step>
 
-        <Step n={4} label="Testar envio" done={false}>
+        <Step n={4} label="Definir quem recebe as notificações" done={!!agencyPhonesOk}>
+          <Stack spacing={1}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+              Configure os telefones da agência que devem receber alertas de novos jobs (formato: <code>5511999990000</code>).
+              Sem isso, as mensagens de <em>NOVO JOB</em> e <em>JOB ACEITO</em> não são enviadas mesmo com o token configurado.
+            </Typography>
+            <RailwayCommand vars={{
+              WHATSAPP_AGENCY_PHONES: '+5511999990000,+5511888880000',
+            }} />
+            <Chip
+              label={`WHATSAPP_AGENCY_PHONES: ${agencyPhonesOk ? '✓ configurado' : '✗ ausente — notificações NÃO são enviadas'}`}
+              size="small"
+              color={agencyPhonesOk ? 'success' : 'error'}
+              variant="outlined"
+            />
+          </Stack>
+        </Step>
+
+        <Step n={5} label="Testar envio" done={false}>
           <Stack spacing={1}>
             <Stack direction="row" spacing={1} alignItems="flex-start">
               <TextField
