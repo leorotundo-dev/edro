@@ -7,12 +7,6 @@ import {
   IconCurrencyDollar,
   IconUsersGroup,
   IconUserCircle,
-  IconReportAnalytics,
-  IconAlertSquare,
-  IconCalendarStats,
-  IconBuildingBank,
-  IconHeartbeat,
-  IconFileTypePdf,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -70,42 +64,6 @@ const MenuItems: MenuGroupType[] = [
         title: 'Minha Área',
         icon: IconUserCircle,
         href: '/minha-area',
-      },
-    ],
-  },
-  {
-    subheader: 'Relatórios',
-    requiredGroupRole: ['admin', 'manager'],
-    items: [
-      {
-        id: 'painel-executivo',
-        title: 'Painel Executivo',
-        icon: IconReportAnalytics,
-        href: '/admin/relatorios/painel',
-      },
-      {
-        id: 'fila-de-acao',
-        title: 'Fila de Ação',
-        icon: IconAlertSquare,
-        href: '/admin/relatorios/fila',
-      },
-      {
-        id: 'diario',
-        title: 'Diário',
-        icon: IconCalendarStats,
-        href: '/admin/diario',
-      },
-      {
-        id: 'financeiro-cruzado',
-        title: 'Financeiro',
-        icon: IconBuildingBank,
-        href: '/admin/relatorios/financeiro',
-      },
-      {
-        id: 'relatorios-mensais',
-        title: 'Relatórios Mensais',
-        icon: IconFileTypePdf,
-        href: '/admin/relatorios',
       },
     ],
   },

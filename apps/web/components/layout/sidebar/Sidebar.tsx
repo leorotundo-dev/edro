@@ -25,14 +25,9 @@ import { IconBrain } from '@tabler/icons-react';
 const SIDEBAR_WIDTH = 260;
 const SIDEBAR_MINI_WIDTH = 68;
 
-// Edro brand colors
-const EDRO_BG = '#111111';
-const EDRO_BG_HOVER = '#1e1e1e';
+// Edro brand colors (static)
 const EDRO_ORANGE = '#E85219';
 const EDRO_ORANGE_MUTED = 'rgba(232, 82, 25, 0.12)';
-const EDRO_BORDER = 'rgba(255,255,255,0.06)';
-const EDRO_TEXT = 'rgba(255,255,255,0.85)';
-const EDRO_TEXT_DIM = 'rgba(255,255,255,0.35)';
 
 type SidebarProps = {
   open: boolean;
@@ -49,6 +44,12 @@ function getActive(pathname: string, href: string) {
 export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const EDRO_BG = isDark ? '#111111' : '#ffffff';
+  const EDRO_BG_HOVER = isDark ? '#1e1e1e' : theme.palette.grey[100];
+  const EDRO_BORDER = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
+  const EDRO_TEXT = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.87)';
+  const EDRO_TEXT_DIM = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.40)';
   const lgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const { role } = useRole();
   const opsCritical = useOpsCriticalCount();
