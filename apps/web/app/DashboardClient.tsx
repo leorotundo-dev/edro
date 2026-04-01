@@ -32,7 +32,6 @@ import {
   IconChartBar,
   IconCurrencyReal,
 } from '@tabler/icons-react';
-import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -300,9 +299,6 @@ export default function DashboardClient() {
   return (
     <AppShell title="Dashboard">
       <Stack spacing={3.5}>
-
-        {/* ── Jarvis ────────────────────────────────────────────── */}
-        <JarvisHomeSection />
 
         {/* ── Quick Stats ───────────────────────────────────────── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
