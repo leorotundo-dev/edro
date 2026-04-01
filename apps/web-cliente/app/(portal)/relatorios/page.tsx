@@ -2,52 +2,62 @@
 
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import { IconChartBar, IconDownload } from '@tabler/icons-react';
 
-type Report = {
-  id: string;
-  period_month: string;
-  title: string;
-  created_at: string;
-  pdf_url: string | null;
-};
+type Report = { id: string; period_month: string; title: string; created_at: string; pdf_url: string | null };
 
 export default function RelatoriosPage() {
   const { data, isLoading } = useSWR<{ reports: Report[] }>('/portal/client/reports', swrFetcher);
   const reports = data?.reports ?? [];
 
   return (
-    <div className="portal-page">
-      <div>
-        <span className="portal-kicker">Analise</span>
-        <h2 className="portal-page-title">Relatorios</h2>
-        <p className="portal-page-subtitle">Documentos consolidados do trabalho entregue para sua conta.</p>
-      </div>
+    <Stack spacing={3}>
+      <Stack direction="row" spacing={1.5} alignItems="center">
+        <Box sx={{ p: 1.5, bgcolor: 'info.light', borderRadius: 2, color: 'info.dark', display: 'flex' }}>
+          <IconChartBar size={22} />
+        </Box>
+        <Box>
+          <Typography variant="overline" color="text.secondary">Análise</Typography>
+          <Typography variant="h4" sx={{ mt: 0 }}>Relatórios</Typography>
+        </Box>
+      </Stack>
+      <Typography variant="body1" color="text.secondary">Documentos consolidados do trabalho entregue para sua conta.</Typography>
 
-      <section className="portal-card">
-        {isLoading ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Carregando relatorios</p><p className="portal-card-subtitle">Buscando os arquivos disponiveis.</p></div></div>
-        ) : reports.length === 0 ? (
-          <div className="portal-empty"><div><p className="portal-card-title">Nenhum relatorio gerado</p><p className="portal-card-subtitle">Quando houver um consolidado publicado, ele aparece aqui.</p></div></div>
-        ) : (
-          <div className="portal-list">
-            {reports.map((report) => (
-              <div key={report.id} className="portal-list-card">
-                <div className="portal-list-row">
-                  <div>
-                    <p className="portal-card-title">{report.title ?? `Relatorio ${report.period_month}`}</p>
-                    <p className="portal-card-subtitle">Publicado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</p>
-                  </div>
+      {isLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={24} /></Box>
+      ) : reports.length === 0 ? (
+        <Alert severity="info" sx={{ borderRadius: 2 }}>Nenhum relatório disponível ainda.</Alert>
+      ) : (
+        <Card sx={{ borderRadius: 3 }}>
+          <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+            <Stack divider={<Divider />}>
+              {reports.map((report) => (
+                <Box key={report.id} sx={{ px: 3, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box>
+                    <Typography variant="subtitle2">{report.title ?? `Relatório ${report.period_month}`}</Typography>
+                    <Typography variant="caption" color="text.secondary">Publicado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</Typography>
+                  </Box>
                   {report.pdf_url ? (
-                    <a href={report.pdf_url} target="_blank" rel="noreferrer" className="portal-section-link">Baixar PDF</a>
+                    <Button size="small" startIcon={<IconDownload size={14} />} href={report.pdf_url} target="_blank" rel="noreferrer" variant="outlined" sx={{ flexShrink: 0 }}>Baixar PDF</Button>
                   ) : (
-                    <span className="portal-pill portal-pill-neutral">Sem arquivo</span>
+                    <Chip label="Sem arquivo" size="small" color="default" variant="outlined" />
                   )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
+                </Box>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+    </Stack>
   );
 }
