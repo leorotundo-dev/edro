@@ -2503,33 +2503,4 @@ Retorne APENAS JSON válido:
     }
   });
 
-  // ── Arte-chain SSE stream ─────────────────────────────────────────────────────
-  app.post('/studio/creative/arte-chain/stream', async (request: any, reply) => {
-    const body = arteChainSchema.parse(request.body);
-    const tenantId = (request.user as any)?.tenant_id as string | undefined;
-
-    reply.raw.setHeader('Content-Type', 'text/event-stream');
-    reply.raw.setHeader('Cache-Control', 'no-cache');
-    reply.raw.setHeader('Connection', 'keep-alive');
-    reply.raw.flushHeaders();
-
-    const emit = (event: string, data: unknown) => {
-      reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    };
-
-    try {
-      const { runAgentDiretorArte } = await import('../services/ai/agentDiretorArte') as any;
-      const result = await runAgentDiretorArte({
-        ...body,
-        tenantId,
-        onProgress: (event: string, data: object) => emit(event, data),
-      });
-      emit('done', { success: true, data: result });
-    } catch (e: any) {
-      emit('error', { error: e?.message ?? 'Pipeline error' });
-    } finally {
-      reply.raw.end();
-    }
-  });
-
 }
