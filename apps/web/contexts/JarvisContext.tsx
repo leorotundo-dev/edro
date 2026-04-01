@@ -174,7 +174,6 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       unreadCount, bump, clearUnread,
       pageData, setPageData,
       pageContext,
-      pageData, setPageData,
     }}>
       {children}
     </JarvisContext.Provider>
