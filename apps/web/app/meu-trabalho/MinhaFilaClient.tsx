@@ -21,6 +21,7 @@ import {
   IconPlayerPlay,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { OpsJobRow } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { sortByOperationalPriority } from '@/components/operations/derived';
@@ -69,10 +70,22 @@ export default function MinhaFilaClient() {
   return (
     <AppShell title="Minha Fila">
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h5" fontWeight={800}>Minha fila</Typography>
-          <Typography variant="body2" color="text.secondary">Suas demandas ativas, ordenadas por urgência.</Typography>
-        </Box>
+        <WorkspaceHero
+          eyebrow="Operação pessoal"
+          title="Minha Fila"
+          description="Suas demandas ativas, ordenadas por urgência."
+          leftChips={[
+            { label: urgent.length ? `${urgent.length} críticos` : 'Sem incêndio agora', color: urgent.length ? 'error' : 'success', variant: 'outlined', icon: <IconFlame size={14} /> },
+            { label: overdue.length ? `${overdue.length} atrasados` : 'Prazos sob controle', color: overdue.length ? 'warning' : 'success', variant: 'outlined', icon: <IconCalendarDue size={14} /> },
+          ]}
+          rightContent={
+            <>
+              <Chip size="small" label={`${inProgress.length} em produção`} color="primary" variant="outlined" />
+              <Chip size="small" label={`${dueToday.length} prazo hoje`} color="warning" variant="outlined" />
+              <Chip size="small" label={`${myJobs.length} total ativo`} variant="outlined" />
+            </>
+          }
+        />
 
         {error && <Alert severity="error">{error}</Alert>}
 
@@ -80,98 +93,6 @@ export default function MinhaFilaClient() {
           <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
         ) : (
           <>
-            <Card
-              variant="outlined"
-              sx={{
-                borderRadius: 4,
-                borderColor: alpha('#5D87FF', 0.18),
-                background: `linear-gradient(135deg, ${alpha('#5D87FF', 0.08)} 0%, ${alpha('#13DEB9', 0.04)} 48%, #fff 100%)`,
-              }}
-            >
-              <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-                <Stack spacing={2.5}>
-                  <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={2}
-                    justifyContent="space-between"
-                    alignItems={{ xs: 'flex-start', md: 'center' }}
-                  >
-                    <Box>
-                      <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 0.8 }}>
-                        Operação pessoal
-                      </Typography>
-                      <Typography variant="h4" fontWeight={800}>
-                        Minha Fila
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Veja o que está pegando fogo, o que vence primeiro e o que já pode seguir para a próxima etapa.
-                      </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                      <Chip
-                        icon={<IconFlame size={14} />}
-                        label={urgent.length ? `${urgent.length} críticos` : 'Sem incêndio agora'}
-                        color={urgent.length ? 'error' : 'success'}
-                        variant="outlined"
-                      />
-                      <Chip
-                        icon={<IconCalendarDue size={14} />}
-                        label={overdue.length ? `${overdue.length} atrasados` : 'Prazos sob controle'}
-                        color={overdue.length ? 'warning' : 'success'}
-                        variant="outlined"
-                      />
-                    </Stack>
-                  </Stack>
-
-                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                    {[
-                      {
-                        label: 'Em produção',
-                        value: inProgress.length,
-                        helper: waitingApproval.length ? `${waitingApproval.length} aguardando aprovação` : 'Sem fila de aprovação',
-                        tone: '#13DEB9',
-                      },
-                      {
-                        label: 'Prazo hoje',
-                        value: dueToday.length,
-                        helper: dueWeek.length ? `${dueWeek.length} ainda vencem nesta semana` : 'Nada mais vence esta semana',
-                        tone: '#FFAE1F',
-                      },
-                      {
-                        label: 'Total ativo',
-                        value: myJobs.length,
-                        helper: myJobs.length ? 'Demandas atribuídas a você' : 'Nenhuma demanda atribuída',
-                        tone: '#5D87FF',
-                      },
-                    ].map((item) => (
-                      <Box
-                        key={item.label}
-                        sx={{
-                          flex: 1,
-                          minWidth: 0,
-                          borderRadius: 3,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          bgcolor: 'background.paper',
-                          p: 2,
-                        }}
-                      >
-                        <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                          {item.label}
-                        </Typography>
-                        <Typography variant="h5" fontWeight={800} sx={{ color: item.tone }}>
-                          {item.value}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {item.helper}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-
             {/* Stats */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               {statCards.map((s) => (

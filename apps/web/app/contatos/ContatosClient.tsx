@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '@/lib/api';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -315,34 +316,15 @@ export default function ContatosClient() {
   return (
     <AppShell title="Contatos">
       <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <Card
-          variant="outlined"
-          sx={{
-            borderRadius: 3,
-            background:
-              'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-          }}
-        >
-          <Box sx={{ p: { xs: 2.5, md: 3 } }}>
-            <Stack spacing={2.25}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label="Contacts" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                <Chip label={`${clientContacts.length} contatos de clientes`} size="small" variant="outlined" />
-                <Chip label={`${freelancers.length} equipe / freelancers`} size="small" variant="outlined" />
-              </Stack>
-
-              <Box>
-                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                  Contatos
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Um diretório só para quem fala com a agência, quem opera as entregas e quem
-                  precisa ser acionado no dia a dia.
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
-        </Card>
+        <WorkspaceHero
+          eyebrow="Contacts"
+          title="Contatos"
+          description="Um diretório só para quem fala com a agência, quem opera as entregas e quem precisa ser acionado no dia a dia."
+          leftChips={[
+            { label: `${clientContacts.length} contatos de clientes` },
+            { label: `${freelancers.length} equipe / freelancers` },
+          ]}
+        />
 
         <Grid container spacing={2}>
           {[

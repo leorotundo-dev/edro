@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -282,38 +283,15 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
         </Card>
       ) : null}
 
-      <Card
-        variant="outlined"
-        sx={{
-          borderRadius: 3,
-          background:
-            'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-        }}
-      >
-        <CardContent sx={{ p: '24px !important' }}>
-          <Stack spacing={2.25}>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label="Biblioteca" color="primary" size="small" sx={{ fontWeight: 700 }} />
-              <Chip label={`${items.length} ativos`} size="small" variant="outlined" />
-              {selectedClient?.name ? (
-                <Chip label={selectedClient.name} size="small" variant="outlined" />
-              ) : (
-                <Chip label="Visão global" size="small" variant="outlined" />
-              )}
-            </Stack>
-
-            <Box>
-              <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                Biblioteca de referências
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Um repositório só para brandbooks, notas, links e materiais que precisam entrar
-                no contexto da agência e dos clientes.
-              </Typography>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+      <WorkspaceHero
+        eyebrow="Biblioteca"
+        title="Biblioteca de referências"
+        description="Um repositório só para brandbooks, notas, links e materiais que precisam entrar no contexto da agência e dos clientes."
+        leftChips={[
+          { label: `${items.length} ativos` },
+          { label: selectedClient?.name || 'Visão global' },
+        ]}
+      />
 
       <Box
         sx={{

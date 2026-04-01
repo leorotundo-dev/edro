@@ -1,6 +1,7 @@
 'use client';
 
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -24,33 +25,14 @@ export default function SupportPage() {
       }
     >
       <Stack spacing={3}>
-        <Card
-          variant="outlined"
-          sx={{
-            borderRadius: 3,
-            background:
-              'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-          }}
-        >
-          <CardContent sx={{ p: '24px !important' }}>
-            <Stack spacing={2.25}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label="Tickets" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                <Chip label="Incidentes, acessos e melhorias" size="small" variant="outlined" />
-              </Stack>
-
-              <Box>
-                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                  Suporte da plataforma
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  O ponto de entrada para incidentes operacionais, pedidos de acesso e melhorias do
-                  sistema, sem precisar caçar o time certo.
-                </Typography>
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
+        <WorkspaceHero
+          eyebrow="Tickets"
+          title="Suporte da plataforma"
+          description="O ponto de entrada para incidentes operacionais, pedidos de acesso e melhorias do sistema, sem precisar caçar o time certo."
+          leftChips={[
+            { label: 'Incidentes, acessos e melhorias' },
+          ]}
+        />
 
         <Grid container spacing={2}>
           {[
