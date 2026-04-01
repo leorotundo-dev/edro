@@ -3,7 +3,6 @@
 import React from 'react';
 import AppShell from '@/components/AppShell';
 import Avatar from '@mui/material/Avatar';
-import AvatarGroup from '@mui/material/AvatarGroup';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -22,7 +21,6 @@ import {
   IconBolt,
   IconBrain,
   IconCalendarClock,
-  IconCalendarEvent,
   IconCheck,
   IconChevronRight,
   IconCircleCheck,
@@ -37,9 +35,7 @@ import {
   IconPlus,
   IconRefresh,
   IconSparkles,
-  IconTrendingDown,
   IconTrendingUp,
-  IconUsers,
 } from '@tabler/icons-react';
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -170,82 +166,83 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
   );
 }
 
-function ClientRow({ c }: { c: typeof CLIENTS[0] }) {
+function ClientCard({ c }: { c: typeof CLIENTS[0] }) {
   const tc = tempColor(c.temp);
   const hc = healthColor(c.health);
+  const isToday = c.nextDeadline.includes('Hoje');
   return (
     <Card
       sx={{
-        mb: 1.5,
         border: '1px solid',
-        borderColor: c.temp === 'at_risk' ? '#ff3b3030' : 'divider',
-        borderLeft: `4px solid ${tc}`,
+        borderColor: 'divider',
+        borderTop: `3px solid ${tc}`,
         boxShadow: 'none',
         cursor: 'pointer',
         transition: 'all 0.15s ease',
-        '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)', transform: 'translateX(2px)' },
+        '&:hover': { boxShadow: '0 6px 24px rgba(0,0,0,0.09)', transform: 'translateY(-2px)' },
       }}
     >
-      <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-        <Stack direction="row" alignItems="center" spacing={2}>
-          {/* Avatar */}
-          <Avatar sx={{ bgcolor: c.color, width: 38, height: 38, fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
+      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+
+        {/* Row 1: avatar + name + status + health score */}
+        <Stack direction="row" alignItems="flex-start" spacing={1.5} mb={1}>
+          <Avatar sx={{ bgcolor: c.color, width: 36, height: 36, fontSize: '0.72rem', fontWeight: 800, flexShrink: 0 }}>
             {c.initials}
           </Avatar>
-
-          {/* Name + pulse */}
           <Box flex={1} minWidth={0}>
-            <Stack direction="row" alignItems="center" spacing={1} mb={0.3}>
-              <Typography fontWeight={700} fontSize="0.9rem">{c.name}</Typography>
-              <Chip label={c.tempLabel} size="small" sx={{ height: 18, fontSize: '0.68rem', bgcolor: `${tc}18`, color: tc, fontWeight: 600, border: 'none' }} />
+            <Stack direction="row" alignItems="center" spacing={0.75} mb={0.2}>
+              <Typography fontWeight={800} fontSize="0.88rem" noWrap>{c.name}</Typography>
+              <Chip
+                label={c.tempLabel}
+                size="small"
+                sx={{ height: 17, fontSize: '0.65rem', fontWeight: 700, bgcolor: `${tc}18`, color: tc, border: 'none', flexShrink: 0 }}
+              />
             </Stack>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+            <Typography variant="caption" color="text.secondary" fontSize="0.72rem" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {c.pulse}
             </Typography>
           </Box>
-
-          {/* Health */}
-          <Box textAlign="center" sx={{ minWidth: 52, flexShrink: 0 }}>
-            <Typography fontSize="1.1rem" fontWeight={800} color={hc}>{c.health}</Typography>
-            <Typography variant="caption" color="text.secondary" fontSize="0.65rem">saúde</Typography>
-            <LinearProgress variant="determinate" value={c.health} sx={{ height: 3, borderRadius: 2, mt: 0.3, bgcolor: `${hc}22`, '& .MuiLinearProgress-bar': { bgcolor: hc } }} />
+          {/* Health score — right-aligned hero number */}
+          <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+            <Typography fontSize="1.5rem" fontWeight={900} color={hc} lineHeight={1}>{c.health}</Typography>
+            <LinearProgress
+              variant="determinate"
+              value={c.health}
+              sx={{ height: 3, borderRadius: 2, mt: 0.5, width: 36, bgcolor: `${hc}22`, '& .MuiLinearProgress-bar': { bgcolor: hc } }}
+            />
           </Box>
-
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-          {/* Stats */}
-          <Stack direction="row" spacing={2} sx={{ flexShrink: 0 }}>
-            <Box textAlign="center">
-              <Typography fontSize="1rem" fontWeight={700} color="text.primary">{c.jobs}</Typography>
-              <Typography variant="caption" color="text.secondary" fontSize="0.65rem">jobs</Typography>
-            </Box>
-            <Box textAlign="center">
-              <Typography fontSize="1rem" fontWeight={700} color={c.approval > 0 ? '#ff6600' : 'text.primary'}>{c.approval}</Typography>
-              <Typography variant="caption" color="text.secondary" fontSize="0.65rem">aprovação</Typography>
-            </Box>
-            <Box textAlign="center">
-              <Typography fontSize="1rem" fontWeight={700} color={c.overdue > 0 ? '#ff3b30' : 'text.primary'}>{c.overdue}</Typography>
-              <Typography variant="caption" color="text.secondary" fontSize="0.65rem">atrasados</Typography>
-            </Box>
-          </Stack>
-
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-          {/* Deadline + members */}
-          <Box sx={{ flexShrink: 0, minWidth: 80 }}>
-            <Stack direction="row" alignItems="center" spacing={0.5} mb={0.5}>
-              <IconClock size={12} color="#64748b" />
-              <Typography variant="caption" color={c.nextDeadline.includes('Hoje') ? '#ff3b30' : 'text.secondary'} fontWeight={c.nextDeadline.includes('Hoje') ? 700 : 400} fontSize="0.72rem">
-                {c.nextDeadline}
-              </Typography>
-            </Stack>
-            <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: '0.6rem' } }}>
-              {c.members.map((m) => <Avatar key={m} sx={{ bgcolor: '#5D87FF' }}>{m[0]}</Avatar>)}
-            </AvatarGroup>
-          </Box>
-
-          <IconChevronRight size={16} color="#94a3b8" />
         </Stack>
+
+        {/* Row 2: KPI chips */}
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+          <Chip
+            size="small"
+            label={`${c.jobs} jobs`}
+            sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, bgcolor: 'action.hover', color: 'text.secondary' }}
+          />
+          {c.approval > 0 && (
+            <Chip
+              size="small"
+              label={`${c.approval} aprovação`}
+              sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: '#ff660015', color: '#ff6600' }}
+            />
+          )}
+          {c.overdue > 0 && (
+            <Chip
+              size="small"
+              label={`${c.overdue} atrasado`}
+              sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: '#ff3b3015', color: '#ff3b30' }}
+            />
+          )}
+          <Box flex={1} />
+          <Stack direction="row" alignItems="center" spacing={0.4}>
+            <IconClock size={11} color={isToday ? '#ff3b30' : '#94a3b8'} />
+            <Typography variant="caption" fontSize="0.68rem" fontWeight={isToday ? 700 : 400} color={isToday ? '#ff3b30' : 'text.disabled'}>
+              {c.nextDeadline}
+            </Typography>
+          </Stack>
+        </Stack>
+
       </CardContent>
     </Card>
   );
@@ -489,7 +486,13 @@ export default function DashboardPreviewClient() {
               Clientes — Pulso em Tempo Real
             </SectionTitle>
 
-            {CLIENTS.map((c) => <ClientRow key={c.id} c={c} />)}
+            <Grid container spacing={1.5}>
+              {CLIENTS.map((c) => (
+                <Grid key={c.id} size={{ xs: 12, sm: 6 }}>
+                  <ClientCard c={c} />
+                </Grid>
+              ))}
+            </Grid>
           </Grid>
 
           {/* ── Right column ── */}
