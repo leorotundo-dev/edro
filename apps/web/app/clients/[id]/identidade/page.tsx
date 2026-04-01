@@ -5,7 +5,6 @@ import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { apiGet } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
@@ -15,7 +14,6 @@ import {
   IconBook2,
   IconBulb,
   IconDna,
-  IconMapPin,
   IconSettings,
   IconUsers,
 } from '@tabler/icons-react';
@@ -79,11 +77,6 @@ function parseSub(v: string | null): IdentidadeSub {
   return 'dna';
 }
 
-function buildLocation(client: ClientIdentitySummary | null) {
-  if (!client) return '';
-  return [client.city, client.uf].filter(Boolean).join(', ');
-}
-
 export default function IdentidadePage() {
   const params = useParams();
   const router = useRouter();
@@ -132,67 +125,9 @@ export default function IdentidadePage() {
   };
 
   const activeTab = SUB_TABS.find((item) => item.value === tab) ?? SUB_TABS[0];
-  const location = buildLocation(client);
 
   return (
-    <Stack spacing={3}>
-      <Card
-        variant="outlined"
-        sx={{
-          borderRadius: 3,
-          background:
-            'linear-gradient(135deg, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0.03) 55%, rgba(15,23,42,0.02) 100%)',
-        }}
-      >
-        <Box sx={{ p: { xs: 2.5, md: 3 } }}>
-          <Stack spacing={2.5}>
-            <Stack spacing={1.25}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label="Users / Profile" color="primary" size="small" sx={{ fontWeight: 700 }} />
-                {client?.segment_primary && <Chip label={client.segment_primary} size="small" variant="outlined" />}
-                {location && (
-                  <Chip
-                    icon={<IconMapPin size={14} />}
-                    label={location}
-                    size="small"
-                    variant="outlined"
-                  />
-                )}
-              </Stack>
-
-              <Box>
-                <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
-                  {client?.name ? `${client.name} · Identidade` : 'Identidade do cliente'}
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Um workspace só para essência, editorial, contatos, ativos e configuração.
-                  A marca deixa de ficar espalhada pelo sistema e passa a viver num lugar canônico.
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip
-                label={`${client?.content_pillars?.length ?? 0} pilares editoriais`}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label={`${client?.keywords?.length ?? 0} palavras-chave`}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label={tab === 'config' ? 'modo configurações' : `modo ${activeTab.label.toLowerCase()}`}
-                size="small"
-                color="primary"
-                variant="outlined"
-              />
-            </Stack>
-          </Stack>
-        </Box>
-      </Card>
-
+    <Stack spacing={2.5}>
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <Box sx={{ p: { xs: 2, md: 3 } }}>
           <Tabs
