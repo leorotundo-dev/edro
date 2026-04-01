@@ -722,6 +722,35 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /admin/integrations/renew-watches — força renovação imediata Gmail + Calendar
+  app.post('/admin/integrations/renew-watches', {
+    preHandler: [authGuard, requirePerm('admin:write'), tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const results: Record<string, string> = {};
+
+    // Clear last_error so Gmail status updates immediately
+    await safeQuery(`UPDATE gmail_connections SET last_error = NULL WHERE tenant_id = $1`, [tenantId]);
+
+    try {
+      const { watchGmailInbox } = await import('../services/integrations/gmailService') as any;
+      await watchGmailInbox(tenantId);
+      results.gmail = 'ok';
+    } catch (e: any) {
+      results.gmail = e?.message ?? 'error';
+    }
+
+    try {
+      const { watchCalendar } = await import('../services/integrations/googleCalendarService') as any;
+      await watchCalendar(tenantId);
+      results.calendar = 'ok';
+    } catch (e: any) {
+      results.calendar = e?.message ?? 'error';
+    }
+
+    return reply.send({ ok: true, results });
+  });
+
   // GET /admin/integrations/config-hints
   app.get('/admin/integrations/config-hints', {
     preHandler: [authGuard, requirePerm('admin:read'), tenantGuard()],

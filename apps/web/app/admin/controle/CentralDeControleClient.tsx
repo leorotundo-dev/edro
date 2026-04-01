@@ -144,6 +144,8 @@ export default function CentralDeControleClient() {
   const [data, setData] = useState<ControleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [renewingWatches, setRenewingWatches] = useState(false);
+  const [renewResult, setRenewResult] = useState<string>('');
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -160,6 +162,20 @@ export default function CentralDeControleClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleRenewWatches = async () => {
+    setRenewingWatches(true);
+    setRenewResult('');
+    try {
+      const res = await apiPost<{ ok: boolean; results: Record<string, string> }>('/admin/integrations/renew-watches', {});
+      const r = res?.results ?? {};
+      setRenewResult(`Gmail: ${r.gmail === 'ok' ? '✓' : r.gmail} · Calendar: ${r.calendar === 'ok' ? '✓' : r.calendar}`);
+      setTimeout(() => { load(); setRenewResult(''); setRenewingWatches(false); }, 2000);
+    } catch (e: any) {
+      setRenewResult(`Erro: ${e?.message}`);
+      setRenewingWatches(false);
+    }
+  };
 
   const handleSyncAll = async () => {
     setSyncing(true);
@@ -214,7 +230,24 @@ export default function CentralDeControleClient() {
               />
             )}
           </Stack>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            {data && (() => {
+              const hasGmailCalendarError = data.integrations.some(
+                i => (i.key === 'gmail' || i.key === 'google_calendar') && (i.status === 'error' || i.status === 'expiring'),
+              );
+              return hasGmailCalendarError ? (
+                <Tooltip title={renewResult || 'Renova Gmail watch + Calendar channel agora'}>
+                  <Button
+                    size="small" variant="outlined" color="warning"
+                    startIcon={renewingWatches ? <CircularProgress size={14} /> : <IconRefresh size={16} />}
+                    onClick={handleRenewWatches}
+                    disabled={renewingWatches}
+                  >
+                    {renewResult || 'Renovar watches'}
+                  </Button>
+                </Tooltip>
+              ) : null;
+            })()}
             {data && (
               <AskJarvisButton
                 message={`Status do sistema: ${data.summary.ok} OK, ${data.summary.warnings} avisos, ${data.summary.errors} erros, ${data.summary.alerts_critical} alertas críticos. O que precisa de atenção imediata?`}
