@@ -1101,10 +1101,6 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
 
   const [freelancers, setFreelancers]         = useState<FreelancerProfile[]>([]);
   const [internalPeople, setInternalPeople]   = useState<InternalPerson[]>([]);
-  const [allPeople, setAllPeople]             = useState<InternalPerson[]>([]);
-  const [allPeopleLoading, setAllPeopleLoading] = useState(false);
-  const [allPeopleLoaded, setAllPeopleLoaded] = useState(false);
-  const [peopleSearch, setPeopleSearch]       = useState('');
   const [editPerson, setEditPerson]           = useState<InternalPerson | null>(null);
   const [editForm, setEditForm]               = useState({ display_name: '', is_internal: false, notes: '' });
   const [editSaving, setEditSaving]           = useState(false);
@@ -1192,16 +1188,6 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
   };
 
   useEffect(() => { load(); }, []);
-
-  const loadAllPeople = async () => {
-    if (allPeopleLoaded) return;
-    setAllPeopleLoading(true);
-    try {
-      const res = await apiGet<{ success: boolean; data: InternalPerson[] }>('/people?limit=300');
-      setAllPeople(res.data ?? []);
-      setAllPeopleLoaded(true);
-    } catch { /* silent */ } finally { setAllPeopleLoading(false); }
-  };
 
   useEffect(() => {
     if (tab !== 2) return;
@@ -1358,11 +1344,10 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
           ))}
         </Grid>
 
-        <Tabs value={tab} onChange={(_, v) => { setTab(v); if (v === 3) loadAllPeople(); }} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <Tab label="Equipe" />
-          <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Contatos" sx={{ fontSize: '0.85rem' }} />
-          <Tab label="Analytics do Mês" />
-          <Tab icon={<IconUserCheck size={15} />} iconPosition="start" label="Diretório" sx={{ fontSize: '0.85rem' }} />
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Tab label="Operação" />
+          <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Cadastro" sx={{ fontSize: '0.85rem' }} />
+          <Tab label="Financeiro" />
         </Tabs>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -1488,7 +1473,61 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
         )}
 
         {tab === 1 && (
-          <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
+                Cadastro e contatos da equipe
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Ajuste dados de freelancers e mantenha o diretório interno da Edro no mesmo fluxo.
+              </Typography>
+            </Box>
+
+            <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
+
+            {internalPeople.length > 0 && (
+              <Box>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                  <IconUserCheck size={18} color="#E85219" />
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    Pessoas internas da Edro ({internalPeople.length})
+                  </Typography>
+                  <Chip label="diretório interno" size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+                </Stack>
+                <Grid container spacing={1.5}>
+                  {internalPeople.map((p) => {
+                    const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
+                    const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
+                    return (
+                      <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                        <Card
+                          variant="outlined"
+                          sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { borderColor: 'primary.main' } }}
+                          onClick={() => {
+                            setEditPerson(p);
+                            setEditForm({ display_name: p.display_name, is_internal: p.is_internal ?? false, notes: p.notes ?? '' });
+                          }}
+                        >
+                          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                            <Stack direction="row" spacing={1.5} alignItems="center">
+                              <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
+                                {!p.avatar_url ? initials(p.display_name) : null}
+                              </Avatar>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
+                                {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
+                                {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
+                              </Box>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </Box>
+            )}
+          </Stack>
         )}
 
         {tab === 0 && (
@@ -1585,105 +1624,6 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
         )}
       </Box>
 
-      {/* Internal people from Pessoas directory */}
-      {tab === 0 && internalPeople.length > 0 && (
-        <Box sx={{ mt: 3 }}>
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-            <IconUserCheck size={18} color="#E85219" />
-            <Typography variant="subtitle2" fontWeight={700}>
-              Pessoas Internas ({internalPeople.length})
-            </Typography>
-            <Chip label="do Diretório de Pessoas" size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
-          </Stack>
-          <Grid container spacing={1.5}>
-            {internalPeople.map((p) => {
-              const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
-              const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
-              return (
-                <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                    <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
-                          {!p.avatar_url ? initials(p.display_name) : null}
-                        </Avatar>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
-                          {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
-                          {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
-                        </Box>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
-        </Box>
-      )}
-
-      {/* ── Diretório de Pessoas (tab 3) ─────────────────────────────── */}
-      {tab === 3 && (
-        <Box>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
-            <Typography variant="subtitle1" fontWeight={700}>
-              Diretório de Pessoas {!allPeopleLoading && allPeople.length > 0 && `(${allPeople.length})`}
-            </Typography>
-            <TextField
-              size="small"
-              placeholder="Buscar pelo nome ou contato..."
-              value={peopleSearch}
-              onChange={(e) => setPeopleSearch(e.target.value)}
-              InputProps={{ startAdornment: <InputAdornment position="start"><IconSearch size={16} /></InputAdornment> }}
-              sx={{ width: 260 }}
-            />
-          </Stack>
-
-          {allPeopleLoading && <CircularProgress size={24} />}
-
-          {!allPeopleLoading && (
-            <Grid container spacing={1.5}>
-              {allPeople
-                .filter((p) => {
-                  if (!peopleSearch.trim()) return true;
-                  const q = peopleSearch.toLowerCase();
-                  if (p.display_name.toLowerCase().includes(q)) return true;
-                  return (p.identities ?? []).some((i) => i.value.toLowerCase().includes(q));
-                })
-                .map((p) => {
-                  const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
-                  const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
-                  return (
-                    <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                      <Card
-                        variant="outlined"
-                        sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { borderColor: 'primary.main' } }}
-                        onClick={() => { setEditPerson(p); setEditForm({ display_name: p.display_name, is_internal: p.is_internal ?? false, notes: p.notes ?? '' }); }}
-                      >
-                        <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-                          <Stack direction="row" spacing={1.5} alignItems="center">
-                            <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: p.is_internal ? 'primary.main' : avatarColor(p.display_name) }}>
-                              {!p.avatar_url ? initials(p.display_name) : null}
-                            </Avatar>
-                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                              <Stack direction="row" alignItems="center" spacing={0.5}>
-                                <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
-                                {p.is_internal && <Chip label="interno" size="small" color="primary" sx={{ height: 16, fontSize: '0.6rem' }} />}
-                              </Stack>
-                              {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
-                              {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
-                            </Box>
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  );
-                })}
-            </Grid>
-          )}
-        </Box>
-      )}
-
       {/* Edit person dialog */}
       <Dialog open={Boolean(editPerson)} onClose={() => setEditPerson(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Editar pessoa</DialogTitle>
@@ -1731,14 +1671,9 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
                   is_internal: editForm.is_internal,
                   notes: editForm.notes || null,
                 });
-                setAllPeople((prev) => prev.map((p) =>
-                  p.id === editPerson.id
-                    ? { ...p, display_name: editForm.display_name.trim(), is_internal: editForm.is_internal, notes: editForm.notes || null }
-                    : p,
-                ));
                 setInternalPeople((prev) => prev.map((p) =>
                   p.id === editPerson.id
-                    ? { ...p, display_name: editForm.display_name.trim(), is_internal: editForm.is_internal }
+                    ? { ...p, display_name: editForm.display_name.trim(), is_internal: editForm.is_internal, notes: editForm.notes || null }
                     : p,
                 ).filter((p) => p.is_internal));
                 setEditPerson(null);
