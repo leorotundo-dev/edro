@@ -13,22 +13,13 @@ import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { alpha, useTheme } from '@mui/material/styles';
-import {
-  IconAddressBook,
-  IconUserCheck,
-} from '@tabler/icons-react';
+import { alpha } from '@mui/material/styles';
+import { IconAddressBook, IconUserCheck } from '@tabler/icons-react';
 
 type PersonSummary = {
   id: string;
   display_name: string;
   is_internal: boolean;
-};
-
-type UserSummary = {
-  id: string;
-  status: string;
-  role: string;
 };
 
 type FreelancerSummary = {
@@ -39,40 +30,42 @@ type FreelancerSummary = {
 
 const PEOPLE_TABS = [
   {
-    value: 'equipe',
-    label: 'Equipe Edro',
-    description: 'A operação interna da Edro, com mais profundidade de gestão, performance e cobrança.',
+    value: 'operacao',
+    label: 'Operação',
+    description: 'Quem está ativo, rodando timer e tocando a operação da Edro.',
   },
   {
-    value: 'contatos',
-    label: 'Contatos dos Clientes',
-    description: 'O diretório externo: pessoas dos clientes, identidades, vínculos e higiene de contatos.',
+    value: 'cadastro',
+    label: 'Cadastro',
+    description: 'Cadastros, perfis, funções e dados-base da equipe interna e dos freelancers.',
+  },
+  {
+    value: 'financeiro',
+    label: 'Financeiro',
+    description: 'Horas, custos e leitura financeira da equipe.',
+  },
+  {
+    value: 'clientes',
+    label: 'Clientes',
+    description: 'O diretório externo: quem representa os clientes da agência.',
   },
 ] as const;
 
 type PeopleTabValue = (typeof PEOPLE_TABS)[number]['value'];
 
 type PeopleWorkspaceStats = {
-  usersTotal: number;
-  activeUsers: number;
-  adminUsers: number;
   freelancersTotal: number;
   activeFreelancers: number;
   runningTimers: number;
-  peopleTotal: number;
   internalPeople: number;
   externalPeople: number;
   duplicatePeople: number;
 };
 
 const EMPTY_STATS: PeopleWorkspaceStats = {
-  usersTotal: 0,
-  activeUsers: 0,
-  adminUsers: 0,
   freelancersTotal: 0,
   activeFreelancers: 0,
   runningTimers: 0,
-  peopleTotal: 0,
   internalPeople: 0,
   externalPeople: 0,
   duplicatePeople: 0,
@@ -80,6 +73,13 @@ const EMPTY_STATS: PeopleWorkspaceStats = {
 
 function isPeopleTab(value: string | null): value is PeopleTabValue {
   return PEOPLE_TABS.some((tab) => tab.value === value);
+}
+
+function normalizePeopleTab(value: string | null): PeopleTabValue {
+  if (isPeopleTab(value)) return value;
+  if (value === 'equipe') return 'operacao';
+  if (value === 'contatos') return 'clientes';
+  return 'operacao';
 }
 
 function computeDuplicatePeople(people: PersonSummary[]) {
@@ -99,7 +99,7 @@ function computeDuplicatePeople(people: PersonSummary[]) {
 export default function PessoasWorkspaceClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = isPeopleTab(searchParams.get('tab')) ? searchParams.get('tab') : 'equipe';
+  const activeTab = normalizePeopleTab(searchParams.get('tab'));
   const [stats, setStats] = useState<PeopleWorkspaceStats>(EMPTY_STATS);
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -109,8 +109,7 @@ export default function PessoasWorkspaceClient() {
     const loadStats = async () => {
       try {
         setLoadingStats(true);
-        const [usersRes, freelancersRes, peopleRes] = await Promise.all([
-          apiGet<{ users: UserSummary[] }>('/admin/users').catch(() => ({ users: [] as UserSummary[] })),
+        const [freelancersRes, peopleRes] = await Promise.all([
           apiGet<FreelancerSummary[]>('/freelancers').catch(() => [] as FreelancerSummary[]),
           apiGet<{ success: boolean; data: PersonSummary[] }>('/people?limit=400').catch(
             () => ({ success: false, data: [] as PersonSummary[] }),
@@ -119,18 +118,13 @@ export default function PessoasWorkspaceClient() {
 
         if (!active) return;
 
-        const users = usersRes.users ?? [];
         const freelancers = freelancersRes ?? [];
         const people = peopleRes.data ?? [];
 
         setStats({
-          usersTotal: users.length,
-          activeUsers: users.filter((user) => user.status === 'active').length,
-          adminUsers: users.filter((user) => user.role === 'admin').length,
           freelancersTotal: freelancers.length,
           activeFreelancers: freelancers.filter((freelancer) => freelancer.is_active).length,
           runningTimers: freelancers.filter((freelancer) => (freelancer.active_timers ?? []).length > 0).length,
-          peopleTotal: people.length,
           internalPeople: people.filter((person) => person.is_internal).length,
           externalPeople: people.filter((person) => !person.is_internal).length,
           duplicatePeople: computeDuplicatePeople(people),
@@ -148,7 +142,7 @@ export default function PessoasWorkspaceClient() {
 
   const handleTabChange = (_: unknown, value: PeopleTabValue) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === 'equipe') {
+    if (value === 'operacao') {
       params.delete('tab');
     } else {
       params.set('tab', value);
@@ -156,6 +150,8 @@ export default function PessoasWorkspaceClient() {
     const query = params.toString();
     router.replace(query ? `/admin/pessoas?${query}` : '/admin/pessoas');
   };
+
+  const activeConfig = PEOPLE_TABS.find((tab) => tab.value === activeTab) ?? PEOPLE_TABS[0];
 
   return (
     <AppShell title="Pessoas">
@@ -177,40 +173,21 @@ export default function PessoasWorkspaceClient() {
           >
             <Stack spacing={1.25} sx={{ maxWidth: 780 }}>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Chip
-                  label="Contacts / Users"
-                  color="primary"
-                  size="small"
-                  sx={{ fontWeight: 700 }}
-                />
-                <Chip
-                  label={`${stats.activeFreelancers} freelas ativos`}
-                  size="small"
-                  variant="outlined"
-                />
-                <Chip
-                  label={`${stats.externalPeople} contatos externos`}
-                  size="small"
-                  variant="outlined"
-                />
+                <Chip label="Contacts / Users" color="primary" size="small" sx={{ fontWeight: 700 }} />
+                <Chip label={`${stats.activeFreelancers} freelas ativos`} size="small" variant="outlined" />
+                <Chip label={`${stats.externalPeople} contatos externos`} size="small" variant="outlined" />
               </Stack>
               <Box>
                 <Typography variant="h3" sx={{ fontWeight: 800, mb: 0.75 }}>
                   Pessoas
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  Duas divisões claras: quem faz parte da Edro e quem representa os clientes.
+                  Um único menu para decidir rápido entre operação, cadastro, financeiro e contatos dos clientes.
                 </Typography>
               </Box>
             </Stack>
 
-            <Stack
-              direction={{ xs: 'row', sm: 'row' }}
-              spacing={1}
-              flexWrap="wrap"
-              useFlexGap
-              alignItems="center"
-            >
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
               {loadingStats ? (
                 <Stack direction="row" spacing={1} alignItems="center">
                   <CircularProgress size={18} />
@@ -262,14 +239,14 @@ export default function PessoasWorkspaceClient() {
                 ))}
               </Tabs>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                {activeTab === 'equipe' && (
+                {(activeTab === 'operacao' || activeTab === 'cadastro' || activeTab === 'financeiro') && (
                   <>
                     <Chip label={`${stats.freelancersTotal} freelancers`} size="small" variant="outlined" />
                     <Chip label={`${stats.internalPeople} internos`} size="small" variant="outlined" />
                     <Chip label={`${stats.runningTimers} em execução`} size="small" color="success" variant="outlined" />
                   </>
                 )}
-                {activeTab === 'contatos' && (
+                {activeTab === 'clientes' && (
                   <>
                     <Chip label={`${stats.externalPeople} contatos externos`} size="small" variant="outlined" />
                     <Chip
@@ -282,11 +259,19 @@ export default function PessoasWorkspaceClient() {
                 )}
               </Stack>
             </Stack>
+
+            <Box sx={{ mt: 1.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                {activeConfig.description}
+              </Typography>
+            </Box>
           </Box>
 
           <Box sx={{ px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
-            {activeTab === 'equipe' && <EquipePageClient embedded />}
-            {activeTab === 'contatos' && (
+            {activeTab === 'operacao' && <EquipePageClient embedded forcedTab={0} />}
+            {activeTab === 'cadastro' && <EquipePageClient embedded forcedTab={1} />}
+            {activeTab === 'financeiro' && <EquipePageClient embedded forcedTab={2} />}
+            {activeTab === 'clientes' && (
               <PeopleDirectoryClient
                 embedded
                 fixedFilter="external"

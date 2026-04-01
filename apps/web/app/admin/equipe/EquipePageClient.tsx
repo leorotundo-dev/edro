@@ -1096,8 +1096,13 @@ function TeamScoreGrid({ scores, freelancers, loading }: {
   );
 }
 
-export default function EquipePage({ embedded = false }: { embedded?: boolean }) {
-  const [tab, setTab] = useState(0);
+type EquipePageProps = {
+  embedded?: boolean;
+  forcedTab?: 0 | 1 | 2;
+};
+
+export default function EquipePage({ embedded = false, forcedTab }: EquipePageProps) {
+  const [tab, setTab] = useState<number>(forcedTab ?? 0);
 
   const [freelancers, setFreelancers]         = useState<FreelancerProfile[]>([]);
   const [internalPeople, setInternalPeople]   = useState<InternalPerson[]>([]);
@@ -1188,6 +1193,10 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (forcedTab !== undefined) setTab(forcedTab);
+  }, [forcedTab]);
 
   useEffect(() => {
     if (tab !== 2) return;
@@ -1329,11 +1338,13 @@ export default function EquipePage({ embedded = false }: { embedded?: boolean })
           <Chip label={`${brl(totalCostMonth)} no mês`} size="small" color="warning" variant="outlined" />
         </Stack>
 
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <Tab label="Operação" />
-          <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Cadastro" sx={{ fontSize: '0.85rem' }} />
-          <Tab label="Financeiro" />
-        </Tabs>
+        {forcedTab === undefined && (
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <Tab label="Operação" />
+            <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Cadastro" sx={{ fontSize: '0.85rem' }} />
+            <Tab label="Financeiro" />
+          </Tabs>
+        )}
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
