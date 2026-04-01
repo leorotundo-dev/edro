@@ -91,6 +91,11 @@ const envSchema = z.object({
   WHATSAPP_PHONE_ID: z.string().optional(),
   WHATSAPP_API_VERSION: z.string().optional(),
   WHATSAPP_WEBHOOK_SECRET: z.string().optional(),
+  // Twilio WhatsApp (agency alerts)
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),   // e.g. whatsapp:+14155238886
+  TWILIO_AGENCY_WHATSAPP: z.string().optional(), // comma-separated: whatsapp:+5511999990000
   EVOLUTION_API_URL: z.string().url().optional(),
   EVOLUTION_API_KEY: z.string().optional(),
   EVOLUTION_WEBHOOK_SECRET: z.string().optional(),

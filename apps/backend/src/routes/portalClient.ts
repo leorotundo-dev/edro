@@ -31,6 +31,7 @@ import {
   recordArtDirectionFeedbackEvent,
   resolveArtDirectionCreativeContext,
 } from '../services/ai/artDirectionMemoryService';
+import { runBriefingAutoPipeline } from '../services/briefingAutoPipelineService';
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
@@ -482,7 +483,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
     const clientName = clientRes.rows[0]?.name ?? 'Cliente';
 
     try {
-      const { claudeService } = await import('../services/claudeService');
+      const { ClaudeService: claudeService } = await import('../services/ai/claudeService');
       const prompt = `Você é assistente de operações de uma agência criativa. Um cliente enviou esta solicitação de job:
 
 Cliente: ${clientName}
@@ -552,13 +553,24 @@ Gere um enriquecimento estruturado para a equipe interna da agência. Responda S
 
     const row = result.rows[0];
 
-    // Notify agency team via email
+    // Notify agency team via email (immediate, synchronous-ish)
     await notifyAgencyNewBriefingRequest({
       tenantId,
       clientId,
       briefingId: row.id,
       formData: form_data,
     }).catch(() => {});
+
+    // Jarvis auto-pipeline: fire-and-forget (concept + copy + Trello card + WhatsApp)
+    setImmediate(() => {
+      runBriefingAutoPipeline({
+        briefingId:  row.id,
+        clientId,
+        tenantId,
+        formData:    form_data,
+        aiEnriched:  ai_enriched ?? null,
+      }).catch(err => console.error('[briefingPipeline] Unhandled error:', err));
+    });
 
     return reply.send({ ok: true, briefing: row });
   });
@@ -871,6 +883,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
     const res = await pool.query(
       `SELECT br.id, br.status, br.form_data, br.ai_enriched, br.agency_notes,
+              br.auto_pipeline_output, br.trello_card_id, br.pipeline_ran_at,
               br.created_at, br.updated_at,
               c.name AS client_name, c.id AS client_id,
               pc.name AS contact_name, pc.email AS contact_email, pc.role AS contact_role
@@ -1054,21 +1067,27 @@ function buildBriefingStatusEmail(params: {
 
 function buildNewBriefingEmail(params: { clientName: string; briefingId: string; formData: any }) {
   const { clientName, briefingId, formData } = params;
+  let adminUrl = '';
+  try { adminUrl = resolvePortalBaseUrl().replace('cliente.', '').replace('/portal', '') + '/admin/solicitacoes'; } catch { /* */ }
   return `
-<div style="font-family: 'Space Grotesk', Arial, sans-serif; max-width: 520px; margin: 0 auto; color: #1a1a1a;">
-  <div style="background: #E85219; padding: 24px 32px;">
+<div style="font-family: 'Space Grotesk', Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a;">
+  <div style="background: #E85219; padding: 20px 32px; display:flex; align-items:center; justify-content:space-between;">
     <span style="color: white; font-size: 20px; font-weight: 700;">Edro Studio</span>
+    <span style="background:rgba(255,255,255,0.2);color:white;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">🚨 NOVO JOB</span>
   </div>
-  <div style="padding: 32px;">
-    <h2 style="margin: 0 0 8px">Nova solicitação de job</h2>
-    <p style="color:#666">Cliente: <strong>${clientName}</strong></p>
-    <table style="width:100%;border-collapse:collapse;margin:16px 0">
-      <tr><td style="padding:8px;border:1px solid #eee;background:#fafafa;font-weight:600">Tipo</td><td style="padding:8px;border:1px solid #eee">${formData.type ?? '—'}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #eee;background:#fafafa;font-weight:600">Plataforma</td><td style="padding:8px;border:1px solid #eee">${formData.platform ?? '—'}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #eee;background:#fafafa;font-weight:600">Objetivo</td><td style="padding:8px;border:1px solid #eee">${formData.objective ?? '—'}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #eee;background:#fafafa;font-weight:600">Prazo</td><td style="padding:8px;border:1px solid #eee">${formData.deadline ?? '—'}</td></tr>
+  <div style="padding: 28px 32px;">
+    <h2 style="margin: 0 0 4px; font-size:22px;">Nova solicitação de job</h2>
+    <p style="color:#888; margin:0 0 20px; font-size:14px;">de <strong style="color:#1a1a1a">${clientName}</strong></p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 20px;border-radius:8px;overflow:hidden;">
+      <tr><td style="padding:10px 14px;background:#fafafa;font-weight:600;font-size:13px;width:110px;border-bottom:1px solid #eee">Tipo</td><td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px">${formData.type ?? '—'}</td></tr>
+      <tr><td style="padding:10px 14px;background:#fafafa;font-weight:600;font-size:13px;border-bottom:1px solid #eee">Plataforma</td><td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px">${formData.platform ?? '—'}</td></tr>
+      <tr><td style="padding:10px 14px;background:#fafafa;font-weight:600;font-size:13px;border-bottom:1px solid #eee">Prazo</td><td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px">${formData.deadline ?? '—'}</td></tr>
+      <tr><td style="padding:10px 14px;background:#fafafa;font-weight:600;font-size:13px;border-bottom:1px solid #eee">Orçamento</td><td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px">${formData.budget_range ?? '—'}</td></tr>
+      <tr><td style="padding:10px 14px;background:#fafafa;font-weight:600;font-size:13px;vertical-align:top">Objetivo</td><td style="padding:10px 14px;font-size:13px;line-height:1.5">${formData.objective ?? '—'}</td></tr>
     </table>
-    <p style="color:#666;font-size:13px;">ID: ${briefingId}</p>
+    ${adminUrl ? `<a href="${adminUrl}" style="display:inline-block;background:#E85219;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Ver solicitação →</a>` : ''}
+    <p style="color:#aaa;font-size:11px;margin-top:20px;">O Jarvis está processando este briefing em background — conceito, copy e card no Trello estarão prontos em instantes.</p>
+    <p style="color:#ccc;font-size:11px;">ID: ${briefingId}</p>
   </div>
 </div>`;
 }

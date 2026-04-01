@@ -18,10 +18,14 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Accordion from '@mui/material/Accordion';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import AccordionSummary from '@mui/material/AccordionSummary';
 import AppShell from '@/components/AppShell';
 import {
   IconCheck, IconX, IconBriefcase, IconRobot,
-  IconCalendar, IconUser,
+  IconCalendar, IconChevronDown, IconBrandTrello,
+  IconAlertTriangle, IconBulb, IconPencil,
 } from '@tabler/icons-react';
 
 type BriefingRequest = {
@@ -37,6 +41,18 @@ type BriefingRequest = {
     estimated_complexity?: string; internal_notes?: string;
   };
   agency_notes?: string;
+  auto_pipeline_output?: {
+    concept?: { angles?: string[]; strategy?: string };
+    draft_copy?: { hook?: string; body?: string; cta?: string };
+    pre_call_brief?: string;
+    learning_highlights?: string[];
+    risk_flags?: string[];
+    trello_card_url?: string;
+    whatsapp_sent?: boolean;
+    pipeline_ran_at?: string;
+  };
+  trello_card_id?: string;
+  pipeline_ran_at?: string;
   created_at: string;
   updated_at: string;
   client_name: string;
@@ -198,25 +214,8 @@ export default function BriefingRequestsClient() {
                         )}
                       </Stack>
 
-                      {/* AI insights */}
-                      {req.ai_enriched && (
-                        <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderLeftColor: 'primary.main' }}>
-                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                            <IconRobot size={13} />
-                            <Typography variant="caption" fontWeight={700} color="primary.main">Análise Jarvis</Typography>
-                          </Stack>
-                          {req.ai_enriched.key_deliverables?.length ? (
-                            <Typography variant="caption" color="text.secondary" display="block">
-                              <strong>Entregas:</strong> {req.ai_enriched.key_deliverables.join(' · ')}
-                            </Typography>
-                          ) : null}
-                          {req.ai_enriched.internal_notes && (
-                            <Typography variant="caption" color="text.secondary" display="block">
-                              {req.ai_enriched.internal_notes}
-                            </Typography>
-                          )}
-                        </Box>
-                      )}
+                      {/* Jarvis pipeline output */}
+                      <JarvisPanel req={req} />
 
                       {/* Agency notes (accepted/declined) */}
                       {req.agency_notes && (
@@ -284,6 +283,164 @@ export default function BriefingRequestsClient() {
         </DialogActions>
       </Dialog>
     </AppShell>
+  );
+}
+
+function JarvisPanel({ req }: { req: BriefingRequest }) {
+  const p = req.auto_pipeline_output;
+
+  // Show enrichment-only block if pipeline hasn't run yet
+  if (!p && !req.ai_enriched) return null;
+
+  if (!p) {
+    // Fallback: just the enrichment hints
+    return (
+      <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderLeftColor: 'primary.main' }}>
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+          <IconRobot size={13} />
+          <Typography variant="caption" fontWeight={700} color="primary.main">Análise Jarvis</Typography>
+        </Stack>
+        {req.ai_enriched?.key_deliverables?.length ? (
+          <Typography variant="caption" color="text.secondary" display="block">
+            <strong>Entregas:</strong> {req.ai_enriched.key_deliverables.join(' · ')}
+          </Typography>
+        ) : null}
+        {req.ai_enriched?.internal_notes && (
+          <Typography variant="caption" color="text.secondary" display="block">
+            {req.ai_enriched.internal_notes}
+          </Typography>
+        )}
+      </Box>
+    );
+  }
+
+  return (
+    <Accordion
+      disableGutters elevation={0}
+      sx={{
+        mt: 1.5, border: '1px solid', borderColor: 'primary.light',
+        borderRadius: '8px !important', bgcolor: 'rgba(93,135,255,0.03)',
+        '&:before': { display: 'none' },
+      }}
+    >
+      <AccordionSummary expandIcon={<IconChevronDown size={16} />} sx={{ minHeight: 40, py: 0, px: 1.5 }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <IconRobot size={14} />
+          <Typography variant="caption" fontWeight={700} color="primary.main">
+            Jarvis processou este briefing
+          </Typography>
+          {p.risk_flags?.length ? (
+            <Chip
+              label={`${p.risk_flags.length} risco${p.risk_flags.length > 1 ? 's' : ''}`}
+              size="small" color="warning" variant="outlined"
+              icon={<IconAlertTriangle size={11} />}
+              sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
+            />
+          ) : null}
+          {p.trello_card_url && (
+            <Chip
+              label="Trello" size="small" color="info" variant="outlined"
+              icon={<IconBrandTrello size={11} />}
+              sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
+            />
+          )}
+          {p.whatsapp_sent && (
+            <Chip label="WhatsApp ✓" size="small" color="success" variant="outlined"
+              sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }} />
+          )}
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails sx={{ px: 1.5, pb: 1.5, pt: 0 }}>
+        <Divider sx={{ mb: 1.5 }} />
+        <Stack spacing={1.5}>
+          {/* Risk flags */}
+          {p.risk_flags?.length ? (
+            <Box sx={{ p: 1.25, bgcolor: 'warning.light', borderRadius: 1 }}>
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <IconAlertTriangle size={13} />
+                <Typography variant="caption" fontWeight={700} color="warning.dark">Riscos detectados</Typography>
+              </Stack>
+              {p.risk_flags.map((r, i) => (
+                <Typography key={i} variant="caption" color="warning.dark" display="block">• {r}</Typography>
+              ))}
+            </Box>
+          ) : null}
+
+          {/* Concept */}
+          {p.concept?.angles?.length ? (
+            <Box>
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
+                <IconBulb size={13} />
+                <Typography variant="caption" fontWeight={700}>Ângulos criativos</Typography>
+              </Stack>
+              <Stack spacing={0.25}>
+                {p.concept.angles.map((a, i) => (
+                  <Typography key={i} variant="caption" color="text.secondary">
+                    {i + 1}. {a}
+                  </Typography>
+                ))}
+              </Stack>
+              {p.concept.strategy && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontStyle: 'italic' }}>
+                  Estratégia: {p.concept.strategy}
+                </Typography>
+              )}
+            </Box>
+          ) : null}
+
+          {/* Draft copy */}
+          {p.draft_copy?.hook && (
+            <Box sx={{ p: 1.25, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
+                <IconPencil size={13} />
+                <Typography variant="caption" fontWeight={700}>Draft de copy (Jarvis)</Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" display="block"><strong>Hook:</strong> {p.draft_copy.hook}</Typography>
+              {p.draft_copy.body && <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}><strong>Body:</strong> {p.draft_copy.body}</Typography>}
+              {p.draft_copy.cta && <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}><strong>CTA:</strong> {p.draft_copy.cta}</Typography>}
+            </Box>
+          )}
+
+          {/* Pre-call brief */}
+          {p.pre_call_brief && (
+            <Box>
+              <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
+                Pauta do call de alinhamento
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                {p.pre_call_brief}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Learning highlights */}
+          {p.learning_highlights?.length ? (
+            <Box>
+              <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
+                Memória do cliente
+              </Typography>
+              {p.learning_highlights.map((h, i) => (
+                <Typography key={i} variant="caption" color="text.secondary" display="block">• {h}</Typography>
+              ))}
+            </Box>
+          ) : null}
+
+          {/* Trello link */}
+          {p.trello_card_url && (
+            <Box>
+              <Button
+                variant="outlined" size="small" color="info"
+                startIcon={<IconBrandTrello size={14} />}
+                href={p.trello_card_url} target="_blank"
+                sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+              >
+                Abrir card no Trello
+              </Button>
+            </Box>
+          )}
+        </Stack>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 

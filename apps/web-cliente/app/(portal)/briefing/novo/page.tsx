@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -16,28 +16,209 @@ import StepLabel from '@mui/material/StepLabel';
 import Stepper from '@mui/material/Stepper';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import {
+  IconBrandInstagram, IconBrandLinkedin, IconBrandFacebook,
+  IconBrandTiktok, IconBrandGoogle, IconBrandYoutube,
+  IconBrandWhatsapp, IconMail, IconWorld, IconApps,
+  IconPhoto, IconTarget, IconPalette, IconDeviceLaptop,
+  IconVideo, IconPresentation, IconDots, IconBulb,
+} from '@tabler/icons-react';
+
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const JOB_TYPES = [
-  'Post para redes sociais', 'Campanha de tráfego pago', 'Email marketing',
-  'Identidade visual', 'Landing page', 'Vídeo', 'Apresentação', 'Outro',
-];
-const PLATFORMS = [
-  'Instagram', 'LinkedIn', 'Facebook', 'TikTok', 'Google Ads', 'YouTube',
-  'WhatsApp', 'Email', 'Site', 'Múltiplas',
-];
 const BUDGET_RANGES = [
   'Até R$ 1.000', 'R$ 1.000–5.000', 'R$ 5.000–15.000', 'Acima de R$ 15.000', 'A definir',
 ];
 
-const STEPS = ['Tipo e plataforma', 'Objetivo e prazo', 'Revisão com IA', 'Confirmar'];
+const STEPS = ['Objetivo', 'Tipo & plataforma', 'Revisão com IA', 'Confirmar'];
+
+const JOB_TYPES = [
+  {
+    value: 'Post para redes sociais',
+    icon: IconPhoto,
+    iconColor: '#E1306C',
+    description: 'Conteúdo visual para feed, stories e reels',
+    hint: 'Instagram · LinkedIn · TikTok · Facebook',
+    keywords: ['post', 'publicação', 'feed', 'stories', 'reel', 'conteúdo', 'social'],
+  },
+  {
+    value: 'Campanha de tráfego pago',
+    icon: IconTarget,
+    iconColor: '#4285F4',
+    description: 'Anúncios com foco em conversão e alcance',
+    hint: 'Google Ads · Meta Ads · LinkedIn Ads',
+    keywords: ['anúncio', 'anuncio', 'tráfego', 'trafego', 'ads', 'campanha', 'cpc', 'pago'],
+  },
+  {
+    value: 'Email marketing',
+    icon: IconMail,
+    iconColor: '#EA4335',
+    description: 'Comunicação direta com sua base de contatos',
+    hint: 'Template 600px · Newsletter',
+    keywords: ['email', 'e-mail', 'newsletter', 'disparo'],
+  },
+  {
+    value: 'Identidade visual',
+    icon: IconPalette,
+    iconColor: '#9C27B0',
+    description: 'Logo, paleta de cores, tipografia e manual',
+    hint: 'Vetorial + PNG exportáveis',
+    keywords: ['logo', 'marca', 'branding', 'identidade', 'paleta', 'tipografia'],
+  },
+  {
+    value: 'Landing page',
+    icon: IconDeviceLaptop,
+    iconColor: '#5D87FF',
+    description: 'Página de alta conversão para leads e vendas',
+    hint: 'Desktop 1440px · Mobile 390px',
+    keywords: ['landing', 'página', 'pagina', 'site', 'hotsite', 'web', 'página'],
+  },
+  {
+    value: 'Vídeo',
+    icon: IconVideo,
+    iconColor: '#FF0000',
+    description: 'Conteúdo em movimento para engajar e converter',
+    hint: '1080×1920 · 1080×1080 · 1280×720',
+    keywords: ['vídeo', 'video', 'filme', 'motion', 'animação', 'animacao', 'reels'],
+  },
+  {
+    value: 'Apresentação',
+    icon: IconPresentation,
+    iconColor: '#FF7A00',
+    description: 'Slides profissionais para reuniões e pitches',
+    hint: '16:9 · 1920×1080px',
+    keywords: ['apresentação', 'apresentacao', 'slide', 'pitch', 'deck'],
+  },
+  {
+    value: 'Outro',
+    icon: IconDots,
+    iconColor: '#6B7280',
+    description: 'Solicitação personalizada — descreva o que precisa',
+    hint: 'A definir com a equipe',
+    keywords: [],
+  },
+];
+
+const PLATFORMS = [
+  {
+    value: 'Instagram',
+    icon: IconBrandInstagram,
+    color: '#E1306C',
+    bgLight: '#FDF2F7',
+    formats: ['Feed 1080×1080', 'Stories 1080×1920', 'Reels 1080×1920'],
+    keywords: ['instagram', 'ig', 'feed', 'stories', 'reels'],
+  },
+  {
+    value: 'LinkedIn',
+    icon: IconBrandLinkedin,
+    color: '#0077B5',
+    bgLight: '#EEF6FC',
+    formats: ['Post 1200×627', 'Story 1080×1920'],
+    keywords: ['linkedin', 'b2b', 'profissional', 'corporativo'],
+  },
+  {
+    value: 'Facebook',
+    icon: IconBrandFacebook,
+    color: '#1877F2',
+    bgLight: '#EEF4FF',
+    formats: ['Post 1200×630', 'Stories 1080×1920'],
+    keywords: ['facebook', 'fb'],
+  },
+  {
+    value: 'TikTok',
+    icon: IconBrandTiktok,
+    color: '#010101',
+    bgLight: '#F5F5F5',
+    formats: ['Vídeo 1080×1920'],
+    keywords: ['tiktok', 'tik tok', 'viral'],
+  },
+  {
+    value: 'Google Ads',
+    icon: IconBrandGoogle,
+    color: '#4285F4',
+    bgLight: '#EEF2FF',
+    formats: ['Banner 728×90', 'Quadrado 300×250', 'Retângulo 300×600'],
+    keywords: ['google', 'ads', 'tráfego', 'trafego', 'cpc', 'search'],
+  },
+  {
+    value: 'YouTube',
+    icon: IconBrandYoutube,
+    color: '#FF0000',
+    bgLight: '#FFF0F0',
+    formats: ['Thumbnail 1280×720', 'Banner 2560×1440'],
+    keywords: ['youtube', 'yt', 'video', 'vídeo', 'canal'],
+  },
+  {
+    value: 'WhatsApp',
+    icon: IconBrandWhatsapp,
+    color: '#25D366',
+    bgLight: '#F0FBF4',
+    formats: ['Status 1080×1920', 'Link 800×418'],
+    keywords: ['whatsapp', 'wpp', 'zap'],
+  },
+  {
+    value: 'Email',
+    icon: IconMail,
+    color: '#EA4335',
+    bgLight: '#FFF0EE',
+    formats: ['Largura 600px', 'Header 600×200'],
+    keywords: ['email', 'newsletter'],
+  },
+  {
+    value: 'Site',
+    icon: IconWorld,
+    color: '#5D87FF',
+    bgLight: '#EEF2FF',
+    formats: ['Desktop 1440px', 'Mobile 390px'],
+    keywords: ['site', 'landing', 'web', 'hotsite'],
+  },
+  {
+    value: 'Múltiplas',
+    icon: IconApps,
+    color: '#6B7280',
+    bgLight: '#F3F4F6',
+    formats: ['Formatos por plataforma'],
+    keywords: ['multiplas', 'várias', 'todas'],
+  },
+];
+
+// ── Jarvis analysis ────────────────────────────────────────────────────────────
+
+function analyzeObjective(text: string): { types: string[]; platforms: string[] } {
+  const lower = text.toLowerCase();
+  const types: string[] = [];
+  const platforms: string[] = [];
+
+  for (const jt of JOB_TYPES) {
+    if (jt.keywords.some(kw => lower.includes(kw))) types.push(jt.value);
+  }
+  for (const p of PLATFORMS) {
+    if (p.keywords.some(kw => lower.includes(kw))) platforms.push(p.value);
+  }
+
+  // Intent-based extras
+  if (/lançamento|lançar|lancar|novo produto|novidade/.test(lower)) {
+    if (!platforms.includes('Instagram')) platforms.push('Instagram');
+    if (!types.includes('Post para redes sociais')) types.push('Post para redes sociais');
+  }
+  if (/conversão|conversao|venda|compra|checkout/.test(lower)) {
+    if (!platforms.includes('Google Ads')) platforms.push('Google Ads');
+    if (!types.includes('Campanha de tráfego pago')) types.push('Campanha de tráfego pago');
+  }
+  if (/awareness|reconhecimento|alcance|marca/.test(lower)) {
+    if (!platforms.includes('Instagram')) platforms.push('Instagram');
+    if (!types.includes('Post para redes sociais')) types.push('Post para redes sociais');
+  }
+
+  return { types: types.slice(0, 2), platforms: platforms.slice(0, 4) };
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type FormData = {
+  objective: string;
   type: string;
   platform: string;
-  objective: string;
   deadline: string;
   budget_range: string;
   notes: string;
@@ -53,13 +234,15 @@ type AiEnriched = {
   internal_notes?: string;
 };
 
+type JarvisHints = { types: string[]; platforms: string[] } | null;
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function NovoBriefingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>({
-    type: '', platform: '', objective: '', deadline: '', budget_range: '', notes: '',
+    objective: '', type: '', platform: '', deadline: '', budget_range: '', notes: '',
   });
   const [enriched, setEnriched] = useState<AiEnriched | null>(null);
   const [enriching, setEnriching] = useState(false);
@@ -70,10 +253,17 @@ export default function NovoBriefingPage() {
   const set = (field: keyof FormData, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
+  const jarvisHints: JarvisHints = useMemo(() => {
+    if (form.objective.length < 20) return null;
+    const result = analyzeObjective(form.objective);
+    if (!result.types.length && !result.platforms.length) return null;
+    return result;
+  }, [form.objective]);
+
   const handleNext = async () => {
     setError('');
     if (step === 1) {
-      // Step 2 → Step 3: call AI enrichment
+      // Step 1 → 2: call AI enrichment
       setEnriching(true);
       try {
         const res = await fetch('/api/proxy/portal/client/briefings/enrich', {
@@ -111,160 +301,319 @@ export default function NovoBriefingPage() {
 
   if (done) {
     return (
-      <>
-        <Box sx={{ maxWidth: 520, mx: 'auto', py: 6, textAlign: 'center' }}>
-          <Box sx={{ fontSize: '3rem', mb: 2 }}>✅</Box>
-          <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>Solicitação enviada!</Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-            Nossa equipe vai analisar e confirmar em breve. Você receberá um email quando a solicitação for aceita.
-          </Typography>
-          <Stack direction="row" spacing={2} justifyContent="center">
-            <Button variant="outlined" onClick={() => router.push('/briefing')}>Ver solicitações</Button>
-            <Button variant="contained" onClick={() => router.push('/')}>Voltar ao início</Button>
-          </Stack>
-        </Box>
-      </>
+      <Box sx={{ maxWidth: 520, mx: 'auto', py: 6, textAlign: 'center' }}>
+        <Box sx={{ fontSize: '3rem', mb: 2 }}>✅</Box>
+        <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>Solicitação enviada!</Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+          Nossa equipe vai analisar e confirmar em breve. Você receberá um email quando a solicitação for aceita.
+        </Typography>
+        <Stack direction="row" spacing={2} justifyContent="center">
+          <Button variant="outlined" onClick={() => router.push('/briefing')}>Ver solicitações</Button>
+          <Button variant="contained" onClick={() => router.push('/')}>Voltar ao início</Button>
+        </Stack>
+      </Box>
     );
   }
 
   return (
-    <Box sx={{ maxWidth: 640, mx: 'auto', py: 4, px: { xs: 2, md: 0 } }}>
-        <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>Solicitar novo job</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Preencha os detalhes — nossa IA vai organizar e encaminhar para a equipe.
-        </Typography>
+    <Box sx={{ maxWidth: 720, mx: 'auto', py: 4, px: { xs: 2, md: 0 } }}>
+      <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>Solicitar novo job</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Preencha os detalhes — nossa IA vai organizar e encaminhar para a equipe.
+      </Typography>
 
-        <Stepper activeStep={step} alternativeLabel sx={{ mb: 4 }}>
-          {STEPS.map(label => (
-            <Step key={label}>
-              <StepLabel sx={{ '& .MuiStepLabel-label': { fontSize: '0.75rem' } }}>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+      <Stepper activeStep={step} alternativeLabel sx={{ mb: 4 }}>
+        {STEPS.map(label => (
+          <Step key={label}>
+            <StepLabel sx={{ '& .MuiStepLabel-label': { fontSize: '0.75rem' } }}>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        {step === 0 && <Step0 form={form} set={set} />}
-        {step === 1 && <Step1 form={form} set={set} />}
-        {step === 2 && <Step2 form={form} enriched={enriched} enriching={enriching} />}
-        {step === 3 && <Step3 form={form} enriched={enriched} />}
+      {step === 0 && <StepObjective form={form} set={set} jarvisHints={jarvisHints} />}
+      {step === 1 && <StepTypeAndPlatform form={form} set={set} jarvisHints={jarvisHints} />}
+      {step === 2 && <StepAiReview form={form} enriched={enriched} enriching={enriching} />}
+      {step === 3 && <StepConfirm form={form} enriched={enriched} />}
 
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 4 }}>
+      <Stack direction="row" justifyContent="space-between" sx={{ mt: 4 }}>
+        <Button
+          variant="text" color="inherit"
+          onClick={() => step === 0 ? router.back() : setStep(s => s - 1)}
+        >
+          {step === 0 ? 'Cancelar' : 'Voltar'}
+        </Button>
+        {step < 3 ? (
           <Button
-            variant="text" color="inherit"
-            onClick={() => step === 0 ? router.back() : setStep(s => s - 1)}
+            variant="contained"
+            onClick={handleNext}
+            disabled={!canProceed(step, form) || enriching}
+            endIcon={enriching ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
-            {step === 0 ? 'Cancelar' : 'Voltar'}
+            {step === 1 ? (enriching ? 'Analisando…' : 'Analisar com IA') : 'Continuar'}
           </Button>
-          {step < 3 ? (
-            <Button
-              variant="contained"
-              onClick={handleNext}
-              disabled={!canProceed(step, form) || enriching}
-              endIcon={enriching ? <CircularProgress size={16} color="inherit" /> : undefined}
-            >
-              {step === 1 ? (enriching ? 'Analisando…' : 'Analisar com IA') : 'Continuar'}
-            </Button>
-          ) : (
-            <Button variant="contained" onClick={handleSubmit} disabled={submitting}
-              startIcon={submitting ? <CircularProgress size={16} color="inherit" /> : undefined}>
-              {submitting ? 'Enviando…' : 'Enviar solicitação'}
-            </Button>
-          )}
-        </Stack>
+        ) : (
+          <Button variant="contained" onClick={handleSubmit} disabled={submitting}
+            startIcon={submitting ? <CircularProgress size={16} color="inherit" /> : undefined}>
+            {submitting ? 'Enviando…' : 'Enviar solicitação'}
+          </Button>
+        )}
+      </Stack>
     </Box>
   );
 }
 
-// ── Step components ────────────────────────────────────────────────────────────
+// ── Step 0: Objetivo ───────────────────────────────────────────────────────────
 
-function Step0({ form, set }: { form: FormData; set: (f: keyof FormData, v: string) => void }) {
+function StepObjective({
+  form, set, jarvisHints,
+}: { form: FormData; set: (f: keyof FormData, v: string) => void; jarvisHints: JarvisHints }) {
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-          Que tipo de job você precisa?
-        </Typography>
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          {JOB_TYPES.map(t => (
-            <Chip
-              key={t} label={t} clickable
-              color={form.type === t ? 'primary' : 'default'}
-              variant={form.type === t ? 'filled' : 'outlined'}
-              onClick={() => set('type', t)}
-            />
-          ))}
-        </Stack>
-      </Box>
-      <Box>
-        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-          Para qual plataforma?
-        </Typography>
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          {PLATFORMS.map(p => (
-            <Chip
-              key={p} label={p} clickable
-              color={form.platform === p ? 'primary' : 'default'}
-              variant={form.platform === p ? 'filled' : 'outlined'}
-              onClick={() => set('platform', p)}
-            />
-          ))}
-        </Stack>
-      </Box>
-    </Stack>
-  );
-}
-
-function Step1({ form, set }: { form: FormData; set: (f: keyof FormData, v: string) => void }) {
-  return (
-    <Stack spacing={2.5}>
       <TextField
-        label="Qual o objetivo deste job?"
-        multiline rows={4} fullWidth required
-        placeholder="Ex: Precisamos de 4 posts para o Instagram divulgando o lançamento do produto X com foco em conversão."
+        label="O que você quer alcançar com este job?"
+        multiline rows={5} fullWidth required
+        placeholder="Ex: Precisamos de posts para o Instagram e Facebook divulgando o lançamento do produto X, com foco em conversão. O tom deve ser moderno e jovem, voltado para o público 25–35 anos."
         value={form.objective}
         onChange={e => set('objective', e.target.value)}
-        helperText="Quanto mais detalhe, melhor. Inclua contexto, tom de voz, referências."
+        helperText="Quanto mais contexto você der, melhor o resultado. Fale sobre o produto, público, tom de voz e resultados esperados."
       />
-      <TextField
-        label="Prazo desejado"
-        type="date"
-        fullWidth
-        InputLabelProps={{ shrink: true }}
-        value={form.deadline}
-        onChange={e => set('deadline', e.target.value)}
-      />
-      <Box>
-        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-          Orçamento estimado
-        </Typography>
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          {BUDGET_RANGES.map(b => (
-            <Chip
-              key={b} label={b} clickable
-              color={form.budget_range === b ? 'primary' : 'default'}
-              variant={form.budget_range === b ? 'filled' : 'outlined'}
-              onClick={() => set('budget_range', b)}
-            />
-          ))}
-        </Stack>
-      </Box>
-      <TextField
-        label="Observações adicionais"
-        multiline rows={2} fullWidth
-        placeholder="Referências visuais, restrições, contato de responsável…"
-        value={form.notes}
-        onChange={e => set('notes', e.target.value)}
-      />
+
+      {jarvisHints && (
+        <Box sx={{
+          p: 2, borderRadius: 2,
+          bgcolor: 'rgba(93, 135, 255, 0.06)',
+          borderLeft: '3px solid',
+          borderColor: 'primary.main',
+        }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+            <IconBulb size={16} />
+            <Typography variant="caption" fontWeight={700} color="primary.main">
+              Jarvis identificou na sua descrição
+            </Typography>
+          </Stack>
+          {jarvisHints.types.length > 0 && (
+            <Box sx={{ mb: 1.25 }}>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                Tipo de job:
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                {jarvisHints.types.map(t => (
+                  <Chip key={t} label={t} size="small" color="primary" variant="outlined" />
+                ))}
+              </Stack>
+            </Box>
+          )}
+          {jarvisHints.platforms.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                Plataformas identificadas:
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                {jarvisHints.platforms.map(p => (
+                  <Chip key={p} label={p} size="small" color="primary" variant="outlined" />
+                ))}
+              </Stack>
+            </Box>
+          )}
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1.25, display: 'block' }}>
+            No próximo passo você poderá confirmar ou ajustar esses dados.
+          </Typography>
+        </Box>
+      )}
     </Stack>
   );
 }
 
-function Step2({
+// ── Step 1: Tipo & Plataforma ──────────────────────────────────────────────────
+
+function StepTypeAndPlatform({
+  form, set, jarvisHints,
+}: { form: FormData; set: (f: keyof FormData, v: string) => void; jarvisHints: JarvisHints }) {
+  return (
+    <Stack spacing={3.5}>
+      {/* Job type cards */}
+      <Box>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+          <Typography variant="subtitle1" fontWeight={700}>Que tipo de job você precisa?</Typography>
+          {jarvisHints?.types.length ? (
+            <Chip
+              label="Jarvis sugeriu" size="small" color="primary" variant="outlined"
+              icon={<IconBulb size={12} />}
+              sx={{ height: 22, '& .MuiChip-label': { fontSize: '0.65rem' } }}
+            />
+          ) : null}
+        </Stack>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+          gap: 1.5,
+        }}>
+          {JOB_TYPES.map(jt => {
+            const selected = form.type === jt.value;
+            const suggested = jarvisHints?.types.includes(jt.value) ?? false;
+            const Icon = jt.icon;
+            return (
+              <Card
+                key={jt.value}
+                variant="outlined"
+                onClick={() => set('type', jt.value)}
+                sx={{
+                  cursor: 'pointer',
+                  borderColor: selected ? 'primary.main' : suggested ? 'primary.light' : 'divider',
+                  borderWidth: selected ? 2 : 1,
+                  bgcolor: selected ? 'rgba(93,135,255,0.08)' : 'background.paper',
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    borderColor: 'primary.main',
+                    bgcolor: selected ? 'rgba(93,135,255,0.08)' : 'action.hover',
+                    transform: 'translateY(-1px)',
+                    boxShadow: 1,
+                  },
+                }}
+              >
+                <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
+                  {suggested && !selected && (
+                    <Typography sx={{ fontSize: '0.6rem', color: 'primary.main', fontWeight: 700, mb: 0.75 }}>
+                      ✨ Sugerido
+                    </Typography>
+                  )}
+                  <Box sx={{ mb: 1.25 }}>
+                    <Icon
+                      size={26}
+                      color={selected ? '#5D87FF' : jt.iconColor}
+                    />
+                  </Box>
+                  <Typography variant="body2" fontWeight={700} sx={{ mb: 0.4, lineHeight: 1.25, fontSize: '0.8rem' }}>
+                    {jt.value}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, mb: 0.75, fontSize: '0.7rem' }}>
+                    {jt.description}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', lineHeight: 1.3 }}>
+                    {jt.hint}
+                  </Typography>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      </Box>
+
+      {/* Platform cards */}
+      <Box>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+          <Typography variant="subtitle1" fontWeight={700}>Para qual plataforma?</Typography>
+          {jarvisHints?.platforms.length ? (
+            <Chip
+              label="Jarvis sugeriu" size="small" color="primary" variant="outlined"
+              icon={<IconBulb size={12} />}
+              sx={{ height: 22, '& .MuiChip-label': { fontSize: '0.65rem' } }}
+            />
+          ) : null}
+        </Stack>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+          gap: 1.5,
+        }}>
+          {PLATFORMS.map(p => {
+            const selected = form.platform === p.value;
+            const suggested = jarvisHints?.platforms.includes(p.value) ?? false;
+            const Icon = p.icon;
+            return (
+              <Card
+                key={p.value}
+                variant="outlined"
+                onClick={() => set('platform', p.value)}
+                sx={{
+                  cursor: 'pointer',
+                  borderColor: selected ? p.color : suggested ? `${p.color}80` : 'divider',
+                  borderWidth: selected ? 2 : 1,
+                  bgcolor: selected ? p.bgLight : 'background.paper',
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    borderColor: p.color,
+                    bgcolor: p.bgLight,
+                    transform: 'translateY(-1px)',
+                    boxShadow: 1,
+                  },
+                }}
+              >
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  {suggested && !selected && (
+                    <Typography sx={{ fontSize: '0.55rem', color: p.color, fontWeight: 700, mb: 0.5 }}>
+                      ✨ Sugerido
+                    </Typography>
+                  )}
+                  <Box sx={{ mb: 0.75 }}>
+                    <Icon size={22} color={selected ? p.color : '#9CA3AF'} />
+                  </Box>
+                  <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, fontSize: '0.78rem' }}>
+                    {p.value}
+                  </Typography>
+                  <Stack spacing={0.2}>
+                    {p.formats.slice(0, 2).map(f => (
+                      <Typography key={f} sx={{ fontSize: '0.6rem', color: 'text.secondary', lineHeight: 1.35 }}>
+                        {f}
+                      </Typography>
+                    ))}
+                    {p.formats.length > 2 && (
+                      <Typography sx={{ fontSize: '0.55rem', color: 'text.disabled' }}>
+                        +{p.formats.length - 2} formato{p.formats.length - 2 > 1 ? 's' : ''}
+                      </Typography>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      </Box>
+
+      {/* Details */}
+      <Stack spacing={2}>
+        <TextField
+          label="Prazo desejado"
+          type="date"
+          fullWidth
+          InputLabelProps={{ shrink: true }}
+          value={form.deadline}
+          onChange={e => set('deadline', e.target.value)}
+        />
+        <Box>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+            Orçamento estimado
+          </Typography>
+          <Stack direction="row" flexWrap="wrap" gap={1}>
+            {BUDGET_RANGES.map(b => (
+              <Chip
+                key={b} label={b} clickable
+                color={form.budget_range === b ? 'primary' : 'default'}
+                variant={form.budget_range === b ? 'filled' : 'outlined'}
+                onClick={() => set('budget_range', b)}
+              />
+            ))}
+          </Stack>
+        </Box>
+        <TextField
+          label="Observações adicionais"
+          multiline rows={2} fullWidth
+          placeholder="Referências visuais, restrições, contato de responsável…"
+          value={form.notes}
+          onChange={e => set('notes', e.target.value)}
+        />
+      </Stack>
+    </Stack>
+  );
+}
+
+// ── Step 2: AI Review ──────────────────────────────────────────────────────────
+
+function StepAiReview({
   form, enriched, enriching,
-}: {
-  form: FormData; enriched: AiEnriched | null; enriching: boolean;
-}) {
+}: { form: FormData; enriched: AiEnriched | null; enriching: boolean }) {
   const URGENCY_COLORS: Record<string, 'default' | 'info' | 'warning' | 'error'> = {
     low: 'default', medium: 'info', high: 'warning', urgent: 'error',
   };
@@ -287,6 +636,8 @@ function Step2({
     );
   }
 
+  const platformObj = PLATFORMS.find(p => p.value === form.platform);
+
   return (
     <Stack spacing={2}>
       <Typography variant="body2" color="text.secondary">
@@ -296,11 +647,28 @@ function Step2({
       {/* Original summary */}
       <Card variant="outlined">
         <CardContent>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>Sua solicitação</Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
-            {form.type && <Chip label={form.type} size="small" />}
-            {form.platform && <Chip label={form.platform} size="small" />}
-            {form.deadline && <Chip label={`Prazo: ${new Date(form.deadline + 'T00:00').toLocaleDateString('pt-BR')}`} size="small" />}
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.25 }}>Sua solicitação</Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1.25 }}>
+            {form.type && (
+              <Chip
+                label={form.type} size="small"
+                icon={(() => { const jt = JOB_TYPES.find(j => j.value === form.type); return jt ? <jt.icon size={12} /> : undefined; })()}
+              />
+            )}
+            {form.platform && platformObj && (
+              <Chip
+                label={form.platform} size="small"
+                sx={{ borderColor: platformObj.color, color: platformObj.color, borderWidth: 1, borderStyle: 'solid' }}
+                variant="outlined"
+                icon={<platformObj.icon size={12} color={platformObj.color} />}
+              />
+            )}
+            {form.deadline && (
+              <Chip
+                label={`Prazo: ${new Date(form.deadline + 'T00:00').toLocaleDateString('pt-BR')}`}
+                size="small"
+              />
+            )}
           </Stack>
           <Typography variant="body2">{form.objective}</Typography>
         </CardContent>
@@ -308,10 +676,11 @@ function Step2({
 
       {/* AI enrichment */}
       {enriched ? (
-        <Card variant="outlined" sx={{ borderColor: 'primary.light', bgcolor: 'primary.light', opacity: 0.95 }}>
+        <Card variant="outlined" sx={{ borderColor: 'primary.main', bgcolor: 'rgba(93,135,255,0.04)' }}>
           <CardContent>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-              <Typography variant="subtitle2" fontWeight={700}>Análise da IA</Typography>
+              <IconBulb size={16} />
+              <Typography variant="subtitle2" fontWeight={700}>Análise do Jarvis</Typography>
               {enriched.urgency && (
                 <Chip
                   label={URGENCY_LABELS[enriched.urgency] ?? enriched.urgency}
@@ -335,8 +704,10 @@ function Step2({
 
             {enriched.key_deliverables?.length ? (
               <Box sx={{ mb: 1 }}>
-                <Typography variant="caption" fontWeight={600} display="block">Entregas identificadas:</Typography>
-                <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mt: 0.5 }}>
+                <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.5 }}>
+                  Entregas identificadas:
+                </Typography>
+                <Stack direction="row" flexWrap="wrap" gap={0.5}>
                   {enriched.key_deliverables.map(d => (
                     <Chip key={d} label={d} size="small" variant="outlined" />
                   ))}
@@ -358,7 +729,9 @@ function Step2({
   );
 }
 
-function Step3({ form, enriched }: { form: FormData; enriched: AiEnriched | null }) {
+// ── Step 3: Confirm ────────────────────────────────────────────────────────────
+
+function StepConfirm({ form, enriched }: { form: FormData; enriched: AiEnriched | null }) {
   return (
     <Stack spacing={2}>
       <Alert severity="info">
@@ -377,7 +750,9 @@ function Step3({ form, enriched }: { form: FormData; enriched: AiEnriched | null
               ['Observações', form.notes || '—'],
             ].map(([label, value]) => (
               <Stack key={label} direction="row" spacing={1}>
-                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 90 }}>{label}:</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 90, flexShrink: 0 }}>
+                  {label}:
+                </Typography>
                 <Typography variant="caption" fontWeight={500}>{value}</Typography>
               </Stack>
             ))}
@@ -391,7 +766,7 @@ function Step3({ form, enriched }: { form: FormData; enriched: AiEnriched | null
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function canProceed(step: number, form: FormData): boolean {
-  if (step === 0) return Boolean(form.type && form.platform);
-  if (step === 1) return form.objective.length >= 10;
+  if (step === 0) return form.objective.length >= 15;
+  if (step === 1) return Boolean(form.type && form.platform);
   return true;
 }
