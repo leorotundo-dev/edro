@@ -114,7 +114,7 @@ export default function AdminSubmenu({ value, onInternalChange }: AdminSubmenuPr
     }
     // Direct item
     if (entry.kind === 'internal') {
-      onInternalChange?.(entry.value) ?? router.push('/admin/system');
+      onInternalChange?.(entry.value) ?? router.push('/admin/controle');
     } else if (entry.href) {
       router.push(entry.href);
     }
@@ -126,7 +126,7 @@ export default function AdminSubmenu({ value, onInternalChange }: AdminSubmenuPr
       if (onInternalChange) {
         onInternalChange(item.value);
       } else {
-        router.push('/admin/system');
+        router.push('/admin/controle');
       }
     } else if (item.href) {
       router.push(item.href);
