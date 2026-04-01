@@ -620,19 +620,27 @@ export default function OperationsJobsClient() {
               {filteredJobs.length === 0 ? (
                 <EmptyOperationState title="Nenhuma demanda encontrada" description="Mude os filtros ou crie uma nova demanda." actionLabel={OPS_COPY.shell.newDemand} onAction={() => setComposerOpen(true)} />
               ) : viewMode === 'board' ? (
-                <OpsPanel
-                  eyebrow="KANBAN"
-                  title="Fluxo visual da fila"
-                  subtitle="Veja a passagem das demandas pelo fluxo e volte para a lista quando precisar tomar decisões mais detalhadas."
-                  action={(
+                <Stack spacing={2}>
+                  <Stack
+                    direction={{ xs: 'column', lg: 'row' }}
+                    justifyContent="space-between"
+                    alignItems={{ lg: 'center' }}
+                    spacing={1.5}
+                  >
+                    <Box>
+                      <Typography variant="h5" fontWeight={800} sx={{ mb: 0.5 }}>
+                        Fluxo da Fila
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {filteredJobs.length} demandas no quadro. Use a lista quando precisar decidir por cliente, dono ou risco.
+                      </Typography>
+                    </Box>
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Chip size="small" label="Quadro canônico" color="primary" variant="outlined" />
                       <Button size="small" variant="outlined" onClick={() => setViewMode('list')}>
                         Voltar para lista
                       </Button>
                     </Stack>
-                  )}
-                >
+                  </Stack>
                   <PipelineBoard
                     jobs={filteredJobs}
                     selectedJob={selectedJob}
@@ -643,7 +651,7 @@ export default function OperationsJobsClient() {
                       setGroupMode('status');
                     }}
                   />
-                </OpsPanel>
+                </Stack>
               ) : groupMode === 'status' ? (
                 <Stack spacing={1.5}>
                   {BUCKETS.map((bucket) => {
