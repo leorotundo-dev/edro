@@ -60,24 +60,39 @@ export default async function gmailRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Missing code or state' });
     }
 
+    let tenantId: string;
+    let email: string;
+
+    // Step 1: exchange code for tokens (critical — fail hard if this breaks)
     try {
-      const { tenantId, email } = await exchangeGmailCode(code, state);
-      if (env.GOOGLE_PUBSUB_TOPIC) {
-        await watchGmailInbox(tenantId);
-      } else {
-        console.warn('[gmailRoutes] GOOGLE_PUBSUB_TOPIC not set — skipping watch setup. Gmail connected without real-time notifications.');
-      }
-
-      // Non-blocking: sync Google Contacts in background after OAuth
-      syncGoogleContacts(tenantId).catch((err) =>
-        console.error('[gmailRoutes] contacts sync after OAuth failed:', err?.message),
-      );
-
-      return reply.redirect(getIntegrationsRedirectUrl(`gmail_connected=${encodeURIComponent(email)}`));
+      ({ tenantId, email } = await exchangeGmailCode(code, state));
     } catch (err: any) {
-      console.error('[gmailRoutes] OAuth callback error:', err?.message);
+      console.error('[gmailRoutes] OAuth token exchange failed:', err?.message);
       return reply.redirect(getIntegrationsRedirectUrl(`gmail_error=${encodeURIComponent(err.message)}`));
     }
+
+    // Step 2: set up Pub/Sub watch (non-critical — connection is valid even without it)
+    if (env.GOOGLE_PUBSUB_TOPIC) {
+      try {
+        await watchGmailInbox(tenantId);
+      } catch (err: any) {
+        // Watch failed but Gmail IS connected — redirect with warning, not error
+        console.error('[gmailRoutes] Gmail watch setup failed (connection still saved):', err?.message);
+        syncGoogleContacts(tenantId).catch(() => {});
+        return reply.redirect(getIntegrationsRedirectUrl(
+          `gmail_connected=${encodeURIComponent(email)}&gmail_warn=${encodeURIComponent('Watch Pub/Sub falhou: ' + err.message)}`,
+        ));
+      }
+    } else {
+      console.warn('[gmailRoutes] GOOGLE_PUBSUB_TOPIC not set — Gmail connected without real-time notifications.');
+    }
+
+    // Non-blocking: sync Google Contacts in background after OAuth
+    syncGoogleContacts(tenantId).catch((err) =>
+      console.error('[gmailRoutes] contacts sync after OAuth failed:', err?.message),
+    );
+
+    return reply.redirect(getIntegrationsRedirectUrl(`gmail_connected=${encodeURIComponent(email)}`));
   });
 
   // ── Connection status ───────────────────────────────────────────────────
