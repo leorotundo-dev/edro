@@ -4,6 +4,8 @@
  */
 
 import { query } from '../../db';
+import { hasClientPerm } from '../../auth/clientPerms';
+import { can, normalizeRole } from '../../auth/rbac';
 import {
   createBriefing,
   createBriefingStages,
@@ -59,6 +61,8 @@ export type ToolContext = {
   edroClientId: string | null; // UUID from edro_clients table
   userId?: string;
   userEmail?: string;
+  role?: string | null;
+  explicitConfirmation?: boolean;
   conversationId?: string | null;
   conversationRoute?: 'planning' | 'operations';
 };
@@ -67,13 +71,25 @@ export type OperationsToolContext = {
   tenantId: string;
   userId?: string;
   userEmail?: string;
+  role?: string | null;
+  explicitConfirmation?: boolean;
 };
 
 export type ToolResult = {
   success: boolean;
   data?: any;
   error?: string;
-  metadata?: { row_count?: number; truncated?: boolean; governance?: any };
+  metadata?: {
+    row_count?: number;
+    truncated?: boolean;
+    governance?: any;
+    access?: {
+      systemPerm?: string | null;
+      clientPerm?: ClientPerm | null;
+      role?: string | null;
+      clientId?: string;
+    };
+  };
 };
 
 const MAX_RESULT_CHARS = 4000;
@@ -87,6 +103,214 @@ const CLIENT_EVIDENCE_SOURCE_TYPES = [
 ] as const;
 
 type ClientEvidenceSourceType = typeof CLIENT_EVIDENCE_SOURCE_TYPES[number];
+type ClientPerm = 'read' | 'write' | 'review' | 'publish';
+type ToolPermissionRequirement = {
+  systemPerm?: string;
+  clientPerm?: ClientPerm;
+};
+
+function buildRequirementMap(
+  toolNames: string[],
+  requirement: ToolPermissionRequirement,
+): Record<string, ToolPermissionRequirement> {
+  return Object.fromEntries(toolNames.map((toolName) => [toolName, requirement]));
+}
+
+const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
+  ...buildRequirementMap([
+    'list_briefings',
+    'get_briefing',
+    'generate_copy_for_briefing',
+    'generate_campaign_strategy',
+    'generate_behavioral_copy',
+    'search_clipping',
+    'get_clipping_item',
+    'list_clipping_sources',
+    'list_social_trends',
+    'search_social_mentions',
+    'list_social_keywords',
+    'search_library',
+    'list_library_items',
+    'list_campaigns',
+    'get_campaign',
+    'list_opportunities',
+    'get_client_profile',
+    'get_intelligence_health',
+    'search_client_content',
+    'list_client_sources',
+    'get_client_insights',
+    'retrieve_client_evidence',
+    'web_search',
+    'web_extract',
+    'web_research',
+    'generate_strategic_brief',
+    'compute_behavior_profiles',
+    'compute_learning_rules',
+    'list_pauta_inbox',
+    'analyze_cognitive_load',
+    'consult_gemini',
+    'consult_openai',
+    'search_whatsapp_messages',
+    'list_whatsapp_groups',
+    'get_whatsapp_insights',
+    'get_whatsapp_digests',
+    'get_job_briefing',
+    'get_job_creative_drafts',
+  ], { systemPerm: 'clients:read', clientPerm: 'read' }),
+  ...buildRequirementMap([
+    'list_upcoming_events',
+    'search_events',
+    'get_event_relevance',
+  ], { systemPerm: 'calendars:read', clientPerm: 'read' }),
+  ...buildRequirementMap([
+    'create_briefing',
+    'update_briefing_status',
+    'delete_briefing',
+    'archive_briefing',
+    'create_campaign',
+    'add_library_note',
+    'add_library_url',
+    'create_briefing_from_clipping',
+    'create_post_pipeline',
+    'fill_job_briefing',
+    'submit_job_briefing',
+    'regenerate_creative_draft',
+    'action_opportunity',
+  ], { systemPerm: 'clients:write', clientPerm: 'write' }),
+  ...buildRequirementMap([
+    'pin_clipping_item',
+    'archive_clipping_item',
+    'add_clipping_source',
+    'pause_clipping_source',
+    'resume_clipping_source',
+  ], { systemPerm: 'clipping:write', clientPerm: 'write' }),
+  ...buildRequirementMap([
+    'add_calendar_event',
+    'schedule_briefing',
+  ], { systemPerm: 'calendars:write', clientPerm: 'write' }),
+  ...buildRequirementMap([
+    'generate_approval_link',
+    'prepare_post_approval',
+    'approve_pauta',
+    'reject_pauta',
+    'approve_job_briefing',
+    'approve_creative_draft',
+  ], { systemPerm: 'posts:review', clientPerm: 'review' }),
+  ...buildRequirementMap([
+    'schedule_post_publication',
+    'publish_studio_post',
+  ], { systemPerm: 'posts:review', clientPerm: 'publish' }),
+};
+
+const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
+  ...buildRequirementMap([
+    'list_operations_jobs',
+    'get_operations_job',
+    'get_operations_overview',
+    'get_operations_risks',
+    'get_operations_signals',
+    'get_operations_team',
+    'get_creative_ops_workload',
+    'get_da_capacity',
+    'suggest_job_allocation',
+    'suggest_creative_redistribution',
+    'get_creative_ops_risk_report',
+    'get_creative_ops_quality',
+    'get_creative_ops_bottlenecks',
+    'get_operations_lookups',
+    'create_operations_job',
+    'update_operations_job',
+    'change_job_status',
+    'assign_job_owner',
+    'resolve_operations_signal',
+    'snooze_operations_signal',
+    'manage_job_allocation',
+    'apply_job_allocation_recommendation',
+    'apply_creative_redistribution',
+  ], { systemPerm: 'admin:jobs' }),
+};
+
+function applyContextualConfirmation<T extends { explicitConfirmation?: boolean }>(
+  args: Record<string, any>,
+  ctx: T,
+) {
+  if (args.confirmed === true || args.confirmed === false) return args;
+  if (ctx.explicitConfirmation === true) {
+    return { ...args, confirmed: true };
+  }
+  return args;
+}
+
+async function enforceToolAccess(
+  toolName: string,
+  ctx: ToolContext | OperationsToolContext,
+  requirement?: ToolPermissionRequirement,
+) {
+  if (!requirement) return { metadata: undefined as Record<string, any> | undefined };
+
+  const role = normalizeRole(ctx.role);
+
+  if (requirement.systemPerm && !can(role, requirement.systemPerm)) {
+    return {
+      error: `Permissão obrigatória para ${toolName}: ${requirement.systemPerm}.`,
+      metadata: {
+        access: {
+          systemPerm: requirement.systemPerm,
+          clientPerm: requirement.clientPerm ?? null,
+          role,
+        },
+      },
+    };
+  }
+
+  if (requirement.clientPerm) {
+    const planningCtx = ctx as ToolContext;
+    if (!planningCtx.clientId || !planningCtx.userId) {
+      return {
+        error: `Escopo do cliente ausente para ${toolName}.`,
+        metadata: {
+          access: {
+            systemPerm: requirement.systemPerm ?? null,
+            clientPerm: requirement.clientPerm,
+            role,
+          },
+        },
+      };
+    }
+
+    const allowed = await hasClientPerm({
+      tenantId: planningCtx.tenantId,
+      userId: planningCtx.userId,
+      role: planningCtx.role,
+      clientId: planningCtx.clientId,
+      perm: requirement.clientPerm,
+    });
+
+    if (!allowed) {
+      return {
+        error: `Permissão de cliente obrigatória para ${toolName}: ${requirement.clientPerm}.`,
+        metadata: {
+          access: {
+            systemPerm: requirement.systemPerm ?? null,
+            clientPerm: requirement.clientPerm,
+            role,
+            clientId: planningCtx.clientId,
+          },
+        },
+      };
+    }
+  }
+
+  return {
+    metadata: {
+      access: {
+        systemPerm: requirement.systemPerm ?? null,
+        clientPerm: requirement.clientPerm ?? null,
+        role,
+      },
+    },
+  };
+}
 
 function truncateResult(result: ToolResult): ToolResult {
   const json = JSON.stringify(result.data);
@@ -357,24 +581,33 @@ export async function executeTool(
     return { success: false, error: `Tool '${toolName}' not found` };
   }
   try {
-    const governance = enforceJarvisToolGovernance(toolName, args);
+    const effectiveArgs = applyContextualConfirmation(args, ctx);
+    const access = await enforceToolAccess(toolName, ctx, TOOL_REQUIREMENTS[toolName]);
+    if ('error' in access) {
+      return {
+        success: false,
+        error: access.error,
+        metadata: access.metadata,
+      };
+    }
+    const governance = enforceJarvisToolGovernance(toolName, effectiveArgs);
     if ('error' in governance) {
       return {
         success: false,
         error: governance.error,
-        metadata: { governance: governance.policy },
+        metadata: { ...access.metadata, governance: governance.policy },
       };
     }
     const timeoutMs = getToolTimeoutMs(toolName);
     const result = await Promise.race([
-      handler(args, ctx),
+      handler(effectiveArgs, ctx),
       new Promise<ToolResult>((_, reject) =>
         setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
     return truncateResult({
       ...result,
-      metadata: { ...(result.metadata || {}), governance: governance.policy },
+      metadata: { ...(result.metadata || {}), ...(access.metadata || {}), governance: governance.policy },
     });
   } catch (err: any) {
     console.error(`[toolExecutor] ${toolName} failed:`, err.message);
@@ -3339,12 +3572,21 @@ export async function executeOperationsTool(
     return { success: false, error: `Operations tool '${toolName}' not found` };
   }
   try {
-    const governance = enforceJarvisToolGovernance(toolName, args);
+    const effectiveArgs = applyContextualConfirmation(args, ctx);
+    const access = await enforceToolAccess(toolName, ctx, OPS_TOOL_REQUIREMENTS[toolName]);
+    if ('error' in access) {
+      return {
+        success: false,
+        error: access.error,
+        metadata: access.metadata,
+      };
+    }
+    const governance = enforceJarvisToolGovernance(toolName, effectiveArgs);
     if ('error' in governance) {
       return {
         success: false,
         error: governance.error,
-        metadata: { governance: governance.policy },
+        metadata: { ...(access.metadata || {}), governance: governance.policy },
       };
     }
     const timeoutMs =
@@ -3356,14 +3598,14 @@ export async function executeOperationsTool(
             toolName === 'get_creative_ops_bottlenecks' ? 15000 :
             10000;
     const result = await Promise.race([
-      handler(args, ctx),
+      handler(effectiveArgs, ctx),
       new Promise<ToolResult>((_, reject) =>
         setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
     return truncateResult({
       ...result,
-      metadata: { ...(result.metadata || {}), governance: governance.policy },
+      metadata: { ...(result.metadata || {}), ...(access.metadata || {}), governance: governance.policy },
     });
   } catch (err: any) {
     console.error(`[opsToolExecutor] ${toolName} failed:`, err.message);

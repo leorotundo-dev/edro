@@ -9,13 +9,24 @@ const CAPABILITY_MATRIX: Record<PortalCapability, PortalContactRole[]> = {
   approve: ['approver', 'admin'],
 };
 
-function getPortalContactRole(request: FastifyRequest): PortalContactRole | null {
+export function getPortalContactRole(request: FastifyRequest): PortalContactRole | null {
   const role = (request.user as { contact_role?: string } | undefined)?.contact_role;
   if (!role) return null;
   if (role === 'viewer' || role === 'requester' || role === 'approver' || role === 'admin') {
     return role;
   }
   return null;
+}
+
+export function hasPortalCapability(role: PortalContactRole | null, capability: PortalCapability): boolean {
+  if (!role) return true;
+  return CAPABILITY_MATRIX[capability].includes(role);
+}
+
+export function getPortalCapabilities(role: PortalContactRole | null): PortalCapability[] {
+  return (['read', 'request', 'approve'] as PortalCapability[]).filter((capability) =>
+    hasPortalCapability(role, capability),
+  );
 }
 
 export function requirePortalCapability(capability: PortalCapability) {
@@ -26,7 +37,7 @@ export function requirePortalCapability(capability: PortalCapability) {
     // Keep backward compatibility by allowing them full portal access.
     if (!portalRole) return;
 
-    const allowed = CAPABILITY_MATRIX[capability].includes(portalRole);
+    const allowed = hasPortalCapability(portalRole, capability);
     if (!allowed) {
       return reply.status(403).send({
         error: 'portal_forbidden',

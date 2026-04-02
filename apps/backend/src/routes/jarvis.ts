@@ -25,6 +25,7 @@ import {
   buildInlineAttachmentContext,
   buildJarvisObservability,
   buildJarvisRoutingDecision,
+  detectExplicitConfirmation,
   detectJarvisIntent,
   loadUnifiedConversationHistory,
   saveUnifiedConversation,
@@ -51,6 +52,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const tenantId = request.user?.tenant_id as string;
     const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
     const userEmail = request.user?.email as string | undefined;
+    const userRole = request.user?.role as string | undefined;
 
     let body: z.infer<typeof jarvisChatSchema>;
     try {
@@ -73,6 +75,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const attachmentContext = buildInlineAttachmentContext(body.inline_attachments);
     const studioContext = body.studio_context ? `\n\nCONTEXTO DO STUDIO:\n${body.studio_context}` : '';
     const userContent = `${body.message}${attachmentContext}${studioContext}`;
+    const explicitConfirmation = detectExplicitConfirmation(body.message);
 
     if (decision.route === 'planning' && !clientId) {
       return reply.status(400).send({
@@ -107,7 +110,13 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           maxBlocks: decision.retrievalBudget.contextBlocks,
         });
         const memoryFabric = formatJarvisMemoryBlocks(memoryBlocks);
-        const toolCtx: OperationsToolContext = { tenantId, userId: userId ?? undefined, userEmail };
+        const toolCtx: OperationsToolContext = {
+          tenantId,
+          userId: userId ?? undefined,
+          userEmail,
+          role: userRole,
+          explicitConfirmation,
+        };
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
@@ -193,6 +202,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           edroClientId,
           userId: userId ?? undefined,
           userEmail,
+          role: userRole,
+          explicitConfirmation,
         };
         const memoryBlocks = await buildJarvisMemoryBlocks({
           tenantId,

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import useSWR from 'swr';
+import { swrFetcher } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -21,6 +23,15 @@ type Message = {
   timestamp: Date;
 };
 
+type PortalCapability = 'read' | 'request' | 'approve';
+type ClientMe = {
+  id: string;
+  name: string;
+  status: string;
+  contact_role?: 'viewer' | 'requester' | 'approver' | 'admin' | null;
+  capabilities?: PortalCapability[];
+};
+
 const SUGGESTED_PROMPTS = [
   'O que depende de mim agora?',
   'Qual a próxima entrega?',
@@ -36,6 +47,10 @@ export default function AssistentePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { data: meData } = useSWR<{ client: ClientMe }>('/portal/client/me', swrFetcher);
+
+  const portalRole = meData?.client?.contact_role ?? null;
+  const portalCapabilities = meData?.client?.capabilities ?? ['read'];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -110,6 +125,29 @@ export default function AssistentePage() {
       <Typography variant="body1" color="text.secondary">
         Pergunte sobre pedidos, prazos, aprovações ou histórico da conta.
       </Typography>
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        <Chip
+          label={`Perfil: ${portalRole ?? 'legado'}`}
+          size="small"
+          color="default"
+          variant="outlined"
+        />
+        {portalCapabilities.map((capability) => (
+          <Chip
+            key={capability}
+            label={
+              capability === 'read'
+                ? 'Pode consultar'
+                : capability === 'request'
+                ? 'Pode solicitar'
+                : 'Pode aprovar'
+            }
+            size="small"
+            color={capability === 'approve' ? 'warning' : capability === 'request' ? 'info' : 'default'}
+            variant="outlined"
+          />
+        ))}
+      </Stack>
 
       {/* Chat area */}
       <Card sx={{ borderRadius: 3, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

@@ -86,6 +86,16 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
   const normalizedStatus = String(args?.status || args?.to_status || '').toLowerCase();
 
   switch (toolName) {
+    case 'delete_briefing':
+    case 'archive_briefing':
+    case 'archive_clipping_item':
+    case 'reject_pauta':
+      return {
+        toolName,
+        level: 'confirm',
+        category: 'destructive',
+        reason: 'Remove, arquiva ou rejeita algo no workflow e exige confirmação explícita.',
+      };
     case 'publish_studio_post':
       return {
         toolName,
@@ -154,6 +164,14 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
     case 'approve_creative_draft':
     case 'fill_job_briefing':
     case 'submit_job_briefing':
+    case 'pin_clipping_item':
+    case 'action_opportunity':
+    case 'add_clipping_source':
+    case 'pause_clipping_source':
+    case 'resume_clipping_source':
+    case 'resolve_operations_signal':
+    case 'snooze_operations_signal':
+    case 'regenerate_creative_draft':
       return {
         toolName,
         level: 'review',
