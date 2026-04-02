@@ -87,6 +87,7 @@ export default function OperationsJobsClient() {
   const shouldOpenComposer = searchParams.get('new') === '1';
   const shouldFilterUnassigned = searchParams.get('unassigned') === 'true';
   const ownerIdParam = searchParams.get('owner_id') || '';
+  const highlightJobId = searchParams.get('highlight') || '';
   const rawView = searchParams.get('view');
   const validView = rawView === 'board' ? 'board' : 'list';
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob, deleteJob } = useOperationsData('?active=true');
@@ -132,6 +133,13 @@ export default function OperationsJobsClient() {
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);
   useEffect(() => { if (ownerIdParam) setOwnerFilter(ownerIdParam); }, [ownerIdParam]);
   useEffect(() => { setViewModeState(validView); }, [validView]);
+
+  // Auto-open job detail when ?highlight=<jobId> is in the URL (e.g. from Bedel notifications)
+  useEffect(() => {
+    if (!highlightJobId || !jobs.length) return;
+    const target = jobs.find((j) => j.id === highlightJobId);
+    if (target) openJobDetail(target);
+  }, [highlightJobId, jobs, openJobDetail]);
 
   const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
