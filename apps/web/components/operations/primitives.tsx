@@ -2421,6 +2421,7 @@ export function ActionStrip({
   alerts,
   owners,
   jobs,
+  compact = false,
   onSelectJob,
   onFilterOwner,
   allocableMinutesFn,
@@ -2429,11 +2430,14 @@ export function ActionStrip({
   alerts: OperationsJob[];
   owners: OperationsOwner[];
   jobs: OperationsJob[];
+  compact?: boolean;
   onSelectJob: (job: OperationsJob) => void;
   onFilterOwner?: (ownerId: string) => void;
   allocableMinutesFn: (owner: OperationsOwner) => number;
   committedMinutesFn: (jobs: OperationsJob[], ownerId: string) => number;
 }) {
+  const visibleAlerts = compact ? alerts.slice(0, 4) : alerts;
+
   return (
     <Box sx={(theme) => {
       const dark = theme.palette.mode === 'dark';
@@ -2441,19 +2445,20 @@ export function ActionStrip({
         borderRadius: 2,
         border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
         bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.common.black, 0.01),
-        px: 2, py: 1.25,
+        px: compact ? 1.5 : 2,
+        py: compact ? 1 : 1.25,
       };
     }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={compact ? 1.25 : 2} alignItems={{ md: 'center' }}>
         {/* Alerts side */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          {alerts.length > 0 ? (
-            <Stack spacing={0.5}>
-              <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          {visibleAlerts.length > 0 ? (
+            <Stack spacing={compact ? 0.35 : 0.5}>
+              <Typography variant="caption" fontWeight={800} sx={{ fontSize: compact ? '0.6rem' : '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Atenção agora
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { height: 3 } }}>
-                {alerts.map((job) => (
+              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: compact ? 0.15 : 0.5, '&::-webkit-scrollbar': { height: 3 } }}>
+                {visibleAlerts.map((job) => (
                   <AlertCard key={job.id} job={job} onClick={() => onSelectJob(job)} />
                 ))}
               </Stack>
@@ -2471,7 +2476,7 @@ export function ActionStrip({
         {/* Team pulse side */}
         {owners.length > 0 ? (
           <Box sx={{ flexShrink: 0 }}>
-            <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
+            <Typography variant="caption" fontWeight={800} sx={{ fontSize: compact ? '0.6rem' : '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: compact ? 0.35 : 0.5, display: 'block' }}>
               Equipe
             </Typography>
             <TeamPulseStrip

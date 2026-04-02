@@ -276,6 +276,15 @@ export default function OperationsJobsClient() {
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter || deadlineFilter || deliveryFilter);
   const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter, deliveryFilter].filter(Boolean).length;
+  const compactBoard = viewMode === 'board';
+  const queueOverviewItems = [
+    { label: 'Entrou', value: intakeCount, subtitle: 'Ainda precisa organizar', href: '/admin/operacoes/jobs?group=status', icon: <IconInbox size={16} />, color: '#5D87FF' },
+    { label: 'Produção', value: inProgressCount, subtitle: 'Já está rodando', href: '/admin/operacoes/jobs?group=status', icon: <IconPlayerPlay size={16} />, color: '#13DEB9' },
+    { label: 'Sem dono', value: unassignedCount(filteredJobs), subtitle: 'Precisa de responsável', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconUserOff size={16} />, color: '#FFAE1F' },
+    { label: 'Atrasadas', value: overdueJobs.length, subtitle: 'Já passaram do prazo', href: '/admin/operacoes/jobs', icon: <IconCalendarDue size={16} />, color: '#FA896B' },
+    { label: 'Esperando cliente', value: waitingClientJobs.length, subtitle: 'Aprovação ou retorno', href: '/admin/operacoes/jobs', icon: <IconLoader2 size={16} />, color: '#FFAE1F' },
+    { label: 'Urgentes', value: urgentJobs.length, subtitle: 'P0 ou marcadas como urgente', href: '/admin/operacoes/radar', icon: <IconUrgent size={16} />, color: '#E85219' },
+  ];
 
   return (
     <OperationsShell
@@ -315,102 +324,186 @@ export default function OperationsJobsClient() {
           {/* Main column */}
           <Grid size={{ xs: 12, lg: viewMode === 'board' ? 12 : 8 }}>
             <Stack spacing={2}>
-              <OpsPanel
-                eyebrow="Semáforo da fila"
-                title="O que organizar agora"
-                subtitle="A fila junta tudo que entrou do Trello e deixa claro o que precisa de dono, prazo ou cobrança antes de virar gargalo."
-                action={
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
-                    <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
-                  </Stack>
-                }
-              >
-                <Stack spacing={2.25}>
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
-                      gap: 1.25,
-                    }}
-                  >
-                    {[
-                      { label: 'Entrou', value: intakeCount, subtitle: 'Ainda precisa organizar', href: '/admin/operacoes/jobs?group=status', icon: <IconInbox size={16} />, color: '#5D87FF' },
-                      { label: 'Produção', value: inProgressCount, subtitle: 'Já está rodando', href: '/admin/operacoes/jobs?group=status', icon: <IconPlayerPlay size={16} />, color: '#13DEB9' },
-                      { label: 'Sem dono', value: unassignedCount(filteredJobs), subtitle: 'Precisa de responsável', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconUserOff size={16} />, color: '#FFAE1F' },
-                      { label: 'Atrasadas', value: overdueJobs.length, subtitle: 'Já passaram do prazo', href: '/admin/operacoes/jobs', icon: <IconCalendarDue size={16} />, color: '#FA896B' },
-                      { label: 'Esperando cliente', value: waitingClientJobs.length, subtitle: 'Aprovação ou retorno', href: '/admin/operacoes/jobs', icon: <IconLoader2 size={16} />, color: '#FFAE1F' },
-                      { label: 'Urgentes', value: urgentJobs.length, subtitle: 'P0 ou marcadas como urgente', href: '/admin/operacoes/radar', icon: <IconUrgent size={16} />, color: '#E85219' },
-                    ].map((item) => (
-                      <Box
-                        key={item.label}
-                        component={Link}
-                        href={item.href}
-                        sx={(theme) => ({
-                          display: 'block',
-                          textDecoration: 'none',
-                          color: 'inherit',
-                          p: 1.5,
-                          borderRadius: 2,
-                          border: `1px solid ${alpha(item.color, 0.22)}`,
-                          bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
-                          transition: 'all 180ms ease',
-                          '&:hover': {
-                            transform: 'translateY(-2px)',
-                            borderColor: alpha(item.color, 0.35),
-                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
-                          },
-                        })}
-                      >
-                        <Stack spacing={0.7}>
-                          <Stack direction="row" justifyContent="space-between" alignItems="center">
-                            <Box
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: 1.5,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: alpha(item.color, 0.14),
-                                color: item.color,
-                              }}
-                            >
-                              {item.icon}
-                            </Box>
-                            <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.4rem', lineHeight: 1 }}>
+              {compactBoard ? (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    px: { xs: 1.5, md: 2 },
+                    py: 1.5,
+                    borderRadius: 3,
+                    boxShadow: dark ? '0 2px 12px rgba(0,0,0,0.24)' : '0 2px 12px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <Stack spacing={1.25}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ md: 'center' }}>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: '0.14em', fontSize: '0.64rem' }}>
+                          Semáforo da fila
+                        </Typography>
+                        <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                        <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
+                      </Stack>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Button size="small" variant="contained" onClick={() => setComposerOpen(true)}>
+                          Nova demanda
+                        </Button>
+                        <Button size="small" variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                          Sem dono
+                        </Button>
+                        <Button size="small" variant="outlined" component={Link} href="/admin/operacoes/radar">
+                          Riscos
+                        </Button>
+                      </Stack>
+                    </Stack>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(6, minmax(0, 1fr))' },
+                        gap: 1,
+                      }}
+                    >
+                      {queueOverviewItems.map((item) => (
+                        <Box
+                          key={item.label}
+                          component={Link}
+                          href={item.href}
+                          sx={(theme) => ({
+                            display: 'block',
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            px: 1.1,
+                            py: 0.9,
+                            borderRadius: 2,
+                            border: `1px solid ${alpha(item.color, 0.18)}`,
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.035),
+                            transition: 'all 160ms ease',
+                            '&:hover': {
+                              borderColor: alpha(item.color, 0.3),
+                              bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.11) : alpha(item.color, 0.06),
+                            },
+                          })}
+                        >
+                          <Stack direction="row" spacing={0.8} alignItems="center" justifyContent="space-between">
+                            <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
+                              <Box
+                                sx={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: 1.25,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  bgcolor: alpha(item.color, 0.14),
+                                  color: item.color,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {item.icon}
+                              </Box>
+                              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.66rem' }}>
+                                {item.label}
+                              </Typography>
+                            </Stack>
+                            <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.12rem', lineHeight: 1, flexShrink: 0 }}>
                               {item.value}
                             </Typography>
                           </Stack>
-                          <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                              {item.label}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                              {item.subtitle}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </Box>
-                    ))}
-                  </Box>
-
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Button variant="contained" onClick={() => setComposerOpen(true)}>
-                      Nova demanda
-                    </Button>
-                    <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
-                      Resolver sem dono
-                    </Button>
-                    <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
-                      Distribuir semana
-                    </Button>
-                    <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
-                      Abrir riscos
-                    </Button>
+                        </Box>
+                      ))}
+                    </Box>
                   </Stack>
-                </Stack>
-              </OpsPanel>
+                </Paper>
+              ) : (
+                <OpsPanel
+                  eyebrow="Semáforo da fila"
+                  title="O que organizar agora"
+                  subtitle="A fila junta tudo que entrou do Trello e deixa claro o que precisa de dono, prazo ou cobrança antes de virar gargalo."
+                  action={
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                      <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
+                    </Stack>
+                  }
+                >
+                  <Stack spacing={2.25}>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+                        gap: 1.25,
+                      }}
+                    >
+                      {queueOverviewItems.map((item) => (
+                        <Box
+                          key={item.label}
+                          component={Link}
+                          href={item.href}
+                          sx={(theme) => ({
+                            display: 'block',
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: `1px solid ${alpha(item.color, 0.22)}`,
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
+                            transition: 'all 180ms ease',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              borderColor: alpha(item.color, 0.35),
+                              bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
+                            },
+                          })}
+                        >
+                          <Stack spacing={0.7}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 1.5,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  bgcolor: alpha(item.color, 0.14),
+                                  color: item.color,
+                                }}
+                              >
+                                {item.icon}
+                              </Box>
+                              <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.4rem', lineHeight: 1 }}>
+                                {item.value}
+                              </Typography>
+                            </Stack>
+                            <Box>
+                              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                {item.label}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                {item.subtitle}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Box>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button variant="contained" onClick={() => setComposerOpen(true)}>
+                        Nova demanda
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                        Resolver sem dono
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                        Distribuir semana
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
+                        Abrir riscos
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </OpsPanel>
+              )}
 
               {/* Search + filter bar */}
               <Box sx={{
@@ -419,7 +512,7 @@ export default function OperationsJobsClient() {
                 bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
                 boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
               }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, py: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, py: compactBoard ? 0.85 : 1 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -448,6 +541,7 @@ export default function OperationsJobsClient() {
                 </Stack>
 
                 {/* Delivery status summary strip */}
+                {!compactBoard ? (
                 <Stack direction="row" spacing={0.5} sx={{ px: 2, pb: 1, flexWrap: 'wrap' }} useFlexGap>
                   {[
                     { label: 'Atrasado', emoji: '🔴' },
@@ -486,9 +580,10 @@ export default function OperationsJobsClient() {
                     );
                   })}
                 </Stack>
+                ) : null}
 
                 {/* Quick filters */}
-                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: 1.25 }}>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: compactBoard ? 0.9 : 1.25 }}>
                   <ToggleButtonGroup value={quickFilter} exclusive onChange={(_e, v) => setQuickFilter(v)} size="small">
                     <ToggleButton value="mine" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#4f46e5', borderColor: '#4f46e540' } }}>
                       <IconUsers size={14} style={{ marginRight: 4 }} /> Minha pauta
@@ -557,6 +652,7 @@ export default function OperationsJobsClient() {
                 alerts={alerts}
                 owners={teamPulse}
                 jobs={jobs}
+                compact={compactBoard}
                 onSelectJob={openJobDetail}
                 onFilterOwner={(id) => setOwnerFilter(ownerFilter === id ? '' : id)}
                 allocableMinutesFn={ownerAllocableMinutes}
@@ -614,9 +710,14 @@ export default function OperationsJobsClient() {
                     </ToggleButtonGroup>
                   </Stack>
                 ) : (
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
-                    Quadro visual do fluxo. Use a lista quando precisar decidir por cliente, dono ou risco.
-                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                      {filteredJobs.length} demandas no quadro
+                    </Typography>
+                    <Button size="small" variant="outlined" onClick={() => setViewMode('list')}>
+                      Voltar para lista
+                    </Button>
+                  </Stack>
                 )}
               </Stack>
 
@@ -624,27 +725,7 @@ export default function OperationsJobsClient() {
               {filteredJobs.length === 0 ? (
                 <EmptyOperationState title="Nenhuma demanda encontrada" description="Mude os filtros ou crie uma nova demanda." actionLabel={OPS_COPY.shell.newDemand} onAction={() => setComposerOpen(true)} />
               ) : viewMode === 'board' ? (
-                <Stack spacing={2}>
-                  <Stack
-                    direction={{ xs: 'column', lg: 'row' }}
-                    justifyContent="space-between"
-                    alignItems={{ lg: 'center' }}
-                    spacing={1.5}
-                  >
-                    <Box>
-                      <Typography variant="h5" fontWeight={800} sx={{ mb: 0.5 }}>
-                        Fluxo da Fila
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {filteredJobs.length} demandas no quadro. Clique em uma demanda para abrir o detalhe em um painel sobreposto, sem dividir a tela.
-                      </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Button size="small" variant="outlined" onClick={() => setViewMode('list')}>
-                        Voltar para lista
-                      </Button>
-                    </Stack>
-                  </Stack>
+                <Stack spacing={1.5}>
                   <PipelineBoard
                     jobs={filteredJobs}
                     selectedJob={selectedJob}
