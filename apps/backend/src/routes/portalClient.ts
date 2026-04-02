@@ -37,6 +37,7 @@ import {
   createBriefingTrelloCard,
   sendBriefingAcceptedWhatsApp,
 } from '../services/briefingAutoPipelineService';
+import { generateCompletion } from '../services/ai/claudeService';
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
@@ -984,6 +985,200 @@ export async function portalTokenRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ ok: true });
+  });
+
+  // ── Portal Blueprint — New endpoints (Sala da Conta migration) ───────────────
+
+  // GET /portal/client/home — account overview summary
+  app.get('/portal/client/home', { preHandler: [requirePortalCapability('read')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const [jobsRes, briefingsRes, invoicesRes] = await Promise.all([
+      pool.query(
+        `SELECT id, title, status, due_at, updated_at
+         FROM edro_briefings WHERE main_client_id = $1
+         ORDER BY updated_at DESC LIMIT 20`,
+        [clientId],
+      ),
+      pool.query(
+        `SELECT id, status, form_data, created_at
+         FROM portal_briefing_requests WHERE client_id = $1
+         ORDER BY created_at DESC LIMIT 10`,
+        [clientId],
+      ),
+      pool.query(
+        `SELECT id, status, amount_brl, due_date FROM client_invoices WHERE client_id = $1 ORDER BY created_at DESC LIMIT 3`,
+        [clientId],
+      ).catch(() => ({ rows: [] })),
+    ]);
+
+    const jobs = jobsRes.rows;
+    const briefings = briefingsRes.rows;
+    const invoices = invoicesRes.rows;
+
+    return reply.send({
+      ongoing: jobs.filter((j: any) => j.status === 'in_progress').length,
+      pending_approvals: jobs.filter((j: any) => j.status === 'review').length,
+      upcoming_deliveries: jobs
+        .filter((j: any) => j.due_at && j.status !== 'done')
+        .sort((a: any, b: any) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime())
+        .slice(0, 3),
+      recent_jobs: jobs.slice(0, 5),
+      open_briefings: briefings.filter((b: any) => !['converted', 'declined'].includes(b.status)).length,
+      overdue_invoices: invoices.filter((i: any) => i.status === 'overdue').length,
+    });
+  });
+
+  // GET /portal/client/calendar — agenda (deliveries + meetings)
+  // NEW endpoint for Agenda page
+  app.get('/portal/client/calendar', { preHandler: [requirePortalCapability('read')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const [jobsRes, meetingsRes] = await Promise.all([
+      pool.query(
+        `SELECT id, title, status, due_at AS date
+         FROM edro_briefings
+         WHERE main_client_id = $1 AND due_at IS NOT NULL AND status <> 'done'
+         ORDER BY due_at ASC LIMIT 30`,
+        [clientId],
+      ),
+      pool.query(
+        `SELECT m.id, m.title, m.scheduled_at AS date, m.video_url AS link, m.description
+         FROM meetings m
+         WHERE m.client_id = $1 AND m.scheduled_at >= now() - interval '7 days'
+         ORDER BY m.scheduled_at ASC LIMIT 20`,
+        [clientId],
+      ).catch(() => ({ rows: [] })),
+    ]);
+
+    const events = [
+      ...jobsRes.rows.map((j: any) => ({ id: j.id, type: 'delivery' as const, title: j.title, date: j.date })),
+      ...meetingsRes.rows.map((m: any) => ({ id: m.id, type: 'meeting' as const, title: m.title, date: m.date, link: m.link, description: m.description })),
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return reply.send({ events });
+  });
+
+  // GET /portal/client/library — brand assets + approved deliveries
+  // NEW endpoint for Biblioteca page
+  app.get('/portal/client/library', { preHandler: [requirePortalCapability('read')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    // Return approved artworks (delivered) as library items
+    const res = await pool.query(
+      `SELECT ba.id, ba.title, ba.file_url, ba.mime_type, ba.created_at,
+              b.title AS campaign_name,
+              'delivery' AS type
+       FROM briefing_artworks ba
+       JOIN edro_briefings b ON b.id = ba.briefing_id
+       WHERE b.main_client_id = $1 AND ba.status = 'approved'
+       ORDER BY ba.created_at DESC LIMIT 50`,
+      [clientId],
+    );
+
+    return reply.send({ items: res.rows });
+  });
+
+  // GET /portal/client/results — executive results summary
+  // NEW endpoint for Resultados page
+  app.get('/portal/client/results', { preHandler: [requirePortalCapability('read')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [deliveriesRes, approvalsRes] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM edro_briefings
+         WHERE main_client_id = $1 AND status = 'done' AND updated_at >= $2`,
+        [clientId, periodStart],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM briefing_artworks ba
+         JOIN edro_briefings b ON b.id = ba.briefing_id
+         WHERE b.main_client_id = $1 AND ba.status = 'approved' AND ba.updated_at >= $2`,
+        [clientId, periodStart],
+      ).catch(() => ({ rows: [{ n: 0 }] })),
+    ]);
+
+    const period = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    return reply.send({
+      summary: {
+        period,
+        deliveries_count: deliveriesRes.rows[0]?.n ?? 0,
+        approvals_count: approvalsRes.rows[0]?.n ?? 0,
+        highlights: [],
+        learnings: [],
+        next_moves: [],
+      },
+    });
+  });
+
+  // POST /portal/client/assistant — AI account assistant
+  // NEW endpoint for Assistente page
+  app.post('/portal/client/assistant', { preHandler: [requirePortalCapability('read')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { message, history = [] } = (request.body ?? {}) as {
+      message: string;
+      history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    };
+
+    if (!message?.trim()) {
+      return reply.status(400).send({ error: 'message_required' });
+    }
+
+    // Gather context about the account
+    const [jobsRes, briefingsRes, invoicesRes] = await Promise.all([
+      pool.query(
+        `SELECT title, status, due_at FROM edro_briefings WHERE main_client_id = $1 ORDER BY updated_at DESC LIMIT 10`,
+        [clientId],
+      ),
+      pool.query(
+        `SELECT form_data, status, created_at FROM portal_briefing_requests WHERE client_id = $1 ORDER BY created_at DESC LIMIT 5`,
+        [clientId],
+      ),
+      pool.query(
+        `SELECT description, amount_brl, status, due_date FROM client_invoices WHERE client_id = $1 ORDER BY created_at DESC LIMIT 3`,
+        [clientId],
+      ).catch(() => ({ rows: [] })),
+    ]);
+
+    const jobs = jobsRes.rows;
+    const briefings = briefingsRes.rows;
+    const invoices = invoicesRes.rows;
+
+    const contextBlock = `
+Contexto da conta do cliente:
+- Pedidos em produção: ${jobs.filter((j: any) => j.status === 'in_progress').map((j: any) => j.title).join(', ') || 'nenhum'}
+- Aguardando aprovação: ${jobs.filter((j: any) => j.status === 'review').map((j: any) => j.title).join(', ') || 'nenhum'}
+- Próximas entregas (com prazo): ${jobs.filter((j: any) => j.due_at && j.status !== 'done').map((j: any) => `${j.title} (${new Date(j.due_at).toLocaleDateString('pt-BR')})`).join(', ') || 'nenhuma'}
+- Solicitações abertas: ${briefings.filter((b: any) => !['converted', 'declined'].includes(b.status)).length}
+- Faturas vencidas: ${invoices.filter((i: any) => i.status === 'overdue').length}
+`.trim();
+
+    const historyBlock = history.slice(-6).map(h => `${h.role === 'user' ? 'Cliente' : 'Assistente'}: ${h.content}`).join('\n');
+
+    const systemPrompt = `Você é o assistente do portal do cliente de uma agência de comunicação. Responda exclusivamente com informações sobre a conta deste cliente. Seja direto, objetivo e prestativo. Responda em português brasileiro.
+
+${contextBlock}`;
+
+    const prompt = historyBlock
+      ? `${historyBlock}\nCliente: ${message}`
+      : message;
+
+    try {
+      const result = await generateCompletion({ prompt, systemPrompt, maxTokens: 400, temperature: 0.4 });
+      return reply.send({ reply: result.text });
+    } catch (err: any) {
+      return reply.status(503).send({ error: 'assistant_unavailable', detail: err.message });
+    }
   });
 
   // ── Admin Briefing Request Queue ──────────────────────────────────────────────

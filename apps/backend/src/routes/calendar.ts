@@ -475,7 +475,29 @@ function pickPreferredCalendarItem<T extends { name?: string; score?: number }>(
   return aLen >= bLen ? a : b;
 }
 
-function dedupeCalendarItems<T extends { name?: string; score?: number; date?: string }>(
+function getCalendarDedupFamily(item: {
+  layer?: string;
+  origin?: string;
+  client_id?: string | null;
+  source?: string | null;
+}) {
+  return [
+    String(item.layer || ''),
+    String(item.origin || ''),
+    String(item.client_id || ''),
+    String(item.source || ''),
+  ].join('|');
+}
+
+function dedupeCalendarItems<T extends {
+  name?: string;
+  score?: number;
+  date?: string;
+  layer?: string;
+  origin?: string;
+  client_id?: string | null;
+  source?: string | null;
+}>(
   items: T[],
   options?: { byDate?: boolean }
 ) {
@@ -488,6 +510,7 @@ function dedupeCalendarItems<T extends { name?: string; score?: number; date?: s
     let merged = false;
 
     for (let i = 0; i < bucket.length; i += 1) {
+      if (getCalendarDedupFamily(bucket[i] as any) !== getCalendarDedupFamily(item as any)) continue;
       if (!areEquivalentCalendarNames(bucket[i]?.name, item?.name)) continue;
       bucket[i] = pickPreferredCalendarItem(bucket[i], item);
       merged = true;
@@ -733,7 +756,7 @@ async function buildCustomCalendarEventDays(params: {
       client_name: row.client_name ?? null,
       starts_at: `${row.event_date}T00:00:00`,
       time_label: null,
-      editable: false,
+      editable: true,
       supports_relevance: false,
       supports_briefing: true,
     });
@@ -1182,6 +1205,32 @@ export default async function calendarRoutes(app: FastifyInstance) {
       });
       const body = bodySchema.parse(request.body || {});
 
+      if (eventId.startsWith('calendar_event:')) {
+        const customEventId = eventId.slice('calendar_event:'.length);
+        const { rows } = await query<any>(
+          `SELECT id, title, relevance_score FROM calendar_events WHERE id=$1 LIMIT 1`,
+          [customEventId]
+        );
+        const custom = rows[0];
+        if (!custom) return reply.status(404).send({ error: 'event_not_found' });
+
+        const newName = body.name?.trim() ?? custom.title;
+        const newRelevance = body.relevance_score !== undefined
+          ? Math.max(0, Math.min(100, Math.round(body.relevance_score)))
+          : custom.relevance_score;
+
+        await query(
+          `UPDATE calendar_events
+              SET title=$1,
+                  relevance_score=$2,
+                  updated_at=NOW()
+            WHERE id=$3`,
+          [newName, newRelevance, customEventId]
+        );
+
+        return reply.send({ success: true, id: eventId, name: newName, relevance_score: newRelevance });
+      }
+
       // Busca o evento por ID (sem filtro de tenant para eventos globais)
       const { rows } = await query<any>(
         `SELECT id, name, base_relevance, source, tenant_id FROM events WHERE id=$1 LIMIT 1`,
@@ -1216,6 +1265,18 @@ export default async function calendarRoutes(app: FastifyInstance) {
     async (request: any, reply) => {
       const tenantId = (request.user as any).tenant_id;
       const eventId = String(request.params.eventId || '');
+
+      if (eventId.startsWith('calendar_event:')) {
+        const customEventId = eventId.slice('calendar_event:'.length);
+        const { rows } = await query<any>(
+          `SELECT id FROM calendar_events WHERE id=$1 LIMIT 1`,
+          [customEventId]
+        );
+        if (!rows[0]) return reply.status(404).send({ error: 'event_not_found' });
+
+        await query(`DELETE FROM calendar_events WHERE id=$1`, [customEventId]);
+        return reply.send({ success: true });
+      }
 
       const { rows } = await query<any>(
         `SELECT id, source, tenant_id FROM events WHERE id=$1 LIMIT 1`,

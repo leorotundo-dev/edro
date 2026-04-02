@@ -517,7 +517,7 @@ function buildEventSecondaryText(event: CalendarEventItem, selectedClient: Clien
       .join(' • ');
   }
 
-  const parts = [`${Math.round(event.score)}%`];
+  const parts = [getOriginLabel(event.origin), `${Math.round(event.score)}%`];
 
   if (!selectedClient && event.origin === 'editorial_client' && event.client_name) {
     parts.push(event.client_name);
@@ -1456,10 +1456,15 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     setError('');
     setNotice('');
     try {
-      await apiPatch(`/calendar/events/${editEventTarget.id}/edit`, {
-        name: editEventName.trim() || editEventTarget.name,
-        relevance_score: newScore,
-      });
+      await apiPatch(
+        `/calendar/events/${editEventTarget.id}/edit`,
+        editEventTarget.supports_relevance === false
+          ? { name: editEventName.trim() || editEventTarget.name }
+          : {
+              name: editEventName.trim() || editEventTarget.name,
+              relevance_score: newScore,
+            }
+      );
       await loadMonthEvents(selectedClient?.id ?? null, monthFilter);
       setNotice('Evento atualizado.');
     } catch (err: any) {
@@ -2639,14 +2644,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
             fullWidth
             onKeyDown={(e) => e.key === 'Enter' && handleEditConfirm()}
           />
-          <TextField
-            label="Relevância (0–100)"
-            type="number"
-            value={editEventScore}
-            onChange={(e) => setEditEventScore(e.target.value)}
-            inputProps={{ min: 0, max: 100 }}
-            fullWidth
-          />
+          {editEventTarget?.supports_relevance !== false ? (
+            <TextField
+              label="Relevância (0–100)"
+              type="number"
+              value={editEventScore}
+              onChange={(e) => setEditEventScore(e.target.value)}
+              inputProps={{ min: 0, max: 100 }}
+              fullWidth
+            />
+          ) : null}
         </Stack>
       </DialogContent>
       <DialogActions>
