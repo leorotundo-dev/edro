@@ -7,7 +7,7 @@ import Header from './layout/header/Header';
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import JarvisDrawer from './jarvis/JarvisDrawer';
 import JarvisCommandPalette from './jarvis/JarvisCommandPalette';
-import { BriefingDrawerProvider, useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
+import { useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
 import dynamic from 'next/dynamic';
 
 const BriefingCardDrawer = dynamic(() => import('@/app/edro/BriefingCardDrawer'), { ssr: false });
@@ -50,7 +50,6 @@ export default function AppShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <BriefingDrawerProvider>
     <ConfirmProvider>
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Sidebar
@@ -101,6 +100,5 @@ export default function AppShell({
       <GlobalBriefingDrawer />
     </Box>
     </ConfirmProvider>
-    </BriefingDrawerProvider>
   );
 }
