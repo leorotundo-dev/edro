@@ -3234,7 +3234,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // ── CONTRACT ROUTES ─────────────────────────────────────────────────────────
 
   // GET /freelancers/admin/:userId/contract/download — stream signed (or unsigned) contract PDF
-  app.get('/freelancers/admin/:userId/contract/download', { preHandler: [authGuard, requirePerm('clients:write')] }, async (request: any, reply) => {
+  app.get('/freelancers/admin/:userId/contract/download', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } }, preHandler: [authGuard, requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { userId } = request.params as { userId: string };
 
