@@ -3,6 +3,7 @@ import { Space_Grotesk } from 'next/font/google';
 import AuthGate from '@/components/AuthGate';
 import ThemeProvider from '@/utils/theme/ThemeProvider';
 import { JarvisProvider } from '@/contexts/JarvisContext';
+import { BriefingDrawerProvider } from '@/contexts/BriefingDrawerContext';
 import RouteProgressBar from '@/components/RouteProgressBar';
 
 const spaceGrotesk = Space_Grotesk({
@@ -37,8 +38,10 @@ export default function RootLayout({
       <body className={spaceGrotesk.className}>
         <ThemeProvider>
           <JarvisProvider>
-            <RouteProgressBar />
-            <AuthGate>{children}</AuthGate>
+            <BriefingDrawerProvider>
+              <RouteProgressBar />
+              <AuthGate>{children}</AuthGate>
+            </BriefingDrawerProvider>
           </JarvisProvider>
         </ThemeProvider>
       </body>
