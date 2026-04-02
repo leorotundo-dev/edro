@@ -3544,13 +3544,41 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       });
 
       // WhatsApp welcome message to the freelancer
+      const firstName = (prof.representante_nome ?? prof.display_name ?? '').split(' ')[0] || 'Freelancer';
       if (prof.whatsapp_jid) {
-        const firstName = (prof.representante_nome ?? prof.display_name ?? '').split(' ')[0] || 'Freelancer';
         sendWhatsAppText(
           prof.whatsapp_jid,
           `✅ *Contrato assinado!*\n\nOlá, ${firstName}! Seu contrato com a Edro foi assinado com sucesso.\n\nSeu acesso ao portal está liberado. Você receberá uma mensagem aqui sempre que um novo job for atribuído a você. 🚀`,
           { tenantId: prof.tenant_id, event: 'contract_signed', meta: { user_id: prof.user_id } },
         ).catch(() => {});
+      }
+
+      // Email with portal access code
+      try {
+        const issued = await issuePortalLoginCode(prof.email, { ttlMinutes: 60 * 24 });
+        const portalUrl = env.FREELANCER_PORTAL_URL ?? null;
+        const loginLine = portalUrl
+          ? `Acesse o portal em: ${portalUrl}/login`
+          : 'Acesse o Portal Freelancer Edro para começar.';
+        const { sendEmail } = await import('../services/emailService');
+        await sendEmail({
+          to: prof.email,
+          subject: '✅ Contrato assinado — seu código de acesso ao Portal Edro',
+          text: `Olá, ${firstName}!\n\nSeu contrato com a Edro foi assinado com sucesso. Seu acesso ao portal está liberado.\n\nSeu código de acesso é:\n\n${issued.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\n${loginLine}\n\n— Edro Digital`,
+          html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1e293b">
+            <h2 style="margin:0 0 4px">✅ Contrato assinado!</h2>
+            <p style="color:#475569;margin:0 0 24px">Portal Freelancer — Edro Digital</p>
+            <p>Olá, <strong>${firstName}</strong>! Seu contrato foi assinado com sucesso. Para acessar o portal, use o código abaixo:</p>
+            <div style="font-size:2rem;font-weight:700;letter-spacing:.3em;background:#f1f5f9;border-radius:12px;padding:16px 24px;text-align:center;margin:24px 0;color:#0f172a">${issued.code}</div>
+            <p style="color:#94a3b8;font-size:.875rem">Expira em 24 horas. Não compartilhe este código.</p>
+            ${portalUrl ? `<p><a href="${portalUrl}/login" style="color:#5D87FF">Acessar o portal →</a></p>` : ''}
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+            <p style="color:#94a3b8;font-size:.75rem">Edro Digital — este é um e-mail automático</p>
+          </div>`,
+          tenantId: prof.tenant_id,
+        });
+      } catch (err) {
+        console.error('[webhook/d4sign] failed to send portal access code email:', err);
       }
 
     } else if (type_post === 'cancelled') {
