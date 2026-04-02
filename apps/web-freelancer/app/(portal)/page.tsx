@@ -230,6 +230,33 @@ export default function DashboardPage() {
         <ActiveTimer key={t.briefing_id} timer={t} freelancerId={profile.id} onStopped={() => mutate()} />
       ))}
 
+      {/* Pending acceptance alert */}
+      {(() => {
+        const pending = allJobs.filter(j => j.pending_acceptance);
+        if (!pending.length) return null;
+        return (
+          <Link href="/jobs" style={{ textDecoration: 'none' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              background: 'rgba(248,168,0,0.10)',
+              border: '1.5px solid rgba(248,168,0,0.45)',
+              borderRadius: 14, padding: '14px 18px', cursor: 'pointer',
+            }}>
+              <span style={{ fontSize: 26, flexShrink: 0 }}>🤝</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#F8A800' }}>
+                  {pending.length} escopo{pending.length !== 1 ? 's' : ''} aguardando seu aceite
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+                  Responda antes de começar a executar.
+                </p>
+              </div>
+              <span style={{ fontSize: 14, color: '#F8A800' }}>›</span>
+            </div>
+          </Link>
+        );
+      })()}
+
       {/* Stats row */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         {/* Hours */}

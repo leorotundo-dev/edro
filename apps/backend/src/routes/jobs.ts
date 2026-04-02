@@ -89,9 +89,9 @@ async function notifyOwnerAssigned(
     event: 'job_assigned',
     tenantId,
     userId: ownerId,
-    title: `Novo job: ${jobTitle}`,
+    title: `Novo escopo: ${jobTitle}`,
     body,
-    link: '/admin/operacoes/jobs',
+    link: '/jobs',
     recipientEmail: owner.email ?? undefined,
     recipientPhone: owner.whatsapp_jid ?? undefined,
   });

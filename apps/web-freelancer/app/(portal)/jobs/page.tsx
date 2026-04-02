@@ -666,12 +666,26 @@ export default function JobsPage() {
   const [ratedJobIds, setRatedJobIds] = useState<Set<string>>(new Set());
 
   const jobs = data?.jobs ?? [];
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  // Split into Kanban columns by status
-  const colEmExecucao  = jobs.filter(j => ['allocated', 'in_progress'].includes(j.status));
-  const colHomologacao = jobs.filter(j => j.status === 'in_review');
-  const colAjuste      = jobs.filter(j => j.status === 'adjustment');
-  const colAprovado    = jobs.filter(j => j.status === 'approved');
+  async function handleRespond(jobId: string, action: 'accept' | 'reject') {
+    setRespondingId(jobId);
+    try {
+      await apiPost(`/freelancers/portal/me/jobs/${jobId}/respond`, { action, source: 'ops_job' });
+      mutate();
+    } catch (e: any) {
+      alert(e.message ?? `Erro ao ${action === 'accept' ? 'aceitar' : 'recusar'} escopo`);
+    } finally {
+      setRespondingId(null);
+    }
+  }
+
+  // Split into Kanban columns
+  const colPendingAccept = jobs.filter(j => j.pending_acceptance);
+  const colEmExecucao    = jobs.filter(j => j.status === 'in_progress' || (j.status === 'allocated' && !j.pending_acceptance));
+  const colHomologacao   = jobs.filter(j => j.status === 'in_review');
+  const colAjuste        = jobs.filter(j => j.status === 'adjustment');
+  const colAprovado      = jobs.filter(j => j.status === 'approved');
 
   // Legacy jobs (briefings, trello cards, other statuses) shown separately
   const colOutros      = jobs.filter(j =>
@@ -717,6 +731,81 @@ export default function JobsPage() {
 
       {/* Mercado de Escopos — pool self-select */}
       <PoolSection onAccepted={() => mutate()} />
+
+      {/* Aguardando seu aceite */}
+      {colPendingAccept.length > 0 && (
+        <section style={{
+          background: 'rgba(248,168,0,0.06)',
+          border: '1.5px solid rgba(248,168,0,0.35)',
+          borderRadius: 14, padding: '16px 18px',
+        }}>
+          <div className="portal-section-head" style={{ marginBottom: 12 }}>
+            <h3 className="portal-section-title" style={{ color: '#F8A800' }}>
+              🤝 Aguardando seu aceite
+            </h3>
+            <span style={{
+              fontSize: 11, fontWeight: 800, color: '#F8A800',
+              background: 'rgba(248,168,0,0.15)', borderRadius: 8, padding: '3px 9px',
+            }}>
+              {colPendingAccept.length} escopo{colPendingAccept.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {colPendingAccept.map(j => {
+              const sla = slaLabel(j.due_at);
+              const busy = respondingId === j.id;
+              return (
+                <div key={j.id} style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 12, padding: '14px 16px',
+                  display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>{j.title}</p>
+                    <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--portal-muted)' }}>
+                      {j.client_name ?? '—'}
+                      {sla && <span style={{ marginLeft: 8, color: sla.color, fontWeight: 700 }}>{sla.label}</span>}
+                      {j.fee_brl && parseFloat(j.fee_brl) > 0 && (
+                        <span style={{ marginLeft: 8, color: '#13DEB9', fontWeight: 700 }}>
+                          R$ {parseFloat(j.fee_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleRespond(j.id, 'reject')}
+                      style={{
+                        padding: '8px 16px', borderRadius: 9, fontSize: 12, fontWeight: 700,
+                        background: 'rgba(255,68,68,0.1)', border: '1.5px solid rgba(255,68,68,0.3)',
+                        color: '#ff6b6b', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.5 : 1,
+                      }}
+                    >
+                      Recusar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleRespond(j.id, 'accept')}
+                      style={{
+                        padding: '8px 18px', borderRadius: 9, fontSize: 12, fontWeight: 700,
+                        background: busy ? 'rgba(19,222,185,0.1)' : 'rgba(19,222,185,0.15)',
+                        border: '1.5px solid rgba(19,222,185,0.4)',
+                        color: '#13DEB9', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.5 : 1,
+                      }}
+                    >
+                      {busy ? '...' : '✓ Aceitar'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Em Execução */}
       <KanbanColumn

@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { clearToken, apiGet } from '@/lib/api';
+import useSWR from 'swr';
+import { clearToken, apiGet, apiPost, swrFetcher } from '@/lib/api';
 import clsx from 'clsx';
 
 const NAV_ITEMS = [
@@ -29,6 +30,161 @@ const MOBILE_NAV = NAV.filter(n => ['/', '/jobs', '/studio', '/agenda', '/perfil
 
 function initials(value: string) {
   return value.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || 'FR';
+}
+
+type InAppNotification = {
+  id: string;
+  event_type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { data, mutate } = useSWR<{ notifications: InAppNotification[]; unreadCount: number }>(
+    '/notifications',
+    swrFetcher,
+    { refreshInterval: 30_000 },
+  );
+
+  const notifications = data?.notifications ?? [];
+  const unreadCount = data?.unreadCount ?? 0;
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleClick = async (n: InAppNotification) => {
+    if (!n.read_at) {
+      await apiPost(`/notifications/${n.id}/read`, {}).catch(() => {});
+      mutate();
+    }
+    setOpen(false);
+    if (n.link) window.location.href = n.link;
+  };
+
+  const markAll = async () => {
+    await apiPost('/notifications/read-all', {}).catch(() => {});
+    mutate();
+  };
+
+  function fmtAgo(ts: string) {
+    const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+    if (diff < 1) return 'agora';
+    if (diff < 60) return `${diff}min`;
+    if (diff < 1440) return `${Math.floor(diff / 60)}h`;
+    return `${Math.floor(diff / 1440)}d`;
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          position: 'relative', background: 'none', border: 'none',
+          cursor: 'pointer', padding: '6px 8px', borderRadius: 8,
+          color: open ? 'var(--portal-accent)' : 'var(--portal-muted)',
+          fontSize: 20, lineHeight: 1, display: 'flex', alignItems: 'center',
+          transition: 'color 0.15s',
+        }}
+        aria-label="Notificações"
+      >
+        🔔
+        {unreadCount > 0 && (
+          <span style={{
+            position: 'absolute', top: 2, right: 2,
+            background: '#FA896B', color: '#fff',
+            fontSize: 9, fontWeight: 800, borderRadius: '50%',
+            width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            lineHeight: 1,
+          }}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          width: 320, maxHeight: 420, overflowY: 'auto',
+          background: 'var(--portal-card)', border: '1.5px solid var(--portal-border)',
+          borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          zIndex: 200,
+        }}>
+          <div style={{
+            padding: '12px 16px 10px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            borderBottom: '1px solid var(--portal-border)',
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)' }}>
+              Notificações {unreadCount > 0 && <span style={{ color: '#FA896B' }}>({unreadCount})</span>}
+            </span>
+            {unreadCount > 0 && (
+              <button type="button" onClick={markAll} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: 'var(--portal-accent)', padding: 0,
+              }}>
+                Marcar todas como lidas
+              </button>
+            )}
+          </div>
+
+          {notifications.length === 0 ? (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--portal-muted)', fontSize: 13 }}>
+              Nenhuma notificação
+            </div>
+          ) : (
+            notifications.map(n => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => handleClick(n)}
+                style={{
+                  width: '100%', textAlign: 'left', background: 'none',
+                  border: 'none', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  cursor: 'pointer', padding: '12px 16px',
+                  display: 'flex', gap: 10, alignItems: 'flex-start',
+                  opacity: n.read_at ? 0.5 : 1,
+                  transition: 'background 0.1s',
+                }}
+              >
+                {!n.read_at && (
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: '#5D87FF', flexShrink: 0, marginTop: 4,
+                  }} />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.4 }}>
+                    {n.title}
+                  </p>
+                  {n.body && (
+                    <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--portal-muted)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                      {n.body}
+                    </p>
+                  )}
+                  <p style={{ margin: '4px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>
+                    {fmtAgo(n.created_at)}
+                  </p>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 type PortalFreelancerMe = {
@@ -135,13 +291,16 @@ export default function PortalShell({ children }: { children: React.ReactNode })
           <div>
             <p className="ps-header-section">{activeLabel}</p>
           </div>
-          <span className="ps-header-logout" onClick={async () => {
-            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
-            clearToken();
-            window.location.href = '/login';
-          }}>
-            Sair
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <NotificationBell />
+            <span className="ps-header-logout" onClick={async () => {
+              await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+              clearToken();
+              window.location.href = '/login';
+            }}>
+              Sair
+            </span>
+          </div>
         </header>
 
         {/* Content */}

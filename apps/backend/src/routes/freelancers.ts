@@ -1259,7 +1259,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               c.name as client_name, 'ops_job' as source,
               NULL::text as board_name, NULL::text as list_name, false as due_complete,
               j.fee_brl, j.job_size,
-              false as pending_acceptance,
+              (j.status = 'allocated') as pending_acceptance,
               j.delivered_link, j.adjustment_feedback,
               j.approved_at, j.delivered_at,
               NULL::jsonb as payload, NULL::timestamptz as copy_approved_at, NULL::text as copy_approval_comment
@@ -1462,6 +1462,54 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       }
 
       return reply.send({ ok: true, action });
+    }
+
+    // Ops job — accept moves to in_progress, reject clears assignment
+    if (source === 'ops_job') {
+      const { rows: jobRows } = await pool.query(
+        `SELECT id, title, status, owner_id FROM jobs WHERE id = $1 AND owner_id = $2::uuid AND tenant_id = $3`,
+        [jobId, userId, tenantId],
+      );
+      if (!jobRows[0]) return reply.status(404).send({ error: 'Job não encontrado.' });
+      const j = jobRows[0];
+
+      if (j.status !== 'allocated') {
+        return reply.status(409).send({ error: 'Apenas jobs com status "allocated" podem ser aceitos ou recusados.' });
+      }
+
+      if (action === 'accept') {
+        await pool.query(
+          `UPDATE jobs SET status = 'in_progress', updated_at = now() WHERE id = $1 AND tenant_id = $2`,
+          [jobId, tenantId],
+        );
+        return reply.send({ ok: true, action, new_status: 'in_progress' });
+      }
+
+      // reject: release job back to the pool
+      await pool.query(
+        `UPDATE jobs SET status = 'ready', owner_id = NULL, allocated_at = NULL, updated_at = now()
+          WHERE id = $1 AND tenant_id = $2`,
+        [jobId, tenantId],
+      );
+
+      // Notify admin (non-blocking)
+      pool.query(
+        `SELECT u.id FROM edro_users u WHERE u.tenant_id = $1 AND u.role IN ('admin','manager') LIMIT 5`,
+        [tenantId],
+      ).then(async ({ rows: admins }) => {
+        const { createInAppNotification } = await import('../services/notificationService');
+        for (const admin of admins) {
+          await createInAppNotification({
+            userId: admin.id, tenantId,
+            event_type: 'job_rejected',
+            title: `Escopo recusado: ${j.title}`,
+            body: reason ? `Motivo: ${reason}` : 'Freelancer recusou o escopo.',
+            link: `/admin/operacoes/jobs`,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+
+      return reply.send({ ok: true, action, new_status: 'ready' });
     }
 
     return reply.status(400).send({ error: 'source inválido' });
