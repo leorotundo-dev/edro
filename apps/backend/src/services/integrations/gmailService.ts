@@ -7,6 +7,7 @@
  *   GOOGLE_CLIENT_SECRET   — Google OAuth client secret
  *   GOOGLE_REDIRECT_URI    — e.g. https://edro-backend-production.up.railway.app/api/auth/google/callback
  *   GOOGLE_PUBSUB_TOPIC    — e.g. projects/my-project/topics/gmail-watch
+ *   GOOGLE_PUBSUB_WEBHOOK_TOKEN — shared secret required on /webhook/gmail
  *
  * Flow:
  *   1. User clicks "Conectar Gmail" → GET /auth/google/start
