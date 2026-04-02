@@ -48,6 +48,7 @@ import { runJarvisBackgroundWorkerOnce } from './jarvisBackgroundWorker';
 import { runJarvisCreationWorkerOnce } from './jarvisCreationWorker';
 import { runFeedbackProcessorWorkerOnce } from './feedbackProcessorWorker';
 import { runLoraMonitorWorkerOnce } from './loraMonitorWorker';
+import { runBedelWorkerOnce } from './bedelWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -194,6 +195,11 @@ export function startJobsRunner() {
   startWorkerLoop('agencyDigest', runAgencyDigestWorkerOnce, 22000, 60_000, 60_000);
   // Jarvis Creation Worker — 1x/day at ~09h, closes the production loop (alert → briefing → copy → arte → handoff)
   startWorkerLoop('jarvisCreation', runJarvisCreationWorkerOnce, 23000, 120_000, 60_000);
+
+  // ── Bedel — allocation proposals + delivery monitor (every 60s) ─────────────
+  // Phase 1: proposes/auto-assigns freelancers for ready jobs without an owner
+  // Phase 2: monitors stalled or deadline-at-risk allocated jobs
+  startWorkerLoop('bedel', runBedelWorkerOnce, 26000, 120_000, 60_000);
 
   // ── 5s — DA feedback loop (processes da_feedback_events → trust_score updates) ──
   startWorkerLoop('feedbackProcessor', runFeedbackProcessorWorkerOnce, 24000, 30_000);
