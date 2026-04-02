@@ -685,6 +685,28 @@ export default async function trelloRoutes(app: FastifyInstance) {
     return { band: 'p3', score: 6 };
   }
 
+  function inferSlaDeliveryType(input: { title?: string | null; labels?: Array<{ name?: string | null }> | null }) {
+    const text = [
+      input.title || '',
+      ...(Array.isArray(input.labels) ? input.labels.map((label) => label?.name || '') : []),
+    ]
+      .join(' ')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    if (/(post|posts|social|rede social|instagram|linkedin|facebook|carrossel|feed|story|stories|reels|legenda)/.test(text)) {
+      return { key: 'posts', label: 'Posts' };
+    }
+    if (/(video|videos|reels|capcut|motion|animacao|animacao|edicao)/.test(text)) {
+      return { key: 'videos', label: 'Videos' };
+    }
+    if (/(campanha|landing|site|hotsite|projeto|proposta|cronograma|manual|identidade|apresentacao|apresentacao comercial)/.test(text)) {
+      return { key: 'projetos', label: 'Projetos' };
+    }
+    return { key: 'materiais_avulsos', label: 'Materiais avulsos' };
+  }
+
   // GET /trello/health — sync health per board + unmapped lists
   app.get('/trello/health', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
@@ -1449,11 +1471,13 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     type ClientBucket = { client_id: string | null; client_name: string; met: number; missed: number; total: number; totalVariance: number };
     type OwnerBucket = { owner_id: string | null; owner_name: string; met: number; missed: number; total: number; totalVariance: number; totalRevisions: number };
+    type TypeBucket = { type_key: string; type_label: string; met: number; missed: number; total: number; totalVariance: number };
 
     let met = 0, missed = 0, open = 0;
     let totalVarianceDays = 0, varianceCount = 0;
     const byClientMap = new Map<string, ClientBucket>();
     const byOwnerMap = new Map<string, OwnerBucket>();
+    const byTypeMap = new Map<string, TypeBucket>();
     const worstMisses: Record<string, any>[] = [];
 
     for (const c of cards) {
@@ -1486,6 +1510,30 @@ export default async function trelloRoutes(app: FastifyInstance) {
       }
       const cr = byClientMap.get(ck)!;
       if (kind !== 'open') { cr.total++; if (kind === 'met') cr.met++; else { cr.missed++; cr.totalVariance += varianceDays; } }
+
+      const deliveryType = inferSlaDeliveryType({
+        title: c.title as string | null,
+        labels: Array.isArray(c.labels) ? (c.labels as Array<{ name?: string | null }>) : [],
+      });
+      if (!byTypeMap.has(deliveryType.key)) {
+        byTypeMap.set(deliveryType.key, {
+          type_key: deliveryType.key,
+          type_label: deliveryType.label,
+          met: 0,
+          missed: 0,
+          total: 0,
+          totalVariance: 0,
+        });
+      }
+      const typeBucket = byTypeMap.get(deliveryType.key)!;
+      if (kind !== 'open') {
+        typeBucket.total++;
+        if (kind === 'met') typeBucket.met++;
+        else {
+          typeBucket.missed++;
+          typeBucket.totalVariance += varianceDays;
+        }
+      }
 
       if (c.owner_name) {
         const ok = (c.owner_user_id as string | null) ?? (c.owner_name as string);
@@ -1529,6 +1577,18 @@ export default async function trelloRoutes(app: FastifyInstance) {
             rate: r.total > 0 ? Math.round(r.met / r.total * 100) : null,
             avg_days_variance: r.missed > 0 ? Math.round(r.totalVariance / r.missed * 10) / 10 : 0,
             avg_revisions: r.total > 0 ? Math.round(r.totalRevisions / r.total * 10) / 10 : 0,
+          }))
+          .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0)),
+        by_type: Array.from(byTypeMap.values())
+          .filter((r) => r.total > 0)
+          .map((r) => ({
+            type_key: r.type_key,
+            type_label: r.type_label,
+            met: r.met,
+            missed: r.missed,
+            total: r.total,
+            rate: r.total > 0 ? Math.round(r.met / r.total * 100) : null,
+            avg_days_variance: r.missed > 0 ? Math.round(r.totalVariance / r.missed * 10) / 10 : 0,
           }))
           .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0)),
         worst_misses: worstMisses

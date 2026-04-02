@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db/db';
-import { generateAndSaveDigest, buildDailyDigest, buildWeeklyDigest } from '../services/agencyDigestService';
+import { generateAndSaveDigest, buildDailyDigest, buildWeeklyDigest, sendSavedDigest } from '../services/agencyDigestService';
 
 export default async function agencyDigestRoutes(app: FastifyInstance) {
   // GET /admin/diario — list last 30 digests
@@ -51,8 +51,16 @@ export default async function agencyDigestRoutes(app: FastifyInstance) {
     if (!['daily', 'weekly'].includes(type)) {
       return reply.status(400).send({ error: 'type must be daily or weekly' });
     }
-    await generateAndSaveDigest(tenantId, type);
-    return reply.send({ ok: true });
+    const result = await generateAndSaveDigest(tenantId, type);
+    return reply.send({ ok: true, ...result });
+  });
+
+  // POST /admin/diario/:id/send — send an already generated digest
+  app.post('/admin/diario/:id/send', async (req, reply) => {
+    const tenantId = (req as any).tenantId || process.env.DEFAULT_TENANT_ID || 'edro';
+    const { id } = req.params as { id: string };
+    const result = await sendSavedDigest(id, tenantId);
+    return reply.send({ ok: true, ...result });
   });
 
   // GET /admin/diario/preview — preview without saving

@@ -20,6 +20,9 @@ import {
   IconUsers,
   IconPlus,
   IconAlertTriangle,
+  IconRefresh,
+  IconSend,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
 import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
@@ -59,11 +62,43 @@ const FLOW_COLUMNS = [
   { key: 'entregue', label: 'Entregue', color: '#13DEB9', stages: ['published', 'done'] },
 ] as const;
 
+type CopyQueueBriefing = {
+  id: string;
+  title: string;
+  client_name: string | null;
+  status: string;
+  due_at: string | null;
+};
+
+type LatestDigest = {
+  id: string;
+  type: 'daily' | 'weekly';
+  created_at: string;
+  sent_at: string | null;
+  content?: {
+    active_jobs_total?: number;
+    top_action?: string | null;
+  } | null;
+};
+
+type DigestHistoryItem = {
+  id: string;
+  type: 'daily' | 'weekly';
+  created_at: string;
+  sent_at: string | null;
+  narrative_text: string | null;
+};
+
 export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [syncing, setSyncing] = useState(false);
+  const [generatingDigest, setGeneratingDigest] = useState(false);
+  const [sendingDigest, setSendingDigest] = useState(false);
   const [signalStats, setSignalStats] = useState({ total: 0, critical: 0, attention: 0 });
   const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; client_name: string; form_data: { type?: string; objective?: string } }>>([]);
+  const [copyQueue, setCopyQueue] = useState<CopyQueueBriefing[]>([]);
+  const [latestDailyDigest, setLatestDailyDigest] = useState<LatestDigest | null>(null);
+  const [digestHistory, setDigestHistory] = useState<DigestHistoryItem[]>([]);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
 
@@ -167,6 +202,23 @@ export default function OperationsOverviewClient() {
     }
   }, []);
 
+  const loadCommandDesk = useCallback(async () => {
+    try {
+      const [digestResponse, digestHistoryResponse, briefingResponse] = await Promise.all([
+        apiGet<{ daily?: LatestDigest | null }>('/admin/diario/latest'),
+        apiGet<{ digests?: DigestHistoryItem[] }>('/admin/diario'),
+        apiGet<{ success: boolean; data: CopyQueueBriefing[] }>('/edro/briefings?status=copy_ia&limit=6'),
+      ]);
+      setLatestDailyDigest(digestResponse?.daily ?? null);
+      setDigestHistory((digestHistoryResponse?.digests || []).filter((digest) => digest.type === 'daily').slice(0, 3));
+      setCopyQueue(briefingResponse?.data ?? []);
+    } catch {
+      setLatestDailyDigest(null);
+      setDigestHistory([]);
+      setCopyQueue([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (!selectedJob) return;
     const fresh = jobs.find((job) => job.id === selectedJob.id);
@@ -186,16 +238,39 @@ export default function OperationsOverviewClient() {
     if (loading) return;
     void loadOverviewRuntime();
     void loadSignalStats();
+    void loadCommandDesk();
     apiGet<{ requests: typeof pendingRequests }>('/admin/briefing-requests?status=submitted&limit=20')
       .then(r => setPendingRequests(r?.requests ?? []))
       .catch(() => {});
-  }, [loadOverviewRuntime, loadSignalStats, loading]);
+  }, [loadCommandDesk, loadOverviewRuntime, loadSignalStats, loading]);
 
   const handleRefreshOverview = useCallback(async () => {
     await refresh();
     await loadOverviewRuntime();
     await loadSignalStats();
-  }, [loadOverviewRuntime, loadSignalStats, refresh]);
+    await loadCommandDesk();
+  }, [loadCommandDesk, loadOverviewRuntime, loadSignalStats, refresh]);
+
+  const handleGenerateDigest = useCallback(async () => {
+    setGeneratingDigest(true);
+    try {
+      await apiPost('/admin/diario/generate', { type: 'daily' });
+      await loadCommandDesk();
+    } finally {
+      setGeneratingDigest(false);
+    }
+  }, [loadCommandDesk]);
+
+  const handleResendLatestDigest = useCallback(async () => {
+    if (!latestDailyDigest?.id) return;
+    setSendingDigest(true);
+    try {
+      await apiPost(`/admin/diario/${latestDailyDigest.id}/send`, {});
+      await loadCommandDesk();
+    } finally {
+      setSendingDigest(false);
+    }
+  }, [latestDailyDigest?.id, loadCommandDesk]);
 
   const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
     await changeStatus(jobId, nextStatus);
@@ -384,6 +459,305 @@ export default function OperationsOverviewClient() {
               }
             >
               <Stack spacing={2.5}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', lg: 'repeat(4, minmax(0, 1fr))' },
+                    gap: 1.25,
+                  }}
+                >
+                  {[
+                    {
+                      key: 'sync',
+                      eyebrow: 'Atualizar pautas',
+                      title: syncHealth?.needs_attention
+                        ? `${syncHealth.stale_boards + syncHealth.unlinked_boards + (syncHealth.unmapped_lists ?? 0)} ponto(s) pedem ação`
+                        : 'Trello saudável',
+                      subtitle: syncHealth?.needs_attention
+                        ? 'Força a atualização do espelho, revisa boards sem vínculo e fecha gaps de mapeamento.'
+                        : 'A fila principal já está alinhada com o Trello agora.',
+                      icon: <IconRefresh size={16} />,
+                      color: '#5D87FF',
+                      primaryLabel: syncing ? 'Sincronizando...' : 'Sincronizar agora',
+                      primaryAction: handleSyncNow,
+                      secondaryLabel: 'Abrir Trello',
+                      secondaryHref: '/admin/trello',
+                    },
+                    {
+                      key: 'digest',
+                      eyebrow: 'Disparar diário',
+                      title: latestDailyDigest?.created_at
+                        ? `Último diário ${new Date(latestDailyDigest.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                        : 'Nenhum diário gerado ainda',
+                      subtitle: latestDailyDigest?.content?.top_action
+                        ? `Prioridade registrada: ${latestDailyDigest.content.top_action}`
+                        : 'Gera o resumo diário para operação e liderança sem sair da Central.',
+                      icon: <IconSend size={16} />,
+                      color: '#E85219',
+                      primaryLabel: generatingDigest ? 'Disparando...' : 'Gerar e disparar',
+                      primaryAction: handleGenerateDigest,
+                      secondaryLabel: latestDailyDigest ? (sendingDigest ? 'Reenviando...' : 'Reenviar último') : 'Abrir diário',
+                      secondaryAction: latestDailyDigest ? handleResendLatestDigest : undefined,
+                      secondaryHref: latestDailyDigest ? undefined : '/admin/diario',
+                    },
+                    {
+                      key: 'requests',
+                      eyebrow: 'Extrair briefings',
+                      title: pendingRequests.length
+                        ? `${pendingRequests.length} solicitação(ões) do portal`
+                        : 'Nenhum pedido travando triagem',
+                      subtitle: pendingRequests.length
+                        ? 'Transforme pedidos recém-chegados em briefing e distribua o dono certo.'
+                        : 'A bandeja do portal está limpa neste momento.',
+                      icon: <IconInbox size={16} />,
+                      color: '#FFAE1F',
+                      primaryLabel: 'Abrir solicitações',
+                      primaryHref: '/admin/solicitacoes',
+                      secondaryLabel: 'Novo briefing',
+                      secondaryAction: () => openCreate('briefing'),
+                    },
+                    {
+                      key: 'copy',
+                      eyebrow: 'Subir redação',
+                      title: copyQueue.length
+                        ? `${copyQueue.length} briefing(s) em Copy IA`
+                        : 'Sem fila de copy agora',
+                      subtitle: copyQueue.length
+                        ? 'Handoff direto para redação, revisão e avanço do pipeline criativo.'
+                        : 'Nenhum briefing está aguardando geração ou subida de redação.',
+                      icon: <IconSparkles size={16} />,
+                      color: '#13DEB9',
+                      primaryLabel: 'Abrir Copy IA',
+                      primaryHref: '/edro?status=copy_ia',
+                      secondaryLabel: 'Abrir Studio',
+                      secondaryHref: '/studio/editor',
+                    },
+                  ].map((command) => (
+                    <Box
+                      key={command.key}
+                      sx={(theme) => ({
+                        p: 1.75,
+                        borderRadius: 2,
+                        border: `1px solid ${alpha(command.color, 0.2)}`,
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(command.color, 0.07) : alpha(command.color, 0.035),
+                      })}
+                    >
+                      <Stack spacing={1.25}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 900, color: command.color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                              {command.eyebrow}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.35, fontWeight: 800, lineHeight: 1.35 }}>
+                              {command.title}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ width: 30, height: 30, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(command.color, 0.14), color: command.color, flexShrink: 0 }}>
+                            {command.icon}
+                          </Box>
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary" sx={{ minHeight: 36 }}>
+                          {command.subtitle}
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            disabled={command.key === 'sync' ? syncing : command.key === 'digest' ? generatingDigest : false}
+                            onClick={command.primaryAction}
+                            href={command.primaryHref}
+                            component={command.primaryHref ? Link : 'button'}
+                            sx={{ bgcolor: command.color, '&:hover': { bgcolor: command.color } }}
+                          >
+                            {command.primaryLabel}
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            disabled={command.key === 'digest' ? sendingDigest : false}
+                            onClick={command.secondaryAction}
+                            href={command.secondaryHref}
+                            component={command.secondaryHref ? Link : 'button'}
+                            sx={{ borderColor: alpha(command.color, 0.4), color: command.color }}
+                          >
+                            {command.secondaryLabel}
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Box>
+
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', xl: '1.2fr 1.2fr 0.8fr' },
+                    gap: 1.25,
+                  }}
+                >
+                  {[
+                    {
+                      key: 'portal',
+                      eyebrow: 'Portal -> Operação',
+                      title: 'Pedidos recém-chegados',
+                      empty: 'Nenhum pedido novo esperando triagem.',
+                      href: '/admin/solicitacoes',
+                      rows: pendingRequests.slice(0, 3).map((request) => ({
+                        key: request.id,
+                        title: request.form_data?.objective || request.form_data?.type || 'Solicitação recebida',
+                        subtitle: request.client_name,
+                      })),
+                    },
+                    {
+                      key: 'copy',
+                      eyebrow: 'Operação -> Redação',
+                      title: 'Briefings prontos para Copy IA',
+                      empty: 'Nenhum briefing pronto para redação agora.',
+                      href: '/edro?status=copy_ia',
+                      rows: copyQueue.slice(0, 3).map((briefing) => ({
+                        key: briefing.id,
+                        title: briefing.title,
+                        subtitle: briefing.client_name || 'Sem cliente',
+                      })),
+                    },
+                  ].map((handoff) => (
+                    <Box
+                      key={handoff.key}
+                      sx={(theme) => ({
+                        p: 1.6,
+                        borderRadius: 2,
+                        border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.7) : '#fff',
+                      })}
+                    >
+                      <Stack spacing={1.1}>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            {handoff.eyebrow}
+                          </Typography>
+                          <Typography variant="body2" fontWeight={800} sx={{ mt: 0.35 }}>
+                            {handoff.title}
+                          </Typography>
+                        </Box>
+                        <Stack spacing={0.75}>
+                          {handoff.rows.length ? handoff.rows.map((row) => (
+                            <Box
+                              key={row.key}
+                              sx={(theme) => ({
+                                px: 1.1,
+                                py: 0.95,
+                                borderRadius: 1.5,
+                                bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04),
+                              })}
+                            >
+                              <Typography variant="body2" fontWeight={700}>{row.title}</Typography>
+                              <Typography variant="caption" color="text.secondary">{row.subtitle}</Typography>
+                            </Box>
+                          )) : (
+                            <Typography variant="caption" color="text.secondary">{handoff.empty}</Typography>
+                          )}
+                        </Stack>
+                        <Button size="small" variant="text" component={Link} href={handoff.href} sx={{ alignSelf: 'flex-start', px: 0, fontWeight: 700 }}>
+                          Abrir fila
+                        </Button>
+                      </Stack>
+                    </Box>
+                  ))}
+
+                  <Box
+                    sx={(theme) => ({
+                      p: 1.6,
+                      borderRadius: 2,
+                      border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
+                      bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.7) : '#fff',
+                    })}
+                  >
+                    <Stack spacing={1.1}>
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          Diário operacional
+                        </Typography>
+                        <Typography variant="body2" fontWeight={800} sx={{ mt: 0.35 }}>
+                          {latestDailyDigest?.created_at
+                            ? `Gerado em ${new Date(latestDailyDigest.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                            : 'Sem digest recente'}
+                        </Typography>
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        {latestDailyDigest?.content?.top_action
+                          ? latestDailyDigest.content.top_action
+                          : 'Use o diário para consolidar o que precisa ser comunicado para a equipe e gestão.'}
+                      </Typography>
+                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                        <Chip size="small" variant="outlined" label={`${latestDailyDigest?.content?.active_jobs_total ?? jobs.length} demandas`} />
+                        <Chip size="small" variant="outlined" label={latestDailyDigest?.sent_at ? 'Disparo concluído' : 'Rascunho interno'} />
+                      </Stack>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={handleGenerateDigest}
+                          disabled={generatingDigest}
+                          sx={{ alignSelf: 'flex-start' }}
+                        >
+                          {generatingDigest ? 'Disparando...' : 'Gerar e disparar'}
+                        </Button>
+                        {latestDailyDigest ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={handleResendLatestDigest}
+                            disabled={sendingDigest}
+                            sx={{ alignSelf: 'flex-start' }}
+                          >
+                            {sendingDigest ? 'Reenviando...' : 'Reenviar último'}
+                          </Button>
+                        ) : null}
+                        <Button size="small" variant="text" component={Link} href="/admin/diario" sx={{ alignSelf: 'flex-start', px: 0, fontWeight: 700 }}>
+                          Abrir diário
+                        </Button>
+                      </Stack>
+                      <Divider />
+                      <Stack spacing={0.75}>
+                        <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          Últimos disparos
+                        </Typography>
+                        {digestHistory.length ? (
+                          digestHistory.map((digest) => (
+                            <Box
+                              key={digest.id}
+                              sx={(theme) => ({
+                                px: 1.1,
+                                py: 0.9,
+                                borderRadius: 1.5,
+                                bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04),
+                              })}
+                            >
+                              <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, display: 'block' }}>
+                                    {new Date(digest.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                    {digest.sent_at
+                                      ? `Enviado em ${new Date(digest.sent_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                                      : 'Gerado, mas ainda não disparado'}
+                                  </Typography>
+                                </Box>
+                                <Chip size="small" variant="outlined" label={digest.sent_at ? 'Enviado' : 'Rascunho'} />
+                              </Stack>
+                            </Box>
+                          ))
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            Nenhum disparo recente.
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Stack>
+                  </Box>
+                </Box>
+
                 <Box
                   sx={{
                     display: 'grid',

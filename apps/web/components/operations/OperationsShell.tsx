@@ -16,13 +16,15 @@ import {
   IconLayoutKanban,
   IconPlus,
   IconSearch,
+  IconSparkles,
   IconTargetArrow,
   IconCalendarTime,
   IconAlertTriangle,
   IconChecklist,
+  IconUsers,
 } from '@tabler/icons-react';
 
-export type OperationsSection = 'overview' | 'jobs' | 'semana' | 'radar' | 'quality';
+export type OperationsSection = 'overview' | 'jobs' | 'ia' | 'people' | 'semana' | 'radar' | 'quality';
 
 type CommandOption = {
   label: string;
@@ -35,6 +37,8 @@ type CommandOption = {
 const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; icon: ReactElement }> = [
   { key: 'overview', label: 'Hoje', href: '/admin/operacoes', icon: <IconTargetArrow size={16} /> },
   { key: 'jobs', label: 'Fila', href: '/admin/operacoes/jobs', icon: <IconLayoutKanban size={16} /> },
+  { key: 'ia', label: 'IA', href: '/admin/operacoes/ia', icon: <IconSparkles size={16} /> },
+  { key: 'people', label: 'Pessoas', href: '/admin/operacoes/pessoas', icon: <IconUsers size={16} /> },
   { key: 'semana', label: 'Semana', href: '/admin/operacoes/semana', icon: <IconCalendarTime size={16} /> },
   { key: 'radar', label: 'Riscos', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} /> },
   { key: 'quality', label: 'Qualidade', href: '/admin/operacoes/qualidade', icon: <IconChecklist size={16} /> },
@@ -43,6 +47,8 @@ const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; ico
 const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string }> = {
   overview: { title: 'Hoje', subtitle: 'O retrato operacional da agência para decidir agora.' },
   jobs: { title: 'Fila', subtitle: 'Todas as demandas organizadas para triagem e ação.' },
+  ia: { title: 'IA', subtitle: 'Briefings prontos para copy, produção e revisão num só fluxo.' },
+  people: { title: 'Pessoas', subtitle: 'Pauta individual e carga da equipe num lugar direto.' },
   semana: { title: 'Semana', subtitle: 'Calendário, distribuição e capacidade na mesma leitura.' },
   radar: { title: 'Riscos', subtitle: 'Tudo que pode travar, atrasar ou estourar.' },
   quality: { title: 'Qualidade', subtitle: 'SLA e precisão operacional no mesmo lugar.' },
@@ -51,6 +57,8 @@ const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string 
 const COMMANDS: CommandOption[] = [
   { label: 'Nova demanda', subtitle: 'Abrir cadastro guiado de demanda', kind: 'route', href: '/admin/operacoes/jobs?new=1' },
   { label: 'Demandas sem responsável', subtitle: 'Ir direto para a fila sem responsável definido', kind: 'route', href: '/admin/operacoes/jobs?unassigned=true' },
+  { label: 'Bandeja IA', subtitle: 'Abrir os briefings prontos para copy e revisão', kind: 'route', href: '/admin/operacoes/ia' },
+  { label: 'Pauta por pessoa', subtitle: 'Abrir a carga individual da equipe', kind: 'route', href: '/admin/operacoes/pessoas' },
   { label: 'Distribuição da semana', subtitle: 'Abrir a semana no modo distribuição da equipe', kind: 'route', href: '/admin/operacoes/semana?view=distribution' },
   { label: 'Agenda operacional', subtitle: 'Ver impacto temporal da semana em calendário', kind: 'route', href: '/admin/operacoes/semana?view=calendar' },
   { label: 'Riscos críticos', subtitle: 'Abrir exceções e itens em risco', kind: 'route', href: '/admin/operacoes/radar' },

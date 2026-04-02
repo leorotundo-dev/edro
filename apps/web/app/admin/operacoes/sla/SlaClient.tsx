@@ -33,6 +33,7 @@ type SlaData = {
   };
   by_client: { client_id: string | null; client_name: string; met: number; missed: number; total: number; rate: number | null; avg_days_variance: number }[];
   by_owner: { owner_id: string | null; owner_name: string; met: number; missed: number; total: number; rate: number | null; avg_days_variance: number; avg_revisions: number }[];
+  by_type: { type_key: string; type_label: string; met: number; missed: number; total: number; rate: number | null; avg_days_variance: number }[];
   worst_misses: { job_id: string; title: string; client_name: string; owner_name: string; priority_band: string; deadline_at: string; completed_at: string; days_variance: number; revision_count: number }[];
 };
 
@@ -179,6 +180,39 @@ export default function SlaClient({ embedded = false }: { embedded?: boolean }) 
                             )}
                           </Stack>
                           <RateBar rate={o.rate} total={o.met + o.missed} />
+                        </Box>
+                      ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid size={{ xs: 12 }}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" fontWeight={700} gutterBottom>SLA por tipo de entrega</Typography>
+                  <Stack spacing={1.5}>
+                    {data.by_type.length === 0
+                      ? <Typography variant="caption" color="text.disabled">Sem dados</Typography>
+                      : data.by_type.map((item) => (
+                        <Box key={item.type_key}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                            <Typography variant="caption" fontWeight={700} noWrap>{item.type_label}</Typography>
+                            <Stack direction="row" spacing={0.75} alignItems="center">
+                              <Chip
+                                label={item.missed > 0 ? `+${item.avg_days_variance}d` : 'sem atraso'}
+                                size="small"
+                                sx={{
+                                  fontSize: '0.64rem',
+                                  height: 18,
+                                  bgcolor: item.missed > 0 ? alpha('#FFAE1F', 0.12) : alpha('#13DEB9', 0.12),
+                                  color: item.missed > 0 ? '#d97706' : '#0f766e',
+                                }}
+                              />
+                              <Typography variant="caption" color="text.secondary">{item.met + item.missed} entregas</Typography>
+                            </Stack>
+                          </Stack>
+                          <RateBar rate={item.rate} total={item.met + item.missed} />
                         </Box>
                       ))}
                   </Stack>

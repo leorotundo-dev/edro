@@ -13,6 +13,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import IconButton from '@mui/material/IconButton';
@@ -37,6 +38,7 @@ import {
   IconLoader2,
   IconPlayerPlay,
   IconSearch,
+  IconTable,
   IconTruck,
   IconUserOff,
   IconUsers,
@@ -88,7 +90,7 @@ export default function OperationsJobsClient() {
   const ownerIdParam = searchParams.get('owner_id') || '';
   const highlightJobId = searchParams.get('highlight') || '';
   const rawView = searchParams.get('view');
-  const validView = rawView === 'board' ? 'board' : 'list';
+  const validView = rawView === 'board' ? 'board' : rawView === 'table' ? 'table' : 'list';
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob, deleteJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -106,7 +108,7 @@ export default function OperationsJobsClient() {
   const [deadlineFilter, setDeadlineFilter] = useState<string | null>(null);
   const [deliveryFilter, setDeliveryFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [viewMode, setViewModeState] = useState<'list' | 'board'>(validView);
+  const [viewMode, setViewModeState] = useState<'list' | 'board' | 'table'>(validView);
 
   const rawGroup = searchParams.get('group');
   const validGroup = rawGroup === 'client' || rawGroup === 'owner' || rawGroup === 'risk' ? rawGroup : 'status';
@@ -117,10 +119,10 @@ export default function OperationsJobsClient() {
     if (v === 'status') params.delete('group'); else params.set('group', v);
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
-  const setViewMode = useCallback((v: 'list' | 'board') => {
+  const setViewMode = useCallback((v: 'list' | 'board' | 'table') => {
     setViewModeState(v);
     const params = new URLSearchParams(searchParams.toString());
-    if (v === 'list') params.delete('view'); else params.set('view', 'board');
+    if (v === 'list') params.delete('view'); else params.set('view', v);
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
   const openJobDetail = useCallback((job: OperationsJob) => {
@@ -687,6 +689,9 @@ export default function OperationsJobsClient() {
                     <ToggleButton value="list" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
                       <IconLayoutList size={13} style={{ marginRight: 4 }} /> Lista
                     </ToggleButton>
+                    <ToggleButton value="table" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                      <IconTable size={13} style={{ marginRight: 4 }} /> Tabela
+                    </ToggleButton>
                     <ToggleButton value="board" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
                       <IconLayoutKanban size={13} style={{ marginRight: 4 }} /> Quadro
                     </ToggleButton>
@@ -718,6 +723,15 @@ export default function OperationsJobsClient() {
                       </ToggleButton>
                     </ToggleButtonGroup>
                   </Stack>
+                ) : viewMode === 'table' ? (
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                      Banco mestre com {filteredJobs.length} demanda(s)
+                    </Typography>
+                    <Button size="small" variant="text" onClick={() => setViewMode('list')} sx={{ minWidth: 0, px: 0.5 }}>
+                      Voltar para lista
+                    </Button>
+                  </Stack>
                 ) : (
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
@@ -746,6 +760,184 @@ export default function OperationsJobsClient() {
                     }}
                   />
                 </Stack>
+              ) : viewMode === 'table' ? (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    borderRadius: 2.5,
+                    overflow: 'hidden',
+                    border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                    bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                    boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1.8fr) minmax(120px, 0.8fr) minmax(110px, 0.7fr) minmax(92px, 0.6fr) minmax(120px, 0.8fr) minmax(100px, 0.7fr) minmax(110px, 0.6fr)',
+                      gap: 1,
+                      px: 2,
+                      py: 1.1,
+                      borderBottom: `1px solid ${alpha(theme.palette.text.primary, dark ? 0.12 : 0.08)}`,
+                      bgcolor: dark ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.common.black, 0.02),
+                      alignItems: 'center',
+                    }}
+                  >
+                    {['Demanda', 'Cliente', 'Etapa', 'Prazo', 'Responsável', 'Entrega', 'Origem'].map((label) => (
+                      <Typography key={label} variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        {label}
+                      </Typography>
+                    ))}
+                  </Box>
+
+                  <Stack divider={<Divider flexItem />}>
+                    {filteredJobs.map((job) => {
+                      const delivery = getDeliveryStatus(job);
+                      const risk = getRisk(job);
+                      const riskColor = risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : '#5D87FF';
+                      const riskTextColor = risk.level === 'critical' ? '#d9485f' : risk.level === 'high' ? '#d97706' : '#2563eb';
+                      return (
+                        <Box
+                          key={job.id}
+                          onClick={() => setSelectedJob(job)}
+                          sx={(theme) => ({
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(0, 1.8fr) minmax(120px, 0.8fr) minmax(110px, 0.7fr) minmax(92px, 0.6fr) minmax(120px, 0.8fr) minmax(100px, 0.7fr) minmax(110px, 0.6fr)',
+                            gap: 1,
+                            px: 2,
+                            py: 1.15,
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            bgcolor: selectedJob?.id === job.id
+                              ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.06)
+                              : 'transparent',
+                            '&:hover': {
+                              bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.035),
+                            },
+                          })}
+                        >
+                          <Box sx={{ minWidth: 0 }}>
+                            <Stack direction="row" spacing={1} alignItems="flex-start">
+                              <Box sx={{ pt: 0.2 }}>
+                                <SourceThumb source={job.source} jobType={job.job_type} accent="#E85219" />
+                              </Box>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Stack direction="row" spacing={0.6} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.35 }}>
+                                  {job.priority_band ? (
+                                    <Chip
+                                      size="small"
+                                      label={job.priority_band.toUpperCase()}
+                                      sx={{
+                                        height: 18,
+                                        fontSize: '0.58rem',
+                                        fontWeight: 900,
+                                        bgcolor: alpha(riskColor, 0.14),
+                                        color: riskTextColor,
+                                        '& .MuiChip-label': { px: 0.55 },
+                                      }}
+                                    />
+                                  ) : null}
+                                  {!job.owner_name ? (
+                                    <Chip
+                                      size="small"
+                                      label="Sem dono"
+                                      sx={{
+                                        height: 18,
+                                        fontSize: '0.58rem',
+                                        fontWeight: 900,
+                                        bgcolor: alpha('#FFAE1F', 0.12),
+                                        color: '#d97706',
+                                        '& .MuiChip-label': { px: 0.55 },
+                                      }}
+                                    />
+                                  ) : null}
+                                </Stack>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 800,
+                                    lineHeight: 1.35,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                  }}
+                                >
+                                  {job.title}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 1,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                  }}
+                                >
+                                  {job.summary || getNextAction(job).label}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          </Box>
+
+                          <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
+                            <ClientThumb
+                              name={job.client_name}
+                              logoUrl={job.client_logo_url}
+                              accent={job.client_brand_color || '#5D87FF'}
+                              size={24}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {job.client_name || 'Sem cliente'}
+                            </Typography>
+                          </Stack>
+
+                          <Chip
+                            size="small"
+                            label={STAGE_LABELS[job.status] || job.status}
+                            sx={{
+                              justifySelf: 'start',
+                              height: 22,
+                              fontSize: '0.64rem',
+                              fontWeight: 800,
+                              bgcolor: alpha(theme.palette.primary.main, 0.1),
+                              color: 'primary.main',
+                            }}
+                          />
+
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: delivery.color, justifySelf: 'start' }}>
+                            {formatJobDate(job.deadline_at)}
+                          </Typography>
+
+                          <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
+                            {job.owner_name ? <PersonThumb name={job.owner_name} accent="#5D87FF" size={22} /> : <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: alpha(theme.palette.warning.main, 0.14) }} />}
+                            <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {job.owner_name || 'Sem responsável'}
+                            </Typography>
+                          </Stack>
+
+                          <Chip
+                            size="small"
+                            label={delivery.label}
+                            sx={{
+                              justifySelf: 'start',
+                              height: 22,
+                              fontSize: '0.62rem',
+                              fontWeight: 800,
+                              bgcolor: alpha(delivery.color, 0.12),
+                              color: delivery.color,
+                            }}
+                          />
+
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                            {formatSourceLabel(job.source)}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </Paper>
               ) : groupMode === 'status' ? (
                 <Stack spacing={1.5}>
                   {BUCKETS.map((bucket) => {
@@ -863,6 +1055,13 @@ export default function OperationsJobsClient() {
 
 function unassignedCount(jobs: OperationsJob[]) {
   return jobs.filter((job) => !job.owner_id && !job.assignees?.length).length;
+}
+
+function formatJobDate(value?: string | null) {
+  if (!value) return 'Sem prazo';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sem prazo';
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
 /* ─── Bucket Group ─── */

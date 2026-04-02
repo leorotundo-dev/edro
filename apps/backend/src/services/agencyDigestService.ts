@@ -28,6 +28,13 @@ function getDefaultTenantId(): string {
   return process.env.DEFAULT_TENANT_ID || 'edro';
 }
 
+function getDigestRecipients() {
+  return (process.env.DIGEST_EMAIL_RECIPIENTS || '')
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean);
+}
+
 export async function buildDailyDigest(tenantId: string): Promise<DailyDigestContent> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -256,7 +263,10 @@ export async function buildWeeklyDigest(tenantId: string): Promise<WeeklyDigestC
   };
 }
 
-export async function generateAndSaveDigest(tenantId: string, type: DigestType): Promise<void> {
+export async function generateAndSaveDigest(
+  tenantId: string,
+  type: DigestType,
+): Promise<{ id: string; sent: boolean; recipient_count: number }> {
   const today = new Date();
   const periodStart = new Date(today);
   let periodEnd = new Date(today);
@@ -278,29 +288,98 @@ export async function generateAndSaveDigest(tenantId: string, type: DigestType):
     ? buildDailyNarrative(content as DailyDigestContent)
     : buildWeeklyNarrative(content as WeeklyDigestContent);
 
-  await query(`
+  const upsert = await query<{ id: string }>(`
     INSERT INTO agency_digests (tenant_id, type, period_start, period_end, content, narrative_text)
     VALUES ($1, $2, $3, $4, $5, $6)
     ON CONFLICT (tenant_id, type, period_start) DO UPDATE
       SET content = EXCLUDED.content,
           narrative_text = EXCLUDED.narrative_text
+    RETURNING id
   `, [tenantId, type, periodStartStr, periodEndStr, JSON.stringify(content), narrativeText]);
 
-  // Send email to configured recipients
-  const recipients = (process.env.DIGEST_EMAIL_RECIPIENTS || '').split(',').map((e) => e.trim()).filter(Boolean);
-  if (recipients.length === 0) return;
+  const digestId = upsert.rows[0]?.id;
+  const recipients = getDigestRecipients();
+  if (!digestId) return { id: '', sent: false, recipient_count: recipients.length };
+  if (recipients.length === 0) return { id: digestId, sent: false, recipient_count: 0 };
 
-  const subject = type === 'daily'
+  const sent = await sendDigestEmail({
+    digestId,
+    tenantId,
+    type,
+    content,
+    narrativeText,
+    recipients,
+  });
+
+  return { id: digestId, sent, recipient_count: recipients.length };
+}
+
+export async function sendSavedDigest(digestId: string, tenantId: string): Promise<{ sent: boolean; recipient_count: number }> {
+  const recipients = getDigestRecipients();
+  if (recipients.length === 0) return { sent: false, recipient_count: 0 };
+
+  const { rows } = await query<{
+    id: string;
+    type: DigestType;
+    content: DailyDigestContent | WeeklyDigestContent;
+    narrative_text: string | null;
+  }>(
+    `SELECT id, type, content, narrative_text
+     FROM agency_digests
+     WHERE id = $1 AND tenant_id = $2`,
+    [digestId, tenantId]
+  );
+
+  const digest = rows[0];
+  if (!digest) return { sent: false, recipient_count: recipients.length };
+
+  const sent = await sendDigestEmail({
+    digestId: digest.id,
+    tenantId,
+    type: digest.type,
+    content: digest.content,
+    narrativeText: digest.narrative_text,
+    recipients,
+  });
+
+  return { sent, recipient_count: recipients.length };
+}
+
+async function sendDigestEmail(params: {
+  digestId: string;
+  tenantId: string;
+  type: DigestType;
+  content: DailyDigestContent | WeeklyDigestContent;
+  narrativeText: string | null;
+  recipients: string[];
+}) {
+  const subject = params.type === 'daily'
     ? `📋 Resumo do dia — ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}`
     : `📊 Retrospectiva semanal — Edro.Digital`;
 
-  const html = buildDigestEmailHtml(type, content, narrativeText);
+  const html = buildDigestEmailHtml(params.type, params.content, params.narrativeText || '');
+  let sentCount = 0;
 
-  for (const to of recipients) {
-    await sendEmail({ to, subject, html }).catch((e) =>
-      console.error('[agencyDigest] email error:', e?.message)
-    );
+  for (const to of params.recipients) {
+    try {
+      await sendEmail({ to, subject, html });
+      sentCount += 1;
+    } catch (e: any) {
+      console.error('[agencyDigest] email error:', e?.message);
+    }
   }
+
+  if (sentCount > 0) {
+    await query(
+      `UPDATE agency_digests
+       SET sent_at = NOW()
+       WHERE id = $1 AND tenant_id = $2`,
+      [params.digestId, params.tenantId]
+    );
+    return true;
+  }
+
+  return false;
 }
 
 function buildDailyNarrative(c: DailyDigestContent): string {
