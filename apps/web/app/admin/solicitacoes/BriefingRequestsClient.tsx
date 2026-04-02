@@ -26,7 +26,7 @@ import AppShell from '@/components/AppShell';
 import {
   IconCheck, IconX, IconBriefcase, IconRobot,
   IconCalendar, IconChevronDown, IconBrandTrello,
-  IconAlertTriangle, IconBulb, IconPencil,
+  IconAlertTriangle, IconBulb, IconPencil, IconUser,
 } from '@tabler/icons-react';
 
 type BriefingRequest = {
@@ -83,6 +83,15 @@ const COMPLEXITY_LABELS: Record<string, string> = {
   small: 'Pequeno', medium: 'Médio', large: 'Grande',
 };
 
+const STATUS_MAP: Record<string, { label: string; color: 'default' | 'info' | 'warning' | 'success' | 'error' }> = {
+  pending:   { label: 'Rascunho', color: 'default' },
+  enriching: { label: 'Analisando', color: 'info' },
+  submitted: { label: 'Aguardando', color: 'warning' },
+  accepted:  { label: 'Aceita', color: 'success' },
+  declined:  { label: 'Recusada', color: 'error' },
+  converted: { label: 'Convertida', color: 'success' },
+};
+
 export default function BriefingRequestsClient() {
   const router = useRouter();
   const [tabIdx, setTabIdx] = useState(0);
@@ -112,10 +121,10 @@ export default function BriefingRequestsClient() {
     if (!selected || !actionType) return;
     setSaving(true); setError('');
     try {
-      const res = await apiPatch<{ ok: boolean; status: string; internal_url?: string | null }>(`/admin/briefing-requests/${selected.id}`, {
-        action: actionType,
-        agency_notes: notes.trim() || undefined,
-      });
+      const res = await apiPatch<{ ok: boolean; status: string; internal_url?: string | null }>(
+        `/admin/briefing-requests/${selected.id}`,
+        { action: actionType, agency_notes: notes.trim() || undefined },
+      );
       setSelected(null); setActionType(null); setNotes('');
       if (actionType === 'accept' && res?.internal_url) {
         router.push(res.internal_url);
@@ -132,54 +141,55 @@ export default function BriefingRequestsClient() {
   };
 
   return (
-    <AppShell title="Solicitações de Job">
-      <Box sx={{ maxWidth: 900, mx: 'auto', py: 3, px: { xs: 2, md: 3 } }}>
-        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
-          <Box sx={{ p: 1, bgcolor: 'primary.main', borderRadius: 1.5 }}>
-            <IconBriefcase size={20} color="#fff" />
-          </Box>
-          <Box>
-            <Typography variant="h5" fontWeight={700}>Solicitações de Job</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Pedidos enviados pelos clientes via portal. Aceite para criar o briefing.
-            </Typography>
-          </Box>
-        </Stack>
+    <AppShell
+      title="Solicitações de Job"
+      meta="Pedidos enviados pelos clientes via portal"
+    >
+      {error && (
+        <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+      )}
 
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-
-        <Tabs value={tabIdx} onChange={(_, v) => setTabIdx(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
-          {STATUS_TABS.map(t => <Tab key={t.value} label={t.label} />)}
-        </Tabs>
+      {/* Tabs */}
+      <Card sx={{ borderRadius: 3 }}>
+        <Box sx={{ px: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={tabIdx} onChange={(_, v) => setTabIdx(v)}>
+            {STATUS_TABS.map(t => <Tab key={t.value} label={t.label} />)}
+          </Tabs>
+        </Box>
 
         {loading ? (
-          <Stack alignItems="center" py={6}><CircularProgress /></Stack>
+          <Stack alignItems="center" py={8}>
+            <CircularProgress size={28} />
+          </Stack>
         ) : requests.length === 0 ? (
-          <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
-            <CardContent sx={{ textAlign: 'center', py: 6 }}>
-              <IconBriefcase size={40} color="#ccc" />
-              <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
-                Nenhuma solicitação {statusFilter !== 'all' ? `com status "${STATUS_TABS[tabIdx].label.toLowerCase()}"` : ''}.
-              </Typography>
-            </CardContent>
-          </Card>
+          <Stack alignItems="center" py={8} spacing={1.5}>
+            <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 3, display: 'flex' }}>
+              <IconBriefcase size={28} opacity={0.4} />
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Nenhuma solicitação{statusFilter !== 'all' ? ` ${STATUS_TABS[tabIdx].label.toLowerCase()}` : ''} no momento.
+            </Typography>
+          </Stack>
         ) : (
-          <Stack spacing={2}>
-            {requests.map(req => (
-              <Card key={req.id} variant="outlined">
-                <CardContent>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
+          <Stack divider={<Divider />}>
+            {requests.map(req => {
+              const s = STATUS_MAP[req.status] ?? { label: req.status, color: 'default' as const };
+              return (
+                <Box key={req.id} sx={{ px: 3, py: 2.5 }}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems="flex-start">
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      {/* Header */}
+                      {/* Title row */}
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
                         <Typography variant="subtitle2" fontWeight={700}>
                           {req.ai_enriched?.suggested_title ?? req.form_data.type ?? 'Solicitação'}
                         </Typography>
+                        <Chip label={s.label} size="small" color={s.color} />
                         {req.ai_enriched?.urgency && (
                           <Chip
                             label={URGENCY_LABELS[req.ai_enriched.urgency] ?? req.ai_enriched.urgency}
                             size="small"
                             color={URGENCY_COLORS[req.ai_enriched.urgency] ?? 'default'}
+                            variant="outlined"
                           />
                         )}
                         {req.ai_enriched?.estimated_complexity && (
@@ -188,32 +198,34 @@ export default function BriefingRequestsClient() {
                             size="small" variant="outlined"
                           />
                         )}
-                        <StatusChip status={req.status} />
                       </Stack>
 
-                      {/* Client + contact */}
-                      <Stack direction="row" spacing={2} sx={{ mb: 1.5 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          <strong>Cliente:</strong> {req.client_name}
-                        </Typography>
-                        {req.contact_email && (
+                      {/* Meta row */}
+                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1.5 }} flexWrap="wrap">
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <IconUser size={13} opacity={0.5} />
                           <Typography variant="caption" color="text.secondary">
-                            <strong>Por:</strong> {req.contact_name ?? req.contact_email}
+                            {req.client_name}
+                            {req.contact_name ? ` · ${req.contact_name}` : ''}
                           </Typography>
-                        )}
-                        <Typography variant="caption" color="text.secondary">
-                          <IconCalendar size={11} style={{ marginRight: 3, verticalAlign: 'middle' }} />
-                          {new Date(req.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-                        </Typography>
+                        </Stack>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <IconCalendar size={13} opacity={0.5} />
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(req.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                          </Typography>
+                        </Stack>
                       </Stack>
 
                       {/* Objective */}
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        {req.form_data.objective}
-                      </Typography>
+                      {req.form_data.objective && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                          {req.form_data.objective}
+                        </Typography>
+                      )}
 
-                      {/* Platform / deadline / budget */}
-                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                      {/* Tags */}
+                      <Stack direction="row" spacing={0.75} flexWrap="wrap" sx={{ mb: req.form_data.notes ? 1 : 0 }}>
                         {req.form_data.platform && <Chip label={req.form_data.platform} size="small" variant="outlined" />}
                         {req.form_data.deadline && (
                           <Chip label={`Prazo: ${req.form_data.deadline}`} size="small" variant="outlined" />
@@ -223,12 +235,12 @@ export default function BriefingRequestsClient() {
                         )}
                       </Stack>
 
-                      {/* Jarvis pipeline output */}
+                      {/* Jarvis analysis */}
                       <JarvisPanel req={req} />
 
-                      {/* Agency notes (accepted/declined) */}
+                      {/* Agency notes */}
                       {req.agency_notes && (
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
                           <strong>Nota:</strong> {req.agency_notes}
                         </Typography>
                       )}
@@ -236,17 +248,17 @@ export default function BriefingRequestsClient() {
 
                     {/* Actions */}
                     {req.status === 'submitted' && (
-                      <Stack spacing={1} sx={{ flexShrink: 0, justifyContent: 'flex-start', pt: 0.5 }}>
+                      <Stack direction={{ xs: 'row', sm: 'column' }} spacing={1} sx={{ flexShrink: 0 }}>
                         <Button
                           variant="contained" color="success" size="small"
-                          startIcon={<IconCheck size={15} />}
+                          startIcon={<IconCheck size={14} />}
                           onClick={() => openAction(req, 'accept')}
                         >
                           Aceitar
                         </Button>
                         <Button
                           variant="outlined" color="error" size="small"
-                          startIcon={<IconX size={15} />}
+                          startIcon={<IconX size={14} />}
                           onClick={() => openAction(req, 'decline')}
                         >
                           Recusar
@@ -254,17 +266,22 @@ export default function BriefingRequestsClient() {
                       </Stack>
                     )}
                   </Stack>
-                </CardContent>
-              </Card>
-            ))}
+                </Box>
+              );
+            })}
           </Stack>
         )}
-      </Box>
+      </Card>
 
       {/* Action dialog */}
-      <Dialog open={!!selected && !!actionType} onClose={() => { setSelected(null); setActionType(null); }} maxWidth="xs" fullWidth>
+      <Dialog
+        open={!!selected && !!actionType}
+        onClose={() => { setSelected(null); setActionType(null); }}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle fontWeight={700}>
-          {actionType === 'accept' ? '✓ Aceitar solicitação' : '✕ Recusar solicitação'}
+          {actionType === 'accept' ? 'Aceitar solicitação' : 'Recusar solicitação'}
         </DialogTitle>
         <DialogContent>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -279,15 +296,18 @@ export default function BriefingRequestsClient() {
             value={notes} onChange={e => setNotes(e.target.value)}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setSelected(null); setActionType(null); }} color="inherit">Cancelar</Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => { setSelected(null); setActionType(null); }} color="inherit" disabled={saving}>
+            Cancelar
+          </Button>
           <Button
             onClick={handleAction}
             variant="contained"
             color={actionType === 'accept' ? 'success' : 'error'}
             disabled={saving}
+            startIcon={saving ? <CircularProgress size={14} color="inherit" /> : undefined}
           >
-            {saving ? <CircularProgress size={16} color="inherit" /> : actionType === 'accept' ? 'Confirmar aceite' : 'Confirmar recusa'}
+            {actionType === 'accept' ? 'Confirmar aceite' : 'Confirmar recusa'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -299,14 +319,12 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
   const p = req.auto_pipeline_output;
   const internalUrl = p?.internal_url ?? null;
 
-  // Show enrichment-only block if pipeline hasn't run yet
   if (!p && !req.ai_enriched) return null;
 
   if (!p) {
-    // Fallback: just the enrichment hints
     return (
-      <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderLeftColor: 'primary.main' }}>
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+      <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'action.hover', borderRadius: 2, borderLeft: '3px solid', borderLeftColor: 'primary.main' }}>
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 0.5 }}>
           <IconRobot size={13} />
           <Typography variant="caption" fontWeight={700} color="primary.main">Análise Jarvis</Typography>
         </Stack>
@@ -328,13 +346,16 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
     <Accordion
       disableGutters elevation={0}
       sx={{
-        mt: 1.5, border: '1px solid', borderColor: 'primary.light',
-        borderRadius: '8px !important', bgcolor: 'rgba(93,135,255,0.03)',
+        mt: 1.5,
+        border: '1px solid',
+        borderColor: 'primary.light',
+        borderRadius: '8px !important',
+        bgcolor: 'rgba(93,135,255,0.03)',
         '&:before': { display: 'none' },
       }}
     >
       <AccordionSummary expandIcon={<IconChevronDown size={16} />} sx={{ minHeight: 40, py: 0, px: 1.5 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <IconRobot size={14} />
           <Typography variant="caption" fontWeight={700} color="primary.main">
             Jarvis processou este briefing
@@ -348,14 +369,12 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             />
           ) : null}
           {internalUrl ? (
-            <Chip
-              label="Quadro interno" size="small" color="info" variant="outlined"
+            <Chip label="Quadro interno" size="small" color="info" variant="outlined"
               icon={<IconBrandTrello size={11} />}
               sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
             />
           ) : p.trello_card_url ? (
-            <Chip
-              label="Trello sync" size="small" color="default" variant="outlined"
+            <Chip label="Trello sync" size="small" color="default" variant="outlined"
               icon={<IconBrandTrello size={11} />}
               sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
             />
@@ -369,9 +388,8 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
       <AccordionDetails sx={{ px: 1.5, pb: 1.5, pt: 0 }}>
         <Divider sx={{ mb: 1.5 }} />
         <Stack spacing={1.5}>
-          {/* Risk flags */}
           {p.risk_flags?.length ? (
-            <Box sx={{ p: 1.25, bgcolor: 'warning.light', borderRadius: 1 }}>
+            <Box sx={{ p: 1.25, bgcolor: 'warning.light', borderRadius: 1.5 }}>
               <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
                 <IconAlertTriangle size={13} />
                 <Typography variant="caption" fontWeight={700} color="warning.dark">Riscos detectados</Typography>
@@ -382,7 +400,6 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             </Box>
           ) : null}
 
-          {/* Concept */}
           {p.concept?.angles?.length ? (
             <Box>
               <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
@@ -391,9 +408,7 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
               </Stack>
               <Stack spacing={0.25}>
                 {p.concept.angles.map((a, i) => (
-                  <Typography key={i} variant="caption" color="text.secondary">
-                    {i + 1}. {a}
-                  </Typography>
+                  <Typography key={i} variant="caption" color="text.secondary">{i + 1}. {a}</Typography>
                 ))}
               </Stack>
               {p.concept.strategy && (
@@ -404,9 +419,8 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             </Box>
           ) : null}
 
-          {/* Draft copy */}
           {p.draft_copy?.hook && (
-            <Box sx={{ p: 1.25, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <Box sx={{ p: 1.25, bgcolor: 'action.hover', borderRadius: 1.5 }}>
               <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
                 <IconPencil size={13} />
                 <Typography variant="caption" fontWeight={700}>Draft de copy (Jarvis)</Typography>
@@ -417,7 +431,6 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             </Box>
           )}
 
-          {/* Pre-call brief */}
           {p.pre_call_brief && (
             <Box>
               <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
@@ -429,7 +442,6 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             </Box>
           )}
 
-          {/* Learning highlights */}
           {p.learning_highlights?.length ? (
             <Box>
               <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
@@ -441,7 +453,6 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             </Box>
           ) : null}
 
-          {/* Internal board */}
           {internalUrl && (
             <Box>
               <Button
@@ -458,17 +469,4 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
       </AccordionDetails>
     </Accordion>
   );
-}
-
-function StatusChip({ status }: { status: BriefingRequest['status'] }) {
-  const map: Record<string, { label: string; color: 'default' | 'info' | 'warning' | 'success' | 'error' }> = {
-    pending:   { label: 'Rascunho', color: 'default' },
-    enriching: { label: 'Analisando', color: 'info' },
-    submitted: { label: 'Aguardando', color: 'warning' },
-    accepted:  { label: 'Aceita', color: 'success' },
-    declined:  { label: 'Recusada', color: 'error' },
-    converted: { label: 'Convertida', color: 'success' },
-  };
-  const s = map[status] ?? { label: status, color: 'default' };
-  return <Chip label={s.label} size="small" color={s.color} />;
 }
