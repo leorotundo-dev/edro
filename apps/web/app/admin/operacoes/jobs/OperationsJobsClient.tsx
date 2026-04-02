@@ -123,6 +123,10 @@ export default function OperationsJobsClient() {
     if (v === 'list') params.delete('view'); else params.set('view', 'board');
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
+  const openJobDetail = useCallback((job: OperationsJob) => {
+    setSelectedJob(job);
+    setDetailOpen(true);
+  }, []);
 
   useEffect(() => { if (shouldOpenComposer) setComposerOpen(true); }, [shouldOpenComposer]);
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);
@@ -309,7 +313,7 @@ export default function OperationsJobsClient() {
       ) : (
         <Grid container spacing={2.5}>
           {/* Main column */}
-          <Grid size={{ xs: 12, lg: 8 }}>
+          <Grid size={{ xs: 12, lg: viewMode === 'board' ? 12 : 8 }}>
             <Stack spacing={2}>
               <OpsPanel
                 eyebrow="Semáforo da fila"
@@ -553,7 +557,7 @@ export default function OperationsJobsClient() {
                 alerts={alerts}
                 owners={teamPulse}
                 jobs={jobs}
-                onSelectJob={(job) => { setSelectedJob(job); setDetailOpen(true); }}
+                onSelectJob={openJobDetail}
                 onFilterOwner={(id) => setOwnerFilter(ownerFilter === id ? '' : id)}
                 allocableMinutesFn={ownerAllocableMinutes}
                 committedMinutesFn={ownerCommittedMinutes}
@@ -632,7 +636,7 @@ export default function OperationsJobsClient() {
                         Fluxo da Fila
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {filteredJobs.length} demandas no quadro. Use a lista quando precisar decidir por cliente, dono ou risco.
+                        {filteredJobs.length} demandas no quadro. Clique em uma demanda para abrir o detalhe em um painel sobreposto, sem dividir a tela.
                       </Typography>
                     </Box>
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -644,7 +648,7 @@ export default function OperationsJobsClient() {
                   <PipelineBoard
                     jobs={filteredJobs}
                     selectedJob={selectedJob}
-                    onSelectJob={setSelectedJob}
+                    onSelectJob={openJobDetail}
                     onAdvance={handleAdvance}
                     onShowAll={() => {
                       setViewMode('list');
@@ -690,6 +694,7 @@ export default function OperationsJobsClient() {
           </Grid>
 
           {/* Right sidebar */}
+          {viewMode !== 'board' ? (
           <Grid size={{ xs: 12, lg: 4 }}>
             <JobFocusRail
               job={selectedJob}
@@ -779,6 +784,7 @@ export default function OperationsJobsClient() {
               }
             />
           </Grid>
+          ) : null}
         </Grid>
       )}
 
@@ -799,7 +805,10 @@ export default function OperationsJobsClient() {
         job={selectedJob}
         jobTypes={lookups.jobTypes} skills={lookups.skills} channels={lookups.channels} clients={lookups.clients} owners={lookups.owners}
         currentUserId={currentUserId}
-        onClose={() => setDetailOpen(false)}
+        onClose={() => {
+          setDetailOpen(false);
+          if (viewMode === 'board') setSelectedJob(null);
+        }}
         onCreate={createJob}
         onUpdate={async (id, p) => { const u = await updateJob(id, p); await refresh(); setSelectedJob(u as OperationsJob); return u; }}
         onDelete={handleDeleteJob}

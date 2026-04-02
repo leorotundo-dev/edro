@@ -2119,14 +2119,13 @@ export function PipelineColumn({
     <Box sx={(theme) => {
       const dark = theme.palette.mode === 'dark';
       return {
-        width: 312,
-        minWidth: 312,
-        flexShrink: 0,
+        minWidth: 0,
         borderRadius: 2.5,
         bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : '#eaf0f7',
         p: 1,
         display: 'flex',
         flexDirection: 'column',
+        height: '100%',
       };
     }}>
       <Stack spacing={1.1} sx={{ flex: 1 }}>
@@ -2226,12 +2225,24 @@ export function PipelineBoard({
         p: 1.5,
       })}
     >
-      <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1, alignItems: 'flex-start' }}>
-      {PIPELINE_COLUMNS.map((col, idx) => {
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 2,
+          pb: 1,
+          alignItems: 'stretch',
+          gridTemplateColumns: {
+            xs: 'minmax(0, 1fr)',
+            md: 'repeat(2, minmax(0, 1fr))',
+            xl: 'repeat(4, minmax(0, 1fr))',
+          },
+        }}
+      >
+      {PIPELINE_COLUMNS.map((col) => {
         const colJobs = col.stages.flatMap((s) => grouped[s] || []);
         const isBottleneck = colJobs.length === maxCount && maxCount > 0 && columnCounts.filter((c) => c === maxCount).length === 1;
         return (
-          <Box key={col.key} sx={{ position: 'relative' }}>
+          <Box key={col.key} sx={{ position: 'relative', minWidth: 0 }}>
             {isBottleneck ? (
               <Box sx={{
                 position: 'absolute', top: -8, left: '50%', transform: 'translateX(-50%)',
