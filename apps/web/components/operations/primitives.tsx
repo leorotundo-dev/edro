@@ -1888,7 +1888,7 @@ const PIPELINE_COLUMNS = [
   { key: 'entregue', label: 'Entregue', stages: ['published', 'done'], color: '#13DEB9' },
 ] as const;
 
-const MAX_PIPELINE_CARDS = 5;
+const MAX_PIPELINE_CARDS = 4;
 
 export function PipelineCard({
   job,
@@ -2222,19 +2222,20 @@ export function PipelineBoard({
       sx={(theme) => ({
         borderRadius: 3,
         bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.03) : '#f6f8fc',
-        p: 1.5,
+        p: { xs: 1.25, xl: 1.5 },
       })}
     >
       <Box
         sx={{
           display: 'grid',
-          gap: 2,
+          gap: { xs: 1.5, xl: 2 },
           pb: 1,
           alignItems: 'stretch',
+          justifyContent: { xl: 'center' },
           gridTemplateColumns: {
             xs: 'minmax(0, 1fr)',
             md: 'repeat(2, minmax(0, 1fr))',
-            xl: 'repeat(4, minmax(0, 1fr))',
+            xl: 'repeat(4, minmax(270px, 300px))',
           },
         }}
       >
