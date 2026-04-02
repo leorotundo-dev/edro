@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   buildBackendApiUrl,
   CLIENT_PORTAL_COOKIE,
-  getSessionCookieConfig,
   isPortalSessionValid,
 } from '@/lib/serverAuth';
 
@@ -50,10 +49,6 @@ async function proxyRequest(
         : {}),
     },
   });
-
-  if (upstream.status === 401) {
-    response.cookies.set(CLIENT_PORTAL_COOKIE, '', { ...getSessionCookieConfig(), maxAge: 0 });
-  }
 
   return response;
 }
