@@ -919,10 +919,11 @@ function relativeTime(iso: string | null) {
   return `${Math.floor(diff / 30)}m atrás`;
 }
 
-function TeamScoreGrid({ scores, freelancers, loading }: {
+function TeamScoreGrid({ scores, freelancers, loading, onOpenProfile }: {
   scores: TeamScore[];
   freelancers: FreelancerProfile[];
   loading: boolean;
+  onOpenProfile: (freelancer: FreelancerProfile) => void;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
@@ -970,16 +971,22 @@ function TeamScoreGrid({ scores, freelancers, loading }: {
           return (
             <Grid key={s.email} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
               <Card
-                onClick={() => navTarget && router.push(navTarget)}
+                onClick={() => {
+                  if (fl) {
+                    onOpenProfile(fl);
+                    return;
+                  }
+                  if (navTarget) router.push(navTarget);
+                }}
                 sx={(theme) => ({
                   borderRadius: 3,
                   border: '1px solid',
                   borderColor: alpha(color, 0.30),
                   borderTop: `4px solid ${color}`,
                   bgcolor: theme.palette.mode === 'dark' ? alpha(color, 0.06) : alpha(color, 0.03),
-                  cursor: navTarget ? 'pointer' : 'default',
+                  cursor: fl || navTarget ? 'pointer' : 'default',
                   transition: 'all 180ms ease',
-                  '&:hover': navTarget ? {
+                  '&:hover': fl || navTarget ? {
                     transform: 'translateY(-3px)',
                     boxShadow: `0 8px 24px ${alpha(color, 0.18)}`,
                   } : {},
@@ -1775,7 +1782,7 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
         )}
 
         {tab === 0 && (
-          <TeamScoreGrid scores={teamScores} freelancers={freelancers} loading={loading || scoresLoading} />
+          <TeamScoreGrid scores={teamScores} freelancers={freelancers} loading={loading || scoresLoading} onOpenProfile={openDrawer} />
         )}
 
         {tab === 0 && false && loading ? (
@@ -1930,187 +1937,245 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
         </DialogActions>
       </Dialog>
 
-      {/* Freelancer detail drawer */}
-      <Drawer
-        anchor="right"
+      {/* Freelancer detail modal */}
+      <Dialog
         open={Boolean(drawerFl)}
         onClose={() => { setDrawerFl(null); setFlEntries([]); }}
-        PaperProps={{ sx: { width: { xs: '100vw', sm: 440 }, p: 3 } }}
+        maxWidth="md"
+        fullWidth
+        scroll="paper"
+        PaperProps={{ sx: { borderRadius: 4 } }}
       >
         {drawerFl && (
-          <Stack spacing={2}>
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main' }}>
-                {initials(drawerFl.display_name)}
-              </Avatar>
-              <Box>
-                <Typography variant="h6" fontWeight={700}>{drawerFl.display_name}</Typography>
-                <Typography variant="caption" color="text.secondary">{drawerFl.email}</Typography>
-              </Box>
-            </Stack>
-
-            <Stack spacing={0.5}>
-              {drawerFl.specialty && (
-                <Typography variant="body2"><strong>Especialidade:</strong> {drawerFl.specialty}</Typography>
-              )}
-              {drawerFl.role_title && (
-                <Typography variant="body2"><strong>Cargo:</strong> {drawerFl.role_title}</Typography>
-              )}
-              {drawerFl.department && (
-                <Typography variant="body2"><strong>Departamento:</strong> {drawerFl.department}</Typography>
-              )}
-              <Typography variant="body2">
-                <strong>Taxa:</strong>{' '}
-                {drawerFl.hourly_rate_brl ? `R$ ${parseFloat(drawerFl.hourly_rate_brl).toFixed(2)}/h` : 'Projeto (flat-fee)'}
-              </Typography>
-              {/* Contato */}
-              {(drawerFl.phone || drawerFl.email_personal || drawerFl.whatsapp_jid) && (
-                <>
-                  <Divider sx={{ my: 0.5 }} />
-                  <Typography variant="caption" fontWeight={700} color="text.secondary">Contato</Typography>
-                  {drawerFl.phone && (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconPhone size={13} />
-                      <Typography variant="body2">{drawerFl.phone}</Typography>
-                    </Stack>
-                  )}
-                  {drawerFl.email_personal && (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconMail size={13} />
-                      <Typography variant="body2">{drawerFl.email_personal}</Typography>
-                    </Stack>
-                  )}
-                  {drawerFl.whatsapp_jid && (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconBrandWhatsapp size={13} color="#25D366" />
-                      <Typography variant="body2">{drawerFl.whatsapp_jid.replace('@s.whatsapp.net', '')}</Typography>
-                    </Stack>
-                  )}
-                </>
-              )}
-
-              {/* Dados Pessoais */}
-              {(drawerFl.cpf || drawerFl.rg || drawerFl.birth_date) && (
-                <>
-                  <Divider sx={{ my: 0.5 }} />
-                  <Typography variant="caption" fontWeight={700} color="text.secondary">Dados Pessoais</Typography>
-                  {drawerFl.cpf && (
-                    <Typography variant="body2"><strong>CPF:</strong> {drawerFl.cpf}</Typography>
-                  )}
-                  {drawerFl.rg && (
-                    <Typography variant="body2"><strong>RG:</strong> {drawerFl.rg}</Typography>
-                  )}
-                  {drawerFl.birth_date && (
-                    <Typography variant="body2"><strong>Nascimento:</strong> {new Date(drawerFl.birth_date).toLocaleDateString('pt-BR')}</Typography>
-                  )}
-                </>
-              )}
-
-              {/* Dados Bancários */}
-              {(drawerFl.pix_key || drawerFl.bank_name) && (
-                <>
-                  <Divider sx={{ my: 0.5 }} />
-                  <Typography variant="caption" fontWeight={700} color="text.secondary">Dados Bancários</Typography>
-                  {drawerFl.pix_key && (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconCurrencyDollar size={13} color="#059669" />
-                      <Typography variant="body2"><strong>Pix:</strong> {drawerFl.pix_key}</Typography>
-                    </Stack>
-                  )}
-                  {drawerFl.bank_name && (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconBuildingBank size={13} />
-                      <Typography variant="body2"><strong>Banco:</strong> {drawerFl.bank_name}</Typography>
-                    </Stack>
-                  )}
-                  {drawerFl.bank_agency && (
-                    <Typography variant="body2"><strong>Agência:</strong> {drawerFl.bank_agency}</Typography>
-                  )}
-                  {drawerFl.bank_account && (
-                    <Typography variant="body2"><strong>Conta:</strong> {drawerFl.bank_account}</Typography>
-                  )}
-                </>
-              )}
-
-              {/* Perfil Operacional */}
-              {(drawerFl.skills?.length || drawerFl.available_days?.length || drawerFl.available_hours_start || drawerFl.weekly_capacity_hours || drawerFl.contract_type) && (
-                <>
-                  <Divider sx={{ my: 0.5 }} />
-                  <Typography variant="caption" fontWeight={700} color="text.secondary">Perfil Operacional</Typography>
-                  {drawerFl.contract_type && (
-                    <Typography variant="body2">
-                      <strong>Contrato:</strong>{' '}
-                      {drawerFl.contract_type === 'clt' ? 'CLT' : drawerFl.contract_type === 'pj' ? 'PJ' : drawerFl.contract_type === 'freelancer' ? 'Freelancer' : drawerFl.contract_type}
+          <>
+            <DialogTitle sx={{ px: 3, py: 2.25 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+                <Stack direction="row" alignItems="center" spacing={1.5} minWidth={0}>
+                  <Avatar src={drawerFl.avatar_url ?? undefined} sx={{ width: 46, height: 46, bgcolor: avatarColor(drawerFl.display_name), fontWeight: 800 }}>
+                    {!drawerFl.avatar_url ? initials(drawerFl.display_name) : null}
+                  </Avatar>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h6" fontWeight={800} noWrap>{drawerFl.display_name}</Typography>
+                    <Typography variant="body2" color="text.secondary" noWrap>
+                      {[drawerFl.role_title, drawerFl.department, drawerFl.specialty].filter(Boolean).join(' · ') || drawerFl.email}
                     </Typography>
-                  )}
-                  {drawerFl.weekly_capacity_hours != null && (
-                    <Typography variant="body2"><strong>Capacidade semanal:</strong> {drawerFl.weekly_capacity_hours}h</Typography>
-                  )}
-                  {drawerFl.available_days?.length ? (
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
-                      <Typography variant="body2" sx={{ fontWeight: 600, mr: 0.5 }}>Dias:</Typography>
-                      {drawerFl.available_days.map((d) => {
-                        const DAY_LABELS: Record<string, string> = { mon: 'Seg', tue: 'Ter', wed: 'Qua', thu: 'Qui', fri: 'Sex', sat: 'Sáb', sun: 'Dom' };
-                        return <Chip key={d} label={DAY_LABELS[d] ?? d} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />;
-                      })}
-                    </Stack>
-                  ) : null}
-                  {(drawerFl.available_hours_start || drawerFl.available_hours_end) && (
-                    <Typography variant="body2">
-                      <strong>Horário:</strong> {drawerFl.available_hours_start ?? '—'} às {drawerFl.available_hours_end ?? '—'}
-                    </Typography>
-                  )}
-                  {drawerFl.skills?.length ? (
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
-                      <Typography variant="body2" sx={{ fontWeight: 600, mr: 0.5 }}>Skills:</Typography>
-                      {drawerFl.skills.map((s) => {
-                        const SKILL_LABELS: Record<string, string> = { copy: 'Redação', design: 'Design', video: 'Vídeo', social: 'Social Media', estrategia: 'Estratégia', operacao: 'Operação', atendimento: 'Atendimento', financeiro: 'Financeiro' };
-                        return <Chip key={s} label={SKILL_LABELS[s] ?? s} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'rgba(93,135,255,0.1)', color: '#5D87FF', borderColor: 'rgba(93,135,255,0.3)' }} variant="outlined" />;
-                      })}
-                    </Stack>
-                  ) : null}
-                </>
-              )}
-
-              {drawerFl.notes && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
-                  {drawerFl.notes}
-                </Typography>
-              )}
-            </Stack>
-
-            <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
-              Horas em {currentMonth}
-            </Typography>
-            {flEntries.length === 0 ? (
-              <Typography variant="body2" color="text.disabled">Nenhuma entrada registrada.</Typography>
-            ) : (
-              <Stack spacing={0.75}>
-                {flEntries.slice(0, 20).map((e: any) => (
-                  <Stack key={e.id} direction="row" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography variant="caption" fontWeight={600}>{e.briefing_title ?? 'Job'}</Typography>
-                      {e.description && (
-                        <Typography variant="caption" color="text.secondary" display="block">{e.description}</Typography>
-                      )}
-                    </Box>
-                    <Chip label={formatHours(e.minutes)} size="small" />
-                  </Stack>
-                ))}
+                  </Box>
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Button size="small" variant="text" href={`/admin/equipe/${drawerFl.id}`} component="a">
+                    Abrir perfil completo
+                  </Button>
+                  <IconButton onClick={() => { setDrawerFl(null); setFlEntries([]); }} size="small">
+                    <IconX size={18} />
+                  </IconButton>
+                </Stack>
               </Stack>
-            )}
+            </DialogTitle>
+            <DialogContent dividers sx={{ px: 3, py: 2.5 }}>
+              <Stack spacing={2.5}>
+                <Grid container spacing={1.5}>
+                  {[
+                    {
+                      key: 'rate',
+                      label: 'Modelo',
+                      value: drawerFl.hourly_rate_brl ? `R$ ${parseFloat(drawerFl.hourly_rate_brl).toFixed(2)}/h` : 'Projeto (flat-fee)',
+                      helper: drawerFl.contract_type ? `Contrato ${drawerFl.contract_type.toUpperCase()}` : 'Sem contrato definido',
+                      icon: <IconCurrencyDollar size={18} />,
+                      accent: '#f59e0b',
+                    },
+                    {
+                      key: 'capacity',
+                      label: 'Capacidade semanal',
+                      value: drawerFl.weekly_capacity_hours != null ? `${drawerFl.weekly_capacity_hours}h` : '—',
+                      helper: drawerFl.available_hours_start || drawerFl.available_hours_end ? `${drawerFl.available_hours_start ?? '—'} às ${drawerFl.available_hours_end ?? '—'}` : 'Horário não definido',
+                      icon: <IconCalendar size={18} />,
+                      accent: '#5D87FF',
+                    },
+                    {
+                      key: 'entries',
+                      label: `Horas em ${currentMonth}`,
+                      value: formatHours(flEntries.reduce((sum, entry) => sum + (entry.minutes ?? 0), 0)),
+                      helper: `${flEntries.length} lançamentos no mês`,
+                      icon: <IconClock size={18} />,
+                      accent: '#13DEB9',
+                    },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      value: drawerFl.is_active ? 'Ativo' : 'Inativo',
+                      helper: drawerFl.unavailable_until ? `Indisponível até ${new Date(drawerFl.unavailable_until).toLocaleDateString('pt-BR')}` : 'Disponível na operação',
+                      icon: <IconUserCheck size={18} />,
+                      accent: drawerFl.is_active ? '#E85219' : '#6b7280',
+                    },
+                  ].map((item) => (
+                    <Grid key={item.key} size={{ xs: 12, sm: 6, xl: 3 }}>
+                      <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                        <CardContent sx={{ p: '18px !important' }}>
+                          <Stack spacing={1.1}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                {item.label}
+                              </Typography>
+                              <Box
+                                sx={{
+                                  width: 34,
+                                  height: 34,
+                                  borderRadius: 2,
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  color: item.accent,
+                                  bgcolor: alpha(item.accent, 0.12),
+                                }}
+                              >
+                                {item.icon}
+                              </Box>
+                            </Stack>
+                            <Typography variant="h5" fontWeight={800}>
+                              {item.value}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {item.helper}
+                            </Typography>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
 
-            <Button
-              variant={drawerFl.is_active ? 'outlined' : 'contained'}
-              color={drawerFl.is_active ? 'error' : 'success'}
-              size="small"
-              onClick={() => handleDeactivate(drawerFl.id, !drawerFl.is_active)}
-            >
-              {drawerFl.is_active ? 'Desativar' : 'Reativar'}
-            </Button>
-          </Stack>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                      <CardContent sx={{ p: '20px !important' }}>
+                        <Stack spacing={1.25}>
+                          <Typography variant="subtitle2" fontWeight={800}>Contato e cadastro</Typography>
+                          {drawerFl.phone && (
+                            <Typography variant="body2"><strong>Telefone:</strong> {drawerFl.phone}</Typography>
+                          )}
+                          {drawerFl.email_personal && (
+                            <Typography variant="body2"><strong>E-mail pessoal:</strong> {drawerFl.email_personal}</Typography>
+                          )}
+                          {drawerFl.whatsapp_jid && (
+                            <Typography variant="body2"><strong>WhatsApp:</strong> {drawerFl.whatsapp_jid.replace('@s.whatsapp.net', '')}</Typography>
+                          )}
+                          {drawerFl.cpf && (
+                            <Typography variant="body2"><strong>CPF:</strong> {drawerFl.cpf}</Typography>
+                          )}
+                          {drawerFl.rg && (
+                            <Typography variant="body2"><strong>RG:</strong> {drawerFl.rg}</Typography>
+                          )}
+                          {drawerFl.birth_date && (
+                            <Typography variant="body2"><strong>Nascimento:</strong> {new Date(drawerFl.birth_date).toLocaleDateString('pt-BR')}</Typography>
+                          )}
+                          {!drawerFl.phone && !drawerFl.email_personal && !drawerFl.whatsapp_jid && !drawerFl.cpf && !drawerFl.rg && !drawerFl.birth_date ? (
+                            <Typography variant="body2" color="text.secondary">
+                              Nenhum dado cadastral adicional registrado.
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                      <CardContent sx={{ p: '20px !important' }}>
+                        <Stack spacing={1.25}>
+                          <Typography variant="subtitle2" fontWeight={800}>Operação e skills</Typography>
+                          {drawerFl.available_days?.length ? (
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                              {drawerFl.available_days.map((d) => {
+                                const DAY_LABELS: Record<string, string> = { mon: 'Seg', tue: 'Ter', wed: 'Qua', thu: 'Qui', fri: 'Sex', sat: 'Sáb', sun: 'Dom' };
+                                return <Chip key={d} label={DAY_LABELS[d] ?? d} size="small" sx={{ height: 20, fontSize: '0.65rem' }} />;
+                              })}
+                            </Stack>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              Dias de disponibilidade não definidos.
+                            </Typography>
+                          )}
+                          {drawerFl.skills?.length ? (
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                              {drawerFl.skills.map((s) => {
+                                const SKILL_LABELS: Record<string, string> = { copy: 'Redação', design: 'Design', video: 'Vídeo', social: 'Social Media', estrategia: 'Estratégia', operacao: 'Operação', atendimento: 'Atendimento', financeiro: 'Financeiro' };
+                                return (
+                                  <Chip
+                                    key={s}
+                                    label={SKILL_LABELS[s] ?? s}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ height: 20, fontSize: '0.65rem', bgcolor: 'rgba(93,135,255,0.08)', color: '#5D87FF', borderColor: 'rgba(93,135,255,0.26)' }}
+                                  />
+                                );
+                              })}
+                            </Stack>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              Skills não definidas.
+                            </Typography>
+                          )}
+                          {(drawerFl.pix_key || drawerFl.bank_name || drawerFl.bank_agency || drawerFl.bank_account) ? (
+                            <>
+                              <Divider />
+                              {drawerFl.pix_key && <Typography variant="body2"><strong>Pix:</strong> {drawerFl.pix_key}</Typography>}
+                              {drawerFl.bank_name && <Typography variant="body2"><strong>Banco:</strong> {drawerFl.bank_name}</Typography>}
+                              {drawerFl.bank_agency && <Typography variant="body2"><strong>Agência:</strong> {drawerFl.bank_agency}</Typography>}
+                              {drawerFl.bank_account && <Typography variant="body2"><strong>Conta:</strong> {drawerFl.bank_account}</Typography>}
+                            </>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                  <CardContent sx={{ p: '20px !important' }}>
+                    <Stack spacing={1.25}>
+                      <Typography variant="subtitle2" fontWeight={800}>Horas em {currentMonth}</Typography>
+                      {flEntries.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">Nenhuma entrada registrada.</Typography>
+                      ) : (
+                        <Stack spacing={0.9}>
+                          {flEntries.slice(0, 12).map((e: any) => (
+                            <Stack key={e.id} direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" fontWeight={700} noWrap>{e.briefing_title ?? 'Job'}</Typography>
+                                {e.description ? (
+                                  <Typography variant="caption" color="text.secondary" noWrap>{e.description}</Typography>
+                                ) : null}
+                              </Box>
+                              <Chip label={formatHours(e.minutes)} size="small" />
+                            </Stack>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+
+                {drawerFl.notes ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    "{drawerFl.notes}"
+                  </Typography>
+                ) : null}
+              </Stack>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, py: 2 }}>
+              <Button onClick={() => { setDrawerFl(null); setFlEntries([]); }}>
+                Fechar
+              </Button>
+              <Button
+                variant={drawerFl.is_active ? 'outlined' : 'contained'}
+                color={drawerFl.is_active ? 'error' : 'success'}
+                size="small"
+                onClick={() => handleDeactivate(drawerFl.id, !drawerFl.is_active)}
+              >
+                {drawerFl.is_active ? 'Desativar' : 'Reativar'}
+              </Button>
+            </DialogActions>
+          </>
         )}
-      </Drawer>
+      </Dialog>
 
       {/* New freelancer dialog */}
       <Dialog open={newOpen} onClose={() => setNewOpen(false)} maxWidth="sm" fullWidth>
