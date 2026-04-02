@@ -855,6 +855,7 @@ export default function JobWorkbenchDrawer({
     approvalRate: number | null;
     jobsCompleted: number;
     rationale: string;
+    skills?: Array<{ id: string; label: string; level: string }>;
   };
   const [allocationProposals, setAllocationProposals] = useState<AllocationProposal[]>([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
@@ -1514,6 +1515,22 @@ export default function JobWorkbenchDrawer({
                                 <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem' }}>
                                   {availStr} · {durH} · {p.currentActiveJobs}/{p.maxConcurrentJobs} jobs ativos
                                 </Typography>
+                                {p.skills && p.skills.length > 0 && (
+                                  <Stack direction="row" spacing={0.4} flexWrap="wrap" useFlexGap sx={{ mt: 0.4 }}>
+                                    {p.skills.slice(0, 5).map((sk) => {
+                                      const lvlEmoji: Record<string, string> = { ninja: '🧙', pleno: '🚀', junior: '🌱' };
+                                      return (
+                                        <Chip
+                                          key={sk.id}
+                                          label={`${lvlEmoji[sk.level] ?? ''} ${sk.label}`}
+                                          size="small"
+                                          sx={{ height: 15, fontSize: '0.52rem', fontWeight: 600,
+                                            bgcolor: 'action.selected', color: 'text.secondary' }}
+                                        />
+                                      );
+                                    })}
+                                  </Stack>
+                                )}
                               </Box>
                               <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
                                 <Typography variant="caption" fontWeight={800} sx={{ color: scoreColor, fontSize: '0.75rem' }}>

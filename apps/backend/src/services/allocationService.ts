@@ -71,6 +71,7 @@ export interface AllocationProposal {
   approvalRate: number | null;
   jobsCompleted: number;
   rationale: string;
+  skills: Array<{ id: string; label: string; level: string }>;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,8 +119,26 @@ function estimateAvailableAt(fl: any, now: Date): Date {
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
 
+// Level score for skill proficiency (ArsenalPicker levels)
+const SKILL_LEVEL_SCORE: Record<string, number> = { ninja: 50, pleno: 40, junior: 25 };
+
+/** Parse skills_json JSONB into a map of skillId → proficiency level. */
+function parseSkillsJson(raw: unknown): Record<string, string> {
+  const arr: Array<{ id?: string; level?: string }> = Array.isArray(raw)
+    ? raw
+    : typeof raw === 'string' && raw.trim()
+    ? (() => { try { return JSON.parse(raw); } catch { return []; } })()
+    : [];
+  const map: Record<string, string> = {};
+  for (const s of arr) {
+    if (s?.id) map[s.id] = s.level ?? 'pleno';
+  }
+  return map;
+}
+
 function scoreCandidate(fl: any, job: any): ScoreBreakdown {
   const skills: string[] = fl.skills ?? [];
+  const skillLevels = parseSkillsJson(fl.skills_json);
   const aiTools: string[] = fl.ai_tools ?? [];
   const platformExpertise: string[] = fl.platform_expertise ?? [];
   const level: string = fl.experience_level ?? 'mid';
@@ -129,14 +148,20 @@ function scoreCandidate(fl: any, job: any): ScoreBreakdown {
   const weeklyCapMins = (fl.weekly_capacity_hours ?? 20) * 60;
   const activeMins = fl.active_minutes_this_week ?? 0;
 
-  // ── Skill match ──
+  // ── Skill match (level-aware) ──
   let skillMatch = 0;
   if (job.required_skill) {
-    skillMatch = skills.includes(job.required_skill) ? 40 : -30;
+    if (skills.includes(job.required_skill)) {
+      const proficiency = skillLevels[job.required_skill] ?? 'pleno';
+      skillMatch = SKILL_LEVEL_SCORE[proficiency] ?? 40;
+    } else {
+      skillMatch = -30;
+    }
   }
   const secondarySkill = JOB_TYPE_SKILL[job.job_type ?? ''];
   if (secondarySkill && secondarySkill !== job.required_skill && skills.includes(secondarySkill)) {
-    skillMatch += 15;
+    const secLevel = skillLevels[secondarySkill] ?? 'pleno';
+    skillMatch += secLevel === 'ninja' ? 20 : 15;
   }
 
   // ── Platform expertise ──
@@ -188,8 +213,9 @@ function scoreCandidate(fl: any, job: any): ScoreBreakdown {
 function buildRationale(fl: any, job: any, bd: ScoreBreakdown, remainingMins: number, estMins: number): string {
   const parts: string[] = [];
 
-  if (bd.skillMatch >= 40) parts.push(`skill "${job.required_skill}" ✓`);
-  else if (bd.skillMatch > 40) parts.push(`skill "${job.required_skill}" ✓ + secundária`);
+  if (bd.skillMatch >= 50) parts.push(`skill "${job.required_skill}" ✓ ninja`);
+  else if (bd.skillMatch >= 40) parts.push(`skill "${job.required_skill}" ✓`);
+  else if (bd.skillMatch > 0) parts.push(`skill secundária compatível`);
   else if (bd.skillMatch < 0) parts.push(`sem "${job.required_skill}" no perfil`);
   else if (bd.skillMatch > 0) parts.push(`skill secundária compatível`);
 
@@ -240,6 +266,7 @@ export async function proposeAllocations(
        fp.display_name,
        fp.specialty,
        fp.skills,
+       fp.skills_json,
        fp.tools,
        fp.ai_tools,
        fp.experience_level,
@@ -297,6 +324,13 @@ export async function proposeAllocations(
     const availableAt = estimateAvailableAt(fl, now);
     const completionAt = new Date(availableAt.getTime() + estMins * 60 * 1000);
 
+    // Build skills list for display (from skills_json if available, else from skills[])
+    const skillLevels = parseSkillsJson(fl.skills_json);
+    const skillsForDisplay: Array<{ id: string; label: string; level: string }> =
+      Object.keys(skillLevels).length > 0
+        ? Object.entries(skillLevels).map(([id, lvl]) => ({ id, label: id, level: lvl }))
+        : (fl.skills ?? []).map((id: string) => ({ id, label: id, level: 'pleno' }));
+
     proposals.push({
       freelancerId: fl.id,
       name: fl.display_name,
@@ -313,6 +347,7 @@ export async function proposeAllocations(
       approvalRate: fl.approval_rate !== null ? Number(fl.approval_rate) : null,
       jobsCompleted: fl.jobs_completed ?? 0,
       rationale: buildRationale(fl, job, bd, remainingMins, estMins),
+      skills: skillsForDisplay,
     });
   }
 
