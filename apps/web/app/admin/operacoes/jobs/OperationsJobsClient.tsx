@@ -49,7 +49,6 @@ import {
   ClientThumb,
   EmptyOperationState,
   EntityLinkCard,
-  JobFocusRail,
   OpsJobRow,
   OpsPanel,
   PersonThumb,
@@ -330,7 +329,7 @@ export default function OperationsJobsClient() {
       ) : (
         <Grid container spacing={2.5}>
           {/* Main column */}
-          <Grid size={{ xs: 12, lg: viewMode === 'board' ? 12 : 8 }}>
+          <Grid size={{ xs: 12, lg: 12 }}>
             <Stack spacing={2}>
               {compactBoard ? (
                 <Paper
@@ -758,7 +757,7 @@ export default function OperationsJobsClient() {
                         bucket={bucket}
                         jobs={bucketJobs}
                         selectedJob={selectedJob}
-                        onSelectJob={setSelectedJob}
+                        onSelectJob={openJobDetail}
                         onAdvance={handleAdvance}
                         onAssign={handleAssign}
                         owners={lookups.owners}
@@ -773,7 +772,7 @@ export default function OperationsJobsClient() {
                       key={section.key}
                       section={section}
                       selectedJob={selectedJob}
-                      onSelectJob={setSelectedJob}
+                      onSelectJob={openJobDetail}
                       onAdvance={handleAdvance}
                       onAssign={handleAssign}
                       owners={lookups.owners}
@@ -784,98 +783,6 @@ export default function OperationsJobsClient() {
             </Stack>
           </Grid>
 
-          {/* Right sidebar */}
-          {viewMode !== 'board' ? (
-          <Grid size={{ xs: 12, lg: 4 }}>
-            <JobFocusRail
-              job={selectedJob}
-              title="Mesa da demanda"
-              subtitle="Veja a trava, o dono e o proximo passo antes de abrir o painel completo."
-              primaryLabel="Abrir comandos"
-              onPrimaryAction={() => setDetailOpen(true)}
-              emptyTitle="Selecione uma demanda"
-              emptyDescription="Clique em uma demanda da fila para ver o pulso, os atalhos e os links de contexto."
-              eyebrow="DECISAO RAPIDA"
-              links={
-                selectedJob ? (
-                  <Grid container spacing={1.25}>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Cliente" value={selectedJob.client_name || 'Sem cliente'}
-                        href={selectedJob.client_id ? `/clients/${selectedJob.client_id}` : undefined}
-                        subtitle={OPS_COPY.common.clientSubtitle} accent={selectedJob.client_brand_color || '#E85219'}
-                        thumbnail={<ClientThumb name={selectedJob.client_name} logoUrl={selectedJob.client_logo_url} accent={selectedJob.client_brand_color || '#E85219'} size={26} />} />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Dono" value={selectedJob.owner_name || 'Sem responsavel'}
-                        href={(() => {
-                          const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
-                          return owner?.freelancer_profile_id
-                            ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/semana?view=distribution';
-                        })()}
-                        subtitle={formatSkillLabel(selectedJob.required_skill)}
-                        thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />} />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Studio" value="Abrir producao" href="/edro" subtitle="Entrar na execucao criativa"
-                        thumbnail={<SourceThumb source="creative_studio" jobType="design_static" accent="#5D87FF" />} />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Origem" value={formatSourceLabel(selectedJob.source)} subtitle={selectedJob.job_type}
-                        thumbnail={<SourceThumb source={selectedJob.source} jobType={selectedJob.job_type} accent="#E85219" />} />
-                    </Grid>
-                  </Grid>
-                ) : null
-              }
-              sections={(() => {
-                if (!selectedJob?.owner_id) return [];
-                const ownerPulse = teamPulse.find((o) => o.id === selectedJob.owner_id);
-                if (!ownerPulse) return [];
-                const barColor = ownerPulse.pct > 90 ? '#FA896B' : ownerPulse.pct > 75 ? '#FFAE1F' : '#13DEB9';
-                return [{
-                  title: 'Pulso do dono',
-                  content: (
-                    <Box sx={{ px: 0.5 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-                        <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.7rem' }}>{ownerPulse.name}</Typography>
-                        <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.7rem', color: barColor }}>
-                          {ownerPulse.pct}%
-                        </Typography>
-                      </Stack>
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min(ownerPulse.pct, 100)}
-                        sx={{ borderRadius: 1, height: 5, bgcolor: alpha(barColor, 0.15), '& .MuiLinearProgress-bar': { bgcolor: barColor, borderRadius: 1 } }}
-                      />
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem', mt: 0.4, display: 'block' }}>
-                        {Math.round(ownerPulse.committed / 60)}h comprometido · {Math.round(ownerPulse.cap / 60)}h disponível/semana
-                      </Typography>
-                    </Box>
-                  ),
-                }];
-              })()}
-              footer={
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button variant="contained" size="small" onClick={() => setDetailOpen(true)} disabled={!selectedJob}>{OPS_COPY.common.openDetail}</Button>
-                  <Button variant="outlined" size="small" onClick={refresh}>{OPS_COPY.jobs.refresh}</Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    color="error"
-                    onClick={() => {
-                      setDeleteError('');
-                      setDeleteConfirmation('');
-                      setDeleteDialogOpen(true);
-                    }}
-                    disabled={!selectedJob}
-                  >
-                    Excluir demanda
-                  </Button>
-                </Stack>
-              }
-            />
-          </Grid>
-          ) : null}
         </Grid>
       )}
 
