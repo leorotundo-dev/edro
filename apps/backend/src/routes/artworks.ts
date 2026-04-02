@@ -15,6 +15,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { requirePortalCapability } from '../auth/portalClientPerms';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool, query } from '../db';
@@ -187,7 +188,12 @@ export default async function artworksRoutes(app: FastifyInstance) {
   // ── Portal cliente: approve artwork ──────────────────────────────────────
   app.post(
     '/portal/client/artworks/:id/approve',
-    { preHandler: [async (req: any, reply: any) => { try { await req.jwtVerify(); } catch { return reply.status(401).send({ error: 'Unauthorized' }); } }] },
+    {
+      preHandler: [
+        async (req: any, reply: any) => { try { await req.jwtVerify(); } catch { return reply.status(401).send({ error: 'Unauthorized' }); } },
+        requirePortalCapability('approve'),
+      ],
+    },
     async (request: any, reply) => {
       const clientId = getPortalClientId(request);
       if (!clientId) return reply.status(401).send({ error: 'Client auth required' });
@@ -220,7 +226,12 @@ export default async function artworksRoutes(app: FastifyInstance) {
   // ── Portal cliente: request revision ─────────────────────────────────────
   app.post(
     '/portal/client/artworks/:id/revision',
-    { preHandler: [async (req: any, reply: any) => { try { await req.jwtVerify(); } catch { return reply.status(401).send({ error: 'Unauthorized' }); } }] },
+    {
+      preHandler: [
+        async (req: any, reply: any) => { try { await req.jwtVerify(); } catch { return reply.status(401).send({ error: 'Unauthorized' }); } },
+        requirePortalCapability('approve'),
+      ],
+    },
     async (request: any, reply) => {
       const clientId = getPortalClientId(request);
       if (!clientId) return reply.status(401).send({ error: 'Client auth required' });

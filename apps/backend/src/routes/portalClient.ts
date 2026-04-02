@@ -21,6 +21,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { pool } from '../db';
 import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
+import { requirePortalCapability } from '../auth/portalClientPerms';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { env } from '../env';
@@ -103,6 +104,37 @@ function requirePortalLinkPerm(perm: ClientScopePerm) {
         WHERE id = $1 AND tenant_id = $2
         LIMIT 1`,
       [tokenId, tenantId],
+    );
+    const clientId = result.rows[0]?.client_id as string | undefined;
+    if (!clientId) {
+      return reply.status(404).send({ error: 'not_found' });
+    }
+
+    const allowed = await ensureScopedClientAccess({
+      request,
+      reply,
+      tenantId,
+      clientId,
+      perm,
+    });
+    if (!allowed) return;
+  };
+}
+
+function requirePortalContactPerm(perm: ClientScopePerm) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    const contactId = (request.params as any)?.contactId as string | undefined;
+    if (!tenantId || !contactId) {
+      return reply.status(400).send({ error: 'missing_contact_id' });
+    }
+
+    const result = await pool.query(
+      `SELECT client_id
+         FROM portal_contacts
+        WHERE id = $1 AND tenant_id = $2
+        LIMIT 1`,
+      [contactId, tenantId],
     );
     const clientId = result.rows[0]?.client_id as string | undefined;
     if (!clientId) {
@@ -214,7 +246,9 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   });
 
   // POST /portal/client/jobs/:id/approve — cliente aprova copy
-  app.post('/portal/client/jobs/:id/approve', async (request: any, reply) => {
+  app.post('/portal/client/jobs/:id/approve', {
+    preHandler: [requirePortalCapability('approve')],
+  }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
     const tenantId = request.user?.tenant_id ?? null;
@@ -298,7 +332,9 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   });
 
   // POST /portal/client/jobs/request — cliente envia novo pedido
-  app.post('/portal/client/jobs/request', async (request: any, reply) => {
+  app.post('/portal/client/jobs/request', {
+    preHandler: [requirePortalCapability('request')],
+  }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
 
@@ -343,7 +379,9 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   });
 
   // POST /portal/client/jobs/:id/revision — cliente solicita revisão
-  app.post('/portal/client/jobs/:id/revision', async (request: any, reply) => {
+  app.post('/portal/client/jobs/:id/revision', {
+    preHandler: [requirePortalCapability('approve')],
+  }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
 
@@ -452,7 +490,9 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   });
 
   // GET /portal/client/briefings — lista solicitações de briefing do cliente
-  app.get('/portal/client/briefings', async (request: any, reply) => {
+  app.get('/portal/client/briefings', {
+    preHandler: [requirePortalCapability('request')],
+  }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
     const tenantId = request.user?.tenant_id;
@@ -469,7 +509,9 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   });
 
   // POST /portal/client/briefings/enrich — AI enrichment preview (sem salvar)
-  app.post('/portal/client/briefings/enrich', async (request: any, reply) => {
+  app.post('/portal/client/briefings/enrich', {
+    preHandler: [requirePortalCapability('request')],
+  }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
 
@@ -528,7 +570,9 @@ Gere um enriquecimento estruturado para a equipe interna da agência. Responda S
   });
 
   // POST /portal/client/briefings — submete novo briefing request
-  app.post('/portal/client/briefings', async (request: any, reply) => {
+  app.post('/portal/client/briefings', {
+    preHandler: [requirePortalCapability('request')],
+  }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
     const tenantId = request.user?.tenant_id;
@@ -768,7 +812,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
   // POST /portal/contacts/:clientId — invite contact
   app.post('/portal/contacts/:clientId', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requireClientPerm('write')],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -779,6 +823,8 @@ export async function portalTokenRoutes(app: FastifyInstance) {
       role: z.enum(['viewer', 'requester', 'approver', 'admin']).default('viewer'),
     }).parse(request.body ?? {});
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Verify client belongs to tenant + cap at 5
     const check = await pool.query(
       `SELECT id, name FROM clients WHERE id = $1 AND tenant_id = $2`,
@@ -786,11 +832,22 @@ export async function portalTokenRoutes(app: FastifyInstance) {
     );
     if (!check.rows.length) return reply.status(404).send({ error: 'Client not found' });
 
+    const existingContactRes = await pool.query(
+      `SELECT id, is_active
+         FROM portal_contacts
+        WHERE client_id = $1 AND tenant_id = $2 AND email = $3
+        LIMIT 1`,
+      [clientId, tenantId, normalizedEmail],
+    );
+    const existingContact = existingContactRes.rows[0] as { id: string; is_active: boolean } | undefined;
+
     const countRes = await pool.query(
       `SELECT COUNT(*)::int AS n FROM portal_contacts WHERE client_id = $1 AND is_active = true`,
       [clientId],
     );
-    if ((countRes.rows[0]?.n ?? 0) >= 5) {
+    const activeCount = countRes.rows[0]?.n ?? 0;
+    const willConsumeNewSeat = !existingContact || !existingContact.is_active;
+    if (willConsumeNewSeat && activeCount >= 5) {
       return reply.status(422).send({ error: 'max_contacts_reached', max: 5 });
     }
 
@@ -800,9 +857,10 @@ export async function portalTokenRoutes(app: FastifyInstance) {
        VALUES ($1, $2, $3, $4, $5, $6, now())
        ON CONFLICT (client_id, email) DO UPDATE
          SET role = EXCLUDED.role, name = COALESCE(EXCLUDED.name, portal_contacts.name),
-             invite_token = EXCLUDED.invite_token, invited_at = now(), is_active = true
-       RETURNING id, email, name, role, invited_at`,
-      [clientId, tenantId, email, name ?? null, role, inviteToken],
+             invite_token = EXCLUDED.invite_token, invited_at = now(), is_active = true,
+             accepted_at = CASE WHEN portal_contacts.is_active THEN portal_contacts.accepted_at ELSE NULL END
+       RETURNING id, email, name, role, invited_at, accepted_at, is_active`,
+      [clientId, tenantId, normalizedEmail, name ?? null, role, inviteToken],
     );
 
     const contact = result.rows[0];
@@ -815,10 +873,10 @@ export async function portalTokenRoutes(app: FastifyInstance) {
       const inviteUrl = `${portalBaseUrl}/portal/${inviteToken}`;
       const clientName = check.rows[0].name;
       await sendEmail({
-        to: email,
+        to: normalizedEmail,
         subject: `Você foi convidado para o portal da ${clientName}`,
         tenantId,
-        html: buildInviteEmail({ name: name ?? email, clientName, inviteUrl, role }),
+        html: buildInviteEmail({ name: name ?? normalizedEmail, clientName, inviteUrl, role }),
       }).catch(() => {});
     }
 
@@ -827,7 +885,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
   // GET /portal/contacts/:clientId — list contacts
   app.get('/portal/contacts/:clientId', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:read'), requireClientPerm('read')],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id;
     const { clientId } = request.params as { clientId: string };
@@ -844,7 +902,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
   // PATCH /portal/contacts/:contactId — update role
   app.patch('/portal/contacts/:contactId', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requirePortalContactPerm('write')],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id;
     const { contactId } = request.params as { contactId: string };
@@ -863,7 +921,7 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
   // DELETE /portal/contacts/:contactId — deactivate
   app.delete('/portal/contacts/:contactId', {
-    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write')],
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requirePortalContactPerm('write')],
   }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id;
     const { contactId } = request.params as { contactId: string };
@@ -873,6 +931,58 @@ export async function portalTokenRoutes(app: FastifyInstance) {
        WHERE id = $1 AND tenant_id = $2`,
       [contactId, tenantId],
     );
+    return reply.send({ ok: true });
+  });
+
+  // POST /portal/contacts/:contactId/resend — regenerate invite token and resend email
+  app.post('/portal/contacts/:contactId/resend', {
+    preHandler: [authGuard, tenantGuard(), requirePerm('clients:write'), requirePortalContactPerm('write')],
+  }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id;
+    const { contactId } = request.params as { contactId: string };
+
+    const result = await pool.query(
+      `SELECT pc.id, pc.email, pc.name, pc.role, pc.is_active, c.name AS client_name
+         FROM portal_contacts pc
+         JOIN clients c ON c.id = pc.client_id
+        WHERE pc.id = $1 AND pc.tenant_id = $2
+        LIMIT 1`,
+      [contactId, tenantId],
+    );
+    const contact = result.rows[0] as
+      | { id: string; email: string; name?: string; role: 'viewer' | 'requester' | 'approver' | 'admin'; is_active: boolean; client_name: string }
+      | undefined;
+    if (!contact) return reply.status(404).send({ error: 'not_found' });
+    if (!contact.is_active) return reply.status(422).send({ error: 'contact_inactive' });
+
+    const inviteToken = crypto.randomBytes(24).toString('hex');
+    await pool.query(
+      `UPDATE portal_contacts
+          SET invite_token = $1,
+              invited_at = now(),
+              accepted_at = NULL
+        WHERE id = $2 AND tenant_id = $3`,
+      [inviteToken, contactId, tenantId],
+    );
+
+    let portalBaseUrl: string;
+    try { portalBaseUrl = resolvePortalBaseUrl(); } catch { portalBaseUrl = ''; }
+
+    if (portalBaseUrl && isEmailConfigured()) {
+      const inviteUrl = `${portalBaseUrl}/portal/${inviteToken}`;
+      await sendEmail({
+        to: contact.email,
+        subject: `Seu acesso ao portal da ${contact.client_name}`,
+        tenantId,
+        html: buildInviteEmail({
+          name: contact.name ?? contact.email,
+          clientName: contact.client_name,
+          inviteUrl,
+          role: contact.role,
+        }),
+      }).catch(() => {});
+    }
+
     return reply.send({ ok: true });
   });
 

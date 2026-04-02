@@ -243,10 +243,19 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
     setInviting(true);
     setInviteError('');
     try {
-      await apiPost(`/clients/${clientId}/portal/invite`, { email: inviteEmail });
+      await apiPost(`/portal/contacts/${clientId}`, {
+        email: inviteEmail.trim(),
+        role: 'requester',
+      });
       setInviteDone(true);
+      setInviteEmail('');
     } catch (err: any) {
-      setInviteError(err?.message || 'Falha ao enviar convite.');
+      const message = err?.message || '';
+      setInviteError(
+        message.includes('max_contacts')
+          ? 'Este cliente já atingiu o limite de 5 contatos ativos no portal.'
+          : message || 'Falha ao enviar convite.',
+      );
     } finally {
       setInviting(false);
     }
@@ -473,14 +482,14 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
               <IconCheck size={40} color="#16a34a" />
               <Typography variant="body1" fontWeight={600} color="success.main">Convite enviado!</Typography>
               <Typography variant="body2" color="text.secondary" textAlign="center">
-                O cliente receberá um e-mail com o código de acesso ao portal.
+                O cliente receberá um e-mail com um link direto de acesso ao portal.
               </Typography>
               <Button variant="outlined" onClick={() => setInviteOpen(false)}>Fechar</Button>
             </Stack>
           ) : (
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                Digite o e-mail do contato do cliente. Ele receberá um código de acesso ao Portal do Cliente da Edro.
+                Digite o e-mail do contato do cliente. Ele receberá um link direto de acesso ao Portal do Cliente da Edro.
               </Typography>
               <TextField
                 label="E-mail do cliente"
