@@ -2438,6 +2438,94 @@ export function ActionStrip({
 }) {
   const visibleAlerts = compact ? alerts.slice(0, 4) : alerts;
 
+  if (compact) {
+    const quickAlerts = alerts.slice(0, 3);
+    const extraAlerts = Math.max(alerts.length - quickAlerts.length, 0);
+
+    return (
+      <Box
+        sx={(theme) => {
+          const dark = theme.palette.mode === 'dark';
+          return {
+            borderRadius: 2,
+            border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+            bgcolor: dark ? alpha(theme.palette.common.white, 0.01) : alpha(theme.palette.common.black, 0.01),
+            px: 1.5,
+            py: 0.75,
+          };
+        }}
+      >
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ lg: 'center' }} justifyContent="space-between">
+          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.6rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Atenção agora
+            </Typography>
+            {quickAlerts.length > 0 ? (
+              quickAlerts.map((job) => {
+                const risk = getRisk(job);
+                const riskColor = risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : '#5D87FF';
+                return (
+                  <Box
+                    key={job.id}
+                    onClick={() => onSelectJob(job)}
+                    sx={{
+                      maxWidth: 220,
+                      px: 1,
+                      py: 0.45,
+                      borderRadius: 1.5,
+                      border: `1px solid ${alpha(riskColor, 0.28)}`,
+                      bgcolor: alpha(riskColor, 0.05),
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.65,
+                      '&:hover': { bgcolor: alpha(riskColor, 0.1) },
+                    }}
+                  >
+                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: riskColor, flexShrink: 0 }} />
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontWeight: 700,
+                        color: 'text.primary',
+                        fontSize: '0.68rem',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {job.title}
+                    </Typography>
+                  </Box>
+                );
+              })
+            ) : (
+              <Chip size="small" label="Controlado" sx={{ height: 24, color: '#13DEB9', borderColor: alpha('#13DEB9', 0.34) }} variant="outlined" />
+            )}
+            {extraAlerts > 0 ? (
+              <Chip size="small" label={`+${extraAlerts} alertas`} sx={{ height: 24 }} variant="outlined" />
+            ) : null}
+          </Stack>
+
+          {owners.length > 0 ? (
+            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap sx={{ minWidth: 0 }}>
+              <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.6rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Equipe
+              </Typography>
+              <TeamPulseStrip
+                owners={owners}
+                jobs={jobs}
+                onFilterOwner={onFilterOwner}
+                allocableMinutesFn={allocableMinutesFn}
+                committedMinutesFn={committedMinutesFn}
+              />
+            </Stack>
+          ) : null}
+        </Stack>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={(theme) => {
       const dark = theme.palette.mode === 'dark';

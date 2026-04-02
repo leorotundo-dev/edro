@@ -329,12 +329,12 @@ export default function OperationsJobsClient() {
                   elevation={0}
                   sx={{
                     px: { xs: 1.5, md: 2 },
-                    py: 1.5,
+                    py: 1.1,
                     borderRadius: 3,
                     boxShadow: dark ? '0 2px 12px rgba(0,0,0,0.24)' : '0 2px 12px rgba(0,0,0,0.06)',
                   }}
                 >
-                  <Stack spacing={1.25}>
+                  <Stack spacing={0.9}>
                     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ md: 'center' }}>
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                         <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: '0.14em', fontSize: '0.64rem' }}>
@@ -347,33 +347,29 @@ export default function OperationsJobsClient() {
                         <Button size="small" variant="contained" onClick={() => setComposerOpen(true)}>
                           Nova demanda
                         </Button>
-                        <Button size="small" variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                        <Button size="small" variant="text" component={Link} href="/admin/operacoes/jobs?unassigned=true" sx={{ minWidth: 0, px: 0.5 }}>
                           Sem dono
                         </Button>
-                        <Button size="small" variant="outlined" component={Link} href="/admin/operacoes/radar">
+                        <Button size="small" variant="text" component={Link} href="/admin/operacoes/radar" sx={{ minWidth: 0, px: 0.5 }}>
                           Riscos
                         </Button>
                       </Stack>
                     </Stack>
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(6, minmax(0, 1fr))' },
-                        gap: 1,
-                      }}
-                    >
+                    <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                       {queueOverviewItems.map((item) => (
                         <Box
                           key={item.label}
                           component={Link}
                           href={item.href}
                           sx={(theme) => ({
-                            display: 'block',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.75,
                             textDecoration: 'none',
                             color: 'inherit',
-                            px: 1.1,
-                            py: 0.9,
-                            borderRadius: 2,
+                            px: 1,
+                            py: 0.65,
+                            borderRadius: 1.5,
                             border: `1px solid ${alpha(item.color, 0.18)}`,
                             bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.035),
                             transition: 'all 160ms ease',
@@ -383,34 +379,30 @@ export default function OperationsJobsClient() {
                             },
                           })}
                         >
-                          <Stack direction="row" spacing={0.8} alignItems="center" justifyContent="space-between">
-                            <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
-                              <Box
-                                sx={{
-                                  width: 24,
-                                  height: 24,
-                                  borderRadius: 1.25,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  bgcolor: alpha(item.color, 0.14),
-                                  color: item.color,
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {item.icon}
-                              </Box>
-                              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.66rem' }}>
-                                {item.label}
-                              </Typography>
-                            </Stack>
-                            <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.12rem', lineHeight: 1, flexShrink: 0 }}>
-                              {item.value}
-                            </Typography>
-                          </Stack>
+                          <Box
+                            sx={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 1.1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: alpha(item.color, 0.14),
+                              color: item.color,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {item.icon}
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.62rem' }}>
+                            {item.label}
+                          </Typography>
+                          <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '0.96rem', lineHeight: 1, flexShrink: 0 }}>
+                            {item.value}
+                          </Typography>
                         </Box>
                       ))}
-                    </Box>
+                    </Stack>
                   </Stack>
                 </Paper>
               ) : (
@@ -583,7 +575,7 @@ export default function OperationsJobsClient() {
                 ) : null}
 
                 {/* Quick filters */}
-                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: compactBoard ? 0.9 : 1.25 }}>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: compactBoard ? 0.7 : 1.25 }}>
                   <ToggleButtonGroup value={quickFilter} exclusive onChange={(_e, v) => setQuickFilter(v)} size="small">
                     <ToggleButton value="mine" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#4f46e5', borderColor: '#4f46e540' } }}>
                       <IconUsers size={14} style={{ marginRight: 4 }} /> Minha pauta
@@ -595,17 +587,27 @@ export default function OperationsJobsClient() {
                       <IconUserOff size={14} style={{ marginRight: 4 }} /> Sem dono
                     </ToggleButton>
                   </ToggleButtonGroup>
-                  <ToggleButtonGroup value={deadlineFilter} exclusive onChange={(_e, v) => setDeadlineFilter(v)} size="small">
-                    <ToggleButton value="overdue" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#dc2626', borderColor: '#dc262640' } }}>
-                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Atrasados
-                    </ToggleButton>
-                    <ToggleButton value="today" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#FFAE1F', borderColor: '#FFAE1F40' } }}>
-                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Hoje
-                    </ToggleButton>
-                    <ToggleButton value="week" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Essa semana
-                    </ToggleButton>
-                  </ToggleButtonGroup>
+                  {!compactBoard ? (
+                    <ToggleButtonGroup value={deadlineFilter} exclusive onChange={(_e, v) => setDeadlineFilter(v)} size="small">
+                      <ToggleButton value="overdue" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#dc2626', borderColor: '#dc262640' } }}>
+                        <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Atrasados
+                      </ToggleButton>
+                      <ToggleButton value="today" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#FFAE1F', borderColor: '#FFAE1F40' } }}>
+                        <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Hoje
+                      </ToggleButton>
+                      <ToggleButton value="week" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Essa semana
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  ) : null}
+                  {compactBoard && deadlineFilter ? (
+                    <Chip
+                      size="small"
+                      label={deadlineFilter === 'overdue' ? 'Atrasados' : deadlineFilter === 'today' ? 'Hoje' : 'Essa semana'}
+                      onDelete={() => setDeadlineFilter(null)}
+                      sx={{ height: 28 }}
+                    />
+                  ) : null}
                   {hasActiveFilters && (
                     <Button size="small" onClick={() => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); setDeadlineFilter(null); setDeliveryFilter(null); }}
                       sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}>
@@ -714,7 +716,7 @@ export default function OperationsJobsClient() {
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
                       {filteredJobs.length} demandas no quadro
                     </Typography>
-                    <Button size="small" variant="outlined" onClick={() => setViewMode('list')}>
+                    <Button size="small" variant="text" onClick={() => setViewMode('list')} sx={{ minWidth: 0, px: 0.5 }}>
                       Voltar para lista
                     </Button>
                   </Stack>
