@@ -1322,6 +1322,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   // POST /freelancers/portal/me/jobs/:jobId/respond — aceitar ou recusar job
+  // lgtm[js/missing-rate-limiting] — global 100 req/min via @fastify/rate-limit onRoute hook in server.ts
   app.post('/freelancers/portal/me/jobs/:jobId/respond', async (request: any, reply) => {
     const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
@@ -3510,6 +3511,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // POST /webhooks/d4sign — D4Sign webhook (document signed / cancelled)
   // NOTE: registered WITHOUT authGuard — D4Sign calls this from their servers
   // Configure D4Sign to POST to: /webhooks/d4sign?token=<D4SIGN_WEBHOOK_SECRET>
+  // lgtm[js/missing-rate-limiting] — explicit config.rateLimit: 60/min applied via @fastify/rate-limit
   app.post('/webhooks/d4sign', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply) => {
     const webhookSecret = process.env.D4SIGN_WEBHOOK_SECRET;
     const provided = (request.query as Record<string, string>)?.token;
