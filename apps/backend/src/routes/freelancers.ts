@@ -12,6 +12,8 @@ import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../se
 import { generateContractPdf } from '../services/contractTemplateService';
 import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
+import { sendWhatsAppText } from '../services/whatsappService';
+import { upsertNotificationPreferences } from '../services/notificationService';
 import { issuePortalLoginCode } from '../services/authService';
 import {
   attachExecutionSnapshotToPayload,
@@ -2134,9 +2136,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const token = request.headers.authorization?.replace('Bearer ', '');
     if (!token) return reply.status(401).send({ error: 'Unauthorized' });
     let userId: string;
+    let tenantId: string;
     try {
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
       userId = payload.sub ?? payload.id;
+      tenantId = payload.tenant_id ?? '';
     } catch { return reply.status(401).send({ error: 'Token inválido' }); }
 
     const body = request.body as Record<string, any>;
@@ -2197,6 +2201,44 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         skillsJson,
       ],
     );
+
+    // Sync phone → whatsapp_jid + person_identities + notification prefs (non-blocking)
+    if (body.phone) {
+      const rawPhone = String(body.phone).replace(/\D/g, '');
+      const phone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
+      // Persist whatsapp_jid derived from phone (plain number — whatsappService normalizes it)
+      pool.query(
+        `UPDATE freelancer_profiles SET whatsapp_jid = $2 WHERE user_id = $1 AND (whatsapp_jid IS NULL OR whatsapp_jid = '')`,
+        [userId, phone],
+      ).catch(() => {});
+
+      // Sync to people / person_identities directory
+      pool.query(
+        `SELECT id, person_id, display_name FROM freelancer_profiles WHERE user_id = $1`,
+        [userId],
+      ).then(({ rows: fpRows }) => {
+        if (!fpRows[0]) return;
+        const fp = fpRows[0];
+        return syncFreelancerPerson({
+          freelancerId: fp.id,
+          tenantId,
+          displayName: fp.display_name ?? body.representante_nome ?? null,
+          userId,
+          phone,
+          existingPersonId: fp.person_id ?? null,
+        });
+      }).catch(() => {});
+
+      // Enable WhatsApp for key freelancer event types
+      upsertNotificationPreferences(userId, [
+        { event_type: 'job_assigned',    channel: 'whatsapp', enabled: true },
+        { event_type: 'job_assigned',    channel: 'in_app',   enabled: true },
+        { event_type: 'deadline_alert',  channel: 'whatsapp', enabled: true },
+        { event_type: 'deadline_alert',  channel: 'in_app',   enabled: true },
+        { event_type: 'contract_signed', channel: 'whatsapp', enabled: true },
+        { event_type: 'contract_signed', channel: 'in_app',   enabled: true },
+      ]).catch(() => {});
+    }
 
     return reply.send({ ok: true, message: 'Cadastro salvo. Aguardando assinatura do contrato.' });
   });
@@ -3363,7 +3405,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     // Find which freelancer this contract belongs to
     const { rows } = await pool.query(
-      `SELECT fp.user_id, fp.tenant_id, eu.email
+      `SELECT fp.user_id, fp.tenant_id, eu.email, fp.whatsapp_jid, fp.representante_nome, fp.display_name
          FROM freelancer_profiles fp
          JOIN edro_users eu ON eu.id = fp.user_id
         WHERE fp.contract_d4sign_uuid = $1
@@ -3409,6 +3451,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
           email: payload.email,
         },
       });
+
+      // WhatsApp welcome message to the freelancer
+      if (prof.whatsapp_jid) {
+        const firstName = (prof.representante_nome ?? prof.display_name ?? '').split(' ')[0] || 'Freelancer';
+        sendWhatsAppText(
+          prof.whatsapp_jid,
+          `✅ *Contrato assinado!*\n\nOlá, ${firstName}! Seu contrato com a Edro foi assinado com sucesso.\n\nSeu acesso ao portal está liberado. Você receberá uma mensagem aqui sempre que um novo job for atribuído a você. 🚀`,
+          { tenantId: prof.tenant_id, event: 'contract_signed', meta: { user_id: prof.user_id } },
+        ).catch(() => {});
+      }
 
     } else if (type_post === 'cancelled') {
       await pool.query(
