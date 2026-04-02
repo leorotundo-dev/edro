@@ -53,6 +53,8 @@ export interface ScoreBreakdown {
   capacityAvailable: number;
   loadPenalty: number;
   historicalPerformance: number;
+  disponibilidade: number;
+  tempoResposta: number;
 }
 
 export interface AllocationProposal {
@@ -207,7 +209,37 @@ function scoreCandidate(fl: any, job: any): ScoreBreakdown {
     historicalPerformance += Math.round((Number(fl.approval_rate) - 70) * 0.2);
   }
 
-  return { skillMatch, platformFit, aiToolsBonus, experienceFit, capacityAvailable, loadPenalty, historicalPerformance };
+  // ── Disponibilidade: penaliza se hoje não é dia de trabalho ou está fora do horário ──
+  let disponibilidade = 0;
+  const now = new Date();
+  const todayKey = DAY_MAP[now.getDay()];
+  const workingDays: string[] = fl.available_days?.length > 0
+    ? fl.available_days
+    : ['mon', 'tue', 'wed', 'thu', 'fri'];
+  if (!workingDays.includes(todayKey)) {
+    disponibilidade = -15; // não trabalha hoje
+  } else if (fl.available_hours_start && fl.available_hours_end) {
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+    const [sh, sm] = String(fl.available_hours_start).split(':').map(Number);
+    const [eh, em] = String(fl.available_hours_end).split(':').map(Number);
+    const start = (sh || 0) + (sm || 0) / 60;
+    const end = (eh || 0) + (em || 0) / 60;
+    if (currentHour < start || currentHour > end) {
+      disponibilidade = -8; // fora do horário de trabalho
+    }
+  }
+
+  // ── Tempo de resposta: baseado em avg_response_minutes (EMA histórica) ──
+  let tempoResposta = 0;
+  if (fl.avg_response_minutes !== null && fl.avg_response_minutes !== undefined) {
+    const mins = Number(fl.avg_response_minutes);
+    if (mins <= 60)        tempoResposta = 15;  // responde em até 1h
+    else if (mins <= 240)  tempoResposta = 8;   // até 4h
+    else if (mins <= 480)  tempoResposta = 0;   // até 8h (neutro)
+    else                   tempoResposta = -10; // mais de 8h
+  }
+
+  return { skillMatch, platformFit, aiToolsBonus, experienceFit, capacityAvailable, loadPenalty, historicalPerformance, disponibilidade, tempoResposta };
 }
 
 function buildRationale(fl: any, job: any, bd: ScoreBreakdown, remainingMins: number, estMins: number): string {
@@ -240,6 +272,10 @@ function buildRationale(fl: any, job: any, bd: ScoreBreakdown, remainingMins: nu
   const freeH = Math.round(remainingMins / 60);
   if (freeH > 0) parts.push(`~${freeH}h livres`);
   if (estMins > 0) parts.push(`est. ${estMins >= 60 ? `${Math.round(estMins / 60)}h` : `${estMins}min`}`);
+
+  if (bd.disponibilidade < 0) parts.push(bd.disponibilidade === -15 ? 'fora do dia' : 'fora do horário');
+  if (bd.tempoResposta >= 15) parts.push('responde rápido');
+  else if (bd.tempoResposta < 0) parts.push('resposta lenta');
 
   return parts.join(' · ');
 }
@@ -277,6 +313,7 @@ export async function proposeAllocations(
        fp.available_hours_end,
        fp.punctuality_score,
        fp.approval_rate,
+       fp.avg_response_minutes,
        fp.jobs_completed,
        fp.platform_expertise,
        fp.unavailable_until,
@@ -309,7 +346,8 @@ export async function proposeAllocations(
     const bd = scoreCandidate(fl, job);
     const totalRaw =
       bd.skillMatch + bd.platformFit + bd.aiToolsBonus +
-      bd.experienceFit + bd.capacityAvailable + bd.loadPenalty + bd.historicalPerformance;
+      bd.experienceFit + bd.capacityAvailable + bd.loadPenalty + bd.historicalPerformance +
+      bd.disponibilidade + bd.tempoResposta;
 
     // Soft floor: filter only truly incompatible candidates (raw < -15)
     if (totalRaw < -15) continue;
