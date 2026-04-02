@@ -5,6 +5,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import {
   approveBoardPresentation,
   createOrRefreshBoardPresentationDraft,
+  downloadBoardPresentationPptx,
   exportBoardPresentationPptx,
   generateBoardPresentationAiDraft,
   getBoardPresentationDetail,
@@ -32,6 +33,9 @@ function handleBoardPresentationError(reply: any, error: any) {
   }
   if (error?.message === 'invalid_slide_count') {
     return reply.status(422).send({ error: 'invalid_slide_count' });
+  }
+  if (error?.message === 'pptx_not_found') {
+    return reply.status(404).send({ error: 'pptx_not_found' });
   }
   throw error;
 }
@@ -193,6 +197,26 @@ export default async function boardPresentationsRoutes(app: FastifyInstance) {
         clientId,
         presentationId,
         userId,
+      });
+      reply.header('Content-Type', exported.contentType);
+      reply.header('Content-Disposition', `attachment; filename="${exported.fileName}"`);
+      reply.header('Content-Length', exported.buffer.length);
+      return reply.send(exported.buffer);
+    } catch (error) {
+      return handleBoardPresentationError(reply, error);
+    }
+  });
+
+  app.get('/clients/:clientId/board-presentations/:presentationId/download-pptx', {
+    preHandler: guards,
+  }, async (request: any, reply: any) => {
+    try {
+      const tenantId = request.user?.tenant_id as string;
+      const { clientId, presentationId } = request.params as { clientId: string; presentationId: string };
+      const exported = await downloadBoardPresentationPptx({
+        tenantId,
+        clientId,
+        presentationId,
       });
       reply.header('Content-Type', exported.contentType);
       reply.header('Content-Disposition', `attachment; filename="${exported.fileName}"`);

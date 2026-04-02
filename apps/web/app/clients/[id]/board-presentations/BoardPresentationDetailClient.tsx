@@ -17,7 +17,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { IconArrowLeft, IconCheck, IconDeviceFloppy, IconPresentation, IconSparkles } from '@tabler/icons-react';
+import { IconArrowLeft, IconCheck, IconDeviceFloppy, IconDownload, IconPresentation, IconSparkles } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
 
 type BoardPresentationMetricBlock = {
@@ -273,6 +273,39 @@ export default function BoardPresentationDetailClient({
     }
   };
 
+  const downloadLatestPptx = async () => {
+    setExporting(true);
+    setError('');
+    try {
+      const response = await fetch(
+        buildApiUrl(`/clients/${clientId}/board-presentations/${presentationId}/download-pptx`),
+        {
+          method: 'GET',
+          credentials: 'include',
+        },
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Erro ao baixar PPTX.');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename=\"?([^"]+)\"?/i);
+      const fileName = match?.[1] || `board-presentation-${presentationId}.pptx`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setSuccess('Última versão do PPTX baixada com sucesso.');
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao baixar PPTX.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const sourceSummary = useMemo(() => {
     if (!activeSlide) return [];
     return activeSlide.big_numbers.slice(0, 4);
@@ -430,6 +463,14 @@ export default function BoardPresentationDetailClient({
                     </Button>
                     <Button variant="outlined" startIcon={<IconCheck size={16} />} onClick={approvePresentation} disabled={approving}>
                       Aprovar
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<IconDownload size={16} />}
+                      onClick={downloadLatestPptx}
+                      disabled={exporting || !presentation.pptx_key}
+                    >
+                      Baixar última versão
                     </Button>
                     <Button variant="contained" startIcon={<IconPresentation size={16} />} onClick={exportPptx} disabled={exporting}>
                       Exportar PPTX

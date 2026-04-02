@@ -1,6 +1,6 @@
 import PptxGenJS from 'pptxgenjs';
 import { query } from '../db';
-import { saveFile } from '../library/storage';
+import { readFile, saveFile } from '../library/storage';
 import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 import { generateCompletion as generateClaudeCompletion } from './ai/claudeService';
 
@@ -1934,6 +1934,32 @@ export async function exportBoardPresentationPptx(params: {
       effective_slides: getEffectiveSlides(updated),
     },
     key,
+    fileName,
+    contentType: PPTX_CONTENT_TYPE,
+    buffer,
+  };
+}
+
+export async function downloadBoardPresentationPptx(params: {
+  tenantId: string;
+  clientId: string;
+  presentationId: string;
+}) {
+  const record = await fetchBoardPresentationById(params.tenantId, params.clientId, params.presentationId);
+  if (!record.pptx_key) {
+    throw new Error('pptx_not_found');
+  }
+
+  const buffer = await readFile(record.pptx_key);
+  const safeClient = record.source_snapshot.client.name.replace(/[^a-zA-Z0-9_-]+/g, '-').toLowerCase();
+  const fileName = `board-${safeClient}-${record.period_month}.pptx`;
+
+  return {
+    record: {
+      ...record,
+      effective_slides: getEffectiveSlides(record),
+    },
+    key: record.pptx_key,
     fileName,
     contentType: PPTX_CONTENT_TYPE,
     buffer,

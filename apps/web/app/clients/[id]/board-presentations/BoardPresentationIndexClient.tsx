@@ -15,7 +15,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconAlertTriangle, IconChecks, IconPresentation, IconRefresh, IconSparkles } from '@tabler/icons-react';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, buildApiUrl } from '@/lib/api';
 
 type ReadinessPlatform = {
   slug: string;
@@ -92,6 +92,35 @@ export default function BoardPresentationIndexClient({
   const [loadingReadiness, setLoadingReadiness] = useState(true);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [error, setError] = useState('');
+
+  const downloadPptx = async (presentationId: string) => {
+    setError('');
+    try {
+      const response = await fetch(
+        buildApiUrl(`/clients/${clientId}/board-presentations/${presentationId}/download-pptx`),
+        {
+          method: 'GET',
+          credentials: 'include',
+        },
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Erro ao baixar PPTX.');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename=\"?([^"]+)\"?/i);
+      const fileName = match?.[1] || `board-presentation-${presentationId}.pptx`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao baixar PPTX.');
+    }
+  };
 
   const loadPresentations = useCallback(async () => {
     setLoadingList(true);
@@ -322,6 +351,11 @@ export default function BoardPresentationIndexClient({
                           ) : null}
                         </Box>
                         <Stack direction="row" spacing={1}>
+                          {item.pptx_key ? (
+                            <Button variant="outlined" onClick={() => downloadPptx(item.id)}>
+                              Baixar PPTX
+                            </Button>
+                          ) : null}
                           <Button variant="outlined" onClick={() => router.push(`/clients/${clientId}/board-presentations/${item.id}`)}>
                             Abrir editor
                           </Button>
