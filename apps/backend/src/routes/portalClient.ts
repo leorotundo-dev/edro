@@ -1090,31 +1090,134 @@ export async function portalTokenRoutes(app: FastifyInstance) {
 
     const now = new Date();
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const period = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-    const [deliveriesRes, approvalsRes] = await Promise.all([
+    // ── Gather data for AI context ─────────────────────────────────────────────
+    const [deliveriesRes, approvalsRes, revisedRes, pendingRes, lateRes, jobsDetailRes] = await Promise.all([
       pool.query(
-        `SELECT COUNT(*)::int AS n FROM edro_briefings
-         WHERE main_client_id = $1 AND status = 'done' AND updated_at >= $2`,
+        `SELECT COUNT(*)::int AS n FROM jobs
+         WHERE client_id = $1 AND status IN ('done','published') AND updated_at >= $2`,
         [clientId, periodStart],
       ),
       pool.query(
-        `SELECT COUNT(*)::int AS n FROM briefing_artworks ba
-         JOIN edro_briefings b ON b.id = ba.briefing_id
-         WHERE b.main_client_id = $1 AND ba.status = 'approved' AND ba.updated_at >= $2`,
+        `SELECT COUNT(*)::int AS n FROM jobs
+         WHERE client_id = $1 AND status IN ('done','published')
+           AND (revision_count IS NULL OR revision_count = 0)
+           AND updated_at >= $2`,
         [clientId, periodStart],
       ).catch(() => ({ rows: [{ n: 0 }] })),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM jobs
+         WHERE client_id = $1 AND status IN ('done','published')
+           AND revision_count > 0 AND updated_at >= $2`,
+        [clientId, periodStart],
+      ).catch(() => ({ rows: [{ n: 0 }] })),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM jobs
+         WHERE client_id = $1 AND status NOT IN ('done','published','archived','cancelled')`,
+        [clientId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM jobs
+         WHERE client_id = $1 AND status NOT IN ('done','published','archived','cancelled')
+           AND deadline_at < now()`,
+        [clientId],
+      ).catch(() => ({ rows: [{ n: 0 }] })),
+      pool.query(
+        `SELECT j.title, j.status, j.job_type, j.complexity, j.revision_count,
+                j.deadline_at, j.updated_at, j.approved_at,
+                COALESCE(j.glosa_brl, 0) AS glosa_brl
+           FROM jobs j
+          WHERE j.client_id = $1 AND j.updated_at >= $2
+            AND j.status NOT IN ('archived','cancelled')
+          ORDER BY j.updated_at DESC
+          LIMIT 20`,
+        [clientId, prevStart],
+      ).catch(() => ({ rows: [] })),
     ]);
 
-    const period = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const deliveries = deliveriesRes.rows[0]?.n ?? 0;
+    const approvals = approvalsRes.rows[0]?.n ?? 0;
+    const revised = revisedRes.rows[0]?.n ?? 0;
+    const pending = pendingRes.rows[0]?.n ?? 0;
+    const late = lateRes.rows[0]?.n ?? 0;
+    const jobs = jobsDetailRes.rows as Array<{
+      title: string; status: string; job_type: string | null;
+      complexity: string | null; revision_count: number | null;
+      deadline_at: string | null; glosa_brl: number;
+    }>;
+
+    const doneJobs = jobs.filter((j) => ['done', 'published'].includes(j.status));
+    const cleanJobs = doneJobs.filter((j) => !j.revision_count || j.revision_count === 0);
+    const revisedJobs = doneJobs.filter((j) => (j.revision_count ?? 0) > 0);
+    const inProgressJobs = jobs.filter((j) => ['in_progress', 'allocated', 'in_review'].includes(j.status));
+
+    // Build compact context for Claude
+    const contextLines = [
+      `Período: ${period}`,
+      `Entregas concluídas: ${deliveries} (${approvals} aprovadas de primeira, ${revised} com revisão)`,
+      `Em produção agora: ${pending} demandas${late > 0 ? `, ${late} em atraso` : ''}`,
+      doneJobs.length > 0
+        ? `Entregues este período: ${doneJobs.slice(0, 8).map((j) => j.title).join(', ')}`
+        : '',
+      cleanJobs.length > 0
+        ? `Aprovados direto (sem revisão): ${cleanJobs.slice(0, 5).map((j) => j.title).join(', ')}`
+        : '',
+      revisedJobs.length > 0
+        ? `Precisaram de revisão: ${revisedJobs.slice(0, 5).map((j) => `${j.title} (${j.revision_count}x)`).join(', ')}`
+        : '',
+      inProgressJobs.length > 0
+        ? `Em andamento: ${inProgressJobs.slice(0, 5).map((j) => j.title).join(', ')}`
+        : '',
+    ].filter(Boolean).join('\n');
+
+    let highlights: string[] = [];
+    let learnings: string[] = [];
+    let next_moves: string[] = [];
+
+    if (deliveries > 0 || pending > 0) {
+      try {
+        const prompt = `Você é o analista estratégico de uma agência de comunicação. Com base nos dados abaixo, gere uma leitura executiva concisa para o cliente sobre o período.
+
+${contextLines}
+
+Responda APENAS com um JSON válido no formato:
+{
+  "highlights": ["string1", "string2", "string3"],
+  "learnings": ["string1", "string2"],
+  "next_moves": ["string1", "string2", "string3"]
+}
+
+Regras:
+- highlights: 2-3 pontos positivos concretos do período (o que funcionou, volumes, velocidade)
+- learnings: 1-2 aprendizados práticos (padrões de revisão, tipos que geraram mais trabalho)
+- next_moves: 2-3 ações recomendadas para o próximo período
+- Cada item: máximo 120 caracteres, direto ao ponto, sem prefixos como "•" ou "-"
+- Se dados insuficientes, ajuste a profundidade mas não invente métricas
+- Responda em português brasileiro`;
+
+        const result = await generateCompletion({ prompt, maxTokens: 500, temperature: 0.3 });
+        const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          highlights = Array.isArray(parsed.highlights) ? parsed.highlights.slice(0, 3) : [];
+          learnings = Array.isArray(parsed.learnings) ? parsed.learnings.slice(0, 2) : [];
+          next_moves = Array.isArray(parsed.next_moves) ? parsed.next_moves.slice(0, 3) : [];
+        }
+      } catch {
+        // AI unavailable — return counts only, no crash
+      }
+    }
 
     return reply.send({
       summary: {
         period,
-        deliveries_count: deliveriesRes.rows[0]?.n ?? 0,
-        approvals_count: approvalsRes.rows[0]?.n ?? 0,
-        highlights: [],
-        learnings: [],
-        next_moves: [],
+        deliveries_count: deliveries,
+        approvals_count: approvals,
+        highlights,
+        learnings,
+        next_moves,
       },
     });
   });
