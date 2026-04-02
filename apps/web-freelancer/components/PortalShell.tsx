@@ -223,10 +223,8 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       .then(status => {
         if (!status.onboarding_complete) {
           router.replace('/onboarding');
-        } else if (status.contract_status !== 'signed') {
-          // Redirect to contract signing flow (replaces old clickwrap terms page)
-          router.replace('/onboarding/termos');
         }
+        // contract_status gate removed — portal accessible before D4Sign signing
       })
       .catch(() => { /* network error — don't block portal */ });
     return () => { cancelled = true; };
