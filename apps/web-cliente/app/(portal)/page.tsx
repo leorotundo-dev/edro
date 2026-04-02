@@ -34,7 +34,7 @@ export default function DashboardPage() {
 
   const jobs = jobsData?.jobs ?? [];
   const lastInvoice = invoicesData?.invoices?.[0];
-  const firstName = me?.client?.name?.split(' ')[0] ?? 'cliente';
+  const firstName = me?.client?.name ?? 'cliente';
   const pendingApprovals = jobs.filter((j) => j.status === 'review').length;
 
   return (
