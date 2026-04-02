@@ -2890,26 +2890,28 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const statsRes = await pool.query(
       `SELECT
-         COUNT(*) FILTER (WHERE status = 'approved')                                          AS total_approved,
-         COUNT(*) FILTER (WHERE status = 'approved' AND adjustment_feedback IS NULL)          AS zero_refacao_count,
-         COUNT(*) FILTER (WHERE delivered_at IS NOT NULL AND due_at IS NOT NULL
-                            AND delivered_at::date <= due_at::date)                           AS sla_hit,
-         COUNT(*) FILTER (WHERE delivered_at IS NOT NULL AND due_at IS NOT NULL)              AS sla_total,
+         COUNT(*) FILTER (WHERE status IN ('done','published','approved'))                    AS total_approved,
+         COUNT(*) FILTER (WHERE status IN ('done','published','approved')
+                            AND (adjustment_feedback IS NULL OR adjustment_feedback = ''))   AS zero_refacao_count,
+         COUNT(*) FILTER (WHERE delivered_at IS NOT NULL AND deadline_at IS NOT NULL
+                            AND delivered_at::date <= deadline_at::date)                     AS sla_hit,
+         COUNT(*) FILTER (WHERE delivered_at IS NOT NULL AND deadline_at IS NOT NULL)        AS sla_total,
          ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
-               FILTER (WHERE delivered_at IS NOT NULL AND status = 'approved')::numeric, 1)   AS avg_days,
+               FILTER (WHERE delivered_at IS NOT NULL
+                         AND status IN ('done','published','approved'))::numeric, 1)         AS avg_days,
          ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
-               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'P')::numeric, 1)        AS avg_days_p,
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'P')::numeric, 1)      AS avg_days_p,
          ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
-               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'M')::numeric, 1)        AS avg_days_m,
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'M')::numeric, 1)      AS avg_days_m,
          ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
-               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'G')::numeric, 1)        AS avg_days_g,
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'G')::numeric, 1)      AS avg_days_g,
          ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 86400)
-               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'GG')::numeric, 1)       AS avg_days_gg,
-         COALESCE(SUM(fee_brl) FILTER (WHERE status = 'approved'), 0)                        AS total_earned_brl
+               FILTER (WHERE delivered_at IS NOT NULL AND job_size = 'GG')::numeric, 1)     AS avg_days_gg,
+         COALESCE(SUM(fee_brl) FILTER (WHERE status IN ('done','published','approved')), 0) AS total_earned_brl
        FROM jobs
-       WHERE owner_id = $1 AND tenant_id = $2
+       WHERE owner_id = $1::uuid AND tenant_id = $2
          AND created_at > NOW() - INTERVAL '90 days'`,
-      [freelancerId, tenant_id],
+      [userId, tenant_id],
     );
 
     const r = statsRes.rows[0];
