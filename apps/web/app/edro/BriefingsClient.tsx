@@ -300,11 +300,7 @@ export default function BriefingsClient() {
   };
 
   const handleBriefingClick = (id: string) => {
-    if (viewMode === 'kanban') {
-      setDrawerBriefingId(id);
-    } else {
-      router.push(`/edro/${id}`);
-    }
+    setDrawerBriefingId(id);
   };
 
   const handleDrawerUpdate = (id: string, patch: Partial<Briefing>) => {

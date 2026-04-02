@@ -7,6 +7,10 @@ import Header from './layout/header/Header';
 import { ConfirmProvider } from '@/hooks/useConfirm';
 import JarvisDrawer from './jarvis/JarvisDrawer';
 import JarvisCommandPalette from './jarvis/JarvisCommandPalette';
+import { BriefingDrawerProvider, useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
+import dynamic from 'next/dynamic';
+
+const BriefingCardDrawer = dynamic(() => import('@/app/edro/BriefingCardDrawer'), { ssr: false });
 
 type ActionButton = {
   label: string;
@@ -26,6 +30,12 @@ type AppShellProps = {
   fullBleed?: boolean;
 };
 
+function GlobalBriefingDrawer() {
+  const { briefingId, close } = useBriefingDrawer();
+  if (!briefingId) return null;
+  return <BriefingCardDrawer briefingId={briefingId} onClose={close} onUpdate={() => {}} />;
+}
+
 export default function AppShell({
   title,
   meta,
@@ -40,6 +50,7 @@ export default function AppShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
+    <BriefingDrawerProvider>
     <ConfirmProvider>
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Sidebar
@@ -55,7 +66,7 @@ export default function AppShell({
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
-          overflow: fullBleed ? 'auto' : 'hidden',
+          overflow: 'auto',
         }}
       >
         <Header
@@ -87,7 +98,9 @@ export default function AppShell({
       </Box>
       <JarvisDrawer />
       <JarvisCommandPalette />
+      <GlobalBriefingDrawer />
     </Box>
     </ConfirmProvider>
+    </BriefingDrawerProvider>
   );
 }

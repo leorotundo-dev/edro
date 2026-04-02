@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
 import { apiGet, apiPost, apiDelete, apiPatch } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -37,6 +38,7 @@ type PlanningClientProps = {
 
 export default function PlanningClient({ clientId }: PlanningClientProps) {
   const router = useRouter();
+  const { open: openBriefing } = useBriefingDrawer();
   const { open: openJarvis } = useJarvis();
 
   // Intelligence Context
@@ -305,7 +307,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
         briefings={briefings}
         copies={copies}
         loading={outputsLoading}
-        onViewBriefing={(id) => router.push(`/edro/${id}`)}
+        onViewBriefing={(id) => openBriefing(id)}
         onDeleteBriefing={async (id) => {
           try {
             await apiDelete(`/clients/${clientId}/briefings/${id}`);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
 import { apiGet, apiPost } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -24,6 +25,7 @@ type ClientOption = { id: string; name: string };
 
 export default function PautaInboxPanel() {
   const router = useRouter();
+  const { open: openBriefing } = useBriefingDrawer();
   const [items, setItems] = useState<PautaSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -76,7 +78,7 @@ export default function PautaInboxPanel() {
     try {
       const result = await apiPost<{ briefing_id?: string }>(`/pauta-inbox/${suggestionId}/approve`, { approach });
       setItems((prev) => prev.filter((item) => item.id !== suggestionId));
-      if (result?.briefing_id) router.push(`/edro/${result.briefing_id}`);
+      if (result?.briefing_id) openBriefing(result.briefing_id);
     } catch (err: any) {
       setError(err?.message || 'Falha ao aprovar sugestão.');
     } finally {

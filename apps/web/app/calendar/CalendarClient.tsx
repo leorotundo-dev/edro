@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
 import { Calendar, momentLocalizer, type View } from 'react-big-calendar';
 import moment from 'moment';
 import AppShell from '@/components/AppShell';
@@ -535,6 +536,7 @@ function buildEventSecondaryText(event: CalendarEventItem, selectedClient: Clien
 export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient, brandColor }: CalendarHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { open: openBriefing } = useBriefingDrawer();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
@@ -2229,7 +2231,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                                     label="Briefing"
                                     icon={<IconFileText size={11} />}
                                     sx={{ bgcolor: 'success.light', color: 'success.dark', fontSize: '0.65rem', height: 20 }}
-                                    onClick={() => router.push(`/edro/${eventBriefingMap[event.name.toLowerCase().trim()]}`)}
+                                    onClick={() => openBriefing(eventBriefingMap[event.name.toLowerCase().trim()])}
                                   />
                                 )}
                                 {isActioning ? (
@@ -2584,7 +2586,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
                               severity="success"
                               icon={<IconFileText size={15} />}
                               action={
-                                <Button size="small" color="success" onClick={() => router.push(`/edro/${existingId}`)}>
+                                <Button size="small" color="success" onClick={() => openBriefing(existingId)}>
                                   Ver
                                 </Button>
                               }

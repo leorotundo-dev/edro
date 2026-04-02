@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import { useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
 import EdroAvatar from '@/components/shared/EdroAvatar';
 import StatusChip from '@/components/shared/StatusChip';
 import { apiGet } from '@/lib/api';
@@ -195,6 +196,7 @@ function StatCard({ label, value, icon, color, light, href }: {
 
 export default function DashboardClient() {
   const router = useRouter();
+  const { open: openBriefing } = useBriefingDrawer();
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [recentBriefings, setRecentBriefings] = useState<Briefing[]>([]);
@@ -829,7 +831,7 @@ export default function DashboardClient() {
                           px: 2.5, py: 1.5, cursor: 'pointer',
                           transition: 'background 0.2s', '&:hover': { bgcolor: 'action.hover' },
                         }}
-                        onClick={() => router.push(`/edro/${briefing.id}`)}
+                        onClick={() => openBriefing(briefing.id)}
                       >
                         <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between">
                           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
@@ -874,7 +876,7 @@ export default function DashboardClient() {
                           px: 2.5, py: 1.5, cursor: 'pointer',
                           transition: 'background 0.2s', '&:hover': { bgcolor: 'action.hover' },
                         }}
-                        onClick={() => router.push(`/edro/${task.briefing_id}`)}
+                        onClick={() => openBriefing(task.briefing_id)}
                       >
                         <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between">
                           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
