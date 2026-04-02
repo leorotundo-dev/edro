@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
-import { readFile } from '../library/storage';
 import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
 import { syncFreelancerPerson } from '../repos/peopleRepo';
@@ -3264,7 +3263,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     if (prof.contract_pdf_url) {
       // Fallback: redirect to D4Sign URL (may be temporary)
-      return reply.redirect(302, prof.contract_pdf_url);
+      return reply.redirect(prof.contract_pdf_url, 302);
     }
 
     return reply.status(404).send({ error: 'Contrato ainda não disponível.' });
