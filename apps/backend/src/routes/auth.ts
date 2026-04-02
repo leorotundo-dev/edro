@@ -128,6 +128,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     for (const scope of scopes) {
       if (scope === 'client') {
+        // Try portal_user_id path first
         const { rows } = await pool.query<{ tenant_id: string }>(
           `SELECT c.tenant_id
              FROM edro_users eu
@@ -137,6 +138,13 @@ export default async function authRoutes(app: FastifyInstance) {
           [normalized],
         );
         if (rows[0]?.tenant_id) return rows[0].tenant_id;
+
+        // Fallback: portal_contacts path
+        const contactRows = await pool.query<{ tenant_id: string }>(
+          `SELECT tenant_id FROM portal_contacts WHERE email = $1 AND is_active = true LIMIT 1`,
+          [normalized],
+        );
+        if (contactRows.rows[0]?.tenant_id) return contactRows.rows[0].tenant_id;
       }
 
       if (scope === 'staff') {
@@ -410,7 +418,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const user = await upsertUser({ email: normalized, role: null });
 
     if (role === 'client') {
-      // Find client linked via portal_user_id
+      // Path 1: client linked via portal_user_id (legacy invite)
       const { rows } = await pool.query(
         `SELECT c.id AS client_id, c.tenant_id
          FROM clients c
@@ -418,12 +426,53 @@ export default async function authRoutes(app: FastifyInstance) {
          LIMIT 1`,
         [user.id],
       );
-      if (!rows.length) {
+      if (rows.length) {
+        const { client_id, tenant_id } = rows[0];
+        const token = app.jwt.sign(
+          { sub: user.id, email: normalized, role: 'client', client_id, tenant_id },
+          { expiresIn: '30d' },
+        );
+        return reply.send({ token });
+      }
+
+      // Path 2: client onboarded via portal_contacts invite token
+      const contactRes = await pool.query<{
+        client_id: string;
+        tenant_id: string;
+        contact_id: string;
+        contact_role: string | null;
+        name: string | null;
+        client_name: string | null;
+        client_logo_url: string | null;
+      }>(
+        `SELECT pc.client_id, pc.tenant_id, pc.id AS contact_id,
+                pc.role AS contact_role, pc.name,
+                c.name AS client_name,
+                c.profile->>'logo_url' AS client_logo_url
+           FROM portal_contacts pc
+           JOIN clients c ON c.id = pc.client_id
+          WHERE pc.email = $1 AND pc.is_active = true
+          LIMIT 1`,
+        [normalized],
+      );
+      if (!contactRes.rows.length) {
         return reply.status(403).send({ error: 'Nenhum portal de cliente vinculado a este e-mail.' });
       }
-      const { client_id, tenant_id } = rows[0];
+      const ct = contactRes.rows[0];
+      await pool.query(`UPDATE portal_contacts SET last_login_at = now() WHERE id = $1`, [ct.contact_id]);
       const token = app.jwt.sign(
-        { sub: user.id, email: normalized, role: 'client', client_id, tenant_id },
+        {
+          sub: user.id,
+          email: normalized,
+          role: 'client',
+          client_id: ct.client_id,
+          tenant_id: ct.tenant_id,
+          contact_id: ct.contact_id,
+          contact_role: ct.contact_role ?? null,
+          name: ct.name ?? normalized.split('@')[0],
+          client_name: ct.client_name ?? null,
+          client_logo_url: ct.client_logo_url ?? null,
+        },
         { expiresIn: '30d' },
       );
       return reply.send({ token });
