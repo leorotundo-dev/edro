@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 
@@ -68,6 +69,43 @@ export default function TermosPage() {
     }
   };
 
+  function ErrorWithAction({ message }: { message: string }) {
+    if (message.includes('dados fiscais da agência')) {
+      return (
+        <div style={{ marginTop: 14, padding: '16px 18px', borderRadius: 10, background: 'rgba(93,135,255,0.08)', border: '1px solid rgba(93,135,255,0.25)' }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#fff' }}>
+            ⏳ Aguardando confirmação da agência
+          </p>
+          <p style={{ margin: '6px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>
+            A agência ainda está finalizando algumas configurações internas. Você não precisa fazer nada — assim que estiver tudo pronto, você receberá um e-mail para assinar o contrato.
+          </p>
+          <p style={{ margin: '10px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
+            Se isso demorar, entre em contato com a equipe da Edro.
+          </p>
+        </div>
+      );
+    }
+
+    let href: string | null = null;
+    let cta: string | null = null;
+    if (message.includes('CNPJ não preenchido')) {
+      href = '/perfil'; cta = 'Ir para Meu Perfil →';
+    } else if (message.includes('Conclua o onboarding')) {
+      href = '/onboarding'; cta = 'Continuar Onboarding →';
+    }
+
+    return (
+      <div style={{ ...errorStyle, marginTop: 14 }}>
+        <span>{message}</span>
+        {href && cta && (
+          <Link href={href} style={{ display: 'inline-block', marginTop: 8, fontSize: 12, fontWeight: 700, color: '#FA896B', textDecoration: 'underline' }}>
+            {cta}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div style={pageStyle}>
@@ -116,7 +154,7 @@ export default function TermosPage() {
               </ol>
             </div>
 
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && <ErrorWithAction message={error} />}
 
             <button
               type="button"
@@ -154,7 +192,7 @@ export default function TermosPage() {
               </p>
             )}
 
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && <ErrorWithAction message={error} />}
 
             <button
               type="button"
@@ -177,7 +215,7 @@ export default function TermosPage() {
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 24 }}>
               O contrato anterior foi cancelado. Gere um novo para continuar.
             </p>
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && <ErrorWithAction message={error} />}
             <button type="button" onClick={sendContract} disabled={sending} style={{ ...btnStyle, opacity: sending ? 0.6 : 1 }}>
               {sending ? 'Gerando...' : 'Gerar novo contrato'}
             </button>

@@ -9,8 +9,12 @@ import { syncFreelancerPerson } from '../repos/peopleRepo';
 import { generateCopy } from '../services/ai/copyService';
 import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
 import { generateContractPdf } from '../services/contractTemplateService';
+import { saveFile, readFile } from '../library/storage';
+import { env } from '../env';
 import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
+import { sendWhatsAppText } from '../services/whatsappService';
+import { upsertNotificationPreferences } from '../services/notificationService';
 import { issuePortalLoginCode } from '../services/authService';
 import {
   attachExecutionSnapshotToPayload,
@@ -20,6 +24,12 @@ import {
 import { generateEdroAvatarForFreelancer } from '../services/avatarGenerationService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
+
+function s3Url(key: string): string {
+  return env.S3_ENDPOINT
+    ? `${env.S3_ENDPOINT}/${env.S3_BUCKET}/${key}`
+    : `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
+}
 
 function periodMonthOf(date: Date): string {
   const y = date.getUTCFullYear();
@@ -1802,9 +1812,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const token = request.headers.authorization?.replace('Bearer ', '');
     if (!token) return reply.status(401).send({ error: 'Unauthorized' });
     let userId: string;
+    let tenantId: string;
     try {
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
       userId = payload.sub ?? payload.id;
+      tenantId = payload.tenant_id ?? '';
     } catch { return reply.status(401).send({ error: 'Token inválido' }); }
 
     const body = request.body as Record<string, any>;
@@ -1865,6 +1877,44 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         skillsJson,
       ],
     );
+
+    // Sync phone → whatsapp_jid + person_identities + notification prefs (non-blocking)
+    if (body.phone) {
+      const rawPhone = String(body.phone).replace(/\D/g, '');
+      const phone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
+      // Persist whatsapp_jid derived from phone (plain number — whatsappService normalizes it)
+      pool.query(
+        `UPDATE freelancer_profiles SET whatsapp_jid = $2 WHERE user_id = $1 AND (whatsapp_jid IS NULL OR whatsapp_jid = '')`,
+        [userId, phone],
+      ).catch(() => {});
+
+      // Sync to people / person_identities directory
+      pool.query(
+        `SELECT id, person_id, display_name FROM freelancer_profiles WHERE user_id = $1`,
+        [userId],
+      ).then(({ rows }) => {
+        if (!rows[0]) return;
+        const fp = rows[0];
+        return syncFreelancerPerson({
+          freelancerId: fp.id,
+          tenantId,
+          displayName: fp.display_name ?? body.representante_nome ?? null,
+          userId,
+          phone,
+          existingPersonId: fp.person_id ?? null,
+        });
+      }).catch(() => {});
+
+      // Enable WhatsApp for key freelancer events
+      upsertNotificationPreferences(userId, [
+        { event_type: 'job_assigned',      channel: 'whatsapp', enabled: true },
+        { event_type: 'job_assigned',      channel: 'in_app',   enabled: true },
+        { event_type: 'deadline_alert',    channel: 'whatsapp', enabled: true },
+        { event_type: 'deadline_alert',    channel: 'in_app',   enabled: true },
+        { event_type: 'contract_signed',   channel: 'whatsapp', enabled: true },
+        { event_type: 'contract_signed',   channel: 'in_app',   enabled: true },
+      ]).catch(() => {});
+    }
 
     return reply.send({ ok: true, message: 'Cadastro salvo. Aguardando assinatura do contrato.' });
   });
@@ -2808,6 +2858,42 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
   // ── CONTRACT ROUTES ─────────────────────────────────────────────────────────
 
+  // GET /freelancers/admin/:userId/contract/download — stream signed (or unsigned) contract PDF
+  app.get('/freelancers/admin/:userId/contract/download', { preHandler: [authGuard, requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { userId } = request.params as { userId: string };
+
+    const { rows } = await pool.query(
+      `SELECT contract_signed_s3_key, contract_unsigned_s3_key, contract_pdf_url,
+              contract_status, razao_social, cnpj
+         FROM freelancer_profiles
+        WHERE user_id = $1 AND tenant_id = $2
+        LIMIT 1`,
+      [userId, tenantId],
+    );
+    const prof = rows[0];
+    if (!prof) return reply.status(404).send({ error: 'Freelancer não encontrado.' });
+
+    const s3Key = prof.contract_signed_s3_key ?? prof.contract_unsigned_s3_key;
+
+    if (s3Key) {
+      // Serve from S3 / local storage
+      const buffer = await readFile(s3Key);
+      const safeName = `contrato_${(prof.cnpj ?? userId).replace(/\D/g, '')}.pdf`;
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `attachment; filename="${safeName}"`)
+        .send(buffer);
+    }
+
+    if (prof.contract_pdf_url) {
+      // Fallback: redirect to D4Sign URL (may be temporary)
+      return reply.redirect(302, prof.contract_pdf_url);
+    }
+
+    return reply.status(404).send({ error: 'Contrato ainda não disponível.' });
+  });
+
   // POST /freelancers/portal/me/contract/send — generate PDF + upload to D4Sign + send
   app.post('/freelancers/portal/me/contract/send', async (request: any, reply) => {
     const token = request.headers.authorization?.replace('Bearer ', '');
@@ -2883,6 +2969,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const filename = `contrato_${prof.cnpj.replace(/\D/g, '')}_${today.toISOString().slice(0,10)}.pdf`;
 
+    // Save unsigned PDF to S3
+    const unsignedKey = `contracts/${tenantId}/${userId}/unsigned_${filename}`;
+    await saveFile(pdfBuffer, unsignedKey).catch(() => {}); // non-blocking — D4Sign is the source of truth for the unsigned doc
+
     // Upload to D4Sign and send
     const d4signUuid = await createAndSendContract({
       pdfBuffer,
@@ -2894,15 +2984,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       agencyName: cfg.agency_name ?? 'Edro Studio',
     });
 
-    // Persist D4Sign UUID and status
+    // Persist D4Sign UUID, status and unsigned S3 key
     await pool.query(
       `UPDATE freelancer_profiles
           SET contract_d4sign_uuid = $2,
               contract_status = 'pending_signature',
               contract_sent_at = now(),
+              contract_unsigned_s3_key = $3,
               updated_at = now()
         WHERE user_id = $1`,
-      [userId, d4signUuid],
+      [userId, d4signUuid, unsignedKey],
     );
 
     // Log event
@@ -2964,7 +3055,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     // Find which freelancer this contract belongs to
     const { rows } = await pool.query(
-      `SELECT fp.user_id, fp.tenant_id, eu.email
+      `SELECT fp.user_id, fp.tenant_id, eu.email, fp.whatsapp_jid, fp.representante_nome, fp.display_name
          FROM freelancer_profiles fp
          JOIN edro_users eu ON eu.id = fp.user_id
         WHERE fp.contract_d4sign_uuid = $1
@@ -2978,17 +3069,36 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     }
 
     if (type_post === 'signed') {
-      // All signers have signed
-      const pdfUrl = await getSignedDownloadUrl(uuid);
+      // All signers have signed — download signed PDF from D4Sign and store in S3
+      const d4signUrl = await getSignedDownloadUrl(uuid);
+      let pdfUrl: string | null = d4signUrl;
+      let signedS3Key: string | null = null;
+
+      if (d4signUrl) {
+        try {
+          const pdfRes = await fetch(d4signUrl, { signal: AbortSignal.timeout(30_000) });
+          if (pdfRes.ok) {
+            const arrayBuf = await pdfRes.arrayBuffer();
+            const pdfBuffer = Buffer.from(arrayBuf);
+            const today = new Date().toISOString().slice(0, 10);
+            signedS3Key = `contracts/${prof.tenant_id}/${prof.user_id}/signed_${today}_${uuid}.pdf`;
+            await saveFile(pdfBuffer, signedS3Key);
+            pdfUrl = s3Url(signedS3Key);
+          }
+        } catch {
+          // S3 upload failed — fall back to D4Sign URL so the record isn't lost
+        }
+      }
 
       await pool.query(
         `UPDATE freelancer_profiles
             SET contract_status = 'signed',
                 contract_signed_at = now(),
                 contract_pdf_url = $2,
+                contract_signed_s3_key = $3,
                 updated_at = now()
           WHERE user_id = $1`,
-        [prof.user_id, pdfUrl],
+        [prof.user_id, pdfUrl, signedS3Key],
       );
 
       await pool.query(
@@ -3010,6 +3120,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
           email: payload.email,
         },
       });
+
+      // WhatsApp welcome message to the freelancer
+      if (prof.whatsapp_jid) {
+        const firstName = (prof.representante_nome ?? prof.display_name ?? '').split(' ')[0] || 'Freelancer';
+        sendWhatsAppText(
+          prof.whatsapp_jid,
+          `✅ *Contrato assinado!*\n\nOlá, ${firstName}! Seu contrato com a Edro foi assinado com sucesso.\n\nSeu acesso ao portal está liberado. Você receberá uma mensagem aqui sempre que um novo job for atribuído a você. 🚀`,
+          { tenantId: prof.tenant_id, event: 'contract_signed', meta: { user_id: prof.user_id } },
+        ).catch(() => {});
+      }
 
     } else if (type_post === 'cancelled') {
       await pool.query(

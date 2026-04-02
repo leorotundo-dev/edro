@@ -82,45 +82,50 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* AppBar */}
       <AppBar position="sticky" elevation={0}>
-        <Toolbar sx={{ gap: 2, px: { xs: 2, md: 4 }, minHeight: '64px !important' }}>
-          <Stack
-            direction="row" alignItems="center" spacing={1}
-            onClick={() => router.push('/')}
-            sx={{ cursor: 'pointer', flexShrink: 0 }}
-          >
-            {clientLogoUrl ? (
-              <Box
-                component="img"
-                src={clientLogoUrl}
-                alt="Logo"
-                sx={{ height: 32, maxWidth: 130, objectFit: 'contain' }}
-                onError={(e: any) => { e.target.style.display = 'none'; }}
-              />
-            ) : (
-              <Box
-                component="img"
-                src="/brand/logo-studio.png"
-                alt="Edro Studio"
-                sx={{ height: 24, width: 'auto', objectFit: 'contain' }}
-              />
-            )}
-            {clientLogoUrl && (
-              <Stack direction="row" alignItems="center" spacing={0.5} sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 1 }}>
-                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>
-                  by
-                </Typography>
+        <Toolbar sx={{ px: { xs: 2, md: 4 }, minHeight: '64px !important' }}>
+
+          {/* Left — Logo */}
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+            <Stack
+              direction="row" alignItems="center" spacing={1}
+              onClick={() => router.push('/')}
+              sx={{ cursor: 'pointer' }}
+            >
+              {clientLogoUrl ? (
+                <Box
+                  component="img"
+                  src={clientLogoUrl}
+                  alt="Logo"
+                  sx={{ height: 32, maxWidth: 130, objectFit: 'contain' }}
+                  onError={(e: any) => { e.target.style.display = 'none'; }}
+                />
+              ) : (
                 <Box
                   component="img"
                   src="/brand/logo-studio.png"
-                  alt="Edro"
-                  sx={{ height: 14, width: 'auto', objectFit: 'contain', opacity: 0.45 }}
+                  alt="Edro Studio"
+                  sx={{ height: 24, width: 'auto', objectFit: 'contain' }}
                 />
-              </Stack>
-            )}
-          </Stack>
+              )}
+              {clientLogoUrl && (
+                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 1 }}>
+                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>
+                    by
+                  </Typography>
+                  <Box
+                    component="img"
+                    src="/brand/logo-studio.png"
+                    alt="Edro"
+                    sx={{ height: 14, width: 'auto', objectFit: 'contain', opacity: 0.45 }}
+                  />
+                </Stack>
+              )}
+            </Stack>
+          </Box>
 
+          {/* Center — Nav */}
           {!isMobile && (
-            <Stack direction="row" spacing={0.5} sx={{ ml: 3 }}>
+            <Stack direction="row" spacing={0.5}>
               {NAV.map((item) => {
                 const active = item.match(pathname);
                 return (
@@ -145,9 +150,8 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             </Stack>
           )}
 
-          <Box sx={{ flexGrow: 1 }} />
-
-          <Stack direction="row" spacing={1} alignItems="center">
+          {/* Right — Avatar + logout */}
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1, justifyContent: 'flex-end' }}>
             {name && (
               <>
                 <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32, fontSize: '0.75rem', fontWeight: 700 }}>
@@ -171,6 +175,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               </IconButton>
             )}
           </Stack>
+
         </Toolbar>
       </AppBar>
 
