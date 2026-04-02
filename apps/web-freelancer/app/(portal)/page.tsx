@@ -10,6 +10,8 @@ type Profile = {
   id: string;
   display_name: string;
   hourly_rate_brl: string | null;
+  avatar_url: string | null;
+  skills_json: unknown[] | null;
   active_timers?: { briefing_id: string; briefing_title?: string; started_at: string }[];
 };
 
@@ -95,6 +97,70 @@ function ActiveTimer({ timer, freelancerId, onStopped }: {
   );
 }
 
+function WelcomeCard({ profile }: { profile: Profile }) {
+  const profileComplete = !!(profile.hourly_rate_brl && (profile.skills_json as unknown[])?.length);
+  const steps = [
+    { done: profileComplete, label: 'Complete seu perfil', sub: 'Taxa horária, skills e disponibilidade', href: '/perfil', cta: 'Ir para Perfil →' },
+    { done: false,           label: 'Explore o Mercado de Escopos', sub: 'Veja jobs disponíveis e aceite os que se encaixam no seu perfil', href: '/jobs', cta: 'Ver Mercado →' },
+    { done: false,           label: 'Aguarde seu primeiro escopo alocado', sub: 'A equipe Edro vai enviar uma proposta assim que houver fit', href: null, cta: null },
+  ];
+
+  return (
+    <section style={{
+      background: 'linear-gradient(135deg, rgba(93,135,255,0.12) 0%, rgba(19,222,185,0.07) 100%)',
+      border: '1.5px solid rgba(93,135,255,0.3)',
+      borderRadius: 16, padding: '24px 20px',
+    }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#5D87FF', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+          Primeiros passos
+        </div>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff' }}>
+          Bem-vindo ao Portal Edro! 🚀
+        </h3>
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+          Seu contrato está assinado. Siga os passos abaixo para começar a trabalhar.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {steps.map((step, i) => (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'flex-start', gap: 14,
+            background: step.done ? 'rgba(19,222,185,0.07)' : 'rgba(255,255,255,0.03)',
+            border: `1px solid ${step.done ? 'rgba(19,222,185,0.2)' : 'rgba(255,255,255,0.08)'}`,
+            borderRadius: 12, padding: '14px 16px',
+          }}>
+            <div style={{
+              width: 28, height: 28, flexShrink: 0, borderRadius: '50%',
+              background: step.done ? 'rgba(19,222,185,0.2)' : 'rgba(93,135,255,0.15)',
+              border: `2px solid ${step.done ? '#13DEB9' : 'rgba(93,135,255,0.4)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 800,
+              color: step.done ? '#13DEB9' : 'rgba(93,135,255,0.8)',
+            }}>
+              {step.done ? '✓' : i + 1}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: step.done ? 'rgba(255,255,255,0.5)' : '#fff', textDecoration: step.done ? 'line-through' : 'none' }}>
+                {step.label}
+              </p>
+              <p style={{ margin: '3px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>
+                {step.sub}
+              </p>
+              {!step.done && step.href && step.cta && (
+                <Link href={step.href} style={{ display: 'inline-block', marginTop: 8, fontSize: 12, fontWeight: 700, color: '#5D87FF', textDecoration: 'none' }}>
+                  {step.cta}
+                </Link>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function DashboardPage() {
   const { data: profile, mutate } = useSWR<Profile>('/freelancers/portal/me', swrFetcher);
   const now = new Date();
@@ -153,6 +219,8 @@ export default function DashboardPage() {
             ? `Você tem ${overdueCount} job${overdueCount > 1 ? 's' : ''} atrasado${overdueCount > 1 ? 's' : ''}. Vamos resolver!`
             : todayCount > 0
             ? `${todayCount} job${todayCount > 1 ? 's' : ''} vence${todayCount === 1 ? '' : 'm'} hoje. Bora!`
+            : allJobs.length === 0 && jobsData
+            ? 'Contrato assinado. Siga os primeiros passos abaixo.'
             : 'Tudo em dia. Bom trabalho!'}
         </p>
       </div>
@@ -226,6 +294,11 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Welcome card — only shown when no jobs yet (first-time freelancer) */}
+      {jobsData && allJobs.length === 0 && (
+        <WelcomeCard profile={profile} />
+      )}
 
       {/* Priority queue */}
       {priorityJobs.length > 0 && (
