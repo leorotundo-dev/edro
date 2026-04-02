@@ -332,6 +332,81 @@ export default async function portalClientRoutes(app: FastifyInstance) {
     return reply.send({ ok: true });
   });
 
+  // GET /portal/client/jobs/:id/artworks — criativos do pedido para avaliação
+  app.get('/portal/client/jobs/:id/artworks', { preHandler: [requirePortalCapability('read')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { id } = request.params as any;
+
+    // Verify ownership via briefing
+    const check = await pool.query(
+      `SELECT id FROM edro_briefings WHERE id = $1 AND main_client_id = $2`,
+      [id, clientId],
+    );
+    if (!check.rows.length) return reply.status(404).send({ error: 'Job not found' });
+
+    const res = await pool.query(
+      `SELECT id, title, file_url, mime_type, version, status, approved_at, revision_comment, created_at
+       FROM briefing_artworks
+       WHERE briefing_id = $1
+       ORDER BY version ASC, created_at DESC`,
+      [id],
+    );
+
+    return reply.send({ artworks: res.rows });
+  });
+
+  // POST /portal/client/artworks/:id/approve — cliente aprova criativo
+  app.post('/portal/client/artworks/:id/approve', { preHandler: [requirePortalCapability('approve')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { id } = request.params as any;
+    const { comment } = z.object({ comment: z.string().optional() }).parse(request.body ?? {});
+
+    // Verify ownership via briefing chain
+    const check = await pool.query(
+      `SELECT ba.id FROM briefing_artworks ba
+       JOIN edro_briefings b ON b.id = ba.briefing_id
+       WHERE ba.id = $1 AND b.main_client_id = $2`,
+      [id, clientId],
+    );
+    if (!check.rows.length) return reply.status(404).send({ error: 'Artwork not found' });
+
+    await pool.query(
+      `UPDATE briefing_artworks SET status = 'approved', approved_at = NOW() WHERE id = $1`,
+      [id],
+    );
+
+    return reply.send({ ok: true });
+  });
+
+  // POST /portal/client/artworks/:id/revision — cliente solicita revisão do criativo
+  app.post('/portal/client/artworks/:id/revision', { preHandler: [requirePortalCapability('approve')] }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { id } = request.params as any;
+    const { comment } = z.object({ comment: z.string().min(1) }).parse(request.body ?? {});
+
+    // Verify ownership via briefing chain
+    const check = await pool.query(
+      `SELECT ba.id FROM briefing_artworks ba
+       JOIN edro_briefings b ON b.id = ba.briefing_id
+       WHERE ba.id = $1 AND b.main_client_id = $2`,
+      [id, clientId],
+    );
+    if (!check.rows.length) return reply.status(404).send({ error: 'Artwork not found' });
+
+    await pool.query(
+      `UPDATE briefing_artworks SET status = 'revision', revision_comment = $1 WHERE id = $2`,
+      [comment, id],
+    );
+
+    return reply.send({ ok: true });
+  });
+
   // POST /portal/client/jobs/request — cliente envia novo pedido
   app.post('/portal/client/jobs/request', {
     preHandler: [requirePortalCapability('request')],
