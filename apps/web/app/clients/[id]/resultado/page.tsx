@@ -6,7 +6,7 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconChartBar, IconCoin, IconStars } from '@tabler/icons-react';
+import { IconChartBar, IconCoin, IconPresentation, IconStars } from '@tabler/icons-react';
 import ClientPerformanceClient from '../performance/ClientPerformanceClient';
 import ReporteiMetricsClient from '../metricas/ReporteiMetricsClient';
 import ValorPage from '../metricas/ValorPage';
@@ -14,18 +14,21 @@ import OperacionalPage from '../metricas/OperacionalPage';
 import ClientReportsPage from '../reports/page';
 import EstrategiaPage from '../metricas/EstrategiaPage';
 import MarcaPage from '../metricas/MarcaPage';
+import BoardPresentationIndexClient from '../board-presentations/BoardPresentationIndexClient';
 
-type ResultadoSub = 'performance' | 'financeiro' | 'estrategia';
+type ResultadoSub = 'performance' | 'financeiro' | 'estrategia' | 'board';
 
 const SUB_TABS = [
   { value: 'performance' as const, label: 'Performance', icon: <IconChartBar size={16} /> },
   { value: 'financeiro' as const,  label: 'Financeiro',  icon: <IconCoin size={16} /> },
   { value: 'estrategia' as const,  label: 'Estratégia',  icon: <IconStars size={16} /> },
+  { value: 'board' as const,  label: 'Board',  icon: <IconPresentation size={16} /> },
 ];
 
 function parseSub(v: string | null): ResultadoSub {
   if (v === 'financeiro') return 'financeiro';
   if (v === 'estrategia') return 'estrategia';
+  if (v === 'board') return 'board';
   return 'performance';
 }
 
@@ -65,6 +68,10 @@ function EstrategiaSection({ clientId }: { clientId: string }) {
       <MarcaPage clientId={clientId} />
     </Box>
   );
+}
+
+function BoardSection({ clientId }: { clientId: string }) {
+  return <BoardPresentationIndexClient clientId={clientId} embedded />;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -109,6 +116,7 @@ export default function ResultadoPage() {
       {tab === 'performance' && <PerformanceSection clientId={clientId} />}
       {tab === 'financeiro'  && <FinanceiroSection  clientId={clientId} />}
       {tab === 'estrategia'  && <EstrategiaSection  clientId={clientId} />}
+      {tab === 'board'       && <BoardSection       clientId={clientId} />}
     </Box>
   );
 }

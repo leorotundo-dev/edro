@@ -72,6 +72,7 @@ import agencyDigestRoutes from './agencyDigest';
 import clientReportTokensRoutes from './clientReportTokens';
 import relatoriosRoutes from './relatorios';
 import systemHealthRoutes from './systemHealth';
+import boardPresentationsRoutes from './boardPresentations';
 import { env } from '../env';
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -160,4 +161,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(clientReportTokensRoutes, { prefix: '/api' });
   app.register(relatoriosRoutes, { prefix: '/api' });
   app.register(systemHealthRoutes, { prefix: '/api' });
+  app.register(boardPresentationsRoutes, { prefix: '/api' });
 }
