@@ -1226,7 +1226,7 @@ ${contextBlock}`;
       `UPDATE portal_briefing_requests
        SET status = $1, agency_notes = COALESCE($2, agency_notes), updated_at = now()
        WHERE id = $3 AND tenant_id = $4
-       RETURNING id, status, client_id, contact_id, form_data, ai_enriched, trello_card_id`,
+       RETURNING id, status, client_id, contact_id, form_data, ai_enriched, trello_card_id, auto_pipeline_output`,
       [newStatus, agency_notes ?? null, id, tenantId],
     );
     if (!result.rows.length) return reply.status(404).send({ error: 'Not found' });
@@ -1255,39 +1255,60 @@ ${contextBlock}`;
       }
     }
 
-    // On accept: create Trello card (if not already created) + WhatsApp
+    let internalUrl: string | null = null;
+
+    // On accept: guarantee internal board card + external Trello card (if connected) + WhatsApp
     if (action === 'accept') {
-      setImmediate(async () => {
-        let trelloCardUrl = undefined as string | undefined;
-        if (!row.trello_card_id) {
-          const card = await createBriefingTrelloCard({
-            briefingId: row.id,
+      const card = await createBriefingTrelloCard({
+        briefingId: row.id,
+        tenantId,
+        clientId: row.client_id,
+        clientName,
+        formData: row.form_data as any,
+        aiEnriched: row.ai_enriched as any,
+        label: '✅ ACEITO',
+        existingTrelloCardId: row.trello_card_id ?? null,
+        existingTrelloCardUrl: (row.auto_pipeline_output as any)?.trello_card_url ?? null,
+      }).catch(() => null);
+
+      internalUrl = card?.internalUrl ?? null;
+
+      if (card) {
+        await pool.query(
+          `UPDATE portal_briefing_requests
+              SET trello_card_id = COALESCE($1, trello_card_id),
+                  auto_pipeline_output = COALESCE(auto_pipeline_output, '{}'::jsonb) ||
+                    jsonb_strip_nulls(
+                      jsonb_build_object(
+                        'trello_card_url', $2,
+                        'internal_board_id', $3,
+                        'local_card_id', $4,
+                        'internal_url', $5
+                      )
+                    )
+            WHERE id = $6 AND tenant_id = $7`,
+          [
+            card.cardId,
+            card.cardUrl,
+            card.boardId,
+            card.localCardId,
+            card.internalUrl,
+            row.id,
             tenantId,
-            clientId: row.client_id,
-            clientName,
-            formData: row.form_data as any,
-            aiEnriched: row.ai_enriched as any,
-            label: '✅ ACEITO',
-          }).catch(() => null);
-          if (card) {
-            trelloCardUrl = card.cardUrl;
-            await pool.query(
-              `UPDATE portal_briefing_requests SET trello_card_id = $1 WHERE id = $2`,
-              [card.cardId, row.id],
-            ).catch(() => {});
-          }
-        }
-        await sendBriefingAcceptedWhatsApp({
-          tenantId,
-          clientName,
-          formData: row.form_data as any,
-          aiEnriched: row.ai_enriched as any,
-          trelloUrl: trelloCardUrl,
-        }).catch(() => {});
-      });
+          ],
+        ).catch(() => {});
+      }
+
+      await sendBriefingAcceptedWhatsApp({
+        tenantId,
+        clientName,
+        formData: row.form_data as any,
+        aiEnriched: row.ai_enriched as any,
+        trelloUrl: card?.cardUrl ?? (row.auto_pipeline_output as any)?.trello_card_url ?? undefined,
+      }).catch(() => {});
     }
 
-    return reply.send({ ok: true, status: newStatus });
+    return reply.send({ ok: true, status: newStatus, internal_url: internalUrl });
   });
 }
 

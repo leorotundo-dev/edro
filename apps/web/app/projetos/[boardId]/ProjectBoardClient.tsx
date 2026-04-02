@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import AppShell from '@/components/AppShell';
@@ -285,6 +286,9 @@ function AddCardForm({ onAdd, onCancel }: { onAdd: (title: string) => Promise<vo
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ProjectBoardClient({ boardId, noShell }: { boardId: string; noShell?: boolean }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedCardId = searchParams.get('cardId');
   const [lists, setLists] = useState<ProjectList[]>([]);
   const [board, setBoard] = useState<ProjectBoard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -296,6 +300,7 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
   const [allocSuggestions, setAllocSuggestions] = useState<AllocSuggestion[]>([]);
   const [allocLoading, setAllocLoading] = useState(false);
   const [allocAssigning, setAllocAssigning] = useState<string | null>(null);
+  const autoOpenedCardRef = useRef<string | null>(null);
 
   const loadBoard = useCallback(async () => {
     setLoading(true);
@@ -311,6 +316,18 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
   }, [boardId]);
 
   useEffect(() => { loadBoard(); }, [loadBoard]);
+
+  useEffect(() => {
+    if (!requestedCardId || loading || loadingCard || selectedCard || autoOpenedCardRef.current === requestedCardId) {
+      return;
+    }
+    const match = lists
+      .flatMap((list) => list.cards.filter((card) => !card.is_archived))
+      .find((card) => card.id === requestedCardId);
+    if (!match) return;
+    autoOpenedCardRef.current = requestedCardId;
+    openCard(match);
+  }, [requestedCardId, lists, loading, loadingCard, selectedCard]);
 
   async function openCard(card: ProjectCard) {
     setLoadingCard(true);
@@ -431,6 +448,12 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const Shell = noShell ? Box : ({ children }: { children: React.ReactNode }) => <AppShell title="Projetos" fullBleed>{children}</AppShell>;
+  const handleCloseCard = () => {
+    setSelectedCard(null);
+    if (requestedCardId) {
+      router.replace(`/projetos/${boardId}`);
+    }
+  };
 
   if (loading) return (
     <Shell>
@@ -640,7 +663,7 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
       <Drawer
         anchor="right"
         open={!!selectedCard || loadingCard}
-        onClose={() => setSelectedCard(null)}
+        onClose={handleCloseCard}
         PaperProps={{ sx: { width: { xs: '100%', sm: 480 } } }}
       >
         {loadingCard ? (
@@ -653,7 +676,7 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
               <Typography variant="h6" fontWeight={700} sx={{ flex: 1, pr: 2 }}>
                 {selectedCard.title}
               </Typography>
-              <IconButton size="small" onClick={() => setSelectedCard(null)}>
+              <IconButton size="small" onClick={handleCloseCard}>
                 <IconX size={18} />
               </IconButton>
             </Stack>

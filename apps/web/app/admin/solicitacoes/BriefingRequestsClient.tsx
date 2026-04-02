@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiGet, apiPatch } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -48,6 +49,9 @@ type BriefingRequest = {
     learning_highlights?: string[];
     risk_flags?: string[];
     trello_card_url?: string;
+    internal_board_id?: string;
+    local_card_id?: string;
+    internal_url?: string;
     whatsapp_sent?: boolean;
     pipeline_ran_at?: string;
   };
@@ -80,6 +84,7 @@ const COMPLEXITY_LABELS: Record<string, string> = {
 };
 
 export default function BriefingRequestsClient() {
+  const router = useRouter();
   const [tabIdx, setTabIdx] = useState(0);
   const [requests, setRequests] = useState<BriefingRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,11 +112,15 @@ export default function BriefingRequestsClient() {
     if (!selected || !actionType) return;
     setSaving(true); setError('');
     try {
-      await apiPatch(`/admin/briefing-requests/${selected.id}`, {
+      const res = await apiPatch<{ ok: boolean; status: string; internal_url?: string | null }>(`/admin/briefing-requests/${selected.id}`, {
         action: actionType,
         agency_notes: notes.trim() || undefined,
       });
       setSelected(null); setActionType(null); setNotes('');
+      if (actionType === 'accept' && res?.internal_url) {
+        router.push(res.internal_url);
+        return;
+      }
       load();
     } catch (e: any) {
       setError(e.message ?? 'Erro ao processar solicitação.');
@@ -288,6 +297,7 @@ export default function BriefingRequestsClient() {
 
 function JarvisPanel({ req }: { req: BriefingRequest }) {
   const p = req.auto_pipeline_output;
+  const internalUrl = p?.internal_url ?? null;
 
   // Show enrichment-only block if pipeline hasn't run yet
   if (!p && !req.ai_enriched) return null;
@@ -337,13 +347,19 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
               sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
             />
           ) : null}
-          {p.trello_card_url && (
+          {internalUrl ? (
             <Chip
-              label="Trello" size="small" color="info" variant="outlined"
+              label="Quadro interno" size="small" color="info" variant="outlined"
               icon={<IconBrandTrello size={11} />}
               sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
             />
-          )}
+          ) : p.trello_card_url ? (
+            <Chip
+              label="Trello sync" size="small" color="default" variant="outlined"
+              icon={<IconBrandTrello size={11} />}
+              sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
+            />
+          ) : null}
           {p.whatsapp_sent && (
             <Chip label="WhatsApp ✓" size="small" color="success" variant="outlined"
               sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }} />
@@ -425,16 +441,16 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             </Box>
           ) : null}
 
-          {/* Trello link */}
-          {p.trello_card_url && (
+          {/* Internal board */}
+          {internalUrl && (
             <Box>
               <Button
                 variant="outlined" size="small" color="info"
                 startIcon={<IconBrandTrello size={14} />}
-                href={p.trello_card_url} target="_blank"
+                href={internalUrl}
                 sx={{ textTransform: 'none', fontSize: '0.75rem' }}
               >
-                Abrir card no Trello
+                Abrir no quadro interno
               </Button>
             </Box>
           )}

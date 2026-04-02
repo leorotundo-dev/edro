@@ -50,6 +50,9 @@ interface PipelineOutput {
   risk_flags: string[];
   trello_card_id?: string;
   trello_card_url?: string;
+  internal_board_id?: string;
+  local_card_id?: string;
+  internal_url?: string;
   whatsapp_sent: boolean;
   pipeline_ran_at: string;
 }
@@ -84,41 +87,74 @@ async function loadRecentJobs(clientId: string, tenantId: string, limit = 3) {
   return res.rows;
 }
 
-async function findTrelloInboxList(tenantId: string, clientId?: string | null): Promise<string | null> {
+type BriefingBoardTarget = {
+  boardId: string;
+  listId: string;
+  trelloListId: string | null;
+};
+
+async function findBriefingBoardTarget(tenantId: string, clientId?: string | null): Promise<BriefingBoardTarget | null> {
   // Priority 1: tenant_settings key 'trello_jobs_list_id'
   const settingRes = await pool.query(
     `SELECT value FROM tenant_settings WHERE tenant_id = $1 AND key = 'trello_jobs_list_id' LIMIT 1`,
     [tenantId],
   ).catch(() => ({ rows: [] as any[] }));
-  if (settingRes.rows[0]?.value) return settingRes.rows[0].value as string;
+  if (settingRes.rows[0]?.value) {
+    const configuredListId = settingRes.rows[0].value as string;
+    const configuredListRes = await pool.query(
+      `SELECT id, board_id, trello_list_id
+         FROM project_lists
+        WHERE tenant_id = $1 AND (id::text = $2 OR trello_list_id = $2)
+        LIMIT 1`,
+      [tenantId, configuredListId],
+    ).catch(() => ({ rows: [] as any[] }));
+    if (configuredListRes.rows[0]) {
+      return {
+        boardId: configuredListRes.rows[0].board_id as string,
+        listId: configuredListRes.rows[0].id as string,
+        trelloListId: (configuredListRes.rows[0].trello_list_id as string | null) ?? configuredListId,
+      };
+    }
+  }
 
   // Priority 2: first list of the board mapped to this specific client
   if (clientId) {
     const clientListRes = await pool.query(
-      `SELECT pl.trello_list_id
+      `SELECT pl.id, pl.board_id, pl.trello_list_id
        FROM project_lists pl
        JOIN project_boards pb ON pb.id = pl.board_id
        WHERE pb.tenant_id = $1 AND pb.client_id = $2
-         AND pl.trello_list_id IS NOT NULL AND pl.is_archived = false
+         AND pl.is_archived = false
        ORDER BY pl.position ASC
        LIMIT 1`,
       [tenantId, clientId],
     ).catch(() => ({ rows: [] as any[] }));
-    if (clientListRes.rows[0]?.trello_list_id) return clientListRes.rows[0].trello_list_id as string;
+    if (clientListRes.rows[0]) {
+      return {
+        boardId: clientListRes.rows[0].board_id as string,
+        listId: clientListRes.rows[0].id as string,
+        trelloListId: (clientListRes.rows[0].trello_list_id as string | null) ?? null,
+      };
+    }
   }
 
   // Priority 3: first list of first active board (tenant fallback)
   const listRes = await pool.query(
-    `SELECT pl.trello_list_id
+    `SELECT pl.id, pl.board_id, pl.trello_list_id
      FROM project_lists pl
      JOIN project_boards pb ON pb.id = pl.board_id
-     WHERE pb.tenant_id = $1 AND pl.trello_list_id IS NOT NULL
+     WHERE pb.tenant_id = $1
        AND pl.is_archived = false
      ORDER BY pb.created_at ASC, pl.position ASC
      LIMIT 1`,
     [tenantId],
   ).catch(() => ({ rows: [] as any[] }));
-  return listRes.rows[0]?.trello_list_id ?? null;
+  if (!listRes.rows[0]) return null;
+  return {
+    boardId: listRes.rows[0].board_id as string,
+    listId: listRes.rows[0].id as string,
+    trelloListId: (listRes.rows[0].trello_list_id as string | null) ?? null,
+  };
 }
 
 function urgencyLabel(u?: string) {
@@ -239,8 +275,8 @@ Responda em JSON com esta estrutura exata:
     // ── 3. Create Trello card ──────────────────────────────────────────────────
     const trelloCreds = await getTrelloCredentials(tenantId).catch(() => null);
     if (trelloCreds) {
-      const listId = await findTrelloInboxList(tenantId, clientId);
-      if (listId) {
+      const target = await findBriefingBoardTarget(tenantId, clientId);
+      if (target?.trelloListId) {
         const cardName = `${aiEnriched?.suggested_title ?? formData.type ?? 'Novo Job'} — ${client.name}`;
         const urgencyEmoji = { urgent: '🔴', high: '🟠', medium: '🟡', low: '🟢' }[aiEnriched?.urgency ?? ''] ?? '⚪';
         const cardDesc = [
@@ -274,7 +310,7 @@ Responda em JSON com esta estrutura exata:
         const params = new URLSearchParams({
           key:     trelloCreds.apiKey,
           token:   trelloCreds.apiToken,
-          idList:  listId,
+          idList:  target.trelloListId,
           name:    cardName,
           desc:    cardDesc,
           ...(dueDate ? { due: dueDate } : {}),
@@ -370,13 +406,42 @@ export interface BriefingCardParams {
   formData: PipelineInput['formData'];
   aiEnriched?: PipelineInput['aiEnriched'];
   label?: string; // e.g. "✅ ACEITO" prefix for accepted cards
+  existingTrelloCardId?: string | null;
+  existingTrelloCardUrl?: string | null;
 }
 
-export async function createBriefingTrelloCard(p: BriefingCardParams): Promise<{ cardId: string; cardUrl: string } | null> {
-  const trelloCreds = await getTrelloCredentials(p.tenantId).catch(() => null);
-  if (!trelloCreds) return null;
-  const listId = await findTrelloInboxList(p.tenantId, p.clientId);
-  if (!listId) return null;
+export async function createBriefingTrelloCard(p: BriefingCardParams): Promise<{
+  cardId: string | null;
+  cardUrl: string | null;
+  localCardId: string;
+  boardId: string;
+  listId: string;
+  internalUrl: string;
+} | null> {
+  const target = await findBriefingBoardTarget(p.tenantId, p.clientId);
+  if (!target) return null;
+
+  if (p.existingTrelloCardId) {
+    const existingLocalRes = await pool.query(
+      `SELECT id, board_id
+         FROM project_cards
+        WHERE tenant_id = $1 AND trello_card_id = $2
+        LIMIT 1`,
+      [p.tenantId, p.existingTrelloCardId],
+    ).catch(() => ({ rows: [] as any[] }));
+    if (existingLocalRes.rows[0]) {
+      const localCardId = existingLocalRes.rows[0].id as string;
+      const boardId = existingLocalRes.rows[0].board_id as string;
+      return {
+        cardId: p.existingTrelloCardId,
+        cardUrl: p.existingTrelloCardUrl ?? null,
+        localCardId,
+        boardId,
+        listId: target.listId,
+        internalUrl: `/projetos/${boardId}?cardId=${localCardId}`,
+      };
+    }
+  }
 
   const prefix = p.label ? `${p.label} ` : '';
   const cardName = `${prefix}${p.aiEnriched?.suggested_title ?? p.formData.type ?? 'Novo Job'} — ${p.clientName}`;
@@ -397,21 +462,89 @@ export async function createBriefingTrelloCard(p: BriefingCardParams): Promise<{
     `**ID:** ${p.briefingId}`,
   ].filter(Boolean).join('\n');
 
-  const dueDate = p.formData.deadline ? new Date(p.formData.deadline).toISOString() : undefined;
-  const qs = new URLSearchParams({
-    key: trelloCreds.apiKey, token: trelloCreds.apiToken,
-    idList: listId, name: cardName, desc: cardDesc,
-    ...(dueDate ? { due: dueDate } : {}),
-  });
-  const res = await fetch(`https://api.trello.com/1/cards?${qs}`, {
-    method: 'POST', signal: AbortSignal.timeout(10_000),
-  }).catch(() => null);
-  if (!res?.ok) {
-    console.warn(`[briefingTrello] Card creation failed: ${res?.status}`);
-    return null;
+  let trelloCardId = p.existingTrelloCardId ?? null;
+  let trelloCardUrl = p.existingTrelloCardUrl ?? null;
+
+  if (!trelloCardId && target.trelloListId) {
+    const trelloCreds = await getTrelloCredentials(p.tenantId).catch(() => null);
+    if (trelloCreds) {
+      const dueDate = p.formData.deadline ? new Date(p.formData.deadline).toISOString() : undefined;
+      const qs = new URLSearchParams({
+        key: trelloCreds.apiKey,
+        token: trelloCreds.apiToken,
+        idList: target.trelloListId,
+        name: cardName,
+        desc: cardDesc,
+        ...(dueDate ? { due: dueDate } : {}),
+      });
+      const res = await fetch(`https://api.trello.com/1/cards?${qs}`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(10_000),
+      }).catch(() => null);
+      if (res?.ok) {
+        const card = await res.json() as { id: string; shortUrl: string };
+        trelloCardId = card.id;
+        trelloCardUrl = card.shortUrl;
+      } else {
+        console.warn(`[briefingTrello] Card creation failed: ${res?.status}`);
+      }
+    }
   }
-  const card = await res.json() as { id: string; shortUrl: string };
-  return { cardId: card.id, cardUrl: card.shortUrl };
+
+  const existingRowRes = trelloCardId
+    ? await pool.query(
+      `SELECT id, board_id
+         FROM project_cards
+        WHERE tenant_id = $1 AND trello_card_id = $2
+        LIMIT 1`,
+      [p.tenantId, trelloCardId],
+    ).catch(() => ({ rows: [] as any[] }))
+    : { rows: [] as any[] };
+
+  let localCardId = existingRowRes.rows[0]?.id as string | undefined;
+  let boardId = (existingRowRes.rows[0]?.board_id as string | undefined) ?? target.boardId;
+
+  if (!localCardId) {
+    const positionRes = await pool.query(
+      `SELECT COALESCE(MAX(position), 0) + 65536 AS max_pos
+         FROM project_cards
+        WHERE list_id = $1 AND tenant_id = $2 AND is_archived = false`,
+      [target.listId, p.tenantId],
+    ).catch(() => ({ rows: [{ max_pos: 65536 }] as any[] }));
+    const nextPosition = Number(positionRes.rows[0]?.max_pos ?? 65536);
+    const dueDateValue = p.formData.deadline && /^\d{4}-\d{2}-\d{2}$/.test(p.formData.deadline)
+      ? p.formData.deadline
+      : null;
+    const insertRes = await pool.query(
+      `INSERT INTO project_cards (
+         board_id, list_id, tenant_id, title, description, position, due_date, trello_card_id, trello_url
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, board_id`,
+      [
+        target.boardId,
+        target.listId,
+        p.tenantId,
+        cardName,
+        cardDesc,
+        nextPosition,
+        dueDateValue,
+        trelloCardId,
+        trelloCardUrl,
+      ],
+    );
+    localCardId = insertRes.rows[0].id as string;
+    boardId = insertRes.rows[0].board_id as string;
+  }
+
+  return {
+    cardId: trelloCardId,
+    cardUrl: trelloCardUrl,
+    localCardId,
+    boardId,
+    listId: target.listId,
+    internalUrl: `/projetos/${boardId}?cardId=${localCardId}`,
+  };
 }
 
 export async function sendBriefingAcceptedWhatsApp(p: {
