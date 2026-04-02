@@ -803,6 +803,7 @@ export default function OperationsJobsClient() {
         open={detailOpen && Boolean(selectedJob)}
         mode="edit"
         job={selectedJob}
+        presentation={viewMode === 'board' ? 'modal' : 'drawer'}
         jobTypes={lookups.jobTypes} skills={lookups.skills} channels={lookups.channels} clients={lookups.clients} owners={lookups.owners}
         currentUserId={currentUserId}
         onClose={() => {

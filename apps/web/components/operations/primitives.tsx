@@ -1311,6 +1311,7 @@ export function ContextDrawer({
   onClose,
   actions,
   children,
+  presentation = 'drawer',
 }: {
   open: boolean;
   title: string;
@@ -1318,7 +1319,55 @@ export function ContextDrawer({
   onClose: () => void;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  presentation?: 'drawer' | 'modal';
 }) {
+  const header = (
+    <Box sx={{ p: { xs: 2.25, md: 2.5 }, pb: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+      <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="flex-start">
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="overline" color="text.secondary">
+            {presentation === 'modal' ? 'Quick view da demanda' : 'Contexto operacional'}
+          </Typography>
+          <Typography variant="h5" fontWeight={800}>{title}</Typography>
+          {subtitle ? <Typography variant="body2" color="text.secondary">{subtitle}</Typography> : null}
+        </Box>
+        <Button variant="outlined" size="small" onClick={onClose}>Fechar</Button>
+      </Stack>
+      {actions ? <Box sx={{ mt: 2 }}>{actions}</Box> : null}
+    </Box>
+  );
+
+  const body = (
+    <Stack sx={{ height: '100%' }}>
+      {header}
+      <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 2.25, md: 2.5 } }}>
+        {children}
+      </Box>
+    </Stack>
+  );
+
+  if (presentation === 'modal') {
+    return (
+      <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="lg"
+        PaperProps={{
+          sx: {
+            width: { xs: 'calc(100% - 24px)', md: 920 },
+            maxWidth: 'calc(100vw - 32px)',
+            height: { xs: 'calc(100% - 24px)', md: 'min(88vh, 920px)' },
+            borderRadius: 3,
+            overflow: 'hidden',
+          },
+        }}
+      >
+        {body}
+      </Dialog>
+    );
+  }
+
   return (
     <Drawer
       anchor="right"
@@ -1333,22 +1382,7 @@ export function ContextDrawer({
         },
       }}
     >
-      <Stack sx={{ height: '100%' }}>
-        <Box sx={{ p: 3, pb: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
-          <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="flex-start">
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="overline" color="text.secondary">Contexto operacional</Typography>
-              <Typography variant="h5" fontWeight={800}>{title}</Typography>
-              {subtitle ? <Typography variant="body2" color="text.secondary">{subtitle}</Typography> : null}
-            </Box>
-            <Button variant="outlined" size="small" onClick={onClose}>Fechar</Button>
-          </Stack>
-          {actions ? <Box sx={{ mt: 2 }}>{actions}</Box> : null}
-        </Box>
-        <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
-          {children}
-        </Box>
-      </Stack>
+      {body}
     </Drawer>
   );
 }

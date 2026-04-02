@@ -791,6 +791,7 @@ export default function JobWorkbenchDrawer({
   mode,
   job,
   initialComposerPath,
+  presentation,
   jobTypes,
   skills,
   channels,
@@ -808,6 +809,7 @@ export default function JobWorkbenchDrawer({
   mode: 'create' | 'edit';
   job: OperationsJob | null;
   initialComposerPath?: ComposerPath;
+  presentation?: 'drawer' | 'modal';
   jobTypes: OperationsLookup[];
   skills: OperationsLookup[];
   channels: OperationsLookup[];
@@ -1090,6 +1092,7 @@ export default function JobWorkbenchDrawer({
   return (
     <ContextDrawer
       open={open}
+      presentation={presentation}
       title={mode === 'create' ? selectedComposer.title : detailJob?.title || 'Demanda operacional'}
       subtitle={mode === 'create'
         ? selectedComposer.subtitle
