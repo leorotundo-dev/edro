@@ -2157,6 +2157,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       ? body.skills.map((s: any) => (typeof s === 'string' ? s : s.id)).filter(Boolean)
       : null;
 
+    const platformExpertise = Array.isArray(body.platform_expertise) && body.platform_expertise.length
+      ? body.platform_expertise
+      : null;
+    const aiTools = Array.isArray(body.ai_tools) && body.ai_tools.length
+      ? body.ai_tools
+      : null;
+    const availableDays = Array.isArray(body.available_days) && body.available_days.length
+      ? body.available_days
+      : null;
+
     await pool.query(
       `UPDATE freelancer_profiles SET
         cnpj = $2, razao_social = $3, nome_fantasia = $4,
@@ -2170,6 +2180,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         skills = COALESCE($23::text[], skills),
         phone = COALESCE($24, phone),
         skills_json = $25::jsonb,
+        experience_level = COALESCE($26, experience_level),
+        platform_expertise = COALESCE($27::text[], platform_expertise),
+        ai_tools = COALESCE($28::text[], ai_tools),
+        max_concurrent_jobs = COALESCE($29, max_concurrent_jobs),
+        available_days = COALESCE($30::text[], available_days),
+        available_hours_start = COALESCE($31, available_hours_start),
+        available_hours_end = COALESCE($32, available_hours_end),
         onboarding_complete = true,
         updated_at = now()
        WHERE user_id = $1`,
@@ -2199,6 +2216,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         skillIds,
         body.phone ?? null,
         skillsJson,
+        body.experience_level ?? null,
+        platformExpertise,
+        aiTools,
+        body.max_concurrent_jobs ?? null,
+        availableDays,
+        body.available_hours_start ?? null,
+        body.available_hours_end ?? null,
       ],
     );
 
