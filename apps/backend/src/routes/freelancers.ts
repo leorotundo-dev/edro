@@ -1501,7 +1501,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         for (const admin of admins) {
           await createInAppNotification({
             userId: admin.id, tenantId,
-            event_type: 'job_rejected',
+            eventType: 'job_rejected',
             title: `Escopo recusado: ${j.title}`,
             body: reason ? `Motivo: ${reason}` : 'Freelancer recusou o escopo.',
             link: `/admin/operacoes/jobs`,
