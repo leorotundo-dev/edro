@@ -1313,46 +1313,146 @@ Regras:
     }
 
     // Gather context about the account
-    const [jobsRes, briefingsRes, invoicesRes] = await Promise.all([
+    const [clientRes, activeRes, doneRes, pendingArtRes, invoicesRes, requestsRes] = await Promise.all([
       pool.query(
-        `SELECT title, status, due_at FROM edro_briefings WHERE main_client_id = $1 ORDER BY updated_at DESC LIMIT 10`,
+        `SELECT name, status FROM clients WHERE id = $1`,
         [clientId],
       ),
+      // Active pipeline: not done, not archived
       pool.query(
-        `SELECT form_data, status, created_at FROM portal_briefing_requests WHERE client_id = $1 ORDER BY created_at DESC LIMIT 5`,
+        `SELECT title, status, due_at, updated_at, labels
+         FROM edro_briefings
+         WHERE main_client_id = $1
+           AND status NOT IN ('done', 'published', 'archived', 'cancelled')
+         ORDER BY CASE status
+           WHEN 'review' THEN 1
+           WHEN 'in_progress' THEN 2
+           WHEN 'todo' THEN 3
+           ELSE 4
+         END, due_at ASC NULLS LAST
+         LIMIT 20`,
         [clientId],
       ),
+      // Recent deliveries (last 30 days)
       pool.query(
-        `SELECT description, amount_brl, status, due_date FROM client_invoices WHERE client_id = $1 ORDER BY created_at DESC LIMIT 3`,
+        `SELECT title, status, updated_at
+         FROM edro_briefings
+         WHERE main_client_id = $1
+           AND status IN ('done', 'published')
+           AND updated_at >= now() - interval '30 days'
+         ORDER BY updated_at DESC LIMIT 10`,
+        [clientId],
+      ),
+      // Artworks awaiting client decision
+      pool.query(
+        `SELECT ba.title AS artwork_title, b.title AS briefing_title
+         FROM briefing_artworks ba
+         JOIN edro_briefings b ON b.id = ba.briefing_id
+         WHERE b.main_client_id = $1 AND ba.status = 'pending'
+         ORDER BY ba.created_at DESC LIMIT 10`,
+        [clientId],
+      ).catch(() => ({ rows: [] })),
+      // Invoices (last 6)
+      pool.query(
+        `SELECT description, amount_brl, status, due_date, paid_at
+         FROM client_invoices
+         WHERE client_id = $1
+         ORDER BY created_at DESC LIMIT 6`,
+        [clientId],
+      ).catch(() => ({ rows: [] })),
+      // Open briefing requests
+      pool.query(
+        `SELECT form_data->>'title' AS title, status, created_at
+         FROM portal_briefing_requests
+         WHERE client_id = $1 AND status NOT IN ('converted', 'declined', 'archived')
+         ORDER BY created_at DESC LIMIT 5`,
         [clientId],
       ).catch(() => ({ rows: [] })),
     ]);
 
-    const jobs = jobsRes.rows;
-    const briefings = briefingsRes.rows;
-    const invoices = invoicesRes.rows;
+    const clientName = clientRes.rows[0]?.name ?? 'Cliente';
+    const active = activeRes.rows as any[];
+    const done = doneRes.rows as any[];
+    const pendingArt = pendingArtRes.rows as any[];
+    const invoices = invoicesRes.rows as any[];
+    const requests = requestsRes.rows as any[];
 
-    const contextBlock = `
-Contexto da conta do cliente:
-- Pedidos em produção: ${jobs.filter((j: any) => j.status === 'in_progress').map((j: any) => j.title).join(', ') || 'nenhum'}
-- Aguardando aprovação: ${jobs.filter((j: any) => j.status === 'review').map((j: any) => j.title).join(', ') || 'nenhum'}
-- Próximas entregas (com prazo): ${jobs.filter((j: any) => j.due_at && j.status !== 'done').map((j: any) => `${j.title} (${new Date(j.due_at).toLocaleDateString('pt-BR')})`).join(', ') || 'nenhuma'}
-- Solicitações abertas: ${briefings.filter((b: any) => !['converted', 'declined'].includes(b.status)).length}
-- Faturas vencidas: ${invoices.filter((i: any) => i.status === 'overdue').length}
-`.trim();
+    const inReview  = active.filter(j => j.status === 'review');
+    const inProd    = active.filter(j => j.status === 'in_progress');
+    const inAnalysis = active.filter(j => ['todo', 'backlog'].includes(j.status));
 
-    const historyBlock = history.slice(-6).map(h => `${h.role === 'user' ? 'Cliente' : 'Assistente'}: ${h.content}`).join('\n');
+    const fmt = (d: string) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 
-    const systemPrompt = `Você é o assistente do portal do cliente de uma agência de comunicação. Responda exclusivamente com informações sobre a conta deste cliente. Seja direto, objetivo e prestativo. Responda em português brasileiro.
+    const lines: string[] = [
+      `Data atual: ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}`,
+      `Cliente: ${clientName}`,
+      '',
+      '## Pipeline ativo',
+    ];
+
+    if (inReview.length) {
+      lines.push(`Aguardando SUA aprovação (${inReview.length}): ${inReview.map(j => j.title + (j.due_at ? ` [prazo ${fmt(j.due_at)}]` : '')).join(' | ')}`);
+    } else {
+      lines.push('Aguardando sua aprovação: nenhum');
+    }
+
+    if (inProd.length) {
+      lines.push(`Em produção (${inProd.length}): ${inProd.map(j => j.title + (j.due_at ? ` [prazo ${fmt(j.due_at)}]` : '')).join(' | ')}`);
+    } else {
+      lines.push('Em produção: nenhum');
+    }
+
+    if (inAnalysis.length) {
+      lines.push(`Em análise pela agência (${inAnalysis.length}): ${inAnalysis.map(j => j.title).join(' | ')}`);
+    }
+
+    if (pendingArt.length) {
+      lines.push(`Criativos aguardando avaliação (${pendingArt.length}): ${pendingArt.map(a => `"${a.artwork_title}" do pedido "${a.briefing_title}"`).join(' | ')}`);
+    }
+
+    lines.push('');
+    lines.push('## Entregas recentes (últimos 30 dias)');
+    if (done.length) {
+      lines.push(done.map(j => `${j.title} — entregue em ${fmt(j.updated_at)}`).join('\n'));
+    } else {
+      lines.push('Nenhuma entrega nos últimos 30 dias.');
+    }
+
+    if (requests.length) {
+      lines.push('');
+      lines.push(`## Solicitações em aberto (${requests.length})`);
+      lines.push(requests.map(r => r.title || 'Sem título').join(' | '));
+    }
+
+    if (invoices.length) {
+      const overdue = invoices.filter(i => i.status === 'overdue');
+      const pending = invoices.filter(i => i.status === 'sent');
+      const paid = invoices.filter(i => i.status === 'paid');
+      lines.push('');
+      lines.push('## Financeiro');
+      lines.push(`Faturas: ${paid.length} pagas, ${pending.length} pendentes${overdue.length ? `, ${overdue.length} VENCIDAS` : ''}`);
+      if (overdue.length) {
+        lines.push(`Vencidas: ${overdue.map(i => `${i.description} R$${parseFloat(i.amount_brl).toFixed(2)} (venceu ${fmt(i.due_date)})`).join(' | ')}`);
+      }
+    }
+
+    const contextBlock = lines.join('\n');
+
+    const historyBlock = history.slice(-8).map(h => `${h.role === 'user' ? clientName : 'Assistente'}: ${h.content}`).join('\n');
+
+    const systemPrompt = `Você é o assistente do portal de ${clientName} em uma agência de comunicação.
+Seu papel: responder perguntas sobre pedidos, prazos, aprovações, entregas e financeiro desta conta.
+Seja direto, objetivo e prestativo. Nunca invente dados — se não souber, diga claramente.
+Responda em português brasileiro.
 
 ${contextBlock}`;
 
     const prompt = historyBlock
-      ? `${historyBlock}\nCliente: ${message}`
+      ? `${historyBlock}\n${clientName}: ${message}`
       : message;
 
     try {
-      const result = await generateCompletion({ prompt, systemPrompt, maxTokens: 400, temperature: 0.4 });
+      const result = await generateCompletion({ prompt, systemPrompt, maxTokens: 600, temperature: 0.3 });
       return reply.send({ reply: result.text });
     } catch (err: any) {
       return reply.status(503).send({ error: 'assistant_unavailable', detail: err.message });
