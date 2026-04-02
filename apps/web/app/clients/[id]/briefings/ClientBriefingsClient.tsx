@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
 import { apiGet } from '@/lib/api';
 import EmptyState from '@/components/ui/EmptyState';
 import Alert from '@mui/material/Alert';
@@ -70,6 +71,7 @@ function formatDate(value?: string | null) {
 
 export default function ClientBriefingsClient({ clientId }: { clientId: string }) {
   const router = useRouter();
+  const { open: openBriefing } = useBriefingDrawer();
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -180,7 +182,7 @@ export default function ClientBriefingsClient({ clientId }: { clientId: string }
                   key={b.id}
                   hover
                   sx={{ cursor: 'pointer' }}
-                  onClick={() => router.push(`/edro/${b.id}`)}
+                  onClick={() => openBriefing(b.id)}
                 >
                   <TableCell>
                     <Typography variant="body2" fontWeight={600} noWrap sx={{ maxWidth: 280 }}>

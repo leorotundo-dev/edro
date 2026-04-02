@@ -18,9 +18,6 @@ import { useTheme } from '@mui/material/styles';
 import MenuItems from './MenuItems';
 import { useRole } from '@/hooks/useRole';
 import { useOpsCriticalCount } from '@/hooks/useOpsCriticalCount';
-import { useJarvis } from '@/contexts/JarvisContext';
-import Badge from '@mui/material/Badge';
-import { IconBrain } from '@tabler/icons-react';
 
 const SIDEBAR_WIDTH = 260;
 const SIDEBAR_MINI_WIDTH = 68;
@@ -54,7 +51,6 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
   const lgUp = useMediaQuery(theme.breakpoints.up('lg'));
   const { role } = useRole();
   const opsCritical = useOpsCriticalCount();
-  const { openPalette, toggle: toggleJarvis, unreadCount: jarvisUnread, isOpen: jarvisOpen, isPaletteOpen } = useJarvis();
 
   const [user, setUser] = useState<{ name?: string; email?: string; role?: string; avatar_url?: string | null }>({});
   useEffect(() => {
@@ -211,72 +207,6 @@ export default function Sidebar({ open, mobileOpen, onToggle, onMobileClose }: S
           );
         })}
       </Box>
-
-      {/* Jarvis button — opens command palette */}
-      <Tooltip title={open ? '' : 'Jarvis (Ctrl+J)'} placement="right">
-        <Box
-          onClick={openPalette}
-          sx={{
-            mx: 1.5,
-            mb: 1,
-            px: open ? 1.5 : 0,
-            py: 1,
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: open ? 'flex-start' : 'center',
-            gap: 1.25,
-            cursor: 'pointer',
-            bgcolor: (jarvisOpen || isPaletteOpen) ? 'rgba(232,82,25,0.14)' : 'rgba(232,82,25,0.07)',
-            border: `1px solid ${(jarvisOpen || isPaletteOpen) ? 'rgba(232,82,25,0.4)' : 'rgba(232,82,25,0.18)'}`,
-            transition: 'all 150ms ease',
-            '&:hover': { bgcolor: 'rgba(232,82,25,0.16)', borderColor: 'rgba(232,82,25,0.4)' },
-          }}
-        >
-          <Badge
-            badgeContent={jarvisUnread}
-            color="error"
-            sx={{ '& .MuiBadge-badge': { fontSize: '0.55rem', minWidth: 14, height: 14, top: 2, right: 2 } }}
-          >
-            <Box sx={{ color: EDRO_ORANGE, display: 'flex', alignItems: 'center' }}>
-              <IconBrain size={18} stroke={(jarvisOpen || isPaletteOpen) ? 2 : 1.5} />
-            </Box>
-          </Badge>
-          {open && (
-            <>
-              <Typography
-                sx={{
-                  fontSize: '0.84rem',
-                  fontWeight: (jarvisOpen || isPaletteOpen) ? 700 : 500,
-                  color: (jarvisOpen || isPaletteOpen) ? '#fff' : EDRO_ORANGE,
-                  flex: 1,
-                  lineHeight: 1,
-                }}
-              >
-                Jarvis
-              </Typography>
-              <Box
-                component="kbd"
-                sx={{
-                  fontSize: '0.55rem',
-                  color: 'rgba(255,255,255,0.3)',
-                  fontFamily: 'monospace',
-                  letterSpacing: 0,
-                }}
-              >
-                ⌃J
-              </Box>
-            </>
-          )}
-          {open && jarvisUnread > 0 && (
-            <Chip
-              label={jarvisUnread}
-              size="small"
-              sx={{ height: 18, fontSize: '0.6rem', bgcolor: '#dc2626', color: '#fff', fontWeight: 700 }}
-            />
-          )}
-        </Box>
-      </Tooltip>
 
       {/* User footer */}
       <Tooltip title={open ? '' : `${displayName} · ${user?.role || role || 'Team'}`} placement="right">

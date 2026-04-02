@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useBriefingDrawer } from '@/contexts/BriefingDrawerContext';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -19,6 +20,7 @@ type Props = {
 
 export default function PautaFromClippingModal({ open, suggestion, onClose }: Props) {
   const router = useRouter();
+  const { open: openBriefing } = useBriefingDrawer();
   const [loading, setLoading] = useState(false);
 
   async function handleApprove(approach: 'A' | 'B') {
@@ -31,7 +33,7 @@ export default function PautaFromClippingModal({ open, suggestion, onClose }: Pr
       );
       if (res?.briefing_id) {
         onClose();
-        router.push(`/edro/${res.briefing_id}`);
+        openBriefing(res.briefing_id);
       }
     } finally {
       setLoading(false);
