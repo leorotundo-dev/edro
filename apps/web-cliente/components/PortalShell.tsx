@@ -59,9 +59,16 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     let cancelled = false;
+    // Session check: only redirects when the local JWT cookie is missing/expired.
+    // A 401 from a backend API route does NOT clear the session — only this check does.
     fetch('/api/auth/session', { cache: 'no-store' })
       .then((res) => {
-        if (!res.ok) { clearToken(); window.location.href = '/login'; return null; }
+        if (!res.ok) {
+          // Token genuinely expired or missing — force re-login
+          clearToken();
+          window.location.href = '/login';
+          return null;
+        }
         return res.json();
       })
       .then((data) => {
@@ -70,7 +77,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
           setClientLogoUrl(data?.user?.client_logo_url ?? null);
         }
       })
-      .catch(() => null);
+      .catch(() => null); // network error — don't kick the user out
     return () => { cancelled = true; };
   }, []);
 

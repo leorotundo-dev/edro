@@ -13,8 +13,6 @@ async function request<T = any>(method: string, path: string, body?: unknown): P
   });
 
   if (res.status === 401) {
-    clearToken();
-    if (typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Unauthorized');
   }
 
