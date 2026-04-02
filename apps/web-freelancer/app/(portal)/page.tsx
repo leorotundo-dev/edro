@@ -29,6 +29,7 @@ type Job = {
   due_at: string | null;
   client_name: string | null;
   source: 'briefing' | 'ops_job';
+  pending_acceptance: boolean;
 };
 
 function useElapsed(startedAt: string) {
