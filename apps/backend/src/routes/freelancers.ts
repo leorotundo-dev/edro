@@ -2819,6 +2819,29 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /freelancers/portal/me/da-billing?period=YYYY-MM
+  // Returns da_billing_entries for the authenticated freelancer filtered by period month.
+  // This is the per-job breakdown used by the /da-extrato page in the portal.
+  // lgtm[js/missing-rate-limiting] — authenticated via JWT global plugin; global 100 req/min via @fastify/rate-limit
+  app.get('/freelancers/portal/me/da-billing', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const { period } = (request.query as Record<string, string>) ?? {};
+
+    const fpRes = await pool.query(
+      `SELECT fp.id, fp.tenant_id FROM freelancer_profiles fp WHERE fp.user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    if (!fpRes.rows.length) return reply.status(404).send({ error: 'Profile not found' });
+    const { id: freelancerId, tenant_id } = fpRes.rows[0];
+
+    const { getFreelancerBillingEntries } = await import('../services/daBillingService');
+    const entries = await getFreelancerBillingEntries(freelancerId, tenant_id, period || undefined);
+
+    return reply.send({ success: true, data: entries });
+  });
+
   // POST /freelancers/portal/me/billing/:cycleId/submit-nf
   app.post('/freelancers/portal/me/billing/:cycleId/submit-nf', async (request: any, reply) => {
     const userId = (request.user as any)?.sub;
