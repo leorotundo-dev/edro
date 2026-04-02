@@ -22,7 +22,7 @@
     "typecheck": "pnpm --filter @edro/backend typecheck && pnpm --filter @edro/web typecheck && pnpm --filter @edro/web-freelancer typecheck",
     "verify:build": "pnpm --filter @edro/web build && pnpm --filter @edro/web-cliente build && pnpm --filter @edro/web-freelancer build",
     "security:verify": "pnpm security:repo && pnpm security:artifacts && pnpm typecheck && pnpm verify:build",
-    "migrate": "pnpm --filter @edro/backend db:migrate || true",
+    "migrate": "pnpm --filter @edro/backend db:migrate",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
