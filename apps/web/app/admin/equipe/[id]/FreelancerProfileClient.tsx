@@ -22,6 +22,7 @@ import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import {
   IconArrowLeft,
+  IconDownload,
   IconBolt,
   IconBrandInstagram,
   IconBrandLinkedin,
@@ -47,7 +48,7 @@ import {
   IconUserCheck,
   IconX,
 } from '@tabler/icons-react';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, getApiBase } from '@/lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,9 @@ type FreelancerStats = {
     portfolio_url: string | null;
     unavailable_until: string | null;
     notes: string | null;
+    contract_status: 'none' | 'pending_signature' | 'signed' | 'cancelled' | null;
+    contract_signed_s3_key: string | null;
+    contract_unsigned_s3_key: string | null;
   };
   recentJobs: {
     id: string;
@@ -466,6 +470,33 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
                 >
                   Ver demandas
                 </Button>
+                {(profile.contract_status === 'signed' || profile.contract_status === 'pending_signature' || profile.contract_unsigned_s3_key) && (
+                  <Button
+                    size="small"
+                    startIcon={<IconDownload size={13} />}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(
+                          `${getApiBase()}/freelancers/admin/${profile.user_id}/contract/download`,
+                        );
+                        if (!res.ok) throw new Error('Erro ao baixar contrato');
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `contrato_${profile.display_name.replace(/\s+/g, '_')}.pdf`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch { /* silently ignore — user sees nothing broken */ }
+                    }}
+                    sx={{
+                      fontSize: '0.7rem', py: 0.25,
+                      color: profile.contract_status === 'signed' ? '#13DEB9' : 'text.secondary',
+                    }}
+                  >
+                    {profile.contract_status === 'signed' ? 'Contrato assinado' : 'Contrato (rascunho)'}
+                  </Button>
+                )}
                 <Button
                   size="small"
                   variant="contained"

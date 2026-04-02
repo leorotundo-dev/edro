@@ -3,13 +3,14 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
-import { readFile } from '../library/storage';
 import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
 import { syncFreelancerPerson } from '../repos/peopleRepo';
 import { generateCopy } from '../services/ai/copyService';
 import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
 import { generateContractPdf } from '../services/contractTemplateService';
+import { saveFile, readFile } from '../library/storage';
+import { env } from '../env';
 import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
 import { sendWhatsAppText } from '../services/whatsappService';
@@ -23,6 +24,12 @@ import {
 import { generateEdroAvatarForFreelancer } from '../services/avatarGenerationService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
+
+function s3Url(key: string): string {
+  return env.S3_ENDPOINT
+    ? `${env.S3_ENDPOINT}/${env.S3_BUCKET}/${key}`
+    : `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${key}`;
+}
 
 function periodMonthOf(date: Date): string {
   const y = date.getUTCFullYear();
@@ -3226,6 +3233,42 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
   // ── CONTRACT ROUTES ─────────────────────────────────────────────────────────
 
+  // GET /freelancers/admin/:userId/contract/download — stream signed (or unsigned) contract PDF
+  app.get('/freelancers/admin/:userId/contract/download', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } }, preHandler: [authGuard, requirePerm('clients:write')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { userId } = request.params as { userId: string };
+
+    const { rows } = await pool.query(
+      `SELECT contract_signed_s3_key, contract_unsigned_s3_key, contract_pdf_url,
+              contract_status, razao_social, cnpj
+         FROM freelancer_profiles
+        WHERE user_id = $1 AND tenant_id = $2
+        LIMIT 1`,
+      [userId, tenantId],
+    );
+    const prof = rows[0];
+    if (!prof) return reply.status(404).send({ error: 'Freelancer não encontrado.' });
+
+    const s3Key = prof.contract_signed_s3_key ?? prof.contract_unsigned_s3_key;
+
+    if (s3Key) {
+      // Serve from S3 / local storage
+      const buffer = await readFile(s3Key);
+      const safeName = `contrato_${(prof.cnpj ?? userId).replace(/\D/g, '')}.pdf`;
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `attachment; filename="${safeName}"`)
+        .send(buffer);
+    }
+
+    if (prof.contract_pdf_url) {
+      // Fallback: redirect to D4Sign URL (may be temporary)
+      return reply.redirect(prof.contract_pdf_url, 302);
+    }
+
+    return reply.status(404).send({ error: 'Contrato ainda não disponível.' });
+  });
+
   // POST /freelancers/portal/me/contract/send — generate PDF + upload to D4Sign + send
   app.post('/freelancers/portal/me/contract/send', async (request: any, reply) => {
     const token = request.headers.authorization?.replace('Bearer ', '');
@@ -3348,6 +3391,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const filename = `contrato_${prof.cnpj.replace(/\D/g, '')}_${today.toISOString().slice(0,10)}.pdf`;
 
+    // Save unsigned PDF to S3
+    const unsignedKey = `contracts/${tenantId}/${userId}/unsigned_${filename}`;
+    await saveFile(pdfBuffer, unsignedKey).catch(() => {}); // non-blocking — D4Sign is the source of truth for the unsigned doc
+
     // Upload to D4Sign and send
     const d4signUuid = await createAndSendContract({
       pdfBuffer,
@@ -3359,15 +3406,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       agencyName: cfg.agency_name ?? 'Edro Studio',
     });
 
-    // Persist D4Sign UUID and status
+    // Persist D4Sign UUID, status and unsigned S3 key
     await pool.query(
       `UPDATE freelancer_profiles
           SET contract_d4sign_uuid = $2,
               contract_status = 'pending_signature',
               contract_sent_at = now(),
+              contract_unsigned_s3_key = $3,
               updated_at = now()
         WHERE user_id = $1`,
-      [userId, d4signUuid],
+      [userId, d4signUuid, unsignedKey],
     );
 
     // Log event
@@ -3443,17 +3491,36 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     }
 
     if (type_post === 'signed') {
-      // All signers have signed
-      const pdfUrl = await getSignedDownloadUrl(uuid);
+      // All signers have signed — download signed PDF from D4Sign and store in S3
+      const d4signUrl = await getSignedDownloadUrl(uuid);
+      let pdfUrl: string | null = d4signUrl;
+      let signedS3Key: string | null = null;
+
+      if (d4signUrl) {
+        try {
+          const pdfRes = await fetch(d4signUrl, { signal: AbortSignal.timeout(30_000) });
+          if (pdfRes.ok) {
+            const arrayBuf = await pdfRes.arrayBuffer();
+            const pdfBuffer = Buffer.from(arrayBuf);
+            const today = new Date().toISOString().slice(0, 10);
+            signedS3Key = `contracts/${prof.tenant_id}/${prof.user_id}/signed_${today}_${uuid}.pdf`;
+            await saveFile(pdfBuffer, signedS3Key);
+            pdfUrl = s3Url(signedS3Key);
+          }
+        } catch {
+          // S3 upload failed — fall back to D4Sign URL so the record isn't lost
+        }
+      }
 
       await pool.query(
         `UPDATE freelancer_profiles
             SET contract_status = 'signed',
                 contract_signed_at = now(),
                 contract_pdf_url = $2,
+                contract_signed_s3_key = $3,
                 updated_at = now()
           WHERE user_id = $1`,
-        [prof.user_id, pdfUrl],
+        [prof.user_id, pdfUrl, signedS3Key],
       );
 
       await pool.query(
