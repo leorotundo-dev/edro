@@ -3462,7 +3462,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // POST /webhooks/d4sign — D4Sign webhook (document signed / cancelled)
   // NOTE: registered WITHOUT authGuard — D4Sign calls this from their servers
   // Configure D4Sign to POST to: /webhooks/d4sign?token=<D4SIGN_WEBHOOK_SECRET>
-  app.post('/webhooks/d4sign', async (request: any, reply) => {
+  app.post('/webhooks/d4sign', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply) => {
     const webhookSecret = process.env.D4SIGN_WEBHOOK_SECRET;
     const provided = (request.query as Record<string, string>)?.token;
     if (!webhookSecret || !provided || provided !== webhookSecret) {
