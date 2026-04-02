@@ -27,7 +27,7 @@ import Typography from '@mui/material/Typography';
 import AppShell from '@/components/AppShell';
 import {
   IconCopy, IconExternalLink, IconLink, IconMail,
-  IconQrcode, IconTrash, IconUserPlus, IconUsers,
+  IconQrcode, IconRefresh, IconTrash, IconUserPlus, IconUsers,
 } from '@tabler/icons-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -50,6 +50,15 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_COLORS: Record<string, 'default' | 'info' | 'warning' | 'error'> = {
   viewer: 'default', requester: 'info', approver: 'warning', admin: 'error',
 };
+
+function getPortalContactStatus(contact: PortalContact): {
+  label: string;
+  color: 'default' | 'success' | 'warning';
+} {
+  if (!contact.is_active) return { label: 'Revogado', color: 'default' };
+  if (contact.accepted_at || contact.last_login_at) return { label: 'Ativo', color: 'success' };
+  return { label: 'Convite pendente', color: 'warning' };
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -252,6 +261,7 @@ function ContactsTab({ clientId }: { clientId: string }) {
   const [name, setName] = useState('');
   const [role, setRole] = useState<'viewer' | 'requester' | 'approver' | 'admin'>('viewer');
   const [saving, setSaving] = useState(false);
+  const [busyContactId, setBusyContactId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -264,6 +274,8 @@ function ContactsTab({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const activeContacts = contacts.filter((contact) => contact.is_active);
 
   const handleInvite = async () => {
     setSaving(true); setError('');
@@ -280,14 +292,46 @@ function ContactsTab({ clientId }: { clientId: string }) {
   };
 
   const handleRoleChange = async (contactId: string, newRole: string) => {
-    await apiPatch(`/portal/contacts/${contactId}`, { role: newRole }).catch(() => {});
-    load();
+    setBusyContactId(contactId);
+    setError('');
+    try {
+      await apiPatch(`/portal/contacts/${contactId}`, { role: newRole });
+      setSuccess('Papel atualizado com sucesso.');
+      await load();
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao atualizar papel do contato.');
+    } finally {
+      setBusyContactId(null);
+    }
   };
 
   const handleRevoke = async (contactId: string, email: string) => {
     if (!confirm(`Revogar acesso de ${email}?`)) return;
-    await apiDelete(`/portal/contacts/${contactId}`);
-    load();
+    setBusyContactId(contactId);
+    setError('');
+    try {
+      await apiDelete(`/portal/contacts/${contactId}`);
+      setSuccess(`Acesso de ${email} revogado.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao revogar acesso do contato.');
+    } finally {
+      setBusyContactId(null);
+    }
+  };
+
+  const handleResend = async (contactId: string, inviteEmail: string) => {
+    setBusyContactId(contactId);
+    setError('');
+    try {
+      await apiPost(`/portal/contacts/${contactId}/resend`, {});
+      setSuccess(`Convite reenviado para ${inviteEmail}.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao reenviar convite.');
+    } finally {
+      setBusyContactId(null);
+    }
   };
 
   return (
@@ -302,11 +346,19 @@ function ContactsTab({ clientId }: { clientId: string }) {
             Até 5 contatos por cliente. Cada um recebe um link de convite por email.
           </Typography>
         </Box>
-        <Button variant="contained" size="small" startIcon={<IconUserPlus size={16} />}
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Chip
+            label={`${activeContacts.length}/5 ativos`}
+            size="small"
+            color={activeContacts.length >= 5 ? 'warning' : 'default'}
+            variant="outlined"
+          />
+          <Button variant="contained" size="small" startIcon={<IconUserPlus size={16} />}
           onClick={() => setInviteOpen(true)}
-          disabled={contacts.filter(c => c.is_active).length >= 5}>
-          Convidar
-        </Button>
+          disabled={activeContacts.length >= 5}>
+            Convidar
+          </Button>
+        </Stack>
       </Stack>
 
       {loading ? <Stack alignItems="center" py={4}><CircularProgress size={24} /></Stack>
@@ -342,12 +394,19 @@ function ContactsTab({ clientId }: { clientId: string }) {
                       </Box>
                     </Stack>
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+                      <Chip
+                        label={getPortalContactStatus(c).label}
+                        size="small"
+                        color={getPortalContactStatus(c).color}
+                        variant={getPortalContactStatus(c).color === 'default' ? 'outlined' : 'filled'}
+                      />
                       {c.is_active ? (
                         <FormControl size="small" sx={{ minWidth: 130 }}>
                           <Select
                             value={c.role}
                             onChange={e => handleRoleChange(c.id, e.target.value)}
                             sx={{ fontSize: '0.8rem' }}
+                            disabled={busyContactId === c.id}
                           >
                             {Object.entries(ROLE_LABELS).map(([k, v]) => (
                               <MenuItem key={k} value={k} sx={{ fontSize: '0.8rem' }}>{v}</MenuItem>
@@ -357,11 +416,27 @@ function ContactsTab({ clientId }: { clientId: string }) {
                       ) : (
                         <Chip label="Revogado" size="small" color="default" />
                       )}
+                      {c.is_active && !c.accepted_at && (
+                        <Tooltip title="Reenviar convite">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleResend(c.id, c.email)}
+                              sx={{ color: 'info.main' }}
+                              disabled={busyContactId === c.id}
+                            >
+                              <IconRefresh size={16} />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      )}
                       {c.is_active && (
                         <Tooltip title="Revogar acesso">
-                          <IconButton size="small" onClick={() => handleRevoke(c.id, c.email)} sx={{ color: 'error.main' }}>
-                            <IconTrash size={16} />
-                          </IconButton>
+                          <span>
+                            <IconButton size="small" onClick={() => handleRevoke(c.id, c.email)} sx={{ color: 'error.main' }} disabled={busyContactId === c.id}>
+                              <IconTrash size={16} />
+                            </IconButton>
+                          </span>
                         </Tooltip>
                       )}
                     </Stack>
@@ -385,7 +460,20 @@ function ContactsTab({ clientId }: { clientId: string }) {
               ['Administrador', 'Acesso completo — todos os papéis acima.'],
             ].map(([r, d]) => (
               <Stack key={r} direction="row" spacing={1} alignItems="baseline">
-                <Chip label={r} size="small" sx={{ minWidth: 100 }} />
+                <Chip
+                  label={r}
+                  size="small"
+                  color={ROLE_COLORS[
+                    r === 'Visualizador'
+                      ? 'viewer'
+                      : r === 'Solicitante'
+                        ? 'requester'
+                        : r === 'Aprovador'
+                          ? 'approver'
+                          : 'admin'
+                  ]}
+                  sx={{ minWidth: 100 }}
+                />
                 <Typography variant="caption" color="text.secondary">{d}</Typography>
               </Stack>
             ))}

@@ -1,7 +1,7 @@
-import EquipePageClient from './EquipePageClient';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
 export default function EquipePage() {
-  return <EquipePageClient />;
+  redirect('/admin/pessoas');
 }

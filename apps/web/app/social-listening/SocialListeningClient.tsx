@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -14,6 +15,8 @@ import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Chart from '@/components/charts/Chart';
@@ -118,6 +121,8 @@ type SocialListeningClientProps = {
   embedded?: boolean;
 };
 
+type SocialViewTab = 'feed' | 'insights' | 'monitoring';
+
 const PLATFORM_OPTIONS = [
   { value: '', label: 'Todas plataformas' },
   { value: 'instagram', label: 'Instagram' },
@@ -193,6 +198,13 @@ function getSentimentLabel(sentiment?: string | null) {
   return 'Indefinido';
 }
 
+function getSentimentColor(sentiment?: string | null) {
+  if (sentiment === 'positive') return 'success';
+  if (sentiment === 'negative') return 'error';
+  if (sentiment === 'neutral') return 'warning';
+  return 'default';
+}
+
 export default function SocialListeningClient({ clientId, noShell, embedded }: SocialListeningClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -215,6 +227,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
   const [success, setSuccess] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
+  const [viewTab, setViewTab] = useState<SocialViewTab>('feed');
   const [platformFilter, setPlatformFilter] = useState('');
   const [sentimentFilter, setSentimentFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -449,15 +462,28 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
     plotOptions: { bar: { borderRadius: 4 } },
   };
   const keywordChartSeries = [{ name: 'Mencoes', data: topKeywords.map((kw) => kw.total) }];
+  const featuredMention = mentions[0] || null;
+  const feedMentions = mentions.slice(1);
+  const reporteiHighlights = reporteiItems.slice(0, 3);
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Box>
-        <Typography variant="h4">Social Listening</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Monitoramento em tempo real das conversas e tendências para cada cliente.
-        </Typography>
-      </Box>
+      <WorkspaceHero
+        eyebrow="Blog / Posts"
+        title="Social Listening"
+        description="Feed de menções no centro, leitura editorial primeiro e monitoramento separado."
+        leftChips={[
+          { label: selectedClient?.name || 'Base global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(selectedClient?.segment_primary ? [{ label: selectedClient.segment_primary }] : []),
+        ]}
+        rightContent={
+          <>
+            <Chip size="small" label={`Total 7 dias: ${summary.total || 0}`} color="primary" variant="outlined" />
+            <Chip size="small" label={`Positivas: ${summary.positive || 0}`} color="success" variant="outlined" />
+            <Chip size="small" label={`Negativas: ${summary.negative || 0}`} color="error" variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card variant="outlined">
@@ -474,29 +500,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
         </Card>
       ) : null}
 
-      <Grid container spacing={2}>
-        {[
-          { label: 'Total 7 dias', value: summary.total },
-          { label: 'Positivas', value: summary.positive },
-          { label: 'Neutras', value: summary.neutral },
-          { label: 'Negativas', value: summary.negative },
-          { label: 'Sentimento médio', value: `${formatNumber(summary.avg_score)}%` },
-        ].map((metric) => (
-          <Grid key={metric.label} size={{ xs: 12, sm: 6, md: 3 }}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="overline" color="text.secondary">
-                  {metric.label}
-                </Typography>
-                <Typography variant="h5">{metric.value}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Charts row */}
-      {hasSentimentData ? (
+      {viewTab === 'insights' && hasSentimentData ? (
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 4 }}>
             <Card variant="outlined">
@@ -537,9 +541,9 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
         <CardContent>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
             <Box>
-              <Typography variant="overline" color="text.secondary">Filtros</Typography>
+              <Typography variant="overline" color="text.secondary">Filtros do feed</Typography>
               <Typography variant="body2" color="text.secondary">
-                {selectedClient?.name || 'Global'} · {selectedClient?.segment_primary || 'Base global'}
+                Ajuste o recorte e atualize a leitura central.
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
@@ -588,6 +592,17 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
         </CardContent>
       </Card>
 
+      <Card variant="outlined">
+        <CardContent sx={{ py: 1 }}>
+          <Tabs value={viewTab} onChange={(_, next) => setViewTab(next)} variant="scrollable" allowScrollButtonsMobile>
+            <Tab value="feed" label="Feed" />
+            <Tab value="insights" label="Insights" />
+            <Tab value="monitoring" label="Monitoramento" />
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {viewTab === 'insights' ? (
       <Card variant="outlined">
         <CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -661,10 +676,13 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
           )}
         </CardContent>
       </Card>
+      ) : null}
 
+      {viewTab !== 'insights' ? (
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 4 }}>
           <Stack spacing={2}>
+            {viewTab === 'monitoring' ? (
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="overline" color="text.secondary">Keywords ativas</Typography>
@@ -709,10 +727,15 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
                 </Stack>
               </CardContent>
             </Card>
+            ) : null}
 
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="overline" color="text.secondary">Tendências (24h)</Typography>
+                <Typography variant="overline" color="text.secondary">Radar lateral</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Tendências, plataformas e palavras que estão puxando a conversa.
+                </Typography>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Tendências (24h)</Typography>
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   {trends.length ? (
                     trends.map((trend) => (
@@ -736,7 +759,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
 
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="overline" color="text.secondary">Plataformas</Typography>
+                <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Plataformas</Typography>
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   {platforms.length ? (
                     platforms.map((platform) => (
@@ -754,7 +777,7 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
 
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="overline" color="text.secondary">Top keywords</Typography>
+                <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Top keywords</Typography>
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   {topKeywords.length ? (
                     topKeywords.map((keyword) => (
@@ -769,69 +792,141 @@ export default function SocialListeningClient({ clientId, noShell, embedded }: S
                 </Stack>
               </CardContent>
             </Card>
+
+            {viewTab === 'feed' && reporteiHighlights.length ? (
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Highlights do Reportei</Typography>
+                  <Stack spacing={1.25}>
+                    {reporteiHighlights.map((item, index) => {
+                      const payload = item.payload || {};
+                      const topFormat = pickTop(payload.by_format);
+                      const topTag = pickTop(payload.by_tag);
+                      return (
+                        <Box key={`${item.platform || 'platform'}-${index}`} sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                          <Typography variant="body2" fontWeight={700}>
+                            {item.platform || 'Plataforma'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Melhor formato: {topFormat?.format || 'N/A'} · Melhor tag: {topTag?.tag || 'N/A'}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
           </Stack>
         </Grid>
 
         <Grid size={{ xs: 12, lg: 8 }}>
-          <Card variant="outlined">
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="overline" color="text.secondary">Menções recentes</Typography>
-                <TextField
-                  select
-                  size="small"
-                  value={keywordFilter}
-                  onChange={(event) => setKeywordFilter(event.target.value)}
-                >
-                  <MenuItem value="">Todas keywords</MenuItem>
-                  {keywords.map((keyword) => (
-                    <MenuItem key={keyword.id} value={keyword.keyword}>
-                      {keyword.keyword}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Stack>
-
-              <Stack spacing={1}>
-                {mentions.length ? (
-                  mentions.map((mention) => (
-                    <Box key={mention.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography variant="subtitle2">{mention.author || 'Anônimo'}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {mention.platform} • {mention.keyword}
-                          </Typography>
-                        </Box>
-                        <Chip size="small" label={getSentimentLabel(mention.sentiment)} />
-                      </Stack>
-                      <Typography variant="body2" sx={{ mt: 1 }}>
-                        {mention.content}
+          <Stack spacing={2}>
+            {featuredMention ? (
+              <Card variant="outlined" sx={{ borderRadius: 4 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
+                    <Box>
+                      <Typography variant="overline" color="text.secondary">
+                        Destaque da conversa · {featuredMention.platform}
                       </Typography>
-                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ mt: 1 }} alignItems={{ xs: 'flex-start', md: 'center' }}>
-                        <Chip size="small" label={`❤ ${formatNumber(mention.engagement_likes)}`} />
-                        <Chip size="small" label={`💬 ${formatNumber(mention.engagement_comments)}`} />
-                        <Chip size="small" label={`↗ ${formatNumber(mention.engagement_shares)}`} />
-                        <Chip size="small" label={`▶ ${formatNumber(mention.engagement_views)}`} />
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDate(mention.published_at)}
-                        </Typography>
-                      </Stack>
-                      {mention.url ? (
-                        <Button size="small" variant="text" href={mention.url} target="_blank" rel="noreferrer">
-                          Abrir fonte
-                        </Button>
-                      ) : null}
+                      <Typography variant="h5" sx={{ mt: 0.75, mb: 0.5 }}>
+                        {featuredMention.author || 'Autor não identificado'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {featuredMention.keyword} · {formatDate(featuredMention.published_at)}
+                      </Typography>
                     </Box>
-                  ))
-                ) : (
-                  <Typography variant="body2" color="text.secondary">Nenhuma menção encontrada.</Typography>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
+                    <Chip size="small" color={getSentimentColor(featuredMention.sentiment)} label={getSentimentLabel(featuredMention.sentiment)} />
+                  </Stack>
+
+                  <Typography variant="body1" sx={{ mt: 2, lineHeight: 1.8 }}>
+                    {featuredMention.content}
+                  </Typography>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+                    <Chip size="small" label={`❤ ${formatNumber(featuredMention.engagement_likes)}`} />
+                    <Chip size="small" label={`💬 ${formatNumber(featuredMention.engagement_comments)}`} />
+                    <Chip size="small" label={`↗ ${formatNumber(featuredMention.engagement_shares)}`} />
+                    <Chip size="small" label={`▶ ${formatNumber(featuredMention.engagement_views)}`} />
+                  </Stack>
+
+                  {featuredMention.url ? (
+                    <Button size="small" variant="contained" sx={{ mt: 2 }} href={featuredMention.url} target="_blank" rel="noreferrer">
+                      Abrir fonte
+                    </Button>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Box>
+                    <Typography variant="overline" color="text.secondary">Feed de menções</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {viewTab === 'feed' ? 'Leitura e triagem centralizadas.' : 'Acompanhamento do feed junto das regras de monitoramento.'}
+                    </Typography>
+                  </Box>
+                  <TextField
+                    select
+                    size="small"
+                    value={keywordFilter}
+                    onChange={(event) => setKeywordFilter(event.target.value)}
+                  >
+                    <MenuItem value="">Todas keywords</MenuItem>
+                    {keywords.map((keyword) => (
+                      <MenuItem key={keyword.id} value={keyword.keyword}>
+                        {keyword.keyword}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Stack>
+
+                <Stack spacing={1.5}>
+                  {(featuredMention ? feedMentions : mentions).length ? (
+                    (featuredMention ? feedMentions : mentions).map((mention) => (
+                      <Card key={mention.id} variant="outlined" sx={{ borderRadius: 3 }}>
+                        <CardContent sx={{ p: 2.25 }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography variant="subtitle1" fontWeight={700}>
+                                {mention.author || 'Anônimo'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {mention.platform} · {mention.keyword} · {formatDate(mention.published_at)}
+                              </Typography>
+                            </Box>
+                            <Chip size="small" color={getSentimentColor(mention.sentiment)} label={getSentimentLabel(mention.sentiment)} />
+                          </Stack>
+                          <Typography variant="body2" sx={{ mt: 1.25, lineHeight: 1.75 }}>
+                            {mention.content}
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                            <Chip size="small" label={`❤ ${formatNumber(mention.engagement_likes)}`} />
+                            <Chip size="small" label={`💬 ${formatNumber(mention.engagement_comments)}`} />
+                            <Chip size="small" label={`↗ ${formatNumber(mention.engagement_shares)}`} />
+                            <Chip size="small" label={`▶ ${formatNumber(mention.engagement_views)}`} />
+                          </Stack>
+                          {mention.url ? (
+                            <Button size="small" variant="text" href={mention.url} target="_blank" rel="noreferrer" sx={{ mt: 1 }}>
+                              Abrir fonte
+                            </Button>
+                          ) : null}
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">Nenhuma menção encontrada.</Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
         </Grid>
       </Grid>
+      ) : null}
     </Stack>
   );
 

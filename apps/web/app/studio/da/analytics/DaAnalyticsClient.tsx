@@ -131,8 +131,8 @@ export default function DaAnalyticsClient() {
   }, [days]);
 
   // Build matrix as unique platforms × styles
-  const platforms = [...new Set((data?.platform_style_matrix ?? []).map((r) => r.platform))];
-  const styles    = [...new Set((data?.platform_style_matrix ?? []).map((r) => r.style))].slice(0, 8);
+  const platforms = Array.from(new Set((data?.platform_style_matrix ?? []).map((r) => r.platform)));
+  const styles = Array.from(new Set((data?.platform_style_matrix ?? []).map((r) => r.style))).slice(0, 8);
   const matrixMap = new Map((data?.platform_style_matrix ?? []).map((r) => [`${r.platform}|${r.style}`, r]));
 
   return (

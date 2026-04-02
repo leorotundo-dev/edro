@@ -19,10 +19,13 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import IntegrationSetupDialog, { type IntegrationType } from './IntegrationSetupDialog';
 import {
   IconBrandGmail,
@@ -110,7 +113,7 @@ type IntegrationHealth = {
   search:             { serper: boolean; tavily: boolean; google_trends: boolean };
   meta:               { app_id: boolean; app_secret: boolean; redirect_uri: boolean; verify_token: boolean };
   whatsapp_evolution: { api_key: boolean; api_url: boolean };
-  whatsapp_meta:      { token: boolean; phone_id: boolean; verify_token: boolean };
+  whatsapp_meta:      { token: boolean; phone_id: boolean; verify_token: boolean; agency_phones: boolean };
   recall:             { api_key: boolean; webhook_secret: boolean; google_login_group: boolean };
   reportei:           { token: boolean; base_url: boolean };
   omie:               { app_key: boolean; app_secret: boolean };
@@ -252,6 +255,7 @@ function watchChip(calendar: CalendarStatus | null) {
 
 export default function IntegrationsClient() {
   const searchParams = useSearchParams();
+  const [view, setView] = useState<'catalog' | 'monitor'>('catalog');
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
@@ -511,6 +515,39 @@ export default function IntegrationsClient() {
           </Alert>
         )}
 
+        <Box sx={{ mb: 2 }}>
+          <WorkspaceHero
+            eyebrow="Integration"
+            title="Integrações"
+            description="Catálogo primeiro, monitor depois. Aqui você vê os providers ativos da agência e o monitor ao vivo só como apoio operacional."
+            leftChips={[
+              {
+                label: `${sortedMonitor?.filter((svc) => svc.configured).length ?? 0} integrações configuradas`,
+                color: 'primary',
+                variant: 'outlined',
+              },
+              {
+                label: `${attentionMonitor.length} exigem atenção`,
+                color: attentionMonitor.some((svc) => svc.status === 'error') ? 'error' : attentionMonitor.length ? 'warning' : 'success',
+                variant: attentionMonitor.length ? 'filled' : 'outlined',
+              },
+            ]}
+          />
+        </Box>
+
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs
+            value={view}
+            onChange={(_, value) => setView(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ '& .MuiTab-root': { minHeight: 44 } }}
+          >
+            <Tab value="catalog" label="Integrações" icon={<IconPlugConnected size={16} />} iconPosition="start" />
+            <Tab value="monitor" label="Monitor" icon={<IconRefresh size={16} />} iconPosition="start" />
+          </Tabs>
+        </Box>
+
         <IntegrationSetupDialog
           open={Boolean(setupDialog)}
           type={setupDialog}
@@ -653,7 +690,7 @@ export default function IntegrationsClient() {
           <Stack spacing={2}>
 
             {/* ── Monitor ao vivo ── */}
-            {sortedMonitor && (
+            {view === 'monitor' && sortedMonitor && (
               <Card variant="outlined">
                 <CardContent>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -758,6 +795,8 @@ export default function IntegrationsClient() {
               </Card>
             )}
 
+            {view === 'catalog' && (
+              <>
             {/* ── Gmail ── */}
             <Card variant="outlined" sx={{ cursor: !gmail?.configured ? 'pointer' : 'default', '&:hover': !gmail?.configured ? { boxShadow: 2 } : {} }}
               onClick={!gmail?.configured ? () => setSetupDialog('google-oauth') : undefined}>
@@ -1423,6 +1462,8 @@ META_VERIFY_TOKEN=seu-token-secreto`}
                 </Typography>
               </CardContent>
             </Card>
+              </>
+            )}
 
           </Stack>
         )}

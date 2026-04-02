@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
+import { readFile } from '../library/storage';
 import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
 import { syncFreelancerPerson } from '../repos/peopleRepo';
@@ -47,6 +48,119 @@ function formatHours(minutes: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
+function normalizeDigits(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function isValidCnpj(value: string) {
+  const digits = normalizeDigits(value);
+  if (digits.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(digits)) return false;
+
+  const calc = (base: string, weights: number[]) => {
+    const sum = weights.reduce((acc, weight, index) => acc + Number(base[index]) * weight, 0);
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+
+  const first = calc(digits.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const second = calc(`${digits.slice(0, 12)}${first}`, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return digits === `${digits.slice(0, 12)}${first}${second}`;
+}
+
+type CnpjLookupStatus = 'found_active' | 'found_inactive' | 'not_found' | 'provider_unavailable' | 'invalid_cnpj';
+
+type CnpjLookupResponse = {
+  status: CnpjLookupStatus;
+  provider: 'brasilapi' | 'validation';
+  source: 'brasilapi' | 'validation' | 'cache';
+  cnpj: string;
+  message: string;
+  allow_manual_entry: boolean;
+  cache_hit?: boolean;
+  cached_at?: string | null;
+  expires_at?: string | null;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  situacao?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  municipio?: string | null;
+  uf?: string | null;
+  cep?: string | null;
+};
+
+const CNPJ_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CNPJ_NOT_FOUND_CACHE_TTL_MS = 60 * 60 * 1000;
+
+async function readCnpjLookupCache(cnpj: string): Promise<CnpjLookupResponse | null> {
+  const res = await pool.query<{
+    provider: string;
+    status: 'found_active' | 'found_inactive' | 'not_found';
+    payload: Record<string, unknown> | null;
+    fetched_at: string;
+    expires_at: string;
+  }>(
+    `SELECT provider, status, payload, fetched_at, expires_at
+       FROM cnpj_lookup_cache
+      WHERE cnpj = $1
+        AND expires_at > NOW()
+      LIMIT 1`,
+    [cnpj],
+  );
+
+  const row = res.rows[0];
+  if (!row) return null;
+
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+  return {
+    ...(payload as Omit<CnpjLookupResponse, 'cache_hit' | 'cached_at' | 'expires_at' | 'source'>),
+    source: 'cache',
+    cache_hit: true,
+    cached_at: row.fetched_at,
+    expires_at: row.expires_at,
+  };
+}
+
+async function writeCnpjLookupCache(response: CnpjLookupResponse) {
+  if (!['found_active', 'found_inactive', 'not_found'].includes(response.status)) return;
+
+  const ttlMs = response.status === 'not_found' ? CNPJ_NOT_FOUND_CACHE_TTL_MS : CNPJ_CACHE_TTL_MS;
+  const expiresAt = new Date(Date.now() + ttlMs);
+  const payload = {
+    status: response.status,
+    provider: response.provider,
+    cnpj: response.cnpj,
+    message: response.message,
+    allow_manual_entry: response.allow_manual_entry,
+    razao_social: response.razao_social ?? null,
+    nome_fantasia: response.nome_fantasia ?? null,
+    situacao: response.situacao ?? null,
+    logradouro: response.logradouro ?? null,
+    numero: response.numero ?? null,
+    complemento: response.complemento ?? null,
+    bairro: response.bairro ?? null,
+    municipio: response.municipio ?? null,
+    uf: response.uf ?? null,
+    cep: response.cep ?? null,
+  };
+
+  await pool.query(
+    `INSERT INTO cnpj_lookup_cache (cnpj, provider, status, payload, fetched_at, expires_at, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, NOW(), $5, NOW())
+     ON CONFLICT (cnpj) DO UPDATE
+        SET provider = EXCLUDED.provider,
+            status = EXCLUDED.status,
+            payload = EXCLUDED.payload,
+            fetched_at = EXCLUDED.fetched_at,
+            expires_at = EXCLUDED.expires_at,
+            updated_at = NOW()`,
+    [response.cnpj, response.provider, response.status, JSON.stringify(payload), expiresAt],
+  );
+}
+
 async function loadFreelancerIdentitySnapshot(freelancerId: string) {
   const res = await pool.query(
     `SELECT fp.id,
@@ -63,6 +177,78 @@ async function loadFreelancerIdentitySnapshot(freelancerId: string) {
     [freelancerId],
   );
   return res.rows[0] ?? null;
+}
+
+type OnboardingStep = 'empresa' | 'representante' | 'pagamento' | 'skills' | 'avatar';
+
+type OnboardingMissingField = {
+  field: string;
+  label: string;
+  step: OnboardingStep;
+  step_label: string;
+};
+
+const ONBOARDING_STEP_LABELS: Record<OnboardingStep, string> = {
+  empresa: 'Dados da Empresa',
+  representante: 'Representante Legal',
+  pagamento: 'Dados de Pagamento',
+  skills: 'Especialidades',
+  avatar: 'Avatar Edro',
+};
+
+function hasValue(value: unknown) {
+  return typeof value === 'string' ? value.trim().length > 0 : value != null;
+}
+
+function parseStoredSkills(raw: unknown): Array<{ id?: string; label?: string }> {
+  if (Array.isArray(raw)) return raw.filter(Boolean) as Array<{ id?: string; label?: string }>;
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildFreelancerOnboardingState(profile: Record<string, any>) {
+  const missing: OnboardingMissingField[] = [];
+  const pushMissing = (field: string, label: string, step: OnboardingStep) => {
+    missing.push({ field, label, step, step_label: ONBOARDING_STEP_LABELS[step] });
+  };
+
+  const cnpj = normalizeDigits(String(profile.cnpj ?? ''));
+  if (!isValidCnpj(cnpj)) pushMissing('cnpj', 'CNPJ válido', 'empresa');
+  if (!hasValue(profile.razao_social)) pushMissing('razao_social', 'Razão Social', 'empresa');
+
+  if (!hasValue(profile.representante_nome)) pushMissing('representante_nome', 'Nome do representante', 'representante');
+  if (!/^\d{11}$/.test(normalizeDigits(String(profile.representante_cpf ?? '')))) {
+    pushMissing('representante_cpf', 'CPF do representante', 'representante');
+  }
+
+  if (!hasValue(profile.pix_key)) pushMissing('pix_key', 'Chave PIX', 'pagamento');
+
+  const skillsJson = parseStoredSkills(profile.skills_json);
+  const skills = Array.isArray(profile.skills) ? profile.skills.filter(Boolean) : [];
+  if (skillsJson.length === 0 && skills.length === 0) {
+    pushMissing('skills', 'Ao menos uma especialidade', 'skills');
+  }
+
+  const hasAvatar = Boolean(
+    hasValue(profile.avatar_url)
+    || hasValue(profile.person_avatar_url)
+    || hasValue(profile.avatar_generated_key)
+    || hasValue(profile.avatar_source_key),
+  );
+  if (!hasAvatar) pushMissing('avatar', 'Avatar Edro gerado', 'avatar');
+
+  const nextStep = missing[0]?.step ?? null;
+  return {
+    missing_fields: missing,
+    next_step: nextStep,
+    redirect_to: nextStep ? `/onboarding?step=${nextStep}` : null,
+    complete: missing.length === 0,
+  };
 }
 
 // ── PDF generation (requires: pnpm add pdfkit @types/pdfkit in apps/backend) ──
@@ -799,10 +985,16 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const res = await pool.query(
       `SELECT fp.*, eu.email,
+              p.avatar_url AS person_avatar_url,
+              fp.avatar_url AS freelancer_avatar_url,
               COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url,
+              p.avatar_generated_key,
+              p.avatar_source_key,
               p.avatar_generation_status,
               p.avatar_generated_at,
               p.avatar_prompt_version,
+              p.avatar_provider,
+              p.avatar_error,
               (SELECT json_agg(at2) FROM active_timers at2 WHERE at2.freelancer_id = fp.id) as active_timers
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
@@ -811,7 +1003,43 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       [userId],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Freelancer profile not found' });
-    return reply.send(res.rows[0]);
+    const row = res.rows[0];
+    if (row.avatar_generated_key || row.avatar_source_key) {
+      const cacheBust = row.avatar_generated_at ? `?v=${new Date(row.avatar_generated_at).getTime()}` : '';
+      row.avatar_url = `/api/proxy/freelancers/portal/me/avatar${cacheBust}`;
+    }
+    return reply.send(row);
+  });
+
+  app.get('/freelancers/portal/me/avatar', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub;
+    if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const res = await pool.query(
+      `SELECT p.avatar_generated_key,
+              p.avatar_source_key
+         FROM freelancer_profiles fp
+         LEFT JOIN people p ON p.id = fp.person_id
+        WHERE fp.user_id = $1
+        LIMIT 1`,
+      [userId],
+    );
+
+    const row = res.rows[0];
+    const key = row?.avatar_generated_key ?? row?.avatar_source_key ?? null;
+    if (!key) return reply.status(404).send({ error: 'Avatar not found' });
+
+    try {
+      const buf = await readFile(key);
+      const ext = key.split('.').pop()?.toLowerCase() || '';
+      const ct = ext === 'png' ? 'image/png'
+        : ext === 'webp' ? 'image/webp'
+        : ext === 'svg' ? 'image/svg+xml'
+        : 'image/jpeg';
+      return reply.type(ct).header('Cache-Control', 'private, no-store').send(buf);
+    } catch {
+      return reply.status(404).send({ error: 'Avatar not found' });
+    }
   });
 
   app.post('/freelancers/portal/me/avatar', async (request: any, reply) => {
@@ -890,15 +1118,60 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const freelancerId = fpRes.rows[0].id;
 
     const body = request.body as Record<string, any>;
-    const scalarAllowed = ['phone', 'whatsapp_jid', 'department', 'role_title', 'email_personal', 'notes',
-      'available_hours_start', 'available_hours_end', 'weekly_capacity_hours', 'unavailable_until'];
-    const arrayAllowed = ['available_days'];
+    const scalarAllowed = [
+      'display_name',
+      'phone',
+      'whatsapp_jid',
+      'department',
+      'role_title',
+      'email_personal',
+      'notes',
+      'available_hours_start',
+      'available_hours_end',
+      'weekly_capacity_hours',
+      'weekly_capacity',
+      'unavailable_until',
+      'pix_key',
+      'pix_key_type',
+      'portfolio_url',
+      'cnpj',
+      'razao_social',
+      'nome_fantasia',
+      'inscricao_municipal',
+      'address_street',
+      'address_number',
+      'address_complement',
+      'address_district',
+      'address_city',
+      'address_state',
+      'address_cep',
+      'representante_nome',
+      'representante_cpf',
+      'estado_civil',
+      'bank_name',
+      'bank_agency',
+      'bank_account',
+    ];
+    const arrayAllowed = ['available_days', 'skills'];
+    const jsonAllowed = ['skills_json'];
     const sets: string[] = [];
     const vals: any[] = [];
     let idx = 1;
     for (const key of scalarAllowed) {
       if (body[key] !== undefined) {
         sets.push(`${key} = $${idx++}`);
+        if (key === 'cnpj' || key === 'representante_cpf' || key === 'address_cep') {
+          vals.push(typeof body[key] === 'string' ? body[key].replace(/\D/g, '') || null : null);
+          continue;
+        }
+        if (key === 'address_state') {
+          vals.push(typeof body[key] === 'string' ? body[key].toUpperCase() || null : null);
+          continue;
+        }
+        if (key === 'unavailable_until') {
+          vals.push(body[key] ? new Date(body[key]) : null);
+          continue;
+        }
         vals.push(body[key] || null);
       }
     }
@@ -906,6 +1179,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       if (body[key] !== undefined) {
         sets.push(`${key} = $${idx++}::text[]`);
         vals.push(Array.isArray(body[key]) ? body[key] : null);
+      }
+    }
+    for (const key of jsonAllowed) {
+      if (body[key] !== undefined) {
+        sets.push(`${key} = $${idx++}::jsonb`);
+        vals.push(JSON.stringify(Array.isArray(body[key]) ? body[key] : []));
       }
     }
     if (!sets.length) return reply.status(400).send({ error: 'No fields to update' });
@@ -1775,25 +2054,69 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // ── B2B LEGAL COMPLIANCE ROUTES ──────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════
 
-  // GET /freelancers/portal/cnpj/:cnpj — proxy BrasilAPI for CNPJ auto-fill
+  // GET /freelancers/portal/cnpj/:cnpj — structured BrasilAPI lookup for CNPJ auto-fill
   app.get('/freelancers/portal/cnpj/:cnpj', async (request: any, reply) => {
     const token = request.headers.authorization?.replace('Bearer ', '');
     if (!token) return reply.status(401).send({ error: 'Unauthorized' });
 
     const { cnpj } = request.params as { cnpj: string };
-    const clean = cnpj.replace(/\D/g, '');
-    if (clean.length !== 14) return reply.status(400).send({ error: 'CNPJ inválido' });
+    const clean = normalizeDigits(cnpj);
+    if (!isValidCnpj(clean)) {
+      return reply.send({
+        status: 'invalid_cnpj',
+        provider: 'validation',
+        source: 'validation',
+        cnpj: clean,
+        message: 'CNPJ inválido. Confira os dígitos e tente novamente.',
+        allow_manual_entry: true,
+      });
+    }
+
+    const cached = await readCnpjLookupCache(clean);
+    if (cached) {
+      return reply.send(cached);
+    }
 
     try {
       // codeql[js/request-forgery] domain hardcoded to brasilapi.com.br; ${clean} is digits-only (regex + length validated)
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
-      if (!res.ok) return reply.status(404).send({ error: 'CNPJ não encontrado na Receita Federal' });
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`, { signal: AbortSignal.timeout(8000) });
+      if (res.status === 404) {
+        const response: CnpjLookupResponse = {
+          status: 'not_found',
+          provider: 'brasilapi',
+          source: 'brasilapi',
+          cnpj: clean,
+          message: 'Não encontramos esse CNPJ na consulta automática. Você pode preencher os campos manualmente e continuar.',
+          allow_manual_entry: true,
+        };
+        await writeCnpjLookupCache(response);
+        return reply.send(response);
+      }
+      if (!res.ok) {
+        return reply.send({
+          status: 'provider_unavailable',
+          provider: 'brasilapi',
+          source: 'brasilapi',
+          cnpj: clean,
+          message: 'A consulta automática de CNPJ está indisponível agora. Você pode preencher os campos manualmente e continuar.',
+          allow_manual_entry: true,
+        });
+      }
       const data = await res.json() as any;
-      return reply.send({
+      const situacao = data.descricao_situacao_cadastral ?? null;
+      const isActive = !situacao || String(situacao).toLowerCase().includes('ativa');
+      const response: CnpjLookupResponse = {
+        status: isActive ? 'found_active' : 'found_inactive',
+        provider: 'brasilapi',
+        source: 'brasilapi',
         cnpj: clean,
+        message: isActive
+          ? 'CNPJ encontrado e dados preenchidos automaticamente.'
+          : `CNPJ encontrado com situação "${situacao}". Confira os dados antes de continuar.`,
+        allow_manual_entry: true,
         razao_social: data.razao_social ?? null,
         nome_fantasia: data.nome_fantasia ?? null,
-        situacao: data.descricao_situacao_cadastral ?? null,
+        situacao,
         logradouro: data.logradouro ?? null,
         numero: data.numero ?? null,
         complemento: data.complemento ?? null,
@@ -1801,9 +2124,18 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         municipio: data.municipio ?? null,
         uf: data.uf ?? null,
         cep: data.cep ?? null,
-      });
+      };
+      await writeCnpjLookupCache(response);
+      return reply.send(response);
     } catch {
-      return reply.status(502).send({ error: 'Erro ao consultar BrasilAPI' });
+      return reply.send({
+        status: 'provider_unavailable',
+        provider: 'brasilapi',
+        source: 'brasilapi',
+        cnpj: clean,
+        message: 'A consulta automática de CNPJ está indisponível agora. Você pode preencher os campos manualmente e continuar.',
+        allow_manual_entry: true,
+      });
     }
   });
 
@@ -1826,16 +2158,21 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Campos obrigatórios: cnpj, razao_social, representante_nome, pix_key' });
     }
 
-    // Block CPF as pix_key_type
-    if (body.pix_key_type === 'cpf') {
-      return reply.status(400).send({ error: 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF.' });
-    }
-
     const skillsJson = Array.isArray(body.skills) && body.skills.length
       ? JSON.stringify(body.skills)
       : '[]';
     const skillIds = Array.isArray(body.skills) && body.skills.length
       ? body.skills.map((s: any) => (typeof s === 'string' ? s : s.id)).filter(Boolean)
+      : null;
+
+    const platformExpertise = Array.isArray(body.platform_expertise) && body.platform_expertise.length
+      ? body.platform_expertise
+      : null;
+    const aiTools = Array.isArray(body.ai_tools) && body.ai_tools.length
+      ? body.ai_tools
+      : null;
+    const availableDays = Array.isArray(body.available_days) && body.available_days.length
+      ? body.available_days
       : null;
 
     await pool.query(
@@ -1846,10 +2183,19 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         address_district = $9, address_city = $10, address_state = $11, address_cep = $12,
         representante_nome = $13, representante_cpf = $14, estado_civil = $15,
         pix_key = $16, pix_key_type = $17,
-        portfolio_url = $18, weekly_capacity = $19,
-        skills = COALESCE($20::text[], skills),
-        skills_json = $22::jsonb,
-        phone = COALESCE($21, phone),
+        bank_name = $18, bank_agency = $19, bank_account = $20,
+        portfolio_url = $21, weekly_capacity = $22,
+        skills = COALESCE($23::text[], skills),
+        phone = COALESCE($24, phone),
+        skills_json = $25::jsonb,
+        experience_level = COALESCE($26, experience_level),
+        platform_expertise = COALESCE($27::text[], platform_expertise),
+        ai_tools = COALESCE($28::text[], ai_tools),
+        max_concurrent_jobs = COALESCE($29, max_concurrent_jobs),
+        available_days = COALESCE($30::text[], available_days),
+        available_hours_start = COALESCE($31, available_hours_start),
+        available_hours_end = COALESCE($32, available_hours_end),
+        onboarding_complete = true,
         updated_at = now()
        WHERE user_id = $1`,
       [
@@ -1870,11 +2216,21 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         body.estado_civil ?? null,
         body.pix_key,
         body.pix_key_type ?? 'cnpj',
+        body.bank_name ?? null,
+        body.bank_agency ?? null,
+        body.bank_account ?? null,
         body.portfolio_url ?? null,
         body.weekly_capacity ?? 40,
         skillIds,
         body.phone ?? null,
         skillsJson,
+        body.experience_level ?? null,
+        platformExpertise,
+        aiTools,
+        body.max_concurrent_jobs ?? null,
+        availableDays,
+        body.available_hours_start ?? null,
+        body.available_hours_end ?? null,
       ],
     );
 
@@ -1892,9 +2248,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       pool.query(
         `SELECT id, person_id, display_name FROM freelancer_profiles WHERE user_id = $1`,
         [userId],
-      ).then(({ rows }) => {
-        if (!rows[0]) return;
-        const fp = rows[0];
+      ).then(({ rows: fpRows }) => {
+        if (!fpRows[0]) return;
+        const fp = fpRows[0];
         return syncFreelancerPerson({
           freelancerId: fp.id,
           tenantId,
@@ -1905,14 +2261,14 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         });
       }).catch(() => {});
 
-      // Enable WhatsApp for key freelancer events
+      // Enable WhatsApp for key freelancer event types
       upsertNotificationPreferences(userId, [
-        { event_type: 'job_assigned',      channel: 'whatsapp', enabled: true },
-        { event_type: 'job_assigned',      channel: 'in_app',   enabled: true },
-        { event_type: 'deadline_alert',    channel: 'whatsapp', enabled: true },
-        { event_type: 'deadline_alert',    channel: 'in_app',   enabled: true },
-        { event_type: 'contract_signed',   channel: 'whatsapp', enabled: true },
-        { event_type: 'contract_signed',   channel: 'in_app',   enabled: true },
+        { event_type: 'job_assigned',    channel: 'whatsapp', enabled: true },
+        { event_type: 'job_assigned',    channel: 'in_app',   enabled: true },
+        { event_type: 'deadline_alert',  channel: 'whatsapp', enabled: true },
+        { event_type: 'deadline_alert',  channel: 'in_app',   enabled: true },
+        { event_type: 'contract_signed', channel: 'whatsapp', enabled: true },
+        { event_type: 'contract_signed', channel: 'in_app',   enabled: true },
       ]).catch(() => {});
     }
 
@@ -2035,28 +2391,48 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     } catch { return reply.status(401).send({ error: 'Token inválido' }); }
 
     const { rows } = await pool.query(
-      `SELECT onboarding_complete, terms_accepted_at, cnpj, razao_social,
-              pix_key, skills, sla_score,
-              contract_status, contract_signed_at, contract_pdf_url, avatar_url
-         FROM freelancer_profiles WHERE user_id = $1`,
+      `SELECT fp.onboarding_complete,
+              fp.terms_accepted_at,
+              fp.cnpj,
+              fp.razao_social,
+              fp.representante_nome,
+              fp.representante_cpf,
+              fp.pix_key,
+              fp.skills,
+              fp.skills_json,
+              fp.sla_score,
+              fp.contract_status,
+              fp.contract_signed_at,
+              fp.contract_pdf_url,
+              fp.avatar_url,
+              p.avatar_url AS person_avatar_url,
+              p.avatar_generated_key,
+              p.avatar_source_key
+         FROM freelancer_profiles fp
+         LEFT JOIN people p ON p.id = fp.person_id
+        WHERE fp.user_id = $1`,
       [userId],
     );
     const profile = rows[0];
     if (!profile) return reply.status(404).send({ error: 'Perfil não encontrado' });
+    const onboardingState = buildFreelancerOnboardingState(profile);
 
     return reply.send({
       onboarding_complete: profile.onboarding_complete ?? false,
       terms_accepted: !!profile.terms_accepted_at,
       has_cnpj: !!profile.cnpj,
       has_pix: !!profile.pix_key,
-      has_skills: !!(profile.skills?.length),
-      has_avatar: !!profile.avatar_url,
-      avatar_url: profile.avatar_url ?? null,
+      has_skills: !onboardingState.missing_fields.some((field) => field.field === 'skills'),
+      has_avatar: !onboardingState.missing_fields.some((field) => field.field === 'avatar'),
+      avatar_url: profile.person_avatar_url ?? profile.avatar_url ?? null,
       razao_social: profile.razao_social ?? null,
       sla_score: parseFloat(profile.sla_score) || 100,
       contract_status: profile.contract_status ?? 'none',
       contract_signed_at: profile.contract_signed_at ?? null,
       contract_pdf_url: profile.contract_pdf_url ?? null,
+      missing_fields: onboardingState.missing_fields,
+      next_step: onboardingState.next_step,
+      redirect_to: onboardingState.redirect_to,
     });
   });
 
@@ -2910,18 +3286,34 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     // Load freelancer profile
     const { rows: profRows } = await pool.query(
-      `SELECT cnpj, razao_social, nome_fantasia,
+      `SELECT fp.cnpj, fp.razao_social, fp.nome_fantasia,
+              fp.pix_key, fp.pix_key_type, fp.bank_name, fp.bank_agency, fp.bank_account,
+              fp.skills, fp.skills_json,
               address_street, address_number, address_complement,
               address_district, address_city, address_state, address_cep,
-              representante_nome, representante_cpf, estado_civil,
-              onboarding_complete, contract_status
-         FROM freelancer_profiles WHERE user_id = $1`,
+              fp.representante_nome, fp.representante_cpf, fp.estado_civil,
+              fp.onboarding_complete, fp.contract_status,
+              fp.terms_accepted_at,
+              fp.avatar_url,
+              p.avatar_url AS person_avatar_url,
+              p.avatar_generated_key,
+              p.avatar_source_key
+         FROM freelancer_profiles fp
+         LEFT JOIN people p ON p.id = fp.person_id
+        WHERE fp.user_id = $1`,
       [userId],
     );
     const prof = profRows[0];
     if (!prof) return reply.status(404).send({ error: 'Perfil não encontrado.' });
-    if (!prof.onboarding_complete) return reply.status(400).send({ error: 'Conclua o onboarding antes de solicitar o contrato.' });
-    if (!prof.cnpj) return reply.status(400).send({ error: 'CNPJ não preenchido no perfil.' });
+    const onboardingState = buildFreelancerOnboardingState(prof);
+    if (!onboardingState.complete) {
+      return reply.status(400).send({
+        error: 'Complete os dados do onboarding antes de solicitar o contrato.',
+        missing_fields: onboardingState.missing_fields,
+        next_step: onboardingState.next_step,
+        redirect_to: onboardingState.redirect_to,
+      });
+    }
     if (prof.contract_status === 'pending_signature') {
       return reply.send({ ok: true, message: 'Contrato já enviado. Verifique seu e-mail para assinar.' });
     }
@@ -2939,6 +3331,32 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const cfg = cfgRows[0];
     if (!cfg?.agency_cnpj) {
       return reply.status(400).send({ error: 'Configure os dados fiscais da agência em Configurações antes de gerar contratos.' });
+    }
+
+    // First contract send from the final onboarding step acts as clickwrap acceptance.
+    if (!prof.terms_accepted_at) {
+      const ip = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+        ?? request.ip
+        ?? 'unknown';
+      const userAgent = (request.headers['user-agent'] as string) ?? null;
+      const version = '1.0';
+
+      await pool.query(
+        `INSERT INTO freelancer_term_acceptances (user_id, tenant_id, terms_version, accepted_at, ip_address, user_agent)
+         VALUES ($1, $2, $3, now(), $4, $5)`,
+        [userId, tenantId, version, ip, userAgent],
+      );
+
+      await pool.query(
+        `UPDATE freelancer_profiles
+            SET onboarding_complete = true,
+                terms_accepted_at = now(),
+                terms_accepted_ip = $2,
+                terms_version = $3,
+                updated_at = now()
+          WHERE user_id = $1`,
+        [userId, ip, version],
+      );
     }
 
     // Generate PDF
@@ -2964,6 +3382,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       representante_nome: prof.representante_nome ?? '',
       representante_cpf: prof.representante_cpf ?? '',
       estado_civil: prof.estado_civil,
+      pix_key: prof.pix_key ?? null,
+      pix_key_type: prof.pix_key_type ?? null,
+      bank_name: prof.bank_name ?? null,
+      bank_agency: prof.bank_agency ?? null,
+      bank_account: prof.bank_account ?? null,
       contract_date: contractDate,
     });
 

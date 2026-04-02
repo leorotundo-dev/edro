@@ -387,7 +387,6 @@ export default function DashboardClient() {
       </Dialog>
 
       <Stack spacing={3.5}>
-
         {/* ── Quick Stats ───────────────────────────────────────── */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
           <StatCard

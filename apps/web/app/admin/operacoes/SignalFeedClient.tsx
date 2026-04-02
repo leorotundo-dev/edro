@@ -323,7 +323,7 @@ function TeamCapacityMini({ jobs, owners }: { jobs: OperationsJob[]; owners: Arr
 
 /* ─── MAIN COMPONENT ─── */
 
-export default function SignalFeedClient() {
+export default function SignalFeedClient({ embedded = false }: { embedded?: boolean }) {
   const theme = useTheme();
 
   const ops = useOperationsData('?active=true');
@@ -394,8 +394,8 @@ export default function SignalFeedClient() {
 
   const summary = null; // KPIs moved to hero strip below
 
-  return (
-    <OperationsShell section="overview" summary={summary}>
+  const content = (
+    <>
       {loading ? (
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={90} sx={{ borderRadius: 2 }} />
@@ -606,7 +606,6 @@ export default function SignalFeedClient() {
         </Stack>
       )}
 
-      {/* Job Detail Drawer */}
       <JobWorkbenchDrawer
         open={drawerOpen}
         mode="edit"
@@ -623,6 +622,14 @@ export default function SignalFeedClient() {
         onStatusChange={async (id, status, reason) => ops.changeStatus(id, status, reason)}
         onFetchDetail={async (id) => ops.fetchJob(id)}
       />
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <OperationsShell section="radar" summary={summary}>
+      {content}
     </OperationsShell>
   );
 }

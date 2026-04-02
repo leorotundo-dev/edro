@@ -28,7 +28,7 @@ type JarvisContextValue = {
   clearUnread: () => void;
   // Page context — auto-detected from URL
   pageContext: { type: 'client' | 'job' | 'global'; id: string | null; label: string | null };
-  // Arbitrary page data registered by useJarvisPage
+  // Arbitrary page data registered by individual screens (for Jarvis context)
   pageData: Record<string, any> | null;
   setPageData: (data: Record<string, any> | null) => void;
 };

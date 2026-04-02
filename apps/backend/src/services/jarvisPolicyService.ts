@@ -24,6 +24,27 @@ export type JarvisRoutingDecision = {
   };
 };
 
+export type JarvisAutonomyLevel =
+  | 'auto'
+  | 'review'
+  | 'confirm';
+
+export type JarvisToolGovernance = {
+  toolName: string;
+  level: JarvisAutonomyLevel;
+  category: 'read' | 'write' | 'external' | 'destructive' | 'publishing' | 'operations';
+  reason: string;
+  confirmed: boolean;
+  executed: boolean;
+};
+
+export type JarvisAutonomySummary = {
+  highestLevel: JarvisAutonomyLevel;
+  requiresConfirmation: boolean;
+  executedWithConfirmation: boolean;
+  tools: JarvisToolGovernance[];
+};
+
 export type JarvisObservability = {
   intent: JarvisIntent;
   route: 'operations' | 'planning';
@@ -43,7 +64,168 @@ export type JarvisObservability = {
   provider?: string;
   model?: string;
   loadedMemoryBlocks?: string[];
+  autonomy?: JarvisAutonomySummary;
 };
+
+type ToolPolicyDraft = Omit<JarvisToolGovernance, 'confirmed' | 'executed'>;
+
+const CONFIRMATION_PHRASES = [
+  'sim',
+  'confirma',
+  'confirmo',
+  'pode',
+  'aplica',
+  'executa',
+  'manda',
+  'publica',
+  'agenda',
+  'prossegue',
+];
+
+function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): ToolPolicyDraft {
+  const normalizedStatus = String(args?.status || args?.to_status || '').toLowerCase();
+
+  switch (toolName) {
+    case 'publish_studio_post':
+      return {
+        toolName,
+        level: 'confirm',
+        category: 'publishing',
+        reason: 'Publica em canal real e precisa confirmação explícita.',
+      };
+    case 'schedule_post_publication':
+    case 'prepare_post_approval':
+      return {
+        toolName,
+        level: 'confirm',
+        category: toolName === 'schedule_post_publication' ? 'publishing' : 'external',
+        reason: 'Dispara etapa externa do workflow e exige confirmação explícita.',
+      };
+    case 'apply_job_allocation_recommendation':
+    case 'apply_creative_redistribution':
+    case 'assign_job_owner':
+    case 'manage_job_allocation':
+      return {
+        toolName,
+        level: 'confirm',
+        category: 'operations',
+        reason: 'Move responsabilidade ou capacidade operacional e exige confirmação.',
+      };
+    case 'change_job_status':
+      if (['cancelled', 'archived'].includes(normalizedStatus)) {
+        return {
+          toolName,
+          level: 'confirm',
+          category: 'destructive',
+          reason: 'Muda o ciclo de vida do job para estado destrutivo.',
+        };
+      }
+      return {
+        toolName,
+        level: 'review',
+        category: 'operations',
+        reason: 'Altera estado operacional; permitido, mas precisa rastreio.',
+      };
+    case 'update_briefing_status':
+      if (normalizedStatus === 'cancelled') {
+        return {
+          toolName,
+          level: 'confirm',
+          category: 'destructive',
+          reason: 'Cancela um briefing existente.',
+        };
+      }
+      return {
+        toolName,
+        level: 'review',
+        category: 'write',
+        reason: 'Altera estado de briefing no sistema.',
+      };
+    case 'create_post_pipeline':
+    case 'create_operations_job':
+    case 'update_operations_job':
+    case 'create_briefing':
+    case 'create_campaign':
+    case 'add_calendar_event':
+    case 'add_library_note':
+    case 'add_library_url':
+    case 'create_briefing_from_clipping':
+    case 'approve_job_briefing':
+    case 'approve_creative_draft':
+    case 'fill_job_briefing':
+    case 'submit_job_briefing':
+      return {
+        toolName,
+        level: 'review',
+        category: 'write',
+        reason: 'Escreve no sistema, mas faz parte do fluxo normal do Jarvis.',
+      };
+    default:
+      return {
+        toolName,
+        level: 'auto',
+        category: 'read',
+        reason: 'Consulta ou ação segura no contexto atual.',
+      };
+  }
+}
+
+function levelWeight(level: JarvisAutonomyLevel) {
+  switch (level) {
+    case 'confirm': return 3;
+    case 'review': return 2;
+    default: return 1;
+  }
+}
+
+export function buildJarvisToolGovernance(toolName: string, args?: Record<string, any> | null): JarvisToolGovernance {
+  const draft = toolPolicyDraft(toolName, args);
+  const confirmed = args?.confirmed === true;
+  return {
+    ...draft,
+    confirmed,
+    executed: draft.level !== 'confirm' || confirmed,
+  };
+}
+
+export function enforceJarvisToolGovernance(toolName: string, args?: Record<string, any> | null) {
+  const policy = buildJarvisToolGovernance(toolName, args);
+  if (policy.level === 'confirm' && !policy.confirmed) {
+    return {
+      policy: { ...policy, executed: false },
+      error: `Confirmação obrigatória para ${toolName}. ${policy.reason}`,
+    };
+  }
+  return { policy };
+}
+
+export function summarizeJarvisToolGovernance(
+  toolResults?: Array<{ toolName: string; success: boolean; metadata?: any }> | null,
+): JarvisAutonomySummary | undefined {
+  if (!Array.isArray(toolResults) || !toolResults.length) return undefined;
+
+  const tools = toolResults
+    .map((result) => result?.metadata?.governance as JarvisToolGovernance | undefined)
+    .filter((item): item is JarvisToolGovernance => Boolean(item));
+
+  if (!tools.length) return undefined;
+
+  const highestLevel = tools
+    .map((tool) => tool.level)
+    .sort((a, b) => levelWeight(b) - levelWeight(a))[0] || 'auto';
+
+  return {
+    highestLevel,
+    requiresConfirmation: tools.some((tool) => tool.level === 'confirm'),
+    executedWithConfirmation: tools.some((tool) => tool.level === 'confirm' && tool.executed && tool.confirmed),
+    tools,
+  };
+}
+
+export function detectExplicitConfirmation(message?: string | null) {
+  const haystack = String(message || '').toLowerCase();
+  return CONFIRMATION_PHRASES.some((token) => haystack.includes(token));
+}
 
 export function detectJarvisIntent(message: string, contextPage?: string | null): JarvisIntent {
   const haystack = `${contextPage || ''}\n${message}`.toLowerCase();
@@ -151,7 +333,7 @@ export function describeJarvisIntent(intent: JarvisIntent): string {
 
 export function buildJarvisObservability(
   decision: JarvisRoutingDecision,
-  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model' | 'loadedMemoryBlocks'>> = {},
+  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model' | 'loadedMemoryBlocks' | 'autonomy'>> = {},
 ): JarvisObservability {
   return {
     intent: decision.intent,
@@ -168,6 +350,7 @@ export function buildJarvisObservability(
     provider: extras.provider,
     model: extras.model,
     loadedMemoryBlocks: extras.loadedMemoryBlocks,
+    autonomy: extras.autonomy,
   };
 }
 
@@ -183,6 +366,34 @@ export function buildInlineAttachmentContext(inlineAttachments?: Array<{ name?: 
     });
   if (!inlineParts.length) return '';
   return '\n\nDOCUMENTOS ANEXADOS PELO USUARIO:\n' + inlineParts.join('\n\n');
+}
+
+function buildArtifactHistorySummary(artifacts?: Array<Record<string, any>> | null): string {
+  if (!Array.isArray(artifacts) || !artifacts.length) return '';
+
+  const lines = artifacts.slice(0, 4).map((artifact, index) => {
+    const pairs = [
+      ['type', artifact.type],
+      ['background_job_id', artifact.background_job_id],
+      ['briefing_id', artifact.briefing_id],
+      ['job_id', artifact.job_id],
+      ['creative_session_id', artifact.creative_session_id],
+      ['copy_id', artifact.copy_id],
+      ['channel', artifact.channel],
+      ['scheduled_for', artifact.scheduled_for],
+      ['job_status', artifact.job_status],
+      ['approvalUrl', artifact.approvalUrl],
+      ['studio_url', artifact.studio_url],
+      ['post_url', artifact.post_url],
+      ['post_id', artifact.post_id],
+    ]
+      .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+      .map(([label, value]) => `${label}=${String(value).trim()}`);
+
+    return `ARTEFATO ${index + 1}: ${pairs.join(' | ')}`;
+  });
+
+  return lines.length ? `\n\nCONTEXTO DE WORKFLOW:\n${lines.join('\n')}` : '';
 }
 
 export async function loadUnifiedConversationHistory(params: {
@@ -209,10 +420,16 @@ export async function loadUnifiedConversationHistory(params: {
     return (result.rows[0].messages as any[])
       .filter((message: any) => message.role === 'user' || message.role === 'assistant')
       .slice(-20)
-      .map((message: any) => ({
-        role: message.role,
-        content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
-      }));
+      .map((message: any) => {
+        const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+        const artifactSummary = message.role === 'assistant'
+          ? buildArtifactHistorySummary(message?.metadata?.artifacts)
+          : '';
+        return {
+          role: message.role,
+          content: `${content}${artifactSummary}`,
+        };
+      });
   } catch {
     return [];
   }

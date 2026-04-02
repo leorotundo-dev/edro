@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
@@ -20,6 +21,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconRefresh, IconSparkles } from '@tabler/icons-react';
+import { alpha } from '@mui/material/styles';
 
 type ClientRow = {
   id: string;
@@ -283,6 +285,9 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
   const summary = stats.summary || {};
   const platforms = stats.platforms || [];
   const topKeywords = stats.top_keywords || [];
+  const openOpportunities = opportunities.filter((opp) => opp.status !== 'actioned' && opp.status !== 'dismissed');
+  const strongestPlatform = [...platforms].sort((a, b) => Number(b.total || 0) - Number(a.total || 0))[0];
+  const urgentCalendarItems = upcoming.filter((item) => item.tier === 'A' || item.tier === 'B');
 
   const strategicSummaryLines = (() => {
     const lines: string[] = [];
@@ -382,12 +387,23 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Box>
-        <Typography variant="h4">Insights Estratégicos</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Visão consolidada de tendências, oportunidades e calendário relevante.
-        </Typography>
-      </Box>
+      <WorkspaceHero
+        eyebrow="Reports workspace"
+        title="Insights Estratégicos"
+        description="Consolide menções, tendências, calendário e oportunidades em um só lugar para decidir o que merece ação agora."
+        leftChips={[
+          { label: selectedClient?.name || 'Base global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(selectedClient?.segment_primary ? [{ label: selectedClient.segment_primary }] : []),
+          ...(selectedClient?.city ? [{ label: selectedClient.city }] : []),
+        ]}
+        rightContent={
+          <>
+            <Chip label={`Volume ${formatNumber(summary.total)}`} size="small" color="primary" variant="outlined" />
+            <Chip label={`Sentimento ${formatNumber(summary.avg_score)}%`} size="small" color="warning" variant="outlined" />
+            <Chip label={`${formatNumber(openOpportunities.length)} oportunidades`} size="small" color="success" variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card variant="outlined">
@@ -402,7 +418,7 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
             <Box>
               <Typography variant="overline" color="text.secondary">
-                Filtros
+                Recorte
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {selectedClient?.name || 'Global'} · {selectedClient?.segment_primary || 'Base global'}
@@ -441,9 +457,22 @@ export default function InsightsClient({ clientId, noShell, embedded }: Insights
 
       <Card variant="outlined">
         <CardContent>
-          <Typography variant="overline" color="text.secondary">
-            Resumo estratégico
-          </Typography>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box>
+              <Typography variant="overline" color="text.secondary">
+                Leitura executiva
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                O que mudou, o que está puxando conversa e o que merece resposta.
+              </Typography>
+            </Box>
+            <Chip
+              size="small"
+              label={strategicSummaryLines.length ? `${strategicSummaryLines.length} sinais ativos` : 'Sem leitura pronta'}
+              color={strategicSummaryLines.length ? 'primary' : 'default'}
+              variant="outlined"
+            />
+          </Stack>
           <Stack spacing={0.5} sx={{ mt: 1 }}>
             {strategicSummaryLines.length ? (
               strategicSummaryLines.map((line, idx) => (

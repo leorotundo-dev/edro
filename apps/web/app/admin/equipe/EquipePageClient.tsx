@@ -1096,15 +1096,16 @@ function TeamScoreGrid({ scores, freelancers, loading }: {
   );
 }
 
-export default function EquipePage() {
-  const [tab, setTab] = useState(0);
+type EquipePageProps = {
+  embedded?: boolean;
+  forcedTab?: 0 | 1 | 2;
+};
+
+export default function EquipePage({ embedded = false, forcedTab }: EquipePageProps) {
+  const [tab, setTab] = useState<number>(forcedTab ?? 0);
 
   const [freelancers, setFreelancers]         = useState<FreelancerProfile[]>([]);
   const [internalPeople, setInternalPeople]   = useState<InternalPerson[]>([]);
-  const [allPeople, setAllPeople]             = useState<InternalPerson[]>([]);
-  const [allPeopleLoading, setAllPeopleLoading] = useState(false);
-  const [allPeopleLoaded, setAllPeopleLoaded] = useState(false);
-  const [peopleSearch, setPeopleSearch]       = useState('');
   const [editPerson, setEditPerson]           = useState<InternalPerson | null>(null);
   const [editForm, setEditForm]               = useState({ display_name: '', is_internal: false, notes: '' });
   const [editSaving, setEditSaving]           = useState(false);
@@ -1193,15 +1194,9 @@ export default function EquipePage() {
 
   useEffect(() => { load(); }, []);
 
-  const loadAllPeople = async () => {
-    if (allPeopleLoaded) return;
-    setAllPeopleLoading(true);
-    try {
-      const res = await apiGet<{ success: boolean; data: InternalPerson[] }>('/people?limit=300');
-      setAllPeople(res.data ?? []);
-      setAllPeopleLoaded(true);
-    } catch { /* silent */ } finally { setAllPeopleLoading(false); }
-  };
+  useEffect(() => {
+    if (forcedTab !== undefined) setTab(forcedTab);
+  }, [forcedTab]);
 
   useEffect(() => {
     if (tab !== 2) return;
@@ -1295,6 +1290,17 @@ export default function EquipePage() {
   }, 0);
   const activeCount = freelancers.filter((f) => f.is_active).length;
   const timerCount = freelancers.filter((f) => (f.active_timers ?? []).length > 0).length;
+  const freelancersWithContactCount = freelancers.filter(
+    (f) => Boolean(f.phone || f.whatsapp_jid || f.email_personal),
+  ).length;
+  const freelancerReviewCount = freelancers.filter(
+    (f) => !Boolean(f.phone || f.whatsapp_jid || f.email_personal || f.cpf || f.pix_key || f.bank_name),
+  ).length;
+  const internalWithIdentityCount = internalPeople.filter((p) => (p.identities?.length ?? 0) > 0).length;
+  const analyticsRevenueTotal = analyticsData?.pl?.reduce((sum, row: any) => sum + Number(row?.receita ?? 0), 0) ?? 0;
+  const analyticsCostTotal = analyticsData?.byFreelancer?.reduce((sum, row) => sum + Number(row.cost ?? 0), 0) ?? 0;
+  const analyticsMarginTotal = analyticsRevenueTotal - analyticsCostTotal;
+  const analyticsClientCount = analyticsData?.byClient?.length ?? 0;
 
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtH = (mins: number) => {
@@ -1304,15 +1310,23 @@ export default function EquipePage() {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   };
 
-  return (
-    <AppShell title="Equipe">
-      <Box sx={{ p: 3, maxWidth: 1200 }}>
+  const content = (
+      <>
+      <Box sx={{ p: embedded ? 0 : 3, maxWidth: embedded ? 'none' : 1200 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <IconUserCheck size={22} />
-            <Typography variant="h5" fontWeight={700}>Equipe</Typography>
-          </Stack>
-          <Stack direction="row" spacing={1}>
+          {!embedded ? (
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <IconUserCheck size={22} />
+              <Typography variant="h5" fontWeight={700}>Equipe</Typography>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Chip label={`${freelancers.length} freelancers`} size="small" variant="outlined" />
+              <Chip label={`${activeCount} ativos`} size="small" color="success" variant="outlined" />
+              <Chip label={`${timerCount} timers`} size="small" color="primary" variant="outlined" />
+            </Stack>
+          )}
+          <Stack direction="row" spacing={1} sx={{ ml: embedded ? 'auto' : 0 }}>
             <Button
               variant="outlined"
               size="small"
@@ -1328,41 +1342,95 @@ export default function EquipePage() {
           </Stack>
         </Stack>
 
-        {/* Summary cards */}
-        <Grid container spacing={2} mb={2}>
+        <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
           {[
-            { label: 'Freelancers ativos', value: String(activeCount), icon: <IconUserCheck size={20} /> },
-            { label: 'Timers rodando agora', value: String(timerCount), icon: <IconClock size={20} /> },
-            { label: `Horas em ${currentMonth}`, value: fmtH(totalHoursMonth), icon: <IconChartBar size={20} /> },
-            { label: 'Custo do mês', value: brl(totalCostMonth), icon: <IconCurrencyDollar size={20} /> },
-          ].map((c) => (
-            <Grid key={c.label} size={{ xs: 6, sm: 3 }}>
-              <Card variant="outlined">
-                <CardContent sx={{ py: 1.5 }}>
-                  <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-                    <Box sx={{ color: 'primary.main' }}>{c.icon}</Box>
-                    <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+            {
+              key: 'ativos',
+              title: 'Freelancers ativos',
+              value: activeCount,
+              helper: 'Disponíveis na operação',
+              icon: <IconUserCheck size={18} />,
+              accent: '#E85219',
+            },
+            {
+              key: 'timers',
+              title: 'Timers rodando',
+              value: timerCount,
+              helper: timerCount > 0 ? 'Pessoas em execução agora' : 'Nada em execução agora',
+              icon: <IconClock size={18} />,
+              accent: '#13DEB9',
+            },
+            {
+              key: 'horas',
+              title: `Horas em ${currentMonth}`,
+              value: fmtH(totalHoursMonth),
+              helper: 'Carga registrada no mês',
+              icon: <IconChartBar size={18} />,
+              accent: '#5D87FF',
+            },
+            {
+              key: 'custo',
+              title: 'Custo do mês',
+              value: brl(totalCostMonth),
+              helper: 'Estimativa financeira atual',
+              icon: <IconCurrencyDollar size={18} />,
+              accent: '#f59e0b',
+            },
+          ].map((item) => (
+            <Grid key={item.key} size={{ xs: 12, sm: 6, xl: 3 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                <CardContent sx={{ p: '18px !important' }}>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                        {item.title}
+                      </Typography>
+                      <Box
+                        sx={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 2,
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: item.accent,
+                          bgcolor: alpha(item.accent, 0.12),
+                        }}
+                      >
+                        {item.icon}
+                      </Box>
+                    </Stack>
+                    <Typography variant="h4" fontWeight={800}>
+                      {item.value}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {item.helper}
+                    </Typography>
                   </Stack>
-                  <Typography variant="h5" fontWeight={700}>{c.value}</Typography>
                 </CardContent>
               </Card>
             </Grid>
           ))}
         </Grid>
 
-        <Tabs value={tab} onChange={(_, v) => { setTab(v); if (v === 3) loadAllPeople(); }} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <Tab label="Equipe" />
-          <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Contatos" sx={{ fontSize: '0.85rem' }} />
-          <Tab label="Analytics do Mês" />
-          <Tab icon={<IconUserCheck size={15} />} iconPosition="start" label="Diretório" sx={{ fontSize: '0.85rem' }} />
-        </Tabs>
+        {forcedTab === undefined && (
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <Tab label="Operação" />
+            <Tab icon={<IconUsers size={15} />} iconPosition="start" label="Cadastro" sx={{ fontSize: '0.85rem' }} />
+            <Tab label="Financeiro" />
+          </Tabs>
+        )}
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         {tab === 2 && (
-          <Box>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">Analytics de Produtividade</Typography>
+          <Stack spacing={3}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>Financeiro da equipe</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Veja custo interno, receita vinculada e margem por pessoa e por cliente.
+                </Typography>
+              </Box>
               <TextField
                 type="month"
                 size="small"
@@ -1375,112 +1443,335 @@ export default function EquipePage() {
               <Stack alignItems="center" py={4}><CircularProgress /></Stack>
             ) : !analyticsData ? null : (
               <Stack spacing={3}>
+                <Grid container spacing={1.5}>
+                  {[
+                    {
+                      key: 'receita',
+                      title: 'Receita vinculada',
+                      value: brl(analyticsRevenueTotal),
+                      helper: `${analyticsClientCount} clientes com leitura financeira`,
+                      icon: <IconCurrencyDollar size={18} />,
+                      accent: '#16a34a',
+                    },
+                    {
+                      key: 'custo',
+                      title: 'Custo interno',
+                      value: brl(analyticsCostTotal),
+                      helper: 'Horas da equipe convertidas em custo',
+                      icon: <IconUsers size={18} />,
+                      accent: '#E85219',
+                    },
+                    {
+                      key: 'margem',
+                      title: 'Margem consolidada',
+                      value: brl(analyticsMarginTotal),
+                      helper: analyticsMarginTotal >= 0 ? 'Resultado positivo' : 'Resultado em atenção',
+                      icon: <IconChartBar size={18} />,
+                      accent: analyticsMarginTotal >= 0 ? '#13DEB9' : '#dc2626',
+                    },
+                    {
+                      key: 'freelas',
+                      title: 'Freelas no cálculo',
+                      value: analyticsData.byFreelancer.length,
+                      helper: `Competência ${analyticsMonth}`,
+                      icon: <IconUserCheck size={18} />,
+                      accent: '#5D87FF',
+                    },
+                  ].map((item) => (
+                    <Grid key={item.key} size={{ xs: 12, sm: 6, xl: 3 }}>
+                      <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                        <CardContent sx={{ p: '18px !important' }}>
+                          <Stack spacing={1.25}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                {item.title}
+                              </Typography>
+                              <Box
+                                sx={{
+                                  width: 38,
+                                  height: 38,
+                                  borderRadius: 2,
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  color: item.accent,
+                                  bgcolor: alpha(item.accent, 0.12),
+                                }}
+                              >
+                                {item.icon}
+                              </Box>
+                            </Stack>
+                            <Typography variant="h4" fontWeight={800}>
+                              {item.value}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {item.helper}
+                            </Typography>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+
                 {/* By freelancer */}
-                <Box>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.secondary" mb={1}>
-                    Horas por Freelancer
-                  </Typography>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Freelancer</TableCell>
-                          <TableCell align="right">Horas</TableCell>
-                          <TableCell align="right">Custo</TableCell>
-                          <TableCell sx={{ width: 180 }}>Distribuição</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {analyticsData.byFreelancer.length === 0 && (
+                <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                  <CardContent sx={{ p: '22px !important' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
+                      Horas e custo por freelancer
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Leitura individual da carga e do custo interno do mês.
+                    </Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
                           <TableRow>
-                            <TableCell colSpan={4} align="center">
-                              <Typography color="text.secondary" variant="body2" py={2}>Sem dados para {analyticsMonth}</Typography>
-                            </TableCell>
+                            <TableCell>Freelancer</TableCell>
+                            <TableCell align="right">Horas</TableCell>
+                            <TableCell align="right">Custo</TableCell>
+                            <TableCell sx={{ width: 180 }}>Distribuição</TableCell>
                           </TableRow>
-                        )}
-                        {analyticsData.byFreelancer.map((row) => {
-                          const maxMins = Math.max(...analyticsData.byFreelancer.map((r) => r.minutes), 1);
-                          const pct = (row.minutes / maxMins) * 100;
-                          return (
-                            <TableRow key={row.name}>
-                              <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
-                              <TableCell align="right">{fmtH(row.minutes)}</TableCell>
-                              <TableCell align="right">{brl(row.cost)}</TableCell>
-                              <TableCell>
-                                <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden', height: 8 }}>
-                                  <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: 'primary.main', borderRadius: 1 }} />
-                                </Box>
+                        </TableHead>
+                        <TableBody>
+                          {analyticsData.byFreelancer.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={4} align="center">
+                                <Typography color="text.secondary" variant="body2" py={2}>Sem dados para {analyticsMonth}</Typography>
                               </TableCell>
                             </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
-
-                <Divider />
+                          )}
+                          {analyticsData.byFreelancer.map((row) => {
+                            const maxMins = Math.max(...analyticsData.byFreelancer.map((r) => r.minutes), 1);
+                            const pct = (row.minutes / maxMins) * 100;
+                            return (
+                              <TableRow key={row.name}>
+                                <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
+                                <TableCell align="right">{fmtH(row.minutes)}</TableCell>
+                                <TableCell align="right">{brl(row.cost)}</TableCell>
+                                <TableCell>
+                                  <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden', height: 8 }}>
+                                    <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: 'primary.main', borderRadius: 1 }} />
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
 
                 {/* By client */}
-                <Box>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.secondary" mb={1}>
-                    Horas por Cliente
-                  </Typography>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Cliente</TableCell>
-                          <TableCell align="right">Horas investidas</TableCell>
-                          <TableCell align="right">Custo interno</TableCell>
-                          <TableCell align="right">Receita (P&L)</TableCell>
-                          <TableCell align="right">Margem</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {analyticsData.byClient.length === 0 && (
+                <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                  <CardContent sx={{ p: '22px !important' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
+                      Clientes, receita e margem
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Relacione horas investidas com receita e margem para entender o peso da equipe em cada conta.
+                    </Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
                           <TableRow>
-                            <TableCell colSpan={5} align="center">
-                              <Typography color="text.secondary" variant="body2" py={2}>Sem dados</Typography>
-                            </TableCell>
+                            <TableCell>Cliente</TableCell>
+                            <TableCell align="right">Horas investidas</TableCell>
+                            <TableCell align="right">Custo interno</TableCell>
+                            <TableCell align="right">Receita (P&L)</TableCell>
+                            <TableCell align="right">Margem</TableCell>
                           </TableRow>
-                        )}
-                        {analyticsData.byClient.map((row) => {
-                          const plRow = analyticsData.pl.find((p: any) =>
-                            (p.client_name ?? '').toLowerCase().includes(row.client.toLowerCase()) ||
-                            row.client.toLowerCase().includes((p.client_name ?? '').toLowerCase())
-                          );
-                          const receita = plRow ? (typeof plRow.receita === 'number' ? plRow.receita : 0) : 0;
-                          const margem = receita - row.cost;
-                          return (
-                            <TableRow key={row.client} hover>
-                              <TableCell>{row.client}</TableCell>
-                              <TableCell align="right">{fmtH(row.minutes)}</TableCell>
-                              <TableCell align="right">{brl(row.cost)}</TableCell>
-                              <TableCell align="right">{receita > 0 ? brl(receita) : '—'}</TableCell>
-                              <TableCell align="right">
-                                {receita > 0 ? (
-                                  <Chip
-                                    label={brl(margem)}
-                                    size="small"
-                                    color={margem >= 0 ? 'success' : 'error'}
-                                  />
-                                ) : '—'}
+                        </TableHead>
+                        <TableBody>
+                          {analyticsData.byClient.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5} align="center">
+                                <Typography color="text.secondary" variant="body2" py={2}>Sem dados</Typography>
                               </TableCell>
                             </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                          )}
+                          {analyticsData.byClient.map((row) => {
+                            const plRow = analyticsData.pl.find((p: any) =>
+                              (p.client_name ?? '').toLowerCase().includes(row.client.toLowerCase()) ||
+                              row.client.toLowerCase().includes((p.client_name ?? '').toLowerCase())
+                            );
+                            const receita = plRow ? (typeof plRow.receita === 'number' ? plRow.receita : 0) : 0;
+                            const margem = receita - row.cost;
+                            return (
+                              <TableRow key={row.client} hover>
+                                <TableCell>{row.client}</TableCell>
+                                <TableCell align="right">{fmtH(row.minutes)}</TableCell>
+                                <TableCell align="right">{brl(row.cost)}</TableCell>
+                                <TableCell align="right">{receita > 0 ? brl(receita) : '—'}</TableCell>
+                                <TableCell align="right">
+                                  {receita > 0 ? (
+                                    <Chip
+                                      label={brl(margem)}
+                                      size="small"
+                                      color={margem >= 0 ? 'success' : 'error'}
+                                    />
+                                  ) : '—'}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
               </Stack>
             )}
-          </Box>
+          </Stack>
         )}
 
         {tab === 1 && (
-          <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
+                Cadastro e contatos da equipe
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Ajuste dados de freelancers e mantenha o diretório interno da Edro no mesmo fluxo.
+              </Typography>
+            </Box>
+
+            <Grid container spacing={1.5}>
+              {[
+                {
+                  key: 'freelas',
+                  title: 'Freelancers cadastrados',
+                  value: freelancers.length,
+                  helper: `${activeCount} ativos na operação`,
+                  icon: <IconUsers size={18} />,
+                  accent: '#E85219',
+                },
+                {
+                  key: 'contato',
+                  title: 'Com contato direto',
+                  value: freelancersWithContactCount,
+                  helper: 'Telefone, e-mail ou WhatsApp',
+                  icon: <IconMail size={18} />,
+                  accent: '#13DEB9',
+                },
+                {
+                  key: 'internos',
+                  title: 'Equipe interna',
+                  value: internalPeople.length,
+                  helper: `${internalWithIdentityCount} com identidade registrada`,
+                  icon: <IconUserCheck size={18} />,
+                  accent: '#5D87FF',
+                },
+                {
+                  key: 'revisao',
+                  title: 'Pedem revisão',
+                  value: freelancerReviewCount,
+                  helper: 'Cadastros quase vazios',
+                  icon: <IconId size={18} />,
+                  accent: '#f59e0b',
+                },
+              ].map((item) => (
+                <Grid key={item.key} size={{ xs: 12, sm: 6, xl: 3 }}>
+                  <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                    <CardContent sx={{ p: '18px !important' }}>
+                      <Stack spacing={1.25}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            {item.title}
+                          </Typography>
+                          <Box
+                            sx={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 2,
+                              display: 'grid',
+                              placeItems: 'center',
+                              color: item.accent,
+                              bgcolor: alpha(item.accent, 0.12),
+                            }}
+                          >
+                            {item.icon}
+                          </Box>
+                        </Stack>
+                        <Typography variant="h4" fontWeight={800}>
+                          {item.value}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {item.helper}
+                        </Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: '22px !important' }}>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
+                      Freelancers da rede
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Ajuste dados de contato, documentos, Pix e perfil operacional sem sair desta área.
+                    </Typography>
+                  </Box>
+                  <FreelancerContacts freelancers={freelancers} loading={loading} onUpdated={load} />
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {internalPeople.length > 0 && (
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: '22px !important' }}>
+                  <Stack spacing={2}>
+                    <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+                      <IconUserCheck size={18} color="#E85219" />
+                      <Typography variant="h6" fontWeight={800}>
+                        Equipe interna da Edro
+                      </Typography>
+                      <Chip label={`${internalPeople.length} pessoas`} size="small" variant="outlined" />
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary">
+                      Diretório interno para leitura rápida e ajuste cadastral do time fixo da Edro.
+                    </Typography>
+                    <Grid container spacing={1.5}>
+                      {internalPeople.map((p) => {
+                        const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
+                        const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
+                        return (
+                          <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                            <Card
+                              variant="outlined"
+                              sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { borderColor: 'primary.main' } }}
+                              onClick={() => {
+                                setEditPerson(p);
+                                setEditForm({ display_name: p.display_name, is_internal: p.is_internal ?? false, notes: p.notes ?? '' });
+                              }}
+                            >
+                              <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                  <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
+                                    {!p.avatar_url ? initials(p.display_name) : null}
+                                  </Avatar>
+                                  <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
+                                    {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
+                                    {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
+                                  </Box>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+          </Stack>
         )}
 
         {tab === 0 && (
@@ -1577,105 +1868,6 @@ export default function EquipePage() {
         )}
       </Box>
 
-      {/* Internal people from Pessoas directory */}
-      {tab === 0 && internalPeople.length > 0 && (
-        <Box sx={{ mt: 3 }}>
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-            <IconUserCheck size={18} color="#E85219" />
-            <Typography variant="subtitle2" fontWeight={700}>
-              Pessoas Internas ({internalPeople.length})
-            </Typography>
-            <Chip label="do Diretório de Pessoas" size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
-          </Stack>
-          <Grid container spacing={1.5}>
-            {internalPeople.map((p) => {
-              const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
-              const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
-              return (
-                <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                    <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: avatarColor(p.display_name) }}>
-                          {!p.avatar_url ? initials(p.display_name) : null}
-                        </Avatar>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
-                          {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
-                          {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
-                        </Box>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
-        </Box>
-      )}
-
-      {/* ── Diretório de Pessoas (tab 3) ─────────────────────────────── */}
-      {tab === 3 && (
-        <Box>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
-            <Typography variant="subtitle1" fontWeight={700}>
-              Diretório de Pessoas {!allPeopleLoading && allPeople.length > 0 && `(${allPeople.length})`}
-            </Typography>
-            <TextField
-              size="small"
-              placeholder="Buscar pelo nome ou contato..."
-              value={peopleSearch}
-              onChange={(e) => setPeopleSearch(e.target.value)}
-              InputProps={{ startAdornment: <InputAdornment position="start"><IconSearch size={16} /></InputAdornment> }}
-              sx={{ width: 260 }}
-            />
-          </Stack>
-
-          {allPeopleLoading && <CircularProgress size={24} />}
-
-          {!allPeopleLoading && (
-            <Grid container spacing={1.5}>
-              {allPeople
-                .filter((p) => {
-                  if (!peopleSearch.trim()) return true;
-                  const q = peopleSearch.toLowerCase();
-                  if (p.display_name.toLowerCase().includes(q)) return true;
-                  return (p.identities ?? []).some((i) => i.value.toLowerCase().includes(q));
-                })
-                .map((p) => {
-                  const email = p.identities?.find((i) => i.type === 'email')?.value ?? null;
-                  const phone = p.identities?.find((i) => i.type === 'phone_e164' || i.type === 'whatsapp_jid')?.value ?? null;
-                  return (
-                    <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                      <Card
-                        variant="outlined"
-                        sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { borderColor: 'primary.main' } }}
-                        onClick={() => { setEditPerson(p); setEditForm({ display_name: p.display_name, is_internal: p.is_internal ?? false, notes: p.notes ?? '' }); }}
-                      >
-                        <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-                          <Stack direction="row" spacing={1.5} alignItems="center">
-                            <Avatar src={p.avatar_url ?? undefined} sx={{ width: 36, height: 36, fontSize: '0.75rem', bgcolor: p.is_internal ? 'primary.main' : avatarColor(p.display_name) }}>
-                              {!p.avatar_url ? initials(p.display_name) : null}
-                            </Avatar>
-                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                              <Stack direction="row" alignItems="center" spacing={0.5}>
-                                <Typography variant="body2" fontWeight={700} noWrap>{p.display_name}</Typography>
-                                {p.is_internal && <Chip label="interno" size="small" color="primary" sx={{ height: 16, fontSize: '0.6rem' }} />}
-                              </Stack>
-                              {email && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{email}</Typography>}
-                              {phone && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{phone}</Typography>}
-                            </Box>
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  );
-                })}
-            </Grid>
-          )}
-        </Box>
-      )}
-
       {/* Edit person dialog */}
       <Dialog open={Boolean(editPerson)} onClose={() => setEditPerson(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Editar pessoa</DialogTitle>
@@ -1723,18 +1915,13 @@ export default function EquipePage() {
                   is_internal: editForm.is_internal,
                   notes: editForm.notes || null,
                 });
-                setAllPeople((prev) => prev.map((p) =>
+                setInternalPeople((prev) => prev.map((p) =>
                   p.id === editPerson.id
                     ? { ...p, display_name: editForm.display_name.trim(), is_internal: editForm.is_internal, notes: editForm.notes || null }
                     : p,
-                ));
-                setInternalPeople((prev) => prev.map((p) =>
-                  p.id === editPerson.id
-                    ? { ...p, display_name: editForm.display_name.trim(), is_internal: editForm.is_internal }
-                    : p,
                 ).filter((p) => p.is_internal));
                 setEditPerson(null);
-              } catch { /* TODO: show error */ }
+              } catch (e: any) { setError(e?.message ?? 'Erro ao salvar pessoa'); }
               finally { setEditSaving(false); }
             }}
           >
@@ -2140,6 +2327,14 @@ export default function EquipePage() {
           50% { opacity: 0.3; }
         }
       `}</style>
+      </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="Equipe">
+      {content}
     </AppShell>
   );
 }

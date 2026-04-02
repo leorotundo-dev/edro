@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import type { OperationsClientLookup, OperationsJob, OperationsLookup, OperationsOwner } from './model';
 
 type LookupResponse = {
@@ -129,10 +129,14 @@ export function useOperationsData(query = '?active=true') {
     if (payload.status) {
       return changeStatus(jobId, payload.status);
     }
-    // For other fields, optimistically update local state only
-    setJobs((current) => current.map((j) => j.id === jobId ? { ...j, ...payload } : j));
+    const response = await apiPatch<{ data?: OperationsJob }>(`/jobs/${jobId}`, payload);
+    if (response?.data) {
+      setJobs((current) => upsertJob(current, response.data!));
+      return response.data;
+    }
+    await load();
     return null;
-  }, [changeStatus]);
+  }, [changeStatus, load]);
 
   const fetchJob = useCallback(async (jobId: string) => {
     // Return from local state (already loaded from Trello feed)

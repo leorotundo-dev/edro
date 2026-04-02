@@ -53,6 +53,8 @@ export interface ScoreBreakdown {
   capacityAvailable: number;
   loadPenalty: number;
   historicalPerformance: number;
+  disponibilidade: number;
+  tempoResposta: number;
 }
 
 export interface AllocationProposal {
@@ -71,6 +73,7 @@ export interface AllocationProposal {
   approvalRate: number | null;
   jobsCompleted: number;
   rationale: string;
+  skills: Array<{ id: string; label: string; level: string }>;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,8 +121,26 @@ function estimateAvailableAt(fl: any, now: Date): Date {
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
 
+// Level score for skill proficiency (ArsenalPicker levels)
+const SKILL_LEVEL_SCORE: Record<string, number> = { ninja: 50, pleno: 40, junior: 25 };
+
+/** Parse skills_json JSONB into a map of skillId → proficiency level. */
+function parseSkillsJson(raw: unknown): Record<string, string> {
+  const arr: Array<{ id?: string; level?: string }> = Array.isArray(raw)
+    ? raw
+    : typeof raw === 'string' && raw.trim()
+    ? (() => { try { return JSON.parse(raw); } catch { return []; } })()
+    : [];
+  const map: Record<string, string> = {};
+  for (const s of arr) {
+    if (s?.id) map[s.id] = s.level ?? 'pleno';
+  }
+  return map;
+}
+
 function scoreCandidate(fl: any, job: any): ScoreBreakdown {
   const skills: string[] = fl.skills ?? [];
+  const skillLevels = parseSkillsJson(fl.skills_json);
   const aiTools: string[] = fl.ai_tools ?? [];
   const platformExpertise: string[] = fl.platform_expertise ?? [];
   const level: string = fl.experience_level ?? 'mid';
@@ -129,14 +150,20 @@ function scoreCandidate(fl: any, job: any): ScoreBreakdown {
   const weeklyCapMins = (fl.weekly_capacity_hours ?? 20) * 60;
   const activeMins = fl.active_minutes_this_week ?? 0;
 
-  // ── Skill match ──
+  // ── Skill match (level-aware) ──
   let skillMatch = 0;
   if (job.required_skill) {
-    skillMatch = skills.includes(job.required_skill) ? 40 : -30;
+    if (skills.includes(job.required_skill)) {
+      const proficiency = skillLevels[job.required_skill] ?? 'pleno';
+      skillMatch = SKILL_LEVEL_SCORE[proficiency] ?? 40;
+    } else {
+      skillMatch = -30;
+    }
   }
   const secondarySkill = JOB_TYPE_SKILL[job.job_type ?? ''];
   if (secondarySkill && secondarySkill !== job.required_skill && skills.includes(secondarySkill)) {
-    skillMatch += 15;
+    const secLevel = skillLevels[secondarySkill] ?? 'pleno';
+    skillMatch += secLevel === 'ninja' ? 20 : 15;
   }
 
   // ── Platform expertise ──
@@ -182,14 +209,45 @@ function scoreCandidate(fl: any, job: any): ScoreBreakdown {
     historicalPerformance += Math.round((Number(fl.approval_rate) - 70) * 0.2);
   }
 
-  return { skillMatch, platformFit, aiToolsBonus, experienceFit, capacityAvailable, loadPenalty, historicalPerformance };
+  // ── Disponibilidade: penaliza se hoje não é dia de trabalho ou está fora do horário ──
+  let disponibilidade = 0;
+  const now = new Date();
+  const todayKey = DAY_MAP[now.getDay()];
+  const workingDays: string[] = fl.available_days?.length > 0
+    ? fl.available_days
+    : ['mon', 'tue', 'wed', 'thu', 'fri'];
+  if (!workingDays.includes(todayKey)) {
+    disponibilidade = -15; // não trabalha hoje
+  } else if (fl.available_hours_start && fl.available_hours_end) {
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+    const [sh, sm] = String(fl.available_hours_start).split(':').map(Number);
+    const [eh, em] = String(fl.available_hours_end).split(':').map(Number);
+    const start = (sh || 0) + (sm || 0) / 60;
+    const end = (eh || 0) + (em || 0) / 60;
+    if (currentHour < start || currentHour > end) {
+      disponibilidade = -8; // fora do horário de trabalho
+    }
+  }
+
+  // ── Tempo de resposta: baseado em avg_response_minutes (EMA histórica) ──
+  let tempoResposta = 0;
+  if (fl.avg_response_minutes !== null && fl.avg_response_minutes !== undefined) {
+    const mins = Number(fl.avg_response_minutes);
+    if (mins <= 60)        tempoResposta = 15;  // responde em até 1h
+    else if (mins <= 240)  tempoResposta = 8;   // até 4h
+    else if (mins <= 480)  tempoResposta = 0;   // até 8h (neutro)
+    else                   tempoResposta = -10; // mais de 8h
+  }
+
+  return { skillMatch, platformFit, aiToolsBonus, experienceFit, capacityAvailable, loadPenalty, historicalPerformance, disponibilidade, tempoResposta };
 }
 
 function buildRationale(fl: any, job: any, bd: ScoreBreakdown, remainingMins: number, estMins: number): string {
   const parts: string[] = [];
 
-  if (bd.skillMatch >= 40) parts.push(`skill "${job.required_skill}" ✓`);
-  else if (bd.skillMatch > 40) parts.push(`skill "${job.required_skill}" ✓ + secundária`);
+  if (bd.skillMatch >= 50) parts.push(`skill "${job.required_skill}" ✓ ninja`);
+  else if (bd.skillMatch >= 40) parts.push(`skill "${job.required_skill}" ✓`);
+  else if (bd.skillMatch > 0) parts.push(`skill secundária compatível`);
   else if (bd.skillMatch < 0) parts.push(`sem "${job.required_skill}" no perfil`);
   else if (bd.skillMatch > 0) parts.push(`skill secundária compatível`);
 
@@ -214,6 +272,10 @@ function buildRationale(fl: any, job: any, bd: ScoreBreakdown, remainingMins: nu
   const freeH = Math.round(remainingMins / 60);
   if (freeH > 0) parts.push(`~${freeH}h livres`);
   if (estMins > 0) parts.push(`est. ${estMins >= 60 ? `${Math.round(estMins / 60)}h` : `${estMins}min`}`);
+
+  if (bd.disponibilidade < 0) parts.push(bd.disponibilidade === -15 ? 'fora do dia' : 'fora do horário');
+  if (bd.tempoResposta >= 15) parts.push('responde rápido');
+  else if (bd.tempoResposta < 0) parts.push('resposta lenta');
 
   return parts.join(' · ');
 }
@@ -240,6 +302,7 @@ export async function proposeAllocations(
        fp.display_name,
        fp.specialty,
        fp.skills,
+       fp.skills_json,
        fp.tools,
        fp.ai_tools,
        fp.experience_level,
@@ -250,6 +313,7 @@ export async function proposeAllocations(
        fp.available_hours_end,
        fp.punctuality_score,
        fp.approval_rate,
+       fp.avg_response_minutes,
        fp.jobs_completed,
        fp.platform_expertise,
        fp.unavailable_until,
@@ -282,7 +346,8 @@ export async function proposeAllocations(
     const bd = scoreCandidate(fl, job);
     const totalRaw =
       bd.skillMatch + bd.platformFit + bd.aiToolsBonus +
-      bd.experienceFit + bd.capacityAvailable + bd.loadPenalty + bd.historicalPerformance;
+      bd.experienceFit + bd.capacityAvailable + bd.loadPenalty + bd.historicalPerformance +
+      bd.disponibilidade + bd.tempoResposta;
 
     // Soft floor: filter only truly incompatible candidates (raw < -15)
     if (totalRaw < -15) continue;
@@ -296,6 +361,13 @@ export async function proposeAllocations(
 
     const availableAt = estimateAvailableAt(fl, now);
     const completionAt = new Date(availableAt.getTime() + estMins * 60 * 1000);
+
+    // Build skills list for display (from skills_json if available, else from skills[])
+    const skillLevels = parseSkillsJson(fl.skills_json);
+    const skillsForDisplay: Array<{ id: string; label: string; level: string }> =
+      Object.keys(skillLevels).length > 0
+        ? Object.entries(skillLevels).map(([id, lvl]) => ({ id, label: id, level: lvl }))
+        : (fl.skills ?? []).map((id: string) => ({ id, label: id, level: 'pleno' }));
 
     proposals.push({
       freelancerId: fl.id,
@@ -313,6 +385,7 @@ export async function proposeAllocations(
       approvalRate: fl.approval_rate !== null ? Number(fl.approval_rate) : null,
       jobsCompleted: fl.jobs_completed ?? 0,
       rationale: buildRationale(fl, job, bd, remainingMins, estMins),
+      skills: skillsForDisplay,
     });
   }
 

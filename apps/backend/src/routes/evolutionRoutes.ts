@@ -658,7 +658,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
-  // ── Restart instance (delete + recreate) ──────────────────────────────
+  // ── Restart instance (soft or hard recreate) ──────────────────────────
   app.post('/whatsapp-groups/restart', {
     preHandler: adminGuards,
   }, async (request, reply) => {
@@ -666,10 +666,11 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     if (!isConfigured()) {
       return reply.code(503).send({ error: 'Evolution API não configurada.' });
     }
+    const { force_recreate = false } = (request.body as any) ?? {};
     try {
-      await restartInstance(tenantId);
+      await restartInstance(tenantId, Boolean(force_recreate));
       const qr = await getQrCode(tenantId, { pollSeconds: 20 });
-      return reply.send({ success: true, qr, message: 'Instância reiniciada. Escaneie o QR Code.' });
+      return reply.send({ success: true, qr, message: force_recreate ? 'Sessão reiniciada do zero. Escaneie o QR Code.' : 'Instância reiniciada. Escaneie o QR Code.' });
     } catch (err: any) {
       return reply.code(500).send({ error: err.message });
     }

@@ -1,7 +1,7 @@
-import OperationsAgendaClient from './OperationsAgendaClient';
+import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Agenda | Central de Operações | Edro Studio' };
 
 export default function Page() {
-  return <OperationsAgendaClient />;
+  redirect('/admin/operacoes/semana?view=calendar');
 }

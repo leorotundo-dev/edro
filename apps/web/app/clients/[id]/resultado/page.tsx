@@ -1,82 +1,114 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import { IconChartBar, IconCoin, IconStars } from '@tabler/icons-react';
 import ClientPerformanceClient from '../performance/ClientPerformanceClient';
 import ReporteiMetricsClient from '../metricas/ReporteiMetricsClient';
-import OperacionalPage from '../metricas/OperacionalPage';
 import ValorPage from '../metricas/ValorPage';
-import MarcaPage from '../metricas/MarcaPage';
-import EstrategiaPage from '../metricas/EstrategiaPage';
+import OperacionalPage from '../metricas/OperacionalPage';
 import ClientReportsPage from '../reports/page';
+import EstrategiaPage from '../metricas/EstrategiaPage';
+import MarcaPage from '../metricas/MarcaPage';
 
-function SectionAnchor({ id, label }: { id: string; label: string }) {
+type ResultadoSub = 'performance' | 'financeiro' | 'estrategia';
+
+const SUB_TABS = [
+  { value: 'performance' as const, label: 'Performance', icon: <IconChartBar size={16} /> },
+  { value: 'financeiro' as const,  label: 'Financeiro',  icon: <IconCoin size={16} /> },
+  { value: 'estrategia' as const,  label: 'Estratégia',  icon: <IconStars size={16} /> },
+];
+
+function parseSub(v: string | null): ResultadoSub {
+  if (v === 'financeiro') return 'financeiro';
+  if (v === 'estrategia') return 'estrategia';
+  return 'performance';
+}
+
+// ── Performance — Reportei + posts + métricas ─────────────────────────────────
+
+function PerformanceSection({ clientId }: { clientId: string }) {
   return (
-    <Box id={id} sx={{ scrollMarginTop: 80 }}>
-      <Typography variant="overline" color="text.secondary" fontWeight={700} letterSpacing={1.5}>
-        {label}
-      </Typography>
+    <Box>
+      <ClientPerformanceClient clientId={clientId} />
+      <Divider sx={{ my: 5 }} />
+      <ReporteiMetricsClient clientId={clientId} />
     </Box>
   );
 }
 
+// ── Financeiro — ROI + saúde operacional + relatórios ─────────────────────────
+
+function FinanceiroSection({ clientId }: { clientId: string }) {
+  return (
+    <Box>
+      <ValorPage clientId={clientId} />
+      <Divider sx={{ my: 5 }} />
+      <OperacionalPage clientId={clientId} />
+      <Divider sx={{ my: 5 }} />
+      <ClientReportsPage />
+    </Box>
+  );
+}
+
+// ── Estratégia — Estratégia do mês + Marca + Big Idea ─────────────────────────
+
+function EstrategiaSection({ clientId }: { clientId: string }) {
+  return (
+    <Box>
+      <EstrategiaPage clientId={clientId} />
+      <Divider sx={{ my: 5 }} />
+      <MarcaPage clientId={clientId} />
+    </Box>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function ResultadoPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const clientId = params.id as string;
+  const [tab, setTab] = useState<ResultadoSub>(() => parseSub(searchParams.get('sub')));
+
+  useEffect(() => {
+    setTab(parseSub(searchParams.get('sub')));
+  }, [searchParams]);
+
+  const changeTab = (value: ResultadoSub) => {
+    setTab(value);
+    const next = new URLSearchParams(searchParams.toString());
+    if (value === 'performance') {
+      next.delete('sub');
+    } else {
+      next.set('sub', value);
+    }
+    const qs = next.toString();
+    router.replace(qs ? `/clients/${clientId}/resultado?${qs}` : `/clients/${clientId}/resultado`);
+  };
 
   return (
-    <Stack spacing={0} divider={<Divider sx={{ my: 5 }} />}>
-      <Box>
-        <SectionAnchor id="performance" label="Performance" />
-        <Box sx={{ mt: 2 }}>
-          <ClientPerformanceClient clientId={clientId} />
-        </Box>
-      </Box>
+    <Box>
+      <Tabs
+        value={tab}
+        onChange={(_, v) => changeTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
+      >
+        {SUB_TABS.map((t) => (
+          <Tab key={t.value} value={t.value} label={t.label} icon={t.icon} iconPosition="start" sx={{ fontSize: '0.85rem' }} />
+        ))}
+      </Tabs>
 
-      <Box>
-        <SectionAnchor id="reportei" label="Métricas Reportei" />
-        <Box sx={{ mt: 2 }}>
-          <ReporteiMetricsClient clientId={clientId} />
-        </Box>
-      </Box>
-
-      <Box>
-        <SectionAnchor id="operacional" label="Saúde Operacional" />
-        <Box sx={{ mt: 2 }}>
-          <OperacionalPage clientId={clientId} />
-        </Box>
-      </Box>
-
-      <Box>
-        <SectionAnchor id="valor" label="Valor & ROI" />
-        <Box sx={{ mt: 2 }}>
-          <ValorPage clientId={clientId} />
-        </Box>
-      </Box>
-
-      <Box>
-        <SectionAnchor id="marca" label="Marca & Conteúdo" />
-        <Box sx={{ mt: 2 }}>
-          <MarcaPage clientId={clientId} />
-        </Box>
-      </Box>
-
-      <Box>
-        <SectionAnchor id="estrategia" label="Estratégia" />
-        <Box sx={{ mt: 2 }}>
-          <EstrategiaPage clientId={clientId} />
-        </Box>
-      </Box>
-
-      <Box>
-        <SectionAnchor id="relatorios" label="Relatórios" />
-        <Box sx={{ mt: 2 }}>
-          <ClientReportsPage />
-        </Box>
-      </Box>
-    </Stack>
+      {tab === 'performance' && <PerformanceSection clientId={clientId} />}
+      {tab === 'financeiro'  && <FinanceiroSection  clientId={clientId} />}
+      {tab === 'estrategia'  && <EstrategiaSection  clientId={clientId} />}
+    </Box>
   );
 }

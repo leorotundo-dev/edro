@@ -1,5 +1,7 @@
 import { env } from '../env';
 import { generateCopy } from './ai/copyService';
+import { query } from '../db';
+import { trendAggregator } from '../providers';
 
 /* ============================================================================
 1) CORE TYPES
@@ -1346,20 +1348,94 @@ function fitFactor(ev: CalendarEvent, hasStrategic: boolean) {
 ============================================================================ */
 
 async function fetchTrendSignals(
-  _client: ClientProfile,
+  client: ClientProfile,
   _platform: Platform,
   _ym: YearMonth
 ): Promise<TrendSignal[]> {
-  // TODO: call Trend Aggregator API
-  return [];
+  if (!client.trend_profile.enable_trends) return [];
+
+  const topics = [
+    ...(client.keywords ?? []),
+    ...(client.pillars ?? []),
+    client.segment_primary,
+  ].map((t) => t.toLowerCase()).filter(Boolean);
+  const uniqueTopics = Array.from(new Set(topics)).slice(0, 30);
+  if (!uniqueTopics.length) return [];
+
+  try {
+    const aggregate = await trendAggregator.aggregate({
+      topics: uniqueTopics,
+      locality: { country: client.country, uf: client.uf, city: client.city },
+      window: '30d',
+      sources: client.trend_profile.sources,
+    });
+
+    const validSources: TrendSource[] = ['google', 'tiktok', 'youtube', 'pinterest', 'exploding'];
+    return (aggregate.normalized_topics ?? aggregate.signals)
+      .filter((ts) => ts.topic)
+      .map((ts) => {
+        const score = Number(ts.score ?? 50);
+        const momentum: TrendSignal['momentum'] = score > 70 ? 'high' : score > 40 ? 'medium' : 'low';
+        const stage: TrendSignal['stage'] = score > 80 ? 'peak' : score > 55 ? 'growing' : score > 30 ? 'emerging' : 'cooling';
+        const rawSrc = ts.source as TrendSource;
+        return {
+          source: validSources.includes(rawSrc) ? rawSrc : (client.trend_profile.sources[0] ?? 'google'),
+          term: ts.topic!,
+          momentum,
+          stage,
+          relatedTags: [ts.topic!.toLowerCase()],
+          confidence: Number(ts.confidence ?? 0.5),
+        };
+      });
+  } catch {
+    return [];
+  }
 }
 
 async function fetchPerformanceSignals(
-  _client: ClientProfile,
-  _platform: Platform
+  client: ClientProfile,
+  platform: Platform
 ): Promise<PerformanceSignal[]> {
-  // TODO: call Reportei or platform APIs
-  return [];
+  try {
+    const result = await query<{
+      platform: string;
+      format_name: string;
+      avg_engagement: string | null;
+      avg_roas: string | null;
+      post_count: string;
+    }>(
+      `SELECT cf.platform,
+              cf.format_name,
+              AVG(fpm.engagement_rate)::numeric(5,2) AS avg_engagement,
+              AVG(fpm.roas)::numeric(10,2)           AS avg_roas,
+              COUNT(*)::text                         AS post_count
+         FROM format_performance_metrics fpm
+         JOIN campaign_formats cf ON cf.id = fpm.campaign_format_id
+        WHERE fpm.client_id = $1
+          AND cf.platform = $2
+          AND fpm.measurement_date >= now() - interval '90 days'
+        GROUP BY cf.platform, cf.format_name
+        ORDER BY AVG(fpm.engagement_rate) DESC NULLS LAST
+        LIMIT 20`,
+      [client.id, platform],
+    );
+
+    return result.rows.map((r) => {
+      const eng = Number(r.avg_engagement ?? 0);
+      const roas = Number(r.avg_roas ?? 0);
+      const engScore = Math.min(100, Math.round(eng * 10));
+      const roasScore = Math.min(100, Math.round(roas * 10));
+      const performanceScore = Math.round((engScore + roasScore) / 2);
+      return {
+        platform: r.platform as Platform,
+        format: r.format_name,
+        performanceScore,
+        note: `${r.post_count} medições — eng ${eng.toFixed(1)}% roas ${roas.toFixed(1)}x`,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 function trendBoostForEvent(

@@ -6,6 +6,8 @@ on:
       - CodeQL
     types:
       - completed
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       deploy_backend:
@@ -43,6 +45,7 @@ concurrency:
 
 jobs:
   prepare:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
@@ -64,24 +67,6 @@ jobs:
           else
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Validate workflow_run trigger
-        if: github.event_name == 'workflow_run'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const run = context.payload.workflow_run;
-            if (run.event !== 'push') {
-              core.setFailed(`Deploy automatico ignora workflow_run do tipo ${run.event}.`);
-              return;
-            }
-            if (run.head_branch !== 'main') {
-              core.setFailed(`Deploy automatico ignora workflow_run fora da main (${run.head_branch}).`);
-              return;
-            }
-            if (run.conclusion !== 'success') {
-              core.setFailed(`CodeQL concluiu com status ${run.conclusion}.`);
-            }
 
       - name: Validate workflow_dispatch branch
         if: github.event_name == 'workflow_dispatch'

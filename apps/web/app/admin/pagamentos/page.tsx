@@ -212,7 +212,7 @@ function buildMonthOptions(): { value: string; label: string }[] {
   return opts;
 }
 
-export default function PagamentosPage() {
+export function PagamentosView({ embedded = false }: { embedded?: boolean }) {
   const monthOptions = buildMonthOptions();
   const [tab, setTab]                     = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
@@ -295,14 +295,21 @@ export default function PagamentosPage() {
 
   const hasPayables = payables.length > 0;
 
-  return (
-    <AppShell title="Pagamentos">
-      <Box sx={{ p: 3, maxWidth: 1100 }}>
+  const content = (
+      <Box sx={{ p: embedded ? 0 : 3, maxWidth: embedded ? 'none' : 1100 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <IconReceipt2 size={22} />
-            <Typography variant="h5" fontWeight={700}>Pagamentos</Typography>
-          </Stack>
+          {!embedded ? (
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <IconReceipt2 size={22} />
+              <Typography variant="h5" fontWeight={700}>Pagamentos</Typography>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Chip label={`${payables.length} repasses`} size="small" variant="outlined" />
+              <Chip label={`${openCount} a pagar`} size="small" color="warning" variant="outlined" />
+              <Chip label={`${paidCount} pagos`} size="small" color="success" variant="outlined" />
+            </Stack>
+          )}
 
           {tab === 0 && (
             <Stack direction="row" spacing={1.5} alignItems="center">
@@ -454,8 +461,9 @@ export default function PagamentosPage() {
         )}
         </>}
       </Box>
+  );
 
-      {/* Close month confirmation dialog */}
+  const dialog = (
       <Dialog open={closeDialog} onClose={() => setCloseDialog(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Fechar mês {selectedMonth}?</DialogTitle>
         <DialogContent>
@@ -475,6 +483,25 @@ export default function PagamentosPage() {
           </Button>
         </DialogActions>
       </Dialog>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {content}
+        {dialog}
+      </>
+    );
+  }
+
+  return (
+    <AppShell title="Pagamentos">
+      {content}
+      {dialog}
     </AppShell>
   );
+}
+
+export default function PagamentosPage() {
+  return <PagamentosView />;
 }

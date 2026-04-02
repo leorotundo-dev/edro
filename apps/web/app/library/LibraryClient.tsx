@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet, apiPatch, apiPost, buildApiUrl } from '@/lib/api';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -25,6 +26,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/material/styles';
 import { IconUpload, IconNote, IconLink } from '@tabler/icons-react';
 
 type ClientRow = {
@@ -255,7 +257,10 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
     }
   };
 
-  const totalLabel = useMemo(() => `Showing ${items.length} files`, [items.length]);
+  const fileCount = useMemo(() => items.filter((item) => item.type === 'file').length, [items]);
+  const noteCount = useMemo(() => items.filter((item) => item.type === 'note').length, [items]);
+  const linkCount = useMemo(() => items.filter((item) => item.type === 'link').length, [items]);
+  const aiEnabledCount = useMemo(() => items.filter((item) => item.use_in_ai).length, [items]);
 
   if (loading && clients.length === 0) {
     return (
@@ -278,11 +283,56 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
         </Card>
       ) : null}
 
-      <Box>
-        <Typography variant="h4">Global Reference Library Hub</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Centralized repository for operational assets, brand guidelines, and reference materials.
-        </Typography>
+      <WorkspaceHero
+        eyebrow="Biblioteca"
+        title="Biblioteca de referências"
+        description="Um repositório só para brandbooks, notas, links e materiais que precisam entrar no contexto da agência e dos clientes."
+        leftChips={[
+          { label: `${items.length} ativos` },
+          { label: selectedClient?.name || 'Visão global' },
+        ]}
+      />
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
+          gap: 1.5,
+        }}
+      >
+        {[
+          { label: 'Arquivos', value: fileCount, helper: 'brandbooks e anexos', color: '#5D87FF' },
+          { label: 'Notas', value: noteCount, helper: 'contexto textual salvo', color: '#13DEB9' },
+          { label: 'Links', value: linkCount, helper: 'URLs e referências externas', color: '#E85219' },
+          { label: 'IA ligada', value: aiEnabledCount, helper: 'ativos usados no contexto', color: '#7B61FF' },
+        ].map((item) => (
+          <Card key={item.label} variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+            <CardContent sx={{ p: '18px !important' }}>
+              <Stack spacing={1.25}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                    {item.label}
+                  </Typography>
+                  <Box
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      bgcolor: item.color,
+                      boxShadow: `0 0 0 6px ${alpha(item.color, 0.12)}`,
+                    }}
+                  />
+                </Stack>
+                <Typography variant="h4" fontWeight={800}>
+                  {item.value}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {item.helper}
+                </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        ))}
       </Box>
 
       {/* Upload area */}
@@ -314,13 +364,13 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
             <IconUpload size={32} />
           </Box>
           <Typography variant="h6" sx={{ mb: 0.5 }}>
-            Upload Reference Materials
+            Subir materiais de referência
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Drag and drop your documents here, or browse from your computer. Supports PDF, PNG, JPG, and MP4.
+            Arraste arquivos para cá ou selecione do computador. Suporta PDF, PNG, JPG e MP4.
           </Typography>
           <Button variant="contained" component="label" startIcon={<IconUpload size={18} />}>
-            Select Files
+            Selecionar arquivos
             <input
               type="file"
               hidden
@@ -332,10 +382,10 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
           </Button>
           <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
             <Button size="small" variant="text" startIcon={<IconNote size={14} />} onClick={createNote}>
-              New note
+              Nova nota
             </Button>
             <Button size="small" variant="text" startIcon={<IconLink size={14} />} onClick={createLink}>
-              New link
+              Novo link
             </Button>
           </Stack>
         </CardContent>
@@ -353,7 +403,7 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
               <TextField
                 size="small"
-                placeholder="Search references..."
+                placeholder="Buscar referências..."
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 sx={{ minWidth: 200 }}
@@ -383,9 +433,9 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
                 onChange={(event) => setTypeFilter(event.target.value)}
                 sx={{ minWidth: 120 }}
               >
-                <MenuItem value="">File Type</MenuItem>
-                <MenuItem value="file">File</MenuItem>
-                <MenuItem value="note">Note</MenuItem>
+                <MenuItem value="">Tipo</MenuItem>
+                <MenuItem value="file">Arquivo</MenuItem>
+                <MenuItem value="note">Nota</MenuItem>
                 <MenuItem value="link">Link</MenuItem>
               </TextField>
               <TextField
@@ -403,7 +453,7 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
               </TextField>
             </Stack>
             <Typography variant="overline" color="text.secondary">
-              {totalLabel}
+              {items.length} itens
             </Typography>
           </Stack>
         </CardContent>
@@ -415,12 +465,12 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>File Name</TableCell>
-                <TableCell>Client Association</TableCell>
-                <TableCell>Category</TableCell>
+                <TableCell>Ativo</TableCell>
+                <TableCell>Cliente</TableCell>
+                <TableCell>Categoria</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Weight</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>Peso</TableCell>
+                <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -429,7 +479,7 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
                   <TableCell>
                     <Typography variant="subtitle2">{item.title}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {item.type}
+                      {item.type === 'file' ? 'Arquivo' : item.type === 'note' ? 'Nota' : 'Link'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -439,7 +489,7 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption" color="text.secondary">
-                      {item.category || 'General'}
+                      {item.category || 'Geral'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -457,14 +507,14 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
                         variant="outlined"
                         onClick={() => openFile(item.id, item.title)}
                       >
-                        Open
+                        Abrir
                       </Button>
                       <Button
                         size="small"
                         variant="outlined"
                         onClick={() => toggleAI(item)}
                       >
-                        {item.use_in_ai ? 'Disable AI' : 'Enable AI'}
+                        {item.use_in_ai ? 'Desligar IA' : 'Ligar IA'}
                       </Button>
                     </Stack>
                   </TableCell>
@@ -476,7 +526,7 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
         {items.length === 0 ? (
           <Box sx={{ px: 3, py: 5 }}>
             <Typography variant="body2" color="text.secondary">
-              No documents added yet.
+              Nenhum ativo cadastrado ainda.
             </Typography>
           </Box>
         ) : null}
@@ -559,12 +609,12 @@ export default function LibraryClient({ clientId, noShell }: LibraryClientProps)
 
   return (
     <AppShell
-      title="Library"
+      title="Biblioteca"
       topbarLeft={
         <Stack direction="row" spacing={1} alignItems="center">
           <Typography variant="body2" color="text.secondary">Studio</Typography>
           <Typography variant="body2" color="text.secondary">/</Typography>
-          <Typography variant="body2" fontWeight={600}>Global Reference Library</Typography>
+          <Typography variant="body2" fontWeight={600}>Biblioteca</Typography>
         </Stack>
       }
     >

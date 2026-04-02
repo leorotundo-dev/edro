@@ -12,6 +12,7 @@
     "outDir": "dist",
     "rootDir": ".",
     "skipLibCheck": true,
+    "noEmitOnError": false,
     "types": ["node"]
   },
   "include": ["src"]

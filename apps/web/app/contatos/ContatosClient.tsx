@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '@/lib/api';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
@@ -308,19 +310,58 @@ export default function ContatosClient() {
       || p.client_links?.some((cl) => cl.client_name.toLowerCase().includes(ql));
   }), [people, ql]);
 
+  const internalCount = useMemo(() => people.filter((person) => person.is_internal).length, [people]);
+  const externalCount = useMemo(() => people.filter((person) => !person.is_internal).length, [people]);
+
   return (
     <AppShell title="Contatos">
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
-        {/* Header */}
-        <Stack direction="row" alignItems="center" spacing={2} mb={3}>
-          <IconAddressBook size={28} stroke={1.5} />
-          <Box>
-            <Typography variant="h5" fontWeight={700}>Contatos</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {clientContacts.length} contatos de clientes · {freelancers.length} membros de equipe
-            </Typography>
-          </Box>
-        </Stack>
+      <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <WorkspaceHero
+          eyebrow="Contacts"
+          title="Contatos"
+          description="Um diretório só para quem fala com a agência, quem opera as entregas e quem precisa ser acionado no dia a dia."
+          leftChips={[
+            { label: `${clientContacts.length} contatos de clientes` },
+            { label: `${freelancers.length} equipe / freelancers` },
+          ]}
+        />
+
+        <Grid container spacing={2}>
+          {[
+            { label: 'Clientes', value: clientContacts.length, helper: 'contatos ligados a contas e aprovações', icon: <IconBuilding size={18} /> },
+            { label: 'Equipe', value: freelancers.length, helper: 'freelas e membros da operação', icon: <IconUsersGroup size={18} /> },
+            { label: 'Diretório', value: people.length, helper: `${internalCount} internos e ${externalCount} externos`, icon: <IconUsers size={18} /> },
+          ].map((item) => (
+            <Grid key={item.label} size={{ xs: 12, md: 4 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+                <Box sx={{ p: 2.25 }}>
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                        {item.label}
+                      </Typography>
+                      <Box
+                        sx={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 2,
+                          display: 'grid',
+                          placeItems: 'center',
+                          bgcolor: alpha('#5D87FF', 0.1),
+                          color: '#5D87FF',
+                        }}
+                      >
+                        {item.icon}
+                      </Box>
+                    </Stack>
+                    <Typography variant="h4" fontWeight={800}>{item.value}</Typography>
+                    <Typography variant="body2" color="text.secondary">{item.helper}</Typography>
+                  </Stack>
+                </Box>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
 
         {/* Search + filter row */}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} mb={2}>

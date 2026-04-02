@@ -51,7 +51,7 @@ function RateBar({ rate, total }: { rate: number | null; total: number }) {
   );
 }
 
-export default function SlaClient() {
+export default function SlaClient({ embedded = false }: { embedded?: boolean }) {
   const theme = useTheme();
   const [days, setDays] = useState('90');
   const [data, setData] = useState<SlaData | null>(null);
@@ -71,12 +71,8 @@ export default function SlaClient() {
 
   const fmtMins = (m: number) => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 > 0 ? m % 60 + 'min' : ''}`.trim() : `${m}min`;
 
-  return (
-    <OperationsShell section="sla" summary={data ? (
-      <Typography variant="caption" fontWeight={700} color="text.secondary">
-        {data.overall.rate !== null ? `${data.overall.rate}% no prazo` : 'Sem dados'} · {data.overall.total} demandas · {days}d
-      </Typography>
-    ) : undefined}>
+  const content = (
+    <>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2.5 }}>
@@ -216,6 +212,18 @@ export default function SlaClient() {
           )}
         </Stack>
       ) : null}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <OperationsShell section="quality" summary={data ? (
+      <Typography variant="caption" fontWeight={700} color="text.secondary">
+        {data.overall.rate !== null ? `${data.overall.rate}% no prazo` : 'Sem dados'} · {data.overall.total} demandas · {days}d
+      </Typography>
+    ) : undefined}>
+      {content}
     </OperationsShell>
   );
 }

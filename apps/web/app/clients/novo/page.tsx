@@ -335,10 +335,35 @@ export default function NewClientWizardPage() {
   return (
     <AppShell title="Novo Cliente">
     <Box sx={{ maxWidth: 720, mx: 'auto' }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" fontWeight={700}>Novo Cliente</Typography>
-        <Typography variant="body2" color="text.secondary">Configure um novo cliente em 5 passos.</Typography>
-      </Box>
+      <Card
+        variant="outlined"
+        sx={{
+          mb: 4,
+          borderRadius: 3,
+          background:
+            'linear-gradient(135deg, rgba(93,135,255,0.10) 0%, rgba(93,135,255,0.03) 55%, rgba(15,23,42,0.02) 100%)',
+        }}
+      >
+        <CardContent sx={{ p: '24px !important' }}>
+          <Stack spacing={2.25}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label="Form Wizard" color="primary" size="small" sx={{ fontWeight: 700 }} />
+              <Chip label="5 passos" size="small" variant="outlined" />
+              <Chip label="Pesquisa + IA" size="small" variant="outlined" />
+            </Stack>
+
+            <Box>
+              <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
+                Novo cliente
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Configure uma nova conta com identidade, comunicação, keywords e regras-base em um
+                fluxo único e guiado.
+              </Typography>
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
 
       {/* Stepper header */}
       <Stepper activeStep={step} sx={{ mb: 4 }}>

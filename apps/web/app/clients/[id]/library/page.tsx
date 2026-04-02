@@ -1,10 +1,10 @@
-import ClientLibraryClient from './ClientLibraryClient';
+import { redirect } from 'next/navigation';
 
-type ClientLibraryPageProps = {
+type LibraryPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export default async function Page({ params }: ClientLibraryPageProps) {
+export default async function ClientLibraryRedirect({ params }: LibraryPageProps) {
   const { id } = await params;
-  return <ClientLibraryClient clientId={id} />;
+  redirect(`/clients/${id}/identidade?sub=biblioteca`);
 }

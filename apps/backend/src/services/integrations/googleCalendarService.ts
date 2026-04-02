@@ -6,6 +6,7 @@
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
  *   GOOGLE_CALENDAR_REDIRECT_URI  — e.g. https://edro-backend-production.up.railway.app/api/auth/google/calendar/callback
  *   GOOGLE_CALENDAR_WEBHOOK_URL   — e.g. https://api.edro.digital/webhook/google-calendar
+ *   GOOGLE_CALENDAR_WEBHOOK_SECRET — signs X-Goog-Channel-Token per watch channel
  *
  * Flow:
  *   1. User authorizes Google Calendar OAuth
@@ -36,6 +37,22 @@ type CalendarChannelRow = {
   refresh_token: string | null;
   token_expiry: string | null;
 };
+
+function buildCalendarTokenSignature(channelId: string, secret: string): string {
+  return crypto.createHmac('sha256', secret).update(channelId).digest('base64url');
+}
+
+export function buildCalendarWebhookToken(channelId: string): string {
+  const secret = env.GOOGLE_CALENDAR_WEBHOOK_SECRET || env.GOOGLE_CLIENT_SECRET;
+  if (!secret) {
+    throw new Error('GOOGLE_CALENDAR_WEBHOOK_SECRET/GOOGLE_CLIENT_SECRET não configurado.');
+  }
+  return buildCalendarTokenSignature(channelId, secret);
+}
+
+export function canValidateCalendarWebhookToken(): boolean {
+  return Boolean(env.GOOGLE_CALENDAR_WEBHOOK_SECRET || env.GOOGLE_CLIENT_SECRET);
+}
 
 // ── OAuth state helpers (signed to prevent forgery) ───────────────────────
 
@@ -178,6 +195,7 @@ export async function watchCalendar(tenantId: string): Promise<void> {
 
   // Calendar watch expires after 1 week max
   const expiration = Date.now() + 6 * 24 * 60 * 60 * 1000; // 6 days
+  const channelToken = buildCalendarWebhookToken(nextChannelId);
 
   try {
     // Google Calendar rejects reused channel IDs while an older watch is still alive.
@@ -192,6 +210,7 @@ export async function watchCalendar(tenantId: string): Promise<void> {
       },
       body: JSON.stringify({
         id: nextChannelId,
+        token: channelToken,
         type: 'web_hook',
         address: webhookUrl,
         expiration: expiration.toString(),

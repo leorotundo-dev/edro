@@ -11,16 +11,34 @@
 
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
+import { env, isProductionLike } from '../env';
+import { verifySharedWebhookSecret } from '../services/integrations/webhookSecurityService';
 import { processGmailHistory } from '../services/integrations/gmailService';
 
 export default async function webhookGmailRoutes(app: FastifyInstance) {
 
   app.post('/webhook/gmail', async (request, reply) => {
-    // Ack immediately — Pub/Sub will retry if we don't return 200/204
-    reply.code(204).send();
+    const expectedSecret = env.GOOGLE_PUBSUB_WEBHOOK_TOKEN || env.GATEWAY_SHARED_SECRET;
+    if (expectedSecret) {
+      try {
+        verifySharedWebhookSecret(request.headers as Record<string, string | string[] | undefined>, expectedSecret, {
+          headerNames: ['x-edro-webhook-token', 'x-webhook-secret'],
+          allowBearerAuth: true,
+        });
+      } catch {
+        return reply.code(401).send({ error: 'invalid_webhook_secret' });
+      }
+    } else if (isProductionLike) {
+      return reply.code(503).send({ error: 'gmail_webhook_secret_not_configured' });
+    }
 
     const body = request.body as any;
-    if (!body?.message) return;
+    if (!body?.message) {
+      return reply.code(204).send();
+    }
+
+    // Ack only after the webhook origin was authenticated.
+    reply.code(204).send();
 
     try {
       // Decode Pub/Sub message

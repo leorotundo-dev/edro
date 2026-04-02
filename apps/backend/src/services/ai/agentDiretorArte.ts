@@ -20,6 +20,7 @@ import {
   resolveArtDirectionKnowledge,
 } from './artDirectionKnowledge';
 import { buildArtDirectionMemoryContext } from './artDirectionMemoryService';
+import { getVisualProfile } from '../segmentVisualMap';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -117,6 +118,7 @@ export type AgentDAParams = {
   pieceIndex?: number;          // qual peça da campanha (para variação)
   totalPieces?: number;         // total de peças na campanha
   spatialDirective?: string;    // "leave clean area in top 30% for headline"
+  visualIntent?: string | null; // briefing intent (performance_conversion|authority_structured|editorial_premium|social_proof_human|culture_driven_expressive)
   onProgress?: (event: string, data: object) => void;
 };
 
@@ -163,13 +165,17 @@ ${instagramStyle.style_summary}
   const campaignBlock = params.campaignConcept ? `
 CONCEITO DA CAMPANHA: ${params.campaignConcept}
 ${params.pieceIndex != null ? `PEÇA ${params.pieceIndex + 1} DE ${params.totalPieces ?? '?'} — varie a composição entre peças, mantenha coesão visual` : ''}` : '';
+  const visualProfile = getVisualProfile(profile.segment_primary ?? profile.segment);
   const memory = await buildArtDirectionMemoryContext({
     tenantId: params.tenantId,
     clientId: params.clientId,
     platform: params.platform,
-    segment: profile.segment,
+    segment: visualProfile.creativeCategory,
+    visualIntent: params.visualIntent
+      ?? (params.briefing?.payload?.visual_intent as string | null)
+      ?? visualProfile.defaultVisualIntent,
     conceptLimit: 4,
-    referenceLimit: 4,
+    referenceLimit: 6,
     trendLimit: 4,
   });
   const externalKnowledgeSummary = memory.promptBlock || '';
@@ -389,13 +395,17 @@ async function plugin4Critique(
   params: AgentDAParams,
   brandVisual: BrandVisualContext,
 ): Promise<VisualCritique> {
+  const critiqueVisualProfile = getVisualProfile(params.clientProfile?.segment_primary ?? params.clientProfile?.segment);
   const memory = await buildArtDirectionMemoryContext({
     tenantId: params.tenantId,
     clientId: params.clientId,
     platform: params.platform,
-    segment: params.clientProfile?.segment,
+    segment: critiqueVisualProfile.creativeCategory,
+    visualIntent: params.visualIntent
+      ?? (params.briefing?.payload?.visual_intent as string | null)
+      ?? critiqueVisualProfile.defaultVisualIntent,
     conceptLimit: 4,
-    referenceLimit: 4,
+    referenceLimit: 6,
     trendLimit: 4,
   });
   const critiqueFramework = buildArtDirectionCritiqueBlock(resolveArtDirectionKnowledge({

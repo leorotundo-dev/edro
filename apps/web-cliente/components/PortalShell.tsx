@@ -21,23 +21,27 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import {
   IconLayoutDashboard,
-  IconBriefcase,
+  IconShoppingCart,
+  IconCalendar,
   IconCheckbox,
-  IconChartBar,
-  IconReceipt,
+  IconBooks,
+  IconTrendingUp,
+  IconUser,
+  IconRobot,
   IconLogout,
   IconMenu2,
-  IconPlus,
 } from '@tabler/icons-react';
 import { clearToken } from '@/lib/api';
 
 const NAV = [
-  { href: '/',           label: 'Início',       icon: <IconLayoutDashboard size={18} />, match: (p: string) => p === '/' },
-  { href: '/jobs',       label: 'Projetos',     icon: <IconBriefcase size={18} />,       match: (p: string) => p.startsWith('/jobs') },
-  { href: '/aprovacoes', label: 'Aprovações',   icon: <IconCheckbox size={18} />,        match: (p: string) => p.startsWith('/aprovacoes') },
-  { href: '/briefing',   label: 'Solicitações', icon: <IconPlus size={18} />,            match: (p: string) => p.startsWith('/briefing') },
-  { href: '/relatorios', label: 'Relatórios',   icon: <IconChartBar size={18} />,        match: (p: string) => p.startsWith('/relatorios') },
-  { href: '/faturas',    label: 'Faturas',      icon: <IconReceipt size={18} />,         match: (p: string) => p.startsWith('/faturas') },
+  { href: '/',            label: 'Início',     icon: <IconLayoutDashboard size={18} />, match: (p: string) => p === '/' },
+  { href: '/pedidos',     label: 'Pedidos',    icon: <IconShoppingCart size={18} />,    match: (p: string) => p.startsWith('/pedidos') },
+  { href: '/agenda',      label: 'Agenda',     icon: <IconCalendar size={18} />,        match: (p: string) => p.startsWith('/agenda') },
+  { href: '/aprovacoes',  label: 'Aprovações', icon: <IconCheckbox size={18} />,        match: (p: string) => p.startsWith('/aprovacoes') },
+  { href: '/biblioteca',  label: 'Biblioteca', icon: <IconBooks size={18} />,           match: (p: string) => p.startsWith('/biblioteca') },
+  { href: '/resultados',  label: 'Resultados', icon: <IconTrendingUp size={18} />,      match: (p: string) => p.startsWith('/resultados') },
+  { href: '/conta',       label: 'Conta',      icon: <IconUser size={18} />,            match: (p: string) => p.startsWith('/conta') },
+  { href: '/assistente',  label: 'Assistente', icon: <IconRobot size={18} />,           match: (p: string) => p.startsWith('/assistente') },
 ];
 
 function getInitials(name: string) {

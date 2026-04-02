@@ -45,7 +45,7 @@ export type ToolUseLoopResult = {
   totalDurationMs: number;
   provider: string;
   model: string;
-  toolResults: Array<{ toolName: string; data: any; success: boolean }>;
+  toolResults: Array<{ toolName: string; data: any; success: boolean; metadata?: any }>;
 };
 
 // ── Main Loop ──────────────────────────────────────────────────
@@ -67,7 +67,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
   let iterations = 0;
   let toolCallsExecuted = 0;
   let model = '';
-  const collectedToolResults: Array<{ toolName: string; data: any; success: boolean }> = [];
+  const collectedToolResults: Array<{ toolName: string; data: any; success: boolean; metadata?: any }> = [];
 
   // Dispatch to provider-specific loop
   if (provider === 'claude') {
@@ -125,7 +125,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
         const toolResult = await toolExecutorFn(block.name!, block.input || {}, toolContext);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] Claude tool=${block.name} success=${toolResult.success}`);
-        collectedToolResults.push({ toolName: block.name!, data: toolResult.data ?? null, success: toolResult.success });
+        collectedToolResults.push({ toolName: block.name!, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata });
         toolResults.push({
           type: 'tool_result',
           tool_use_id: block.id,
@@ -206,7 +206,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
         const toolResult = await toolExecutorFn(tc.function.name, args, toolContext);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] OpenAI tool=${tc.function.name} success=${toolResult.success}`);
-        collectedToolResults.push({ toolName: tc.function.name, data: toolResult.data ?? null, success: toolResult.success });
+        collectedToolResults.push({ toolName: tc.function.name, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata });
 
         openaiMessages.push({
           role: 'tool',
@@ -273,7 +273,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
         const toolResult = await toolExecutorFn(fc.functionCall.name, fc.functionCall.args || {}, toolContext);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] Gemini tool=${fc.functionCall.name} success=${toolResult.success}`);
-        collectedToolResults.push({ toolName: fc.functionCall.name, data: toolResult.data ?? null, success: toolResult.success });
+        collectedToolResults.push({ toolName: fc.functionCall.name, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata });
         responseParts.push({
           functionResponse: {
             name: fc.functionCall.name,

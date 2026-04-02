@@ -21,6 +21,7 @@ import {
   IconPlayerPlay,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { OpsJobRow } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { sortByOperationalPriority } from '@/components/operations/derived';
@@ -69,10 +70,22 @@ export default function MinhaFilaClient() {
   return (
     <AppShell title="Minha Fila">
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h5" fontWeight={800}>Minha fila</Typography>
-          <Typography variant="body2" color="text.secondary">Suas demandas ativas, ordenadas por urgência.</Typography>
-        </Box>
+        <WorkspaceHero
+          eyebrow="Operação pessoal"
+          title="Minha Fila"
+          description="Suas demandas ativas, ordenadas por urgência."
+          leftChips={[
+            { label: urgent.length ? `${urgent.length} críticos` : 'Sem incêndio agora', color: urgent.length ? 'error' : 'success', variant: 'outlined', icon: <IconFlame size={14} /> },
+            { label: overdue.length ? `${overdue.length} atrasados` : 'Prazos sob controle', color: overdue.length ? 'warning' : 'success', variant: 'outlined', icon: <IconCalendarDue size={14} /> },
+          ]}
+          rightContent={
+            <>
+              <Chip size="small" label={`${inProgress.length} em produção`} color="primary" variant="outlined" />
+              <Chip size="small" label={`${dueToday.length} prazo hoje`} color="warning" variant="outlined" />
+              <Chip size="small" label={`${myJobs.length} total ativo`} variant="outlined" />
+            </>
+          }
+        />
 
         {error && <Alert severity="error">{error}</Alert>}
 

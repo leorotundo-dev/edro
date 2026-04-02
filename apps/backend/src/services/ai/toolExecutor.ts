@@ -9,6 +9,7 @@ import {
   createBriefingStages,
   createCopyVersion,
   getBriefingById,
+  listCopyVersions,
   listBriefings,
   deleteBriefing,
   archiveBriefing,
@@ -29,8 +30,12 @@ import { orchestrateCreative } from './artDirectorOrchestrator';
 import { autoCreateJobFromBriefing } from '../jobs/briefingToJobService';
 import {
   addCreativeVersion,
+  getCreativeSessionContext,
+  getCreativeSessionContextBySessionId,
+  markReadyToPublish,
   openCreativeSession,
   saveCreativeBrief,
+  sendCreativeReview,
   updateCreativeSessionMetadata,
   updateCreativeStage,
 } from '../jobs/creativeSessionService';
@@ -39,8 +44,11 @@ import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
 import { analyzeCognitiveLoad } from '../cognitiveLoadService';
 import { generateWithProvider } from './copyOrchestrator';
-import { enqueueJob } from '../../jobs/jobQueue';
+import { enqueueJob, getJobById as getQueueJobById } from '../../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../jarvisBackgroundJobService';
+import { sendEmail } from '../emailService';
+import { decryptJSON } from '../../security/secrets';
+import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -65,7 +73,7 @@ export type ToolResult = {
   success: boolean;
   data?: any;
   error?: string;
-  metadata?: { row_count?: number; truncated?: boolean };
+  metadata?: { row_count?: number; truncated?: boolean; governance?: any };
 };
 
 const MAX_RESULT_CHARS = 4000;
@@ -240,6 +248,9 @@ function getToolTimeoutMs(toolName: string) {
   switch (toolName) {
     case 'create_post_pipeline':
       return 45000;
+    case 'prepare_post_approval':
+    case 'schedule_post_publication':
+    case 'publish_studio_post':
     case 'generate_campaign_strategy':
     case 'generate_behavioral_copy':
       return 20000;
@@ -287,6 +298,9 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   get_client_insights: toolGetClientInsights,
   retrieve_client_evidence: toolRetrieveClientEvidence,
   create_post_pipeline: toolCreatePostPipeline,
+  prepare_post_approval: toolPreparePostApproval,
+  schedule_post_publication: toolSchedulePostPublication,
+  publish_studio_post: toolPublishStudioPost,
   web_search: toolWebSearch,
   web_extract: toolWebExtract,
   web_research: toolWebResearch,
@@ -343,6 +357,14 @@ export async function executeTool(
     return { success: false, error: `Tool '${toolName}' not found` };
   }
   try {
+    const governance = enforceJarvisToolGovernance(toolName, args);
+    if ('error' in governance) {
+      return {
+        success: false,
+        error: governance.error,
+        metadata: { governance: governance.policy },
+      };
+    }
     const timeoutMs = getToolTimeoutMs(toolName);
     const result = await Promise.race([
       handler(args, ctx),
@@ -350,7 +372,10 @@ export async function executeTool(
         setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
-    return truncateResult(result);
+    return truncateResult({
+      ...result,
+      metadata: { ...(result.metadata || {}), governance: governance.policy },
+    });
   } catch (err: any) {
     console.error(`[toolExecutor] ${toolName} failed:`, err.message);
     return { success: false, error: err.message || 'Tool execution failed' };
@@ -2065,6 +2090,501 @@ async function toolCreatePostPipeline(args: any, ctx: ToolContext): Promise<Tool
   };
 }
 
+type ResolvedPostWorkflowContext = {
+  clientId: string;
+  clientName: string;
+  briefingId: string;
+  briefingTitle: string;
+  creativeSessionId: string | null;
+  jobId: string | null;
+  platform: string;
+  format: string | null;
+  copyId: string | null;
+  copyText: string;
+  studioUrl: string | null;
+  selectedAsset: { id: string; asset_type: string; file_url: string; thumb_url?: string | null } | null;
+};
+
+function inferPublishChannel(platform?: string | null) {
+  const value = String(platform || '').trim().toLowerCase();
+  if (!value) return 'instagram';
+  if (value.includes('linkedin')) return 'linkedin';
+  if (value.includes('tiktok')) return 'tiktok';
+  if (value.includes('facebook')) return 'facebook';
+  return 'instagram';
+}
+
+function computeDefaultScheduledForIso() {
+  const now = new Date();
+  const scheduled = new Date(now);
+  scheduled.setUTCHours(13, 0, 0, 0); // 10h BRT
+  if (scheduled <= now) scheduled.setUTCDate(scheduled.getUTCDate() + 1);
+  while (scheduled.getUTCDay() === 0 || scheduled.getUTCDay() === 6) {
+    scheduled.setUTCDate(scheduled.getUTCDate() + 1);
+  }
+  return scheduled.toISOString();
+}
+
+async function resolvePrimaryClientEmail(tenantId: string, clientId: string) {
+  const { rows } = await query<{ email: string | null }>(
+    `SELECT email
+       FROM client_contacts
+      WHERE tenant_id = $1
+        AND client_id = $2
+        AND email IS NOT NULL
+      ORDER BY is_primary DESC, created_at ASC
+      LIMIT 1`,
+    [tenantId, clientId],
+  ).catch(() => ({ rows: [] as { email: string | null }[] }));
+  return String(rows[0]?.email || '').trim() || null;
+}
+
+async function resolvePostWorkflowContext(args: any, ctx: ToolContext): Promise<ResolvedPostWorkflowContext> {
+  const backgroundJobId = String(args.background_job_id || '').trim() || null;
+  const providedBriefingId = String(args.briefing_id || '').trim() || null;
+  const providedSessionId = String(args.creative_session_id || '').trim() || null;
+  const providedJobId = String(args.job_id || '').trim() || null;
+
+  let briefingId = providedBriefingId;
+  let creativeSessionId = providedSessionId;
+  let jobId = providedJobId;
+
+  if (backgroundJobId) {
+    const backgroundJob = await getQueueJobById(backgroundJobId, ctx.tenantId);
+    if (!backgroundJob || backgroundJob.type !== 'jarvis_background') {
+      throw new Error('Artifact de background não encontrado.');
+    }
+    const result = backgroundJob.payload?.result || {};
+    if (backgroundJob.status !== 'done' && !result?.briefing_id) {
+      throw new Error('Esse pipeline ainda não terminou. Aguarde o artifact ficar pronto antes de seguir.');
+    }
+    briefingId ||= String(result.briefing_id || '').trim() || null;
+    creativeSessionId ||= String(result.creative_session_id || '').trim() || null;
+    jobId ||= String(result.job_id || '').trim() || null;
+  }
+
+  let creativeContext = null as Awaited<ReturnType<typeof getCreativeSessionContextBySessionId>> | null;
+
+  if (creativeSessionId) {
+    creativeContext = await getCreativeSessionContextBySessionId(ctx.tenantId, creativeSessionId);
+  } else if (jobId) {
+    creativeContext = await getCreativeSessionContext(ctx.tenantId, jobId);
+  } else if (briefingId) {
+    const { rows } = await query<{ id: string; job_id: string }>(
+      `SELECT id, job_id
+         FROM creative_sessions
+        WHERE tenant_id = $1
+          AND briefing_id = $2
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [ctx.tenantId, briefingId],
+    );
+    if (rows[0]?.id) {
+      creativeContext = await getCreativeSessionContextBySessionId(ctx.tenantId, rows[0].id);
+    }
+  }
+
+  briefingId ||= creativeContext?.session.briefing_id || creativeContext?.briefing?.id || null;
+  creativeSessionId ||= creativeContext?.session.id || null;
+  jobId ||= creativeContext?.job.id || null;
+
+  if (!briefingId) {
+    throw new Error('Não consegui resolver o briefing deste workflow. Informe briefing_id ou use o artifact mais recente do Jarvis.');
+  }
+
+  const briefing = await getBriefingById(briefingId);
+  if (!briefing) throw new Error('Briefing não encontrado.');
+
+  const copies = await listCopyVersions(briefingId).catch(() => []);
+  const selectedCopy = creativeContext?.selected_copy_version || copies[0] || null;
+  const copyText = String(
+    selectedCopy?.payload?.output
+    || selectedCopy?.payload?.text
+    || selectedCopy?.output
+    || '',
+  ).trim();
+
+  const selectedAsset = creativeContext?.selected_asset
+    ? {
+        id: creativeContext.selected_asset.id,
+        asset_type: creativeContext.selected_asset.asset_type,
+        file_url: creativeContext.selected_asset.file_url,
+        thumb_url: creativeContext.selected_asset.thumb_url,
+      }
+    : null;
+
+  const platform = String(
+    creativeContext?.briefing?.payload?.platform
+    || creativeContext?.session.metadata?.platforms?.inventory?.[0]?.platform
+    || briefing.payload?.platform
+    || 'instagram',
+  );
+  const format = String(
+    creativeContext?.briefing?.payload?.format
+    || creativeContext?.session.metadata?.platforms?.inventory?.[0]?.format
+    || briefing.payload?.format
+    || '',
+  ) || null;
+
+  const resolvedClientId = String(
+    creativeContext?.job.client_id
+    || creativeContext?.briefing?.client_id
+    || briefing.main_client_id
+    || ctx.clientId,
+  ).trim();
+  const client = await getClientById(ctx.tenantId, resolvedClientId);
+  if (!client) throw new Error('Cliente não encontrado para este workflow.');
+
+  return {
+    clientId: resolvedClientId,
+    clientName: String(client.name || 'Cliente'),
+    briefingId,
+    briefingTitle: String(briefing.title || 'Post'),
+    creativeSessionId,
+    jobId,
+    platform,
+    format,
+    copyId: selectedCopy?.id || null,
+    copyText,
+    studioUrl: creativeSessionId && jobId ? buildStudioEditorUrl(jobId, creativeSessionId) : null,
+    selectedAsset,
+  };
+}
+
+async function sendJarvisApprovalEmail(params: {
+  tenantId: string;
+  to: string;
+  clientName: string;
+  briefingTitle: string;
+  approvalUrl: string;
+  message?: string | null;
+}) {
+  const body = [
+    `Olá,`,
+    '',
+    `A peça "${params.briefingTitle}" está pronta para sua revisão.`,
+    params.message ? `Mensagem da equipe: ${params.message}` : null,
+    '',
+    `Aprovar ou revisar: ${params.approvalUrl}`,
+    '',
+    'Edro Studio',
+  ].filter(Boolean).join('\n');
+
+  await sendEmail({
+    to: params.to,
+    tenantId: params.tenantId,
+    subject: `Aprovação pendente · ${params.clientName} · ${params.briefingTitle}`,
+    text: body,
+    html: body.replace(/\n/g, '<br>'),
+  });
+}
+
+async function publishMetaAssetNow(params: {
+  tenantId: string;
+  clientId: string;
+  imageUrl: string;
+  caption: string;
+  channel: 'instagram' | 'facebook';
+}) {
+  const { rows: connectorRows } = await query<any>(
+    `SELECT payload, secrets_enc
+       FROM connectors
+      WHERE tenant_id = $1
+        AND client_id = $2
+        AND provider = 'meta'
+      LIMIT 1`,
+    [params.tenantId, params.clientId],
+  );
+  if (!connectorRows.length) {
+    throw new Error('Meta connector não encontrado para este cliente.');
+  }
+
+  const connector = connectorRows[0];
+  const payload = connector.payload as Record<string, any>;
+  const secrets = connector.secrets_enc ? await decryptJSON(connector.secrets_enc) : {};
+  const accessToken = secrets.access_token as string | undefined;
+  if (!accessToken) throw new Error('Meta access token ausente para este cliente.');
+
+  const version = 'v18.0';
+  const igUserId = payload.instagram_business_id as string | undefined;
+  const pageId = payload.page_id as string | undefined;
+
+  if (params.channel === 'instagram') {
+    if (!igUserId) throw new Error('Instagram Business não configurado neste conector.');
+    const createRes = await fetch(`https://graph.facebook.com/${version}/${igUserId}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_url: params.imageUrl,
+        caption: params.caption,
+        access_token: accessToken,
+      }),
+    });
+    const createData = await createRes.json() as { id?: string; error?: any };
+    if (!createData.id) throw new Error(`Instagram media create failed: ${JSON.stringify(createData.error || {})}`);
+
+    const publishRes = await fetch(`https://graph.facebook.com/${version}/${igUserId}/media_publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        creation_id: createData.id,
+        access_token: accessToken,
+      }),
+    });
+    const publishData = await publishRes.json() as { id?: string; error?: any };
+    if (!publishData.id) throw new Error(`Instagram publish failed: ${JSON.stringify(publishData.error || {})}`);
+
+    return {
+      platform: 'Instagram',
+      post_id: publishData.id,
+      post_url: `https://www.instagram.com/p/${publishData.id}/`,
+    };
+  }
+
+  if (!pageId) throw new Error('Facebook Page não configurada neste conector.');
+  const res = await fetch(`https://graph.facebook.com/${version}/${pageId}/photos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: params.imageUrl,
+      caption: params.caption,
+      access_token: accessToken,
+    }),
+  });
+  const data = await res.json() as { id?: string; post_id?: string; error?: any };
+  if (!data.id && !data.post_id) {
+    throw new Error(`Facebook post failed: ${JSON.stringify(data.error || {})}`);
+  }
+
+  const postId = data.post_id ?? data.id!;
+  return {
+    platform: 'Facebook',
+    post_id: postId,
+    post_url: `https://www.facebook.com/${postId}`,
+  };
+}
+
+async function toolPreparePostApproval(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const workflow = await resolvePostWorkflowContext(args, ctx);
+  const expiresInDays = Math.min(Number(args.expires_in_days || 7), 30);
+  const approvalResult = await toolGenerateApprovalLink({
+    briefing_id: workflow.briefingId,
+    client_name: String(args.client_name || workflow.clientName),
+    expires_in_days: expiresInDays,
+  }, ctx);
+  if (!approvalResult.success) return approvalResult;
+
+  const approvalUrl = String(approvalResult.data?.approvalUrl || '').trim();
+  const clientEmail = String(args.client_email || '').trim() || await resolvePrimaryClientEmail(ctx.tenantId, workflow.clientId);
+
+  if (workflow.creativeSessionId && workflow.jobId) {
+    await sendCreativeReview(ctx.tenantId, workflow.creativeSessionId, workflow.jobId, ctx.userId ?? null, {
+      review_type: 'client_approval',
+      payload: {
+        briefing_id: workflow.briefingId,
+        approval_url: approvalUrl,
+        client_email: clientEmail || null,
+        source: 'jarvis_prepare_post_approval',
+      },
+    }).catch(() => null);
+  }
+
+  let emailSent = false;
+  if (args.send_email === true && clientEmail) {
+    await sendJarvisApprovalEmail({
+      tenantId: ctx.tenantId,
+      to: clientEmail,
+      clientName: workflow.clientName,
+      briefingTitle: workflow.briefingTitle,
+      approvalUrl,
+      message: String(args.message || '').trim() || null,
+    }).then(() => {
+      emailSent = true;
+    }).catch(() => {
+      emailSent = false;
+    });
+  }
+
+  return {
+    success: true,
+    data: {
+      message: emailSent
+        ? `Aprovação preparada e enviada para ${clientEmail}.`
+        : 'Link de aprovação preparado para o workflow atual.',
+      briefing_id: workflow.briefingId,
+      creative_session_id: workflow.creativeSessionId,
+      job_id: workflow.jobId,
+      approvalUrl,
+      client_email: clientEmail || null,
+      studio_url: workflow.studioUrl,
+      next_step: emailSent
+        ? 'Acompanhe a resposta do cliente. Quando aprovar, o Jarvis pode agendar ou publicar.'
+        : 'Envie o link ao cliente ou peça ao Jarvis para mandar a aprovação por e-mail.',
+    },
+  };
+}
+
+async function toolSchedulePostPublication(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute este agendamento quando o usuário confirmar explicitamente.' };
+  }
+
+  const workflow = await resolvePostWorkflowContext(args, ctx);
+  if (!workflow.copyId) {
+    return { success: false, error: 'Não encontrei uma copy selecionada para este post. Finalize a copy no Studio antes de agendar.' };
+  }
+
+  const scheduledFor = String(args.scheduled_for || '').trim() || computeDefaultScheduledForIso();
+  const channel = String(args.channel || inferPublishChannel(workflow.platform)).trim().toLowerCase();
+
+  if (workflow.creativeSessionId && workflow.jobId) {
+    await markReadyToPublish(ctx.tenantId, workflow.creativeSessionId, workflow.jobId, ctx.userId ?? null, {
+      channel,
+      scheduled_for: scheduledFor,
+      metadata: {
+        source: 'jarvis_schedule_post_publication',
+        notes: String(args.notes || '').trim() || null,
+      },
+    }).catch(() => null);
+  }
+
+  const scheduleResult = await toolScheduleBriefing({
+    briefing_id: workflow.briefingId,
+    copy_id: workflow.copyId,
+    channel,
+    scheduled_for: scheduledFor,
+  }, ctx);
+  if (!scheduleResult.success) return scheduleResult;
+
+  return {
+    success: true,
+    data: {
+      message: `Publicação agendada para ${channel}.`,
+      briefing_id: workflow.briefingId,
+      creative_session_id: workflow.creativeSessionId,
+      job_id: workflow.jobId,
+      channel,
+      scheduled_for: scheduledFor,
+      schedule_id: scheduleResult.data?.scheduleId || null,
+      studio_url: workflow.studioUrl,
+      next_step: 'O post está pronto para a fila de publicação. Se houver asset final, você também pode mandar publicar agora.',
+    },
+  };
+}
+
+async function toolPublishStudioPost(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute esta publicação quando o usuário confirmar explicitamente.' };
+  }
+
+  const workflow = await resolvePostWorkflowContext(args, ctx);
+  const assetUrl = String(workflow.selectedAsset?.file_url || '').trim();
+  if (!assetUrl) {
+    return { success: false, error: 'Não encontrei asset final selecionado no Studio. Gere ou selecione o asset antes de publicar.' };
+  }
+  if (!workflow.copyText) {
+    return { success: false, error: 'Não encontrei a copy final deste post para publicar.' };
+  }
+
+  const channel = String(args.channel || inferPublishChannel(workflow.platform)).trim().toLowerCase();
+  const assetType = String(workflow.selectedAsset?.asset_type || '').trim().toLowerCase();
+  let published: Record<string, any>;
+
+  if (channel === 'linkedin') {
+    if (assetType && assetType !== 'image') {
+      return { success: false, error: 'Publicação direta no LinkedIn pelo Jarvis exige um asset de imagem selecionado no Studio.' };
+    }
+    const { publishLinkedInPost } = await import('../integrations/linkedinService');
+    const result = await publishLinkedInPost(ctx.tenantId, workflow.clientId, {
+      imageUrl: assetUrl,
+      caption: workflow.copyText,
+      title: String(args.title || workflow.briefingTitle),
+    });
+    published = {
+      platform: 'LinkedIn',
+      post_id: result.postId,
+      post_url: result.postUrl,
+    };
+  } else if (channel === 'tiktok') {
+    if (assetType && assetType !== 'video') {
+      return { success: false, error: 'Publicação direta no TikTok pelo Jarvis exige um asset de vídeo selecionado no Studio.' };
+    }
+    const { publishTikTokVideo } = await import('../integrations/tiktokService');
+    const result = await publishTikTokVideo(ctx.tenantId, workflow.clientId, {
+      videoUrl: assetUrl,
+      caption: workflow.copyText,
+    });
+    published = {
+      platform: 'TikTok',
+      post_id: result.publishId,
+      post_url: result.shareUrl,
+    };
+  } else if (channel === 'facebook' || channel === 'instagram') {
+    if (assetType && assetType !== 'image') {
+      return { success: false, error: 'Publicação direta em Instagram/Facebook pelo Jarvis exige um asset de imagem selecionado no Studio.' };
+    }
+    published = await publishMetaAssetNow({
+      tenantId: ctx.tenantId,
+      clientId: workflow.clientId,
+      imageUrl: assetUrl,
+      caption: workflow.copyText,
+      channel: channel === 'facebook' ? 'facebook' : 'instagram',
+    });
+  } else {
+    return { success: false, error: `Canal "${channel}" não suportado para publicação direta pelo Jarvis.` };
+  }
+
+  if (workflow.jobId) {
+    await query(
+      `UPDATE jobs
+          SET status = 'published',
+              completed_at = COALESCE(completed_at, NOW())
+        WHERE tenant_id = $1
+          AND id = $2`,
+      [ctx.tenantId, workflow.jobId],
+    ).catch(() => null);
+  }
+
+  if (workflow.creativeSessionId && workflow.jobId) {
+    await query(
+      `INSERT INTO creative_publication_intents (
+         tenant_id, creative_session_id, job_id, channel, scheduled_for, status, metadata
+       ) VALUES ($1, $2, $3, $4, NOW(), 'published', $5::jsonb)`,
+      [
+        ctx.tenantId,
+        workflow.creativeSessionId,
+        workflow.jobId,
+        channel,
+        JSON.stringify({
+          source: 'jarvis_publish_studio_post',
+          platform: published.platform,
+          post_id: published.post_id || null,
+          post_url: published.post_url || null,
+          asset_id: workflow.selectedAsset?.id || null,
+        }),
+      ],
+    ).catch(() => null);
+
+    await syncOperationalRuntimeForJob(ctx.tenantId, workflow.jobId).catch(() => null);
+  }
+
+  return {
+    success: true,
+    data: {
+      message: `Post publicado em ${published.platform}.`,
+      briefing_id: workflow.briefingId,
+      creative_session_id: workflow.creativeSessionId,
+      job_id: workflow.jobId,
+      channel,
+      platform: published.platform,
+      post_id: published.post_id || null,
+      post_url: published.post_url || null,
+      studio_url: workflow.studioUrl,
+      next_step: 'A publicação foi concluída. Agora o Jarvis pode acompanhar performance, feedback e operação.',
+    },
+  };
+}
+
 // ── Web Search (Tavily) ─────────────────────────────────────────
 
 async function toolWebSearch(args: any, ctx: ToolContext): Promise<ToolResult> {
@@ -2262,7 +2782,7 @@ async function toolScheduleBriefing(args: any, ctx: ToolContext): Promise<ToolRe
   }
 
   const { rows } = await query<{ id: string }>(
-    `INSERT INTO edro_publish_schedule (briefing_id, copy_version_id, channel, scheduled_for, tenant_id, status)
+    `INSERT INTO edro_publish_schedule (briefing_id, copy_id, channel, scheduled_for, tenant_id, status)
      VALUES ($1,$2,$3,$4,$5,'pending')
      RETURNING id`,
     [briefing_id, copy_id, channel, scheduled_for, ctx.tenantId]
@@ -2773,12 +3293,15 @@ async function toolGetWhatsAppDigests(args: any, ctx: ToolContext): Promise<Tool
 
 import {
   buildOverviewSnapshot,
+  buildPlannerSnapshot,
   buildRiskSnapshot,
   upsertJobAllocation,
   syncOperationalRuntimeForJob,
 } from '../../services/jobs/operationsRuntimeService';
 import { calculatePriority } from '../../services/jobs/priorityService';
 import { estimateMinutes } from '../../services/jobs/estimationService';
+import { proposeAllocations } from '../../services/allocationService';
+import { getAvailableDAs, getWeeklyCapacity } from '../../services/daBillingService';
 
 const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Promise<ToolResult>> = {
   list_operations_jobs: opsListJobs,
@@ -2787,6 +3310,15 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   get_operations_risks: opsGetRisks,
   get_operations_signals: opsGetSignals,
   get_operations_team: opsGetTeam,
+  get_creative_ops_workload: opsGetCreativeWorkload,
+  get_da_capacity: opsGetDaCapacity,
+  suggest_job_allocation: opsSuggestJobAllocation,
+  suggest_creative_redistribution: opsSuggestCreativeRedistribution,
+  get_creative_ops_risk_report: opsGetCreativeRiskReport,
+  get_creative_ops_quality: opsGetCreativeQuality,
+  get_creative_ops_bottlenecks: opsGetCreativeBottlenecks,
+  apply_job_allocation_recommendation: opsApplyJobAllocationRecommendation,
+  apply_creative_redistribution: opsApplyCreativeRedistribution,
   get_operations_lookups: opsGetLookups,
   create_operations_job: opsCreateJob,
   update_operations_job: opsUpdateJob,
@@ -2807,13 +3339,32 @@ export async function executeOperationsTool(
     return { success: false, error: `Operations tool '${toolName}' not found` };
   }
   try {
+    const governance = enforceJarvisToolGovernance(toolName, args);
+    if ('error' in governance) {
+      return {
+        success: false,
+        error: governance.error,
+        metadata: { governance: governance.policy },
+      };
+    }
+    const timeoutMs =
+      toolName === 'suggest_creative_redistribution' ? 20000 :
+        toolName === 'apply_job_allocation_recommendation' || toolName === 'apply_creative_redistribution' ? 20000 :
+        toolName === 'suggest_job_allocation' ? 15000 :
+          toolName === 'get_creative_ops_workload' || toolName === 'get_da_capacity' ||
+            toolName === 'get_creative_ops_risk_report' || toolName === 'get_creative_ops_quality' ||
+            toolName === 'get_creative_ops_bottlenecks' ? 15000 :
+            10000;
     const result = await Promise.race([
       handler(args, ctx),
       new Promise<ToolResult>((_, reject) =>
-        setTimeout(() => reject(new Error('TOOL_TIMEOUT_10s')), 10000),
+        setTimeout(() => reject(new Error(`TOOL_TIMEOUT_${Math.round(timeoutMs / 1000)}s`)), timeoutMs),
       ),
     ]);
-    return truncateResult(result);
+    return truncateResult({
+      ...result,
+      metadata: { ...(result.metadata || {}), governance: governance.policy },
+    });
   } catch (err: any) {
     console.error(`[opsToolExecutor] ${toolName} failed:`, err.message);
     return { success: false, error: err.message || 'Tool execution failed' };
@@ -2945,6 +3496,1036 @@ async function opsGetTeam(_args: any, ctx: OperationsToolContext): Promise<ToolR
     [ctx.tenantId],
   );
   return { success: true, data: safeData(rows, 20) };
+}
+
+function opsPriorityWeight(priorityBand?: string | null) {
+  switch (String(priorityBand || '').toLowerCase()) {
+    case 'p0': return 0;
+    case 'p1': return 1;
+    case 'p2': return 2;
+    case 'p3': return 3;
+    default: return 4;
+  }
+}
+
+function opsUsageState(usage: number) {
+  if (usage >= 1) return 'sobrecarregado';
+  if (usage >= 0.85) return 'em_pressao';
+  if (usage <= 0.35) return 'com_folga';
+  return 'equilibrado';
+}
+
+function opsIsActiveJobStatus(status?: string | null) {
+  return !['done', 'archived', 'published', 'cancelled'].includes(String(status || '').toLowerCase());
+}
+
+function opsIsMovableCreativeJob(job: any, riskBand?: string | null) {
+  const jobType = String(job.job_type || '').toLowerCase();
+  const status = String(job.status || '').toLowerCase();
+  if (!opsIsActiveJobStatus(status)) return false;
+  if (['meeting', 'approval', 'publication'].includes(jobType)) return false;
+  if (['awaiting_approval', 'approved', 'scheduled'].includes(status)) return false;
+  if (riskBand === 'critical' && opsPriorityWeight(job.priority_band) <= 1) return false;
+  if (job.deadline_at) {
+    const diffHours = (new Date(job.deadline_at).getTime() - Date.now()) / 3600000;
+    if (Number.isFinite(diffHours) && diffHours <= 12) return false;
+  }
+  return true;
+}
+
+function opsRiskBandWeight(riskBand?: string | null) {
+  switch (String(riskBand || '').toLowerCase()) {
+    case 'critical': return 5;
+    case 'high': return 3;
+    case 'medium': return 2;
+    case 'low': return 1;
+    default: return 0;
+  }
+}
+
+function opsCreativeRiskState(params: {
+  usage: number;
+  criticalJobs: number;
+  highRiskJobs: number;
+  blockedJobs: number;
+  nearDeadlineJobs: number;
+  riskScore: number;
+}) {
+  if (params.criticalJobs > 0 || params.usage >= 1 || params.riskScore >= 10) return 'critico';
+  if (params.highRiskJobs > 0 || params.blockedJobs > 0 || params.nearDeadlineJobs >= 2 || params.usage >= 0.85 || params.riskScore >= 6) return 'alto';
+  if (params.nearDeadlineJobs > 0 || params.usage >= 0.7 || params.riskScore >= 3) return 'moderado';
+  return 'estavel';
+}
+
+function opsCreativeQualityState(params: {
+  approvalRate: number | null;
+  avgRevisionCount: number;
+  clientReworkCount: number;
+  highReworkJobs: number;
+}) {
+  if ((params.approvalRate !== null && params.approvalRate < 60) || params.avgRevisionCount >= 2.5 || params.clientReworkCount >= 3 || params.highReworkJobs >= 3) {
+    return 'critico';
+  }
+  if ((params.approvalRate !== null && params.approvalRate < 75) || params.avgRevisionCount >= 1.4 || params.clientReworkCount >= 1 || params.highReworkJobs >= 1) {
+    return 'atencao';
+  }
+  return 'saudavel';
+}
+
+function opsCreativeBottleneckSeverity(score: number) {
+  if (score >= 14) return 'critico';
+  if (score >= 8) return 'alto';
+  if (score >= 4) return 'moderado';
+  return 'leve';
+}
+
+async function opsGetCreativeWorkload(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const [planner, teamRes] = await Promise.all([
+    buildPlannerSnapshot(ctx.tenantId),
+    query(
+      `SELECT
+         u.id,
+         COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name,
+         u.email,
+         tu.role,
+         fp.specialty,
+         CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type,
+         (SELECT COUNT(*) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.status NOT IN ('done','archived','published','cancelled')) AS active_jobs,
+         (SELECT COUNT(*) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.status = 'blocked') AS blocked_jobs,
+         (SELECT COUNT(*) FROM jobs j WHERE j.owner_id = u.id AND j.tenant_id = $1 AND j.deadline_at IS NOT NULL AND j.status NOT IN ('done','archived','published','cancelled') AND j.deadline_at <= NOW() + INTERVAL '24 hours') AS near_deadline_jobs
+       FROM tenant_users tu
+       JOIN edro_users u ON u.id = tu.user_id
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
+       WHERE tu.tenant_id = $1
+       ORDER BY name ASC`,
+      [ctx.tenantId],
+    ),
+  ]);
+
+  const limit = Math.min(args.limit || 12, 25);
+  const personType = args.person_type && args.person_type !== 'all' ? String(args.person_type) : null;
+  const specialtyFilter = String(args.specialty || '').trim().toLowerCase();
+  const includeJobs = args.include_jobs === true;
+  const teamMap = new Map(teamRes.rows.map((row: any) => [row.id, row]));
+
+  let owners = planner.owners
+    .map((row) => {
+      const teamRow = teamMap.get(row.owner.id);
+      const usagePct = Math.round((row.usage || 0) * 100);
+      const availableMinutes = Math.max(0, row.allocable_minutes - row.committed_minutes - row.tentative_minutes);
+      const activeJobs = Number(teamRow?.active_jobs ?? row.jobs.length ?? 0);
+      const blockedJobs = Number(teamRow?.blocked_jobs ?? row.jobs.filter((job) => job.status === 'blocked').length ?? 0);
+      const nearDeadlineJobs = Number(teamRow?.near_deadline_jobs ?? 0);
+      const state = opsUsageState(row.usage || 0);
+
+      return {
+        owner_id: row.owner.id,
+        name: row.owner.name,
+        email: row.owner.email,
+        role: row.owner.role,
+        specialty: row.owner.specialty,
+        person_type: row.owner.person_type,
+        state,
+        usage_pct: usagePct,
+        allocable_minutes: row.allocable_minutes,
+        committed_minutes: row.committed_minutes,
+        tentative_minutes: row.tentative_minutes,
+        available_minutes: availableMinutes,
+        active_jobs: activeJobs,
+        blocked_jobs: blockedJobs,
+        near_deadline_jobs: nearDeadlineJobs,
+        recommendation:
+          state === 'sobrecarregado' ? 'Redistribuir ou proteger a agenda imediatamente.' :
+            state === 'em_pressao' ? 'Evitar nova entrada sem revisar prioridades.' :
+              state === 'com_folga' ? 'Pode absorver demanda criativa nova.' :
+                'Carga equilibrada no momento.',
+        jobs: includeJobs ? row.jobs.slice(0, 6).map((job) => ({
+          id: job.id,
+          title: job.title,
+          client_name: job.client_name,
+          status: job.status,
+          priority_band: job.priority_band,
+          deadline_at: job.deadline_at,
+        })) : undefined,
+      };
+    })
+    .filter((row) => !personType || row.person_type === personType)
+    .filter((row) => !specialtyFilter || String(row.specialty || '').toLowerCase().includes(specialtyFilter));
+
+  if (args.only_overloaded === true) {
+    owners = owners.filter((row) => row.state === 'sobrecarregado' || row.state === 'em_pressao');
+  }
+
+  owners = owners
+    .sort((a, b) =>
+      (b.usage_pct - a.usage_pct) ||
+      (b.near_deadline_jobs - a.near_deadline_jobs) ||
+      (b.blocked_jobs - a.blocked_jobs) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  const summary = {
+    total_people: owners.length,
+    overloaded: owners.filter((row) => row.state === 'sobrecarregado').length,
+    under_pressure: owners.filter((row) => row.state === 'em_pressao').length,
+    with_capacity: owners.filter((row) => row.state === 'com_folga').length,
+    unassigned_jobs: planner.unassigned_jobs.length,
+  };
+
+  return {
+    success: true,
+    data: {
+      summary,
+      owners,
+      unassigned_jobs: planner.unassigned_jobs.slice(0, 8).map((job) => ({
+        id: job.id,
+        title: job.title,
+        client_name: job.client_name,
+        priority_band: job.priority_band,
+        deadline_at: job.deadline_at,
+        job_type: job.job_type,
+      })),
+    },
+  };
+}
+
+async function opsGetDaCapacity(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 10, 20);
+  const requiredSkill = String(args.required_skill || '').trim() || undefined;
+
+  await getAvailableDAs(ctx.tenantId, requiredSkill).catch(() => []);
+
+  const [capacity, planner, available] = await Promise.all([
+    getWeeklyCapacity(ctx.tenantId),
+    buildPlannerSnapshot(ctx.tenantId),
+    getAvailableDAs(ctx.tenantId, requiredSkill),
+  ]);
+
+  const ownerMap = new Map(
+    planner.owners
+      .filter((row) => row.owner.person_type === 'freelancer')
+      .map((row) => [row.owner.id, row]),
+  );
+  const availableMap = new Map(available.map((row) => [row.freelancer_id, row]));
+
+  const rows = capacity
+    .map((slot) => {
+      const owner = ownerMap.get(slot.freelancer_id);
+      const availableInfo = availableMap.get(slot.freelancer_id);
+      const usagePct = owner ? Math.round((owner.usage || 0) * 100) : null;
+      return {
+        freelancer_id: slot.freelancer_id,
+        name: owner?.owner.name || availableInfo?.name || slot.freelancer_id,
+        specialty: owner?.owner.specialty || null,
+        usage_pct: usagePct,
+        slots_total: slot.slots_total,
+        slots_used: slot.slots_used,
+        slots_blocked: slot.slots_blocked,
+        slots_available: slot.slots_available,
+        allocation_score: availableInfo?.score ?? null,
+        recommendation:
+          slot.slots_available <= 0 ? 'Sem slots disponíveis nesta semana.' :
+            slot.slots_available === 1 ? 'Pode receber uma demanda curta.' :
+              'Tem capacidade para absorver novas demandas.',
+      };
+    })
+    .sort((a, b) =>
+      (b.slots_available - a.slots_available) ||
+      ((a.usage_pct ?? 999) - (b.usage_pct ?? 999)) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        week_start: capacity[0]?.week_start ?? null,
+        freelancers_total: capacity.length,
+        available_now: rows.filter((row) => row.slots_available > 0).length,
+        slots_available_total: capacity.reduce((sum, row) => sum + row.slots_available, 0),
+        required_skill: requiredSkill ?? null,
+      },
+      ranking: rows,
+    },
+  };
+}
+
+async function opsSuggestJobAllocation(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 5, 8);
+  const { rows } = await query(
+    `SELECT j.id, j.title, j.client_id, j.job_type, j.channel, j.required_skill, j.priority_band, j.deadline_at,
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+            c.name AS client_name
+       FROM jobs j
+       LEFT JOIN edro_users u ON u.id = j.owner_id
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE j.tenant_id = $1 AND j.id = $2
+      LIMIT 1`,
+    [ctx.tenantId, args.job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+
+  const job = rows[0];
+  const proposals = (await proposeAllocations(ctx.tenantId, args.job_id)).slice(0, limit);
+  if (!proposals.length) {
+    return {
+      success: true,
+      data: {
+        job,
+        recommendations: [],
+        note: 'Nenhum DA elegível encontrado para este job no momento.',
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      job,
+      recommended_owner_id: proposals[0].freelancerId,
+      recommended_owner_name: proposals[0].name,
+      recommendations: proposals.map((proposal, index) => ({
+        rank: index + 1,
+        freelancer_id: proposal.freelancerId,
+        name: proposal.name,
+        specialty: proposal.specialty,
+        experience_level: proposal.experienceLevel,
+        score: proposal.score,
+        estimated_available_at: proposal.estimatedAvailableAt,
+        estimated_completion_at: proposal.estimatedCompletionAt,
+        current_active_jobs: proposal.currentActiveJobs,
+        max_concurrent_jobs: proposal.maxConcurrentJobs,
+        punctuality_score: proposal.punctualityScore,
+        approval_rate: proposal.approvalRate,
+        rationale: proposal.rationale,
+      })),
+    },
+  };
+}
+
+async function opsSuggestCreativeRedistribution(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const maxJobs = Math.min(args.max_jobs || 5, 8);
+  const onlyHighRisk = args.only_high_risk === true;
+  const ownerFilter = String(args.owner_id || '').trim() || null;
+
+  const [planner, risks] = await Promise.all([
+    buildPlannerSnapshot(ctx.tenantId),
+    buildRiskSnapshot(ctx.tenantId),
+  ]);
+
+  const riskMap = new Map<string, { band: string; summary?: string | null; action?: string | null }>();
+  for (const job of [...(risks.critical || []), ...(risks.high || [])]) {
+    riskMap.set(job.id, {
+      band: String(job.metadata?.risk_signal?.band || '').toLowerCase(),
+      summary: job.metadata?.risk_signal?.summary || null,
+      action: job.metadata?.risk_signal?.suggested_action || null,
+    });
+  }
+
+  const overloadedOwners = planner.owners
+    .filter((row) => !ownerFilter || row.owner.id === ownerFilter)
+    .filter((row) => row.usage >= 0.85 || row.jobs.some((job) => String(riskMap.get(job.id)?.band || '') === 'critical'))
+    .sort((a, b) => b.usage - a.usage);
+
+  const suggestions: Array<Record<string, any>> = [];
+
+  for (const owner of overloadedOwners) {
+    const movableJobs = owner.jobs
+      .filter((job) => {
+        const riskBand = riskMap.get(job.id)?.band || null;
+        if (onlyHighRisk && !riskBand && owner.usage < 1) return false;
+        return opsIsMovableCreativeJob(job, riskBand);
+      })
+      .sort((a, b) =>
+        (opsPriorityWeight(b.priority_band) - opsPriorityWeight(a.priority_band)) ||
+        ((new Date(b.deadline_at || 0).getTime()) - (new Date(a.deadline_at || 0).getTime())));
+
+    for (const job of movableJobs) {
+      if (suggestions.length >= maxJobs) break;
+      const alternatives = await proposeAllocations(ctx.tenantId, job.id);
+      const bestAlternative = alternatives.find((proposal) => proposal.freelancerId !== owner.owner.id);
+      if (!bestAlternative) continue;
+
+      const risk = riskMap.get(job.id);
+      suggestions.push({
+        job_id: job.id,
+        title: job.title,
+        client_name: job.client_name,
+        current_owner_id: owner.owner.id,
+        current_owner_name: owner.owner.name,
+        current_usage_pct: Math.round((owner.usage || 0) * 100),
+        priority_band: job.priority_band,
+        status: job.status,
+        deadline_at: job.deadline_at,
+        risk_band: risk?.band || null,
+        risk_summary: risk?.summary || null,
+        recommended_owner_id: bestAlternative.freelancerId,
+        recommended_owner_name: bestAlternative.name,
+        recommended_score: bestAlternative.score,
+        estimated_available_at: bestAlternative.estimatedAvailableAt,
+        rationale: `Mover de ${owner.owner.name} para ${bestAlternative.name}. ${bestAlternative.rationale}`,
+      });
+    }
+
+    if (suggestions.length >= maxJobs) break;
+  }
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        overloaded_owners: overloadedOwners.length,
+        suggested_moves: suggestions.length,
+        only_high_risk: onlyHighRisk,
+      },
+      suggestions,
+      note: suggestions.length
+        ? 'Use assign_job_owner e manage_job_allocation para executar uma redistribuição após confirmar o movimento.'
+        : 'Nenhuma redistribuição segura encontrada com os filtros atuais.',
+    },
+  };
+}
+
+async function opsGetCreativeRiskReport(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 8, 20);
+  const personType = args.person_type && args.person_type !== 'all' ? String(args.person_type) : null;
+  const ownerFilter = String(args.owner_id || '').trim() || null;
+  const onlyHighRisk = args.only_high_risk === true;
+
+  const [planner, risks] = await Promise.all([
+    buildPlannerSnapshot(ctx.tenantId),
+    buildRiskSnapshot(ctx.tenantId),
+  ]);
+
+  const riskyJobs = [...(risks.critical || []), ...(risks.high || [])];
+  const groupedByOwner = new Map<string, any[]>();
+  const unassignedJobs = riskyJobs.filter((job) => !job.owner_id);
+
+  for (const job of riskyJobs) {
+    if (!job.owner_id) continue;
+    const bucket = groupedByOwner.get(job.owner_id) || [];
+    bucket.push(job);
+    groupedByOwner.set(job.owner_id, bucket);
+  }
+
+  let owners = planner.owners
+    .filter((row) => !personType || row.owner.person_type === personType)
+    .filter((row) => !ownerFilter || row.owner.id === ownerFilter)
+    .map((row) => {
+      const ownerRiskJobs = groupedByOwner.get(row.owner.id) || [];
+      const criticalJobs = ownerRiskJobs.filter((job) => String(job.metadata?.risk_signal?.band || '').toLowerCase() === 'critical').length;
+      const highRiskJobs = ownerRiskJobs.filter((job) => ['critical', 'high', 'medium'].includes(String(job.metadata?.risk_signal?.band || '').toLowerCase())).length;
+      const blockedJobs = row.jobs.filter((job) => String(job.status || '').toLowerCase() === 'blocked').length;
+      const nearDeadlineJobs = row.jobs.filter((job) => {
+        if (!job.deadline_at || !opsIsActiveJobStatus(job.status)) return false;
+        const diffHours = (new Date(job.deadline_at).getTime() - Date.now()) / 3600000;
+        return Number.isFinite(diffHours) && diffHours <= 24;
+      }).length;
+      const riskScore = ownerRiskJobs.reduce((sum, job) => sum + opsRiskBandWeight(job.metadata?.risk_signal?.band), 0)
+        + (blockedJobs * 2)
+        + (nearDeadlineJobs * 2)
+        + (row.usage >= 1 ? 3 : row.usage >= 0.85 ? 2 : row.usage >= 0.7 ? 1 : 0);
+      const state = opsCreativeRiskState({
+        usage: row.usage || 0,
+        criticalJobs,
+        highRiskJobs,
+        blockedJobs,
+        nearDeadlineJobs,
+        riskScore,
+      });
+
+      return {
+        owner_id: row.owner.id,
+        name: row.owner.name,
+        email: row.owner.email,
+        specialty: row.owner.specialty,
+        person_type: row.owner.person_type,
+        usage_pct: Math.round((row.usage || 0) * 100),
+        state,
+        risk_score: riskScore,
+        critical_jobs: criticalJobs,
+        high_risk_jobs: highRiskJobs,
+        blocked_jobs: blockedJobs,
+        near_deadline_jobs: nearDeadlineJobs,
+        active_jobs: row.jobs.length,
+        recommendation:
+          state === 'critico' ? 'Proteger agenda, redistribuir jobs e atacar bloqueios imediatamente.' :
+            state === 'alto' ? 'Evitar nova entrada e revisar redistribuição hoje.' :
+              state === 'moderado' ? 'Monitorar prazos e priorizar saídas mais próximas.' :
+                'Sem pressão relevante agora.',
+        top_risk_jobs: ownerRiskJobs
+          .sort((a, b) =>
+            (opsRiskBandWeight(b.metadata?.risk_signal?.band) - opsRiskBandWeight(a.metadata?.risk_signal?.band)) ||
+            (opsPriorityWeight(a.priority_band) - opsPriorityWeight(b.priority_band)) ||
+            (new Date(a.deadline_at || 0).getTime() - new Date(b.deadline_at || 0).getTime()))
+          .slice(0, 4)
+          .map((job) => ({
+            job_id: job.id,
+            title: job.title,
+            client_name: job.client_name,
+            status: job.status,
+            priority_band: job.priority_band,
+            deadline_at: job.deadline_at,
+            risk_band: job.metadata?.risk_signal?.band || null,
+            risk_summary: job.metadata?.risk_signal?.summary || null,
+          })),
+      };
+    });
+
+  if (onlyHighRisk) {
+    owners = owners.filter((owner) => owner.state === 'critico' || owner.state === 'alto');
+  }
+
+  owners = owners
+    .sort((a, b) =>
+      (b.risk_score - a.risk_score) ||
+      (b.critical_jobs - a.critical_jobs) ||
+      (b.high_risk_jobs - a.high_risk_jobs) ||
+      (b.usage_pct - a.usage_pct) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        owners_evaluated: owners.length,
+        critical_people: owners.filter((owner) => owner.state === 'critico').length,
+        high_risk_people: owners.filter((owner) => owner.state === 'alto').length,
+        risky_jobs_total: riskyJobs.length,
+        critical_jobs_total: riskyJobs.filter((job) => String(job.metadata?.risk_signal?.band || '').toLowerCase() === 'critical').length,
+        unassigned_high_risk_jobs: unassignedJobs.length,
+      },
+      owners,
+      unassigned_jobs: unassignedJobs
+        .sort((a, b) =>
+          (opsRiskBandWeight(b.metadata?.risk_signal?.band) - opsRiskBandWeight(a.metadata?.risk_signal?.band)) ||
+          (opsPriorityWeight(a.priority_band) - opsPriorityWeight(b.priority_band)))
+        .slice(0, 6)
+        .map((job) => ({
+          job_id: job.id,
+          title: job.title,
+          client_name: job.client_name,
+          status: job.status,
+          priority_band: job.priority_band,
+          deadline_at: job.deadline_at,
+          risk_band: job.metadata?.risk_signal?.band || null,
+          risk_summary: job.metadata?.risk_signal?.summary || null,
+        })),
+    },
+  };
+}
+
+async function opsGetCreativeQuality(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 10, 20);
+  const daysBack = Math.min(Math.max(Number(args.days_back || 120), 30), 365);
+  const personType = args.person_type && args.person_type !== 'all' ? String(args.person_type) : null;
+  const ownerFilter = String(args.owner_id || '').trim() || null;
+  const specialtyFilter = String(args.specialty || '').trim().toLowerCase();
+
+  const { rows } = await query(
+    `WITH review_stats AS (
+       SELECT
+         cr.job_id,
+         COUNT(*) FILTER (WHERE cr.review_type = 'internal')::int AS internal_reviews,
+         COUNT(*) FILTER (WHERE cr.review_type = 'internal' AND cr.status = 'changes_requested')::int AS internal_changes,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval')::int AS client_reviews,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval' AND cr.status = 'approved')::int AS client_approved,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval' AND cr.status IN ('changes_requested', 'rejected'))::int AS client_rework
+       FROM creative_reviews cr
+       WHERE cr.tenant_id = $1
+       GROUP BY cr.job_id
+     )
+     SELECT
+       j.owner_id,
+       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+       u.email AS owner_email,
+       tu.role AS owner_role,
+       fp.specialty,
+       CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type,
+       fp.approval_rate,
+       COUNT(*)::int AS total_jobs,
+       COUNT(*) FILTER (WHERE j.status IN ('approved', 'scheduled', 'published', 'done'))::int AS delivered_jobs,
+       COALESCE(ROUND(AVG(COALESCE(j.revision_count, 0))::numeric, 2), 0)::float AS avg_revision_count,
+       MAX(COALESCE(j.revision_count, 0))::int AS max_revision_count,
+       COUNT(*) FILTER (WHERE COALESCE(j.revision_count, 0) >= 2)::int AS jobs_high_rework,
+       COALESCE(SUM(COALESCE(rs.internal_reviews, 0)), 0)::int AS internal_reviews,
+       COALESCE(SUM(COALESCE(rs.internal_changes, 0)), 0)::int AS internal_changes,
+       COALESCE(SUM(COALESCE(rs.client_reviews, 0)), 0)::int AS client_reviews,
+       COALESCE(SUM(COALESCE(rs.client_approved, 0)), 0)::int AS client_approved,
+       COALESCE(SUM(COALESCE(rs.client_rework, 0)), 0)::int AS client_rework,
+       MAX(j.updated_at) AS last_job_update
+     FROM jobs j
+     JOIN edro_users u ON u.id = j.owner_id
+     LEFT JOIN tenant_users tu ON tu.user_id = j.owner_id AND tu.tenant_id = j.tenant_id
+     LEFT JOIN freelancer_profiles fp ON fp.user_id = j.owner_id
+     LEFT JOIN review_stats rs ON rs.job_id = j.id
+     WHERE j.tenant_id = $1
+       AND j.owner_id IS NOT NULL
+       AND j.status <> 'archived'
+       AND j.created_at >= NOW() - ($2 || ' days')::interval
+     GROUP BY j.owner_id, owner_name, owner_email, owner_role, fp.specialty, person_type, fp.approval_rate
+     ORDER BY total_jobs DESC, avg_revision_count DESC, owner_name ASC`,
+    [ctx.tenantId, String(daysBack)],
+  );
+
+  const filteredOwners = rows
+    .filter((row: any) => !personType || row.person_type === personType)
+    .filter((row: any) => !ownerFilter || row.owner_id === ownerFilter)
+    .filter((row: any) => !specialtyFilter || String(row.specialty || '').toLowerCase().includes(specialtyFilter))
+    .map((row: any) => {
+      const approvalRate = row.client_reviews > 0
+        ? Math.round((Number(row.client_approved || 0) / Math.max(1, Number(row.client_reviews || 0))) * 100)
+        : (row.approval_rate !== null && row.approval_rate !== undefined ? Math.round(Number(row.approval_rate)) : null);
+      const state = opsCreativeQualityState({
+        approvalRate,
+        avgRevisionCount: Number(row.avg_revision_count || 0),
+        clientReworkCount: Number(row.client_rework || 0),
+        highReworkJobs: Number(row.jobs_high_rework || 0),
+      });
+
+      return {
+        owner_id: row.owner_id,
+        name: row.owner_name,
+        email: row.owner_email,
+        role: row.owner_role,
+        specialty: row.specialty,
+        person_type: row.person_type,
+        state,
+        total_jobs: Number(row.total_jobs || 0),
+        delivered_jobs: Number(row.delivered_jobs || 0),
+        avg_revision_count: Number(row.avg_revision_count || 0),
+        max_revision_count: Number(row.max_revision_count || 0),
+        jobs_high_rework: Number(row.jobs_high_rework || 0),
+        internal_reviews: Number(row.internal_reviews || 0),
+        internal_changes: Number(row.internal_changes || 0),
+        client_reviews: Number(row.client_reviews || 0),
+        client_approved: Number(row.client_approved || 0),
+        client_rework: Number(row.client_rework || 0),
+        client_approval_rate: approvalRate,
+        approval_rate_profile: row.approval_rate !== null && row.approval_rate !== undefined ? Number(row.approval_rate) : null,
+        last_job_update: row.last_job_update,
+        recommendation:
+          state === 'critico' ? 'Revisar qualidade de entrega, retrabalho e handoff antes de nova carga.' :
+            state === 'atencao' ? 'Acompanhar rounds de revisão e calibrar briefing/critério visual.' :
+              'Qualidade operacional saudável no recorte atual.',
+      };
+    })
+    .sort((a: any, b: any) =>
+      ((a.state === 'critico' ? 2 : a.state === 'atencao' ? 1 : 0) - (b.state === 'critico' ? 2 : b.state === 'atencao' ? 1 : 0)) * -1 ||
+      (b.jobs_high_rework - a.jobs_high_rework) ||
+      (b.avg_revision_count - a.avg_revision_count) ||
+      ((a.client_approval_rate ?? 999) - (b.client_approval_rate ?? 999)) ||
+      a.name.localeCompare(b.name))
+    .slice(0, limit);
+
+  const hotspotRes = await query(
+    `WITH review_stats AS (
+       SELECT
+         cr.job_id,
+         COUNT(*) FILTER (WHERE cr.review_type = 'internal' AND cr.status = 'changes_requested')::int AS internal_changes,
+         COUNT(*) FILTER (WHERE cr.review_type = 'client_approval' AND cr.status IN ('changes_requested', 'rejected'))::int AS client_rework
+       FROM creative_reviews cr
+       WHERE cr.tenant_id = $1
+       GROUP BY cr.job_id
+     )
+     SELECT
+       j.id,
+       j.title,
+       j.status,
+       j.job_type,
+       j.channel,
+       j.revision_count,
+       j.updated_at,
+       c.name AS client_name,
+       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+       COALESCE(rs.internal_changes, 0)::int AS internal_changes,
+       COALESCE(rs.client_rework, 0)::int AS client_rework
+     FROM jobs j
+     LEFT JOIN clients c ON c.id = j.client_id
+     LEFT JOIN edro_users u ON u.id = j.owner_id
+     LEFT JOIN review_stats rs ON rs.job_id = j.id
+     WHERE j.tenant_id = $1
+       AND j.status NOT IN ('done', 'archived', 'published', 'cancelled')
+       AND j.created_at >= NOW() - ($2 || ' days')::interval
+       AND (COALESCE(j.revision_count, 0) >= 2 OR COALESCE(rs.internal_changes, 0) > 0 OR COALESCE(rs.client_rework, 0) > 0)
+     ORDER BY COALESCE(j.revision_count, 0) DESC, COALESCE(rs.client_rework, 0) DESC, j.updated_at DESC
+     LIMIT 8`,
+    [ctx.tenantId, String(daysBack)],
+  );
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        owners_evaluated: filteredOwners.length,
+        healthy_people: filteredOwners.filter((owner: any) => owner.state === 'saudavel').length,
+        attention_people: filteredOwners.filter((owner: any) => owner.state === 'atencao').length,
+        critical_people: filteredOwners.filter((owner: any) => owner.state === 'critico').length,
+        avg_revision_count:
+          filteredOwners.length
+            ? Number((filteredOwners.reduce((sum: number, owner: any) => sum + owner.avg_revision_count, 0) / filteredOwners.length).toFixed(2))
+            : 0,
+        avg_client_approval_rate:
+          filteredOwners.filter((owner: any) => owner.client_approval_rate !== null).length
+            ? Math.round(
+                filteredOwners
+                  .filter((owner: any) => owner.client_approval_rate !== null)
+                  .reduce((sum: number, owner: any) => sum + Number(owner.client_approval_rate || 0), 0) /
+                filteredOwners.filter((owner: any) => owner.client_approval_rate !== null).length,
+              )
+            : null,
+        days_back: daysBack,
+      },
+      owners: filteredOwners,
+      hotspots: hotspotRes.rows.map((row: any) => ({
+        job_id: row.id,
+        title: row.title,
+        client_name: row.client_name,
+        owner_name: row.owner_name,
+        status: row.status,
+        job_type: row.job_type,
+        channel: row.channel,
+        revision_count: Number(row.revision_count || 0),
+        internal_changes: Number(row.internal_changes || 0),
+        client_rework: Number(row.client_rework || 0),
+        updated_at: row.updated_at,
+      })),
+    },
+  };
+}
+
+async function opsGetCreativeBottlenecks(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const limit = Math.min(args.limit || 6, 12);
+  const stageFilter = String(args.stage || '').trim().toLowerCase();
+  const onlyHighImpact = args.only_high_impact === true;
+
+  const { rows } = await query(
+    `SELECT
+       j.id,
+       j.title,
+       j.status,
+       j.job_type,
+       COALESCE(NULLIF(j.channel, ''), 'sem_canal') AS channel,
+       j.deadline_at,
+       j.owner_id,
+       COALESCE(j.revision_count, 0)::int AS revision_count,
+       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+       c.name AS client_name,
+       rs.risk_band,
+       rs.summary AS risk_summary
+     FROM jobs j
+     LEFT JOIN edro_users u ON u.id = j.owner_id
+     LEFT JOIN clients c ON c.id = j.client_id
+     LEFT JOIN LATERAL (
+       SELECT risk_band, summary
+       FROM risk_signals
+       WHERE tenant_id = $1
+         AND job_id = j.id
+         AND resolved_at IS NULL
+       ORDER BY risk_score DESC
+       LIMIT 1
+     ) rs ON true
+     WHERE j.tenant_id = $1
+       AND j.status NOT IN ('done', 'archived', 'published', 'cancelled')
+       ${stageFilter ? `AND j.status = $2` : ''}
+     ORDER BY j.updated_at DESC`,
+    stageFilter ? [ctx.tenantId, stageFilter] : [ctx.tenantId],
+  );
+
+  const sourceRows = onlyHighImpact
+    ? rows.filter((row: any) => String(row.risk_band || '').length || row.status === 'blocked' || Number(row.revision_count || 0) >= 2 || !row.owner_id)
+    : rows;
+
+  const stageMap = new Map<string, any>();
+  const typeMap = new Map<string, any>();
+  const channelMap = new Map<string, any>();
+
+  for (const row of sourceRows) {
+    const groups = [
+      { map: stageMap, key: String(row.status || 'sem_status'), label: String(row.status || 'sem_status') },
+      { map: typeMap, key: String(row.job_type || 'sem_tipo'), label: String(row.job_type || 'sem_tipo') },
+      { map: channelMap, key: String(row.channel || 'sem_canal'), label: String(row.channel || 'sem_canal') },
+    ];
+    const riskWeight = opsRiskBandWeight(row.risk_band);
+    const blocked = String(row.status || '').toLowerCase() === 'blocked' ? 1 : 0;
+    const nearDeadline = row.deadline_at
+      ? (((new Date(row.deadline_at).getTime() - Date.now()) / 3600000) <= 24 ? 1 : 0)
+      : 0;
+    const unassigned = row.owner_id ? 0 : 1;
+    const revisionCount = Number(row.revision_count || 0);
+
+    for (const group of groups) {
+      const current = group.map.get(group.key) || {
+        key: group.key,
+        label: group.label,
+        open_jobs: 0,
+        blocked_jobs: 0,
+        high_risk_jobs: 0,
+        near_deadline_jobs: 0,
+        unassigned_jobs: 0,
+        total_revisions: 0,
+        sample_jobs: [] as Array<Record<string, any>>,
+      };
+      current.open_jobs += 1;
+      current.blocked_jobs += blocked;
+      current.high_risk_jobs += riskWeight >= 3 ? 1 : 0;
+      current.near_deadline_jobs += nearDeadline;
+      current.unassigned_jobs += unassigned;
+      current.total_revisions += revisionCount;
+      if (current.sample_jobs.length < 3) {
+        current.sample_jobs.push({
+          job_id: row.id,
+          title: row.title,
+          client_name: row.client_name,
+          owner_name: row.owner_name,
+          status: row.status,
+          risk_band: row.risk_band,
+          revision_count: revisionCount,
+        });
+      }
+      group.map.set(group.key, current);
+    }
+  }
+
+  const toRankedRows = (map: Map<string, any>) =>
+    Array.from(map.values())
+      .map((item) => {
+        const score = (item.high_risk_jobs * 4) + (item.blocked_jobs * 3) + (item.near_deadline_jobs * 2) + (item.unassigned_jobs * 2) + Math.min(item.total_revisions, 6);
+        const avgRevisionCount = item.open_jobs ? Number((item.total_revisions / item.open_jobs).toFixed(2)) : 0;
+        const severity = opsCreativeBottleneckSeverity(score);
+        return {
+          key: item.key,
+          label: item.label,
+          severity,
+          score,
+          open_jobs: item.open_jobs,
+          blocked_jobs: item.blocked_jobs,
+          high_risk_jobs: item.high_risk_jobs,
+          near_deadline_jobs: item.near_deadline_jobs,
+          unassigned_jobs: item.unassigned_jobs,
+          avg_revision_count: avgRevisionCount,
+          recommendation:
+            severity === 'critico' ? 'Atacar esta fila primeiro: redistribuir, destravar ou reduzir entrada.' :
+              severity === 'alto' ? 'Repriorizar e revisar ownership antes de adicionar nova demanda.' :
+                'Monitorar evolução desta fila.',
+          sample_jobs: item.sample_jobs,
+        };
+      })
+      .filter((item) => !onlyHighImpact || item.score >= 4)
+      .sort((a, b) =>
+        (b.score - a.score) ||
+        (b.high_risk_jobs - a.high_risk_jobs) ||
+        (b.blocked_jobs - a.blocked_jobs) ||
+        a.label.localeCompare(b.label))
+      .slice(0, limit);
+
+  return {
+    success: true,
+    data: {
+      summary: {
+        open_jobs: sourceRows.length,
+        blocked_jobs: sourceRows.filter((row: any) => String(row.status || '').toLowerCase() === 'blocked').length,
+        unassigned_jobs: sourceRows.filter((row: any) => !row.owner_id).length,
+        near_deadline_jobs: sourceRows.filter((row: any) => row.deadline_at && ((new Date(row.deadline_at).getTime() - Date.now()) / 3600000) <= 24).length,
+        high_risk_jobs: sourceRows.filter((row: any) => opsRiskBandWeight(row.risk_band) >= 3).length,
+        stage_filter: stageFilter || null,
+      },
+      stage_bottlenecks: toRankedRows(stageMap),
+      job_type_hotspots: toRankedRows(typeMap),
+      channel_hotspots: toRankedRows(channelMap),
+    },
+  };
+}
+
+async function opsResolveTargetOwnerForJob(params: {
+  tenantId: string;
+  jobId: string;
+  currentOwnerId?: string | null;
+  requestedOwnerId?: string | null;
+}) {
+  const proposals = await proposeAllocations(params.tenantId, params.jobId);
+  if (!proposals.length) {
+    throw new Error('Nenhuma sugestão elegível encontrada para este job.');
+  }
+
+  const requestedOwnerId = String(params.requestedOwnerId || '').trim() || null;
+  if (requestedOwnerId) {
+    const requested = proposals.find((proposal) => proposal.freelancerId === requestedOwnerId);
+    if (!requested) {
+      throw new Error('O owner informado não apareceu entre as sugestões elegíveis para este job.');
+    }
+    return requested;
+  }
+
+  const alternative = proposals.find((proposal) => proposal.freelancerId !== params.currentOwnerId);
+  return alternative || proposals[0];
+}
+
+async function opsApplyOwnerAndAllocation(params: {
+  tenantId: string;
+  userId?: string;
+  jobId: string;
+  ownerId: string;
+  plannedMinutes?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  notes?: string | null;
+}) {
+  const currentJobRes = await query(
+    `SELECT id, title, owner_id, estimated_minutes, status
+       FROM jobs
+      WHERE tenant_id = $1 AND id = $2
+      LIMIT 1`,
+    [params.tenantId, params.jobId],
+  );
+  if (!currentJobRes.rows.length) throw new Error('Job não encontrado.');
+
+  const currentJob = currentJobRes.rows[0];
+  await query(
+    `UPDATE jobs
+        SET owner_id = $3
+      WHERE tenant_id = $1 AND id = $2`,
+    [params.tenantId, params.jobId, params.ownerId],
+  );
+
+  const data = await upsertJobAllocation(params.tenantId, {
+    jobId: params.jobId,
+    ownerId: params.ownerId,
+    status: 'committed',
+    plannedMinutes: params.plannedMinutes ?? (Number(currentJob.estimated_minutes || 0) || null),
+    startsAt: params.startsAt ?? null,
+    endsAt: params.endsAt ?? null,
+    notes: params.notes ?? null,
+    changedBy: params.userId ?? null,
+  });
+  await syncOperationalRuntimeForJob(params.tenantId, params.jobId);
+
+  return {
+    job: currentJob,
+    allocation: data,
+  };
+}
+
+async function opsApplyJobAllocationRecommendation(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute esta ação quando o usuário confirmar explicitamente.' };
+  }
+
+  const { rows } = await query(
+    `SELECT j.id, j.title, j.owner_id, j.client_id, c.name AS client_name
+       FROM jobs j
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE j.tenant_id = $1 AND j.id = $2
+      LIMIT 1`,
+    [ctx.tenantId, args.job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  const job = rows[0];
+
+  const proposal = await opsResolveTargetOwnerForJob({
+    tenantId: ctx.tenantId,
+    jobId: args.job_id,
+    currentOwnerId: job.owner_id,
+    requestedOwnerId: args.owner_id,
+  });
+
+  const applied = await opsApplyOwnerAndAllocation({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    jobId: args.job_id,
+    ownerId: proposal.freelancerId,
+    plannedMinutes: proposal.estimatedMinutes,
+    startsAt: proposal.estimatedAvailableAt,
+    endsAt: proposal.estimatedCompletionAt,
+    notes: String(args.notes || '').trim() || `Alocação aplicada pelo Jarvis com base na recomendação automática.`,
+  });
+
+  return {
+    success: true,
+    data: {
+      action: 'allocation_applied',
+      job_id: args.job_id,
+      title: job.title,
+      client_name: job.client_name,
+      previous_owner_id: job.owner_id || null,
+      new_owner_id: proposal.freelancerId,
+      new_owner_name: proposal.name,
+      rationale: proposal.rationale,
+      estimated_available_at: proposal.estimatedAvailableAt,
+      estimated_completion_at: proposal.estimatedCompletionAt,
+      allocation: applied.allocation,
+      message: `Job "${job.title}" alocado para ${proposal.name}.`,
+    },
+  };
+}
+
+async function opsApplyCreativeRedistribution(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  if (args.confirmed !== true) {
+    return { success: false, error: 'Confirmação obrigatória. Só execute esta ação quando o usuário confirmar explicitamente.' };
+  }
+
+  const { rows } = await query(
+    `SELECT j.id, j.title, j.owner_id, j.status, j.priority_band, j.client_id, c.name AS client_name
+       FROM jobs j
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE j.tenant_id = $1 AND j.id = $2
+      LIMIT 1`,
+    [ctx.tenantId, args.job_id],
+  );
+  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  const job = rows[0];
+
+  const proposal = await opsResolveTargetOwnerForJob({
+    tenantId: ctx.tenantId,
+    jobId: args.job_id,
+    currentOwnerId: job.owner_id,
+    requestedOwnerId: args.to_owner_id,
+  });
+
+  if (proposal.freelancerId === job.owner_id) {
+    return {
+      success: true,
+      data: {
+        action: 'redistribution_skipped',
+        job_id: job.id,
+        title: job.title,
+        owner_id: job.owner_id,
+        message: `O job "${job.title}" já está com ${proposal.name}.`,
+      },
+    };
+  }
+
+  const applied = await opsApplyOwnerAndAllocation({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    jobId: args.job_id,
+    ownerId: proposal.freelancerId,
+    plannedMinutes: proposal.estimatedMinutes,
+    startsAt: proposal.estimatedAvailableAt,
+    endsAt: proposal.estimatedCompletionAt,
+    notes: String(args.notes || '').trim() || `Redistribuição aplicada pelo Jarvis para aliviar carga operacional.`,
+  });
+
+  return {
+    success: true,
+    data: {
+      action: 'redistribution_applied',
+      job_id: job.id,
+      title: job.title,
+      client_name: job.client_name,
+      previous_owner_id: job.owner_id || null,
+      new_owner_id: proposal.freelancerId,
+      new_owner_name: proposal.name,
+      priority_band: job.priority_band,
+      status: job.status,
+      rationale: proposal.rationale,
+      estimated_available_at: proposal.estimatedAvailableAt,
+      estimated_completion_at: proposal.estimatedCompletionAt,
+      allocation: applied.allocation,
+      message: `Job "${job.title}" redistribuído de ${job.owner_id || 'sem responsável'} para ${proposal.name}.`,
+    },
+  };
 }
 
 async function opsGetLookups(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {

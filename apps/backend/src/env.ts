@@ -105,8 +105,10 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().optional(),
   GOOGLE_PUBSUB_TOPIC: z.string().optional(),
+  GOOGLE_PUBSUB_WEBHOOK_TOKEN: z.string().optional(),
   GOOGLE_CALENDAR_REDIRECT_URI: z.string().optional(),
   GOOGLE_CALENDAR_WEBHOOK_URL: z.string().optional(),
+  GOOGLE_CALENDAR_WEBHOOK_SECRET: z.string().optional(),
   RECALL_API_KEY: z.string().optional(),
   RECALL_REGION: z.string().optional(),
   RECALL_GOOGLE_LOGIN_GROUP_ID: z.string().optional(),
@@ -232,6 +234,9 @@ function validateSecureRuntimeConfig() {
     }
     if (!hasValue(parsed.WEB_URL)) {
       issues.push('WEB_URL é obrigatório quando Gmail OAuth estiver habilitado.');
+    }
+    if (isProductionLike && !hasValue(parsed.GOOGLE_PUBSUB_WEBHOOK_TOKEN) && !hasValue(parsed.GATEWAY_SHARED_SECRET)) {
+      issues.push('Gmail Pub/Sub em produção/staging exige GOOGLE_PUBSUB_WEBHOOK_TOKEN ou GATEWAY_SHARED_SECRET.');
     }
   }
 

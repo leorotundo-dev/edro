@@ -770,7 +770,8 @@ export default async function jobsRoutes(app: FastifyInstance) {
               urgency_approved_by = $20,
               definition_of_done = $21,
               metadata = $22::jsonb,
-              external_link = $23
+              external_link = $23,
+              allocated_at = CASE WHEN $15 IS NOT NULL AND (owner_id IS NULL OR owner_id != $15) THEN now() ELSE allocated_at END
         WHERE tenant_id = $1 AND id = $2
         RETURNING *`,
       [
@@ -921,6 +922,21 @@ export default async function jobsRoutes(app: FastifyInstance) {
           (e: any) => console.error('[jobs] createBillingEntry failed:', e?.message),
         );
       }
+    }
+
+    // ── Response time EMA: compute when freelancer moves job to in_progress ──
+    if (body.status === 'in_progress' && current.owner_id && current.allocated_at) {
+      const responseMins = (Date.now() - new Date(current.allocated_at).getTime()) / 60000;
+      query(
+        `UPDATE freelancer_profiles
+            SET avg_response_minutes = CASE
+              WHEN avg_response_minutes IS NULL THEN $2
+              ELSE ROUND((0.3 * $2 + 0.7 * avg_response_minutes)::numeric, 2)
+            END,
+            updated_at = now()
+          WHERE user_id = $1`,
+        [current.owner_id, Math.round(responseMins)],
+      ).catch(() => {});
     }
 
     // ── Capacity: consume slot when a job is assigned; release if cancelled ──

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet } from '@/lib/api';
 import Chart from '@/components/charts/Chart';
 import { baseChartOptions } from '@/utils/chartTheme';
@@ -20,6 +21,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconRefresh, IconCloudDownload } from '@tabler/icons-react';
+import { alpha } from '@mui/material/styles';
 
 type ClientRow = {
   id: string;
@@ -254,6 +256,12 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
     const sum = formats.reduce((acc, row) => acc + Number(row.predicted_ml_score || 0), 0);
     return Math.round(sum / formats.length);
   }, [formats]);
+  const avgSuccessRate = useMemo(() => {
+    if (!formats.length) return 0;
+    const sum = formats.reduce((acc, row) => acc + Number(row.predicted_success_probability || 0), 0);
+    return Math.round(sum / formats.length);
+  }, [formats]);
+  const topFormat = [...formats].sort((a, b) => Number(b.predicted_ml_score || 0) - Number(a.predicted_ml_score || 0))[0];
 
   // Chart data for formats
   const formatChartOptions: ApexCharts.ApexOptions = {
@@ -281,12 +289,24 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Box>
-        <Typography variant="h4">Performance</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Visão consolidada de formatos e previsões do catálogo.
-        </Typography>
-      </Box>
+      <WorkspaceHero
+        eyebrow="Reports workspace"
+        title="Performance"
+        description="Compare formatos, previsões e leituras do Reportei para decidir onde a campanha tem mais potência e mensurabilidade."
+        leftChips={[
+          { label: selectedClient?.name || 'Base global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name
+            ? [{ label: campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name || '' }]
+            : []),
+        ]}
+        rightContent={
+          <>
+            <Chip label={`${formatNumber(totalFormats)} formatos`} size="small" color="primary" variant="outlined" />
+            <Chip label={`ML ${formatNumber(avgMlScore)}`} size="small" color="warning" variant="outlined" />
+            <Chip label={`Sucesso ${formatNumber(avgSuccessRate)}%`} size="small" color="success" variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card variant="outlined">
@@ -300,7 +320,7 @@ export default function PerformanceClient({ clientId, noShell, embedded }: Perfo
         <CardContent>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
             <Box>
-              <Typography variant="overline" color="text.secondary">Filtros</Typography>
+              <Typography variant="overline" color="text.secondary">Recorte</Typography>
               <Typography variant="body2" color="text.secondary">
                 {selectedClient?.name || 'Global'} · {totalFormats} formatos
               </Typography>

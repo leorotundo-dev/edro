@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
@@ -13,6 +14,10 @@ import Tooltip from '@mui/material/Tooltip';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Slide from '@mui/material/Slide';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
+import { alpha } from '@mui/material/styles';
 import {
   IconSend, IconBrain, IconUser, IconPaperclip, IconX,
   IconFile, IconPlus, IconClockHour3, IconArrowsMinimize,
@@ -28,43 +33,8 @@ import AppShell from '@/components/AppShell';
 type AttachedFile = { name: string; text: string; chars: number; is_audio?: boolean };
 type ChatMessage = { role: 'user' | 'assistant'; content: string; timestamp: string; artifacts?: Artifact[]; observability?: JarvisObservability | null };
 type ClientOption = { id: string; name: string };
-type ConversationMemory = {
-  id: string;
-  source_type: string;
-  title: string;
-  excerpt: string;
-  published_at?: string | null;
-  metadata?: Record<string, any>;
-};
 
 const EDRO_ORANGE = '#E85219';
-
-function formatMemoryLabel(sourceType: string) {
-  switch (sourceType) {
-    case 'whatsapp_message':
-      return 'WhatsApp';
-    case 'whatsapp_insight':
-      return 'Insight';
-    case 'whatsapp_digest':
-      return 'Digest';
-    case 'meeting':
-      return 'Reunião';
-    default:
-      return 'Memória';
-  }
-}
-
-function formatMemoryDate(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
 
 // ── Typing dots ──────────────────────────────────────────────────────
 function TypingDots() {
@@ -165,7 +135,6 @@ export default function JarvisFullClient() {
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
-  const [conversationMemories, setConversationMemories] = useState<ConversationMemory[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -232,27 +201,6 @@ export default function JarvisFullClient() {
       })));
     }).catch(() => {});
   }, [conversationId, clientId]);
-
-  useEffect(() => {
-    if (!clientId) {
-      setConversationMemories([]);
-      return;
-    }
-
-    let cancelled = false;
-    apiGet<{ memories?: ConversationMemory[] }>(`/clients/${clientId}/intelligence`)
-      .then((response) => {
-        if (cancelled) return;
-        setConversationMemories((response?.memories ?? []).slice(0, 6));
-      })
-      .catch(() => {
-        if (!cancelled) setConversationMemories([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -338,28 +286,85 @@ export default function JarvisFullClient() {
 
   return (
     <AppShell title="Jarvis">
-      <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', maxHeight: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+      <Stack spacing={2} sx={{ height: 'calc(100vh - 64px)', minHeight: 0 }}>
+        <WorkspaceHero
+          eyebrow="AI / Chat"
+          title="Jarvis"
+          description="Converse com o Jarvis, use atalhos de contexto e mantenha o histórico no mesmo workspace."
+          leftChips={[
+            { label: clientName || 'Contexto global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+            { label: conversationId ? 'Conversa ativa' : 'Nova conversa' },
+          ]}
+          rightContent={
+            <>
+              <Chip size="small" label={`${clients.length} clientes`} variant="outlined" />
+              <Chip size="small" label={`${messages.length} mensagens`} variant="outlined" />
+            </>
+          }
+        />
+        <Box
+          sx={(theme) => ({
+            display: 'flex',
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
+            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : '#f6f8fc',
+            gap: 2,
+            p: 2,
+            borderRadius: 4,
+          })}
+        >
 
-        {/* Sidebar — history */}
+        {/* Sidebar — history mobile */}
         <Slide direction="right" in={showHistory} mountOnEnter unmountOnExit>
-          <Box sx={{
-            width: 320, flexShrink: 0, borderRight: 1, borderColor: 'divider',
-            bgcolor: 'background.paper', overflow: 'hidden',
-          }}>
+          <Paper
+            variant="outlined"
+            sx={{
+              width: 320,
+              flexShrink: 0,
+              overflow: 'hidden',
+              display: { xs: 'block', md: 'none' },
+              borderRadius: 4,
+            }}
+          >
             <ConversationList
               clientId={clientId}
               onSelect={handleSelectConversation}
               onBack={() => setShowHistory(false)}
+              onNewConversation={handleNewConversation}
             />
-          </Box>
+          </Paper>
         </Slide>
 
+        {/* Sidebar — history desktop */}
+        <Paper
+          variant="outlined"
+          sx={{
+            width: 320,
+            flexShrink: 0,
+            overflow: 'hidden',
+            display: { xs: 'none', md: 'block' },
+            borderRadius: 4,
+          }}
+        >
+          <ConversationList
+            clientId={clientId}
+            onSelect={handleSelectConversation}
+            onBack={() => {}}
+            hideBack
+            onNewConversation={handleNewConversation}
+          />
+        </Paper>
+
         {/* Main chat area */}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <Paper
+          variant="outlined"
+          sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderRadius: 4, overflow: 'hidden' }}
+        >
 
           {/* Top bar */}
           <Box sx={{
-            display: 'flex', alignItems: 'center', gap: 2, px: 3, py: 1.5,
+            display: 'flex', alignItems: 'center', gap: 2, px: 3, py: 2,
             borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', flexShrink: 0,
           }}>
             <Avatar sx={{ width: 36, height: 36, bgcolor: EDRO_ORANGE }}>
@@ -367,11 +372,11 @@ export default function JarvisFullClient() {
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                Jarvis{clientName ? ` · ${clientName}` : ''}
+                Chat with Jarvis{clientName ? ` · ${clientName}` : ''}
               </Typography>
-              {conversationId && (
-                <Typography variant="caption" color="text.disabled">Conversa ativa</Typography>
-              )}
+              <Typography variant="caption" color="text.disabled">
+                {conversationId ? 'Conversa ativa' : 'Nova conversa'}
+              </Typography>
             </Box>
 
             {/* Client selector */}
@@ -413,107 +418,72 @@ export default function JarvisFullClient() {
 
           {/* Messages */}
           <Box ref={scrollRef} sx={{
-            flex: 1, overflowY: 'auto', px: { xs: 2, md: 6, lg: 10 }, py: 3,
+            flex: 1, overflowY: 'auto', px: { xs: 2, md: 4, lg: 5 }, py: 3,
             display: 'flex', flexDirection: 'column', gap: 2.5,
           }}>
-            {!!clientId && conversationMemories.length > 0 && (
-              <Box
-                sx={{
-                  maxWidth: 800,
-                  width: '100%',
-                  alignSelf: 'center',
-                  p: 2,
-                  borderRadius: 3,
-                  border: 1,
-                  borderColor: 'divider',
-                  bgcolor: 'background.paper',
-                  boxShadow: 1,
-                }}
-              >
-                <Typography variant="overline" sx={{ color: EDRO_ORANGE, fontWeight: 700, letterSpacing: '0.08em' }}>
-                  Memoria do cliente
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Historico recente de WhatsApp e reunioes usado pelo Jarvis nesta conversa.
-                </Typography>
-                <Box sx={{ display: 'grid', gap: 1 }}>
-                  {conversationMemories.map((memory) => (
-                    <Box
-                      key={memory.id}
-                      sx={{
-                        p: 1.25,
-                        borderRadius: 2,
-                        bgcolor: 'background.default',
-                        border: 1,
-                        borderColor: 'divider',
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', mb: 0.5 }}>
-                        <Chip
-                          label={formatMemoryLabel(memory.source_type)}
-                          size="small"
-                          variant="outlined"
-                          sx={{
-                            height: 22,
-                            fontSize: '0.7rem',
-                            borderColor: `${EDRO_ORANGE}40`,
-                            color: EDRO_ORANGE,
-                          }}
-                        />
-                        <Typography variant="caption" color="text.disabled">
-                          {formatMemoryDate(memory.published_at)}
-                        </Typography>
-                      </Box>
-                      <Typography variant="subtitle2" sx={{ lineHeight: 1.35, mb: 0.25 }}>
-                        {memory.title || 'Memoria sem titulo'}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          lineHeight: 1.55,
-                        }}
-                      >
-                        {memory.excerpt || 'Sem resumo disponivel.'}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            )}
-
             {/* Empty state */}
             {messages.length === 0 && !loading && (
-              <Box sx={{ textAlign: 'center', pt: 8 }}>
-                <Box sx={{ display: 'inline-flex', p: 3, borderRadius: '50%', bgcolor: `${EDRO_ORANGE}12`, mb: 3 }}>
-                  <IconBrain size={48} style={{ color: EDRO_ORANGE }} />
-                </Box>
-                <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                  {clientName ? `Jarvis · ${clientName}` : 'Jarvis'}
+              <Box sx={{ maxWidth: 1040, width: '100%', mx: 'auto', pt: { xs: 2, md: 5 } }}>
+                <Typography variant="h2" sx={{ fontWeight: 800, mb: 1, letterSpacing: '-0.03em' }}>
+                  Hey there!
                 </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                  {noClient ? 'Selecione um cliente acima para começar.' : 'O que fazemos hoje?'}
+                <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>
+                  {noClient ? 'Selecione um cliente para começar.' : 'What would you like to explore today?'}
                 </Typography>
 
                 {!noClient && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', maxWidth: 600, mx: 'auto' }}>
-                    {quickActions.map(qa => (
-                      <Chip
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                      gap: 2,
+                    }}
+                  >
+                    {quickActions.slice(0, 6).map((qa) => (
+                      <Paper
                         key={qa}
-                        label={qa}
                         variant="outlined"
-                        clickable
                         onClick={() => sendMessage(qa)}
                         sx={{
-                          fontSize: '0.8rem', py: 0.5, cursor: 'pointer',
-                          borderColor: `${EDRO_ORANGE}40`, color: 'text.secondary',
-                          '&:hover': { borderColor: EDRO_ORANGE, color: EDRO_ORANGE },
+                          p: 2.5,
+                          textAlign: 'left',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          transition: 'all .18s ease',
+                          '&:hover': {
+                            borderColor: `${EDRO_ORANGE}66`,
+                            boxShadow: 2,
+                            transform: 'translateY(-1px)',
+                          },
                         }}
-                      />
+                      >
+                        <Box
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 2.5,
+                            bgcolor: `${EDRO_ORANGE}12`,
+                            color: EDRO_ORANGE,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mb: 2,
+                          }}
+                        >
+                          <IconBrain size={20} />
+                        </Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.75 }}>
+                          {qa}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {qa === 'Quais briefings estão em aberto?' && 'Abrir a fila viva de briefings e pendências.'}
+                          {qa === 'Mostra pendências por cliente' && 'Separar gargalos por cliente para decidir rápido.'}
+                          {qa === 'Quais são as próximas datas relevantes?' && 'Ver prazos, marcos e entregas mais próximas.'}
+                          {qa === 'Recalcula a inteligência dos clientes' && 'Atualizar leitura e sinais que guiam a operação.'}
+                          {qa === 'Gera um brief estratégico para este mês' && 'Começar um novo plano com direção clara.'}
+                          {qa === 'Resumo do pipeline de hoje' && 'Ler o pulso operacional do dia em uma resposta.'}
+                        </Typography>
+                      </Paper>
                     ))}
                   </Box>
                 )}
@@ -538,15 +508,17 @@ export default function JarvisFullClient() {
                   {msg.role === 'user' ? <IconUser size={16} /> : <IconBrain size={16} />}
                 </Avatar>
                 <Box sx={{ maxWidth: '90%', minWidth: 0 }}>
-                  <Box sx={{
-                    px: 2, py: 1.5,
-                    borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-                    bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
-                    color: msg.role === 'user' ? '#fff' : 'text.primary',
-                    border: msg.role === 'assistant' ? 1 : 0,
-                    borderColor: 'divider',
-                    boxShadow: msg.role === 'assistant' ? 1 : 0,
-                  }}>
+                  <Paper
+                    variant={msg.role === 'assistant' ? 'outlined' : undefined}
+                    sx={{
+                      px: 2,
+                      py: 1.5,
+                      borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                      bgcolor: msg.role === 'user' ? 'primary.main' : 'background.paper',
+                      color: msg.role === 'user' ? '#fff' : 'text.primary',
+                      boxShadow: msg.role === 'assistant' ? 0 : 0,
+                    }}
+                  >
                     {msg.role === 'user' ? (
                       <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '0.88rem' }}>
                         {msg.content}
@@ -554,7 +526,7 @@ export default function JarvisFullClient() {
                     ) : (
                       <MarkdownText text={msg.content} />
                     )}
-                  </Box>
+                  </Paper>
                   {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
                   {msg.artifacts?.map((artifact, ai) => (
                     <ArtifactCard key={ai} artifact={artifact} clientId={clientId} />
@@ -569,15 +541,15 @@ export default function JarvisFullClient() {
                 <Avatar sx={{ width: 34, height: 34, bgcolor: EDRO_ORANGE }}>
                   <IconBrain size={16} />
                 </Avatar>
-                <Box sx={{ px: 2, py: 1, borderRadius: '4px 16px 16px 16px', bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+                <Paper variant="outlined" sx={{ px: 2, py: 1, borderRadius: '4px 16px 16px 16px' }}>
                   <TypingDots />
-                </Box>
+                </Paper>
               </Box>
             )}
           </Box>
 
           {/* Input area */}
-          <Box sx={{ px: { xs: 2, md: 6, lg: 10 }, py: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0, bgcolor: 'background.paper' }}>
+          <Box sx={{ px: { xs: 2, md: 4, lg: 5 }, py: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0, bgcolor: 'background.paper' }}>
             {attachedFiles.length > 0 && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
                 {attachedFiles.map((f, i) => (
@@ -594,7 +566,10 @@ export default function JarvisFullClient() {
               </Box>
             )}
 
-            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', maxWidth: 800, mx: 'auto' }}>
+            <Paper
+              variant="outlined"
+              sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-end', maxWidth: 960, mx: 'auto', p: 1.25, borderRadius: 3.5 }}
+            >
               <Box component="label" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
                 <input
                   ref={fileInputRef}
@@ -632,7 +607,8 @@ export default function JarvisFullClient() {
                 disabled={loading || noClient}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    borderRadius: 3, fontSize: '0.9rem',
+                    borderRadius: 3,
+                    fontSize: '0.9rem',
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: EDRO_ORANGE },
                   },
                 }}
@@ -649,10 +625,11 @@ export default function JarvisFullClient() {
               >
                 <IconSend size={18} />
               </IconButton>
-            </Box>
+            </Paper>
           </Box>
+        </Paper>
         </Box>
-      </Box>
+      </Stack>
     </AppShell>
   );
 }

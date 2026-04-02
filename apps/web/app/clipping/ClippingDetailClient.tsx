@@ -304,83 +304,148 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
 
   const content = (
     <Stack spacing={3}>
-        {error ? (
-          <Card sx={{ bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light' }}>
-            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-              <Typography color="error.main" variant="body2">{error}</Typography>
-            </CardContent>
-          </Card>
-        ) : null}
-        {success ? (
-          <Card sx={{ bgcolor: 'success.lighter', border: '1px solid', borderColor: 'success.light' }}>
-            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-              <Typography color="success.main" variant="body2">{success}</Typography>
-            </CardContent>
-          </Card>
-        ) : null}
+      {error ? (
+        <Card sx={{ bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light' }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Typography color="error.main" variant="body2">{error}</Typography>
+          </CardContent>
+        </Card>
+      ) : null}
+      {success ? (
+        <Card sx={{ bgcolor: 'success.lighter', border: '1px solid', borderColor: 'success.light' }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Typography color="success.main" variant="body2">{success}</Typography>
+          </CardContent>
+        </Card>
+      ) : null}
 
-        <DashboardCard
-          action={
-            <Stack direction="row" spacing={1} alignItems="center">
-              <StatusChip status={item?.status || 'NEW'} />
-              <Chip
-                size="small"
-                icon={<IconStarFilled size={14} />}
-                label={`Score ${formatNumber(item?.score)}`}
-                color="primary"
-                variant="outlined"
-              />
-            </Stack>
-          }
-        >
-          {item?.image_url ? (
-            <CardMedia
-              component="img"
-              image={item.image_url}
-              alt=""
-              sx={{ borderRadius: 2, maxHeight: 300, objectFit: 'cover', mb: 2 }}
-            />
-          ) : null}
+      <Grid container spacing={3}>
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Stack spacing={3}>
+            <Card variant="outlined" sx={{ borderRadius: 4, overflow: 'hidden' }}>
+              {item?.image_url ? (
+                <CardMedia
+                  component="img"
+                  image={item.image_url}
+                  alt=""
+                  sx={{ maxHeight: 420, objectFit: 'cover' }}
+                />
+              ) : null}
 
-          <Typography variant="h5" fontWeight={700} gutterBottom>{item?.title}</Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            {item?.snippet || item?.content || 'Sem resumo.'}
-          </Typography>
+              <CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <StatusChip status={item?.status || 'NEW'} />
+                  <Chip size="small" label={item?.type || 'NEWS'} variant="outlined" />
+                  <Chip
+                    size="small"
+                    icon={<IconStarFilled size={14} />}
+                    label={`Score ${formatNumber(item?.score)}`}
+                    color="primary"
+                    variant="outlined"
+                  />
+                </Stack>
 
-          <Divider sx={{ my: 2 }} />
+                <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
+                  {item?.source_name || 'Fonte não informada'} · {formatDate(item?.published_at)}
+                </Typography>
 
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>Fonte</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {item?.source_name || 'Não informado'}
-              </Typography>
-            </Box>
-            {item?.source_url ? (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<IconExternalLink size={14} />}
-                href={item.source_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir fonte
-              </Button>
-            ) : null}
+                <Typography variant="h3" fontWeight={700} sx={{ mt: 1, lineHeight: 1.1 }}>
+                  {item?.title}
+                </Typography>
+
+                <Typography variant="h6" color="text.secondary" fontWeight={400} sx={{ mt: 2, lineHeight: 1.55 }}>
+                  {item?.snippet || 'Sem resumo disponível.'}
+                </Typography>
+
+                <Divider sx={{ my: 3 }} />
+
+                <Typography variant="body1" sx={{ lineHeight: 1.9, whiteSpace: 'pre-wrap' }}>
+                  {item?.content || item?.snippet || 'Sem conteúdo expandido.'}
+                </Typography>
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 3 }}>
+                  {item?.source_url ? (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<IconExternalLink size={14} />}
+                      href={item.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Abrir matéria
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<IconPin size={14} />}
+                    onClick={handlePin}
+                    disabled={saving || !clientId}
+                  >
+                    Fixar no cliente
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<IconArchive size={14} />}
+                    color="error"
+                    onClick={handleArchive}
+                    disabled={saving}
+                  >
+                    Arquivar
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            <DashboardCard
+              title="Histórico editorial"
+              subtitle="Tudo o que já aconteceu com este item dentro do radar."
+              action={<Chip size="small" icon={<IconHistory size={14} />} label={`${actions.length} ações`} variant="outlined" />}
+            >
+              <Stack spacing={1.5}>
+                {actions.length ? (
+                  actions.map((action) => (
+                    <Box
+                      key={action.id}
+                      sx={{
+                        p: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        transition: 'all 0.2s',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                        <Typography variant="subtitle2">{action.action}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatDate(action.created_at)}
+                        </Typography>
+                      </Stack>
+                      {action.payload ? (
+                        <Box sx={{ bgcolor: 'grey.50', p: 1.5, borderRadius: 1 }}>
+                          {renderPayload(action.payload)}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">Sem detalhes.</Typography>
+                      )}
+                    </Box>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                    Nenhuma ação registrada.
+                  </Typography>
+                )}
+              </Stack>
+            </DashboardCard>
           </Stack>
+        </Grid>
 
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 2 }}>
-            <Chip size="small" label={item?.type || 'NEWS'} variant="outlined" />
-            <Typography variant="caption" color="text.secondary">
-              {formatDate(item?.published_at)}
-            </Typography>
-          </Stack>
-        </DashboardCard>
-
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <DashboardCard title="Ações">
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Stack spacing={2}>
+            <DashboardCard title="Ações rápidas" subtitle="Leve este insight para a operação.">
               <Stack spacing={2}>
                 <TextField
                   select
@@ -389,7 +454,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                   onChange={(event) => setClientId(event.target.value)}
                   size="small"
                   fullWidth
-                  helperText={!clientId ? 'Selecione um cliente para as ações abaixo' : undefined}
+                  helperText={!clientId ? 'Selecione um cliente para as ações abaixo.' : undefined}
                 >
                   {clients.map((client) => (
                     <MenuItem key={client.id} value={client.id}>
@@ -463,7 +528,7 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                     }
                   }}
                 >
-                  {pautaLoading ? 'Gerando pauta...' : 'Criar Pauta IA'}
+                  {pautaLoading ? 'Gerando pauta...' : 'Criar pauta IA'}
                 </Button>
                 <Button
                   variant="outlined"
@@ -474,51 +539,31 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                 >
                   Atribuir ao cliente
                 </Button>
+              </Stack>
+            </DashboardCard>
+
+            <DashboardCard title="Classificação" subtitle="Defina a relevância deste item para a base.">
+              <Stack spacing={1.5}>
                 <Button
                   variant="outlined"
-                  startIcon={<IconPin size={16} />}
-                  onClick={handlePin}
-                  disabled={saving || !clientId}
+                  color="success"
+                  startIcon={<IconThumbUp size={16} />}
+                  onClick={() => handleFeedback('relevant')}
+                  disabled={saving}
                   fullWidth
                 >
-                  Fixar no cliente
+                  Marcar como relevante
                 </Button>
                 <Button
                   variant="outlined"
                   color="error"
-                  startIcon={<IconArchive size={16} />}
-                  onClick={handleArchive}
+                  startIcon={<IconThumbDown size={16} />}
+                  onClick={() => handleFeedback('irrelevant')}
                   disabled={saving}
                   fullWidth
                 >
-                  Arquivar
+                  Marcar como irrelevante
                 </Button>
-                <Divider />
-                <Typography variant="subtitle2" color="text.secondary">
-                  Feedback de qualidade
-                </Typography>
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    variant="outlined"
-                    color="success"
-                    startIcon={<IconThumbUp size={16} />}
-                    onClick={() => handleFeedback('relevant')}
-                    disabled={saving}
-                    sx={{ flex: 1 }}
-                  >
-                    Relevante
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    startIcon={<IconThumbDown size={16} />}
-                    onClick={() => handleFeedback('irrelevant')}
-                    disabled={saving}
-                    sx={{ flex: 1 }}
-                  >
-                    Irrelevante
-                  </Button>
-                </Stack>
                 <Button
                   variant="outlined"
                   color="warning"
@@ -526,57 +571,58 @@ export default function ClippingDetailClient({ itemId, noShell, backHref }: Clip
                   onClick={() => handleFeedback('wrong_client')}
                   disabled={saving || !clientId}
                   fullWidth
-                  size="small"
                 >
                   Cliente errado
                 </Button>
               </Stack>
             </DashboardCard>
-          </Grid>
 
-          <Grid size={{ xs: 12, md: 8 }}>
-            <DashboardCard
-              title="Histórico"
-              action={<Chip size="small" icon={<IconHistory size={14} />} label={`${actions.length} ações`} variant="outlined" />}
-            >
-              <Stack spacing={1.5}>
-                {actions.length ? (
-                  actions.map((action) => (
-                    <Box
-                      key={action.id}
-                      sx={{
-                        p: 2,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderRadius: 2,
-                        transition: 'all 0.2s',
-                        '&:hover': { bgcolor: 'action.hover' },
-                      }}
-                    >
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="subtitle2">{action.action}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDate(action.created_at)}
-                        </Typography>
-                      </Stack>
-                      {action.payload ? (
-                        <Box sx={{ bgcolor: 'grey.50', p: 1.5, borderRadius: 1 }}>
-                          {renderPayload(action.payload)}
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">Sem detalhes.</Typography>
-                      )}
-                    </Box>
-                  ))
-                ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                    Nenhuma acao registrada.
+            <DashboardCard title="Ficha do item" subtitle="Metadados rápidos para leitura e decisão.">
+              <Stack spacing={1.25}>
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Fonte</Typography>
+                  <Typography variant="body2" fontWeight={600} sx={{ textAlign: 'right' }}>
+                    {item?.source_name || 'Não informada'}
                   </Typography>
-                )}
+                </Stack>
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Publicado em</Typography>
+                  <Typography variant="body2" fontWeight={600}>
+                    {formatDate(item?.published_at)}
+                  </Typography>
+                </Stack>
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Tipo</Typography>
+                  <Typography variant="body2" fontWeight={600}>
+                    {item?.type || 'NEWS'}
+                  </Typography>
+                </Stack>
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Score</Typography>
+                  <Typography variant="body2" fontWeight={600}>
+                    {formatNumber(item?.score)}
+                  </Typography>
+                </Stack>
+                {item?.source_url ? (
+                  <>
+                    <Divider />
+                    <Button
+                      size="small"
+                      variant="text"
+                      startIcon={<IconExternalLink size={14} />}
+                      href={item.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Abrir fonte original
+                    </Button>
+                  </>
+                ) : null}
               </Stack>
             </DashboardCard>
-          </Grid>
+          </Stack>
         </Grid>
+      </Grid>
     </Stack>
   );
 

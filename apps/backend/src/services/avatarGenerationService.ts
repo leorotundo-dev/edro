@@ -2,7 +2,7 @@ import path from 'path';
 import { query } from '../db';
 import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
-import { generateImageWithFal, isFalConfigured } from './ai/falAiService';
+import { generateImageWithFal, generateImg2ImgWithFal, isFalConfigured } from './ai/falAiService';
 
 export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v2';
 
@@ -108,22 +108,43 @@ export async function generateEdroAvatarForFreelancer(params: {
     tenantId: params.tenantId,
     avatarSourceKey: sourceKey,
     status: 'pending',
-    provider: 'fal-ai:nano-banana-pro',
+    provider: 'fal-ai:flux-dev-image-to-image',
     promptVersion: EDRO_AVATAR_PROMPT_VERSION,
     error: null,
   });
 
   try {
+    const sourcePublicUrl = buildStoragePublicUrl(sourceKey);
+    let provider = 'fal-ai:flux-dev-image-to-image';
     const dataUrl = `data:${params.sourceMimeType};base64,${params.sourceBuffer.toString('base64')}`;
-    const result = await generateImageWithFal({
-      model: 'nano-banana-pro',
-      prompt: EDRO_AVATAR_PROMPT,
-      negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
-      aspectRatio: '1:1',
-      numImages: 1,
-      referenceImageUrl: dataUrl,
-      referenceImageStrength: 0.78,
-    });
+
+    const result = await (async () => {
+      if (sourcePublicUrl) {
+        try {
+          return await generateImg2ImgWithFal({
+            imageUrl: sourcePublicUrl,
+            prompt: EDRO_AVATAR_PROMPT,
+            strength: 0.82,
+            aspectRatio: '1:1',
+            numImages: 1,
+          });
+        } catch {
+          provider = 'fal-ai:nano-banana-pro';
+        }
+      } else {
+        provider = 'fal-ai:nano-banana-pro';
+      }
+
+      return generateImageWithFal({
+        model: 'nano-banana-pro',
+        prompt: EDRO_AVATAR_PROMPT,
+        negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
+        aspectRatio: '1:1',
+        numImages: 1,
+        referenceImageUrl: dataUrl,
+        referenceImageStrength: 0.78,
+      });
+    })();
 
     let avatarGeneratedKey: string | null = null;
     let avatarUrl = result.imageUrl;
@@ -147,7 +168,7 @@ export async function generateEdroAvatarForFreelancer(params: {
       avatarGeneratedKey,
       avatarUrl,
       status: 'ready',
-      provider: 'fal-ai:nano-banana-pro',
+      provider,
       promptVersion: EDRO_AVATAR_PROMPT_VERSION,
       error: null,
     });
@@ -162,7 +183,7 @@ export async function generateEdroAvatarForFreelancer(params: {
       sourceKey,
       generatedKey: avatarGeneratedKey,
       promptVersion: EDRO_AVATAR_PROMPT_VERSION,
-      provider: 'fal-ai:nano-banana-pro',
+      provider,
     };
   } catch (error: any) {
     await updatePersonAvatarState({
@@ -170,7 +191,7 @@ export async function generateEdroAvatarForFreelancer(params: {
       tenantId: params.tenantId,
       avatarSourceKey: sourceKey,
       status: 'failed',
-      provider: 'fal-ai:nano-banana-pro',
+      provider: 'fal-ai:flux-dev-image-to-image',
       promptVersion: EDRO_AVATAR_PROMPT_VERSION,
       error: error?.message?.slice(0, 500) ?? 'Falha ao gerar avatar',
     });

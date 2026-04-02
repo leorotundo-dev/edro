@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
-import RelatoriosMensaisClient from './RelatoriosMensaisClient';
+import RelatoriosWorkspaceClient from './RelatoriosWorkspaceClient';
 
-export const metadata = { title: 'Relatórios Mensais | Edro' };
+export const metadata = { title: 'Relatórios | Edro' };
 
 export default function Page() {
   return (
     <Suspense>
-      <RelatoriosMensaisClient />
+      <RelatoriosWorkspaceClient />
     </Suspense>
   );
 }

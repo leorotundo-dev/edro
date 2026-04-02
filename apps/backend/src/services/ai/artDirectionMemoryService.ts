@@ -25,6 +25,7 @@ export type ArtDirectionReferenceSummary = {
   id: string;
   title: string;
   source_url: string;
+  image_url: string | null;
   platform: string | null;
   format: string | null;
   segment: string | null;
@@ -36,6 +37,7 @@ export type ArtDirectionReferenceSummary = {
   typography_tags: string[];
   trend_score: number | null;
   confidence_score: number | null;
+  trust_score: number | null;
   rationale: string | null;
   discovered_at: string;
 };
@@ -617,11 +619,28 @@ export async function upsertArtDirectionConcept(input: ArtDirectionConceptInput)
 
 export async function ensureDefaultArtDirectionSources(tenantId: string): Promise<void> {
   const defaults = [
-    { name: 'Behance', sourceType: 'site', baseUrl: 'https://www.behance.net', domain: 'behance.net', trust: 0.95 },
-    { name: 'Dribbble', sourceType: 'site', baseUrl: 'https://dribbble.com', domain: 'dribbble.com', trust: 0.85 },
-    { name: 'Ads of the World', sourceType: 'site', baseUrl: 'https://www.adsoftheworld.com', domain: 'adsoftheworld.com', trust: 0.95 },
-    { name: 'Pinterest', sourceType: 'site', baseUrl: 'https://www.pinterest.com', domain: 'pinterest.com', trust: 0.60 },
-    { name: 'Serper Search', sourceType: 'search', baseUrl: 'https://google.serper.dev', domain: 'google.serper.dev', trust: 0.70 },
+    // ── Tier 1 — Publicidade curada ───────────────────────────────────────────
+    { name: 'Ads of the World',    sourceType: 'site',   baseUrl: 'https://www.adsoftheworld.com',     domain: 'adsoftheworld.com',       trust: 0.95 },
+    { name: 'Cannes Lions',        sourceType: 'site',   baseUrl: 'https://www.canneslions.com',        domain: 'canneslions.com',          trust: 0.95 },
+    { name: 'CCB',                 sourceType: 'site',   baseUrl: 'https://ccb.org.br',                domain: 'ccb.org.br',               trust: 0.95 },
+    { name: "D&AD",                sourceType: 'site',   baseUrl: 'https://www.dandad.org',             domain: 'dandad.org',               trust: 0.90 },
+    { name: "Lürzer's Archive",    sourceType: 'site',   baseUrl: 'https://www.luerzersarchive.com',    domain: 'luerzersarchive.com',      trust: 0.90 },
+    // ── Tier 2 — Design + identidade visual ──────────────────────────────────
+    { name: "It's Nice That",      sourceType: 'site',   baseUrl: 'https://www.itsnicethat.com',        domain: 'itsnicethat.com',          trust: 0.90 },
+    { name: 'Brand New',           sourceType: 'site',   baseUrl: 'https://www.underconsideration.com', domain: 'underconsideration.com',   trust: 0.88 },
+    { name: 'The Dieline',         sourceType: 'site',   baseUrl: 'https://thedieline.com',             domain: 'thedieline.com',           trust: 0.82 },
+    { name: 'Fonts In Use',        sourceType: 'site',   baseUrl: 'https://fontsinuse.com',             domain: 'fontsinuse.com',           trust: 0.80 },
+    { name: 'Awwwards',            sourceType: 'site',   baseUrl: 'https://www.awwwards.com',           domain: 'awwwards.com',             trust: 0.78 },
+    // ── Tier 3 — Social-first + motion ───────────────────────────────────────
+    { name: 'Behance',             sourceType: 'site',   baseUrl: 'https://www.behance.net',            domain: 'behance.net',              trust: 0.92 },
+    { name: 'Motionographer',      sourceType: 'site',   baseUrl: 'https://motionographer.com',         domain: 'motionographer.com',       trust: 0.82 },
+    { name: 'Dribbble',            sourceType: 'site',   baseUrl: 'https://dribbble.com',               domain: 'dribbble.com',             trust: 0.82 },
+    { name: 'Pinterest',           sourceType: 'site',   baseUrl: 'https://www.pinterest.com',          domain: 'pinterest.com',            trust: 0.72 },
+    // ── Tier S — Mercado brasileiro / LATAM ──────────────────────────────────
+    { name: 'El Ojo de Iberoamérica', sourceType: 'site', baseUrl: 'https://www.elojodeiberoamerica.com', domain: 'elojodeiberoamerica.com', trust: 0.90 },
+    { name: 'Meio & Mensagem',     sourceType: 'site',   baseUrl: 'https://www.meioemensagem.com.br',   domain: 'meioemensagem.com.br',     trust: 0.80 },
+    // ── Search engine ─────────────────────────────────────────────────────────
+    { name: 'Serper Search',       sourceType: 'search', baseUrl: 'https://google.serper.dev',          domain: 'google.serper.dev',        trust: 0.70 },
   ];
 
   for (const source of defaults) {
@@ -738,7 +757,7 @@ export async function discoverArtDirectionReferences(input: DiscoverArtDirection
 
   const sources = await listArtDirectionReferenceSources({ tenantId: input.tenantId, enabledOnly: true });
   const searchSource = sources.find((source) => source.name === 'Serper Search');
-  const siteSources = sources.filter((source) => source.source_type === 'site' && source.domain).slice(0, 4);
+  const siteSources = sources.filter((source) => source.source_type === 'site' && source.domain).slice(0, 6);
   const queries = uniq([
     ...input.queries.slice(0, 4),
     ...input.queries.slice(0, 2).flatMap((searchQuery) =>
@@ -1351,6 +1370,7 @@ export async function listRelevantArtDirectionReferences(params: {
   clientId?: string | null;
   platform?: string | null;
   segment?: string | null;
+  visualIntent?: string | null;
   limit?: number;
 }) {
   const values: any[] = [params.tenantId];
@@ -1369,16 +1389,24 @@ export async function listRelevantArtDirectionReferences(params: {
   }
   values.push(Math.min(params.limit ?? 8, 20));
 
+  // visual_intent boost: refs that match the briefing's intent score higher
+  const intentBoost = params.visualIntent
+    ? `CASE WHEN visual_intent = '${params.visualIntent.replace(/'/g, "''")}' THEN 1 ELSE 0 END`
+    : '0';
+
   const { rows } = await query(
     `SELECT id, title, source_url, platform, format, segment, visual_intent, creative_direction,
-            mood_words, style_tags, composition_tags, typography_tags, trend_score, confidence_score,
+            mood_words, style_tags, composition_tags, typography_tags,
+            trend_score, confidence_score, trust_score,
             rationale, discovered_at
        FROM da_references
       WHERE ${where.join(' AND ')}
       ORDER BY
         CASE WHEN client_id IS NOT NULL THEN 0 ELSE 1 END,
-        trend_score DESC,
-        confidence_score DESC,
+        ${intentBoost} DESC,
+        COALESCE(trust_score, 0.60) DESC,
+        COALESCE(trend_score, 0) DESC,
+        COALESCE(confidence_score, 0) DESC,
         discovered_at DESC
       LIMIT $${values.length}`,
     values,
@@ -1391,6 +1419,7 @@ export async function listArtDirectionReferences(params: {
   clientId?: string | null;
   platform?: string | null;
   segment?: string | null;
+  domain?: string | null;
   statuses?: Array<'discovered' | 'analyzed' | 'rejected' | 'archived'>;
   limit?: number;
 }): Promise<ArtDirectionReferenceRecord[]> {
@@ -1409,6 +1438,10 @@ export async function listArtDirectionReferences(params: {
     values.push(params.segment);
     where.push(`(r.segment = $${values.length} OR r.segment IS NULL)`);
   }
+  if (params.domain) {
+    values.push(params.domain);
+    where.push(`r.domain = $${values.length}`);
+  }
   if (params.statuses?.length) {
     values.push(params.statuses);
     where.push(`r.status = ANY($${values.length}::text[])`);
@@ -1421,6 +1454,7 @@ export async function listArtDirectionReferences(params: {
        r.id,
        r.title,
        r.source_url,
+       r.image_url,
        r.platform,
        r.format,
        r.segment,
@@ -1432,6 +1466,7 @@ export async function listArtDirectionReferences(params: {
        COALESCE(r.typography_tags, '[]'::jsonb) AS typography_tags,
        r.trend_score,
        r.confidence_score,
+       r.trust_score,
        r.rationale,
        r.discovered_at::text AS discovered_at,
        r.status,
@@ -1868,6 +1903,7 @@ export async function buildArtDirectionMemoryContext(params: {
   clientId?: string | null;
   platform?: string | null;
   segment?: string | null;
+  visualIntent?: string | null;
   conceptCategories?: string[] | null;
   conceptLimit?: number;
   referenceLimit?: number;
@@ -1893,7 +1929,8 @@ export async function buildArtDirectionMemoryContext(params: {
       clientId: params.clientId,
       platform: params.platform,
       segment: params.segment,
-      limit: params.referenceLimit ?? 5,
+      visualIntent: params.visualIntent,
+      limit: params.referenceLimit ?? 6,
     }).catch(() => []),
     listArtDirectionTrendSignals({
       tenantId: params.tenantId,

@@ -20,7 +20,9 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/material/styles';
 import {
+  IconArrowRight,
   IconCalendar,
   IconCheck,
   IconCurrencyDollar,
@@ -166,6 +168,10 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
   }, [campaigns]);
 
   const totalCampaigns = campaigns.length;
+  const totalBudget = useMemo(
+    () => campaigns.reduce((sum, campaign) => sum + (Number(campaign.budget_brl) || 0), 0),
+    [campaigns],
+  );
 
   if (loading && clients.length === 0) {
     return (
@@ -198,16 +204,33 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
         </Stack>
       }
     >
-      <Stack spacing={3}>
-        {/* Header */}
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
+      <Stack spacing={2.5}>
+        {error && (
+          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent sx={{ p: '14px !important' }}>
+              <Typography color="error">{error}</Typography>
+            </CardContent>
+          </Card>
+        )}
+
+        <Stack
+          direction={{ xs: 'column', lg: 'row' }}
+          justifyContent="space-between"
+          alignItems={{ lg: 'center' }}
+          spacing={2}
+        >
           <Box>
-            <Typography variant="h4">Pipeline de Campanhas</Typography>
+            <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
+              Pipeline de Campanhas
+            </Typography>
             <Typography variant="body2" color="text.secondary">
-              {selectedClient?.name ? `${selectedClient.name} · ` : ''}{totalCampaigns} campanha{totalCampaigns !== 1 ? 's' : ''}
+              {totalCampaigns} campanhas no quadro
+              {selectedClient?.name ? ` · ${selectedClient.name}` : ''}
+              {formatCurrency(totalBudget) ? ` · ${formatCurrency(totalBudget)}` : ''}
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1} alignItems="center">
+
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             {!isLocked && clients.length > 1 && (
               <TextField
                 select
@@ -218,7 +241,7 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
                   if (match) router.replace(`/board?clientId=${match.id}`);
                 }}
                 size="small"
-                sx={{ minWidth: 200 }}
+                sx={{ minWidth: 220 }}
               >
                 {clients.map((c) => (
                   <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
@@ -226,7 +249,7 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
               </TextField>
             )}
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
               startIcon={refreshing ? <CircularProgress size={14} color="inherit" /> : <IconRefresh size={16} />}
               onClick={() => loadCampaigns(true)}
@@ -234,7 +257,7 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
             >
               Atualizar
             </Button>
-            {selectedClient && (
+            {selectedClient ? (
               <Button
                 variant="outlined"
                 size="small"
@@ -243,168 +266,206 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
               >
                 Ver cliente
               </Button>
-            )}
+            ) : null}
           </Stack>
         </Stack>
 
-        {error && (
-          <Card variant="outlined">
-            <CardContent><Typography color="error">{error}</Typography></CardContent>
-          </Card>
-        )}
-
-        {/* Kanban columns */}
-        <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2, alignItems: 'flex-start' }}>
-          {grouped.map((column) => {
-            const cfg = getStatusCfg(column.status);
-            return (
-              <Box key={column.status} sx={{ minWidth: 290, maxWidth: 320, flexShrink: 0 }}>
-                {/* Column header */}
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  sx={{
-                    px: 1.5,
-                    py: 1,
-                    mb: 1.5,
-                    borderRadius: 1.5,
-                    bgcolor: cfg.bg,
-                    border: `1px solid ${cfg.color}22`,
-                  }}
+        <Box
+          sx={(theme) => ({
+            borderRadius: 3,
+            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.03) : '#f6f8fc',
+            p: 1.5,
+          })}
+        >
+          <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1, alignItems: 'flex-start' }}>
+            {grouped.map((column) => {
+              const cfg = getStatusCfg(column.status);
+              return (
+                <Box
+                  key={column.status}
+                  sx={(theme) => ({
+                    width: 312,
+                    minWidth: 312,
+                    flexShrink: 0,
+                    borderRadius: 2.5,
+                    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.04) : '#eaf0f7',
+                    p: 1,
+                  })}
                 >
-                  <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: cfg.color, flexShrink: 0 }} />
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: cfg.color }}>
-                      {cfg.label}
-                    </Typography>
-                  </Stack>
-                  <Chip
-                    size="small"
-                    label={column.items.length}
-                    sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${cfg.color}18`, color: cfg.color, fontWeight: 700 }}
-                  />
-                </Stack>
-
-                {/* Cards */}
-                <Stack spacing={1.5}>
-                  {column.items.length ? (
-                    column.items.map((campaign) => (
-                      <Card
-                        key={campaign.id}
-                        variant="outlined"
+                  <Stack spacing={1.1}>
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                      sx={{ px: 0.75, py: 0.5 }}
+                    >
+                      <Stack direction="row" spacing={0.9} alignItems="center">
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: cfg.color, flexShrink: 0 }} />
+                        <Typography variant="subtitle1" fontWeight={700}>
+                          {cfg.label}
+                        </Typography>
+                      </Stack>
+                      <Chip
+                        size="small"
+                        label={column.items.length}
                         sx={{
-                          cursor: 'pointer',
-                          transition: 'box-shadow 0.15s',
-                          '&:hover': { boxShadow: 3 },
-                          borderLeft: `3px solid ${cfg.color}`,
-                          opacity: movingId === campaign.id ? 0.5 : 1,
+                          height: 22,
+                          fontSize: '0.68rem',
+                          bgcolor: alpha(cfg.color, 0.12),
+                          color: cfg.color,
+                          fontWeight: 700,
                         }}
-                        onClick={() => setDrawerCampaign(campaign)}
-                      >
-                        <CardContent sx={{ p: '12px !important' }}>
-                          <Stack spacing={1}>
-                            {/* Label dots */}
-                            {(campaign.labels ?? []).length > 0 && (
-                              <Stack direction="row" spacing={0.4} flexWrap="wrap">
-                                {(campaign.labels ?? []).slice(0, 3).map((key) => {
-                                  const preset = getLabelPreset(key);
-                                  if (!preset) return null;
-                                  return (
-                                    <Tooltip key={key} title={preset.label}>
-                                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: preset.color }} />
-                                    </Tooltip>
-                                  );
-                                })}
-                              </Stack>
-                            )}
-                            {/* Name */}
-                            <Typography variant="subtitle2" fontWeight={600} sx={{ lineHeight: 1.3 }}>
-                              {campaign.name}
-                            </Typography>
+                      />
+                    </Stack>
 
-                            {/* Objective chip */}
-                            {campaign.objective && (
-                              <Stack direction="row" spacing={0.5} alignItems="center">
-                                <IconTarget size={12} color="#94a3b8" />
-                                <Typography variant="caption" color="text.secondary" noWrap>
-                                  {campaign.objective}
-                                </Typography>
-                              </Stack>
-                            )}
-
-                            <Divider />
-
-                            {/* Dates + Budget */}
-                            <Stack direction="row" justifyContent="space-between" alignItems="center">
-                              {(campaign.start_date || campaign.end_date) ? (
-                                <Stack direction="row" spacing={0.5} alignItems="center">
-                                  <IconCalendar size={12} color="#94a3b8" />
-                                  <Typography variant="caption" color="text.secondary">
-                                    {formatDate(campaign.start_date) || '?'} → {formatDate(campaign.end_date) || '?'}
-                                  </Typography>
+                    {column.items.length ? (
+                      column.items.map((campaign) => (
+                        <Card
+                          key={campaign.id}
+                          variant="outlined"
+                          sx={(theme) => ({
+                            cursor: 'pointer',
+                            borderRadius: 2.5,
+                            borderColor: alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08),
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.94) : '#fff',
+                            boxShadow: `0 2px 10px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.04)}`,
+                            opacity: movingId === campaign.id ? 0.5 : 1,
+                            transition: 'all 140ms ease',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.26 : 0.08)}`,
+                            },
+                          })}
+                          onClick={() => setDrawerCampaign(campaign)}
+                        >
+                          <CardContent sx={{ p: '14px !important' }}>
+                            <Stack spacing={1.2}>
+                              {(campaign.labels ?? []).length > 0 && (
+                                <Stack direction="row" spacing={0.4} flexWrap="wrap">
+                                  {(campaign.labels ?? []).slice(0, 3).map((key) => {
+                                    const preset = getLabelPreset(key);
+                                    if (!preset) return null;
+                                    return (
+                                      <Tooltip key={key} title={preset.label}>
+                                        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: preset.color }} />
+                                      </Tooltip>
+                                    );
+                                  })}
                                 </Stack>
-                              ) : <Box />}
-                              {campaign.budget_brl ? (
-                                <Stack direction="row" spacing={0.25} alignItems="center">
-                                  <IconCurrencyDollar size={12} color="#94a3b8" />
-                                  <Typography variant="caption" color="text.secondary">
-                                    {formatCurrency(campaign.budget_brl)}
-                                  </Typography>
-                                </Stack>
-                              ) : null}
-                            </Stack>
+                              )}
 
-                            {/* Move to next status */}
-                            {(() => {
-                              const currentIdx = STATUS_ORDER.indexOf(column.status);
-                              const nextStatus = currentIdx >= 0 && currentIdx < STATUS_ORDER.length - 1
-                                ? STATUS_ORDER[currentIdx + 1] : null;
-                              if (!nextStatus) return null;
-                              const nextCfg = getStatusCfg(nextStatus);
-                              return (
-                                <Tooltip title={`Mover para ${nextCfg.label}`}>
-                                  <Button
+                              <Typography
+                                variant="body1"
+                                fontWeight={700}
+                                sx={{
+                                  lineHeight: 1.35,
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  minHeight: '2.7em',
+                                }}
+                              >
+                                {campaign.name}
+                              </Typography>
+
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  minHeight: '2.5em',
+                                }}
+                              >
+                                {campaign.objective || 'Sem objetivo informado'}
+                              </Typography>
+
+                              <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
+                                {(campaign.start_date || campaign.end_date) ? (
+                                  <Chip
                                     size="small"
-                                    variant="text"
-                                    fullWidth
-                                    disabled={movingId === campaign.id}
-                                    onClick={(e) => { e.stopPropagation(); moveStatus(campaign, nextStatus); }}
+                                    icon={<IconCalendar size={11} />}
+                                    label={`${formatDate(campaign.start_date) || '?'} → ${formatDate(campaign.end_date) || '?'}`}
                                     sx={{
-                                      fontSize: '0.68rem',
-                                      textTransform: 'none',
+                                      height: 24,
+                                      fontSize: '0.64rem',
+                                      '& .MuiChip-label': { px: 0.75 },
+                                      '& .MuiChip-icon': { ml: 0.45, mr: -0.1 },
+                                    }}
+                                  />
+                                ) : null}
+                                {campaign.budget_brl ? (
+                                  <Chip
+                                    size="small"
+                                    icon={<IconCurrencyDollar size={11} />}
+                                    label={formatCurrency(campaign.budget_brl)}
+                                    sx={{
+                                      height: 24,
+                                      fontSize: '0.64rem',
+                                      '& .MuiChip-label': { px: 0.75 },
+                                      '& .MuiChip-icon': { ml: 0.45, mr: -0.1 },
+                                    }}
+                                  />
+                                ) : null}
+                              </Stack>
+
+                              {(() => {
+                                const currentIdx = STATUS_ORDER.indexOf(column.status);
+                                const nextStatus =
+                                  currentIdx >= 0 && currentIdx < STATUS_ORDER.length - 1
+                                    ? STATUS_ORDER[currentIdx + 1]
+                                    : null;
+                                if (!nextStatus) return null;
+                                const nextCfg = getStatusCfg(nextStatus);
+                                return (
+                                  <Button
+                                    variant="text"
+                                    size="small"
+                                    endIcon={<IconArrowRight size={14} />}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (movingId !== campaign.id) moveStatus(campaign, nextStatus);
+                                    }}
+                                    sx={{
+                                      alignSelf: 'flex-start',
+                                      px: 0,
+                                      minWidth: 0,
+                                      fontWeight: 700,
                                       color: nextCfg.color,
-                                      py: 0.25,
-                                      '&:hover': { bgcolor: `${nextCfg.color}12` },
+                                      '&:hover': { bgcolor: 'transparent', opacity: 0.85 },
                                     }}
                                   >
-                                    → Mover para {nextCfg.label}
+                                    Mover para {nextCfg.label}
                                   </Button>
-                                </Tooltip>
-                              );
-                            })()}
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <Box
-                      sx={{
-                        border: `2px dashed ${cfg.color}30`,
-                        borderRadius: 2,
-                        p: 3,
-                        textAlign: 'center',
-                      }}
-                    >
-                      <Typography variant="caption" color="text.disabled">
-                        Sem campanhas
-                      </Typography>
-                    </Box>
-                  )}
-                </Stack>
-              </Box>
-            );
-          })}
+                                );
+                              })()}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <Box
+                        sx={{
+                          border: `2px dashed ${cfg.color}24`,
+                          borderRadius: 2,
+                          p: 3,
+                          textAlign: 'center',
+                          bgcolor: '#fff',
+                        }}
+                      >
+                        <Typography variant="caption" color="text.disabled">
+                          Sem campanhas
+                        </Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Box>
         </Box>
       </Stack>
 
@@ -413,116 +474,248 @@ export default function BoardClient({ clientId }: { clientId?: string }) {
         anchor="right"
         open={Boolean(drawerCampaign)}
         onClose={() => setDrawerCampaign(null)}
-        PaperProps={{ sx: { width: { xs: '100vw', sm: 440 }, p: 3 } }}
+        PaperProps={{
+          sx: (theme) => ({
+            width: { xs: '100vw', sm: 460 },
+            p: 3,
+            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.96) : alpha(theme.palette.background.default, 0.98),
+          }),
+        }}
       >
         {drawerCampaign && (
-          <Stack spacing={2.5}>
-            {/* Header */}
-            <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-              <Box flex={1}>
-                <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+          <Stack spacing={2.25}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                    Campaign Detail
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={getStatusCfg(drawerCampaign.status ?? 'draft').label}
+                    sx={{
+                      bgcolor: getStatusCfg(drawerCampaign.status ?? 'draft').bg,
+                      color: getStatusCfg(drawerCampaign.status ?? 'draft').color,
+                      fontWeight: 700,
+                    }}
+                  />
+                </Stack>
+                <Typography variant="h5" fontWeight={800} sx={{ lineHeight: 1.2, mb: 0.5 }}>
                   {drawerCampaign.name}
                 </Typography>
-                {drawerCampaign.objective && (
-                  <Typography variant="caption" color="text.secondary">{drawerCampaign.objective}</Typography>
-                )}
+                <Typography variant="body2" color="text.secondary">
+                  {drawerCampaign.objective || 'Acompanhe a campanha, leia a janela e decida o próximo movimento sem sair do quadro.'}
+                </Typography>
               </Box>
-              <Stack direction="row" spacing={0.5}>
-                <Tooltip title="Abrir studio">
-                  <IconButton
-                    size="small"
-                    onClick={() => router.push(`/clients/${selectedClient?.id || ''}?campaign=${drawerCampaign.id}`)}
-                  >
-                    <IconExternalLink size={16} />
-                  </IconButton>
-                </Tooltip>
-                <IconButton size="small" onClick={() => setDrawerCampaign(null)}>
-                  <IconX size={16} />
-                </IconButton>
-              </Stack>
+              <IconButton size="small" onClick={() => setDrawerCampaign(null)}>
+                <IconX size={16} />
+              </IconButton>
             </Stack>
 
-            <Divider />
-
-            {/* Status chip */}
-            <Box>
-              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>Status</Typography>
-              <Chip
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {selectedClient ? (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<IconExternalLink size={16} />}
+                  onClick={() => router.push(`/clients/${selectedClient.id}`)}
+                >
+                  Abrir cliente
+                </Button>
+              ) : null}
+              <Button
+                variant="contained"
                 size="small"
-                label={getStatusCfg(drawerCampaign.status ?? 'draft').label}
-                sx={{ bgcolor: getStatusCfg(drawerCampaign.status ?? 'draft').bg, color: getStatusCfg(drawerCampaign.status ?? 'draft').color, fontWeight: 600 }}
-              />
+                startIcon={<IconExternalLink size={16} />}
+                onClick={() => router.push(`/clients/${selectedClient?.id || ''}?campaign=${drawerCampaign.id}`)}
+              >
+                Abrir studio
+              </Button>
+            </Stack>
+
+            <Box
+              sx={(theme) => ({
+                p: 2,
+                borderRadius: 2.5,
+                border: `1px solid ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08)}`,
+                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.9) : '#fff',
+              })}
+            >
+              <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 800, letterSpacing: '0.08em' }}>
+                Overview
+              </Typography>
+              <Box
+                sx={{
+                  mt: 1.25,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: 1.25,
+                }}
+              >
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.35 }}>
+                    Janela
+                  </Typography>
+                  <Stack direction="row" spacing={0.6} alignItems="center">
+                    <IconCalendar size={14} color="#94a3b8" />
+                    <Typography variant="body2" fontWeight={700}>
+                      {(drawerCampaign.start_date || drawerCampaign.end_date)
+                        ? `${formatDate(drawerCampaign.start_date) || '?'} → ${formatDate(drawerCampaign.end_date) || '?'}`
+                        : 'Sem janela'}
+                    </Typography>
+                  </Stack>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.35 }}>
+                    Budget
+                  </Typography>
+                  <Stack direction="row" spacing={0.6} alignItems="center">
+                    <IconCurrencyDollar size={14} color="#94a3b8" />
+                    <Typography variant="body2" fontWeight={700}>
+                      {formatCurrency(drawerCampaign.budget_brl) || 'Não informado'}
+                    </Typography>
+                  </Stack>
+                </Box>
+              </Box>
             </Box>
 
-            {/* Dates */}
-            {(drawerCampaign.start_date || drawerCampaign.end_date) && (
-              <Stack direction="row" spacing={0.75} alignItems="center">
-                <IconCalendar size={14} color="#94a3b8" />
-                <Typography variant="body2" color="text.secondary">
-                  {formatDate(drawerCampaign.start_date) || '?'} → {formatDate(drawerCampaign.end_date) || '?'}
+            <Box
+              sx={(theme) => ({
+                p: 2,
+                borderRadius: 2.5,
+                border: `1px solid ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08)}`,
+                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.9) : '#fff',
+              })}
+            >
+              <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 800, letterSpacing: '0.08em' }}>
+                Actions
+              </Typography>
+              <Box
+                sx={{
+                  mt: 1.25,
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                  gap: 1.25,
+                }}
+              >
+                <Box
+                  sx={(theme) => ({
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+                    bgcolor: alpha(theme.palette.primary.main, 0.04),
+                  })}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                    Próximo movimento
+                  </Typography>
+                  {(() => {
+                    const currentIdx = STATUS_ORDER.indexOf(drawerCampaign.status ?? '');
+                    const nextStatus = currentIdx >= 0 && currentIdx < STATUS_ORDER.length - 1 ? STATUS_ORDER[currentIdx + 1] : null;
+                    if (!nextStatus) {
+                      return <Typography variant="body2" fontWeight={700}>Campanha já está no estágio final.</Typography>;
+                    }
+                    const nextCfg = getStatusCfg(nextStatus);
+                    return (
+                      <Stack spacing={1}>
+                        <Typography variant="body2" fontWeight={700}>
+                          Mover para {nextCfg.label}
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          disabled={movingId === drawerCampaign.id}
+                          onClick={() => { moveStatus(drawerCampaign, nextStatus); setDrawerCampaign(null); }}
+                          sx={{
+                            alignSelf: 'flex-start',
+                            color: nextCfg.color,
+                            borderColor: alpha(nextCfg.color, 0.55),
+                            '&:hover': { bgcolor: alpha(nextCfg.color, 0.12) },
+                          }}
+                        >
+                          Executar agora
+                        </Button>
+                      </Stack>
+                    );
+                  })()}
+                </Box>
+
+                <Box
+                  sx={(theme) => ({
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: `1px solid ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08)}`,
+                    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.015),
+                  })}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                    Contexto
+                  </Typography>
+                  <Typography variant="body2" fontWeight={700}>
+                    {(drawerCampaign.labels ?? []).length > 0
+                      ? `${(drawerCampaign.labels ?? []).length} label(s) ativas`
+                      : 'Sem labels ainda'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    Use as labels para marcar objetivo, canal e nuances da campanha.
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            <Box
+              sx={(theme) => ({
+                p: 2,
+                borderRadius: 2.5,
+                border: `1px solid ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08)}`,
+                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.9) : '#fff',
+              })}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 800, letterSpacing: '0.08em' }}>
+                  Labels
                 </Typography>
-              </Stack>
-            )}
-
-            {/* Budget */}
-            {drawerCampaign.budget_brl && (
-              <Stack direction="row" spacing={0.75} alignItems="center">
-                <IconCurrencyDollar size={14} color="#94a3b8" />
-                <Typography variant="body2" color="text.secondary">{formatCurrency(drawerCampaign.budget_brl)}</Typography>
-              </Stack>
-            )}
-
-            <Divider />
-
-            {/* Labels */}
-            <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.75}>Labels</Typography>
-              <Stack direction="row" flexWrap="wrap" gap={0.5} alignItems="center">
-                {(drawerCampaign.labels ?? []).map((key) => {
-                  const preset = getLabelPreset(key);
-                  if (!preset) return null;
-                  return (
-                    <Chip
-                      key={key}
-                      label={preset.label}
-                      size="small"
-                      onDelete={async () => {
-                        const next = (drawerCampaign.labels ?? []).filter((k) => k !== key);
-                        const updated = { ...drawerCampaign, labels: next };
-                        setDrawerCampaign(updated);
-                        setCampaigns((prev) => prev.map((c) => c.id === drawerCampaign.id ? updated : c));
-                        await apiPatch(`/campaigns/${drawerCampaign.id}`, { labels: next });
-                      }}
-                      sx={{ bgcolor: preset.color + '22', color: preset.color, fontWeight: 600, fontSize: '0.7rem', borderLeft: `3px solid ${preset.color}`, borderRadius: 1 }}
-                    />
-                  );
-                })}
                 <Tooltip title="Adicionar label">
                   <IconButton size="small" onClick={(e) => setLabelAnchor(e.currentTarget)}>
                     <IconLabel size={14} />
                   </IconButton>
                 </Tooltip>
               </Stack>
+              <Stack direction="row" flexWrap="wrap" gap={0.6} alignItems="center">
+                {(drawerCampaign.labels ?? []).length ? (
+                  (drawerCampaign.labels ?? []).map((key) => {
+                    const preset = getLabelPreset(key);
+                    if (!preset) return null;
+                    return (
+                      <Chip
+                        key={key}
+                        label={preset.label}
+                        size="small"
+                        onDelete={async () => {
+                          const next = (drawerCampaign.labels ?? []).filter((k) => k !== key);
+                          const updated = { ...drawerCampaign, labels: next };
+                          setDrawerCampaign(updated);
+                          setCampaigns((prev) => prev.map((c) => c.id === drawerCampaign.id ? updated : c));
+                          await apiPatch(`/campaigns/${drawerCampaign.id}`, { labels: next });
+                        }}
+                        sx={{
+                          bgcolor: preset.color + '22',
+                          color: preset.color,
+                          fontWeight: 700,
+                          fontSize: '0.72rem',
+                          borderLeft: `3px solid ${preset.color}`,
+                          borderRadius: 1.25,
+                        }}
+                      />
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Nenhuma label aplicada ainda.
+                  </Typography>
+                )}
+              </Stack>
             </Box>
-
-            {/* Move to next status */}
-            {(() => {
-              const currentIdx = STATUS_ORDER.indexOf(drawerCampaign.status ?? '');
-              const nextStatus = currentIdx >= 0 && currentIdx < STATUS_ORDER.length - 1 ? STATUS_ORDER[currentIdx + 1] : null;
-              if (!nextStatus) return null;
-              const nextCfg = getStatusCfg(nextStatus);
-              return (
-                <Button
-                  variant="outlined"
-                  size="small"
-                  disabled={movingId === drawerCampaign.id}
-                  onClick={() => { moveStatus(drawerCampaign, nextStatus); setDrawerCampaign(null); }}
-                  sx={{ color: nextCfg.color, borderColor: nextCfg.color + '88', '&:hover': { bgcolor: nextCfg.color + '12' } }}
-                >
-                  → Mover para {nextCfg.label}
-                </Button>
-              );
-            })()}
           </Stack>
         )}
       </Drawer>

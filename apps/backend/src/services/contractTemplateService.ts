@@ -32,6 +32,11 @@ export interface ContractData {
   representante_nome: string;
   representante_cpf: string;
   estado_civil?: string | null;
+  pix_key?: string | null;
+  pix_key_type?: 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria' | string | null;
+  bank_name?: string | null;
+  bank_agency?: string | null;
+  bank_account?: string | null;
 
   // Data
   contract_date: string; // "dd/mm/yyyy"
@@ -53,6 +58,17 @@ function formatCpf(raw: string): string {
 
 function cityStateOnly(cityState: string): string {
   return cityState.split('—').pop()?.trim() ?? cityState;
+}
+
+function pixKeyTypeLabel(type?: string | null): string {
+  switch (type) {
+    case 'cnpj': return 'CNPJ';
+    case 'cpf': return 'CPF';
+    case 'email': return 'E-mail';
+    case 'telefone': return 'Telefone';
+    case 'aleatoria': return 'Chave aleatória';
+    default: return 'Chave PIX';
+  }
 }
 
 export async function generateContractPdf(data: ContractData): Promise<Buffer> {
@@ -103,6 +119,17 @@ export async function generateContractPdf(data: ContractData): Promise<Buffer> {
     ].filter(Boolean).join(', ');
     body(doc, `Endereço: ${addr}`);
     body(doc, `Representante: ${data.representante_nome} — CPF: ${formatCpf(data.representante_cpf)}${data.estado_civil ? ` — ${data.estado_civil}` : ''}`);
+    if (data.pix_key) {
+      body(doc, `Recebimento principal: ${pixKeyTypeLabel(data.pix_key_type)} — ${data.pix_key}`);
+    }
+    if (data.bank_name || data.bank_agency || data.bank_account) {
+      const bankParts = [
+        data.bank_name ? `Banco ${data.bank_name}` : null,
+        data.bank_agency ? `Agência ${data.bank_agency}` : null,
+        data.bank_account ? `Conta ${data.bank_account}` : null,
+      ].filter(Boolean).join(' · ');
+      body(doc, `Dados bancários informados: ${bankParts}`);
+    }
     doc.moveDown(1);
 
     // ── 2. NATUREZA JURÍDICA DA RELAÇÃO ────────────────────────────────────────
@@ -182,6 +209,16 @@ export async function generateContractPdf(data: ContractData): Promise<Buffer> {
       'até 10 dias após a conclusão da mediação ou solução amigável da controvérsia, condicionado ' +
       'à emissão de Nota Fiscal de Serviços (NFS-e) correspondente. É vedado o pagamento a CPF.');
     doc.moveDown(0.5);
+    if (data.pix_key || data.bank_name || data.bank_agency || data.bank_account) {
+      const paymentLines = [
+        data.pix_key ? `PIX cadastrado: ${pixKeyTypeLabel(data.pix_key_type)} — ${data.pix_key}` : null,
+        data.bank_name ? `Banco: ${data.bank_name}` : null,
+        data.bank_agency ? `Agência: ${data.bank_agency}` : null,
+        data.bank_account ? `Conta: ${data.bank_account}` : null,
+      ].filter(Boolean);
+      body(doc, `4.2.1. Dados de recebimento informados pela CONTRATADA: ${paymentLines.join(' · ')}.`);
+      doc.moveDown(0.5);
+    }
     body(doc,
       '4.3. GLOSA POR DESCUMPRIMENTO DE SLA: Em caso de atraso na entrega após formalização ' +
       'do Aceite de Escopo, será aplicada Glosa (desconto) sobre o valor do escopo, conforme a ' +

@@ -171,7 +171,7 @@ function ActionCard({ item, onResolve }: { item: ActionItem; onResolve: (id: str
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export default function FilaDeAcaoClient() {
+export default function FilaDeAcaoClient({ embedded = false }: { embedded?: boolean } = {}) {
   const theme = useTheme();
   const [items, setItems] = useState<ActionItem[]>([]);
   const [queueSummary, setQueueSummary] = useState<QueueSummary | null>(null);
@@ -211,17 +211,24 @@ export default function FilaDeAcaoClient() {
 
   const filtered = items.filter(tabs[activeTab].filter);
 
-  return (
-    <AppShell title="Fila de Ação">
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
+  const content = (
+      <Box sx={{ p: embedded ? 0 : { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
-          <Stack>
-            <Typography variant="h5" fontWeight={800}>Fila de Ação</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Itens que requerem atenção — ordenados por prioridade.
-            </Typography>
-          </Stack>
+          {!embedded ? (
+            <Stack>
+              <Typography variant="h5" fontWeight={800}>Fila de Ação</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Itens que requerem atenção — ordenados por prioridade.
+              </Typography>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`${queueSummary?.total ?? 0} itens`} size="small" variant="outlined" />
+              <Chip label={`${queueSummary?.critical ?? 0} críticos`} size="small" color="error" variant="outlined" />
+              <Chip label={`${queueSummary?.warning ?? 0} atenção`} size="small" color="warning" variant="outlined" />
+            </Stack>
+          )}
           <Button variant="outlined" size="small" startIcon={<IconRefresh size={16} />} onClick={load} disabled={loading}>
             Atualizar
           </Button>
@@ -282,6 +289,13 @@ export default function FilaDeAcaoClient() {
           </>
         )}
       </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="Fila de Ação">
+      {content}
     </AppShell>
   );
 }

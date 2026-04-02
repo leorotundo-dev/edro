@@ -140,7 +140,7 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
 
   const contextItems = intelligenceStats
     ? [
-        { key: 'library', label: 'Library', value: intelligenceStats.library?.totalItems ?? 0, icon: <IconDatabase size={13} /> },
+        { key: 'library', label: 'Biblioteca', value: intelligenceStats.library?.totalItems ?? 0, icon: <IconDatabase size={13} /> },
         { key: 'clipping', label: 'Clipping', value: intelligenceStats.clipping?.totalMatches ?? 0, icon: <IconClipboard size={13} /> },
         { key: 'social', label: 'Social', value: intelligenceStats.social?.totalMentions ?? 0, icon: <IconTrendingUp size={13} /> },
         { key: 'calendar', label: 'Calendário', value: intelligenceStats.calendar?.next14Days ?? 0, icon: <IconCalendar size={13} /> },
@@ -190,10 +190,10 @@ export default function PlanningClient({ clientId }: PlanningClientProps) {
                   <Typography
                     variant="caption"
                     component={Link}
-                    href={`/clients/${clientId}/perfil`}
+                    href={`/clients/${clientId}/identidade`}
                     sx={{ color: 'warning.main', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', '&:hover': { textDecoration: 'underline' } }}
                   >
-                    Melhorar perfil →
+                    Melhorar DNA →
                   </Typography>
                 </Tooltip>
               )}

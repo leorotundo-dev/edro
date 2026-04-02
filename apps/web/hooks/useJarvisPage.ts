@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, type DependencyList } from 'react';
 import { useJarvis } from '@/contexts/JarvisContext';
 
 /**
@@ -10,7 +10,7 @@ import { useJarvis } from '@/contexts/JarvisContext';
  * Pass `deps` to re-register when data changes (same as useEffect deps).
  * Omitting deps registers once on mount only.
  */
-export function useJarvisPage(data: Record<string, any>, deps?: React.DependencyList) {
+export function useJarvisPage(data: Record<string, any>, deps?: DependencyList) {
   const { setPageData } = useJarvis();
 
   useEffect(() => {

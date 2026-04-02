@@ -118,6 +118,24 @@ function normalizeSocials(value?: Record<string, any>) {
   return Object.keys(socialProfiles).length ? socialProfiles : undefined;
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function extractReporteiEngagementRate(metrics?: Record<string, any> | null): number | null {
+  if (!metrics) return null;
+  for (const key of ['ig:engagement_rate', 'li:engagement_rate', 'li:engagement']) {
+    const metricValue = toFiniteNumber(metrics[key]?.value);
+    if (metricValue !== null) return metricValue;
+  }
+  return null;
+}
+
 function detectMissingFields(payload: PlanExtraction) {
   const missing: string[] = [];
   const requiredKeys: Array<keyof PlanExtraction> = [
@@ -2425,6 +2443,92 @@ Retorne APENAS JSON: { "summary": "resumo em 2-3 frases", "topics": ["tópico 1"
 
       if (!res.rows.length) return reply.code(404).send({ error: 'Cliente não encontrado' });
       return reply.send(res.rows[0]);
+    },
+  );
+
+  // ── GET /clients/:id/banner-kpis — lightweight 5-number banner for client header ──
+  app.get(
+    '/clients/:id/banner-kpis',
+    { preHandler: [requirePerm('clients:read')] },
+    async (request: any, reply) => {
+      const { id } = request.params as { id: string };
+      const tenantId = (request.user as any).tenant_id as string;
+
+      const [jobsRes, mentionsRes, learningRes, reporteiRes, healthRes] = await Promise.allSettled([
+        // active jobs count
+        query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt FROM jobs
+           WHERE client_id = $1 AND tenant_id = $2
+             AND status NOT IN ('done', 'cancelled', 'archived')`,
+          [id, tenantId],
+        ).catch(() => ({ rows: [{ cnt: '0' }] })),
+        // mentions in last 48h
+        query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt
+           FROM clipping_items ci
+           JOIN clipping_sources cs ON cs.id = ci.source_id
+          WHERE cs.client_id = $1 AND ci.tenant_id = $2
+             AND ci.published_at > now() - interval '48 hours'`,
+          [id, tenantId],
+        ),
+        // AMD score — direct from active learning rules, without depending on behavior clusters existing
+        query<{ amd_score: string }>(
+          `SELECT COALESCE(ROUND(AVG(confidence_score::numeric) * 100), 0)::text AS amd_score
+           FROM learning_rules
+           WHERE client_id = $1 AND tenant_id = $2
+             AND is_active = true`,
+          [id, tenantId],
+        ),
+        // engagement rate — latest Reportei snapshots, preferring 30d and averaging available social platforms
+        query<{ platform: string; metrics: Record<string, any> | null }>(
+          `SELECT DISTINCT ON (platform) platform, metrics
+           FROM reportei_metric_snapshots
+           WHERE client_id = $1 AND tenant_id = $2
+           ORDER BY
+             platform,
+             CASE time_window
+               WHEN '30d' THEN 0
+               WHEN '7d' THEN 1
+               WHEN '90d' THEN 2
+               ELSE 9
+             END,
+             synced_at DESC`,
+          [id, tenantId],
+        ).catch(() => ({ rows: [] })),
+        // health score — ratio of jobs on-time vs total completed last 90d
+        query<{ health_score: string }>(
+          `SELECT CASE WHEN COUNT(*) = 0 THEN 0
+                  ELSE ROUND(
+                    COUNT(*) FILTER (WHERE completed_at <= deadline_at OR deadline_at IS NULL)::numeric
+                    / COUNT(*)::numeric * 100
+                  )
+                  END::text AS health_score
+           FROM jobs
+           WHERE client_id = $1 AND tenant_id = $2
+             AND status = 'done'
+             AND completed_at > now() - interval '90 days'`,
+          [id, tenantId],
+        ).catch(() => ({ rows: [{ health_score: '0' }] })),
+      ]);
+
+      const activeJobs = jobsRes.status === 'fulfilled' ? parseInt(jobsRes.value.rows[0]?.cnt ?? '0') : 0;
+      const mentions48h = mentionsRes.status === 'fulfilled' ? parseInt(mentionsRes.value.rows[0]?.cnt ?? '0') : 0;
+      const amdScore = learningRes.status === 'fulfilled' ? parseInt(learningRes.value.rows[0]?.amd_score ?? '0') : 0;
+      const engagementCandidates =
+        reporteiRes.status === 'fulfilled'
+          ? reporteiRes.value.rows
+              .map((row) => extractReporteiEngagementRate(row.metrics))
+              .filter((value): value is number => value !== null)
+          : [];
+      const engagementRate =
+        engagementCandidates.length > 0
+          ? Number(
+              (engagementCandidates.reduce((sum, value) => sum + value, 0) / engagementCandidates.length).toFixed(1),
+            )
+          : 0;
+      const healthScore = healthRes.status === 'fulfilled' ? parseInt(healthRes.value.rows[0]?.health_score ?? '0') : 0;
+
+      return reply.send({ activeJobs, mentions48h, amdScore, engagementRate, healthScore });
     },
   );
 }

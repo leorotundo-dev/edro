@@ -8,9 +8,10 @@
  * On completion, redirects to /onboarding/termos for clickwrap acceptance.
  */
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
+import { describeCnpjLookupSource, formatLookupTimestamp, isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
 
 const STEPS = ['empresa', 'representante', 'pagamento', 'skills', 'avatar'] as const;
@@ -23,6 +24,79 @@ const STEP_LABELS: Record<Step, string> = {
   skills:        'Especialidades',
   avatar:        'Avatar Edro',
 };
+
+type FreelancerProfileResponse = {
+  cnpj?: string | null;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  inscricao_municipal?: string | null;
+  address_street?: string | null;
+  address_number?: string | null;
+  address_complement?: string | null;
+  address_district?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_cep?: string | null;
+  representante_nome?: string | null;
+  representante_cpf?: string | null;
+  estado_civil?: string | null;
+  phone?: string | null;
+  pix_key?: string | null;
+  pix_key_type?: 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria' | null;
+  bank_name?: string | null;
+  bank_agency?: string | null;
+  bank_account?: string | null;
+  portfolio_url?: string | null;
+  weekly_capacity?: number | null;
+  skills?: string[] | null;
+  skills_json?: SelectedSkill[] | string | null;
+  avatar_url?: string | null;
+  avatar_prompt_version?: string | null;
+  // allocation fields
+  experience_level?: 'junior' | 'pleno' | 'senior' | null;
+  platform_expertise?: string[] | null;
+  ai_tools?: string[] | null;
+  max_concurrent_jobs?: number | null;
+  available_days?: string[] | null;
+  available_hours_start?: string | null;
+  available_hours_end?: string | null;
+};
+
+function parseStoredSkills(raw: FreelancerProfileResponse['skills_json'], fallback?: string[] | null): SelectedSkill[] {
+  const normalizeSkill = (skill: any): SelectedSkill | null => {
+    if (!skill) return null;
+    if (typeof skill === 'string') {
+      return { id: skill, label: skill, category: 'disciplinas', level: 'pleno' };
+    }
+    if (typeof skill === 'object' && typeof skill.id === 'string' && typeof skill.label === 'string') {
+      const category = skill.category === 'softwares' || skill.category === 'ia' || skill.category === 'tech'
+        ? skill.category
+        : 'disciplinas';
+      const level = skill.level === 'junior' || skill.level === 'ninja' ? skill.level : 'pleno';
+      return { id: skill.id, label: skill.label, category, level };
+    }
+    return null;
+  };
+
+  const parsed = Array.isArray(raw)
+    ? raw
+    : typeof raw === 'string' && raw.trim()
+      ? (() => {
+          try {
+            const value = JSON.parse(raw);
+            return Array.isArray(value) ? value : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+  const normalized = parsed.map(normalizeSkill).filter(Boolean) as SelectedSkill[];
+  if (normalized.length > 0) return normalized;
+  return Array.isArray(fallback)
+    ? fallback.map((skill) => normalizeSkill(skill)).filter(Boolean) as SelectedSkill[]
+    : [];
+}
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -79,13 +153,15 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-export default function OnboardingPage() {
+function OnboardingPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [avatarGenerating, setAvatarGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [cnpjLookupResult, setCnpjLookupResult] = useState<CnpjLookupResponse | null>(null);
   const [avatarError, setAvatarError] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarSourcePreview, setAvatarSourcePreview] = useState('');
@@ -112,14 +188,21 @@ export default function OnboardingPage() {
     phone: '',
     // Bloco 3: Pagamento (PJ obrigatório)
     pix_key: '',
-    pix_key_type: 'cnpj' as 'cnpj' | 'email' | 'telefone' | 'aleatoria',
+    pix_key_type: 'cnpj' as 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria',
     bank_name: '',
     bank_agency: '',
     bank_account: '',
-    // Bloco 4: Arsenal
+    // Bloco 4: Arsenal + allocation
     skills: [] as SelectedSkill[],
     portfolio_url: '',
     weekly_capacity: 40,
+    experience_level: 'pleno' as 'junior' | 'pleno' | 'senior',
+    platform_expertise: [] as string[],
+    ai_tools: [] as string[],
+    max_concurrent_jobs: 3,
+    available_days: ['mon', 'tue', 'wed', 'thu', 'fri'] as string[],
+    available_hours_start: '09:00',
+    available_hours_end: '18:00',
   });
 
   function set(field: string, value: unknown) {
@@ -127,13 +210,53 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
+    const requestedStep = searchParams.get('step');
+    if (!requestedStep) return;
+    const nextIndex = STEPS.indexOf(requestedStep as Step);
+    if (nextIndex >= 0) setStep(nextIndex);
+  }, [searchParams]);
+
+  useEffect(() => {
     let cancelled = false;
 
-    apiGet<{ avatar_url?: string | null; avatar_prompt_version?: string | null }>('/freelancers/portal/me')
+    apiGet<FreelancerProfileResponse>('/freelancers/portal/me')
       .then((data) => {
         if (cancelled) return;
         setAvatarGeneratedUrl(data?.avatar_url ?? '');
         setAvatarPromptVersion(data?.avatar_prompt_version ?? '');
+        setForm((prev) => ({
+          ...prev,
+          cnpj: data?.cnpj ?? prev.cnpj,
+          razao_social: data?.razao_social ?? prev.razao_social,
+          nome_fantasia: data?.nome_fantasia ?? prev.nome_fantasia,
+          inscricao_municipal: data?.inscricao_municipal ?? prev.inscricao_municipal,
+          address_street: data?.address_street ?? prev.address_street,
+          address_number: data?.address_number ?? prev.address_number,
+          address_complement: data?.address_complement ?? prev.address_complement,
+          address_district: data?.address_district ?? prev.address_district,
+          address_city: data?.address_city ?? prev.address_city,
+          address_state: data?.address_state ?? prev.address_state,
+          address_cep: data?.address_cep ?? prev.address_cep,
+          representante_nome: data?.representante_nome ?? prev.representante_nome,
+          representante_cpf: data?.representante_cpf ?? prev.representante_cpf,
+          estado_civil: data?.estado_civil ?? prev.estado_civil,
+          phone: data?.phone ?? prev.phone,
+          pix_key: data?.pix_key ?? prev.pix_key,
+          pix_key_type: data?.pix_key_type ?? prev.pix_key_type,
+          bank_name: data?.bank_name ?? prev.bank_name,
+          bank_agency: data?.bank_agency ?? prev.bank_agency,
+          bank_account: data?.bank_account ?? prev.bank_account,
+          portfolio_url: data?.portfolio_url ?? prev.portfolio_url,
+          weekly_capacity: typeof data?.weekly_capacity === 'number' ? data.weekly_capacity : prev.weekly_capacity,
+          skills: parseStoredSkills(data?.skills_json ?? null, data?.skills ?? null),
+          experience_level: data?.experience_level ?? prev.experience_level,
+          platform_expertise: data?.platform_expertise ?? prev.platform_expertise,
+          ai_tools: data?.ai_tools ?? prev.ai_tools,
+          max_concurrent_jobs: typeof data?.max_concurrent_jobs === 'number' ? data.max_concurrent_jobs : prev.max_concurrent_jobs,
+          available_days: data?.available_days ?? prev.available_days,
+          available_hours_start: data?.available_hours_start ?? prev.available_hours_start,
+          available_hours_end: data?.available_hours_end ?? prev.available_hours_end,
+        }));
       })
       .catch(() => null);
 
@@ -141,12 +264,21 @@ export default function OnboardingPage() {
   }, []);
 
   async function lookupCnpj() {
-    const clean = form.cnpj.replace(/\D/g, '');
-    if (clean.length !== 14) { setError('Digite os 14 dígitos do CNPJ.'); return; }
+    const clean = normalizeDigits(form.cnpj);
+    if (!isValidCnpj(clean)) {
+      setCnpjLookupResult(null);
+      setError('CNPJ inválido. Confira os dígitos e tente novamente.');
+      return;
+    }
     setError('');
     setCnpjLoading(true);
     try {
-      const data = await apiGet<any>(`/freelancers/portal/cnpj/${clean}`);
+      const data = await apiGet<CnpjLookupResponse>(`/freelancers/portal/cnpj/${clean}`);
+      setCnpjLookupResult(data);
+      if (data.status === 'invalid_cnpj' || data.status === 'not_found' || data.status === 'provider_unavailable') {
+        setError(data.message);
+        return;
+      }
       setForm(prev => ({
         ...prev,
         razao_social:    data.razao_social    ?? prev.razao_social,
@@ -157,13 +289,14 @@ export default function OnboardingPage() {
         address_district:data.bairro          ?? prev.address_district,
         address_city:    data.municipio       ?? prev.address_city,
         address_state:   data.uf              ?? prev.address_state,
-        address_cep:     (data.cep ?? '').replace(/\D/g, ''),
+        address_cep:     (data.cep ?? '').replace(/\D/g, '') || prev.address_cep,
       }));
-      if (data.situacao && !data.situacao.toLowerCase().includes('ativa')) {
-        setError(`Atenção: CNPJ com situação "${data.situacao}" na Receita Federal.`);
+      if (data.status === 'found_inactive' || (data.situacao && !data.situacao.toLowerCase().includes('ativa'))) {
+        setError(data.message);
       }
     } catch {
-      setError('CNPJ não encontrado na Receita Federal. Verifique e tente novamente.');
+      setCnpjLookupResult(null);
+      setError('A consulta automática de CNPJ falhou agora. Você pode preencher manualmente e continuar.');
     } finally {
       setCnpjLoading(false);
     }
@@ -171,7 +304,7 @@ export default function OnboardingPage() {
 
   function validateStep(): string | null {
     if (step === 0) {
-      if (!form.cnpj.replace(/\D/g, '').match(/^\d{14}$/)) return 'CNPJ inválido.';
+      if (!isValidCnpj(form.cnpj)) return 'CNPJ inválido.';
       if (!form.razao_social.trim()) return 'Razão Social é obrigatória.';
     }
     if (step === 1) {
@@ -180,7 +313,6 @@ export default function OnboardingPage() {
     }
     if (step === 2) {
       if (!form.pix_key.trim()) return 'Chave PIX é obrigatória.';
-      if (form.pix_key_type === ('cpf' as string)) return 'Chave PIX deve ser do CNPJ, e-mail ou telefone da empresa — não CPF pessoal.';
     }
     if (step === 3) {
       if (form.skills.length === 0) return 'Selecione ao menos uma especialidade.';
@@ -277,7 +409,7 @@ export default function OnboardingPage() {
           {/* ── Bloco 1: Empresa ─── */}
           {currentStep === 'empresa' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <Field label="CNPJ" required hint="Somente números. O cadastro será preenchido automaticamente.">
+              <Field label="CNPJ" required hint="Somente números. Se a consulta automática falhar, você pode preencher os campos manualmente.">
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     style={inputStyle}
@@ -300,6 +432,32 @@ export default function OnboardingPage() {
                   </button>
                 </div>
               </Field>
+              {cnpjLookupResult && (
+                <div style={{
+                  marginTop: -6,
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(19,222,185,0.18)',
+                  background: 'rgba(19,222,185,0.06)',
+                  color: 'rgba(255,255,255,0.65)',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}>
+                  <strong style={{ color: '#13DEB9' }}>
+                    {cnpjLookupResult.cache_hit ? 'Dados recuperados do cache.' : 'Consulta automática concluída.'}
+                  </strong>{' '}
+                  Fonte: {describeCnpjLookupSource(cnpjLookupResult)}.
+                  {cnpjLookupResult.cached_at && (
+                    <> Atualizado em {formatLookupTimestamp(cnpjLookupResult.cached_at)}.</>
+                  )}
+                  {!cnpjLookupResult.cached_at && cnpjLookupResult.source === 'brasilapi' && (
+                    <> Dados carregados agora.</>
+                  )}
+                  {cnpjLookupResult.expires_at && (
+                    <> Cache válido até {formatLookupTimestamp(cnpjLookupResult.expires_at)}.</>
+                  )}
+                </div>
+              )}
               <Field label="Razão Social" required>
                 <input style={inputStyle} value={form.razao_social} onChange={e => set('razao_social', e.target.value)} placeholder="Empresa Ltda." />
               </Field>
@@ -343,12 +501,12 @@ export default function OnboardingPage() {
                 background: 'rgba(93,135,255,0.08)', border: '1px solid rgba(93,135,255,0.2)',
                 borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'rgba(255,255,255,0.55)',
               }}>
-                ℹ️ O CPF informado é do representante legal para fins de contrato. <strong>O pagamento será feito exclusivamente para o CNPJ da empresa.</strong>
+                ℹ️ O CPF informado identifica o representante legal para fins contratuais e também pode ser usado como chave PIX no próximo passo, se preferir.
               </div>
               <Field label="Nome completo do representante" required>
                 <input style={inputStyle} value={form.representante_nome} onChange={e => set('representante_nome', e.target.value)} placeholder="Nome Sobrenome" />
               </Field>
-              <Field label="CPF do representante" required hint="Usado apenas para assinatura do contrato — não para pagamento.">
+              <Field label="CPF do representante" required hint="Usado para assinatura do contrato e opcionalmente como chave PIX.">
                 <input style={inputStyle} value={form.representante_cpf} onChange={e => set('representante_cpf', e.target.value)} placeholder="000.000.000-00" maxLength={14} />
               </Field>
               <Field label="Estado civil">
@@ -378,7 +536,7 @@ export default function OnboardingPage() {
                 background: 'rgba(250,137,107,0.08)', border: '1px solid rgba(250,137,107,0.25)',
                 borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'rgba(255,255,255,0.6)',
               }}>
-                ⚠️ <strong>Pagamentos são realizados exclusivamente para Pessoa Jurídica (CNPJ).</strong> Chaves PIX vinculadas a CPF pessoal não são aceitas.
+                ⚠️ <strong>Informe a chave PIX principal para recebimento.</strong> Você pode usar CNPJ da empresa, CPF do representante, e-mail, telefone ou chave aleatória.
               </div>
               <Field label="Tipo de chave PIX" required>
                 <select
@@ -387,6 +545,7 @@ export default function OnboardingPage() {
                   onChange={e => set('pix_key_type', e.target.value)}
                 >
                   <option value="cnpj">CNPJ da empresa</option>
+                  <option value="cpf">CPF do representante</option>
                   <option value="email">E-mail corporativo</option>
                   <option value="telefone">Telefone corporativo</option>
                   <option value="aleatoria">Chave aleatória</option>
@@ -399,6 +558,7 @@ export default function OnboardingPage() {
                   onChange={e => set('pix_key', e.target.value)}
                   placeholder={
                     form.pix_key_type === 'cnpj' ? '00.000.000/0001-00'
+                    : form.pix_key_type === 'cpf' ? '000.000.000-00'
                     : form.pix_key_type === 'email' ? 'financeiro@empresa.com.br'
                     : form.pix_key_type === 'telefone' ? '+55 11 99999-9999'
                     : 'Chave aleatória (UUID)'
@@ -424,30 +584,134 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Bloco 4: Arsenal ─── */}
+          {/* ── Bloco 4: Arsenal + Allocation ─── */}
           {currentStep === 'skills' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div style={{
-                background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)',
-                borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'rgba(255,255,255,0.55)',
-              }}>
-                Como no Behance, adicione as tags que definem o seu estúdio/empresa. Nosso algoritmo usará essas informações para enviar os Cards (Jobs) que dão match com as suas especialidades.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* Skills */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Especialidades</div>
+                <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'rgba(255,255,255,0.55)', marginBottom: 12 }}>
+                  Adicione as habilidades que definem seu trabalho. O nível (🌱🚀🧙) é usado pelo algoritmo para priorizar você nos jobs certos.
+                </div>
+                <ArsenalPicker value={form.skills} onChange={skills => set('skills', skills)} />
               </div>
-              <ArsenalPicker
-                value={form.skills}
-                onChange={skills => set('skills', skills)}
-              />
-              <Field label="Link do portfólio" hint="Behance, site, Drive, ou qualquer referência de trabalhos">
+
+              {/* Nível geral */}
+              <Field label="Nível de experiência geral" required hint="Usado para matchear você com jobs compatíveis com sua senioridade.">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  {([['junior', '🌱', 'Junior', 'Até 2 anos'], ['pleno', '🚀', 'Pleno', '2–5 anos'], ['senior', '🧙', 'Senior', '5+ anos']] as const).map(([val, emoji, label, hint]) => (
+                    <button
+                      key={val} type="button"
+                      onClick={() => set('experience_level', val)}
+                      style={{
+                        padding: '10px 8px', borderRadius: 10, border: '1px solid',
+                        borderColor: form.experience_level === val ? 'var(--portal-accent, #E85219)' : 'rgba(255,255,255,0.12)',
+                        background: form.experience_level === val ? 'rgba(232,82,25,0.12)' : 'rgba(255,255,255,0.03)',
+                        cursor: 'pointer', textAlign: 'center',
+                      }}
+                    >
+                      <div style={{ fontSize: 20 }}>{emoji}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginTop: 4 }}>{label}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{hint}</div>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Plataformas */}
+              <Field label="Plataformas que domina" hint="Selecione todas onde você tem experiência real de produção.">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Facebook', 'Pinterest', 'Twitter/X', 'Threads', 'Google Ads', 'Meta Ads'].map((p) => {
+                    const id = p.toLowerCase().replace(/[^a-z]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+                    const active = form.platform_expertise.includes(id);
+                    return (
+                      <button key={id} type="button"
+                        onClick={() => set('platform_expertise', active ? form.platform_expertise.filter(x => x !== id) : [...form.platform_expertise, id])}
+                        style={{
+                          padding: '6px 14px', borderRadius: 20, border: '1px solid', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          borderColor: active ? 'var(--portal-accent, #E85219)' : 'rgba(255,255,255,0.15)',
+                          background: active ? 'rgba(232,82,25,0.14)' : 'rgba(255,255,255,0.04)',
+                          color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+                        }}
+                      >{p}</button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              {/* Ferramentas de IA */}
+              <Field label="Ferramentas de IA que usa" hint="Bonus points para jobs criativos quando você usa IA no processo.">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['ChatGPT', 'Claude', 'Midjourney', 'Runway', 'Sora', 'Kling', 'Canva AI', 'Adobe Firefly', 'ElevenLabs', 'Gemini'].map((t) => {
+                    const id = t.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+                    const active = form.ai_tools.includes(id);
+                    return (
+                      <button key={id} type="button"
+                        onClick={() => set('ai_tools', active ? form.ai_tools.filter(x => x !== id) : [...form.ai_tools, id])}
+                        style={{
+                          padding: '6px 14px', borderRadius: 20, border: '1px solid', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          borderColor: active ? '#13DEB9' : 'rgba(255,255,255,0.15)',
+                          background: active ? 'rgba(19,222,185,0.1)' : 'rgba(255,255,255,0.04)',
+                          color: active ? '#13DEB9' : 'rgba(255,255,255,0.55)',
+                        }}
+                      >{t}</button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              {/* Capacidade */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field label="Volume semanal" hint="Escopos por semana.">
+                  <select title="Volume semanal de escopos" style={{ ...inputStyle, appearance: 'none' }} value={form.weekly_capacity} onChange={e => set('weekly_capacity', parseInt(e.target.value))}>
+                    <option value={10}>Baixa — ~1/semana</option>
+                    <option value={20}>Média — ~2/semana</option>
+                    <option value={40}>Alta — ~4/semana</option>
+                    <option value={80}>Máxima — 5+/semana</option>
+                  </select>
+                </Field>
+                <Field label="Jobs simultâneos" hint="Máximo ao mesmo tempo.">
+                  <select title="Máximo de jobs simultâneos" style={{ ...inputStyle, appearance: 'none' }} value={form.max_concurrent_jobs} onChange={e => set('max_concurrent_jobs', parseInt(e.target.value))}>
+                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} job{n > 1 ? 's' : ''}</option>)}
+                  </select>
+                </Field>
+              </div>
+
+              {/* Disponibilidade */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Disponibilidade</div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  {[['mon','S'],['tue','T'],['wed','Q'],['thu','Q'],['fri','S'],['sat','S'],['sun','D']].map(([id, label]) => {
+                    const active = form.available_days.includes(id);
+                    return (
+                      <button key={id} type="button"
+                        onClick={() => set('available_days', active ? form.available_days.filter(d => d !== id) : [...form.available_days, id])}
+                        style={{
+                          flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          borderColor: active ? 'var(--portal-accent, #E85219)' : 'rgba(255,255,255,0.12)',
+                          background: active ? 'rgba(232,82,25,0.14)' : 'rgba(255,255,255,0.03)',
+                          color: active ? '#fff' : 'rgba(255,255,255,0.35)',
+                        }}
+                      >{label}</button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <Field label="Horário início">
+                    <input type="time" title="Horário de início" placeholder="09:00" style={inputStyle} value={form.available_hours_start} onChange={e => set('available_hours_start', e.target.value)} />
+                  </Field>
+                  <Field label="Horário fim">
+                    <input type="time" title="Horário de fim" placeholder="18:00" style={inputStyle} value={form.available_hours_end} onChange={e => set('available_hours_end', e.target.value)} />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Portfolio */}
+              <Field label="Link do portfólio" hint="Behance, site, Drive, ou qualquer referência de trabalhos.">
                 <input style={inputStyle} value={form.portfolio_url} onChange={e => set('portfolio_url', e.target.value)} placeholder="https://..." />
               </Field>
-              <Field label="Capacidade de demandas simultâneas" hint="Não é controle de jornada — apenas informa sua disponibilidade para oferta de escopos.">
-                <select style={{ ...inputStyle, appearance: 'none' }} value={form.weekly_capacity} onChange={e => set('weekly_capacity', parseInt(e.target.value))}>
-                  <option value={10}>Baixa — até 1 escopo/semana</option>
-                  <option value={20}>Média — até 2 escopos/semana</option>
-                  <option value={40}>Alta — até 4 escopos/semana</option>
-                  <option value={80}>Máxima — 5+ escopos/semana</option>
-                </select>
-              </Field>
+
             </div>
           )}
 
@@ -625,6 +889,29 @@ export default function OnboardingPage() {
           Seus dados são tratados conforme a LGPD (Lei nº 13.709/2018)
         </p>
       </div>
+    </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<OnboardingPageFallback />}>
+      <OnboardingPageContent />
+    </Suspense>
+  );
+}
+
+function OnboardingPageFallback() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--portal-bg, #0f0f0f)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px 16px',
+    }}>
+      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Carregando onboarding...</div>
     </div>
   );
 }

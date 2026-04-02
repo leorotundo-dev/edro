@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import AppShell from '@/components/AppShell';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -452,11 +453,30 @@ type PortalTab = 'jobs' | 'capacidade' | 'extrato';
 export default function MinhaAreaClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const jobsSummary = useSWR<{ success: boolean; data: DAJob[] }>('/jobs/mine', swrFetcher);
+  const capacitySummary = useSWR<{ success: boolean; data: CapacitySlot[] }>('/api/da-billing/capacity', swrFetcher);
+  const billingSummary = useSWR<{ success: boolean; data: BillingEntry[] }>(
+    `/api/da-billing/me?period=${currentPeriod()}`,
+    swrFetcher,
+  );
   const [tab, setTab] = useState<PortalTab>(() => {
     const t = searchParams.get('tab');
     if (t === 'capacidade' || t === 'extrato') return t;
     return 'jobs';
   });
+
+  const jobs = jobsSummary.data?.data ?? [];
+  const slots = capacitySummary.data?.data ?? [];
+  const billing = billingSummary.data?.data ?? [];
+  const activeJobs = jobs.filter((job) => !['done', 'archived'].includes(job.status));
+  const overdueJobs = activeJobs.filter((job) => isOverdue(job.deadline_at));
+  const availableSlots = slots.reduce((sum, slot) => sum + slot.slots_available, 0);
+  const pendingCents = billing
+    .filter((entry) => entry.status === 'pending' || entry.status === 'approved')
+    .reduce((sum, entry) => sum + entry.rate_cents, 0);
+  const finishedJobs = jobs.filter((job) => ['done', 'archived'].includes(job.status)).length;
+  const activeTabLabel =
+    tab === 'jobs' ? 'Jobs e entregas' : tab === 'capacidade' ? 'Capacidade da semana' : 'Extrato e repasses';
 
   const changeTab = (value: PortalTab) => {
     setTab(value);
@@ -466,7 +486,25 @@ export default function MinhaAreaClient() {
 
   return (
     <AppShell title="Minha Área">
-      <Box>
+      <Stack spacing={3}>
+        <WorkspaceHero
+          eyebrow="Workspace pessoal"
+          title="Minha Área"
+          description="Acompanhe suas entregas, sua carga desta semana e o que ainda falta virar repasse."
+          leftChips={[
+            { label: `${finishedJobs} concluídos`, color: 'success', variant: 'outlined', icon: <IconCircleCheck size={14} /> },
+            { label: activeTabLabel, color: 'primary', variant: 'filled', icon: <IconClock size={14} />, sx: { fontWeight: 700 } },
+          ]}
+          rightContent={
+            <>
+              <Chip label={`${activeJobs.length} jobs ativos`} size="small" color="primary" variant="outlined" />
+              <Chip label={`${availableSlots} slots livres`} size="small" color="success" variant="outlined" />
+              <Chip label={brl(pendingCents)} size="small" color="warning" variant="outlined" />
+            </>
+          }
+        />
+
+        <Box>
         <Tabs
           value={tab}
           onChange={(_, v) => changeTab(v)}
@@ -498,7 +536,8 @@ export default function MinhaAreaClient() {
         {tab === 'jobs' && <JobsTab />}
         {tab === 'capacidade' && <CapacidadeTab />}
         {tab === 'extrato' && <ExtratoTab />}
-      </Box>
+        </Box>
+      </Stack>
     </AppShell>
   );
 }

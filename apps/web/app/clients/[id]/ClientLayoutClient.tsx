@@ -85,12 +85,11 @@ type AnalysisResult = {
 };
 
 const CLIENT_TABS = [
-  { label: 'Operação',        path: '/operacao' },
-  { label: 'Radar',           path: '/radar' },
-  { label: 'Social',          path: '/social-listening' },
-  { label: 'Inteligência',    path: '/inteligencia' },
-  { label: 'Resultado',       path: '/resultado' },
-  { label: 'Identidade',      path: '/identidade' },
+  { label: 'Operação',     path: '/operacao' },
+  { label: 'Radar',        path: '/radar' },
+  { label: 'Inteligência', path: '/inteligencia' },
+  { label: 'Resultado',    path: '/resultado' },
+  { label: 'Identidade',   path: '/identidade' },
 ];
 
 function formatMarkdown(text: string): string {
@@ -145,6 +144,16 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
   const [saved, setSaved] = useState(false);
   const [collabStep, setCollabStep] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // KPI banner state
+  type BannerKpis = { activeJobs: number; mentions48h: number; amdScore: number; engagementRate: number; healthScore: number };
+  const [kpis, setKpis] = useState<BannerKpis | null>(null);
+
+  useEffect(() => {
+    apiGet<BannerKpis>(`/clients/${clientId}/banner-kpis`)
+      .then((r) => setKpis(r))
+      .catch(() => {});
+  }, [clientId]);
 
   // Portal invite state
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -234,10 +243,19 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
     setInviting(true);
     setInviteError('');
     try {
-      await apiPost(`/clients/${clientId}/portal/invite`, { email: inviteEmail });
+      await apiPost(`/portal/contacts/${clientId}`, {
+        email: inviteEmail.trim(),
+        role: 'requester',
+      });
       setInviteDone(true);
+      setInviteEmail('');
     } catch (err: any) {
-      setInviteError(err?.message || 'Falha ao enviar convite.');
+      const message = err?.message || '';
+      setInviteError(
+        message.includes('max_contacts')
+          ? 'Este cliente já atingiu o limite de 5 contatos ativos no portal.'
+          : message || 'Falha ao enviar convite.',
+      );
     } finally {
       setInviting(false);
     }
@@ -390,13 +408,45 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
             </Stack>
           </Stack>
 
+          {kpis && (
+            <Stack
+              direction="row"
+              spacing={0}
+              sx={{ mt: 2, mb: 0, flexWrap: 'wrap', gap: 0, borderTop: '1px solid rgba(255,255,255,0.15)', pt: 1.5 }}
+              divider={<Box sx={{ width: '1px', bgcolor: 'rgba(255,255,255,0.2)', mx: 1.5 }} />}
+            >
+              {[
+                { emoji: '⚡', value: kpis.activeJobs, label: 'jobs ativos', path: '/operacao' },
+                { emoji: '🌐', value: kpis.mentions48h, label: 'menções 48h', path: '/radar' },
+                { emoji: '🧠', value: `${kpis.amdScore}%`, label: 'AMD score', path: '/inteligencia' },
+                { emoji: '📊', value: `${kpis.engagementRate > 0 ? '+' : ''}${kpis.engagementRate}%`, label: 'engagement', path: '/resultado' },
+                { emoji: '🎯', value: kpis.healthScore, label: 'health score', path: '/resultado' },
+              ].map((k) => (
+                <Box
+                  key={k.label}
+                  component={Link}
+                  href={`${basePath}${k.path}`}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 0.5, px: 1,
+                    cursor: 'pointer', textDecoration: 'none',
+                    '&:hover': { opacity: 0.8 },
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.85rem' }}>{k.emoji}</Typography>
+                  <Typography sx={{ color: 'white', fontWeight: 700, fontSize: '0.85rem' }}>{k.value}</Typography>
+                  <Typography sx={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.75rem' }}>{k.label}</Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+
           <Tabs
             value={activeTab}
             onChange={(_, value) => {
               router.push(`${basePath}${value}`);
             }}
             sx={{
-              mt: 2,
+              mt: kpis ? 1 : 2,
               '& .MuiTab-root': { color: 'rgba(255,255,255,0.7)', fontWeight: 600, '&.Mui-selected': { color: 'white' } },
               '& .MuiTabs-indicator': { bgcolor: 'white' },
             }}
@@ -432,14 +482,14 @@ export default function ClientLayoutClient({ children, clientId }: ClientLayoutC
               <IconCheck size={40} color="#16a34a" />
               <Typography variant="body1" fontWeight={600} color="success.main">Convite enviado!</Typography>
               <Typography variant="body2" color="text.secondary" textAlign="center">
-                O cliente receberá um e-mail com o código de acesso ao portal.
+                O cliente receberá um e-mail com um link direto de acesso ao portal.
               </Typography>
               <Button variant="outlined" onClick={() => setInviteOpen(false)}>Fechar</Button>
             </Stack>
           ) : (
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                Digite o e-mail do contato do cliente. Ele receberá um código de acesso ao Portal do Cliente da Edro.
+                Digite o e-mail do contato do cliente. Ele receberá um link direto de acesso ao Portal do Cliente da Edro.
               </Typography>
               <TextField
                 label="E-mail do cliente"

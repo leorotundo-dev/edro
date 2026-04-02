@@ -84,7 +84,7 @@ function TrendIcon({ trend }: { trend: string | null }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export default function PainelExecutivoClient() {
+export default function PainelExecutivoClient({ embedded = false }: { embedded?: boolean } = {}) {
   const theme = useTheme();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -117,15 +117,22 @@ export default function PainelExecutivoClient() {
 
   const dark = theme.palette.mode === 'dark';
 
-  return (
-    <AppShell title="Painel Executivo">
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
+  const content = (
+      <Box sx={{ p: embedded ? 0 : { xs: 2, md: 3 } }}>
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
-          <Stack>
-            <Typography variant="h5" fontWeight={800}>Painel Executivo</Typography>
-            <Typography variant="body2" color="text.secondary">Visão cruzada de todos os clientes — saúde, risco e produção.</Typography>
-          </Stack>
+          {!embedded ? (
+            <Stack>
+              <Typography variant="h5" fontWeight={800}>Painel Executivo</Typography>
+              <Typography variant="body2" color="text.secondary">Visão cruzada de todos os clientes — saúde, risco e produção.</Typography>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`${summary?.total ?? 0} clientes`} size="small" variant="outlined" />
+              <Chip label={`${summary?.critical ?? 0} críticos`} size="small" color="error" variant="outlined" />
+              <Chip label={`${summary?.warning ?? 0} atenção`} size="small" color="warning" variant="outlined" />
+            </Stack>
+          )}
           <Button variant="outlined" size="small" startIcon={<IconRefresh size={16} />} onClick={load} disabled={loading}>
             Atualizar
           </Button>
@@ -244,6 +251,13 @@ export default function PainelExecutivoClient() {
           </>
         )}
       </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AppShell title="Painel Executivo">
+      {content}
     </AppShell>
   );
 }

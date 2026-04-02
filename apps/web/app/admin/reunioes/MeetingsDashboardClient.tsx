@@ -1473,7 +1473,7 @@ function MeetingDetailPanel({ meetingId, onUnarchive }: { meetingId: string; onU
 
 // ── Main Dashboard ───────────────────────────────────────────────────
 
-export default function MeetingsDashboardClient() {
+export default function MeetingsDashboardClient({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -1721,32 +1721,47 @@ export default function MeetingsDashboardClient() {
     ? archivedMeetings
     : recent.filter((meeting) => matchesRecentMeetingFilter(meeting, recentFilter));
 
-  return (
-    <AppShell title="Reunioes">
+  const resetQuickBot = () => {
+    setQuickBotUrl('');
+    setQuickBotTime(toLocalISO(new Date(Date.now() + 30 * 60_000)));
+    setQuickBotClient(null);
+    setQuickBotError('');
+    setQuickBotDone(false);
+    setQuickBotOpen(true);
+  };
+
+  const content = (
+    <>
       {/* Header */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <IconMicrophone size={28} color={EDRO_ORANGE} />
-          <Box>
-            <Typography variant="h5" fontWeight={700}>Reunioes</Typography>
-            <Typography variant="caption" color="text.secondary">
-              Agende, transcreva e extraia acoes automaticamente com Jarvis
-            </Typography>
-          </Box>
-        </Stack>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+        {!embedded ? (
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <IconMicrophone size={28} color={EDRO_ORANGE} />
+            <Box>
+              <Typography variant="h5" fontWeight={700}>Reunioes</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Agende, transcreva e extraia acoes automaticamente com Jarvis
+              </Typography>
+            </Box>
+          </Stack>
+        ) : (
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Chip label={`${stats?.total_meetings ?? 0} reuniões`} size="small" variant="outlined" />
+            <Chip label={`${totalPending} ações pendentes`} size="small" color="warning" variant="outlined" />
+            <Chip
+              label={`${stats?.failed ?? 0} falhas`}
+              size="small"
+              color={(stats?.failed ?? 0) > 0 ? 'error' : 'default'}
+              variant="outlined"
+            />
+          </Stack>
+        )}
         <Stack direction="row" spacing={1}>
           <Button
             variant="contained"
             size="small"
             startIcon={<IconRobot size={16} />}
-            onClick={() => {
-              setQuickBotUrl('');
-              setQuickBotTime(toLocalISO(new Date(Date.now() + 30 * 60_000)));
-              setQuickBotClient(null);
-              setQuickBotError('');
-              setQuickBotDone(false);
-              setQuickBotOpen(true);
-            }}
+            onClick={resetQuickBot}
             sx={{ bgcolor: EDRO_ORANGE, '&:hover': { bgcolor: '#c44411' } }}
           >
             Bot Rapido
@@ -2399,6 +2414,16 @@ export default function MeetingsDashboardClient() {
           </DialogActions>
         )}
       </Dialog>
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <AppShell title="Reunioes">
+      {content}
     </AppShell>
   );
 }

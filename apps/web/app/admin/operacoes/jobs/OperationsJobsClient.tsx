@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -31,6 +32,8 @@ import {
   IconChevronUp,
   IconFilter,
   IconInbox,
+  IconLayoutKanban,
+  IconLayoutList,
   IconLoader2,
   IconPlayerPlay,
   IconSearch,
@@ -48,10 +51,10 @@ import {
   EntityLinkCard,
   JobFocusRail,
   OpsJobRow,
+  OpsPanel,
   PersonThumb,
   PipelineBoard,
   SourceThumb,
-  StatusDot,
 } from '@/components/operations/primitives';
 import {
   criticalAlerts,
@@ -84,6 +87,8 @@ export default function OperationsJobsClient() {
   const shouldOpenComposer = searchParams.get('new') === '1';
   const shouldFilterUnassigned = searchParams.get('unassigned') === 'true';
   const ownerIdParam = searchParams.get('owner_id') || '';
+  const rawView = searchParams.get('view');
+  const validView = rawView === 'board' ? 'board' : 'list';
   const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob, deleteJob } = useOperationsData('?active=true');
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -101,6 +106,7 @@ export default function OperationsJobsClient() {
   const [deadlineFilter, setDeadlineFilter] = useState<string | null>(null);
   const [deliveryFilter, setDeliveryFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [viewMode, setViewModeState] = useState<'list' | 'board'>(validView);
 
   const rawGroup = searchParams.get('group');
   const validGroup = rawGroup === 'client' || rawGroup === 'owner' || rawGroup === 'risk' ? rawGroup : 'status';
@@ -111,10 +117,21 @@ export default function OperationsJobsClient() {
     if (v === 'status') params.delete('group'); else params.set('group', v);
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
+  const setViewMode = useCallback((v: 'list' | 'board') => {
+    setViewModeState(v);
+    const params = new URLSearchParams(searchParams.toString());
+    if (v === 'list') params.delete('view'); else params.set('view', 'board');
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+  const openJobDetail = useCallback((job: OperationsJob) => {
+    setSelectedJob(job);
+    setDetailOpen(true);
+  }, []);
 
   useEffect(() => { if (shouldOpenComposer) setComposerOpen(true); }, [shouldOpenComposer]);
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);
   useEffect(() => { if (ownerIdParam) setOwnerFilter(ownerIdParam); }, [ownerIdParam]);
+  useEffect(() => { setViewModeState(validView); }, [validView]);
 
   const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -174,6 +191,30 @@ export default function OperationsJobsClient() {
   }, [filteredJobs, jobs, selectedJob]);
 
   const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
+  const overdueJobs = useMemo(
+    () =>
+      jobs.filter((job) => {
+        if (!job.deadline_at || ['published', 'done', 'archived'].includes(job.status)) return false;
+        return new Date(job.deadline_at) < new Date();
+      }).sort(sortByOperationalPriority),
+    [jobs]
+  );
+  const waitingClientJobs = useMemo(
+    () => jobs.filter((job) => job.status === 'awaiting_approval').sort(sortByOperationalPriority),
+    [jobs]
+  );
+  const urgentJobs = useMemo(
+    () => jobs.filter((job) => job.is_urgent || job.priority_band === 'p0').sort(sortByOperationalPriority),
+    [jobs]
+  );
+  const inProgressCount = useMemo(
+    () => BUCKETS.find((bucket) => bucket.key === 'producao')?.stages.flatMap((stage) => grouped[stage] || []).length || 0,
+    [grouped]
+  );
+  const intakeCount = useMemo(
+    () => BUCKETS.find((bucket) => bucket.key === 'entrou')?.stages.flatMap((stage) => grouped[stage] || []).length || 0,
+    [grouped]
+  );
 
   const groupedSections = useMemo((): GroupedSection[] | null => {
     if (groupMode === 'status') return null; // use BUCKETS layout
@@ -235,10 +276,20 @@ export default function OperationsJobsClient() {
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const hasActiveFilters = Boolean(statusFilter || priorityFilter || clientFilter || ownerFilter || quickFilter || deadlineFilter || deliveryFilter);
   const activeFilterCount = [statusFilter, priorityFilter, clientFilter, ownerFilter, quickFilter, deadlineFilter, deliveryFilter].filter(Boolean).length;
+  const compactBoard = viewMode === 'board';
+  const queueOverviewItems = [
+    { label: 'Entrou', value: intakeCount, subtitle: 'Ainda precisa organizar', href: '/admin/operacoes/jobs?group=status', icon: <IconInbox size={16} />, color: '#5D87FF' },
+    { label: 'Produção', value: inProgressCount, subtitle: 'Já está rodando', href: '/admin/operacoes/jobs?group=status', icon: <IconPlayerPlay size={16} />, color: '#13DEB9' },
+    { label: 'Sem dono', value: unassignedCount(filteredJobs), subtitle: 'Precisa de responsável', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconUserOff size={16} />, color: '#FFAE1F' },
+    { label: 'Atrasadas', value: overdueJobs.length, subtitle: 'Já passaram do prazo', href: '/admin/operacoes/jobs', icon: <IconCalendarDue size={16} />, color: '#FA896B' },
+    { label: 'Esperando cliente', value: waitingClientJobs.length, subtitle: 'Aprovação ou retorno', href: '/admin/operacoes/jobs', icon: <IconLoader2 size={16} />, color: '#FFAE1F' },
+    { label: 'Urgentes', value: urgentJobs.length, subtitle: 'P0 ou marcadas como urgente', href: '/admin/operacoes/radar', icon: <IconUrgent size={16} />, color: '#E85219' },
+  ];
 
   return (
     <OperationsShell
       section="jobs"
+      onNewDemand={() => setComposerOpen(true)}
       summary={
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
           {BUCKETS.map((b) => {
@@ -271,8 +322,181 @@ export default function OperationsJobsClient() {
       ) : (
         <Grid container spacing={2.5}>
           {/* Main column */}
-          <Grid size={{ xs: 12, lg: 8 }}>
+          <Grid size={{ xs: 12, lg: viewMode === 'board' ? 12 : 8 }}>
             <Stack spacing={2}>
+              {compactBoard ? (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    px: { xs: 1.5, md: 2 },
+                    py: 1.1,
+                    borderRadius: 3,
+                    boxShadow: dark ? '0 2px 12px rgba(0,0,0,0.24)' : '0 2px 12px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <Stack spacing={0.9}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ md: 'center' }}>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: '0.14em', fontSize: '0.64rem' }}>
+                          Semáforo da fila
+                        </Typography>
+                        <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                        <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
+                      </Stack>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Button size="small" variant="contained" onClick={() => setComposerOpen(true)}>
+                          Nova demanda
+                        </Button>
+                        <Button size="small" variant="text" component={Link} href="/admin/operacoes/jobs?unassigned=true" sx={{ minWidth: 0, px: 0.5 }}>
+                          Sem dono
+                        </Button>
+                        <Button size="small" variant="text" component={Link} href="/admin/operacoes/radar" sx={{ minWidth: 0, px: 0.5 }}>
+                          Riscos
+                        </Button>
+                      </Stack>
+                    </Stack>
+                    <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                      {queueOverviewItems.map((item) => (
+                        <Box
+                          key={item.label}
+                          component={Link}
+                          href={item.href}
+                          sx={(theme) => ({
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.75,
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            px: 1,
+                            py: 0.65,
+                            borderRadius: 1.5,
+                            border: `1px solid ${alpha(item.color, 0.18)}`,
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.035),
+                            transition: 'all 160ms ease',
+                            '&:hover': {
+                              borderColor: alpha(item.color, 0.3),
+                              bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.11) : alpha(item.color, 0.06),
+                            },
+                          })}
+                        >
+                          <Box
+                            sx={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 1.1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: alpha(item.color, 0.14),
+                              color: item.color,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {item.icon}
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.62rem' }}>
+                            {item.label}
+                          </Typography>
+                          <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '0.96rem', lineHeight: 1, flexShrink: 0 }}>
+                            {item.value}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Stack>
+                </Paper>
+              ) : (
+                <OpsPanel
+                  eyebrow="Semáforo da fila"
+                  title="O que organizar agora"
+                  subtitle="A fila junta tudo que entrou do Trello e deixa claro o que precisa de dono, prazo ou cobrança antes de virar gargalo."
+                  action={
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
+                      <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
+                    </Stack>
+                  }
+                >
+                  <Stack spacing={2.25}>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+                        gap: 1.25,
+                      }}
+                    >
+                      {queueOverviewItems.map((item) => (
+                        <Box
+                          key={item.label}
+                          component={Link}
+                          href={item.href}
+                          sx={(theme) => ({
+                            display: 'block',
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: `1px solid ${alpha(item.color, 0.22)}`,
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
+                            transition: 'all 180ms ease',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              borderColor: alpha(item.color, 0.35),
+                              bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
+                            },
+                          })}
+                        >
+                          <Stack spacing={0.7}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 1.5,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  bgcolor: alpha(item.color, 0.14),
+                                  color: item.color,
+                                }}
+                              >
+                                {item.icon}
+                              </Box>
+                              <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.4rem', lineHeight: 1 }}>
+                                {item.value}
+                              </Typography>
+                            </Stack>
+                            <Box>
+                              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                {item.label}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                {item.subtitle}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Box>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button variant="contained" onClick={() => setComposerOpen(true)}>
+                        Nova demanda
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                        Resolver sem dono
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                        Distribuir semana
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
+                        Abrir riscos
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </OpsPanel>
+              )}
+
               {/* Search + filter bar */}
               <Box sx={{
                 borderRadius: 2, overflow: 'hidden',
@@ -280,7 +504,7 @@ export default function OperationsJobsClient() {
                 bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
                 boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, dark ? 0.1 : 0.04)}`,
               }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, py: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, py: compactBoard ? 0.85 : 1 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -309,6 +533,7 @@ export default function OperationsJobsClient() {
                 </Stack>
 
                 {/* Delivery status summary strip */}
+                {!compactBoard ? (
                 <Stack direction="row" spacing={0.5} sx={{ px: 2, pb: 1, flexWrap: 'wrap' }} useFlexGap>
                   {[
                     { label: 'Atrasado', emoji: '🔴' },
@@ -347,9 +572,10 @@ export default function OperationsJobsClient() {
                     );
                   })}
                 </Stack>
+                ) : null}
 
                 {/* Quick filters */}
-                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: 1.25 }}>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: compactBoard ? 0.7 : 1.25 }}>
                   <ToggleButtonGroup value={quickFilter} exclusive onChange={(_e, v) => setQuickFilter(v)} size="small">
                     <ToggleButton value="mine" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#4f46e5', borderColor: '#4f46e540' } }}>
                       <IconUsers size={14} style={{ marginRight: 4 }} /> Minha pauta
@@ -361,17 +587,27 @@ export default function OperationsJobsClient() {
                       <IconUserOff size={14} style={{ marginRight: 4 }} /> Sem dono
                     </ToggleButton>
                   </ToggleButtonGroup>
-                  <ToggleButtonGroup value={deadlineFilter} exclusive onChange={(_e, v) => setDeadlineFilter(v)} size="small">
-                    <ToggleButton value="overdue" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#dc2626', borderColor: '#dc262640' } }}>
-                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Atrasados
-                    </ToggleButton>
-                    <ToggleButton value="today" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#FFAE1F', borderColor: '#FFAE1F40' } }}>
-                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Hoje
-                    </ToggleButton>
-                    <ToggleButton value="week" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                      <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Essa semana
-                    </ToggleButton>
-                  </ToggleButtonGroup>
+                  {!compactBoard ? (
+                    <ToggleButtonGroup value={deadlineFilter} exclusive onChange={(_e, v) => setDeadlineFilter(v)} size="small">
+                      <ToggleButton value="overdue" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#dc2626', borderColor: '#dc262640' } }}>
+                        <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Atrasados
+                      </ToggleButton>
+                      <ToggleButton value="today" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important', '&.Mui-selected': { color: '#FFAE1F', borderColor: '#FFAE1F40' } }}>
+                        <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Hoje
+                      </ToggleButton>
+                      <ToggleButton value="week" sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconCalendarDue size={14} style={{ marginRight: 4 }} /> Essa semana
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  ) : null}
+                  {compactBoard && deadlineFilter ? (
+                    <Chip
+                      size="small"
+                      label={deadlineFilter === 'overdue' ? 'Atrasados' : deadlineFilter === 'today' ? 'Hoje' : 'Essa semana'}
+                      onDelete={() => setDeadlineFilter(null)}
+                      sx={{ height: 28 }}
+                    />
+                  ) : null}
                   {hasActiveFilters && (
                     <Button size="small" onClick={() => { setStatusFilter(''); setPriorityFilter(''); setClientFilter(''); setOwnerFilter(''); setQuickFilter(null); setDeadlineFilter(null); setDeliveryFilter(null); }}
                       sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}>
@@ -418,48 +654,91 @@ export default function OperationsJobsClient() {
                 alerts={alerts}
                 owners={teamPulse}
                 jobs={jobs}
-                onSelectJob={(job) => { setSelectedJob(job); setDetailOpen(true); }}
+                compact={compactBoard}
+                onSelectJob={openJobDetail}
                 onFilterOwner={(id) => setOwnerFilter(ownerFilter === id ? '' : id)}
                 allocableMinutesFn={ownerAllocableMinutes}
                 committedMinutesFn={ownerCommittedMinutes}
               />
 
-              {/* Zone 2: Pipeline Board — horizontal kanban */}
-              <PipelineBoard
-                jobs={filteredJobs}
-                selectedJob={selectedJob}
-                onSelectJob={setSelectedJob}
-                onAdvance={handleAdvance}
-                onShowAll={() => setGroupMode('status')}
-              />
+              <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={1}
+                alignItems={{ md: 'center' }}
+                justifyContent="space-between"
+              >
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem' }}>
+                    Visualização:
+                  </Typography>
+                  <ToggleButtonGroup
+                    value={viewMode}
+                    exclusive
+                    onChange={(_e, v) => { if (v) setViewMode(v); }}
+                    size="small"
+                  >
+                    <ToggleButton value="list" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                      <IconLayoutList size={13} style={{ marginRight: 4 }} /> Lista
+                    </ToggleButton>
+                    <ToggleButton value="board" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                      <IconLayoutKanban size={13} style={{ marginRight: 4 }} /> Quadro
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                </Stack>
 
-              {/* Group-by selector */}
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem' }}>Agrupar:</Typography>
-                <ToggleButtonGroup
-                  value={groupMode}
-                  exclusive
-                  onChange={(_e, v) => { if (v) setGroupMode(v); }}
-                  size="small"
-                >
-                  <ToggleButton value="status" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconInbox size={13} style={{ marginRight: 4 }} /> Status
-                  </ToggleButton>
-                  <ToggleButton value="client" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconUsers size={13} style={{ marginRight: 4 }} /> Cliente
-                  </ToggleButton>
-                  <ToggleButton value="owner" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconUserOff size={13} style={{ marginRight: 4 }} /> Responsável
-                  </ToggleButton>
-                  <ToggleButton value="risk" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
-                    <IconAlertTriangle size={13} style={{ marginRight: 4 }} /> Risco
-                  </ToggleButton>
-                </ToggleButtonGroup>
+                {viewMode === 'list' ? (
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.7rem' }}>
+                      Agrupar:
+                    </Typography>
+                    <ToggleButtonGroup
+                      value={groupMode}
+                      exclusive
+                      onChange={(_e, v) => { if (v) setGroupMode(v); }}
+                      size="small"
+                    >
+                      <ToggleButton value="status" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconInbox size={13} style={{ marginRight: 4 }} /> Status
+                      </ToggleButton>
+                      <ToggleButton value="client" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconUsers size={13} style={{ marginRight: 4 }} /> Cliente
+                      </ToggleButton>
+                      <ToggleButton value="owner" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconUserOff size={13} style={{ marginRight: 4 }} /> Responsável
+                      </ToggleButton>
+                      <ToggleButton value="risk" sx={{ px: 1.25, py: 0.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', borderRadius: '8px !important' }}>
+                        <IconAlertTriangle size={13} style={{ marginRight: 4 }} /> Risco
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  </Stack>
+                ) : (
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                      {filteredJobs.length} demandas no quadro
+                    </Typography>
+                    <Button size="small" variant="text" onClick={() => setViewMode('list')} sx={{ minWidth: 0, px: 0.5 }}>
+                      Voltar para lista
+                    </Button>
+                  </Stack>
+                )}
               </Stack>
 
-              {/* Job list */}
+              {/* Job list / board */}
               {filteredJobs.length === 0 ? (
                 <EmptyOperationState title="Nenhuma demanda encontrada" description="Mude os filtros ou crie uma nova demanda." actionLabel={OPS_COPY.shell.newDemand} onAction={() => setComposerOpen(true)} />
+              ) : viewMode === 'board' ? (
+                <Stack spacing={1.5}>
+                  <PipelineBoard
+                    jobs={filteredJobs}
+                    selectedJob={selectedJob}
+                    onSelectJob={openJobDetail}
+                    onAdvance={handleAdvance}
+                    onShowAll={() => {
+                      setViewMode('list');
+                      setGroupMode('status');
+                    }}
+                  />
+                </Stack>
               ) : groupMode === 'status' ? (
                 <Stack spacing={1.5}>
                   {BUCKETS.map((bucket) => {
@@ -498,15 +777,17 @@ export default function OperationsJobsClient() {
           </Grid>
 
           {/* Right sidebar */}
+          {viewMode !== 'board' ? (
           <Grid size={{ xs: 12, lg: 4 }}>
             <JobFocusRail
               job={selectedJob}
-              title={OPS_COPY.common.focusTitle}
-              subtitle={OPS_COPY.jobs.focusSubtitle}
-              primaryLabel={focusedAction?.label}
+              title="Mesa da demanda"
+              subtitle="Veja a trava, o dono e o proximo passo antes de abrir o painel completo."
+              primaryLabel="Abrir comandos"
               onPrimaryAction={() => setDetailOpen(true)}
               emptyTitle="Selecione uma demanda"
-              emptyDescription={OPS_COPY.jobs.focusEmptySubtitle}
+              emptyDescription="Clique em uma demanda da fila para ver o pulso, os atalhos e os links de contexto."
+              eyebrow="DECISAO RAPIDA"
               links={
                 selectedJob ? (
                   <Grid container spacing={1.25}>
@@ -517,18 +798,18 @@ export default function OperationsJobsClient() {
                         thumbnail={<ClientThumb name={selectedJob.client_name} logoUrl={selectedJob.client_logo_url} accent={selectedJob.client_brand_color || '#E85219'} size={26} />} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Responsável" value={selectedJob.owner_name || 'Sem responsável'}
+                      <EntityLinkCard label="Dono" value={selectedJob.owner_name || 'Sem responsavel'}
                         href={(() => {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
                             ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/planner';
+                            : '/admin/operacoes/semana?view=distribution';
                         })()}
                         subtitle={formatSkillLabel(selectedJob.required_skill)}
                         thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard label="Studio criativo" value="Abrir produção" href="/edro" subtitle="Entrar na execução criativa"
+                      <EntityLinkCard label="Studio" value="Abrir producao" href="/edro" subtitle="Entrar na execucao criativa"
                         thumbnail={<SourceThumb source="creative_studio" jobType="design_static" accent="#5D87FF" />} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
@@ -544,7 +825,7 @@ export default function OperationsJobsClient() {
                 if (!ownerPulse) return [];
                 const barColor = ownerPulse.pct > 90 ? '#FA896B' : ownerPulse.pct > 75 ? '#FFAE1F' : '#13DEB9';
                 return [{
-                  title: 'Capacidade do responsável',
+                  title: 'Pulso do dono',
                   content: (
                     <Box sx={{ px: 0.5 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
@@ -586,6 +867,7 @@ export default function OperationsJobsClient() {
               }
             />
           </Grid>
+          ) : null}
         </Grid>
       )}
 
@@ -604,9 +886,13 @@ export default function OperationsJobsClient() {
         open={detailOpen && Boolean(selectedJob)}
         mode="edit"
         job={selectedJob}
+        presentation={viewMode === 'board' ? 'modal' : 'drawer'}
         jobTypes={lookups.jobTypes} skills={lookups.skills} channels={lookups.channels} clients={lookups.clients} owners={lookups.owners}
         currentUserId={currentUserId}
-        onClose={() => setDetailOpen(false)}
+        onClose={() => {
+          setDetailOpen(false);
+          if (viewMode === 'board') setSelectedJob(null);
+        }}
         onCreate={createJob}
         onUpdate={async (id, p) => { const u = await updateJob(id, p); await refresh(); setSelectedJob(u as OperationsJob); return u; }}
         onDelete={handleDeleteJob}
@@ -658,6 +944,10 @@ export default function OperationsJobsClient() {
       </Dialog>
     </OperationsShell>
   );
+}
+
+function unassignedCount(jobs: OperationsJob[]) {
+  return jobs.filter((job) => !job.owner_id && !job.assignees?.length).length;
 }
 
 /* ─── Bucket Group ─── */

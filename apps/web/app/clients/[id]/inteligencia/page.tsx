@@ -3,32 +3,57 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBrain, IconBulb, IconDna, IconSearch, IconShieldCheck } from '@tabler/icons-react';
+import { IconBrain, IconBulb, IconDna } from '@tabler/icons-react';
 import ClientInsightsClient from '../insights/ClientInsightsClient';
+import ContentGapSection from '../analytics/sections/ContentGapSection';
 import ClientLearningClient from './ClientLearningClient';
 import BrandVoiceSection from '../analytics/sections/BrandVoiceSection';
-import ContentGapSection from '../analytics/sections/ContentGapSection';
 import CopyQualitySection from './CopyQualitySection';
 
-type SubTabValue = 'insights' | 'aprendizado' | 'dna' | 'qualidade' | 'content_gap';
+type SubTabValue = 'insights' | 'aprendizado' | 'dna';
 
 const SUB_TABS = [
-  { value: 'insights' as const,    label: 'Insights',        icon: <IconBulb size={16} /> },
-  { value: 'aprendizado' as const, label: 'Aprendizado',     icon: <IconBrain size={16} /> },
-  { value: 'dna' as const,         label: 'DNA de Marca',    icon: <IconDna size={16} /> },
-  { value: 'qualidade' as const,   label: 'Qualidade Copy',  icon: <IconShieldCheck size={16} /> },
-  { value: 'content_gap' as const, label: 'Gaps de Conteúdo', icon: <IconSearch size={16} /> },
+  { value: 'insights' as const,    label: 'Insights',    icon: <IconBulb size={16} /> },
+  { value: 'aprendizado' as const, label: 'Aprendizado', icon: <IconBrain size={16} /> },
+  { value: 'dna' as const,         label: 'DNA',         icon: <IconDna size={16} /> },
 ];
 
-function parseSubTab(value: string | null): SubTabValue {
-  if (value === 'aprendizado') return 'aprendizado';
-  if (value === 'dna') return 'dna';
-  if (value === 'qualidade') return 'qualidade';
-  if (value === 'content_gap') return 'content_gap';
+function parseSubTab(v: string | null): SubTabValue {
+  if (v === 'aprendizado') return 'aprendizado';
+  if (v === 'dna') return 'dna';
   return 'insights';
 }
+
+// ── Insights — Oportunidades + Gaps ──────────────────────────────────────────
+// Jarvis alimenta ambos. AM confirma ou descarta oportunidades.
+
+function InsightsSection({ clientId }: { clientId: string }) {
+  return (
+    <Box>
+      <ClientInsightsClient clientId={clientId} />
+      <Divider sx={{ my: 5 }} />
+      <ContentGapSection clientId={clientId} />
+    </Box>
+  );
+}
+
+// ── DNA — Voz + Qualidade Copy ────────────────────────────────────────────────
+// AM edita aqui → propaga para todas as copies geradas pelo Jarvis.
+
+function DnaSection({ clientId }: { clientId: string }) {
+  return (
+    <Box>
+      <BrandVoiceSection clientId={clientId} />
+      <Divider sx={{ my: 5 }} />
+      <CopyQualitySection clientId={clientId} />
+    </Box>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function InteligenciaPage() {
   const params = useParams();
@@ -67,17 +92,9 @@ export default function InteligenciaPage() {
         ))}
       </Tabs>
 
-      {tab === 'aprendizado' ? (
-        <ClientLearningClient clientId={clientId} />
-      ) : tab === 'dna' ? (
-        <BrandVoiceSection clientId={clientId} />
-      ) : tab === 'qualidade' ? (
-        <CopyQualitySection clientId={clientId} />
-      ) : tab === 'content_gap' ? (
-        <ContentGapSection clientId={clientId} />
-      ) : (
-        <ClientInsightsClient clientId={clientId} />
-      )}
+      {tab === 'insights'    && <InsightsSection  clientId={clientId} />}
+      {tab === 'aprendizado' && <ClientLearningClient clientId={clientId} />}
+      {tab === 'dna'         && <DnaSection       clientId={clientId} />}
     </Box>
   );
 }

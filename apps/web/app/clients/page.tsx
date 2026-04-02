@@ -4,7 +4,7 @@ import ClientsListClient from './ClientsListClient';
 
 export default function Page() {
   return (
-    <AppShell title="Clients Management">
+    <AppShell title="Clientes">
       <Suspense>
         <ClientsListClient />
       </Suspense>

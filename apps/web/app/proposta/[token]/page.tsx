@@ -19,6 +19,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import { IconCheck, IconClock, IconFileText } from '@tabler/icons-react';
+import { alpha } from '@mui/material/styles';
 
 type ProposalItem = {
   description: string;
@@ -130,24 +131,86 @@ export default function PropostaPage() {
     <Box sx={{ minHeight: '100vh', bgcolor: '#f4f6f8', py: 6, px: 2 }}>
       <Box sx={{ maxWidth: 720, mx: 'auto' }}>
 
-        {/* Header */}
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={4}>
-          <Box>
-            <Typography variant="h4" fontWeight={800}>Proposta Comercial</Typography>
-            {proposal.client_name && (
-              <Typography variant="body1" color="text.secondary" mt={0.5}>
-                Para: <strong>{proposal.client_name}</strong>
-              </Typography>
-            )}
-          </Box>
-          {accepted ? (
-            <Chip icon={<IconCheck size={14} />} label="Aceita" color="success" />
-          ) : isExpired ? (
-            <Chip icon={<IconClock size={14} />} label="Expirada" color="default" />
-          ) : (
-            <Chip label={proposal.status === 'sent' ? 'Aguardando aprovação' : proposal.status} color="warning" />
-          )}
-        </Stack>
+        <Card
+          variant="outlined"
+          sx={{
+            mb: 4,
+            borderRadius: 4,
+            borderColor: alpha('#5D87FF', 0.18),
+            background: `linear-gradient(135deg, ${alpha('#5D87FF', 0.08)} 0%, ${alpha('#13DEB9', 0.04)} 52%, #fff 100%)`,
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+            <Stack spacing={2.5}>
+              <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" spacing={2}>
+                <Box>
+                  <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 0.8 }}>
+                    Invoice workspace
+                  </Typography>
+                  <Typography variant="h4" fontWeight={800}>Proposta Comercial</Typography>
+                  {proposal.client_name && (
+                    <Typography variant="body1" color="text.secondary" mt={0.5}>
+                      Para: <strong>{proposal.client_name}</strong>
+                    </Typography>
+                  )}
+                </Box>
+                {accepted ? (
+                  <Chip icon={<IconCheck size={14} />} label="Aceita" color="success" />
+                ) : isExpired ? (
+                  <Chip icon={<IconClock size={14} />} label="Expirada" color="default" />
+                ) : (
+                  <Chip label={proposal.status === 'sent' ? 'Aguardando aprovação' : proposal.status} color="warning" />
+                )}
+              </Stack>
+
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                {[
+                  {
+                    label: 'Valor total',
+                    value: brl(proposal.total_brl),
+                    helper: `${items.length} item(ns) na proposta`,
+                    tone: '#5D87FF',
+                  },
+                  {
+                    label: 'Validade',
+                    value: expiryDate ? expiryDate.toLocaleDateString('pt-BR') : '--',
+                    helper: isExpired ? 'Prazo expirado' : 'Dentro do prazo para aceite',
+                    tone: isExpired ? '#E85219' : '#13DEB9',
+                  },
+                  {
+                    label: 'Status',
+                    value: accepted ? 'Aceita' : isExpired ? 'Expirada' : 'Em análise',
+                    helper: proposal.sent_at ? `Enviada em ${new Date(proposal.sent_at).toLocaleDateString('pt-BR')}` : 'Aguardando primeira ação',
+                    tone: accepted ? '#13DEB9' : isExpired ? '#E85219' : '#FFAE1F',
+                  },
+                ].map((item) => (
+                  <Box
+                    key={item.label}
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      borderRadius: 3,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'background.paper',
+                      p: 2,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                      {item.label}
+                    </Typography>
+                    <Typography variant="h5" fontWeight={800} sx={{ color: item.tone }}>
+                      {item.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {item.helper}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
 
         {/* Title card */}
         <Card variant="outlined" sx={{ mb: 3 }}>

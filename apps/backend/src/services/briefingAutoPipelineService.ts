@@ -84,7 +84,7 @@ async function loadRecentJobs(clientId: string, tenantId: string, limit = 3) {
   return res.rows;
 }
 
-async function findTrelloInboxList(tenantId: string): Promise<string | null> {
+async function findTrelloInboxList(tenantId: string, clientId?: string | null): Promise<string | null> {
   // Priority 1: tenant_settings key 'trello_jobs_list_id'
   const settingRes = await pool.query(
     `SELECT value FROM tenant_settings WHERE tenant_id = $1 AND key = 'trello_jobs_list_id' LIMIT 1`,
@@ -92,7 +92,22 @@ async function findTrelloInboxList(tenantId: string): Promise<string | null> {
   ).catch(() => ({ rows: [] as any[] }));
   if (settingRes.rows[0]?.value) return settingRes.rows[0].value as string;
 
-  // Priority 2: first list (position 0) of first active board
+  // Priority 2: first list of the board mapped to this specific client
+  if (clientId) {
+    const clientListRes = await pool.query(
+      `SELECT pl.trello_list_id
+       FROM project_lists pl
+       JOIN project_boards pb ON pb.id = pl.board_id
+       WHERE pb.tenant_id = $1 AND pb.client_id = $2
+         AND pl.trello_list_id IS NOT NULL AND pl.is_archived = false
+       ORDER BY pl.position ASC
+       LIMIT 1`,
+      [tenantId, clientId],
+    ).catch(() => ({ rows: [] as any[] }));
+    if (clientListRes.rows[0]?.trello_list_id) return clientListRes.rows[0].trello_list_id as string;
+  }
+
+  // Priority 3: first list of first active board (tenant fallback)
   const listRes = await pool.query(
     `SELECT pl.trello_list_id
      FROM project_lists pl
@@ -224,7 +239,7 @@ Responda em JSON com esta estrutura exata:
     // ── 3. Create Trello card ──────────────────────────────────────────────────
     const trelloCreds = await getTrelloCredentials(tenantId).catch(() => null);
     if (trelloCreds) {
-      const listId = await findTrelloInboxList(tenantId);
+      const listId = await findTrelloInboxList(tenantId, clientId);
       if (listId) {
         const cardName = `${aiEnriched?.suggested_title ?? formData.type ?? 'Novo Job'} — ${client.name}`;
         const urgencyEmoji = { urgent: '🔴', high: '🟠', medium: '🟡', low: '🟢' }[aiEnriched?.urgency ?? ''] ?? '⚪';
@@ -350,6 +365,7 @@ Responda em JSON com esta estrutura exata:
 export interface BriefingCardParams {
   briefingId: string;
   tenantId: string;
+  clientId?: string | null;
   clientName: string;
   formData: PipelineInput['formData'];
   aiEnriched?: PipelineInput['aiEnriched'];
@@ -359,7 +375,7 @@ export interface BriefingCardParams {
 export async function createBriefingTrelloCard(p: BriefingCardParams): Promise<{ cardId: string; cardUrl: string } | null> {
   const trelloCreds = await getTrelloCredentials(p.tenantId).catch(() => null);
   if (!trelloCreds) return null;
-  const listId = await findTrelloInboxList(p.tenantId);
+  const listId = await findTrelloInboxList(p.tenantId, p.clientId);
   if (!listId) return null;
 
   const prefix = p.label ? `${p.label} ` : '';

@@ -171,7 +171,7 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function AiCostsPage() {
+export function AiCostsView({ embedded = false }: { embedded?: boolean }) {
   const { isDark } = useThemeMode();
   const [days, setDays] = useState(30);
   const [data, setData] = useState<CostsData | null>(null);
@@ -296,8 +296,7 @@ export default function AiCostsPage() {
     },
   ];
 
-  return (
-    <AdminShell section="financeiro">
+  const content = (
       <Box>
 
         {/* Header row */}
@@ -800,8 +799,19 @@ export default function AiCostsPage() {
           </>
         )}
       </Box>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <AdminShell section="financeiro">
+      {content}
     </AdminShell>
   );
+}
+
+export default function AiCostsPage() {
+  return <AiCostsView />;
 }
 
 // ── Chart builders ─────────────────────────────────────────────

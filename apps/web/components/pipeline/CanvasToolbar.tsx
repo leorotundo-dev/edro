@@ -64,6 +64,11 @@ interface CanvasToolbarProps {
   interactionMode: InteractionMode;
   setInteractionMode: (mode: InteractionMode) => void;
   addAnnotationNode: (shape: 'rect' | 'circle' | 'triangle' | 'star' | 'note', screenPos?: { x: number; y: number }) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onExport?: () => Promise<void> | void;
 }
 
 // ── Flyout wrapper ─────────────────────────────────────────────────────────────

@@ -48,6 +48,7 @@ import {
   detectJarvisIntent,
   loadUnifiedConversationHistory,
   saveUnifiedConversation,
+  summarizeJarvisToolGovernance,
 } from '../services/jarvisPolicyService';
 export {
   buildClientContext,
@@ -236,7 +237,7 @@ CAPACIDADES DE SISTEMA (use ferramentas)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🏗️ OPERAÇÕES COMPLETAS — criar jobs, mover no kanban (change_job_status), editar dados, atribuir responsáveis, gerenciar alocações de tempo, resolver e silenciar sinais de risco; ver overview completo, riscos, saúde operacional e alertas da agência
-📋 BRIEFINGS & WORKFLOW — consultar, criar, arquivar, atualizar tarefas, gerar links de aprovação, agendar publicações, gerar copies
+📋 BRIEFINGS & WORKFLOW — consultar, criar, arquivar, atualizar tarefas, gerar links de aprovação, preparar aprovação do post, agendar publicações, publicar quando houver asset final, gerar copies
 📅 CALENDÁRIO — consultar datas, comemorações, adicionar eventos de campanha
 📰 CLIPPING & FONTES — buscar notícias, criar briefing de clipping, fixar/arquivar, adicionar/pausar fontes RSS
 📬 PAUTA INBOX — gerar sugestões A/B, listar pautas, aprovar (cria briefing), rejeitar com motivo
@@ -247,6 +248,7 @@ CAPACIDADES DE SISTEMA (use ferramentas)
 💬 WHATSAPP — buscar mensagens de grupos do cliente, listar grupos linkados, ver insights extraídos (feedbacks, aprovações, reclamações), ler resumos diários/semanais
 🧾 EVIDÊNCIA DO CLIENTE — use retrieve_client_evidence para responder perguntas sobre o que foi dito em reunião, WhatsApp, digest ou documentos, sempre com base rastreável
 🚀 PIPELINE DE POST — use create_post_pipeline para pedidos como "cria um post pra mim" quando a intenção for sair com briefing + copy + direção de arte prontos
+🧑‍🎨 CREATIVE OPS — medir carga dos DAs, ver capacidade semanal, risco por responsável, qualidade/retrabalho, gargalos criativos, sugerir melhor responsável por job e propor redistribuição segura de carga
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MOTOR CRIATIVO (inteligência própria — não usa ferramentas)
@@ -380,6 +382,13 @@ REGRAS DE OPERAÇÃO
    Para ações DESTRUTIVAS (excluir, arquivar, cancelar job, mudar status para cancelado): SEMPRE confirme com o usuário antes de executar. Descreva o que vai fazer e aguarde "sim" ou "confirma".
    Perguntas sobre "o que a cliente falou", "o que foi decidido", "qual a evidência" devem começar por retrieve_client_evidence.
    Pedidos de "cria um post pra mim", "me entrega um post", "monta um post completo" devem priorizar create_post_pipeline.
+   Pedidos como "gera o link de aprovação", "manda para aprovação" ou "prepara para o cliente revisar" devem priorizar prepare_post_approval.
+   Pedidos como "agenda para amanhã", "programa a publicação" ou "deixa agendado" devem priorizar schedule_post_publication.
+   Pedidos como "publica agora" ou "solta esse post" devem priorizar publish_studio_post, mas apenas com confirmação explícita.
+   Perguntas sobre "quem está sobrecarregado", "quem pode pegar", "quem é o melhor DA", "quem está em risco", "quem gera mais retrabalho", "quem aprova melhor" ou "onde está o gargalo criativo" devem usar get_creative_ops_workload, get_da_capacity, get_creative_ops_risk_report, get_creative_ops_quality, get_creative_ops_bottlenecks, suggest_job_allocation e suggest_creative_redistribution antes de recomendar qualquer movimento.
+   Só aplique redistribuição real com assign_job_owner/manage_job_allocation quando o usuário pedir para executar a mudança.
+   Quando o usuário confirmar explicitamente uma movimentação operacional, use apply_job_allocation_recommendation ou apply_creative_redistribution para executar a mudança inteira e devolver o resultado já aplicado.
+   Quando o usuário estiver continuando um fluxo já iniciado ("agora aprova", "agenda isso", "publica"), reutilize os IDs e URLs vindos do CONTEXTO DE WORKFLOW já presentes no histórico antes de pedir qualquer dado de novo.
 
 🤖 ORQUESTRAÇÃO MULTI-IA → você pode consultar Gemini e GPT-4o como especialistas paralelos:
    - Use consult_gemini para: perspectivas culturais, tendências amplas, análise multimodal, criatividade visual
@@ -665,6 +674,7 @@ export default async function planningRoutes(app: FastifyInstance) {
     let artifacts: Array<{ type: string; [key: string]: any }> = [];
     let toolsUsed = 0;
     let loadedMemoryBlocks: string[] = [];
+    let autonomySummary: ReturnType<typeof summarizeJarvisToolGovernance> | undefined;
 
     const canonicalIntent = detectJarvisIntent(message, context_page);
     const canonicalDecision = buildJarvisRoutingDecision(canonicalIntent);
@@ -763,6 +773,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         artifacts = (loopResult.toolResults ?? [])
           .filter(r => r.success && r.data)
           .map(r => ({ type: r.toolName, ...r.data }));
+        autonomySummary = summarizeJarvisToolGovernance(loopResult.toolResults);
         console.log(`[planning_chat] agent ok in ${loopResult.totalDurationMs}ms tools=${loopResult.toolCallsExecuted} iterations=${loopResult.iterations}`);
       } catch (agentError: any) {
         const errMsg = agentError?.message || 'AGENT_ERROR';
@@ -908,6 +919,7 @@ export default async function planningRoutes(app: FastifyInstance) {
       provider: resultProvider,
       model: resultModel,
       loadedMemoryBlocks: mode === 'agent' || mode === 'chat' ? loadedMemoryBlocks : undefined,
+      autonomy: mode === 'agent' ? autonomySummary : undefined,
     });
     if (mode === 'agent' || mode === 'chat') {
       savedConversationId = await saveUnifiedConversation({

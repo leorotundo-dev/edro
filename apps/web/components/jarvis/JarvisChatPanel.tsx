@@ -34,42 +34,6 @@ type ChatMessage = {
   observability?: JarvisObservability | null;
 };
 
-type ConversationMemory = {
-  id: string;
-  source_type: string;
-  title: string;
-  excerpt: string;
-  published_at?: string | null;
-  metadata?: Record<string, any>;
-};
-
-function formatMemoryLabel(sourceType: string) {
-  switch (sourceType) {
-    case 'whatsapp_message':
-      return 'WhatsApp';
-    case 'whatsapp_insight':
-      return 'Insight';
-    case 'whatsapp_digest':
-      return 'Digest';
-    case 'meeting':
-      return 'Reunião';
-    default:
-      return 'Memória';
-  }
-}
-
-function formatMemoryDate(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
 // ── Typing animation ─────────────────────────────────────────────────
 
 function TypingDots() {
@@ -242,7 +206,6 @@ export default function JarvisChatPanel() {
   const { clientId, setClientId, clientName, conversationId, setConversationId, bump, isOpen, pendingMessage, clearPendingMessage } = useJarvis();
   const pathname = usePathname();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [conversationMemories, setConversationMemories] = useState<ConversationMemory[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
@@ -310,35 +273,14 @@ export default function JarvisChatPanel() {
 
   // Auto-send message from command palette when drawer opens
   useEffect(() => {
-    if (isOpen && pendingMessage && clientId) {
+    if (isOpen && pendingMessage) {
       clearPendingMessage();
       // Small delay so the drawer is fully rendered before sending
       const timer = setTimeout(() => sendMessage(pendingMessage), 120);
       return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, pendingMessage, clientId]);
-
-  useEffect(() => {
-    if (!clientId) {
-      setConversationMemories([]);
-      return;
-    }
-
-    let cancelled = false;
-    apiGet<{ memories?: ConversationMemory[] }>(`/clients/${clientId}/intelligence`)
-      .then((response) => {
-        if (cancelled) return;
-        setConversationMemories((response?.memories ?? []).slice(0, 4));
-      })
-      .catch(() => {
-        if (!cancelled) setConversationMemories([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId]);
+  }, [isOpen, pendingMessage]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -373,8 +315,8 @@ export default function JarvisChatPanel() {
 
   const sendMessage = useCallback(async (text?: string, clientIdOverride?: string) => {
     const msg = (text ?? input).trim();
-    const cid = clientIdOverride ?? clientIdRef.current;
-    if (!msg || loading || !cid) return;
+    const cid = clientIdOverride ?? clientIdRef.current ?? null;
+    if (!msg || loading) return;
 
     const filesToSend = attachedFiles.slice();
     setInput('');
@@ -468,73 +410,6 @@ export default function JarvisChatPanel() {
 
       {/* Messages */}
       <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', px: 2, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {!!clientId && conversationMemories.length > 0 && (
-          <Box
-            sx={{
-              p: 1.5,
-              borderRadius: 3,
-              border: 1,
-              borderColor: 'divider',
-              bgcolor: 'background.paper',
-              boxShadow: 1,
-            }}
-          >
-            <Typography variant="overline" sx={{ color: EDRO_ORANGE, fontWeight: 700, letterSpacing: '0.08em' }}>
-              Memoria do cliente
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Historico recente de WhatsApp e reunioes usado pelo Jarvis.
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {conversationMemories.map((memory) => (
-                <Box
-                  key={memory.id}
-                  sx={{
-                    p: 1,
-                    borderRadius: 2,
-                    bgcolor: 'background.default',
-                    border: 1,
-                    borderColor: 'divider',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', mb: 0.5 }}>
-                    <Chip
-                      label={formatMemoryLabel(memory.source_type)}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        height: 22,
-                        fontSize: '0.66rem',
-                        borderColor: `${EDRO_ORANGE}40`,
-                        color: EDRO_ORANGE,
-                      }}
-                    />
-                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
-                      {formatMemoryDate(memory.published_at)}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.35, mb: 0.25 }}>
-                    {memory.title || 'Memoria sem titulo'}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    {memory.excerpt || 'Sem resumo disponivel.'}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        )}
-
         {messages.length === 0 && !loading && (
           <Box sx={{ textAlign: 'center', pt: 2 }}>
             <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: `${EDRO_ORANGE}15`, mb: 2 }}>

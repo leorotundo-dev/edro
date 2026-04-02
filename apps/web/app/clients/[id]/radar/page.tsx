@@ -3,29 +3,50 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { IconBrandReddit, IconEye, IconMicroscope, IconNews, IconUsersGroup } from '@tabler/icons-react';
+import Typography from '@mui/material/Typography';
+import { IconEyeOff, IconNews, IconTelescope, IconUsersGroup } from '@tabler/icons-react';
 import ClientClippingClient from '../clipping/ClientClippingClient';
 import SocialListeningClient from '@/app/social-listening/SocialListeningClient';
-import DarkFunnelPage from '../dark-funnel/page';
 import CompetitorsClient from '../concorrentes/CompetitorsClient';
+import DarkFunnelClient from '../dark-funnel/DarkFunnelClient';
 
-type RadarSub = 'clipping' | 'social' | 'dark_funnel' | 'concorrentes';
+type RadarSub = 'clipping' | 'social' | 'mercado';
 
 const SUB_TABS = [
-  { value: 'clipping' as const,     label: 'Clipping',         icon: <IconNews size={16} /> },
-  { value: 'social' as const,       label: 'Social Listening', icon: <IconUsersGroup size={16} /> },
-  { value: 'dark_funnel' as const,  label: 'Dark Funnel',      icon: <IconEye size={16} /> },
-  { value: 'concorrentes' as const, label: 'Concorrentes',     icon: <IconMicroscope size={16} /> },
+  { value: 'clipping' as const, label: 'Clipping',  icon: <IconNews size={16} /> },
+  { value: 'social' as const,   label: 'Social',    icon: <IconUsersGroup size={16} /> },
+  { value: 'mercado' as const,  label: 'Mercado',   icon: <IconTelescope size={16} /> },
 ];
 
 function parseSub(v: string | null): RadarSub {
   if (v === 'social') return 'social';
-  if (v === 'dark_funnel') return 'dark_funnel';
-  if (v === 'concorrentes') return 'concorrentes';
+  if (v === 'mercado') return 'mercado';
   return 'clipping';
 }
+
+// ── Mercado — Concorrentes + Dark Funnel ──────────────────────────────────────
+
+function MercadoSection({ clientId }: { clientId: string }) {
+  return (
+    <Box>
+      <CompetitorsClient clientId={clientId} />
+      <Divider sx={{ my: 5 }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <IconEyeOff size={18} />
+        <Typography variant="subtitle2" fontWeight={700}>Dark Funnel</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+          Sinais de intenção — interações privadas rastreadas
+        </Typography>
+      </Box>
+      <DarkFunnelClient clientId={clientId} />
+    </Box>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RadarPage() {
   const params = useParams();
@@ -65,9 +86,8 @@ export default function RadarPage() {
       </Tabs>
 
       {tab === 'clipping' && <ClientClippingClient clientId={clientId} forceTab="clipping" />}
-      {tab === 'social' && <SocialListeningClient clientId={clientId} noShell embedded />}
-      {tab === 'dark_funnel' && <DarkFunnelPage />}
-      {tab === 'concorrentes' && <CompetitorsClient clientId={clientId} />}
+      {tab === 'social'   && <SocialListeningClient clientId={clientId} noShell embedded />}
+      {tab === 'mercado'  && <MercadoSection clientId={clientId} />}
     </Box>
   );
 }

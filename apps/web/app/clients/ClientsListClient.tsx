@@ -6,6 +6,7 @@ import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 import { useConfirm } from '@/hooks/useConfirm';
 import EdroAvatar from '@/components/shared/EdroAvatar';
 import PlatformIcon from '@/components/shared/PlatformIcon';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -32,6 +33,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/material/styles';
 import {
   IconArchive,
   IconBrain,
@@ -150,6 +152,14 @@ export default function ClientsListClient() {
       return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
     });
 
+  const activeCount = clients.filter((client) => client.status === 'active').length;
+  const linkedBoardCount = clients.filter((client) => Boolean(client.board_id)).length;
+  const avgIntelligence = clients.length
+    ? Math.round(
+        clients.reduce((sum, client) => sum + Number(client.intelligence_score || 0), 0) / clients.length,
+      )
+    : 0;
+
   const getStatusBadge = (status?: string) => {
     if (status === 'active') return <Chip size="small" color="success" label="Ativo" />;
     if (status === 'paused') return <Chip size="small" color="warning" label="Pausado" />;
@@ -204,17 +214,62 @@ export default function ClientsListClient() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" spacing={2}>
-        <Box>
-          <Typography variant="h4">Clientes</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Gestão do portfólio ativo e operação editorial.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/clients/novo')}>
-          Novo cliente
-        </Button>
-      </Stack>
+      <WorkspaceHero
+        eyebrow="Clients"
+        title="Portfólio de clientes"
+        description="O diretório vivo de contas da agência, com leitura rápida de operação, inteligência e vínculo com o Trello."
+        leftChips={[
+          { label: `${clients.length} clientes` },
+          { label: `${unlinkedBoards.length} boards sem vínculo` },
+        ]}
+        rightContent={(
+          <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => router.push('/clients/novo')}>
+            Novo cliente
+          </Button>
+        )}
+      />
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
+          gap: 1.5,
+        }}
+      >
+        {[
+          { label: 'Ativos', value: activeCount, helper: 'contas em operação', color: '#16a34a' },
+          { label: 'Boards ligados', value: linkedBoardCount, helper: 'já conectados ao Trello', color: '#5D87FF' },
+          { label: 'IA média', value: `${avgIntelligence}`, helper: 'inteligência consolidada', color: '#7B61FF' },
+          { label: 'Sem vínculo', value: unlinkedBoards.length, helper: 'boards pedindo conexão', color: '#E85219' },
+        ].map((item) => (
+          <Card key={item.label} variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+            <CardContent sx={{ p: '18px !important' }}>
+              <Stack spacing={1.25}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                    {item.label}
+                  </Typography>
+                  <Box
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      bgcolor: item.color,
+                      boxShadow: `0 0 0 6px ${alpha(item.color, 0.12)}`,
+                    }}
+                  />
+                </Stack>
+                <Typography variant="h4" fontWeight={800}>
+                  {item.value}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {item.helper}
+                </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
 
       <Card variant="outlined">
         <CardContent>

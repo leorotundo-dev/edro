@@ -17,14 +17,12 @@ import {
   IconPlus,
   IconSearch,
   IconTargetArrow,
-  IconTimeline,
   IconCalendarTime,
   IconAlertTriangle,
-  IconChartBar,
   IconChecklist,
 } from '@tabler/icons-react';
 
-export type OperationsSection = 'overview' | 'jobs' | 'semana' | 'planner' | 'agenda' | 'radar' | 'calibracao' | 'sla';
+export type OperationsSection = 'overview' | 'jobs' | 'semana' | 'radar' | 'quality';
 
 type CommandOption = {
   label: string;
@@ -35,33 +33,28 @@ type CommandOption = {
 };
 
 const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; icon: ReactElement }> = [
-  { key: 'overview', label: 'Visão Geral', href: '/admin/operacoes', icon: <IconTargetArrow size={16} /> },
-  { key: 'jobs', label: 'Demandas', href: '/admin/operacoes/jobs', icon: <IconLayoutKanban size={16} /> },
+  { key: 'overview', label: 'Hoje', href: '/admin/operacoes', icon: <IconTargetArrow size={16} /> },
+  { key: 'jobs', label: 'Fila', href: '/admin/operacoes/jobs', icon: <IconLayoutKanban size={16} /> },
   { key: 'semana', label: 'Semana', href: '/admin/operacoes/semana', icon: <IconCalendarTime size={16} /> },
-  { key: 'planner', label: 'Alocação', href: '/admin/operacoes/planner', icon: <IconTimeline size={16} /> },
-  { key: 'agenda', label: 'Agenda', href: '/admin/operacoes/agenda', icon: <IconCalendarTime size={16} /> },
   { key: 'radar', label: 'Riscos', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} /> },
-  { key: 'calibracao', label: 'Calibração', href: '/admin/operacoes/calibracao', icon: <IconChartBar size={16} /> },
-  { key: 'sla', label: 'SLA', href: '/admin/operacoes/sla', icon: <IconChecklist size={16} /> },
+  { key: 'quality', label: 'Qualidade', href: '/admin/operacoes/qualidade', icon: <IconChecklist size={16} /> },
 ];
 
 const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string }> = {
-  overview: { title: 'Central de Operações', subtitle: 'Sinais, gargalos e decisões num só lugar.' },
-  jobs: { title: 'Demandas', subtitle: 'Todas as demandas classificadas por etapa.' },
-  semana: { title: 'Semana', subtitle: 'Jobs distribuídos na semana. Arraste para alocar.' },
-  planner: { title: 'Alocação', subtitle: 'Carga e responsáveis no mesmo mapa.' },
-  agenda: { title: 'Agenda', subtitle: 'Prazos, reuniões e produção no calendário.' },
-  radar: { title: 'Riscos', subtitle: 'O que precisa de decisão antes de estourar.' },
-  calibracao: { title: 'Calibração', subtitle: 'Precisão das estimativas com base em dados reais.' },
-  sla: { title: 'SLA', subtitle: 'Taxa de entrega no prazo por cliente e responsável.' },
+  overview: { title: 'Hoje', subtitle: 'O retrato operacional da agência para decidir agora.' },
+  jobs: { title: 'Fila', subtitle: 'Todas as demandas organizadas para triagem e ação.' },
+  semana: { title: 'Semana', subtitle: 'Calendário, distribuição e capacidade na mesma leitura.' },
+  radar: { title: 'Riscos', subtitle: 'Tudo que pode travar, atrasar ou estourar.' },
+  quality: { title: 'Qualidade', subtitle: 'SLA e precisão operacional no mesmo lugar.' },
 };
 
 const COMMANDS: CommandOption[] = [
   { label: 'Nova demanda', subtitle: 'Abrir cadastro guiado de demanda', kind: 'route', href: '/admin/operacoes/jobs?new=1' },
   { label: 'Demandas sem responsável', subtitle: 'Ir direto para a fila sem responsável definido', kind: 'route', href: '/admin/operacoes/jobs?unassigned=true' },
-  { label: 'Alocação da semana', subtitle: 'Abrir carga da equipe e dos freelancers', kind: 'route', href: '/admin/operacoes/planner' },
-  { label: 'Agenda operacional', subtitle: 'Ver impacto temporal supra-cliente', kind: 'route', href: '/admin/operacoes/agenda' },
+  { label: 'Distribuição da semana', subtitle: 'Abrir a semana no modo distribuição da equipe', kind: 'route', href: '/admin/operacoes/semana?view=distribution' },
+  { label: 'Agenda operacional', subtitle: 'Ver impacto temporal da semana em calendário', kind: 'route', href: '/admin/operacoes/semana?view=calendar' },
   { label: 'Riscos críticos', subtitle: 'Abrir exceções e itens em risco', kind: 'route', href: '/admin/operacoes/radar' },
+  { label: 'Qualidade da operação', subtitle: 'Abrir SLA e calibração operacional', kind: 'route', href: '/admin/operacoes/qualidade' },
   { label: 'Jarvis, o que tá pegando fogo?', subtitle: 'Ver riscos críticos e bloqueios', kind: 'jarvis', prompt: 'O que tá pegando fogo? Me mostra os jobs atrasados, bloqueados e sem dono que precisam de ação agora.' },
   { label: 'Jarvis, o que vai atrasar amanhã?', subtitle: 'Leitura de risco do dia seguinte', kind: 'jarvis', prompt: 'Quais itens provavelmente vão atrasar amanhã e por quê?' },
   { label: 'Jarvis, quem tá sobrecarregado?', subtitle: 'Ver capacidade da equipe', kind: 'jarvis', prompt: 'Me mostra a carga de trabalho de cada pessoa da equipe. Quem tá sobrecarregado e quem tem espaço?' },
@@ -76,10 +69,12 @@ export default function OperationsShell({
   section,
   children,
   summary,
+  onNewDemand,
 }: {
   section: OperationsSection;
   children: ReactNode;
   summary?: ReactNode;
+  onNewDemand?: () => void;
 }) {
   const router = useRouter();
   const [commandInput, setCommandInput] = useState('');
@@ -93,7 +88,9 @@ export default function OperationsShell({
     if (!value || (!trimmed && typeof value === 'string')) return;
 
     if (typeof value !== 'string') {
-      if (value.kind === 'route' && value.href) {
+      if (value.kind === 'route' && value.label === OPS_COPY.shell.newDemand && onNewDemand) {
+        onNewDemand();
+      } else if (value.kind === 'route' && value.href) {
         router.push(value.href);
       } else if (value.kind === 'jarvis' && value.prompt) {
         setJarvisOpen(true);
@@ -115,7 +112,7 @@ export default function OperationsShell({
     <AppShell
       title={copy.title}
       meta={copy.subtitle}
-      action={{ label: OPS_COPY.shell.newDemand, icon: <IconPlus size={16} />, onClick: () => router.push('/admin/operacoes/jobs?new=1') }}
+      action={{ label: OPS_COPY.shell.newDemand, icon: <IconPlus size={16} />, onClick: () => (onNewDemand ? onNewDemand() : router.push('/admin/operacoes/jobs?new=1')) }}
     >
       {/* Ops navigation bar — glass + pill nav */}
       <Box

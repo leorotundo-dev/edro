@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import DashboardCard from '@/components/shared/DashboardCard';
+import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
 import { useConfirm } from '@/hooks/useConfirm';
 import Avatar from '@mui/material/Avatar';
@@ -18,11 +19,14 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -107,6 +111,8 @@ type CompetitiveIntelResponse = {
   draft?: string;
   assets_used?: number;
 };
+
+type ClippingViewTab = 'feed' | 'manage';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos status' },
@@ -302,6 +308,7 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   const [competitiveBrief, setCompetitiveBrief] = useState('');
   const [pautaLoadingId, setPautaLoadingId] = useState<string | null>(null);
   const [pautaModal, setPautaModal] = useState<{ open: boolean; suggestion: PautaSuggestion | null }>({ open: false, suggestion: null });
+  const [viewTab, setViewTab] = useState<ClippingViewTab>('feed');
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestSources, setSuggestSources] = useState<SuggestedSource[]>([]);
@@ -709,6 +716,77 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
   );
 
   const totalLabel = useMemo(() => `${items.length} itens`, [items.length]);
+  const sourceAlerts = useMemo(
+    () => sources.filter((source) => {
+      const diagnosis = diagnoseSource(source);
+      return Boolean(diagnosis) || source.status === 'ERROR' || !source.is_active;
+    }).slice(0, 4),
+    [sources]
+  );
+  const featuredItem = items[0] || null;
+  const highlightedItems = items.slice(1, 5);
+  const feedListItems = items.slice(5);
+
+  const goDetail = (item: ClippingItem) => {
+    if (!item?.id) return;
+    const href = embedded && lockedClientId
+      ? `/clients/${encodeURIComponent(lockedClientId)}/clipping?item=${encodeURIComponent(item.id)}`
+      : `/clipping/${item.id}`;
+    router.push(href);
+  };
+
+  const renderItemActions = (item: ClippingItem, light = false) => (
+    <Stack direction="row" spacing={0.5} alignItems="center" onClick={(e) => e.stopPropagation()}>
+      {(selectedClient?.id || lockedClientId) && (
+        <Button
+          size="small"
+          variant={light ? 'contained' : 'outlined'}
+          disabled={pautaLoadingId === item.id}
+          onClick={async (e) => {
+            e.stopPropagation();
+            const cid = selectedClient?.id || lockedClientId;
+            if (!cid) return;
+            setPautaLoadingId(item.id);
+            try {
+              const res = await apiPost<{ ok: boolean; suggestion: PautaSuggestion }>(
+                '/pauta-inbox/from-clipping',
+                {
+                  client_id: cid,
+                  clipping_id: item.id,
+                  title: item.title || 'Pauta',
+                  snippet: item.snippet || undefined,
+                  url: item.url || undefined,
+                  score: item.client_score ?? item.score ?? undefined,
+                }
+              );
+              if (res?.suggestion) {
+                setPautaModal({ open: true, suggestion: { ...res.suggestion, client_id: cid } });
+              }
+            } finally {
+              setPautaLoadingId(null);
+            }
+          }}
+          sx={light
+            ? { fontSize: '0.72rem', py: 0.3, px: 1.1, bgcolor: '#E85219', '&:hover': { bgcolor: '#c94315' } }
+            : { fontSize: '0.72rem', py: 0.3, px: 1.1, borderColor: '#E85219', color: '#E85219', textTransform: 'none' }}
+        >
+          {pautaLoadingId === item.id ? <CircularProgress size={12} sx={{ color: 'inherit' }} /> : 'Criar pauta'}
+        </Button>
+      )}
+      {item.url && (
+        <Tooltip title="Abrir original">
+          <IconButton size="small" sx={light ? { color: 'rgba(255,255,255,0.8)' } : {}} onClick={(e) => { e.stopPropagation(); window.open(item.url!, '_blank', 'noopener'); }}>
+            <IconExternalLink size={15} />
+          </IconButton>
+        </Tooltip>
+      )}
+      <Tooltip title="Rejeitar">
+        <IconButton size="small" sx={light ? { color: 'rgba(255,100,100,0.85)' } : { color: 'error.main' }} onClick={(e) => { e.stopPropagation(); handleRejectItem(item.id); }}>
+          <IconThumbDown size={15} />
+        </IconButton>
+      </Tooltip>
+    </Stack>
+  );
 
   if (loading && clients.length === 0) {
     return (
@@ -723,12 +801,22 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
 
   const content = (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <Box>
-        <Typography variant="h4" fontWeight={700}>Radar & Clipping</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Fontes configuradas, triagem inteligente e acionamento de posts.
-        </Typography>
-      </Box>
+      <WorkspaceHero
+        eyebrow="Blog / Posts"
+        title="Clipping"
+        description="Feed editorial do radar, com leitura primeiro e gestão de fontes separada."
+        leftChips={[
+          { label: selectedClient?.name || 'Radar global', color: 'primary', variant: 'filled', sx: { fontWeight: 700 } },
+          ...(selectedClient?.segment_primary ? [{ label: selectedClient.segment_primary }] : []),
+          { label: `${sources.length} fontes` },
+        ]}
+        rightContent={
+          <>
+            <Chip size="small" label={totalLabel} color="primary" variant="outlined" />
+            <Chip size="small" label={`${selectedItemIds.length} selecionados`} variant="outlined" />
+          </>
+        }
+      />
 
       {error ? (
         <Card sx={{ bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light' }}>
@@ -745,29 +833,67 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
         </Card>
       ) : null}
 
-      <Grid container spacing={2}>
-        {STAT_CARDS.map((metric) => (
-          <Grid key={metric.label} size={{ xs: 6, sm: 4, md: 2.4 }}>
-            <DashboardCard hoverable sx={{ height: '100%' }}>
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <Avatar sx={{ bgcolor: `${metric.color}22`, color: metric.color, width: 44, height: 44 }}>
-                  <metric.icon size={22} />
-                </Avatar>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" noWrap>
-                    {metric.label}
-                  </Typography>
-                  <Typography variant="h5" fontWeight={700}>
-                    {formatNumber(stats[metric.key])}
-                  </Typography>
-                </Box>
-              </Stack>
-            </DashboardCard>
-          </Grid>
-        ))}
-      </Grid>
+      <DashboardCard
+        title="Radar editorial"
+        subtitle={`${selectedClient?.name || 'Global'} · ${selectedClient?.segment_primary || 'Radar global'}`}
+        action={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip size="small" label={totalLabel} color="primary" variant="outlined" />
+            <Chip size="small" label={`${sources.length} fontes`} variant="outlined" />
+          </Stack>
+        }
+      >
+        <Grid container spacing={2}>
+          {STAT_CARDS.map((metric) => (
+            <Grid key={metric.label} size={{ xs: 6, sm: 4, md: 2.4 }}>
+              <DashboardCard hoverable sx={{ height: '100%' }}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Avatar sx={{ bgcolor: `${metric.color}22`, color: metric.color, width: 44, height: 44 }}>
+                    <metric.icon size={22} />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" noWrap>
+                      {metric.label}
+                    </Typography>
+                    <Typography variant="h5" fontWeight={700}>
+                      {formatNumber(stats[metric.key])}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </DashboardCard>
+            </Grid>
+          ))}
+        </Grid>
 
-      <DashboardCard title="Filtros" subtitle={`${selectedClient?.name || 'Global'} -- ${selectedClient?.segment_primary || 'Radar global'}`} action={<Chip size="small" label={totalLabel} color="primary" variant="outlined" />}>
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={1}
+          sx={{ mt: 2 }}
+          alignItems={{ xs: 'stretch', md: 'center' }}
+        >
+          <Button variant="contained" startIcon={<IconRefresh size={16} />} onClick={loadItems}>
+            Atualizar feed
+          </Button>
+          <Button size="small" variant="outlined" onClick={handleSelectTopTen}>
+            Selecionar top 10
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<IconSparkles size={14} />}
+            onClick={handleRunCompetitiveIntel}
+            disabled={competitiveLoading || selectedItemIds.length === 0}
+          >
+            {competitiveLoading ? 'Analisando...' : 'Analisar concorrência'}
+          </Button>
+        </Stack>
+      </DashboardCard>
+
+      <DashboardCard
+        title="Filtros do feed"
+        subtitle="Escolha o recorte e atualize o feed editorial."
+        action={<Chip size="small" label={`${selectedItemIds.length} selecionados`} variant="outlined" />}
+      >
         <Grid container spacing={2}>
           {!isLocked && (
             <Grid size={{ xs: 12, md: 3 }}>
@@ -825,411 +951,517 @@ export default function ClippingClient({ clientId, noShell, embedded }: Clipping
             <TextField label="Busca" value={query} onChange={(event) => setQuery(event.target.value)} fullWidth size="small" />
           </Grid>
         </Grid>
-
-        <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-          <Button variant="contained" startIcon={<IconRefresh size={16} />} onClick={loadItems}>
-            Atualizar
-          </Button>
-        </Stack>
       </DashboardCard>
 
+      <Tabs
+        value={viewTab}
+        onChange={(_, value) => setViewTab(value)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 44 } }}
+      >
+        <Tab value="feed" label="Feed" icon={<IconNews size={16} />} iconPosition="start" />
+        <Tab value="manage" label="Gestão" icon={<IconRss size={16} />} iconPosition="start" />
+      </Tabs>
+
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <DashboardCard
-            title="Itens"
-            action={
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Chip size="small" label={totalLabel} color="primary" variant="outlined" />
-                <Chip size="small" label={`${selectedItemIds.length} selecionados`} variant="outlined" />
-                <Button size="small" variant="outlined" onClick={handleSelectTopTen}>
-                  Selecionar top 10
-                </Button>
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<IconSparkles size={14} />}
-                  onClick={handleRunCompetitiveIntel}
-                  disabled={competitiveLoading || selectedItemIds.length === 0}
-                >
-                  {competitiveLoading ? 'Analisando...' : 'Analisar concorrência'}
-                </Button>
-              </Stack>
-            }
-          >
-            {items.length ? (() => {
-              const goDetail = (item: ClippingItem) => {
-                if (!item?.id) return;
-                const href = embedded && lockedClientId
-                  ? `/clients/${encodeURIComponent(lockedClientId)}/clipping?item=${encodeURIComponent(item.id)}`
-                  : `/clipping/${item.id}`;
-                router.push(href);
-              };
-              const itemActions = (item: ClippingItem, light = false) => (
-                <Stack direction="row" spacing={0.5} alignItems="center" onClick={(e) => e.stopPropagation()}>
-                  {(selectedClient?.id || lockedClientId) && (
-                    <Button
-                      size="small"
-                      variant={light ? 'contained' : 'outlined'}
-                      disabled={pautaLoadingId === item.id}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const cid = selectedClient?.id || lockedClientId;
-                        if (!cid) return;
-                        setPautaLoadingId(item.id);
-                        try {
-                          const res = await apiPost<{ ok: boolean; suggestion: PautaSuggestion }>(
-                            '/pauta-inbox/from-clipping',
-                            {
-                              client_id: cid,
-                              clipping_id: item.id,
-                              title: item.title || 'Pauta',
-                              snippet: item.snippet || undefined,
-                              url: item.url || undefined,
-                              score: item.client_score ?? item.score ?? undefined,
-                            }
-                          );
-                          if (res?.suggestion) {
-                            setPautaModal({ open: true, suggestion: { ...res.suggestion, client_id: cid } });
-                          }
-                        } finally {
-                          setPautaLoadingId(null);
-                        }
-                      }}
-                      sx={light ? { fontSize: '0.7rem', py: 0.25, px: 1, bgcolor: '#E85219', '&:hover': { bgcolor: '#c94315' } } : { fontSize: '0.7rem', py: 0.25, px: 1, borderColor: '#E85219', color: '#E85219', textTransform: 'none' }}
-                    >
-                      {pautaLoadingId === item.id ? <CircularProgress size={12} sx={{ color: 'inherit' }} /> : 'Criar Pauta'}
-                    </Button>
-                  )}
-                  {item.url && (
-                    <Tooltip title="Abrir original">
-                      <IconButton size="small" sx={light ? { color: 'rgba(255,255,255,0.8)' } : {}} onClick={(e) => { e.stopPropagation(); window.open(item.url!, '_blank', 'noopener'); }}>
-                        <IconExternalLink size={15} />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                  <Tooltip title="Rejeitar">
-                    <IconButton size="small" sx={light ? { color: 'rgba(255,100,100,0.85)' } : { color: 'error.main' }} onClick={(e) => { e.stopPropagation(); handleRejectItem(item.id); }}>
-                      <IconThumbDown size={15} />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
-              );
+        {viewTab === 'feed' ? (
+          <>
+            <Grid size={{ xs: 12, lg: 8 }}>
+              <Stack spacing={2}>
+                {featuredItem ? (
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      overflow: 'hidden',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+                      '&:hover': { borderColor: 'primary.main', boxShadow: '0 20px 40px rgba(15,23,42,0.08)', transform: 'translateY(-1px)' },
+                    }}
+                    onClick={() => goDetail(featuredItem)}
+                  >
+                    <Grid container>
+                      <Grid size={{ xs: 12, md: 5 }}>
+                        <Box
+                          sx={{
+                            minHeight: { xs: 220, md: '100%' },
+                            height: '100%',
+                            backgroundImage: featuredItem.image_url
+                              ? `linear-gradient(180deg, rgba(15,23,42,0.06), rgba(15,23,42,0.24)), url(${featuredItem.image_url})`
+                              : TYPE_GRADIENTS[featuredItem.type || 'NEWS'] ?? TYPE_GRADIENTS.NEWS,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                          }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 7 }}>
+                        <CardContent sx={{ p: 3 }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Chip size="small" label="Destaque do radar" color="primary" />
+                              <PlatformIcon platform={detectPlatform(featuredItem)} variant="chip" size={12} />
+                              <Chip
+                                size="small"
+                                color={statusChip(featuredItem.status).color}
+                                label={statusChip(featuredItem.status).label}
+                                variant="outlined"
+                              />
+                            </Stack>
+                            <Checkbox
+                              size="small"
+                              checked={selectedItemIds.includes(featuredItem.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => toggleItemSelection(featuredItem.id, e.target.checked)}
+                            />
+                          </Stack>
+                          <Typography variant="overline" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                            {formatSource(featuredItem.source_name, featuredItem.source_url)} · {formatDate(featuredItem.published_at)}
+                          </Typography>
+                          <Typography variant="h4" fontWeight={700} sx={{ mt: 1, mb: 1.5, lineHeight: 1.2 }}>
+                            {featuredItem.title}
+                          </Typography>
+                          <Typography variant="body1" color="text.secondary" sx={{ mb: 2, lineHeight: 1.7 }}>
+                            {featuredItem.snippet || 'Sem resumo disponível para este item.'}
+                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+                            <Chip
+                              size="small"
+                              label={`Score ${formatNumber(featuredItem.client_score != null ? featuredItem.client_score : featuredItem.score)}`}
+                              variant="outlined"
+                            />
+                            {featuredItem.client_matched_keywords?.slice(0, 3).map((keyword) => (
+                              <Chip key={keyword} size="small" label={keyword} sx={{ bgcolor: '#fff7ed', color: '#c2410c' }} />
+                            ))}
+                          </Stack>
+                          {renderItemActions(featuredItem)}
+                        </CardContent>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                ) : null}
 
-              const featured = items.slice(0, 2);
-              const rest = items.slice(2);
-
-              return (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {/* ── Featured cards (first 2) ── */}
-                  <Grid container spacing={2}>
-                    {featured.map((item) => {
-                      const badge = statusChip(item.status);
-                      const bg = TYPE_GRADIENTS[item.type || 'NEWS'] ?? TYPE_GRADIENTS.NEWS;
-                      return (
-                        <Grid key={item.id} size={{ xs: 12, sm: 6 }}>
+                <DashboardCard title="Mais relevantes" subtitle="Leitura contínua do radar para triagem e ativação.">
+                  {highlightedItems.length ? (
+                    <Stack spacing={2}>
+                      {highlightedItems.map((item) => {
+                        const badge = statusChip(item.status);
+                        const gradient = TYPE_GRADIENTS[item.type || 'NEWS'] ?? TYPE_GRADIENTS.NEWS;
+                        return (
                           <Card
+                            key={item.id}
+                            variant="outlined"
                             sx={{
-                              position: 'relative',
-                              height: 260,
                               cursor: 'pointer',
-                              overflow: 'hidden',
                               borderRadius: 3,
-                              ...(item.image_url
-                                ? { backgroundImage: `url(${item.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-                                : { background: bg }),
-                              '&:hover .card-overlay': { opacity: 1 },
+                              transition: 'border-color 0.2s, box-shadow 0.2s',
+                              '&:hover': { borderColor: 'primary.main', boxShadow: '0 14px 30px rgba(15,23,42,0.08)' },
                             }}
                             onClick={() => goDetail(item)}
                           >
-                            {/* dark overlay */}
-                            <Box sx={{ position: 'absolute', inset: 0, background: item.image_url ? 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0.1) 100%)' : 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)' }} />
-                            {/* hover tint */}
-                            <Box className="card-overlay" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(232,82,25,0.1)', opacity: 0, transition: 'opacity 0.2s' }} />
-
-                            {/* top row */}
-                            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', top: 12, left: 12, right: 12 }} onClick={(e) => e.stopPropagation()}>
-                              <Checkbox size="small" checked={selectedItemIds.includes(item.id)} onChange={(e) => toggleItemSelection(item.id, e.target.checked)} sx={{ color: 'rgba(255,255,255,0.7)', '&.Mui-checked': { color: '#fff' }, p: 0.5 }} />
-                              <Stack direction="row" spacing={0.5} alignItems="center">
-                                <PlatformIcon platform={detectPlatform(item)} variant="chip" size={12} />
-                                <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.6rem', height: 20 }} />
-                              </Stack>
-                            </Stack>
-
-                            {/* bottom content */}
-                            <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 2 }}>
-                              <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#fff', mb: 0.75, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.35, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                                {item.title}
-                              </Typography>
-                              <Stack direction="row" alignItems="center">
-                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.65)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {item.source_name || 'Fonte'} · {item.published_at ? new Date(item.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '--'}
-                                </Typography>
-                                <Chip size="small" label={item.client_score != null ? formatNumber(item.client_score) : formatNumber(item.score)} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.6rem', height: 20, ml: 1 }} />
-                              </Stack>
-                              <Box sx={{ mt: 1 }}>{itemActions(item, true)}</Box>
-                            </Box>
+                            <Grid container>
+                              <Grid size={{ xs: 12, sm: 4 }}>
+                                <Box
+                                  sx={{
+                                    minHeight: 180,
+                                    height: '100%',
+                                    backgroundImage: item.image_url ? `url(${item.image_url})` : gradient,
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                  }}
+                                />
+                              </Grid>
+                              <Grid size={{ xs: 12, sm: 8 }}>
+                                <CardContent sx={{ p: 2.5 }}>
+                                  <Stack direction="row" justifyContent="space-between" spacing={1.5}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                      <PlatformIcon platform={detectPlatform(item)} variant="chip" size={12} />
+                                      <Chip size="small" color={badge.color} label={badge.label} variant="outlined" />
+                                    </Stack>
+                                    <Checkbox
+                                      size="small"
+                                      checked={selectedItemIds.includes(item.id)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => toggleItemSelection(item.id, e.target.checked)}
+                                    />
+                                  </Stack>
+                                  <Typography variant="overline" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
+                                    {formatSource(item.source_name, item.source_url)} · {formatDate(item.published_at)}
+                                  </Typography>
+                                  <Typography variant="h6" fontWeight={700} sx={{ mt: 0.5, mb: 1 }}>
+                                    {item.title}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.7 }}>
+                                    {item.snippet || 'Sem resumo disponível.'}
+                                  </Typography>
+                                  {renderItemActions(item)}
+                                </CardContent>
+                              </Grid>
+                            </Grid>
                           </Card>
-                        </Grid>
-                      );
-                    })}
-                  </Grid>
+                        );
+                      })}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      O feed ainda não trouxe destaques suficientes para este recorte.
+                    </Typography>
+                  )}
+                </DashboardCard>
 
-                  {/* ── Regular grid (remaining items) ── */}
-                  {rest.length > 0 && (
+                <DashboardCard title="Arquivo recente" subtitle="Itens mais antigos do recorte atual.">
+                  {feedListItems.length ? (
                     <Grid container spacing={2}>
-                      {rest.map((item) => {
+                      {feedListItems.map((item) => {
                         const badge = statusChip(item.status);
-                        const bg = TYPE_GRADIENTS[item.type || 'NEWS'] ?? TYPE_GRADIENTS.NEWS;
                         return (
-                          <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                          <Grid key={item.id} size={{ xs: 12, md: 6 }}>
                             <Card
                               variant="outlined"
-                              sx={{ cursor: 'pointer', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', transition: 'border-color 0.2s, box-shadow 0.2s', '&:hover': { borderColor: 'primary.main', boxShadow: '0 4px 16px rgba(232,82,25,0.12)' } }}
+                              sx={{
+                                height: '100%',
+                                cursor: 'pointer',
+                                borderRadius: 3,
+                                transition: 'border-color 0.2s, box-shadow 0.2s',
+                                '&:hover': { borderColor: 'primary.main', boxShadow: '0 12px 26px rgba(15,23,42,0.07)' },
+                              }}
                               onClick={() => goDetail(item)}
                             >
-                              {/* thumbnail */}
-                              <Box sx={{ height: 130, position: 'relative', flexShrink: 0, ...(item.image_url ? { backgroundImage: `url(${item.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: bg }) }}>
-                                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ position: 'absolute', top: 8, left: 8, right: 8 }} onClick={(e) => e.stopPropagation()}>
-                                  <Checkbox size="small" checked={selectedItemIds.includes(item.id)} onChange={(e) => toggleItemSelection(item.id, e.target.checked)} sx={{ color: 'rgba(255,255,255,0.75)', '&.Mui-checked': { color: '#fff' }, p: 0.5 }} />
+                              <CardContent sx={{ p: 2.25 }}>
+                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                                  <Stack spacing={0.75} sx={{ minWidth: 0 }}>
+                                    <Typography variant="overline" color="text.secondary">
+                                      {formatSource(item.source_name, item.source_url)} · {formatDate(item.published_at)}
+                                    </Typography>
+                                    <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.35 }}>
+                                      {item.title}
+                                    </Typography>
+                                  </Stack>
+                                  <Checkbox
+                                    size="small"
+                                    checked={selectedItemIds.includes(item.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => toggleItemSelection(item.id, e.target.checked)}
+                                  />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, mb: 1.5, lineHeight: 1.7 }}>
+                                  {item.snippet || 'Sem resumo disponível.'}
+                                </Typography>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
                                   <PlatformIcon platform={detectPlatform(item)} variant="chip" size={12} />
+                                  <Chip size="small" color={badge.color} label={badge.label} variant="outlined" />
+                                  <Chip
+                                    size="small"
+                                    label={`Score ${formatNumber(item.client_score != null ? item.client_score : item.score)}`}
+                                    variant="outlined"
+                                  />
                                 </Stack>
-                              </Box>
-
-                              <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: '12px !important' }}>
-                                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.35 }}>
-                                  {item.title}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5, mb: 1 }}>
-                                  {item.snippet || ''}
-                                </Typography>
-                                <Stack direction="row" alignItems="center">
-                                  <Typography variant="caption" color="text.disabled" sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {item.source_name || 'Fonte'} · {item.published_at ? new Date(item.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '--'}
-                                  </Typography>
-                                  <Chip size="small" color={badge.color} label={badge.label} sx={{ fontSize: '0.6rem', height: 20 }} />
-                                </Stack>
-                                <Box sx={{ mt: 1 }}>{itemActions(item)}</Box>
+                                {renderItemActions(item)}
                               </CardContent>
                             </Card>
                           </Grid>
                         );
                       })}
                     </Grid>
-                  )}
-                </Box>
-              );
-            })() : (
-                <Box sx={{ py: 6, px: 3, textAlign: 'center', background: 'radial-gradient(ellipse at 50% 0%, rgba(100,116,139,0.06) 0%, transparent 70%)', borderRadius: 3 }}>
-                  <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1.5, mx: 'auto', color: '#64748b' }}>
-                    <IconNews size={28} />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" fontWeight={600} mb={0.5}>
-                    Nenhum item encontrado
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 280, mx: 'auto', mb: 2 }}>
-                    Tente ajustar os filtros ou adicione novas fontes para começar a capturar conteúdo.
-                  </Typography>
-                  <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={() => loadItems()}>
-                    Recarregar
-                  </Button>
-                </Box>
-            )}
-          </DashboardCard>
-        </Grid>
-
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Stack spacing={2}>
-            <DashboardCard
-              title="Fontes"
-              action={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  {errorSourceCount > 0 && (
-                    <Chip size="small" icon={<IconAlertTriangle size={14} />} label={`${errorSourceCount} com erro`} color="error" variant="outlined" />
-                  )}
-                  <Chip size="small" label={`${sources.length} fontes`} color="info" variant="outlined" />
-                  {(selectedClient?.id || lockedClientId) && (
-                    <Button size="small" variant="outlined" startIcon={<IconSparkles size={14} />} onClick={handleSuggestSources} disabled={suggestLoading}>
-                      {suggestLoading ? 'Buscando...' : 'Sugerir fontes'}
-                    </Button>
-                  )}
-                  <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={handleFetchAll} disabled={fetchingAll}>
-                    {fetchingAll ? 'Buscando...' : 'Buscar todas'}
-                  </Button>
-                </Stack>
-              }
-            >
-              <Stack spacing={1}>
-                {sources.length ? (
-                  sources.map((source) => {
-                    const isEditing = editingSourceId === source.id;
-                    const diagnosis = diagnoseSource(source);
-                    const isWarning = diagnosis?.severity === 'warning';
-                    const hasError = !isWarning && (source.status === 'ERROR' || !!source.last_error);
-                    const isPaused = !source.is_active;
-                    const statusColor = isPaused ? 'default' : hasError ? 'error' : isWarning ? 'warning' : 'success';
-                    const statusLabel = isPaused ? 'Pausada' : hasError ? 'Erro' : isWarning ? 'Atenção' : 'OK';
-
-                    return (
-                      <Box
-                        key={source.id}
-                        sx={{
-                          p: 1.5,
-                          border: '1px solid',
-                          borderColor: hasError ? 'error.light' : 'divider',
-                          borderRadius: 2,
-                          transition: 'all 0.2s',
-                          '&:hover': { bgcolor: 'action.hover' },
-                          opacity: isPaused ? 0.6 : 1,
-                        }}
-                      >
-                        <Stack direction="row" justifyContent="space-between" alignItems="center">
-                          <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-                            <IconRss size={16} />
-                            <Typography variant="subtitle2" noWrap>{source.name}</Typography>
-                            <Chip size="small" label={source.type} variant="outlined" />
-                            <Chip size="small" label={statusLabel} color={statusColor} />
-                          </Stack>
-                          <Stack direction="row" spacing={0} alignItems="center">
-                            {source.is_active ? (
-                              <Tooltip title="Pausar">
-                                <IconButton size="small" onClick={() => handlePauseSource(source.id)}>
-                                  <IconPlayerPause size={16} />
-                                </IconButton>
-                              </Tooltip>
-                            ) : (
-                              <Tooltip title="Reativar">
-                                <IconButton size="small" color="success" onClick={() => handleResumeSource(source.id)}>
-                                  <IconPlayerPlay size={16} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            <Tooltip title="Excluir">
-                              <IconButton size="small" color="error" onClick={() => handleDeleteSource(source.id, source.name)}>
-                                <IconTrash size={16} />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        </Stack>
-
-                        {isEditing ? (
-                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                            <TextField
-                              value={editingUrl}
-                              onChange={(e) => setEditingUrl(e.target.value)}
-                              size="small"
-                              fullWidth
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveSourceUrl(source.id);
-                                if (e.key === 'Escape') handleCancelEdit();
-                              }}
-                              autoFocus
-                            />
-                            <IconButton size="small" color="primary" onClick={() => handleSaveSourceUrl(source.id)} disabled={savingSourceUrl}>
-                              <IconDeviceFloppy size={16} />
-                            </IconButton>
-                            <IconButton size="small" onClick={handleCancelEdit}>
-                              <IconX size={16} />
-                            </IconButton>
-                          </Stack>
-                        ) : (
-                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>{source.url}</Typography>
-                            <Tooltip title="Editar URL">
-                              <IconButton size="small" onClick={() => handleEditSource(source.id, source.url)}>
-                                <IconPencil size={14} />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        )}
-
-                        {diagnosis && (
-                          <Box sx={{ mt: 0.75, p: 1, borderRadius: 1, bgcolor: diagnosis.severity === 'warning' ? 'warning.lighter' : 'error.lighter' }}>
-                            <Typography variant="caption" fontWeight={600} color={diagnosis.severity === 'warning' ? 'warning.dark' : 'error.dark'} sx={{ display: 'block' }}>
-                              {diagnosis.readable}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {diagnosis.hint}
-                            </Typography>
-                            {diagnosis.fixType === 'try-http' && source.url.startsWith('https://') && (
-                              <Button size="small" variant="outlined" color="warning" sx={{ mt: 0.5, py: 0, fontSize: '0.7rem' }}
-                                onClick={() => handleQuickFixSsl(source)}>
-                                Tentar HTTP
-                              </Button>
-                            )}
-                          </Box>
-                        )}
-
-                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} alignItems="center">
-                          <Chip size="small" label={source.scope} variant="outlined" />
-                          <Typography variant="caption" color="text.secondary">
-                            Último fetch: {timeAgo(source.last_fetched_at)}
-                          </Typography>
-                        </Stack>
+                  ) : (
+                    <Box sx={{ py: 5, textAlign: 'center' }}>
+                      <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1.5, mx: 'auto', color: '#64748b' }}>
+                        <IconNews size={28} />
                       </Box>
-                    );
-                  })
-                ) : (
-                  <Stack alignItems="center" spacing={1} sx={{ py: 3 }}>
-                    <IconRss size={28} color="#bdbdbd" />
-                    <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                      Nenhuma fonte cadastrada
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-                      Adicione uma fonte abaixo para começar a monitorar conteúdo.
-                    </Typography>
+                      <Typography variant="body2" color="text.secondary" fontWeight={600} mb={0.5}>
+                        Nenhum item encontrado
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 320, mx: 'auto', mb: 2 }}>
+                        Tente ajustar os filtros ou adicione novas fontes para começar a capturar conteúdo.
+                      </Typography>
+                      <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={() => loadItems()}>
+                        Recarregar
+                      </Button>
+                    </Box>
+                  )}
+                </DashboardCard>
+              </Stack>
+            </Grid>
+
+            <Grid size={{ xs: 12, lg: 4 }}>
+              <Stack spacing={2}>
+                <DashboardCard
+                  title="Sala de edição"
+                  subtitle="O que transformar em ação a partir do feed."
+                >
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Selecionados</Typography>
+                      <Chip size="small" label={`${selectedItemIds.length}`} color="primary" />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Fontes com atenção</Typography>
+                      <Chip size="small" label={`${errorSourceCount}`} color={errorSourceCount ? 'error' : 'default'} />
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" color="text.secondary">Últimos 7 dias</Typography>
+                      <Chip size="small" label={formatNumber(stats.items_last_7_days)} variant="outlined" />
+                    </Stack>
+                    <Divider />
+                    <Button
+                      variant="contained"
+                      startIcon={<IconSparkles size={16} />}
+                      onClick={handleRunCompetitiveIntel}
+                      disabled={competitiveLoading || selectedItemIds.length === 0}
+                      fullWidth
+                    >
+                      {competitiveLoading ? 'Analisando...' : 'Briefing estratégico'}
+                    </Button>
+                    <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={loadItems} fullWidth>
+                      Recarregar feed
+                    </Button>
                   </Stack>
-                )}
-              </Stack>
-            </DashboardCard>
+                </DashboardCard>
 
-            <DashboardCard title="Nova fonte">
-              <Stack spacing={2}>
-                <TextField label="Nome" value={sourceName} onChange={(event) => setSourceName(event.target.value)} size="small" />
-                <TextField label="URL" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} size="small" />
-                <TextField select label="Tipo" value={sourceType} onChange={(event) => setSourceType(event.target.value)} size="small">
-                  {['RSS', 'URL', 'YOUTUBE', 'OTHER'].map((type) => (
-                    <MenuItem key={type} value={type}>
-                      {type}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField select label="Escopo" value={sourceScope} onChange={(event) => setSourceScope(event.target.value)} size="small">
-                  {['GLOBAL', 'CLIENT'].map((scope) => (
-                    <MenuItem key={scope} value={scope}>
-                      {scope}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Incluir keywords (virgula)"
-                  value={sourceIncludeKw}
-                  onChange={(event) => setSourceIncludeKw(event.target.value)}
-                  size="small"
-                  helperText="So ingerir itens com estas palavras"
-                />
-                <TextField
-                  label="Excluir keywords (virgula)"
-                  value={sourceExcludeKw}
-                  onChange={(event) => setSourceExcludeKw(event.target.value)}
-                  size="small"
-                  helperText="Ignorar itens com estas palavras"
-                />
-                <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={handleSaveSource} disabled={savingSource}>
-                  {savingSource ? 'Salvando...' : 'Adicionar fonte'}
-                </Button>
+                <DashboardCard
+                  title="Fontes em atenção"
+                  subtitle="Erros, pausas e fontes que merecem revisão."
+                  action={<Chip size="small" label={`${sourceAlerts.length}`} variant="outlined" />}
+                >
+                  <Stack spacing={1}>
+                    {sourceAlerts.length ? (
+                      sourceAlerts.map((source) => {
+                        const diagnosis = diagnoseSource(source);
+                        return (
+                          <Box key={source.id} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                            <Stack direction="row" justifyContent="space-between" spacing={1}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle2" noWrap>{source.name}</Typography>
+                                <Typography variant="caption" color="text.secondary" noWrap>
+                                  {diagnosis?.readable || (source.is_active ? 'Ativa' : 'Pausada')}
+                                </Typography>
+                              </Box>
+                              <Chip
+                                size="small"
+                                label={source.is_active ? (diagnosis ? 'Atenção' : 'OK') : 'Pausada'}
+                                color={source.is_active ? (diagnosis ? 'warning' : 'success') : 'default'}
+                              />
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                              {diagnosis?.hint || `Último fetch: ${timeAgo(source.last_fetched_at)}`}
+                            </Typography>
+                          </Box>
+                        );
+                      })
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Todas as fontes do recorte atual estão saudáveis.
+                      </Typography>
+                    )}
+                  </Stack>
+                </DashboardCard>
               </Stack>
-            </DashboardCard>
+            </Grid>
+          </>
+        ) : null}
 
-            <DashboardCard title="Ingerir URL">
+        {viewTab === 'manage' ? (
+          <>
+            <Grid size={{ xs: 12, lg: 8 }}>
               <Stack spacing={2}>
-                <TextField label="URL" value={ingestUrl} onChange={(event) => setIngestUrl(event.target.value)} size="small" />
-                <Button variant="contained" onClick={handleIngestUrl} disabled={ingesting}>
-                  {ingesting ? 'Ingerindo...' : 'Ingerir'}
-                </Button>
+                <DashboardCard
+                  title="Gestão de fontes"
+                  subtitle="Catálogo de ingestão, diagnóstico e manutenção do radar."
+                  action={
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {errorSourceCount > 0 && (
+                        <Chip size="small" icon={<IconAlertTriangle size={14} />} label={`${errorSourceCount} com erro`} color="error" variant="outlined" />
+                      )}
+                      <Chip size="small" label={`${sources.length} fontes`} color="info" variant="outlined" />
+                      {(selectedClient?.id || lockedClientId) && (
+                        <Button size="small" variant="outlined" startIcon={<IconSparkles size={14} />} onClick={handleSuggestSources} disabled={suggestLoading}>
+                          {suggestLoading ? 'Buscando...' : 'Sugerir fontes'}
+                        </Button>
+                      )}
+                      <Button size="small" variant="outlined" startIcon={<IconRefresh size={14} />} onClick={handleFetchAll} disabled={fetchingAll}>
+                        {fetchingAll ? 'Buscando...' : 'Buscar todas'}
+                      </Button>
+                    </Stack>
+                  }
+                >
+                  <Stack spacing={1}>
+                    {sources.length ? (
+                      sources.map((source) => {
+                        const isEditing = editingSourceId === source.id;
+                        const diagnosis = diagnoseSource(source);
+                        const isWarning = diagnosis?.severity === 'warning';
+                        const hasError = !isWarning && (source.status === 'ERROR' || !!source.last_error);
+                        const isPaused = !source.is_active;
+                        const statusColor = isPaused ? 'default' : hasError ? 'error' : isWarning ? 'warning' : 'success';
+                        const statusLabel = isPaused ? 'Pausada' : hasError ? 'Erro' : isWarning ? 'Atenção' : 'OK';
+
+                        return (
+                          <Box
+                            key={source.id}
+                            sx={{
+                              p: 1.5,
+                              border: '1px solid',
+                              borderColor: hasError ? 'error.light' : 'divider',
+                              borderRadius: 2,
+                              transition: 'all 0.2s',
+                              '&:hover': { bgcolor: 'action.hover' },
+                              opacity: isPaused ? 0.6 : 1,
+                            }}
+                          >
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                                <IconRss size={16} />
+                                <Typography variant="subtitle2" noWrap>{source.name}</Typography>
+                                <Chip size="small" label={source.type} variant="outlined" />
+                                <Chip size="small" label={statusLabel} color={statusColor} />
+                              </Stack>
+                              <Stack direction="row" spacing={0} alignItems="center">
+                                {source.is_active ? (
+                                  <Tooltip title="Pausar">
+                                    <IconButton size="small" onClick={() => handlePauseSource(source.id)}>
+                                      <IconPlayerPause size={16} />
+                                    </IconButton>
+                                  </Tooltip>
+                                ) : (
+                                  <Tooltip title="Reativar">
+                                    <IconButton size="small" color="success" onClick={() => handleResumeSource(source.id)}>
+                                      <IconPlayerPlay size={16} />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                                <Tooltip title="Excluir">
+                                  <IconButton size="small" color="error" onClick={() => handleDeleteSource(source.id, source.name)}>
+                                    <IconTrash size={16} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            </Stack>
+
+                            {isEditing ? (
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                                <TextField
+                                  value={editingUrl}
+                                  onChange={(e) => setEditingUrl(e.target.value)}
+                                  size="small"
+                                  fullWidth
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveSourceUrl(source.id);
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                  autoFocus
+                                />
+                                <IconButton size="small" color="primary" onClick={() => handleSaveSourceUrl(source.id)} disabled={savingSourceUrl}>
+                                  <IconDeviceFloppy size={16} />
+                                </IconButton>
+                                <IconButton size="small" onClick={handleCancelEdit}>
+                                  <IconX size={16} />
+                                </IconButton>
+                              </Stack>
+                            ) : (
+                              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>{source.url}</Typography>
+                                <Tooltip title="Editar URL">
+                                  <IconButton size="small" onClick={() => handleEditSource(source.id, source.url)}>
+                                    <IconPencil size={14} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            )}
+
+                            {diagnosis && (
+                              <Box sx={{ mt: 0.75, p: 1, borderRadius: 1, bgcolor: diagnosis.severity === 'warning' ? 'warning.lighter' : 'error.lighter' }}>
+                                <Typography variant="caption" fontWeight={600} color={diagnosis.severity === 'warning' ? 'warning.dark' : 'error.dark'} sx={{ display: 'block' }}>
+                                  {diagnosis.readable}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                  {diagnosis.hint}
+                                </Typography>
+                                {diagnosis.fixType === 'try-http' && source.url.startsWith('https://') && (
+                                  <Button size="small" variant="outlined" color="warning" sx={{ mt: 0.5, py: 0, fontSize: '0.7rem' }}
+                                    onClick={() => handleQuickFixSsl(source)}>
+                                    Tentar HTTP
+                                  </Button>
+                                )}
+                              </Box>
+                            )}
+
+                            <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} alignItems="center">
+                              <Chip size="small" label={source.scope} variant="outlined" />
+                              <Typography variant="caption" color="text.secondary">
+                                Último fetch: {timeAgo(source.last_fetched_at)}
+                              </Typography>
+                            </Stack>
+                          </Box>
+                        );
+                      })
+                    ) : (
+                      <Stack alignItems="center" spacing={1} sx={{ py: 3 }}>
+                        <IconRss size={28} color="#bdbdbd" />
+                        <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                          Nenhuma fonte cadastrada
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+                          Adicione uma fonte ao lado para começar a monitorar conteúdo.
+                        </Typography>
+                      </Stack>
+                    )}
+                  </Stack>
+                </DashboardCard>
               </Stack>
-            </DashboardCard>
-          </Stack>
-        </Grid>
+            </Grid>
+
+            <Grid size={{ xs: 12, lg: 4 }}>
+              <Stack spacing={2}>
+                <DashboardCard title="Nova fonte" subtitle="Cadastre um novo canal para o radar.">
+                  <Stack spacing={2}>
+                    <TextField label="Nome" value={sourceName} onChange={(event) => setSourceName(event.target.value)} size="small" />
+                    <TextField label="URL" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} size="small" />
+                    <TextField select label="Tipo" value={sourceType} onChange={(event) => setSourceType(event.target.value)} size="small">
+                      {['RSS', 'URL', 'YOUTUBE', 'OTHER'].map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Escopo" value={sourceScope} onChange={(event) => setSourceScope(event.target.value)} size="small">
+                      {['GLOBAL', 'CLIENT'].map((scope) => (
+                        <MenuItem key={scope} value={scope}>
+                          {scope}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      label="Incluir keywords (vírgula)"
+                      value={sourceIncludeKw}
+                      onChange={(event) => setSourceIncludeKw(event.target.value)}
+                      size="small"
+                      helperText="Só ingerir itens com estas palavras."
+                    />
+                    <TextField
+                      label="Excluir keywords (vírgula)"
+                      value={sourceExcludeKw}
+                      onChange={(event) => setSourceExcludeKw(event.target.value)}
+                      size="small"
+                      helperText="Ignorar itens com estas palavras."
+                    />
+                    <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={handleSaveSource} disabled={savingSource}>
+                      {savingSource ? 'Salvando...' : 'Adicionar fonte'}
+                    </Button>
+                  </Stack>
+                </DashboardCard>
+
+                <DashboardCard title="Ingestão manual" subtitle="Empurre uma URL específica para dentro do radar.">
+                  <Stack spacing={2}>
+                    <TextField label="URL" value={ingestUrl} onChange={(event) => setIngestUrl(event.target.value)} size="small" />
+                    <Button variant="contained" onClick={handleIngestUrl} disabled={ingesting}>
+                      {ingesting ? 'Ingerindo...' : 'Ingerir URL'}
+                    </Button>
+                  </Stack>
+                </DashboardCard>
+              </Stack>
+            </Grid>
+          </>
+        ) : null}
       </Grid>
 
       {/* ── Suggest sources dialog ── */}

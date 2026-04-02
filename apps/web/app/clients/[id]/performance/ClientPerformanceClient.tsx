@@ -71,9 +71,9 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
             <Button
               variant="contained"
               startIcon={<IconExternalLink size={16} />}
-              href={`/clients/${clientId}/connectors`}
+              href={`/clients/${clientId}/identidade?sub=config`}
             >
-              Configurar conectores
+              Configurar integrações
             </Button>
           </Stack>
         </CardContent>
@@ -86,7 +86,7 @@ export default function ClientPerformanceClient({ clientId }: ClientPerformanceC
       <Tooltip title="Configurar conector Reportei">
         <IconButton
           component="a"
-          href={`/clients/${clientId}/connectors`}
+          href={`/clients/${clientId}/identidade?sub=config`}
           size="small"
           sx={{
             position: 'absolute',
