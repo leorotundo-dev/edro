@@ -1088,6 +1088,7 @@ export default function JobWorkbenchDrawer({
     : mode === 'create'
       ? (createReady ? 'Entrar na fila' : 'Salvar rascunho')
       : 'Salvar mudancas';
+  const isQuickView = presentation === 'modal' && mode === 'edit';
 
   return (
     <ContextDrawer
@@ -1176,10 +1177,10 @@ export default function JobWorkbenchDrawer({
         </Stack>
       }
     >
-      <Stack spacing={3}>
+      <Stack spacing={isQuickView ? 2.25 : 3}>
         {detailJob?.status === 'blocked' ? <BlockReason reason={detailJob.urgency_reason || 'Bloqueio ativo na etapa atual.'} onResolve={() => handleStatusChange(intakeComplete ? 'ready' : 'planned')} /> : null}
 
-        {mode === 'create' ? (
+        {!isQuickView && mode === 'create' ? (
           <Box
             sx={(theme) => ({
               p: 2,
@@ -1262,6 +1263,7 @@ export default function JobWorkbenchDrawer({
           </Box>
         ) : null}
 
+        {!isQuickView ? (
         <GuidedFormSection
           title="O que entrou"
           subtitle={mode === 'create' ? 'Nomeie o pedido, diga de onde veio e deixe o contexto claro.' : 'Ajuste o pedido, a origem e o combinado do que precisa ficar pronto.'}
@@ -1326,8 +1328,9 @@ export default function JobWorkbenchDrawer({
             </Grid>
           </Grid>
         </GuidedFormSection>
+        ) : null}
 
-        {clientDirectives.length > 0 && (
+        {!isQuickView && clientDirectives.length > 0 && (
           <Box sx={(theme) => ({
             borderRadius: 2,
             border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
@@ -1358,6 +1361,7 @@ export default function JobWorkbenchDrawer({
           </Box>
         )}
 
+        {!isQuickView ? (
         <GuidedFormSection
           title="Quem faz e ate quando"
           subtitle={mode === 'create' ? 'Escolha dono, especialidade e janela de entrega.' : 'Aqui voce decide dono, prazo, urgencia e encaixe na semana.'}
@@ -1575,7 +1579,9 @@ export default function JobWorkbenchDrawer({
             ) : null}
           </Stack>
         </GuidedFormSection>
+        ) : null}
 
+        {!isQuickView ? (
         <GuidedFormSection
           title="Quanto isso mexe na operacao"
           subtitle="Ajude a Central a entender se isso pode furar a fila ou destravar outras demandas."
@@ -1602,7 +1608,9 @@ export default function JobWorkbenchDrawer({
             </Grid>
           </Grid>
         </GuidedFormSection>
+        ) : null}
 
+        {!isQuickView ? (
         <Alert severity={intakeComplete ? 'success' : 'warning'}>
           <Stack spacing={1}>
             <Typography variant="body2" fontWeight={700}>
@@ -1619,7 +1627,9 @@ export default function JobWorkbenchDrawer({
             ) : null}
           </Stack>
         </Alert>
+        ) : null}
 
+        {!isQuickView ? (
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
           <Chip label={`Prioridade prevista ${priorityPreview.priorityBand.toUpperCase()}`} color={priorityPreview.priorityBand === 'p0' || priorityPreview.priorityBand === 'p1' ? 'error' : priorityPreview.priorityBand === 'p2' ? 'warning' : 'default'} />
           {calibratedEstimate && calibratedEstimate.confidence !== 'none' ? (
@@ -1641,9 +1651,11 @@ export default function JobWorkbenchDrawer({
           <Chip label={selectedOwner ? `Responsável ${selectedOwner.name}` : 'Sem responsável'} variant="outlined" />
           {form.deadline_at ? <Chip label={`Prazo ${formatDateTime(toIsoDateTime(form.deadline_at))}`} variant="outlined" /> : null}
         </Stack>
+        ) : null}
 
-        <Divider />
+        {!isQuickView ? <Divider /> : null}
 
+        {!isQuickView ? (
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between">
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {detailJob ? (
@@ -1679,11 +1691,22 @@ export default function JobWorkbenchDrawer({
             </Button>
           </Stack>
         </Stack>
+        ) : null}
 
         {detailJob ? (
           <>
-            <Divider />
+            {!isQuickView ? <Divider /> : null}
             <Stack spacing={2}>
+              {isQuickView ? (
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45 }}>
+                    QUICK VIEW
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Veja a decisao, execute o proximo passo e abra os atalhos sem entrar no editor completo.
+                  </Typography>
+                </Box>
+              ) : null}
               <Typography variant="h6" fontWeight={800}>Painel da demanda</Typography>
               <Grid container spacing={1.5}>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -1801,7 +1824,7 @@ export default function JobWorkbenchDrawer({
               </Grid>
             </Stack>
 
-            {detailJob.automation_status && detailJob.automation_status !== 'none' ? (
+            {!isQuickView && detailJob.automation_status && detailJob.automation_status !== 'none' ? (
               <>
                 <Divider />
                 <Stack spacing={1.5}>
@@ -1821,10 +1844,14 @@ export default function JobWorkbenchDrawer({
               </>
             ) : null}
 
-            <Divider />
-            <TimeEntriesPanel jobId={detailJob.id} />
+            {!isQuickView ? (
+              <>
+                <Divider />
+                <TimeEntriesPanel jobId={detailJob.id} />
+              </>
+            ) : null}
 
-            {detailJob.history?.length ? (
+            {!isQuickView && detailJob.history?.length ? (
               <>
                 <Divider />
                 <Stack spacing={1.25}>
