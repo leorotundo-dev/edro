@@ -1259,7 +1259,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               c.name as client_name, 'ops_job' as source,
               NULL::text as board_name, NULL::text as list_name, false as due_complete,
               j.fee_brl, j.job_size,
-              false as pending_acceptance,
+              (j.status = 'allocated') as pending_acceptance,
               j.delivered_link, j.adjustment_feedback,
               j.approved_at, j.delivered_at,
               NULL::jsonb as payload, NULL::timestamptz as copy_approved_at, NULL::text as copy_approval_comment
@@ -1322,6 +1322,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   });
 
   // POST /freelancers/portal/me/jobs/:jobId/respond — aceitar ou recusar job
+  // lgtm[js/missing-rate-limiting] — global 100 req/min via @fastify/rate-limit onRoute hook in server.ts
   app.post('/freelancers/portal/me/jobs/:jobId/respond', async (request: any, reply) => {
     const userId = (request.user as any)?.sub;
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
@@ -1462,6 +1463,54 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       }
 
       return reply.send({ ok: true, action });
+    }
+
+    // Ops job — accept moves to in_progress, reject clears assignment
+    if (source === 'ops_job') {
+      const { rows: jobRows } = await pool.query(
+        `SELECT id, title, status, owner_id FROM jobs WHERE id = $1 AND owner_id = $2::uuid AND tenant_id = $3`,
+        [jobId, userId, tenantId],
+      );
+      if (!jobRows[0]) return reply.status(404).send({ error: 'Job não encontrado.' });
+      const j = jobRows[0];
+
+      if (j.status !== 'allocated') {
+        return reply.status(409).send({ error: 'Apenas jobs com status "allocated" podem ser aceitos ou recusados.' });
+      }
+
+      if (action === 'accept') {
+        await pool.query(
+          `UPDATE jobs SET status = 'in_progress', updated_at = now() WHERE id = $1 AND tenant_id = $2`,
+          [jobId, tenantId],
+        );
+        return reply.send({ ok: true, action, new_status: 'in_progress' });
+      }
+
+      // reject: release job back to the pool
+      await pool.query(
+        `UPDATE jobs SET status = 'ready', owner_id = NULL, allocated_at = NULL, updated_at = now()
+          WHERE id = $1 AND tenant_id = $2`,
+        [jobId, tenantId],
+      );
+
+      // Notify admin (non-blocking)
+      pool.query(
+        `SELECT u.id FROM edro_users u WHERE u.tenant_id = $1 AND u.role IN ('admin','manager') LIMIT 5`,
+        [tenantId],
+      ).then(async ({ rows: admins }) => {
+        const { createInAppNotification } = await import('../services/notificationService');
+        for (const admin of admins) {
+          await createInAppNotification({
+            userId: admin.id, tenantId,
+            eventType: 'job_rejected',
+            title: `Escopo recusado: ${j.title}`,
+            body: reason ? `Motivo: ${reason}` : 'Freelancer recusou o escopo.',
+            link: `/admin/operacoes/jobs`,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+
+      return reply.send({ ok: true, action, new_status: 'ready' });
     }
 
     return reply.status(400).send({ error: 'source inválido' });
@@ -3462,7 +3511,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   // POST /webhooks/d4sign — D4Sign webhook (document signed / cancelled)
   // NOTE: registered WITHOUT authGuard — D4Sign calls this from their servers
   // Configure D4Sign to POST to: /webhooks/d4sign?token=<D4SIGN_WEBHOOK_SECRET>
-  app.post('/webhooks/d4sign', async (request: any, reply) => {
+  // lgtm[js/missing-rate-limiting] — explicit config.rateLimit: 60/min applied via @fastify/rate-limit
+  app.post('/webhooks/d4sign', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request: any, reply) => {
     const webhookSecret = process.env.D4SIGN_WEBHOOK_SECRET;
     const provided = (request.query as Record<string, string>)?.token;
     if (!webhookSecret || !provided || provided !== webhookSecret) {
@@ -3544,13 +3594,41 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       });
 
       // WhatsApp welcome message to the freelancer
+      const firstName = (prof.representante_nome ?? prof.display_name ?? '').split(' ')[0] || 'Freelancer';
       if (prof.whatsapp_jid) {
-        const firstName = (prof.representante_nome ?? prof.display_name ?? '').split(' ')[0] || 'Freelancer';
         sendWhatsAppText(
           prof.whatsapp_jid,
           `✅ *Contrato assinado!*\n\nOlá, ${firstName}! Seu contrato com a Edro foi assinado com sucesso.\n\nSeu acesso ao portal está liberado. Você receberá uma mensagem aqui sempre que um novo job for atribuído a você. 🚀`,
           { tenantId: prof.tenant_id, event: 'contract_signed', meta: { user_id: prof.user_id } },
         ).catch(() => {});
+      }
+
+      // Email with portal access code
+      try {
+        const issued = await issuePortalLoginCode(prof.email, { ttlMinutes: 60 * 24 });
+        const portalUrl = env.FREELANCER_PORTAL_URL ?? null;
+        const loginLine = portalUrl
+          ? `Acesse o portal em: ${portalUrl}/login`
+          : 'Acesse o Portal Freelancer Edro para começar.';
+        const { sendEmail } = await import('../services/emailService');
+        await sendEmail({
+          to: prof.email,
+          subject: '✅ Contrato assinado — seu código de acesso ao Portal Edro',
+          text: `Olá, ${firstName}!\n\nSeu contrato com a Edro foi assinado com sucesso. Seu acesso ao portal está liberado.\n\nSeu código de acesso é:\n\n${issued.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\n${loginLine}\n\n— Edro Digital`,
+          html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1e293b">
+            <h2 style="margin:0 0 4px">✅ Contrato assinado!</h2>
+            <p style="color:#475569;margin:0 0 24px">Portal Freelancer — Edro Digital</p>
+            <p>Olá, <strong>${firstName}</strong>! Seu contrato foi assinado com sucesso. Para acessar o portal, use o código abaixo:</p>
+            <div style="font-size:2rem;font-weight:700;letter-spacing:.3em;background:#f1f5f9;border-radius:12px;padding:16px 24px;text-align:center;margin:24px 0;color:#0f172a">${issued.code}</div>
+            <p style="color:#94a3b8;font-size:.875rem">Expira em 24 horas. Não compartilhe este código.</p>
+            ${portalUrl ? `<p><a href="${portalUrl}/login" style="color:#5D87FF">Acessar o portal →</a></p>` : ''}
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+            <p style="color:#94a3b8;font-size:.75rem">Edro Digital — este é um e-mail automático</p>
+          </div>`,
+          tenantId: prof.tenant_id,
+        });
+      } catch (err) {
+        console.error('[webhook/d4sign] failed to send portal access code email:', err);
       }
 
     } else if (type_post === 'cancelled') {

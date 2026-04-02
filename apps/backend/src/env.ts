@@ -63,6 +63,7 @@ const envSchema = z.object({
   OIDC_CLIENT_SECRET: z.string().optional(),
   OIDC_REDIRECT_URI: z.string().optional(),
   WEB_URL: z.string().optional(),
+  FREELANCER_PORTAL_URL: z.string().optional(),
   PUBLIC_API_URL: z.string().optional(),
   PUBLISHER_GATEWAY_URL: z.string().optional(),
   GATEWAY_SHARED_SECRET: z.string().optional(),

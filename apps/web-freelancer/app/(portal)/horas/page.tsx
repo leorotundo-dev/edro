@@ -3,11 +3,10 @@
 /**
  * Scorecard do Fornecedor (B2B)
  * ─────────────────────────────
- * Shows SLA compliance, delivery rating, and SLA violation history.
- * NOTE: This page intentionally does NOT track hours worked.
- * Per the B2B contract terms, only SLA (deadline) compliance is evaluated.
+ * Shows SLA compliance, delivery rating, SLA violation history, and time entries.
  */
 
+import { useState } from 'react';
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/api';
 
@@ -78,8 +77,52 @@ function fmt(dateStr: string | null) {
   return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+type TimeEntry = {
+  id: string;
+  started_at: string;
+  ended_at: string;
+  minutes: number;
+  briefing_title: string | null;
+};
+
+function fmtMin(m: number) {
+  const h = Math.floor(m / 60), r = m % 60;
+  return r > 0 ? `${h}h ${r}min` : `${h}h`;
+}
+
+function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  function shift(delta: number) {
+    const [y, m] = value.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    onChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const label = new Date(`${value}-01`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const isCurrentMonth = value === new Date().toISOString().slice(0, 7);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button type="button" onClick={() => shift(-1)} style={{
+        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 7, padding: '4px 10px', color: 'var(--portal-text)', cursor: 'pointer', fontSize: 14,
+      }}>‹</button>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', minWidth: 130, textAlign: 'center', textTransform: 'capitalize' }}>{label}</span>
+      <button type="button" onClick={() => shift(1)} disabled={isCurrentMonth} style={{
+        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 7, padding: '4px 10px', color: isCurrentMonth ? 'rgba(255,255,255,0.2)' : 'var(--portal-text)',
+        cursor: isCurrentMonth ? 'not-allowed' : 'pointer', fontSize: 14,
+      }}>›</button>
+    </div>
+  );
+}
+
 export default function ScorePage() {
+  const now = new Date();
+  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
   const { data, isLoading } = useSWR<ScoreData>('/freelancers/portal/me/score', swrFetcher);
+  const { data: entriesData } = useSWR<{ entries: TimeEntry[] }>(
+    `/freelancers/portal/me/entries?month=${month}`,
+    swrFetcher,
+  );
 
   if (isLoading || !data) {
     return (
@@ -249,6 +292,72 @@ export default function ScorePage() {
           </div>
         </section>
       )}
+
+      {/* ── Time entries ───────────────────────────────────────── */}
+      <section className="portal-card">
+        <div className="portal-section-head" style={{ marginBottom: 14 }}>
+          <h3 className="portal-section-title">⏱ Lançamentos de horas</h3>
+          <MonthPicker value={month} onChange={setMonth} />
+        </div>
+
+        {(() => {
+          const entries = entriesData?.entries ?? [];
+          const totalMin = entries.reduce((s, e) => s + e.minutes, 0);
+
+          if (!entriesData) {
+            return <p style={{ fontSize: 13, color: 'var(--portal-muted)' }}>Carregando...</p>;
+          }
+
+          if (entries.length === 0) {
+            return (
+              <div className="portal-empty" style={{ padding: '20px 0' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+                <p className="portal-card-subtitle">Nenhum lançamento neste mês.</p>
+              </div>
+            );
+          }
+
+          return (
+            <>
+              <div style={{
+                display: 'flex', gap: 10, marginBottom: 14, padding: '12px 14px',
+                background: 'rgba(93,135,255,0.08)', border: '1px solid rgba(93,135,255,0.2)',
+                borderRadius: 10,
+              }}>
+                <span style={{ fontSize: 22 }}>⏱</span>
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#5D87FF' }}>{fmtMin(totalMin)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--portal-muted)' }}>Total no mês · {entries.length} lançamento{entries.length !== 1 ? 's' : ''}</div>
+                </div>
+              </div>
+              <div className="portal-list">
+                {entries.map(e => {
+                  const start = new Date(e.started_at);
+                  const end = new Date(e.ended_at);
+                  return (
+                    <div key={e.id} className="portal-list-card">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p className="portal-card-title" style={{ marginBottom: 3 }}>
+                          {e.briefing_title ?? 'Job sem título'}
+                        </p>
+                        <p className="portal-card-subtitle">
+                          {start.toLocaleDateString('pt-BR')} · {start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} → {end.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <span style={{
+                        fontSize: 12, fontWeight: 800, color: '#5D87FF',
+                        background: 'rgba(93,135,255,0.1)', borderRadius: 7, padding: '3px 9px', flexShrink: 0,
+                      }}>
+                        {fmtMin(e.minutes)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
+      </section>
 
     </div>
   );
