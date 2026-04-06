@@ -431,6 +431,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       trelloUnmappedRes,
       trelloMembersRes,
       metaFailingRes,
+      whatsappInstanceRes,
       freshnessRes,
     ] = await Promise.all([
       safeQuery<{ last_synced_at: string | null; is_active: boolean }>(
@@ -501,6 +502,14 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
            AND c.last_error_at < now() - interval '24 hours'`,
         [tenantId],
       ),
+      safeQuery<{ status: string | null; instance_name: string | null; connected_at: string | null; last_seen_at: string | null }>(
+        `SELECT status, instance_name, connected_at, last_seen_at
+           FROM evolution_instances
+          WHERE tenant_id = $1
+          ORDER BY last_seen_at DESC NULLS LAST, connected_at DESC NULLS LAST, created_at DESC
+          LIMIT 1`,
+        [tenantId],
+      ),
       // 2. Data freshness per domain (runs in parallel with connector queries)
       safeQuery<{
         last_meta_metrics: string | null;
@@ -565,6 +574,7 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     const trelloUnmapped = trelloUnmappedRes.rows[0];
     const trelloMembers = trelloMembersRes.rows[0];
     const metaFailing = metaFailingRes.rows[0];
+    const whatsappInstance = whatsappInstanceRes.rows[0];
 
     const calendarExpiry = calendar?.expires_at ? new Date(calendar.expires_at).getTime() : null;
     const calendarExpired = calendarExpiry !== null && calendarExpiry <= now;
@@ -572,6 +582,23 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     const gmailExpiry = gmail?.watch_expiry ? new Date(gmail.watch_expiry).getTime() : null;
     const gmailExpired = gmailExpiry !== null && gmailExpiry <= now;
     const gmailExpiresSoon = gmailExpiry !== null && gmailExpiry > now && gmailExpiry - now < 48 * 3_600_000;
+    const whatsappConfigured = has('WHATSAPP_TOKEN') || has('EVOLUTION_API_KEY');
+    const whatsappFreshnessHours = ageHours(fr.last_whatsapp);
+    const whatsappEvolutionState = String(whatsappInstance?.status || '').toLowerCase();
+    const whatsappStatus = !whatsappConfigured ? 'disconnected'
+      : whatsappEvolutionState === 'needs_qr' || whatsappEvolutionState === 'disconnected' ? 'error'
+      : whatsappEvolutionState === 'connecting' ? 'stale'
+      : whatsappFreshnessHours !== null && whatsappFreshnessHours > 72 ? 'stale'
+      : 'ok';
+    const whatsappWarning = whatsappEvolutionState === 'needs_qr'
+      ? 'Sessão Evolution expirou e precisa de novo QR.'
+      : whatsappEvolutionState === 'disconnected'
+        ? 'Instância Evolution desconectada.'
+        : whatsappEvolutionState === 'connecting'
+          ? 'Instância Evolution ainda reconectando.'
+          : whatsappFreshnessHours !== null && whatsappFreshnessHours > 72
+            ? 'Sem mensagens recentes há mais de 72h.'
+            : null;
 
     const integrations = [
       {
@@ -632,11 +659,16 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         key: 'whatsapp',
         label: 'WhatsApp',
         icon: 'whatsapp',
-        configured: has('WHATSAPP_TOKEN') || has('EVOLUTION_API_KEY'),
-        status: has('WHATSAPP_TOKEN') || has('EVOLUTION_API_KEY') ? 'ok' : 'disconnected',
+        configured: whatsappConfigured,
+        status: whatsappStatus,
         last_activity: fr.last_whatsapp ?? null,
-        details: has('EVOLUTION_API_KEY') ? 'Evolution API' : has('WHATSAPP_TOKEN') ? 'Meta Cloud API' : 'Não configurado',
+        details: has('EVOLUTION_API_KEY')
+          ? `Evolution API${whatsappInstance?.instance_name ? ` · ${whatsappInstance.instance_name}` : ''}${whatsappInstance?.status ? ` · ${whatsappInstance.status}` : ''}`
+          : has('WHATSAPP_TOKEN')
+            ? 'Meta Cloud API'
+            : 'Não configurado',
         action_url: '/admin/integrations',
+        warning: whatsappWarning,
       },
       {
         key: 'reportei',
