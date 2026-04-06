@@ -16,8 +16,6 @@ import {
   IconCircleCheckFilled,
   IconInbox,
   IconCalendarClock,
-  IconBell,
-  IconUsers,
   IconPlus,
   IconAlertTriangle,
   IconRefresh,
@@ -31,7 +29,6 @@ import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
   ActionStrip,
-  CapacityBar,
   ClientThumb,
   EntityLinkCard,
   OperationsContextRail,
@@ -43,12 +40,9 @@ import {
 } from '@/components/operations/primitives';
 import {
   criticalAlerts,
-  jobsByAttentionClient,
   jobsForToday,
-  ownerActiveJobs,
   ownerAllocableMinutes,
   ownerCommittedMinutes,
-  ownerTentativeMinutes,
   sortByOperationalPriority,
 } from '@/components/operations/derived';
 import {
@@ -134,8 +128,6 @@ export default function OperationsOverviewClient() {
       near_deadline_total: 0,
     },
   });
-  const clientsById = useMemo(() => new Map(lookups.clients.map((client) => [client.id, client])), [lookups.clients]);
-
   const criticalJobs = useMemo(
     () => [...jobs].filter((job) => ['critical', 'high'].includes(getRisk(job).level)).sort(sortByOperationalPriority),
     [jobs]
@@ -145,36 +137,7 @@ export default function OperationsOverviewClient() {
     [jobs]
   );
   const todayJobs = useMemo(() => jobsForToday(jobs).sort(sortByOperationalPriority), [jobs]);
-  const attentionClients = useMemo(() => jobsByAttentionClient(jobs).slice(0, 5), [jobs]);
   const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
-  const ownerLoads = useMemo(
-    () =>
-      lookups.owners
-        .map((owner) => ({
-          owner,
-          allocableMinutes: ownerAllocableMinutes(owner),
-          committedMinutes: ownerCommittedMinutes(jobs, owner.id),
-          tentativeMinutes: ownerTentativeMinutes(jobs, owner.id),
-        }))
-        .filter((item) => item.committedMinutes > 0 || item.tentativeMinutes > 0)
-        .sort((a, b) => b.committedMinutes + b.tentativeMinutes - (a.committedMinutes + a.tentativeMinutes))
-        .slice(0, 4),
-    [jobs, lookups.owners]
-  );
-  const overloadedOwners = useMemo(
-    () => ownerLoads.filter((item) => item.committedMinutes + item.tentativeMinutes > item.allocableMinutes).length,
-    [ownerLoads]
-  );
-
-  const capacidadePressionada = useMemo(
-    () =>
-      lookups.owners.filter((owner) => {
-        const committed = ownerCommittedMinutes(jobs, owner.id);
-        const tentative = ownerTentativeMinutes(jobs, owner.id);
-        return committed + tentative > ownerAllocableMinutes(owner);
-      }).length,
-    [jobs, lookups.owners]
-  );
 
   const esperandoClienteJobs = useMemo(
     () => jobs.filter((j) => j.status === 'awaiting_approval'),
@@ -818,7 +781,7 @@ export default function OperationsOverviewClient() {
                 <Box
                   sx={{
                     display: 'grid',
-                    gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(6, minmax(0, 1fr))' },
+                    gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
                     gap: 1.25,
                   }}
                 >
@@ -827,8 +790,6 @@ export default function OperationsOverviewClient() {
                     { label: 'Vence hoje', value: todayJobs.length, subtitle: 'Demandas com prazo imediato', href: '/admin/operacoes/jobs?group=status', icon: <IconCalendarClock size={16} />, color: '#5D87FF' },
                     { label: 'Sem dono', value: unassignedJobs.length, subtitle: 'Demandas que precisam de responsável', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconInbox size={16} />, color: '#FFAE1F' },
                     { label: 'Esperando cliente', value: overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total, subtitle: 'Aprovações e retornos', href: '/admin/operacoes/jobs', icon: <IconCircleCheckFilled size={16} />, color: '#FFAE1F' },
-                    { label: 'Sinais ativos', value: signalStats.total, subtitle: `${signalStats.attention} em atenção`, href: '/admin/operacoes/radar', icon: <IconBell size={16} />, color: '#E85219' },
-                    { label: 'Capacidade pressionada', value: overloadedOwners, subtitle: 'Pessoas acima da folga', href: '/admin/operacoes/semana?view=distribution', icon: <IconUsers size={16} />, color: '#13DEB9' },
                   ].map((item) => (
                     <Box
                       key={item.label}
@@ -1281,73 +1242,7 @@ export default function OperationsOverviewClient() {
                   </Grid>
                 ) : null
               }
-              sections={[
-                {
-                  title: 'Capacidade da semana',
-                  content: (
-                    <Stack spacing={1.25}>
-                      {ownerLoads.length ? ownerLoads.map(({ owner, allocableMinutes, committedMinutes, tentativeMinutes }) => (
-                        <Box key={owner.id} sx={(theme) => ({ py: 1.15, borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}` })}>
-                          <Stack spacing={1}>
-                            <Stack direction="row" justifyContent="space-between" spacing={1}>
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <PersonThumb name={owner.name} accent={owner.person_type === 'freelancer' ? '#E85219' : '#5D87FF'} />
-                                <Box>
-                                  <Typography variant="body2" fontWeight={800}>{owner.name}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {owner.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {owner.specialty || owner.role}
-                                  </Typography>
-                                </Box>
-                              </Stack>
-                              <Chip size="small" label={`${ownerActiveJobs(jobs, owner.id).length} demandas`} />
-                            </Stack>
-                            <CapacityBar allocableMinutes={allocableMinutes} committedMinutes={committedMinutes} tentativeMinutes={tentativeMinutes} />
-                          </Stack>
-                        </Box>
-                      )) : <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyCapacity}</Typography>}
-                    </Stack>
-                  ),
-                },
-                {
-                  title: 'Clientes em atenção',
-                  action: <Chip size="small" label={`${attentionClients.filter((item) => item.critical > 0).length} vermelhos`} color="error" />,
-                  content: (
-                    <Stack spacing={0.35}>
-                      {attentionClients.length ? attentionClients.map((item) => (
-                        <Box key={item.clientId} sx={(theme) => ({ py: 1.15, borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.1)}` })}>
-                          <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="center">
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <ClientThumb
-                                name={item.clientName}
-                                logoUrl={clientsById.get(item.clientId)?.logo_url}
-                                accent={clientsById.get(item.clientId)?.brand_color || '#E85219'}
-                              />
-                              <Box>
-                                <Typography
-                                  variant="body2"
-                                  fontWeight={800}
-                                  component={Link}
-                                  href={`/clients/${item.clientId}/demandas`}
-                                  sx={{ textDecoration: 'none', color: 'inherit', '&:hover': { color: 'primary.main' } }}
-                                >
-                                  {item.clientName}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {item.open} demandas ativas · {item.total} min previstos
-                                </Typography>
-                              </Box>
-                            </Stack>
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="flex-end">
-                              {item.critical > 0 ? <Chip size="small" color="error" label={`${item.critical} risco`} /> : null}
-                              <Chip size="small" variant="outlined" label={`${item.open} ativos`} />
-                            </Stack>
-                          </Stack>
-                        </Box>
-                      )) : <Typography variant="body2" color="text.secondary">{OPS_COPY.overview.emptyAttentionClients}</Typography>}
-                    </Stack>
-                  ),
-                },
-              ]}
+              sections={[]}
             />
           </Grid>
         </Grid>
