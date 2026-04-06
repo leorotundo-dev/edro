@@ -1387,8 +1387,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
     );
     if (!cardRes.rows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
 
-    const baseJob = _cardToJob(cardRes.rows[0]);
-    const [historyRes, commentsRes] = await Promise.all([
+    const baseRow = cardRes.rows[0];
+    const baseJob = _cardToJob(baseRow);
+    const [historyRes, commentsRes, checklistsRes] = await Promise.all([
       query<{ action_type: string; from_list_name: string | null; to_list_name: string | null; actor_name: string | null; occurred_at: string }>(
         `SELECT action_type, from_list_name, to_list_name, actor_name, occurred_at
          FROM project_card_activity
@@ -1405,9 +1406,16 @@ export default async function trelloRoutes(app: FastifyInstance) {
          LIMIT 20`,
         [cardId],
       ).catch(() => ({ rows: [] as any[] })),
+      query<{ id: string; name: string; items: Array<{ text: string; checked: boolean }> }>(
+        `SELECT id, name, items
+         FROM project_card_checklists
+         WHERE card_id = $1
+         ORDER BY created_at ASC`,
+        [cardId],
+      ).catch(() => ({ rows: [] as any[] })),
     ]);
 
-    const history = historyRes.rows.map((row, index) => ({
+    let history = historyRes.rows.map((row, index) => ({
       id: `${cardId}:${index}:${row.occurred_at}`,
       from_status: row.from_list_name ? listNameToOpsStatus(row.from_list_name) : null,
       to_status: row.to_list_name ? listNameToOpsStatus(row.to_list_name) : baseJob.status,
@@ -1415,17 +1423,157 @@ export default async function trelloRoutes(app: FastifyInstance) {
       changed_at: row.occurred_at,
       reason: row.action_type,
     }));
+    let comments = commentsRes.rows.map((row, index) => ({
+      id: `${cardId}:comment:${index}:${row.commented_at}`,
+      author_name: row.author_name ?? null,
+      body: row.body,
+      created_at: row.commented_at,
+    }));
+    let checklists = checklistsRes.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      items: Array.isArray(row.items) ? row.items : [],
+    }));
+    let liveJob = baseJob;
+
+    if (baseRow.trello_card_id) {
+      try {
+        const creds = await getTrelloCredentials(tenantId);
+        if (creds) {
+          const auth = `key=${creds.apiKey}&token=${creds.apiToken}`;
+          const [cardLiveRes, membersLiveRes, checklistsLiveRes, actionsLiveRes] = await Promise.all([
+            fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}?${auth}&fields=id,name,desc,due,dueComplete,labels,idList,url`, {
+              signal: AbortSignal.timeout(8_000),
+            }),
+            fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}/members?${auth}&fields=id,fullName,username,email,avatarUrl`, {
+              signal: AbortSignal.timeout(8_000),
+            }),
+            fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}/checklists?${auth}&fields=id,name&checkItems=all&checkItem_fields=name,state`, {
+              signal: AbortSignal.timeout(8_000),
+            }),
+            fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}/actions?${auth}&filter=commentCard,updateCard:idList&limit=100&fields=id,type,date,data&memberCreator_fields=fullName,avatarUrl`, {
+              signal: AbortSignal.timeout(8_000),
+            }),
+          ]);
+
+          if (cardLiveRes.ok) {
+            const liveCard = await cardLiveRes.json() as {
+              name: string;
+              desc?: string;
+              due?: string | null;
+              dueComplete?: boolean;
+              labels?: Array<{ color: string; name: string }>;
+              idList?: string;
+              url?: string | null;
+            };
+
+            let effectiveListId = baseRow.list_id as string;
+            let effectiveListName = baseRow.list_name as string;
+            let effectiveOverrideStatus = baseRow.override_status as string | null;
+
+            if (liveCard.idList) {
+              const liveListRes = await query<{ id: string; name: string; override_status: string | null }>(
+                `SELECT pl.id, pl.name, m.ops_status as override_status
+                 FROM project_lists pl
+                 LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
+                 WHERE pl.trello_list_id = $1 AND pl.tenant_id = $2
+                 LIMIT 1`,
+                [liveCard.idList, tenantId],
+              );
+              if (liveListRes.rows[0]) {
+                effectiveListId = liveListRes.rows[0].id;
+                effectiveListName = liveListRes.rows[0].name;
+                effectiveOverrideStatus = liveListRes.rows[0].override_status;
+              }
+            }
+
+            liveJob = _cardToJob({
+              ...baseRow,
+              title: liveCard.name,
+              description: liveCard.desc ?? null,
+              due_date: normalizeDeadlineDate(liveCard.due ?? null),
+              due_complete: Boolean(liveCard.dueComplete),
+              labels: liveCard.labels ?? [],
+              trello_url: liveCard.url ?? baseRow.trello_url,
+              list_id: effectiveListId,
+              list_name: effectiveListName,
+              override_status: effectiveOverrideStatus,
+            });
+          }
+
+          if (checklistsLiveRes.ok) {
+            const liveChecklists = await checklistsLiveRes.json() as Array<{
+              id: string;
+              name: string;
+              checkItems?: Array<{ name: string; state: 'complete' | 'incomplete' }>;
+            }>;
+            checklists = liveChecklists.map((checklist) => ({
+              id: checklist.id,
+              name: checklist.name,
+              items: Array.isArray(checklist.checkItems)
+                ? checklist.checkItems.map((item) => ({
+                    text: item.name,
+                    checked: item.state === 'complete',
+                  }))
+                : [],
+            }));
+          }
+
+          if (actionsLiveRes.ok) {
+            const liveActions = await actionsLiveRes.json() as Array<{
+              id: string;
+              type: string;
+              date: string;
+              memberCreator?: { fullName?: string };
+              data?: {
+                text?: string;
+                listBefore?: { name?: string };
+                listAfter?: { name?: string };
+              };
+            }>;
+            comments = liveActions
+              .filter((action) => action.type === 'commentCard' && action.data?.text)
+              .map((action) => ({
+                id: action.id,
+                author_name: action.memberCreator?.fullName ?? null,
+                body: action.data?.text ?? '',
+                created_at: action.date,
+              }));
+            history = liveActions
+              .filter((action) => action.type.startsWith('updateCard') && (action.data?.listBefore?.name || action.data?.listAfter?.name))
+              .map((action) => ({
+                id: action.id,
+                from_status: action.data?.listBefore?.name ? listNameToOpsStatus(action.data.listBefore.name) : null,
+                to_status: action.data?.listAfter?.name ? listNameToOpsStatus(action.data.listAfter.name) : liveJob.status,
+                changed_by_name: action.memberCreator?.fullName ?? null,
+                changed_at: action.date,
+                reason: action.type,
+              }));
+          }
+
+          if (membersLiveRes.ok) {
+            const liveMembers = await membersLiveRes.json() as Array<{ email?: string; fullName?: string }>;
+            const primaryMember = liveMembers[0];
+            if (primaryMember?.email || primaryMember?.fullName) {
+              liveJob = {
+                ...liveJob,
+                owner_email: primaryMember.email ?? liveJob.owner_email,
+                owner_name: primaryMember.fullName ?? liveJob.owner_name,
+              };
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('[trello ops] live detail fetch failed:', err?.message);
+      }
+    }
 
     return reply.send({
       ok: true,
       data: {
-        ...baseJob,
-        comments: commentsRes.rows.map((row, index) => ({
-          id: `${cardId}:comment:${index}:${row.commented_at}`,
-          author_name: row.author_name ?? null,
-          body: row.body,
-          created_at: row.commented_at,
-        })),
+        ...liveJob,
+        comments,
+        checklists,
         history,
       },
     });

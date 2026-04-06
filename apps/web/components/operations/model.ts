@@ -54,6 +54,14 @@ export type OperationsJob = {
     body: string;
     created_at: string;
   }>;
+  checklists?: Array<{
+    id: string;
+    name: string;
+    items: Array<{
+      text: string;
+      checked: boolean;
+    }>;
+  }>;
 };
 
 export type OperationsLookup = {

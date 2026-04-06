@@ -1822,6 +1822,105 @@ export default function JobWorkbenchDrawer({
                   </Grid>
                 ) : null}
               </Grid>
+
+              {(detailJob.metadata?.trello_url || detailJob.checklists?.length || detailJob.comments?.length) ? (
+                <Box
+                  sx={(theme) => ({
+                    p: 1.5,
+                    borderRadius: 2.5,
+                    border: '1px solid',
+                    borderColor: alpha(theme.palette.warning.main, 0.18),
+                    bgcolor: alpha(theme.palette.warning.main, 0.05),
+                  })}
+                >
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'warning.dark', letterSpacing: 0.45 }}>
+                          ESPELHO TRELLO
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700}>
+                          Estado atual do card no board
+                        </Typography>
+                      </Box>
+                      {detailJob.metadata?.trello_url ? (
+                        <Button
+                          variant="outlined"
+                          color="warning"
+                          component="a"
+                          href={String(detailJob.metadata.trello_url)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir no Trello
+                        </Button>
+                      ) : null}
+                    </Stack>
+
+                    {detailJob.checklists?.length ? (
+                      <Stack spacing={1}>
+                        <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+                          Checklists
+                        </Typography>
+                        {detailJob.checklists.map((checklist) => {
+                          const total = checklist.items.length;
+                          const done = checklist.items.filter((item) => item.checked).length;
+                          return (
+                            <Box key={checklist.id} sx={{ p: 1.25, borderRadius: 2, bgcolor: alpha('#fff', 0.4), border: '1px solid', borderColor: 'divider' }}>
+                              <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                                <Typography variant="body2" fontWeight={700}>{checklist.name}</Typography>
+                                <Chip
+                                  size="small"
+                                  label={total ? `${done}/${total}` : 'Vazio'}
+                                  color={done === total && total > 0 ? 'success' : 'default'}
+                                  variant="outlined"
+                                />
+                              </Stack>
+                              {checklist.items.length ? (
+                                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                                  {checklist.items.slice(0, isQuickView ? 4 : 8).map((item, index) => (
+                                    <Chip
+                                      key={`${checklist.id}:${index}`}
+                                      size="small"
+                                      label={item.text}
+                                      color={item.checked ? 'success' : 'default'}
+                                      variant={item.checked ? 'filled' : 'outlined'}
+                                      sx={{ maxWidth: '100%' }}
+                                    />
+                                  ))}
+                                </Stack>
+                              ) : null}
+                            </Box>
+                          );
+                        })}
+                      </Stack>
+                    ) : null}
+
+                    {detailJob.comments?.length ? (
+                      <Stack spacing={1}>
+                        <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+                          Comentários recentes
+                        </Typography>
+                        {detailJob.comments.slice(0, isQuickView ? 3 : 6).map((comment) => (
+                          <Box key={comment.id} sx={{ p: 1.25, borderRadius: 2, bgcolor: alpha('#fff', 0.45), border: '1px solid', borderColor: 'divider' }}>
+                            <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                              <Typography variant="caption" fontWeight={800}>
+                                {comment.author_name || 'Comentário'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {formatDateTime(comment.created_at)}
+                              </Typography>
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+                              {comment.body}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </Box>
+              ) : null}
             </Stack>
 
             {!isQuickView && detailJob.automation_status && detailJob.automation_status !== 'none' ? (
