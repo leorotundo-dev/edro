@@ -22,6 +22,7 @@ import { runCopyRoiWorkerOnce } from './copyRoiWorker';
 import { runAccountManagerWorkerOnce } from './accountManagerWorker';
 import { runMeetBotWorkerOnce } from './meetBotWorker';
 import { runWatchRenewWorkerOnce } from './watchRenewWorker';
+import { runGmailFallbackWorkerOnce } from './gmailFallbackWorker';
 import { runGroupIntelligenceWorkerOnce } from './groupIntelligenceWorker';
 import { runGroupDigestWorkerOnce } from './groupDigestWorker';
 import { runGroupDeadlineAlertWorkerOnce } from './groupDeadlineAlertWorker';
@@ -160,6 +161,8 @@ export function startJobsRunner() {
   startWorkerLoop('accountManager', runAccountManagerWorkerOnce, 10500, 120_000, 60_000);
   // Recall meet-bot scheduler/finalizer for Google Calendar auto-join meetings
   startWorkerLoop('meetBot', runMeetBotWorkerOnce, 11000, 120_000, 60_000);
+  // Gmail fallback sync — keeps inbox ingestion alive if Pub/Sub push stalls
+  startWorkerLoop('gmailFallback', runGmailFallbackWorkerOnce, 11250, 60_000, 60_000);
   // Gmail + Calendar watch auto-renewal — runs 1×/day, prevents silent expiry after 6-7 days
   startWorkerLoop('watchRenew', runWatchRenewWorkerOnce, 11500, 60_000, 60_000);
   // WhatsApp group intelligence — extracts insights from unprocessed messages (max 5 clients/tick)

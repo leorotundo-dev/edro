@@ -7,7 +7,7 @@
  *   GOOGLE_CLIENT_SECRET   — Google OAuth client secret
  *   GOOGLE_REDIRECT_URI    — e.g. https://edro-backend-production.up.railway.app/api/auth/google/callback
  *   GOOGLE_PUBSUB_TOPIC    — e.g. projects/my-project/topics/gmail-watch
- *   GOOGLE_PUBSUB_WEBHOOK_TOKEN — shared secret required on /webhook/gmail
+ *   GOOGLE_PUBSUB_WEBHOOK_TOKEN — shared secret for /webhook/gmail when Pub/Sub push auth is enabled
  *
  * Flow:
  *   1. User clicks "Conectar Gmail" → GET /auth/google/start
@@ -15,7 +15,8 @@
  *   3. Exchange code for tokens → save to gmail_connections
  *   4. Call watch() to activate Pub/Sub push notifications
  *   5. Google POSTs to /webhook/gmail when new mail arrives
- *   6. Handler decodes historyId → fetchNewMessages() → processMessage()
+ *   6. A fallback poller keeps syncing via historyId even if Pub/Sub push stalls
+ *   7. Handler decodes historyId → fetchNewMessages() → processMessage()
  */
 
 import crypto from 'crypto';
@@ -525,6 +526,75 @@ export async function processGmailHistory(tenantId: string, newHistoryId: string
     });
     throw error;
   }
+}
+
+export async function syncGmailInboxFallback(tenantId: string): Promise<'initialized' | 'noop' | 'synced'> {
+  const { rows } = await query<{ history_id: string | null }>(
+    `SELECT history_id
+       FROM gmail_connections
+      WHERE tenant_id = $1
+      LIMIT 1`,
+    [tenantId],
+  );
+  if (!rows.length) {
+    throw new Error('Gmail não configurado para este tenant.');
+  }
+
+  const currentHistoryId = rows[0]?.history_id ? String(rows[0].history_id) : null;
+  const accessToken = await getValidAccessToken(tenantId);
+
+  const profileRes = await fetch(`${GMAIL_API}/users/me/profile`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!profileRes.ok) {
+    const err = await profileRes.text().catch(() => '');
+    throw new Error(`gmail_profile_fetch_failed: ${err.slice(0, 200)}`);
+  }
+
+  const profile = await profileRes.json() as { historyId?: string };
+  const latestHistoryId = profile.historyId ? String(profile.historyId) : null;
+  if (!latestHistoryId) {
+    throw new Error('gmail_profile_missing_history_id');
+  }
+
+  if (!currentHistoryId) {
+    await updateGmailConnectionState({
+      tenantId,
+      historyId: latestHistoryId,
+      lastSyncAt: new Date(),
+      lastError: null,
+    });
+    logActivity({
+      tenantId,
+      service: 'gmail',
+      event: 'fallback_cursor_initialized',
+      status: 'ok',
+      meta: { history_id: latestHistoryId },
+    });
+    return 'initialized';
+  }
+
+  if (currentHistoryId === latestHistoryId) {
+    await updateGmailConnectionState({
+      tenantId,
+      lastSyncAt: new Date(),
+      lastError: null,
+    });
+    return 'noop';
+  }
+
+  await processGmailHistory(tenantId, latestHistoryId);
+  logActivity({
+    tenantId,
+    service: 'gmail',
+    event: 'fallback_sync',
+    status: 'ok',
+    meta: {
+      old_history_id: currentHistoryId,
+      history_id: latestHistoryId,
+    },
+  });
+  return 'synced';
 }
 
 async function processGmailMessage(
