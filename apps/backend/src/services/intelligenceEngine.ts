@@ -4,6 +4,7 @@ import { listClientDocuments, getLatestClientInsight } from '../repos/clientInte
 import { getClientPreferences, type LearnedPreferences } from './learningLoopService';
 import { formatTimeSlot } from './predictiveService';
 import { tavilySearch, isTavilyConfigured } from './tavilyService';
+import { buildKbContext } from './jarvisKbService';
 
 export type IntelligenceContext = {
   client: {
@@ -98,6 +99,11 @@ export type IntelligenceContext = {
     pending_actions: { type: string; title: string; description: string; responsible: string; deadline: string | null; priority: string; excerpt: string }[];
     total_meetings: number;
     total_pending_actions: number;
+  } | null;
+  jarvis_kb: {
+    summary: string;
+    client_pattern_count: number;
+    agency_pattern_count: number;
   } | null;
 };
 
@@ -345,6 +351,21 @@ export async function buildIntelligenceContext(params: {
   const meetingSummaries = meetingSummariesData.status === 'fulfilled' ? meetingSummariesData.value.rows : [];
   const meetingActions = meetingActionsData.status === 'fulfilled' ? meetingActionsData.value.rows : [];
 
+  // Jarvis KB — accumulated knowledge for this client + agency patterns
+  let jarvisKb: { summary: string; client_pattern_count: number; agency_pattern_count: number } | null = null;
+  try {
+    const kb = await buildKbContext(params.tenant_id, params.client_id);
+    if (kb.client_patterns.length > 0 || kb.agency_patterns.length > 0) {
+      jarvisKb = {
+        summary: kb.summary,
+        client_pattern_count: kb.client_patterns.length,
+        agency_pattern_count: kb.agency_patterns.length,
+      };
+    }
+  } catch {
+    // KB not yet populated — graceful degradation
+  }
+
   // Tavily trending: fetch now that we have client keywords (fire-and-forget with timeout)
   let webTrends: { content: string; citations: string[] } | null = null;
   if (isTavilyConfigured() && client) {
@@ -491,6 +512,7 @@ export async function buildIntelligenceContext(params: {
     meeting_intelligence: (meetingSummaries.length > 0 || meetingActions.length > 0)
       ? buildMeetingIntelligence(meetingSummaries, meetingActions)
       : null,
+    jarvis_kb: jarvisKb,
   };
 
   // Token validation: estimate tokens and truncate if needed
@@ -623,6 +645,12 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
     context.predictive.best_times.forEach((t) => {
       sections.push(`- ${t.platform}: ${formatTimeSlot(t as any)} (engagement: ${t.engagement.toFixed(0)})`);
     });
+  }
+
+  // Jarvis KB — padrões aprendidos (cliente + agência)
+  if (context.jarvis_kb) {
+    sections.push(`\n# PADRÕES APRENDIDOS (JARVIS KB)`);
+    sections.push(context.jarvis_kb.summary);
   }
 
   // Tavily — Real-time Trends

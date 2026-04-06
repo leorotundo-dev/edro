@@ -12,6 +12,7 @@ import { runClippingTavilyWorkerOnce } from './clippingTavilyWorker';
 import { runCalendarInspirationWorkerOnce } from './calendarInspirationWorker';
 import { runArchiveStaleBriefingsOnce } from './archiveStaleBriefingsWorker';
 import { runReporteiSyncWorkerOnce } from './reporteiSyncWorker';
+import { runJarvisKbWorkerOnce } from './jarvisKbWorker';
 import { runPerformanceAlertWorkerOnce } from './performanceAlertWorker';
 import { runClientHealthWorkerOnce } from './clientHealthWorker';
 import { runOperationalAgentOnce } from './operationalAgentWorker';
@@ -115,6 +116,8 @@ export function startJobsRunner() {
   startWorkerLoop('metaSync', runMetaSyncWorkerOnce, 9500, 120_000);
   // Copy ROI scores — Fogg quality × Meta CTR × ROAS × AI cost (runs after metaSync, max 5 clients/tick)
   startWorkerLoop('copyRoi', runCopyRoiWorkerOnce, 10000, 120_000);
+  // Jarvis KB — synthesizes learning_rules into persistent KB per client + promotes cross-client patterns (runs after reporteiSync)
+  startWorkerLoop('jarvisKb', runJarvisKbWorkerOnce, 10500, 300_000);
   // AI Account Manager — proactive churn/upsell alerts per client (max 5 clients/tick)
   startWorkerLoop('accountManager', runAccountManagerWorkerOnce, 10500, 120_000);
   // Recall meet-bot scheduler/finalizer for Google Calendar auto-join meetings
