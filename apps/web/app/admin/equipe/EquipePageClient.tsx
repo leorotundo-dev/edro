@@ -246,6 +246,30 @@ function compactWhatsAppError(error: string | null | undefined) {
   return error.length > 110 ? `${error.slice(0, 107)}...` : error;
 }
 
+function whatsappDeliveryPriority(status?: WhatsAppDeliveryStatus | null) {
+  if (!status) return 4;
+  if (!status.has_number) return 0;
+  if (status.meta_blocked && !status.evolution_available) return 1;
+  if (!status.deliverable_now) return 2;
+  if (status.meta_blocked) return 3;
+  return 4;
+}
+
+function whatsappDeliveryAccent(status?: WhatsAppDeliveryStatus | null) {
+  if (!status?.has_number) return '#6b7280';
+  if (status.meta_blocked && !status.evolution_available) return '#ef4444';
+  if (!status.deliverable_now) return '#f59e0b';
+  return '#13DEB9';
+}
+
+function whatsappDeliveryActionLabel(status?: WhatsAppDeliveryStatus | null) {
+  if (!status?.has_number) return 'Sem número';
+  if (status.meta_blocked && status.evolution_available) return 'Testar via Evolution';
+  if (status.meta_blocked) return 'Meta bloqueia';
+  if (status.deliverable_now) return 'Testar WhatsApp';
+  return 'Testar entrega';
+}
+
 function statusChipStyles(color: string, filled = false) {
   return {
     height: 20,
@@ -374,6 +398,7 @@ function FreelancerContacts({
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchNotice, setBatchNotice] = useState('');
   const [batchError, setBatchError] = useState('');
+  const [cardTestBusyId, setCardTestBusyId] = useState<string | null>(null);
 
   const deliverableCount = freelancers.filter((fl) => fl.is_active && fl.whatsapp_delivery?.deliverable_now).length;
   const blockedCount = freelancers.filter((fl) => fl.is_active && fl.whatsapp_delivery?.meta_blocked).length;
@@ -409,7 +434,12 @@ function FreelancerContacts({
       fl.whatsapp_jid?.toLowerCase().includes(q)
     );
   });
-  const visibleTestable = filtered.filter((fl) => fl.whatsapp_delivery?.has_number);
+  const rankedFiltered = [...filtered].sort((a, b) => {
+    const priorityDiff = whatsappDeliveryPriority(a.whatsapp_delivery) - whatsappDeliveryPriority(b.whatsapp_delivery);
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.display_name.localeCompare(b.display_name, 'pt-BR');
+  });
+  const visibleTestable = rankedFiltered.filter((fl) => fl.whatsapp_delivery?.has_number);
 
   const openEdit = (fl: FreelancerProfile) => {
     setEditingId(fl.id);
@@ -512,6 +542,22 @@ function FreelancerContacts({
     }
   };
 
+  const handleTestSingle = async (freelancer: FreelancerProfile) => {
+    if (!freelancer.whatsapp_delivery?.has_number || cardTestBusyId) return;
+    setCardTestBusyId(freelancer.id);
+    setBatchNotice('');
+    setBatchError('');
+    try {
+      await apiPost(`/freelancers/${freelancer.id}/whatsapp/test`, {});
+      await onUpdated();
+      setBatchNotice(`Teste disparado para ${freelancer.display_name}.`);
+    } catch {
+      setBatchError(`Falha ao testar WhatsApp de ${freelancer.display_name}.`);
+    } finally {
+      setCardTestBusyId(null);
+    }
+  };
+
   const set = (patch: Partial<ContactForm>) => setForm((f) => ({ ...f, ...patch }));
 
   if (loading) {
@@ -598,11 +644,15 @@ function FreelancerContacts({
 
       {/* Contact cards grid */}
       <Grid container spacing={2}>
-        {filtered.map((fl) => {
+        {rankedFiltered.map((fl) => {
           const color = avatarColor(fl.display_name);
           const isEditing = editingId === fl.id;
           const hasContact = fl.phone || fl.whatsapp_jid || fl.email_personal;
           const hasFinancial = fl.cpf || fl.pix_key || fl.bank_name;
+          const whatsappAccent = whatsappDeliveryAccent(fl.whatsapp_delivery);
+          const whatsappActionLabel = whatsappDeliveryActionLabel(fl.whatsapp_delivery);
+          const canTestFromCard = Boolean(fl.whatsapp_delivery?.has_number);
+          const testingThisCard = cardTestBusyId === fl.id;
 
           return (
             <Grid key={fl.id} size={{ xs: 12, sm: 6, md: 4 }}>
@@ -610,8 +660,9 @@ function FreelancerContacts({
                 variant="outlined"
                 sx={{
                   borderRadius: 2,
-                  borderColor: isEditing ? 'rgba(232,82,25,0.4)' : 'divider',
-                  transition: 'border-color 0.2s',
+                  borderColor: isEditing ? 'rgba(232,82,25,0.4)' : alpha(whatsappAccent, 0.32),
+                  boxShadow: isEditing ? `0 0 0 1px ${alpha('#E85219', 0.1)}` : 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s',
                 }}
               >
                 <CardContent sx={{ p: '14px !important' }}>
@@ -704,6 +755,38 @@ function FreelancerContacts({
                     </Stack>
                   )}
                   <WhatsAppDeliveryBadges status={fl.whatsapp_delivery} compact />
+                  {!isEditing && (
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.25 }}>
+                      <Button
+                        size="small"
+                        variant={fl.whatsapp_delivery?.deliverable_now ? 'contained' : 'outlined'}
+                        startIcon={<IconBrandWhatsapp size={14} />}
+                        onClick={() => handleTestSingle(fl)}
+                        disabled={!canTestFromCard || testingThisCard || batchBusy}
+                        sx={
+                          fl.whatsapp_delivery?.deliverable_now
+                            ? {
+                                bgcolor: '#25D366',
+                                '&:hover': { bgcolor: '#1da851' },
+                              }
+                            : undefined
+                        }
+                      >
+                        {testingThisCard ? 'Testando...' : whatsappActionLabel}
+                      </Button>
+                      {!fl.whatsapp_delivery?.deliverable_now && (
+                        <Typography variant="caption" color="text.secondary">
+                          {fl.whatsapp_delivery?.meta_blocked && fl.whatsapp_delivery?.evolution_available
+                            ? 'Meta bloqueia; Evolution assume'
+                            : fl.whatsapp_delivery?.meta_blocked
+                            ? 'Número travado na Meta'
+                            : fl.whatsapp_delivery?.has_number
+                            ? 'Número salvo, entrega pendente'
+                            : 'Precisa cadastrar o número'}
+                        </Typography>
+                      )}
+                    </Stack>
+                  )}
                   {!hasContact && !hasFinancial && !isEditing && (
                     <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
                       Sem dados cadastrais — clique no lápis para adicionar
