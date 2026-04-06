@@ -5,6 +5,7 @@ import { tenantGuard } from '../auth/tenantGuard';
 import { pool } from '../db';
 import { ensureTenantMembership } from '../repos/tenantRepo';
 import { upsertUser } from '../repositories/edroUserRepository';
+import { createNotification } from '../repositories/edroBriefingRepository';
 import { syncFreelancerPerson } from '../repos/peopleRepo';
 import { generateCopy } from '../services/ai/copyService';
 import { createAndSendContract, parseWebhook, getSignedDownloadUrl } from '../services/d4signService';
@@ -14,7 +15,7 @@ import { env } from '../env';
 import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
 import { isWhatsAppConfigured, sendWhatsAppText } from '../services/whatsappService';
-import { upsertNotificationPreferences } from '../services/notificationService';
+import { dispatchNotification, upsertNotificationPreferences } from '../services/notificationService';
 import { issuePortalLoginCode } from '../services/authService';
 import {
   attachExecutionSnapshotToPayload,
@@ -858,6 +859,65 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       code: issued.code,
       ttlMinutes: issued.ttlMinutes,
       expiresAt: issued.expiresAt.toISOString(),
+    });
+  });
+
+  app.post('/freelancers/:id/whatsapp/test', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const tenantId = (request as any).user?.tenant_id;
+
+    const profileRes = await pool.query(
+      `SELECT fp.*, eu.email
+         FROM freelancer_profiles fp
+         JOIN edro_users eu ON eu.id = fp.user_id
+         JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $2
+        WHERE fp.id = $1
+        LIMIT 1`,
+      [id, tenantId],
+    );
+
+    const profile = profileRes.rows[0];
+    if (!profile) {
+      return reply.status(404).send({ error: 'Freelancer não encontrado neste tenant.' });
+    }
+
+    const whatsappStatus = await loadFreelancerWhatsAppStatuses(tenantId, [profile]);
+    const status = whatsappStatus.get(profile.id) ?? buildWhatsAppDeliveryStatus();
+    if (!status.resolved_phone) {
+      return reply.status(400).send({ error: 'O colaborador não tem número de WhatsApp utilizável no Edro.' });
+    }
+
+    const message = `Teste operacional do Edro para ${profile.display_name}. Se você recebeu esta mensagem, o canal de WhatsApp está funcionando para os alertas internos.`;
+    const notification = await createNotification({
+      channel: 'whatsapp',
+      recipient: status.resolved_phone,
+      status: 'pending',
+      payload: {
+        message,
+        source: 'freelancer_whatsapp_test',
+        freelancer_id: profile.id,
+        freelancer_name: profile.display_name,
+      },
+    });
+
+    await dispatchNotification({
+      id: notification.id,
+      channel: 'whatsapp',
+      recipient: status.resolved_phone,
+      tenantId,
+      payload: notification.payload ?? {
+        message,
+      },
+    });
+
+    const refreshedStatus = (await loadFreelancerWhatsAppStatuses(tenantId, [profile])).get(profile.id)
+      ?? buildWhatsAppDeliveryStatus();
+
+    return reply.send({
+      ok: true,
+      notification_id: notification.id,
+      recipient: status.resolved_phone,
+      whatsapp_delivery: refreshedStatus,
     });
   });
 

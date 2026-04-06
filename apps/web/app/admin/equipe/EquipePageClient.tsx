@@ -1247,11 +1247,13 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
   const [editSaving, setEditSaving]           = useState(false);
   const [loading, setLoading]                 = useState(true);
   const [error, setError]             = useState('');
+  const [notice, setNotice]           = useState('');
   const [drawerFl, setDrawerFl]       = useState<FreelancerProfile | null>(null);
   const [flEntries, setFlEntries]     = useState<any[]>([]);
   const [flHours, setFlHours]         = useState<{ [id: string]: number }>({});
   const [teamScores, setTeamScores]   = useState<TeamScore[]>([]);
   const [scoresLoading, setScoresLoading] = useState(false);
+  const [whatsTestBusyId, setWhatsTestBusyId] = useState<string | null>(null);
 
   // Analytics state
   const [analyticsMonth, setAnalyticsMonth] = useState(() => {
@@ -1364,6 +1366,39 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
       const res: any = await apiGet(`/freelancers/${fl.id}/time-entries?month=${currentMonth}`);
       setFlEntries(res.entries ?? []);
     } catch { setFlEntries([]); }
+  };
+
+  const refreshFreelancer = async (id: string) => {
+    const refreshed = await apiGet<FreelancerProfile>(`/freelancers/${id}`);
+    setFreelancers((prev) => prev.map((f) => (f.id === id ? { ...f, ...refreshed } : f)));
+    setDrawerFl((prev) => (prev?.id === id ? { ...prev, ...refreshed } : prev));
+    return refreshed;
+  };
+
+  const handleTestWhatsApp = async (freelancer: FreelancerProfile) => {
+    setWhatsTestBusyId(freelancer.id);
+    setError('');
+    setNotice('');
+    try {
+      const res = await apiPost<{ ok: true; recipient: string; whatsapp_delivery: WhatsAppDeliveryStatus }>(
+        `/freelancers/${freelancer.id}/whatsapp/test`,
+        {},
+      );
+      await refreshFreelancer(freelancer.id);
+      setDrawerFl((prev) => (
+        prev?.id === freelancer.id
+          ? {
+              ...prev,
+              whatsapp_delivery: res.whatsapp_delivery,
+            }
+          : prev
+      ));
+      setNotice(`Teste de WhatsApp enviado para ${res.recipient}.`);
+    } catch (e: any) {
+      setError(e?.message ?? 'Não foi possível testar o WhatsApp do colaborador.');
+    } finally {
+      setWhatsTestBusyId(null);
+    }
   };
 
   const handleDeactivate = async (id: string, active: boolean) => {
@@ -1556,6 +1591,7 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
           </Tabs>
         )}
 
+        {notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         {tab === 2 && (
@@ -2093,6 +2129,15 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <Button size="small" variant="text" href={`/admin/equipe/${drawerFl.id}`} component="a">
                     Abrir perfil completo
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<IconBrandWhatsapp size={14} />}
+                    onClick={() => handleTestWhatsApp(drawerFl)}
+                    disabled={whatsTestBusyId === drawerFl.id}
+                  >
+                    {whatsTestBusyId === drawerFl.id ? 'Testando...' : 'Testar WhatsApp'}
                   </Button>
                   <IconButton onClick={() => { setDrawerFl(null); setFlEntries([]); }} size="small">
                     <IconX size={18} />

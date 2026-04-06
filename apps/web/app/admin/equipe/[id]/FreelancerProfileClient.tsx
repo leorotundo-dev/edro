@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -24,6 +25,7 @@ import {
   IconArrowLeft,
   IconDownload,
   IconBolt,
+  IconBrandWhatsapp,
   IconBrandInstagram,
   IconBrandLinkedin,
   IconBrandTiktok,
@@ -408,6 +410,9 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
   const [portalAccessBusy, setPortalAccessBusy] = useState(false);
   const [portalAccessError, setPortalAccessError] = useState<string | null>(null);
   const [portalAccessCopied, setPortalAccessCopied] = useState(false);
+  const [whatsTestBusy, setWhatsTestBusy] = useState(false);
+  const [whatsTestError, setWhatsTestError] = useState<string | null>(null);
+  const [whatsTestNotice, setWhatsTestNotice] = useState<string | null>(null);
 
   useEffect(() => {
     apiGet<FreelancerStats>(`/freelancers/${id}/stats`)
@@ -434,6 +439,26 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
     if (!portalAccess?.code || typeof navigator === 'undefined' || !navigator.clipboard) return;
     await navigator.clipboard.writeText(portalAccess.code);
     setPortalAccessCopied(true);
+  };
+
+  const reloadProfile = async () => {
+    const next = await apiGet<FreelancerStats>(`/freelancers/${id}/stats`);
+    setData(next);
+  };
+
+  const handleTestWhatsApp = async () => {
+    setWhatsTestBusy(true);
+    setWhatsTestError(null);
+    setWhatsTestNotice(null);
+    try {
+      const res = await apiPost<{ ok: true; recipient: string }>(`/freelancers/${id}/whatsapp/test`, {});
+      await reloadProfile();
+      setWhatsTestNotice(`Teste de WhatsApp enviado para ${res.recipient}.`);
+    } catch (error: any) {
+      setWhatsTestError(error?.message || 'Não foi possível testar o WhatsApp deste colaborador.');
+    } finally {
+      setWhatsTestBusy(false);
+    }
   };
 
   if (loading) {
@@ -618,12 +643,32 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
                 >
                   {portalAccessBusy ? 'Gerando código...' : 'Gerar código do portal'}
                 </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<IconBrandWhatsapp size={13} />}
+                  onClick={handleTestWhatsApp}
+                  disabled={whatsTestBusy}
+                  sx={{ fontSize: '0.7rem', py: 0.25 }}
+                >
+                  {whatsTestBusy ? 'Testando WhatsApp...' : 'Testar WhatsApp'}
+                </Button>
                 <Button size="small" startIcon={<IconEdit size={13} />}
                   onClick={() => router.push('/admin/equipe')}
                   sx={{ fontSize: '0.7rem', py: 0.25 }}>
                   Editar
                 </Button>
               </Stack>
+              {whatsTestNotice && (
+                <Alert severity="success" sx={{ mt: 1.25, maxWidth: 520 }}>
+                  {whatsTestNotice}
+                </Alert>
+              )}
+              {whatsTestError && (
+                <Alert severity="error" sx={{ mt: 1.25, maxWidth: 520 }}>
+                  {whatsTestError}
+                </Alert>
+              )}
               {portalAccessError && (
                 <Typography variant="caption" sx={{ mt: 1, display: 'block', color: '#dc2626', fontWeight: 700 }}>
                   {portalAccessError}
