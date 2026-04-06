@@ -59,6 +59,16 @@ type LatestDigest = {
   } | null;
 };
 
+type InAppNotification = {
+  id: string;
+  event_type: string;
+  title: string;
+  body?: string;
+  link?: string;
+  read_at: string | null;
+  created_at: string;
+};
+
 export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [syncing, setSyncing] = useState(false);
@@ -67,6 +77,7 @@ export default function OperationsOverviewClient() {
   const [signalStats, setSignalStats] = useState({ total: 0, critical: 0, attention: 0 });
   const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; client_name: string; form_data: { type?: string; objective?: string } }>>([]);
   const [latestDailyDigest, setLatestDailyDigest] = useState<LatestDigest | null>(null);
+  const [bedelNotifications, setBedelNotifications] = useState<InAppNotification[]>([]);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
 
@@ -148,10 +159,19 @@ export default function OperationsOverviewClient() {
 
   const loadCommandDesk = useCallback(async () => {
     try {
-      const digestResponse = await apiGet<{ daily?: LatestDigest | null }>('/admin/diario/latest');
+      const [digestResponse, notificationsResponse] = await Promise.all([
+        apiGet<{ daily?: LatestDigest | null }>('/admin/diario/latest'),
+        apiGet<{ notifications?: InAppNotification[]; unreadCount?: number }>('/notifications').catch(() => ({ notifications: [] })),
+      ]);
       setLatestDailyDigest(digestResponse?.daily ?? null);
+      setBedelNotifications(
+        (notificationsResponse?.notifications ?? [])
+          .filter((notification) => notification.event_type.startsWith('bedel_'))
+          .slice(0, 3)
+      );
     } catch {
       setLatestDailyDigest(null);
+      setBedelNotifications([]);
     }
   }, []);
 
@@ -360,7 +380,7 @@ export default function OperationsOverviewClient() {
                 <Box
                   sx={{
                     display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                    gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' },
                     gap: 1.25,
                   }}
                 >
@@ -384,6 +404,16 @@ export default function OperationsOverviewClient() {
                         : 'Nenhuma demanda está parada em aprovação criativa.',
                       href: '/admin/operacoes/ia',
                       cta: 'Abrir handoff criativo',
+                    },
+                    {
+                      key: 'bedel',
+                      eyebrow: 'Bedel no plantão',
+                      title: bedelNotifications.length ? `${bedelNotifications.length} alerta(s) do Bedel` : 'Bedel em silêncio agora',
+                      subtitle: bedelNotifications.length
+                        ? bedelNotifications[0]?.title || 'Há movimentações recentes do Bedel na operação.'
+                        : 'Sugestões de alocação e alertas de risco vão aparecer aqui assim que o Bedel agir.',
+                      href: bedelNotifications[0]?.link || '/admin/operacoes/jobs',
+                      cta: bedelNotifications.length ? 'Abrir alerta do Bedel' : 'Abrir fila',
                     },
                     {
                       key: 'digest',

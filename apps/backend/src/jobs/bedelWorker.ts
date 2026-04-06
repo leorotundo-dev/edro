@@ -20,7 +20,7 @@
 
 import { query } from '../db';
 import { proposeAllocations } from '../services/allocationService';
-import { createInAppNotification } from '../services/notificationService';
+import { notifyEvent } from '../services/notificationService';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -51,19 +51,35 @@ type PendingJob = {
   client_name: string | null;
 };
 
+type AdminRecipient = {
+  user_id: string;
+  email: string | null;
+  whatsapp_jid: string | null;
+};
+
+type RecipientChannel = {
+  userId: string;
+  email?: string | null;
+  phone?: string | null;
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Returns user_ids of admin/manager users for a tenant */
-async function getAdminUserIds(tenantId: string): Promise<string[]> {
-  const { rows } = await query<{ user_id: string }>(
-    `SELECT tu.user_id
+/** Returns admin/manager recipients for a tenant with their contact channels */
+async function getAdminRecipients(tenantId: string): Promise<AdminRecipient[]> {
+  const { rows } = await query<AdminRecipient>(
+    `SELECT tu.user_id,
+            u.email,
+            fp.whatsapp_jid
        FROM tenant_users tu
+       LEFT JOIN edro_users u ON u.id = tu.user_id
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = tu.user_id
       WHERE tu.tenant_id = $1
         AND tu.role IN ('admin', 'manager', 'gestor')
       LIMIT 10`,
     [tenantId],
   );
-  return rows.map((r) => r.user_id);
+  return rows;
 }
 
 /** Check if a bedel notification was already sent for this job within the cooldown window */
@@ -85,17 +101,31 @@ async function isOnCooldown(
   return Number(rows[0]?.cnt ?? 0) > 0;
 }
 
-/** Notifies an array of admin userIds with the same in-app notification */
-async function notifyAdmins(
+async function notifyRecipients(
   tenantId: string,
-  adminIds: string[],
+  recipients: RecipientChannel[],
   eventType: string,
   title: string,
   body: string,
   link: string,
 ): Promise<void> {
-  for (const userId of adminIds) {
-    await createInAppNotification({ userId, tenantId, eventType, title, body, link }).catch(() => {});
+  for (const recipient of recipients) {
+    await notifyEvent({
+      event: eventType,
+      tenantId,
+      userId: recipient.userId,
+      title,
+      body,
+      link,
+      recipientEmail: recipient.email ?? undefined,
+      recipientPhone: recipient.phone ?? undefined,
+      defaultChannels: ['in_app', 'email', 'whatsapp'],
+      payload: {
+        source: 'bedel',
+        event_type: eventType,
+        link,
+      },
+    }).catch(() => {});
   }
 }
 
@@ -137,11 +167,15 @@ async function runAllocationPhase(): Promise<void> {
 
       const body = `${job.client_name ?? 'Sem cliente'} · Prazo: ${deadline}\n\n${bodyLines.join('\n')}`;
       const link = `/admin/operacoes/jobs?highlight=${job.id}`;
-      const adminIds = await getAdminUserIds(job.tenant_id);
+      const admins = await getAdminRecipients(job.tenant_id);
 
-      await notifyAdmins(
+      await notifyRecipients(
         job.tenant_id,
-        adminIds,
+        admins.map((admin) => ({
+          userId: admin.user_id,
+          email: admin.email,
+          phone: admin.whatsapp_jid,
+        })),
         'bedel_allocation',
         `Sugestão de alocação: ${job.title}`,
         body,
@@ -168,19 +202,41 @@ async function runAllocationPhase(): Promise<void> {
             deadline2 ? `Prazo: ${deadline2}` : 'Sem prazo definido',
           ].filter(Boolean).join('\n');
 
-          await createInAppNotification({
-            userId: best.freelancerId,
+          const { rows: freelancerRows } = await query<{ email: string | null; whatsapp_jid: string | null }>(
+            `SELECT u.email, fp.whatsapp_jid
+               FROM edro_users u
+               LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
+              WHERE u.id = $1
+              LIMIT 1`,
+            [best.freelancerId],
+          );
+          const freelancer = freelancerRows[0];
+
+          await notifyEvent({
+            event: 'job_assigned',
             tenantId: job.tenant_id,
-            eventType: 'job_assigned',
+            userId: best.freelancerId,
             title: `Novo escopo: ${job.title}`,
             body: frelaBody,
             link: '/jobs',
+            recipientEmail: freelancer?.email ?? undefined,
+            recipientPhone: freelancer?.whatsapp_jid ?? undefined,
+            defaultChannels: ['in_app', 'whatsapp', 'email'],
+            payload: {
+              source: 'bedel',
+              job_id: job.id,
+              client_name: job.client_name,
+            },
           }).catch(() => {});
 
           // Let admins know it was auto-allocated
-          await notifyAdmins(
+          await notifyRecipients(
             job.tenant_id,
-            adminIds,
+            admins.map((admin) => ({
+              userId: admin.user_id,
+              email: admin.email,
+              phone: admin.whatsapp_jid,
+            })),
             'bedel_auto_allocated',
             `🤖 Alocação automática: ${job.title}`,
             `Bedel alocou automaticamente para ${best.name} (score ${best.score}pts).\n${job.client_name ?? ''} · Prazo: ${deadline}`,
@@ -250,11 +306,15 @@ async function runMonitorPhase(): Promise<void> {
       if (await isOnCooldown(job.tenant_id, job.id, 'bedel_monitor', cooldown)) continue;
 
       const icon = level === 2 ? '🔴' : '⚠️';
-      const adminIds = await getAdminUserIds(job.tenant_id);
+      const admins = await getAdminRecipients(job.tenant_id);
 
-      await notifyAdmins(
+      await notifyRecipients(
         job.tenant_id,
-        adminIds,
+        admins.map((admin) => ({
+          userId: admin.user_id,
+          email: admin.email,
+          phone: admin.whatsapp_jid,
+        })),
         'bedel_monitor',
         `${icon} ${job.title}`,
         `${alertMsg}\nCliente: ${job.client_name ?? 'N/A'} · Status: ${job.status}`,

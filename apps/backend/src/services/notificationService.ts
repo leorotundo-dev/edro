@@ -210,6 +210,7 @@ export type NotifyEventInput = {
   recipientEmail?: string;
   recipientPhone?: string;
   payload?: Record<string, any>;
+  defaultChannels?: Array<'email' | 'in_app' | 'whatsapp'>;
 };
 
 export async function notifyEvent(input: NotifyEventInput) {
@@ -222,7 +223,7 @@ export async function notifyEvent(input: NotifyEventInput) {
   // Default channels if no preferences set
   const enabledChannels = prefs.length > 0
     ? prefs.filter((p: any) => p.enabled).map((p: any) => p.channel)
-    : ['email', 'in_app'];
+    : (input.defaultChannels?.length ? input.defaultChannels : ['email', 'in_app']);
 
   // Always create in-app notification
   if (enabledChannels.includes('in_app') || prefs.length === 0) {

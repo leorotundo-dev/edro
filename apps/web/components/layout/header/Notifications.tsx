@@ -18,6 +18,9 @@ import {
   IconClipboardCheck,
   IconAlertCircle,
   IconCheck,
+  IconRobot,
+  IconUsersGroup,
+  IconSos,
 } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
 
@@ -35,11 +38,33 @@ const EVENT_ICONS: Record<string, { icon: any; color: string; bgColor: string }>
   stage_change: { icon: IconClipboardCheck, color: '#13DEB9', bgColor: '#E6FFFA' },
   briefing_deadline: { icon: IconCalendarEvent, color: '#FFAE1F', bgColor: '#FEF5E5' },
   task_assigned: { icon: IconMessage2, color: '#E85219', bgColor: '#fdeee8' },
+  job_assigned: { icon: IconMessage2, color: '#E85219', bgColor: '#fdeee8' },
   copy_approved: { icon: IconCheck, color: '#13DEB9', bgColor: '#E6FFFA' },
   weekly_digest: { icon: IconClipboardCheck, color: '#E85219', bgColor: '#fdeee8' },
+  bedel_allocation: { icon: IconUsersGroup, color: '#5D87FF', bgColor: '#EDF2FF' },
+  bedel_auto_allocated: { icon: IconRobot, color: '#7C3AED', bgColor: '#F3E8FF' },
+  bedel_monitor: { icon: IconSos, color: '#FA896B', bgColor: '#FDEEE8' },
 };
 
 const DEFAULT_ICON = { icon: IconAlertCircle, color: '#E85219', bgColor: '#fdeee8' };
+
+function getEventBadge(eventType: string) {
+  if (eventType.startsWith('bedel_')) {
+    return {
+      label: 'Bedel',
+      color: '#7C3AED',
+      bg: 'rgba(124,58,237,0.10)',
+    };
+  }
+  if (eventType === 'job_assigned') {
+    return {
+      label: 'Demanda',
+      color: '#E85219',
+      bg: 'rgba(232,82,25,0.10)',
+    };
+  }
+  return null;
+}
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -166,6 +191,7 @@ export default function Notifications() {
             notifications.map((n) => {
               const eventStyle = EVENT_ICONS[n.event_type] || DEFAULT_ICON;
               const NIcon = eventStyle.icon;
+              const badge = getEventBadge(n.event_type);
               return (
                 <Box
                   key={n.id}
@@ -194,6 +220,26 @@ export default function Notifications() {
                     <NIcon size={20} />
                   </Avatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
+                    {badge ? (
+                      <Box
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          px: 0.8,
+                          py: 0.2,
+                          mb: 0.45,
+                          borderRadius: 999,
+                          bgcolor: badge.bg,
+                          color: badge.color,
+                          fontSize: '0.62rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {badge.label}
+                      </Box>
+                    ) : null}
                     <Typography variant="subtitle2" noWrap fontWeight={n.read_at ? 400 : 600}>
                       {n.title}
                     </Typography>
