@@ -640,6 +640,7 @@ export default function OperationsOverviewClient() {
                         key: request.id,
                         title: request.form_data?.objective || request.form_data?.type || 'Solicitação recebida',
                         subtitle: request.client_name,
+                        job: null,
                       })),
                     },
                     {
@@ -652,6 +653,7 @@ export default function OperationsOverviewClient() {
                         key: job.id,
                         title: job.title,
                         subtitle: job.client_name || 'Sem cliente',
+                        job,
                       })),
                     },
                     {
@@ -664,6 +666,7 @@ export default function OperationsOverviewClient() {
                         key: job.id,
                         title: job.title,
                         subtitle: job.client_name || 'Sem cliente',
+                        job,
                       })),
                     },
                   ].map((handoff) => (
@@ -689,11 +692,19 @@ export default function OperationsOverviewClient() {
                           {handoff.rows.length ? handoff.rows.map((row) => (
                             <Box
                               key={row.key}
+                              onClick={row.job ? () => openCommands(row.job) : undefined}
                               sx={(theme) => ({
                                 px: 1.1,
                                 py: 0.95,
                                 borderRadius: 1.5,
                                 bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04),
+                                cursor: row.job ? 'pointer' : 'default',
+                                transition: 'all 150ms ease',
+                                '&:hover': row.job
+                                  ? {
+                                      bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.14 : 0.08),
+                                    }
+                                  : undefined,
                               })}
                             >
                               <Typography variant="body2" fontWeight={700}>{row.title}</Typography>
