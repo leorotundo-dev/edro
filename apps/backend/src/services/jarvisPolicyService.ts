@@ -245,8 +245,9 @@ export function detectExplicitConfirmation(message?: string | null) {
   return CONFIRMATION_PHRASES.some((token) => haystack.includes(token));
 }
 
-export function detectJarvisIntent(message: string, contextPage?: string | null): JarvisIntent {
-  const haystack = `${contextPage || ''}\n${message}`.toLowerCase();
+export function detectJarvisIntent(message: string, contextPage?: string | null, pageData?: Record<string, unknown> | null): JarvisIntent {
+  const pageDataText = pageData ? JSON.stringify(pageData).toLowerCase() : '';
+  const haystack = `${contextPage || ''}\n${pageDataText}\n${message}`.toLowerCase();
   const operationsSignals = [
     'job', 'jobs', 'prazo', 'atras', 'fila', 'kanban', 'trello', 'card', 'cards', 'aloc',
     'responsavel', 'responsável', 'equipe', 'capacidade', 'sla', 'risco', 'riscos',
@@ -259,8 +260,17 @@ export function detectJarvisIntent(message: string, contextPage?: string | null)
   ];
   const creativeSignals = [
     'cria um post', 'criar um post', 'gera um post', 'briefing', 'copy', 'campanha',
-    'pauta', 'conteúdo', 'conteudo', 'criativo', 'headline', 'cta',
+    'pauta', 'conteúdo', 'conteudo', 'criativo', 'headline', 'cta', 'roteiro',
+    'conceito', 'arte', 'visual brief', 'direção criativa', 'direcao criativa',
   ];
+
+  if (
+    haystack.includes('/studio')
+    || haystack.includes('creative_session_id')
+    || creativeSignals.some((signal) => haystack.includes(signal))
+  ) {
+    return 'creative_execution';
+  }
 
   if (
     haystack.includes('/admin/operacoes')
@@ -271,9 +281,6 @@ export function detectJarvisIntent(message: string, contextPage?: string | null)
   }
   if (clientMemorySignals.some((signal) => haystack.includes(signal))) {
     return 'client_memory';
-  }
-  if (creativeSignals.some((signal) => haystack.includes(signal))) {
-    return 'creative_execution';
   }
   return 'strategy_planning';
 }

@@ -8,6 +8,7 @@ import { StatusDot, DeadlineCountdown } from '@/components/operations/primitives
 import { isClosedStatus } from '@/components/operations/derived';
 import { formatMinutes, getRisk, type OperationsJob } from '@/components/operations/model';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 import { apiGet, apiPost } from '@/lib/api';
 
 import Alert from '@mui/material/Alert';
@@ -404,6 +405,37 @@ export default function SignalFeedClient({ embedded = false }: { embedded?: bool
   const activeJobs = jobs.filter((j) => !isClosedStatus(j.status));
   const criticalSignals = signals.filter((s) => s.severity >= 90).length;
   const attentionSignals = signals.filter((s) => s.severity >= 70 && s.severity < 90).length;
+
+  useJarvisPage(
+    {
+      screen: 'operations_signals',
+      clientId: drawerJob?.client_id ?? selectedSignal?.client_id ?? null,
+      currentSignalId: selectedSignal?.id ?? null,
+      currentSignalTitle: selectedSignal?.title ?? null,
+      currentSignalDomain: selectedSignal?.domain ?? null,
+      currentJobId: drawerJob?.id ?? null,
+      currentJobTitle: drawerJob?.title ?? null,
+      currentJobStatus: drawerJob?.status ?? null,
+      currentJobOwner: drawerJob?.owner_name ?? null,
+      signalsTotal: signals.length,
+      signalsCritical: criticalSignals,
+      signalsAttention: attentionSignals,
+    },
+    [
+      selectedSignal?.id,
+      selectedSignal?.title,
+      selectedSignal?.domain,
+      selectedSignal?.client_id,
+      drawerJob?.id,
+      drawerJob?.client_id,
+      drawerJob?.title,
+      drawerJob?.status,
+      drawerJob?.owner_name,
+      signals.length,
+      criticalSignals,
+      attentionSignals,
+    ]
+  );
   const loading = jobsLoading || signalsLoading;
 
   const blockedCount = activeJobs.filter((j) => j.status === 'blocked').length;

@@ -26,6 +26,7 @@ import {
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
 import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
@@ -296,6 +297,33 @@ export default function OperationsOverviewClient() {
   }, []);
 
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
+  useJarvisPage(
+    {
+      screen: 'operations_overview',
+      clientId: selectedJob?.client_id ?? null,
+      currentJobId: selectedJob?.id ?? null,
+      currentJobTitle: selectedJob?.title ?? null,
+      currentJobStatus: selectedJob?.status ?? null,
+      currentJobOwner: selectedJob?.owner_name ?? null,
+      pendingPortalRequests: pendingRequests.length,
+      copyQueueItems: copyQueue.length,
+      criticalJobs: criticalJobs.length,
+      unassignedJobs: unassignedJobs.length,
+      waitingClientJobs: esperandoClienteJobs.length,
+    },
+    [
+      selectedJob?.id,
+      selectedJob?.client_id,
+      selectedJob?.title,
+      selectedJob?.status,
+      selectedJob?.owner_name,
+      pendingRequests.length,
+      copyQueue.length,
+      criticalJobs.length,
+      unassignedJobs.length,
+      esperandoClienteJobs.length,
+    ]
+  );
   const flowColumns = useMemo(() => {
     return FLOW_COLUMNS.map((column) => {
       const items = jobs

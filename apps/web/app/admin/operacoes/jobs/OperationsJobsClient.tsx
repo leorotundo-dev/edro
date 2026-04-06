@@ -46,6 +46,7 @@ import {
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 import {
   ActionStrip,
   ClientThumb,
@@ -129,6 +130,32 @@ export default function OperationsJobsClient() {
     setSelectedJob(job);
     setDetailOpen(true);
   }, []);
+
+  useJarvisPage(
+    {
+      screen: 'operations_jobs',
+      operationsView: viewMode,
+      operationsGroup: groupMode,
+      clientId: selectedJob?.client_id ?? null,
+      currentJobId: selectedJob?.id ?? null,
+      currentJobTitle: selectedJob?.title ?? null,
+      currentJobStatus: selectedJob?.status ?? null,
+      currentJobOwner: selectedJob?.owner_name ?? null,
+      currentJobType: selectedJob?.job_type ?? null,
+      currentJobChannel: selectedJob?.channel ?? null,
+    },
+    [
+      viewMode,
+      groupMode,
+      selectedJob?.id,
+      selectedJob?.client_id,
+      selectedJob?.title,
+      selectedJob?.status,
+      selectedJob?.owner_name,
+      selectedJob?.job_type,
+      selectedJob?.channel,
+    ]
+  );
 
   useEffect(() => { if (shouldOpenComposer) setComposerOpen(true); }, [shouldOpenComposer]);
   useEffect(() => { if (shouldFilterUnassigned) setQuickFilter('unassigned'); }, [shouldFilterUnassigned]);

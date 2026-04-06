@@ -15,6 +15,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import { apiGet, apiPost } from '@/lib/api';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 import {
   IconAlertTriangle,
   IconBell,
@@ -163,6 +164,32 @@ export default function OperationsRadarClient() {
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const isStandaloneRiskItem = Boolean(selectedJob?.metadata?.calendar_item?.standalone);
   const isNativeMeeting = selectedJob?.metadata?.calendar_item?.source_type === 'meeting';
+
+  useJarvisPage(
+    {
+      screen: 'operations_radar',
+      radarView: viewMode,
+      clientId: selectedJob?.client_id ?? null,
+      currentJobId: selectedJob?.id ?? null,
+      currentJobTitle: selectedJob?.title ?? null,
+      currentJobStatus: selectedJob?.status ?? null,
+      currentJobOwner: selectedJob?.owner_name ?? null,
+      criticalRisks: critical.length,
+      highRisks: high.length,
+      signalsTotal: signals.length,
+    },
+    [
+      viewMode,
+      selectedJob?.id,
+      selectedJob?.client_id,
+      selectedJob?.title,
+      selectedJob?.status,
+      selectedJob?.owner_name,
+      critical.length,
+      high.length,
+      signals.length,
+    ]
+  );
 
   useEffect(() => {
     if (!selectedJob) return;

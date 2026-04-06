@@ -203,7 +203,7 @@ function getQuickActions(pathname: string, hasClient: boolean): string[] {
 // ── Main component ────────────────────────────────────────────────────
 
 export default function JarvisChatPanel() {
-  const { clientId, setClientId, clientName, conversationId, setConversationId, bump, isOpen, pendingMessage, clearPendingMessage } = useJarvis();
+  const { clientId, setClientId, clientName, conversationId, setConversationId, bump, isOpen, pendingMessage, clearPendingMessage, pageData } = useJarvis();
   const pathname = usePathname();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -315,8 +315,14 @@ export default function JarvisChatPanel() {
 
   const sendMessage = useCallback(async (text?: string, clientIdOverride?: string) => {
     const msg = (text ?? input).trim();
-    const cid = clientIdOverride ?? clientIdRef.current ?? null;
+    const contextualClientId = typeof pageData?.clientId === 'string' ? pageData.clientId : null;
+    const cid = clientIdOverride ?? contextualClientId ?? clientIdRef.current ?? null;
     if (!msg || loading) return;
+
+    if (cid && cid !== clientIdRef.current) {
+      clientIdRef.current = cid;
+      setClientId(cid);
+    }
 
     const filesToSend = attachedFiles.slice();
     setInput('');
@@ -347,6 +353,7 @@ export default function JarvisChatPanel() {
           conversationId,
           context_page: pathname,
           studio_context: studioContext,
+          page_data: pageData ?? undefined,
           inline_attachments: filesToSend.length ? filesToSend.map(f => ({ name: f.name, text: f.text })) : undefined,
         }
       );
@@ -371,7 +378,7 @@ export default function JarvisChatPanel() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, conversationId, pathname, setConversationId, isOpen, bump]);
+  }, [input, loading, conversationId, pathname, setConversationId, isOpen, bump, pageData, setClientId]);
 
   // Keep a ref to always call the latest sendMessage from event handlers
   const sendMessageRef = useRef(sendMessage);

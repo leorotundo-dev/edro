@@ -12,6 +12,7 @@ import {
 } from '@/components/operations/model';
 import { ClientThumb, StatusDot, DeadlineCountdown } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -623,6 +624,28 @@ export default function WeekCalendarClient() {
   }, [activeJobs]);
 
   const selectedJob = selectedJobId ? jobs.find((j) => j.id === selectedJobId) : null;
+
+  useJarvisPage(
+    {
+      screen: 'operations_week',
+      weekRange: formatWeekRange(weekStart),
+      clientId: selectedJob?.client_id ?? null,
+      currentJobId: selectedJob?.id ?? null,
+      currentJobTitle: selectedJob?.title ?? null,
+      currentJobStatus: selectedJob?.status ?? null,
+      currentJobOwner: selectedJob?.owner_name ?? null,
+      currentJobDeadline: selectedJob?.deadline_at ?? null,
+    },
+    [
+      weekStart.toISOString(),
+      selectedJob?.id,
+      selectedJob?.client_id,
+      selectedJob?.title,
+      selectedJob?.status,
+      selectedJob?.owner_name,
+      selectedJob?.deadline_at,
+    ]
+  );
 
   const summary = (
     <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">

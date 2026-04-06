@@ -40,11 +40,27 @@ const jarvisChatSchema = z.object({
   conversationId: z.string().uuid().nullish(),
   context_page: z.string().optional().nullable(),
   studio_context: z.string().optional().nullable(),
+  page_data: z.record(z.string(), z.unknown()).optional().nullable(),
   inline_attachments: z.array(z.object({
     name: z.string(),
     text: z.string(),
   })).optional(),
 });
+
+function buildPageDataContext(pageData?: Record<string, unknown> | null) {
+  if (!pageData || typeof pageData !== 'object') return '';
+  const lines = Object.entries(pageData)
+    .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+    .slice(0, 12)
+    .map(([key, value]) => {
+      const rendered = typeof value === 'string'
+        ? value
+        : JSON.stringify(value);
+      return `- ${key}: ${rendered.slice(0, 500)}`;
+    });
+  if (!lines.length) return '';
+  return `\n\nCONTEXTO DA TELA ATUAL:\n${lines.join('\n')}\nINSTRUÇÃO: trate job, briefing, sessão criativa e cliente atuais como contexto prioritário para agir sem pedir de novo o que já está visível na tela.`;
+}
 
 export default async function jarvisRoutes(app: FastifyInstance) {
   app.post('/jarvis/chat', { preHandler: [authGuard] }, async (request: any, reply) => {
@@ -61,9 +77,10 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       return reply.status(400).send({ success: false, error: 'Mensagem inválida.' });
     }
 
-    const intent = detectJarvisIntent(body.message, body.context_page);
+    const intent = detectJarvisIntent(body.message, body.context_page, body.page_data ?? undefined);
     const decision = buildJarvisRoutingDecision(intent);
-    const clientId = body.clientId ?? null;
+    const pageDataClientId = typeof body.page_data?.clientId === 'string' ? body.page_data.clientId.trim() : '';
+    const clientId = body.clientId ?? (pageDataClientId || null);
     const edroClientId = clientId ? await resolveEdroClientId(clientId) : null;
     const effectiveConversationId = body.conversationId || crypto.randomUUID();
     const conversationHistory = await loadUnifiedConversationHistory({
@@ -74,7 +91,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     });
     const attachmentContext = buildInlineAttachmentContext(body.inline_attachments);
     const studioContext = body.studio_context ? `\n\nCONTEXTO DO STUDIO:\n${body.studio_context}` : '';
-    const userContent = `${body.message}${attachmentContext}${studioContext}`;
+    const pageDataContext = buildPageDataContext(body.page_data ?? undefined);
+    const userContent = `${body.message}${attachmentContext}${studioContext}${pageDataContext}`;
     const explicitConfirmation = detectExplicitConfirmation(body.message);
 
     if (decision.route === 'planning' && !clientId) {

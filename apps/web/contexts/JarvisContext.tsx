@@ -82,6 +82,13 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     }
   }, [pathname]);
 
+  useEffect(() => {
+    const contextualClientId = typeof pageData?.clientId === 'string' ? pageData.clientId.trim() : '';
+    if (!contextualClientId) return;
+    setClientIdState((prev) => (prev === contextualClientId ? prev : contextualClientId));
+    try { localStorage.setItem('edro_active_client_id', contextualClientId); } catch { /* ignore */ }
+  }, [pageData]);
+
   // Load client name whenever clientId changes
   useEffect(() => {
     if (!clientId) { setClientName(null); return; }

@@ -13,6 +13,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import { apiGet, apiPost } from '@/lib/api';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
@@ -275,6 +276,30 @@ export default function OperationsPlannerClient() {
   const plannerJobs = useMemo(
     () => [...unassignedJobs, ...ownerRows.flatMap((row) => row.activeJobs)],
     [ownerRows, unassignedJobs]
+  );
+
+  useJarvisPage(
+    {
+      screen: 'operations_planner',
+      clientId: selectedJob?.client_id ?? null,
+      currentJobId: selectedJob?.id ?? null,
+      currentJobTitle: selectedJob?.title ?? null,
+      currentJobStatus: selectedJob?.status ?? null,
+      currentJobOwner: selectedJob?.owner_name ?? null,
+      selectedOwnerId: selectedJob?.owner_id ?? null,
+      plannerUnassignedJobs: unassignedJobs.length,
+      plannerOwnersLoaded: ownerRows.length,
+    },
+    [
+      selectedJob?.id,
+      selectedJob?.client_id,
+      selectedJob?.title,
+      selectedJob?.status,
+      selectedJob?.owner_name,
+      selectedJob?.owner_id,
+      unassignedJobs.length,
+      ownerRows.length,
+    ]
   );
 
   useEffect(() => {

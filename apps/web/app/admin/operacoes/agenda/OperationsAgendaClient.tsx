@@ -23,6 +23,7 @@ import {
   IconUsers,
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { agendaLayer, sortByOperationalPriority } from '@/components/operations/derived';
@@ -282,6 +283,30 @@ export default function OperationsAgendaClient() {
   const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const selectedLayer = selectedJob ? (agendaLayer(selectedJob) as AgendaLayer) : null;
   const isStandaloneAgendaItem = Boolean(selectedJob?.metadata?.calendar_item?.standalone);
+
+  useJarvisPage(
+    {
+      screen: 'operations_agenda',
+      operationsView: viewMode,
+      clientId: selectedJob?.client_id ?? null,
+      currentJobId: selectedJob?.id ?? null,
+      currentJobTitle: selectedJob?.title ?? null,
+      currentJobStatus: selectedJob?.status ?? null,
+      currentJobOwner: selectedJob?.owner_name ?? null,
+      currentJobDeadline: selectedJob?.deadline_at ?? null,
+      agendaLayers: layers,
+    },
+    [
+      viewMode,
+      selectedJob?.id,
+      selectedJob?.client_id,
+      selectedJob?.title,
+      selectedJob?.status,
+      selectedJob?.owner_name,
+      selectedJob?.deadline_at,
+      layers.join('|'),
+    ]
+  );
   const isNativeMeeting = selectedJob?.metadata?.calendar_item?.source_type === 'meeting';
   const selectedAgendaLabel = selectedJob
     ? String(selectedJob.metadata?.calendar_item?.label || (selectedLayer ? LAYER_LABELS[selectedLayer] : 'Sem camada'))
