@@ -1,5 +1,10 @@
 import { query } from '../../db';
 
+function currentYearOperationalJobClause(alias: string) {
+  return `COALESCE(${alias}.deadline_at, ${alias}.created_at) >= date_trunc('year', CURRENT_DATE)
+          AND COALESCE(${alias}.deadline_at, ${alias}.created_at) < (date_trunc('year', CURRENT_DATE) + interval '1 year')`;
+}
+
 type OperationalJob = {
   id: string;
   client_id: string | null;
@@ -515,6 +520,7 @@ async function fetchOperationalJobs(tenantId: string) {
      LEFT JOIN freelancer_profiles fp ON fp.user_id::text = j.owner_id::text
     WHERE j.tenant_id = $1
       AND j.status <> 'archived'
+      AND ${currentYearOperationalJobClause('j')}
     ORDER BY j.updated_at DESC`,
     [tenantId],
   );
@@ -1869,6 +1875,7 @@ export async function buildOverviewSnapshot(tenantId: string) {
       WHERE ci.tenant_id::text = $1
         AND ci.source_type = 'checkpoint'
         AND ci.status = 'active'
+        AND ${currentYearOperationalJobClause('j')}
       ORDER BY ci.starts_at ASC, j.priority_score DESC
       LIMIT 6`,
       [tenantId],
@@ -1892,6 +1899,7 @@ export async function buildOverviewSnapshot(tenantId: string) {
       WHERE j.tenant_id = $1
         AND j.source = 'approval'
         AND j.status IN ('awaiting_approval', 'blocked')
+        AND ${currentYearOperationalJobClause('j')}
       ORDER BY
         CASE WHEN j.status = 'blocked' THEN 0 ELSE 1 END,
         j.deadline_at ASC NULLS LAST,

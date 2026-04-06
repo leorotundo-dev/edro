@@ -28,6 +28,11 @@ import {
 } from '../services/jarvisPolicyService';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 
+function currentYearSignalClause(alias: string) {
+  return `${alias}.created_at >= date_trunc('year', CURRENT_DATE)
+          AND ${alias}.created_at < (date_trunc('year', CURRENT_DATE) + interval '1 year')`;
+}
+
 const allocationSchema = z.object({
   job_id: z.string().uuid(),
   owner_id: z.string().uuid(),
@@ -113,6 +118,7 @@ export default async function operationsRoutes(app: FastifyInstance) {
        FROM operational_signals
        WHERE tenant_id = $1
          AND resolved_at IS NULL
+         AND ${currentYearSignalClause('operational_signals')}
          AND (snoozed_until IS NULL OR snoozed_until < now())
        ORDER BY severity DESC, created_at DESC
        LIMIT $2`,
