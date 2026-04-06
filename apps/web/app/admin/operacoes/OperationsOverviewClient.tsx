@@ -16,33 +16,24 @@ import {
   IconCircleCheckFilled,
   IconInbox,
   IconCalendarClock,
-  IconPlus,
   IconAlertTriangle,
   IconRefresh,
-  IconSend,
-  IconSparkles,
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
-import JarvisHomeSection from '@/components/jarvis/JarvisHomeSection';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
-  ActionStrip,
   ClientThumb,
   EntityLinkCard,
   OperationsContextRail,
-  OpsDivider,
   OpsJobRow,
   OpsPanel,
   PersonThumb,
   SourceThumb,
 } from '@/components/operations/primitives';
 import {
-  criticalAlerts,
   jobsForToday,
-  ownerAllocableMinutes,
-  ownerCommittedMinutes,
   sortByOperationalPriority,
 } from '@/components/operations/derived';
 import {
@@ -78,14 +69,6 @@ type LatestDigest = {
   } | null;
 };
 
-type DigestHistoryItem = {
-  id: string;
-  type: 'daily' | 'weekly';
-  created_at: string;
-  sent_at: string | null;
-  narrative_text: string | null;
-};
-
 export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [syncing, setSyncing] = useState(false);
@@ -94,7 +77,6 @@ export default function OperationsOverviewClient() {
   const [signalStats, setSignalStats] = useState({ total: 0, critical: 0, attention: 0 });
   const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; client_name: string; form_data: { type?: string; objective?: string } }>>([]);
   const [latestDailyDigest, setLatestDailyDigest] = useState<LatestDigest | null>(null);
-  const [digestHistory, setDigestHistory] = useState<DigestHistoryItem[]>([]);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
 
@@ -137,7 +119,6 @@ export default function OperationsOverviewClient() {
     [jobs]
   );
   const todayJobs = useMemo(() => jobsForToday(jobs).sort(sortByOperationalPriority), [jobs]);
-  const alerts = useMemo(() => criticalAlerts(jobs), [jobs]);
 
   const esperandoClienteJobs = useMemo(
     () => jobs.filter((j) => j.status === 'awaiting_approval'),
@@ -177,15 +158,10 @@ export default function OperationsOverviewClient() {
 
   const loadCommandDesk = useCallback(async () => {
     try {
-      const [digestResponse, digestHistoryResponse] = await Promise.all([
-        apiGet<{ daily?: LatestDigest | null }>('/admin/diario/latest'),
-        apiGet<{ digests?: DigestHistoryItem[] }>('/admin/diario'),
-      ]);
+      const digestResponse = await apiGet<{ daily?: LatestDigest | null }>('/admin/diario/latest');
       setLatestDailyDigest(digestResponse?.daily ?? null);
-      setDigestHistory((digestHistoryResponse?.digests || []).filter((digest) => digest.type === 'daily').slice(0, 3));
     } catch {
       setLatestDailyDigest(null);
-      setDigestHistory([]);
     }
   }, []);
 
@@ -306,102 +282,8 @@ export default function OperationsOverviewClient() {
     <OperationsShell
       section="overview"
       onNewDemand={() => openCreate('client_request')}
-      summary={
-        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
-          {[
-            { value: criticalJobs.length, label: OPS_COPY.overview.summaryExceptions, color: criticalJobs.length ? '#FA896B' : undefined },
-            { value: unassignedJobs.length, label: OPS_COPY.overview.summaryUnassigned, color: unassignedJobs.length ? '#FFAE1F' : undefined },
-            { value: todayJobs.length, label: OPS_COPY.overview.summaryToday, color: todayJobs.length ? '#FFAE1F' : undefined },
-            { value: overviewRuntime.summary.checkpoints_total, label: OPS_COPY.overview.summaryCheckpoints, color: overviewRuntime.summary.checkpoints_total ? '#FFAE1F' : undefined },
-          ].map((kpi) => (
-            <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
-              <Typography variant="body1" sx={{ fontWeight: 900, lineHeight: 1, ...(kpi.color ? { color: kpi.color } : {}) }}>
-                {kpi.value}
-              </Typography>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
-                {kpi.label}
-              </Typography>
-            </Stack>
-          ))}
-        </Stack>
-      }
     >
       {error ? <Alert severity="error">{error}</Alert> : null}
-
-      {pendingRequests.length > 0 && (
-        <Box
-          sx={{
-            mb: 2,
-            borderRadius: 2,
-            overflow: 'hidden',
-            border: '2px solid #E85219',
-            background: 'linear-gradient(90deg, rgba(232,82,25,0.08) 0%, rgba(255,174,31,0.08) 100%)',
-            '@keyframes pulse-border': {
-              '0%, 100%': { borderColor: '#E85219' },
-              '50%': { borderColor: '#FFAE1F' },
-            },
-            animation: 'pulse-border 1.8s ease-in-out infinite',
-          }}
-        >
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            alignItems={{ sm: 'center' }}
-            justifyContent="space-between"
-            spacing={1.5}
-            sx={{ px: 2.5, py: 1.75 }}
-          >
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box
-                sx={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  bgcolor: 'rgba(232,82,25,0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#E85219', flexShrink: 0,
-                  '@keyframes ring': {
-                    '0%': { transform: 'rotate(-15deg)' },
-                    '10%': { transform: 'rotate(15deg)' },
-                    '20%': { transform: 'rotate(-10deg)' },
-                    '30%': { transform: 'rotate(10deg)' },
-                    '40%, 100%': { transform: 'rotate(0deg)' },
-                  },
-                  animation: 'ring 2s ease-in-out infinite',
-                }}
-              >
-                <IconInbox size={20} />
-              </Box>
-              <Box>
-                <Typography variant="body2" fontWeight={800} sx={{ color: '#E85219', lineHeight: 1.2 }}>
-                  {pendingRequests.length === 1
-                    ? `🔔 JOB NOVO — ${pendingRequests[0].client_name}`
-                    : `🔔 ${pendingRequests.length} JOBS NOVOS do portal`}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
-                  {pendingRequests.length === 1
-                    ? (pendingRequests[0].form_data?.objective?.slice(0, 80) ?? pendingRequests[0].form_data?.type ?? 'Aguardando revisão')
-                    : pendingRequests.slice(0, 3).map(r => r.client_name).join(' · ') + (pendingRequests.length > 3 ? ` +${pendingRequests.length - 3}` : '')}
-                </Typography>
-              </Box>
-            </Stack>
-            <Stack direction="row" spacing={1} flexShrink={0}>
-              <Button
-                size="small" variant="contained"
-                sx={{ bgcolor: '#E85219', '&:hover': { bgcolor: '#c8581a' }, fontWeight: 700, fontSize: '0.75rem' }}
-                href="/admin/solicitacoes"
-                component="a"
-              >
-                Ver solicitações
-              </Button>
-              <Button
-                size="small" variant="outlined"
-                sx={{ borderColor: '#E85219', color: '#E85219', fontSize: '0.75rem' }}
-                onClick={() => setPendingRequests([])}
-              >
-                Dispensar
-              </Button>
-            </Stack>
-          </Stack>
-        </Box>
-      )}
 
       {!loading && syncHealth?.needs_attention && (
         <Alert
@@ -446,338 +328,9 @@ export default function OperationsOverviewClient() {
             <OpsPanel
               eyebrow="Mesa de comando"
               title="O que decidir agora"
-              subtitle="Tudo abaixo combina Trello ao vivo, leitura operacional e estimativas da Edro para você agir sem interpretar a tela."
-              action={
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
-                  <Chip size="small" variant="outlined" color="warning" label="Calculado pela Edro" />
-                  <Chip size="small" variant="outlined" color="info" label="Estimado pela Edro" />
-                </Stack>
-              }
+              subtitle="A mesa do dia concentra só o que exige decisão imediata: risco, prazo, dono, retorno do cliente e gargalos de entrada."
             >
-              <Stack spacing={2.5}>
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', lg: 'repeat(4, minmax(0, 1fr))' },
-                    gap: 1.25,
-                  }}
-                >
-                  {[
-                    {
-                      key: 'sync',
-                      eyebrow: 'Atualizar pautas',
-                      title: syncHealth?.needs_attention
-                        ? `${syncHealth.stale_boards + syncHealth.unlinked_boards + (syncHealth.unmapped_lists ?? 0)} ponto(s) pedem ação`
-                        : 'Trello saudável',
-                      subtitle: syncHealth?.needs_attention
-                        ? 'Força a atualização do espelho, revisa boards sem vínculo e fecha gaps de mapeamento.'
-                        : 'A fila principal já está alinhada com o Trello agora.',
-                      icon: <IconRefresh size={16} />,
-                      color: '#5D87FF',
-                      primaryLabel: syncing ? 'Sincronizando...' : 'Sincronizar agora',
-                      primaryAction: handleSyncNow,
-                      secondaryLabel: 'Abrir Trello',
-                      secondaryHref: '/admin/trello',
-                    },
-                    {
-                      key: 'digest',
-                      eyebrow: 'Disparar diário',
-                      title: latestDailyDigest?.created_at
-                        ? `Último diário ${new Date(latestDailyDigest.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
-                        : 'Nenhum diário gerado ainda',
-                      subtitle: latestDailyDigest?.content?.top_action
-                        ? `Prioridade registrada: ${latestDailyDigest.content.top_action}`
-                        : 'Gera o resumo diário para operação e liderança sem sair da Central.',
-                      icon: <IconSend size={16} />,
-                      color: '#E85219',
-                      primaryLabel: generatingDigest ? 'Disparando...' : 'Gerar e disparar',
-                      primaryAction: handleGenerateDigest,
-                      secondaryLabel: latestDailyDigest ? (sendingDigest ? 'Reenviando...' : 'Reenviar último') : 'Abrir diário',
-                      secondaryAction: latestDailyDigest ? handleResendLatestDigest : undefined,
-                      secondaryHref: latestDailyDigest ? undefined : '/admin/diario',
-                    },
-                    {
-                      key: 'requests',
-                      eyebrow: 'Extrair briefings',
-                      title: pendingRequests.length
-                        ? `${pendingRequests.length} solicitação(ões) do portal`
-                        : 'Nenhum pedido travando triagem',
-                      subtitle: pendingRequests.length
-                        ? 'Transforme pedidos recém-chegados em briefing e distribua o dono certo.'
-                        : 'A bandeja do portal está limpa neste momento.',
-                      icon: <IconInbox size={16} />,
-                      color: '#FFAE1F',
-                      primaryLabel: 'Abrir solicitações',
-                      primaryHref: '/admin/solicitacoes',
-                      secondaryLabel: 'Novo briefing',
-                      secondaryAction: () => openCreate('briefing'),
-                    },
-                    {
-                      key: 'copy',
-                      eyebrow: 'Handoff criativo',
-                      title: copyQueue.length
-                        ? `${copyQueue.length} demanda(s) prontas para copy`
-                        : 'Sem fila de copy agora',
-                      subtitle: copyQueue.length
-                        ? 'Demandas prontas para briefing, copy, revisão ou avanço criativo.'
-                        : 'Nenhum briefing está aguardando geração ou subida de redação.',
-                      icon: <IconSparkles size={16} />,
-                      color: '#13DEB9',
-                      primaryLabel: 'Abrir handoff criativo',
-                      primaryHref: '/admin/operacoes/ia',
-                      secondaryLabel: 'Abrir Studio',
-                      secondaryHref: '/studio/editor',
-                    },
-                  ].map((command) => (
-                    <Box
-                      key={command.key}
-                      sx={(theme) => ({
-                        p: 1.75,
-                        borderRadius: 2,
-                        border: `1px solid ${alpha(command.color, 0.2)}`,
-                        bgcolor: theme.palette.mode === 'dark' ? alpha(command.color, 0.07) : alpha(command.color, 0.035),
-                      })}
-                    >
-                      <Stack spacing={1.25}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                          <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 900, color: command.color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                              {command.eyebrow}
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 0.35, fontWeight: 800, lineHeight: 1.35 }}>
-                              {command.title}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ width: 30, height: 30, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(command.color, 0.14), color: command.color, flexShrink: 0 }}>
-                            {command.icon}
-                          </Box>
-                        </Stack>
-                        <Typography variant="caption" color="text.secondary" sx={{ minHeight: 36 }}>
-                          {command.subtitle}
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            disabled={command.key === 'sync' ? syncing : command.key === 'digest' ? generatingDigest : false}
-                            onClick={command.primaryAction}
-                            href={command.primaryHref}
-                            component={command.primaryHref ? Link : 'button'}
-                            sx={{ bgcolor: command.color, '&:hover': { bgcolor: command.color } }}
-                          >
-                            {command.primaryLabel}
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            disabled={command.key === 'digest' ? sendingDigest : false}
-                            onClick={command.secondaryAction}
-                            href={command.secondaryHref}
-                            component={command.secondaryHref ? Link : 'button'}
-                            sx={{ borderColor: alpha(command.color, 0.4), color: command.color }}
-                          >
-                            {command.secondaryLabel}
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    </Box>
-                  ))}
-                </Box>
-
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', xl: '1.2fr 1.2fr 0.8fr' },
-                    gap: 1.25,
-                  }}
-                >
-                  {[
-                    {
-                      key: 'portal',
-                      eyebrow: 'Portal -> Operação',
-                      title: 'Pedidos recém-chegados',
-                      empty: 'Nenhum pedido novo esperando triagem.',
-                      href: '/admin/solicitacoes',
-                      rows: pendingRequests.slice(0, 3).map((request) => ({
-                        key: request.id,
-                        title: request.form_data?.objective || request.form_data?.type || 'Solicitação recebida',
-                        subtitle: request.client_name,
-                        job: null,
-                      })),
-                    },
-                    {
-                      key: 'copy',
-                      eyebrow: 'Operação -> Criação',
-                      title: 'Demandas prontas para copy',
-                      empty: 'Nenhum briefing pronto para redação agora.',
-                      href: '/admin/operacoes/ia',
-                      rows: copyQueue.slice(0, 3).map((job) => ({
-                        key: job.id,
-                        title: job.title,
-                        subtitle: job.client_name || 'Sem cliente',
-                        job,
-                      })),
-                    },
-                    {
-                      key: 'approval',
-                      eyebrow: 'Criação -> Aprovação',
-                      title: 'Demandas em validação',
-                      empty: 'Nenhuma demanda está parada em aprovação agora.',
-                      href: '/admin/operacoes/ia',
-                      rows: approvalQueue.slice(0, 3).map((job) => ({
-                        key: job.id,
-                        title: job.title,
-                        subtitle: job.client_name || 'Sem cliente',
-                        job,
-                      })),
-                    },
-                  ].map((handoff) => (
-                    <Box
-                      key={handoff.key}
-                      sx={(theme) => ({
-                        p: 1.6,
-                        borderRadius: 2,
-                        border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
-                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.7) : '#fff',
-                      })}
-                    >
-                      <Stack spacing={1.1}>
-                        <Box>
-                          <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                            {handoff.eyebrow}
-                          </Typography>
-                          <Typography variant="body2" fontWeight={800} sx={{ mt: 0.35 }}>
-                            {handoff.title}
-                          </Typography>
-                        </Box>
-                        <Stack spacing={0.75}>
-                          {handoff.rows.length ? handoff.rows.map((row) => (
-                            <Box
-                              key={row.key}
-                              onClick={row.job ? () => openCommands(row.job) : undefined}
-                              sx={(theme) => ({
-                                px: 1.1,
-                                py: 0.95,
-                                borderRadius: 1.5,
-                                bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04),
-                                cursor: row.job ? 'pointer' : 'default',
-                                transition: 'all 150ms ease',
-                                '&:hover': row.job
-                                  ? {
-                                      bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.14 : 0.08),
-                                    }
-                                  : undefined,
-                              })}
-                            >
-                              <Typography variant="body2" fontWeight={700}>{row.title}</Typography>
-                              <Typography variant="caption" color="text.secondary">{row.subtitle}</Typography>
-                            </Box>
-                          )) : (
-                            <Typography variant="caption" color="text.secondary">{handoff.empty}</Typography>
-                          )}
-                        </Stack>
-                        <Button size="small" variant="text" component={Link} href={handoff.href} sx={{ alignSelf: 'flex-start', px: 0, fontWeight: 700 }}>
-                          Abrir fila
-                        </Button>
-                      </Stack>
-                    </Box>
-                  ))}
-
-                  <Box
-                    sx={(theme) => ({
-                      p: 1.6,
-                      borderRadius: 2,
-                      border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
-                      bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.7) : '#fff',
-                    })}
-                  >
-                    <Stack spacing={1.1}>
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                          Diário operacional
-                        </Typography>
-                        <Typography variant="body2" fontWeight={800} sx={{ mt: 0.35 }}>
-                          {latestDailyDigest?.created_at
-                            ? `Gerado em ${new Date(latestDailyDigest.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
-                            : 'Sem digest recente'}
-                        </Typography>
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
-                        {latestDailyDigest?.content?.top_action
-                          ? latestDailyDigest.content.top_action
-                          : 'Use o diário para consolidar o que precisa ser comunicado para a equipe e gestão.'}
-                      </Typography>
-                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                        <Chip size="small" variant="outlined" label={`${latestDailyDigest?.content?.active_jobs_total ?? jobs.length} demandas`} />
-                        <Chip size="small" variant="outlined" label={latestDailyDigest?.sent_at ? 'Disparo concluído' : 'Rascunho interno'} />
-                      </Stack>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          onClick={handleGenerateDigest}
-                          disabled={generatingDigest}
-                          sx={{ alignSelf: 'flex-start' }}
-                        >
-                          {generatingDigest ? 'Disparando...' : 'Gerar e disparar'}
-                        </Button>
-                        {latestDailyDigest ? (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={handleResendLatestDigest}
-                            disabled={sendingDigest}
-                            sx={{ alignSelf: 'flex-start' }}
-                          >
-                            {sendingDigest ? 'Reenviando...' : 'Reenviar último'}
-                          </Button>
-                        ) : null}
-                        <Button size="small" variant="text" component={Link} href="/admin/diario" sx={{ alignSelf: 'flex-start', px: 0, fontWeight: 700 }}>
-                          Abrir diário
-                        </Button>
-                      </Stack>
-                      <Divider />
-                      <Stack spacing={0.75}>
-                        <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                          Últimos disparos
-                        </Typography>
-                        {digestHistory.length ? (
-                          digestHistory.map((digest) => (
-                            <Box
-                              key={digest.id}
-                              sx={(theme) => ({
-                                px: 1.1,
-                                py: 0.9,
-                                borderRadius: 1.5,
-                                bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04),
-                              })}
-                            >
-                              <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 800, display: 'block' }}>
-                                    {new Date(digest.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                    {digest.sent_at
-                                      ? `Enviado em ${new Date(digest.sent_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
-                                      : 'Gerado, mas ainda não disparado'}
-                                  </Typography>
-                                </Box>
-                                <Chip size="small" variant="outlined" label={digest.sent_at ? 'Enviado' : 'Rascunho'} />
-                              </Stack>
-                            </Box>
-                          ))
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            Nenhum disparo recente.
-                          </Typography>
-                        )}
-                      </Stack>
-                    </Stack>
-                  </Box>
-                </Box>
-
+              <Stack spacing={2.25}>
                 <Box
                   sx={{
                     display: 'grid',
@@ -833,13 +386,107 @@ export default function OperationsOverviewClient() {
                   ))}
                 </Box>
 
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                    gap: 1.25,
+                  }}
+                >
+                  {[
+                    {
+                      key: 'portal',
+                      eyebrow: 'Entrada do cliente',
+                      title: pendingRequests.length ? `${pendingRequests.length} pedido(s) chegaram` : 'Nenhum pedido novo agora',
+                      subtitle: pendingRequests.length
+                        ? pendingRequests.slice(0, 3).map((request) => request.client_name).join(' · ')
+                        : 'A bandeja de solicitações está limpa neste momento.',
+                      href: '/admin/solicitacoes',
+                      cta: 'Abrir solicitações',
+                    },
+                    {
+                      key: 'creative',
+                      eyebrow: 'Handoff criativo',
+                      title: copyQueue.length ? `${copyQueue.length} demanda(s) prontas para copy` : 'Sem fila de copy agora',
+                      subtitle: approvalQueue.length
+                        ? `${approvalQueue.length} demanda(s) em aprovação ou revisão criativa`
+                        : 'Nenhuma demanda está parada em aprovação criativa.',
+                      href: '/admin/operacoes/ia',
+                      cta: 'Abrir handoff',
+                    },
+                    {
+                      key: 'digest',
+                      eyebrow: 'Diário operacional',
+                      title: latestDailyDigest?.created_at
+                        ? `Último diário em ${new Date(latestDailyDigest.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                        : 'Nenhum diário gerado ainda',
+                      subtitle: latestDailyDigest?.sent_at
+                        ? `Enviado em ${new Date(latestDailyDigest.sent_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                        : latestDailyDigest?.content?.top_action || 'Use o diário para registrar o foco do dia para operação e liderança.',
+                      href: '/admin/diario',
+                      cta: latestDailyDigest?.sent_at ? 'Abrir diário' : latestDailyDigest ? (sendingDigest ? 'Reenviando...' : 'Reenviar último') : 'Abrir diário',
+                      action: latestDailyDigest && !latestDailyDigest.sent_at ? handleResendLatestDigest : undefined,
+                      disabled: sendingDigest,
+                    },
+                  ].map((card) => (
+                    <Box
+                      key={card.key}
+                      sx={(theme) => ({
+                        p: 1.6,
+                        borderRadius: 2,
+                        border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.7) : '#fff',
+                      })}
+                    >
+                      <Stack spacing={1.1}>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            {card.eyebrow}
+                          </Typography>
+                          <Typography variant="body2" fontWeight={800} sx={{ mt: 0.35 }}>
+                            {card.title}
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ minHeight: 38 }}>
+                          {card.subtitle}
+                        </Typography>
+                        <Button
+                          size="small"
+                          variant="text"
+                          component={card.action ? 'button' : Link}
+                          href={card.action ? undefined : card.href}
+                          onClick={card.action}
+                          disabled={card.disabled}
+                          sx={{ alignSelf: 'flex-start', px: 0, fontWeight: 700 }}
+                        >
+                          {card.cta}
+                        </Button>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Box>
+
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button variant="contained" startIcon={<IconPlus size={16} />} onClick={() => openCreate('client_request')}>Nova demanda</Button>
-                  <Button variant="outlined" onClick={() => openCreate('briefing')}>Novo briefing</Button>
-                  <Button variant="outlined" onClick={() => openCreate('adjustment')}>Novo ajuste</Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">Organizar fila</Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">Replanejar semana</Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/radar">Abrir riscos</Button>
+                  <Button variant="contained" component={Link} href="/admin/operacoes/jobs?view=table&group=client">
+                    Abrir pauta geral
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                    Resolver sem dono
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/ia">
+                    Handoff criativo
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                    Replanejar semana
+                  </Button>
+                  <Button variant="outlined" disabled={generatingDigest} onClick={handleGenerateDigest}>
+                    {generatingDigest ? 'Gerando diário...' : 'Gerar diário'}
+                  </Button>
+                  {syncHealth?.needs_attention ? (
+                    <Button variant="outlined" disabled={syncing} onClick={handleSyncNow} startIcon={<IconRefresh size={14} />}>
+                      {syncing ? 'Sincronizando...' : 'Sincronizar Trello'}
+                    </Button>
+                  ) : null}
                 </Stack>
               </Stack>
             </OpsPanel>
@@ -933,28 +580,19 @@ export default function OperationsOverviewClient() {
 
           <Grid size={{ xs: 12, lg: 5 }}>
             <OpsPanel
-              eyebrow="Mapa visual da operação"
-              title="Como a agência está andando"
-              subtitle="Use o fluxo e o semáforo abaixo para decidir sem ler relatório. Tudo parte do Trello e só ganha leitura operacional por cima."
+              eyebrow="Pauta Geral agora"
+              title="Como a carteira está andando"
+              subtitle="Acompanhe entrada, produção, espera e entrega sem sair do decision desk. Aqui a operação lê o Trello em linguagem de agência."
               action={
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip size="small" variant="outlined" label={`${jobs.length} demandas ativas`} />
-                  <Button variant="outlined" size="small" onClick={handleRefreshOverview}>
-                    {OPS_COPY.overview.flowRefresh}
+                  <Button variant="outlined" size="small" component={Link} href="/admin/operacoes/jobs?view=table&group=client">
+                    Abrir pauta geral
                   </Button>
                 </Stack>
               }
             >
               <Stack spacing={2}>
-                <ActionStrip
-                  alerts={alerts}
-                  owners={lookups.owners}
-                  jobs={jobs}
-                  onSelectJob={(job) => setSelectedJob(job)}
-                  allocableMinutesFn={ownerAllocableMinutes}
-                  committedMinutesFn={ownerCommittedMinutes}
-                />
-
                 <Box
                   sx={{
                     display: 'grid',
@@ -1137,38 +775,17 @@ export default function OperationsOverviewClient() {
                   ))}
                 </Box>
 
-                <OpsDivider />
-
-                <Grid container spacing={1.25}>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <EntityLinkCard
-                      label="Checkpoints"
-                      value={overviewRuntime.summary.checkpoints_total ? `${overviewRuntime.summary.checkpoints_total} pontos ativos` : OPS_COPY.overview.emptyCheckpoints}
-                      subtitle="Itens que pedem conferência operacional agora"
-                      href="/admin/operacoes/jobs?group=status"
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <EntityLinkCard
-                      label="Esperando cliente"
-                      value={
-                        overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total
-                          ? `${overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total} pendências`
-                          : OPS_COPY.overview.emptyApprovals
-                      }
-                      subtitle="Aprovações e retornos que seguram a fila"
-                      href="/admin/operacoes/jobs"
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <EntityLinkCard
-                      label="Radar"
-                      value={criticalJobs.length ? `${criticalJobs.length} exceções abertas` : OPS_COPY.overview.emptyExceptions}
-                      subtitle="O que pode estourar se ninguém agir"
-                      href="/admin/operacoes/radar"
-                    />
-                  </Grid>
-                </Grid>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?view=table&group=client">
+                    Ver carteira por cliente
+                  </Button>
+                  <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
+                    Abrir riscos
+                  </Button>
+                  <Button variant="outlined" size="small" onClick={handleRefreshOverview}>
+                    {OPS_COPY.overview.flowRefresh}
+                  </Button>
+                </Stack>
               </Stack>
             </OpsPanel>
           </Grid>
@@ -1202,7 +819,7 @@ export default function OperationsOverviewClient() {
                     <Grid size={{ xs: 12, md: 6 }}>
                       <EntityLinkCard
                         label="Responsável"
-                      value={selectedJob.owner_name || 'Sem responsável'}
+                        value={selectedJob.owner_name || 'Sem responsável'}
                         href={(() => {
                           const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
                           return owner?.freelancer_profile_id
@@ -1215,20 +832,11 @@ export default function OperationsOverviewClient() {
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
                       <EntityLinkCard
-                        label="Studio criativo"
-                        value="Abrir produção"
-                        href="/edro"
-                        subtitle="Entrar na execução criativa"
-                        thumbnail={<SourceThumb source="creative_studio" jobType="design_static" accent="#5D87FF" />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Agenda"
-                        value={selectedJob.deadline_at ? 'Já está na agenda' : 'Sem prazo'}
-                        href="/admin/operacoes/semana?view=calendar"
-                        subtitle={selectedJob.deadline_at ? 'A demanda já mexe na agenda da semana' : 'Defina um prazo para ela entrar na agenda'}
-                        thumbnail={<SourceThumb source="agenda" jobType="meeting" accent="#13DEB9" />}
+                        label="Pauta Geral"
+                        value="Abrir na carteira"
+                        href={`/admin/operacoes/jobs?view=table&group=client&highlight=${selectedJob.id}`}
+                        subtitle="Continuar a leitura por cliente"
+                        thumbnail={<SourceThumb source="trello" jobType={selectedJob.job_type} accent="#5D87FF" />}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>

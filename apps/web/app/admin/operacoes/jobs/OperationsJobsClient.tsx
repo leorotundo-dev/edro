@@ -412,6 +412,131 @@ export default function OperationsJobsClient() {
           {/* Main column */}
           <Grid size={{ xs: 12, lg: 12 }}>
             <Stack spacing={2}>
+              {groupMode === 'client' ? (
+                <OpsPanel
+                  eyebrow="Carteira da agência"
+                  title="Pauta Geral"
+                  subtitle="A leitura por cliente é o coração da operação. Use esta vista para entender a conta inteira antes de cair na urgência."
+                  action={
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip size="small" variant="outlined" label={`${groupedSections?.length ?? 0} cliente(s)`} />
+                      <Chip size="small" variant="outlined" label={`${filteredJobs.length} demanda(s)`} />
+                    </Stack>
+                  }
+                >
+                  <Stack spacing={2}>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
+                        gap: 1.25,
+                      }}
+                    >
+                      {[
+                        {
+                          label: 'Clientes ativos',
+                          value: groupedSections?.length ?? 0,
+                          subtitle: 'Contas com demanda na carteira',
+                          href: '/admin/operacoes/jobs?view=table&group=client',
+                          color: '#5D87FF',
+                          icon: <IconUsers size={16} />,
+                        },
+                        {
+                          label: 'Esperando cliente',
+                          value: waitingClientJobs.length,
+                          subtitle: 'Aprovação ou retorno pendente',
+                          href: '/admin/operacoes/jobs',
+                          color: '#FFAE1F',
+                          icon: <IconLoader2 size={16} />,
+                        },
+                        {
+                          label: 'Prontas para copy',
+                          value: semanticCounts.copy_ready ?? 0,
+                          subtitle: 'Demandas com handoff criativo',
+                          href: '/admin/operacoes/ia',
+                          color: '#13DEB9',
+                          icon: <IconPlayerPlay size={16} />,
+                        },
+                        {
+                          label: 'Sem dono',
+                          value: unassignedCount(filteredJobs),
+                          subtitle: 'Itens sem responsável definido',
+                          href: '/admin/operacoes/jobs?unassigned=true',
+                          color: '#FA896B',
+                          icon: <IconUserOff size={16} />,
+                        },
+                      ].map((item) => (
+                        <Box
+                          key={item.label}
+                          component={Link}
+                          href={item.href}
+                          sx={(theme) => ({
+                            display: 'block',
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: `1px solid ${alpha(item.color, 0.22)}`,
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.08) : alpha(item.color, 0.04),
+                            transition: 'all 180ms ease',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              borderColor: alpha(item.color, 0.34),
+                              bgcolor: theme.palette.mode === 'dark' ? alpha(item.color, 0.12) : alpha(item.color, 0.08),
+                            },
+                          })}
+                        >
+                          <Stack spacing={0.7}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Box
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 1.5,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  bgcolor: alpha(item.color, 0.14),
+                                  color: item.color,
+                                }}
+                              >
+                                {item.icon}
+                              </Box>
+                              <Typography sx={{ fontWeight: 900, color: item.color, fontSize: '1.4rem', lineHeight: 1 }}>
+                                {item.value}
+                              </Typography>
+                            </Stack>
+                            <Box>
+                              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                {item.label}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                {item.subtitle}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Box>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button variant="contained" component={Link} href="/admin/operacoes/ia">
+                        Abrir handoff criativo
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                        Resolver sem dono
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
+                        Distribuir semana
+                      </Button>
+                      <Button variant="outlined" component={Link} href="/admin/operacoes/radar">
+                        Ver riscos
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </OpsPanel>
+              ) : null}
+
               {compactBoard ? (
                 <Paper
                   elevation={0}
