@@ -826,7 +826,7 @@ export default function OperationsJobsClient() {
                       return (
                         <Box
                           key={job.id}
-                          onClick={() => setSelectedJob(job)}
+                          onClick={() => openJobDetail(job)}
                           sx={(theme) => ({
                             display: 'grid',
                             gridTemplateColumns: 'minmax(0, 1.8fr) minmax(120px, 0.8fr) minmax(110px, 0.7fr) minmax(92px, 0.6fr) minmax(120px, 0.8fr) minmax(100px, 0.7fr) minmax(110px, 0.6fr)',
