@@ -33,7 +33,7 @@ function hashTitle(title: string) {
 async function ensureTavilySource(tenantId: string): Promise<string> {
   const tavilyUrl = 'tavily:global';
   const { rows } = await query<{ id: string }>(
-    `SELECT id FROM clipping_sources WHERE tenant_id=$1 AND url=$2 LIMIT 1`,
+    `SELECT id FROM clipping_sources WHERE tenant_id::text=$1::text AND url=$2 LIMIT 1`,
     [tenantId, tavilyUrl]
   );
   if (rows[0]) return rows[0].id;
@@ -60,10 +60,10 @@ async function runSupplementForTenant(tenantId: string) {
     `SELECT c.id, c.segment_primary,
             (c.profile->>'keywords')::jsonb AS keywords
      FROM clients c
-     WHERE c.tenant_id=$1 AND c.status='active'
+     WHERE c.tenant_id::text=$1::text AND c.status='active'
        AND EXISTS (
          SELECT 1 FROM jobs j
-         WHERE j.tenant_id=$1 AND j.client_id=c.id::text
+         WHERE j.tenant_id::text=$1::text AND j.client_id=c.id::text
            AND j.created_at >= NOW() - INTERVAL '30 days'
          LIMIT 1
        )
@@ -104,7 +104,7 @@ async function runSupplementForTenant(tenantId: string) {
 
         // Dedup check
         const { rows: existing } = await query<{ id: string }>(
-          `SELECT id FROM clipping_items WHERE tenant_id=$1 AND url_hash=$2 LIMIT 1`,
+          `SELECT id FROM clipping_items WHERE tenant_id::text=$1::text AND url_hash=$2 LIMIT 1`,
           [tenantId, urlHash]
         );
         if (existing.length > 0) continue;
@@ -150,7 +150,7 @@ async function runSupplementForTenant(tenantId: string) {
           await query(
             `UPDATE clipping_items
              SET suggested_client_ids = COALESCE(suggested_client_ids, '{}') || $3::text
-             WHERE id = $1 AND tenant_id = $2
+             WHERE id = $1 AND tenant_id::text = $2::text
                AND NOT (COALESCE(suggested_client_ids, '{}') @> ARRAY[$3])`,
             [itemId, tenantId, client.id]
           );

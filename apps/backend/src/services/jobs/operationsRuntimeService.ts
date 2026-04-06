@@ -1869,7 +1869,7 @@ export async function buildOverviewSnapshot(tenantId: string) {
        FROM calendar_items ci
        JOIN jobs j ON j.id = ci.job_id
        LEFT JOIN clients c ON c.id = ci.client_id
-       LEFT JOIN edro_users u ON u.id::text = ci.owner_id
+       LEFT JOIN edro_users u ON u.id::text = ci.owner_id::text
        LEFT JOIN tenant_users tu ON tu.user_id::text = ci.owner_id::text AND tu.tenant_id::text = ci.tenant_id::text
        LEFT JOIN freelancer_profiles fp ON fp.user_id::text = ci.owner_id::text
       WHERE ci.tenant_id::text = $1
