@@ -537,7 +537,7 @@ export default function OperationsJobsClient() {
                 </OpsPanel>
               ) : null}
 
-              {compactBoard ? (
+              {groupMode === 'client' ? null : compactBoard ? (
                 <Paper
                   elevation={0}
                   sx={{
