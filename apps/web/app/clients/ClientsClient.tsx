@@ -1621,6 +1621,7 @@ export default function ClientsClient({ clientId, noShell }: { clientId?: string
                         <Stack spacing={1}>
                           {intelMemories.map((memory) => {
                             const sourceLabel =
+                              memory.source_type === 'gmail_message' ? 'Email' :
                               memory.source_type === 'whatsapp_message' ? 'WhatsApp' :
                               memory.source_type === 'whatsapp_insight' ? 'Insight WhatsApp' :
                               memory.source_type === 'whatsapp_digest' ? 'Digest WhatsApp' :

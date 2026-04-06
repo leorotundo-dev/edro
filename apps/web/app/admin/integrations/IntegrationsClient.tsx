@@ -47,12 +47,16 @@ import {
 
 type GmailStatus = {
   configured: boolean;
+  healthy?: boolean;
+  receiving?: boolean;
+  needsAttention?: boolean;
   email?: string;
   watchExpiry?: string;
   expired?: boolean;
   expiresSoon?: boolean;
   lastSyncAt?: string;
   connectedAt?: string;
+  lastError?: string;
   stats?: { totalThreads: number; processedThreads: number };
 };
 
@@ -810,7 +814,10 @@ export default function IntegrationsClient() {
                       <Stack direction="row" alignItems="center" spacing={1}>
                         <Typography variant="subtitle1" fontWeight={700}>Gmail</Typography>
                         {gmail?.configured ? (
-                          <Chip label="Conectado" size="small" color="success" />
+                          <>
+                            <Chip label={gmail.healthy === false ? 'Atenção' : 'Conectado'} size="small" color={gmail.healthy === false ? 'warning' : 'success'} />
+                            {gmail.expiresSoon && <Chip label="Expira em breve" size="small" color="warning" variant="outlined" />}
+                          </>
                         ) : (
                           <>
                             <Chip label="Desconectado" size="small" color="default" />
@@ -822,7 +829,9 @@ export default function IntegrationsClient() {
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
                         {gmail?.configured
-                          ? `${gmail.email} · ${gmail.stats?.totalThreads ?? 0} emails · ${gmail.stats?.processedThreads ?? 0} briefings gerados`
+                          ? gmail.healthy === false
+                            ? `${gmail.email} · conectado, mas sem leitura confiável em tempo real`
+                            : `${gmail.email} · ${gmail.stats?.totalThreads ?? 0} emails · ${gmail.stats?.processedThreads ?? 0} briefings gerados`
                           : 'Monitora a inbox do Gmail para capturar pedidos dos clientes'}
                       </Typography>
                     </Box>
@@ -871,6 +880,13 @@ export default function IntegrationsClient() {
                       {gmail.lastSyncAt && ` · Último sync ${new Date(gmail.lastSyncAt).toLocaleString('pt-BR')}`}
                     </Typography>
                   </Box>
+                )}
+
+                {gmail?.configured && gmail.healthy === false && !gmail.expired && (
+                  <Alert severity="warning" sx={{ mt: 1.5 }}
+                    action={<Button size="small" color="inherit" variant="outlined" onClick={handleGmailConnect}>Reconectar</Button>}>
+                    {gmail.lastError || 'A conexão existe, mas o Gmail não está lendo emails com segurança no momento.'}
+                  </Alert>
                 )}
 
                 {gmail?.expired && (

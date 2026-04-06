@@ -71,20 +71,21 @@ export default async function gmailRoutes(app: FastifyInstance) {
       return reply.redirect(getIntegrationsRedirectUrl(`gmail_error=${encodeURIComponent(err.message)}`));
     }
 
-    // Step 2: set up Pub/Sub watch (non-critical — connection is valid even without it)
-    if (env.GOOGLE_PUBSUB_TOPIC) {
-      try {
-        await watchGmailInbox(tenantId);
-      } catch (err: any) {
-        // Watch failed but Gmail IS connected — redirect with warning, not error
-        console.error('[gmailRoutes] Gmail watch setup failed (connection still saved):', err?.message);
-        syncGoogleContacts(tenantId).catch(() => {});
-        return reply.redirect(getIntegrationsRedirectUrl(
-          `gmail_connected=${encodeURIComponent(email)}&gmail_warn=${encodeURIComponent('Watch Pub/Sub falhou: ' + err.message)}`,
-        ));
-      }
-    } else {
-      console.warn('[gmailRoutes] GOOGLE_PUBSUB_TOPIC not set — Gmail connected without real-time notifications.');
+    // Step 2: set up Pub/Sub watch (critical — without this, inbox monitoring is not operational)
+    if (!env.GOOGLE_PUBSUB_TOPIC) {
+      console.error('[gmailRoutes] GOOGLE_PUBSUB_TOPIC not set — refusing Gmail success redirect without real-time notifications.');
+      return reply.redirect(getIntegrationsRedirectUrl(
+        `gmail_error=${encodeURIComponent('GOOGLE_PUBSUB_TOPIC não configurado. O Gmail não consegue operar sem watch em tempo real.')}`,
+      ));
+    }
+
+    try {
+      await watchGmailInbox(tenantId);
+    } catch (err: any) {
+      console.error('[gmailRoutes] Gmail watch setup failed:', err?.message);
+      return reply.redirect(getIntegrationsRedirectUrl(
+        `gmail_error=${encodeURIComponent(`Watch Pub/Sub falhou: ${err.message}`)}`,
+      ));
     }
 
     // Non-blocking: sync Google Contacts in background after OAuth
@@ -117,10 +118,15 @@ export default async function gmailRoutes(app: FastifyInstance) {
     const r = rows[0];
     const watchExpiryMs = r.watch_expiry ? new Date(r.watch_expiry).getTime() : null;
     const nowMs = Date.now();
+    const hasWatch = watchExpiryMs !== null;
     const watchExpired = watchExpiryMs !== null && watchExpiryMs <= nowMs;
     const watchExpiresSoon = watchExpiryMs !== null && !watchExpired && watchExpiryMs - nowMs < 48 * 60 * 60 * 1000;
+    const healthy = Boolean(r.email_address) && hasWatch && !watchExpired && !r.last_error;
     return reply.send({
       configured: true,
+      healthy,
+      receiving: healthy,
+      needsAttention: !healthy || watchExpiresSoon,
       email: r.email_address,
       watchExpiry: r.watch_expiry,
       expired: watchExpired,

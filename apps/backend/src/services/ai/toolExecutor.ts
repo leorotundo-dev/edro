@@ -97,6 +97,7 @@ const MAX_RESULT_CHARS = 4000;
 const CLIENT_EVIDENCE_SOURCE_TYPES = [
   'meeting',
   'meeting_chat',
+  'gmail_message',
   'whatsapp_message',
   'whatsapp_insight',
   'whatsapp_digest',
@@ -1843,6 +1844,30 @@ async function toolRetrieveClientEvidence(args: any, ctx: ToolContext): Promise<
         title: row.meeting_title ? `${row.meeting_title} · ${row.sender_name || 'Participante'}` : (row.sender_name || 'Chat da reunião'),
         excerpt: buildEvidenceExcerpt(row.message_text),
         occurred_at: row.sent_at,
+        score,
+      });
+    }
+  }
+
+  if (sourceSet.has('gmail_message')) {
+    const docs = await listClientDocuments({ tenantId: ctx.tenantId, clientId: ctx.clientId, limit: 40 });
+    for (const doc of docs) {
+      if (String(doc.source_type || '') !== 'gmail_message') continue;
+      const occurredAt = doc.published_at || doc.created_at || null;
+      if (occurredAt) {
+        const timestamp = new Date(occurredAt).getTime();
+        if (!Number.isNaN(timestamp) && (Date.now() - timestamp) / 86400000 > daysBack) continue;
+      }
+      const haystack = [doc.title, doc.content_excerpt, doc.content_text].filter(Boolean).join(' \n ');
+      const score = scoreEvidence(tokens, haystack, occurredAt);
+      if (hasTokenFilter && score <= 0) continue;
+      evidence.push({
+        source_type: 'gmail_message',
+        source_label: 'Email',
+        source_id: doc.id,
+        title: doc.title || 'Email do cliente',
+        excerpt: buildEvidenceExcerpt(doc.content_excerpt || doc.content_text),
+        occurred_at: occurredAt,
         score,
       });
     }

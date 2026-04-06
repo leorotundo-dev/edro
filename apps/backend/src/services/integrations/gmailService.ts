@@ -24,10 +24,208 @@ import { generateWithProvider } from '../ai/copyOrchestrator';
 import { createBriefing } from '../../repositories/edroBriefingRepository';
 import { env } from '../../env';
 import { logActivity } from '../integrationMonitor';
+import { hasClientDocumentHash, insertClientDocument } from '../../repos/clientIntelligenceRepo';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
+
+function shortText(value: string | null | undefined, maxLength: number): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function decodeGmailBody(data?: string | null): string | null {
+  const raw = String(data || '').trim();
+  if (!raw) return null;
+  try {
+    const normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
+    return Buffer.from(normalized, 'base64').toString('utf-8');
+  } catch {
+    return null;
+  }
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\r/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function extractGmailBodyText(payload: any): string | null {
+  const queue = Array.isArray(payload?.parts) && payload.parts.length
+    ? [...payload.parts]
+    : payload
+      ? [payload]
+      : [];
+  let htmlFallback: string | null = null;
+
+  while (queue.length > 0) {
+    const part = queue.shift();
+    if (!part) continue;
+    if (Array.isArray(part.parts) && part.parts.length) {
+      queue.unshift(...part.parts);
+    }
+    if (!part.body?.data) continue;
+
+    const decoded = decodeGmailBody(part.body.data);
+    if (!decoded) continue;
+
+    if (part.mimeType === 'text/plain') {
+      const clean = decoded.trim();
+      if (clean) return clean;
+    }
+
+    if (part.mimeType === 'text/html' && !htmlFallback) {
+      const clean = stripHtml(decoded);
+      if (clean) htmlFallback = clean;
+    }
+  }
+
+  if (payload?.body?.data) {
+    const decoded = decodeGmailBody(payload.body.data);
+    if (decoded?.trim()) return decoded.trim();
+  }
+
+  return htmlFallback;
+}
+
+async function updateGmailConnectionState(params: {
+  tenantId: string;
+  watchExpiry?: Date | null;
+  historyId?: string | null;
+  lastSyncAt?: Date | null;
+  lastError?: string | null;
+}) {
+  const patch: string[] = [];
+  const values: any[] = [params.tenantId];
+  let idx = 2;
+
+  if (params.watchExpiry !== undefined) {
+    patch.push(`watch_expiry = $${idx++}`);
+    values.push(params.watchExpiry);
+  }
+  if (params.historyId !== undefined) {
+    patch.push(`history_id = $${idx++}`);
+    values.push(params.historyId);
+  }
+  if (params.lastSyncAt !== undefined) {
+    patch.push(`last_sync_at = $${idx++}`);
+    values.push(params.lastSyncAt);
+  }
+  if (params.lastError !== undefined) {
+    patch.push(`last_error = $${idx++}`);
+    values.push(params.lastError ? String(params.lastError).slice(0, 500) : null);
+  }
+  if (!patch.length) return;
+
+  await query(
+    `UPDATE gmail_connections
+        SET ${patch.join(', ')}
+      WHERE tenant_id = $1`,
+    values,
+  ).catch(() => {});
+}
+
+async function resolveClientForInboundEmail(tenantId: string, emailAddress: string): Promise<string | null> {
+  const email = String(emailAddress || '').trim().toLowerCase();
+  if (!email) return null;
+
+  const { rows } = await query<{ client_id: string }>(
+    `SELECT client_id
+       FROM (
+         SELECT c.id AS client_id, 1 AS priority
+           FROM clients c
+          WHERE c.tenant_id = $1
+            AND LOWER(COALESCE(c.email, '')) = $2
+         UNION ALL
+         SELECT cc.client_id, 2 AS priority
+           FROM client_contacts cc
+          WHERE cc.tenant_id = $1
+            AND cc.active = true
+            AND LOWER(COALESCE(cc.email, '')) = $2
+         UNION ALL
+         SELECT cc.client_id, 3 AS priority
+           FROM client_contacts cc
+           JOIN person_identities pi
+             ON pi.person_id = cc.person_id
+            AND pi.tenant_id = cc.tenant_id
+          WHERE cc.tenant_id = $1
+            AND cc.active = true
+            AND pi.identity_type = 'email'
+            AND pi.normalized_value = $2
+       ) matches
+      ORDER BY priority ASC
+      LIMIT 1`,
+    [tenantId, email],
+  ).catch(() => ({ rows: [] as Array<{ client_id: string }> }));
+
+  return rows[0]?.client_id ?? null;
+}
+
+async function persistGmailMessageMemory(params: {
+  tenantId: string;
+  clientId: string;
+  gmailMessageId: string;
+  gmailThreadId: string | null;
+  fromEmail: string;
+  fromName?: string | null;
+  subject?: string | null;
+  snippet?: string | null;
+  bodyText?: string | null;
+  receivedAt: Date;
+}) {
+  const content = [
+    params.subject ? `Assunto: ${params.subject}` : null,
+    params.bodyText ? params.bodyText : params.snippet,
+  ].filter(Boolean).join('\n\n').trim();
+  if (!content) return;
+
+  const contentHash = crypto
+    .createHash('sha256')
+    .update(`gmail_message:${params.clientId}:${params.gmailMessageId}:${content}`)
+    .digest('hex');
+
+  const exists = await hasClientDocumentHash({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    contentHash,
+  });
+  if (exists) return;
+
+  await insertClientDocument({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    sourceId: params.gmailMessageId,
+    sourceType: 'gmail_message',
+    platform: 'gmail',
+    title: params.subject
+      ? `${params.fromName || params.fromEmail} • ${params.subject}`
+      : `${params.fromName || params.fromEmail} • Email`,
+    contentText: content,
+    contentExcerpt: shortText(params.bodyText || params.snippet || content, 320),
+    language: 'pt-BR',
+    publishedAt: params.receivedAt,
+    contentHash,
+    metadata: {
+      source: 'gmail_message',
+      from_email: params.fromEmail,
+      from_name: params.fromName ?? null,
+      subject: params.subject ?? null,
+      gmail_message_id: params.gmailMessageId,
+      gmail_thread_id: params.gmailThreadId,
+    },
+  });
+}
 
 
 // ── OAuth state helpers (signed to prevent forgery) ───────────────────────
@@ -178,12 +376,12 @@ export async function watchGmailInbox(tenantId: string): Promise<void> {
     const data = await res.json() as { historyId: string; expiration: string };
 
     const watchExpiry = new Date(parseInt(data.expiration));
-    await query(
-      `UPDATE gmail_connections
-       SET watch_expiry = $1, history_id = $2
-       WHERE tenant_id = $3`,
-      [watchExpiry, data.historyId, tenantId],
-    );
+    await updateGmailConnectionState({
+      tenantId,
+      watchExpiry,
+      historyId: data.historyId,
+      lastError: null,
+    });
 
     logActivity({
       tenantId,
@@ -196,6 +394,10 @@ export async function watchGmailInbox(tenantId: string): Promise<void> {
       },
     });
   } catch (error: any) {
+    await updateGmailConnectionState({
+      tenantId,
+      lastError: error?.message ?? 'gmail_watch_failed',
+    });
     logActivity({
       tenantId,
       service: 'gmail',
@@ -219,7 +421,11 @@ export async function processGmailHistory(tenantId: string, newHistoryId: string
   const { history_id: startHistoryId, email_address: agencyEmail } = rows[0];
   if (!startHistoryId) {
     // First time — just save historyId for next time
-    await query(`UPDATE gmail_connections SET history_id = $1 WHERE tenant_id = $2`, [newHistoryId, tenantId]);
+    await updateGmailConnectionState({
+      tenantId,
+      historyId: newHistoryId,
+      lastError: null,
+    });
     logActivity({
       tenantId,
       service: 'gmail',
@@ -241,6 +447,26 @@ export async function processGmailHistory(tenantId: string, newHistoryId: string
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     if (!historyRes.ok) {
+      if (historyRes.status === 404) {
+        await updateGmailConnectionState({
+          tenantId,
+          historyId: newHistoryId,
+          lastSyncAt: new Date(),
+          lastError: null,
+        });
+        logActivity({
+          tenantId,
+          service: 'gmail',
+          event: 'history_cursor_reset',
+          status: 'ok',
+          meta: {
+            old_history_id: startHistoryId,
+            history_id: newHistoryId,
+            email: agencyEmail,
+          },
+        });
+        return;
+      }
       const err = await historyRes.text().catch(() => '');
       throw new Error(`gmail_history_fetch_failed: ${err.slice(0, 200)}`);
     }
@@ -254,7 +480,12 @@ export async function processGmailHistory(tenantId: string, newHistoryId: string
     }
 
     // Update historyId
-    await query(`UPDATE gmail_connections SET history_id = $1 WHERE tenant_id = $2`, [newHistoryId, tenantId]);
+    await updateGmailConnectionState({
+      tenantId,
+      historyId: newHistoryId,
+      lastSyncAt: new Date(),
+      lastError: null,
+    });
 
     // Process each new message
     for (const msg of messages) {
@@ -277,6 +508,10 @@ export async function processGmailHistory(tenantId: string, newHistoryId: string
       },
     });
   } catch (error: any) {
+    await updateGmailConnectionState({
+      tenantId,
+      lastError: error?.message ?? 'gmail_sync_failed',
+    });
     logActivity({
       tenantId,
       service: 'gmail',
@@ -333,21 +568,10 @@ async function processGmailMessage(
   if (fromEmail.toLowerCase() === agencyEmail.toLowerCase()) return;
 
   // Extract plain text body
-  let bodyText: string | null = null;
-  const parts = msgData.payload?.parts ?? [msgData.payload];
-  for (const part of parts) {
-    if (part?.mimeType === 'text/plain' && part.body?.data) {
-      bodyText = Buffer.from(part.body.data, 'base64').toString('utf-8');
-      break;
-    }
-  }
+  const bodyText = extractGmailBodyText(msgData.payload);
 
   // Find matching client by email
-  const { rows: clientRows } = await query(
-    `SELECT id FROM clients WHERE tenant_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
-    [tenantId, fromEmail],
-  );
-  const clientId = clientRows[0]?.id ?? null;
+  const clientId = await resolveClientForInboundEmail(tenantId, fromEmail);
 
   // Persist thread
   const { rows: inserted } = await query(
@@ -360,6 +584,21 @@ async function processGmailMessage(
      subject, snippet, bodyText, receivedAt],
   );
   const threadDbId = inserted[0]?.id;
+
+  if (clientId) {
+    await persistGmailMessageMemory({
+      tenantId,
+      clientId,
+      gmailMessageId: messageId,
+      gmailThreadId: threadId,
+      fromEmail,
+      fromName,
+      subject,
+      snippet,
+      bodyText,
+      receivedAt,
+    }).catch((err: any) => console.error('[gmailService] persistMemory failed:', err?.message));
+  }
 
   // Create briefing via Jarvis if content exists
   const textForBriefing = bodyText ?? snippet ?? subject;
@@ -447,7 +686,13 @@ export async function getValidAccessToken(tenantId: string): Promise<string> {
   }
 
   // Refresh
-  if (!refresh_token) throw new Error('Refresh token não disponível. Reconecte o Gmail.');
+  if (!refresh_token) {
+    await updateGmailConnectionState({
+      tenantId,
+      lastError: 'Refresh token não disponível. Reconecte o Gmail.',
+    });
+    throw new Error('Refresh token não disponível. Reconecte o Gmail.');
+  }
 
   const refreshRes = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
@@ -459,12 +704,22 @@ export async function getValidAccessToken(tenantId: string): Promise<string> {
       grant_type: 'refresh_token',
     }),
   });
-  if (!refreshRes.ok) throw new Error('Falha ao renovar token Gmail.');
+  if (!refreshRes.ok) {
+    await updateGmailConnectionState({
+      tenantId,
+      lastError: 'Falha ao renovar token Gmail.',
+    });
+    throw new Error('Falha ao renovar token Gmail.');
+  }
   const newTokens = await refreshRes.json() as { access_token: string; expires_in: number };
 
   const newExpiry = new Date(Date.now() + newTokens.expires_in * 1000);
   await query(
-    `UPDATE gmail_connections SET access_token = $1, token_expiry = $2 WHERE tenant_id = $3`,
+    `UPDATE gmail_connections
+        SET access_token = $1,
+            token_expiry = $2,
+            last_error = NULL
+      WHERE tenant_id = $3`,
     [newTokens.access_token, newExpiry, tenantId],
   );
 

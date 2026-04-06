@@ -718,7 +718,7 @@ export default async function clientsRoutes(app: FastifyInstance) {
         clientId: params.id,
         limit: 24,
       }))
-        .filter((doc) => ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'].includes(String(doc.source_type || '')))
+        .filter((doc) => ['gmail_message', 'whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'].includes(String(doc.source_type || '')))
         .slice(0, 12)
         .map((doc) => ({
           id: doc.id,
@@ -749,7 +749,7 @@ export default async function clientsRoutes(app: FastifyInstance) {
         bySourceType[t] = (bySourceType[t] || 0) + 1;
       }
 
-      const memoryTypes = ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'];
+      const memoryTypes = ['gmail_message', 'whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'];
       const conversationMemories = allDocs
         .filter((d) => memoryTypes.includes(String(d.source_type || '')))
         .slice(0, 20)

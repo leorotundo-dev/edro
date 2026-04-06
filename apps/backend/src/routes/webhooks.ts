@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db';
 import { env } from '../env';
-import { handleWhatsAppMessage } from '../services/whatsappBriefingService';
 import {
   getCapturedRawBody,
   registerRawBodyCapture,
@@ -39,23 +38,11 @@ export default async function webhooksRoutes(app: FastifyInstance) {
     // Always ack immediately — Meta expects 200 within 20s
     reply.send({ ok: true });
 
-    const body = request.body as any;
-    const entry = body?.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    if (!value?.messages?.length) return;
-
-    for (const message of value.messages as any[]) {
-      if (message.type === 'text' || message.type === 'audio' || message.type === 'voice') {
-        handleWhatsAppMessage({
-          id:    message.id,
-          from:  message.from,
-          type:  message.type,
-          text:  message.text,
-          audio: message.audio,
-          voice: message.voice,
-        }).catch((err) => console.error('[whatsapp-webhook] handler error:', err?.message));
-      }
+    try {
+      const { handleWhatsAppWebhook } = await import('../services/integrations/whatsappBriefingService');
+      await handleWhatsAppWebhook(request.body as any);
+    } catch (err: any) {
+      console.error('[api/webhooks/whatsapp] handler error:', err?.message);
     }
   });
 

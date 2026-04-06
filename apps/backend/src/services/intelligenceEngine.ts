@@ -443,7 +443,7 @@ export async function buildIntelligenceContext(params: {
           url: d.url || '',
         })),
       conversationMemories: clientDocuments
-        .filter((d: any) => ['whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'].includes(d.source_type))
+        .filter((d: any) => ['gmail_message', 'whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'].includes(d.source_type))
         .slice(0, 12)
         .map((d: any) => ({
           kind: d.source_type || 'memory',

@@ -399,10 +399,10 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'retrieve_client_evidence',
-    description: 'Recupera evidências concretas sobre o cliente a partir de reuniões, chat de reunião, WhatsApp, digests e documentos do cliente. Use para perguntas como "o que a cliente falou", "o que foi decidido", "quais evidências sustentam isso".',
+    description: 'Recupera evidências concretas sobre o cliente a partir de reuniões, chat de reunião, emails, WhatsApp, digests e documentos do cliente. Use para perguntas como "o que a cliente falou", "o que foi decidido", "quais evidências sustentam isso".',
     parameters: {
       question: { type: 'string', description: 'Pergunta ou assunto a investigar nas memórias do cliente' },
-      source_types: { type: 'array', description: 'Fontes opcionais para restringir a busca: meeting, meeting_chat, whatsapp_message, whatsapp_insight, whatsapp_digest, client_document', items: { type: 'string' } },
+      source_types: { type: 'array', description: 'Fontes opcionais para restringir a busca: meeting, meeting_chat, gmail_message, whatsapp_message, whatsapp_insight, whatsapp_digest, client_document', items: { type: 'string' } },
       days_back: { type: 'number', description: 'Janela de dias a investigar (padrão 30, máximo 90)' },
       limit: { type: 'number', description: 'Máximo de evidências a retornar (padrão 8, máximo 12)' },
     },
