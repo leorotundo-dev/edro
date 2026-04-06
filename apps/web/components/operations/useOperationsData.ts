@@ -143,25 +143,16 @@ export function useOperationsData(query = '?active=true') {
 
     const currentJob = jobs.find((job) => job.id === jobId);
     if (currentJob?.source === 'trello') {
-      const boardId = currentJob.metadata?.board_id as string | undefined;
-      if (!boardId) throw new Error('Card Trello sem board vinculado no metadata.');
-
-      const ownerId = typeof payload.owner_id === 'string' ? payload.owner_id : null;
-      if (ownerId && ownerId !== currentJob.owner_id) {
-        const owner = lookups.owners.find((item) => item.id === ownerId);
-        if (!owner?.email) throw new Error('Não foi possível localizar o e-mail do responsável.');
-        await apiPost(`/trello/ops-cards/${jobId}/assign`, { email: owner.email });
+      const response = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${jobId}`, {
+        title: payload.title,
+        summary: payload.summary,
+        deadline_at: payload.deadline_at !== undefined ? normalizeDeadlineForTrello(payload.deadline_at) : undefined,
+        owner_id: payload.owner_id,
+      });
+      if (response?.data) {
+        setJobs((current) => upsertJob(current, response.data!));
+        return response.data;
       }
-
-      const trelloPatch: Record<string, any> = {};
-      if (payload.title !== undefined) trelloPatch.title = payload.title;
-      if (payload.summary !== undefined) trelloPatch.description = payload.summary;
-      if (payload.deadline_at !== undefined) trelloPatch.due_date = normalizeDeadlineForTrello(payload.deadline_at);
-
-      if (Object.keys(trelloPatch).length) {
-        await apiPatch(`/trello/project-boards/${boardId}/cards/${jobId}`, trelloPatch);
-      }
-
       const nextJobs = await load();
       return nextJobs.find((job) => job.id === jobId) ?? null;
     }
@@ -176,8 +167,14 @@ export function useOperationsData(query = '?active=true') {
   }, [changeStatus, jobs, load, lookups.owners]);
 
   const fetchJob = useCallback(async (jobId: string) => {
-    // Return from local state (already loaded from Trello feed)
     const found = jobs.find((j) => j.id === jobId);
+    if (found?.source === 'trello') {
+      const response = await apiGet<{ data?: OperationsJob }>(`/trello/ops-cards/${jobId}`);
+      if (response?.data) {
+        setJobs((current) => upsertJob(current, response.data!));
+        return response.data;
+      }
+    }
     if (found) return found;
     throw new Error('Card não encontrado.');
   }, [jobs]);

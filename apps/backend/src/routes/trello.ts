@@ -915,7 +915,6 @@ export default async function trelloRoutes(app: FastifyInstance) {
        WHERE pc.tenant_id = $1
          AND pc.is_archived = false
          AND pl.is_archived = false
-         AND pc.created_at >= date_trunc('year', CURRENT_DATE)
          AND (
            NOT $2::boolean
            OR pl.id::text NOT IN (
@@ -1331,7 +1330,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
   function _cardToJob(c: Record<string, any>): Record<string, any> {
     const { band, score } = computePriorityBand(c.due_date as string | null, c.due_complete as boolean);
-    const status = listNameToOpsStatus(c.list_name as string);
+    const status = effectiveListOpsStatus(c.list_name as string, (c.override_status as string | null | undefined) ?? null);
     const labels: { color: string; name: string }[] = Array.isArray(c.labels) ? c.labels : [];
     const labelNames = labels.map((l) => (l.name?.toLowerCase() ?? '')).join(' ');
     const jobType = /design|arte|visual|criativo/.test(labelNames) ? 'design_static'
@@ -1359,6 +1358,209 @@ export default async function trelloRoutes(app: FastifyInstance) {
     };
   }
 
+  app.get('/trello/ops-cards/:cardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+
+    const cardRes = await query<Record<string, any>>(
+      `SELECT
+         pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
+         pc.trello_url, pc.trello_card_id,
+         pl.id as list_id, pl.name as list_name,
+         m.ops_status as override_status,
+         pb.id as board_id, pb.name as board_name, pb.client_id,
+         cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
+         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_name,
+         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_email,
+         (SELECT eu.id FROM project_card_members pcm
+            JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+           WHERE pcm.card_id = pc.id
+           ORDER BY pcm.created_at ASC
+           LIMIT 1) as owner_user_id
+       FROM project_cards pc
+       JOIN project_lists pl ON pl.id = pc.list_id
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pc.id = $1 AND pc.tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRes.rows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+
+    const baseJob = _cardToJob(cardRes.rows[0]);
+    const [historyRes, commentsRes] = await Promise.all([
+      query<{ action_type: string; from_list_name: string | null; to_list_name: string | null; actor_name: string | null; occurred_at: string }>(
+        `SELECT action_type, from_list_name, to_list_name, actor_name, occurred_at
+         FROM project_card_activity
+         WHERE card_id = $1
+         ORDER BY occurred_at DESC
+         LIMIT 100`,
+        [cardId],
+      ).catch(() => ({ rows: [] as any[] })),
+      query<{ body: string; author_name: string | null; commented_at: string }>(
+        `SELECT body, author_name, commented_at
+         FROM project_card_comments
+         WHERE card_id = $1
+         ORDER BY commented_at DESC
+         LIMIT 20`,
+        [cardId],
+      ).catch(() => ({ rows: [] as any[] })),
+    ]);
+
+    const history = historyRes.rows.map((row, index) => ({
+      id: `${cardId}:${index}:${row.occurred_at}`,
+      from_status: row.from_list_name ? listNameToOpsStatus(row.from_list_name) : null,
+      to_status: row.to_list_name ? listNameToOpsStatus(row.to_list_name) : baseJob.status,
+      changed_by_name: row.actor_name ?? null,
+      changed_at: row.occurred_at,
+      reason: row.action_type,
+    }));
+
+    return reply.send({
+      ok: true,
+      data: {
+        ...baseJob,
+        comments: commentsRes.rows.map((row, index) => ({
+          id: `${cardId}:comment:${index}:${row.commented_at}`,
+          author_name: row.author_name ?? null,
+          body: row.body,
+          created_at: row.commented_at,
+        })),
+        history,
+      },
+    });
+  });
+
+  app.patch('/trello/ops-cards/:cardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      title: z.string().min(1).optional(),
+      summary: z.string().nullable().optional(),
+      deadline_at: z.string().nullable().optional(),
+      owner_id: z.string().uuid().nullable().optional(),
+    }).parse(request.body);
+
+    const cardRes = await query<{ board_id: string; trello_card_id: string | null; owner_email: string | null }>(
+      `SELECT pc.board_id, pc.trello_card_id,
+              (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_email
+       FROM project_cards pc
+       WHERE pc.id = $1 AND pc.tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRes.rows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const current = cardRes.rows[0];
+
+    const patchPayload: Record<string, any> = {};
+    if (body.title !== undefined) patchPayload.title = body.title;
+    if (body.summary !== undefined) patchPayload.description = body.summary ?? '';
+    if (body.deadline_at !== undefined) patchPayload.due_date = normalizeDeadlineDate(body.deadline_at);
+
+    if (Object.keys(patchPayload).length) {
+      const reqBody = { ...patchPayload };
+      const sets: string[] = [];
+      const vals: any[] = [];
+      let i = 1;
+      for (const [key, val] of Object.entries(reqBody)) {
+        sets.push(`${key} = $${i++}`);
+        vals.push(val);
+      }
+      vals.push(cardId, tenantId);
+      await query(`UPDATE project_cards SET ${sets.join(', ')}, updated_at = now() WHERE id = $${i} AND tenant_id = $${i + 1}`, vals);
+
+      if (current.trello_card_id) {
+        try {
+          const creds = await getTrelloCredentials(tenantId);
+          if (creds) {
+            const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken });
+            if (patchPayload.title !== undefined) params.set('name', patchPayload.title);
+            if (patchPayload.description !== undefined) params.set('desc', patchPayload.description);
+            if (body.deadline_at !== undefined) params.set('due', toTrelloDueValue(patchPayload.due_date));
+            const syncRes = await fetch(`https://api.trello.com/1/cards/${current.trello_card_id}?${params}`, {
+              method: 'PUT',
+              signal: AbortSignal.timeout(8_000),
+            });
+            if (!syncRes.ok) console.warn('[trello ops] detail sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
+          }
+        } catch (err: any) {
+          console.warn('[trello ops] detail sync failed:', err?.message);
+        }
+      }
+    }
+
+    if (body.owner_id !== undefined) {
+      const ownerRes = body.owner_id
+        ? await query<{ email: string | null; name: string | null }>(`SELECT email, name FROM edro_users WHERE id = $1 LIMIT 1`, [body.owner_id])
+        : { rows: [] as any[] };
+      const nextOwnerEmail = ownerRes.rows[0]?.email?.toLowerCase() ?? null;
+      const currentOwnerEmail = current.owner_email?.toLowerCase() ?? null;
+
+      if (body.owner_id === null) {
+        await query(`DELETE FROM project_card_members WHERE card_id = $1 AND tenant_id = $2`, [cardId, tenantId]);
+      } else if (nextOwnerEmail && nextOwnerEmail !== currentOwnerEmail) {
+        const memberRes = await query<{ trello_member_id: string | null; display_name: string | null }>(
+          `SELECT DISTINCT pcm.trello_member_id, pcm.display_name
+           FROM project_card_members pcm
+           JOIN project_cards pc ON pc.id = pcm.card_id
+           JOIN project_boards pb ON pb.id = pc.board_id
+           WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
+           LIMIT 1`,
+          [nextOwnerEmail, tenantId],
+        );
+        const trelloMemberId = memberRes.rows[0]?.trello_member_id ?? null;
+        const displayName = memberRes.rows[0]?.display_name ?? ownerRes.rows[0]?.name ?? nextOwnerEmail;
+
+        await query(`DELETE FROM project_card_members WHERE card_id = $1 AND tenant_id = $2`, [cardId, tenantId]);
+        await query(
+          `INSERT INTO project_card_members (card_id, tenant_id, trello_member_id, display_name, email)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (card_id, trello_member_id) DO UPDATE SET display_name = $4, email = $5`,
+          [cardId, tenantId, trelloMemberId ?? nextOwnerEmail, displayName, nextOwnerEmail],
+        );
+
+        if (current.trello_card_id && trelloMemberId) {
+          try {
+            const creds = await getTrelloCredentials(tenantId);
+            if (creds) {
+              const removeParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken });
+              const addParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, value: trelloMemberId });
+              if (currentOwnerEmail) {
+                const currentMemberRes = await query<{ trello_member_id: string | null }>(
+                  `SELECT DISTINCT trello_member_id
+                   FROM project_card_members
+                   WHERE LOWER(email) = LOWER($1) AND tenant_id = $2
+                   LIMIT 1`,
+                  [currentOwnerEmail, tenantId],
+                );
+                const currentMemberId = currentMemberRes.rows[0]?.trello_member_id ?? null;
+                if (currentMemberId) {
+                  await fetch(`https://api.trello.com/1/cards/${current.trello_card_id}/idMembers/${currentMemberId}?${removeParams}`, {
+                    method: 'DELETE',
+                    signal: AbortSignal.timeout(8_000),
+                  }).catch(() => {});
+                }
+              }
+              const syncRes = await fetch(`https://api.trello.com/1/cards/${current.trello_card_id}/idMembers?${addParams}`, {
+                method: 'POST',
+                signal: AbortSignal.timeout(8_000),
+              });
+              if (!syncRes.ok) console.warn('[trello ops] owner sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
+            }
+          } catch (err: any) {
+            console.warn('[trello ops] owner sync failed:', err?.message);
+          }
+        }
+      }
+    }
+
+    const detailRes = await app.inject({
+      method: 'GET',
+      url: `/trello/ops-cards/${cardId}`,
+      headers: request.headers as Record<string, string>,
+    });
+    return reply.status(detailRes.statusCode).headers(detailRes.headers).send(detailRes.json());
+  });
+
   // GET /trello/ops-planner — workload per Trello member for the Planner tab
   app.get('/trello/ops-planner', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
@@ -1369,12 +1571,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
          pc.trello_url, pc.trello_card_id,
          pl.id as list_id, pl.name as list_name,
+         m.ops_status as override_status,
          pb.id as board_id, pb.name as board_name, pb.client_id,
          cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
          pcm.display_name as owner_name, pcm.email as owner_email,
          eu.id as owner_user_id
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
+       LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
        JOIN project_boards pb ON pb.id = pc.board_id
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
        LEFT JOIN project_card_members pcm ON pcm.card_id = pc.id
@@ -1447,6 +1651,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
          pc.trello_url, pc.trello_card_id,
          pl.id as list_id, pl.name as list_name,
+         m.ops_status as override_status,
          pb.id as board_id, pb.name as board_name, pb.client_id,
          cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
          (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_name,
@@ -1456,6 +1661,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
           WHERE pcm.card_id = pc.id LIMIT 1) as owner_user_id
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
+       LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
        JOIN project_boards pb ON pb.id = pc.board_id
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
        WHERE pc.tenant_id = $1 AND pc.is_archived = false AND pl.is_archived = false
