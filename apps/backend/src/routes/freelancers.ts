@@ -371,6 +371,56 @@ async function loadFreelancerIdentitySnapshot(freelancerId: string) {
   return res.rows[0] ?? null;
 }
 
+async function syncFreelancerOperationalIdentity(params: {
+  tenantId: string;
+  freelancerId: string;
+  enableWhatsAppPrefs?: boolean;
+}) {
+  const snapshot = await loadFreelancerIdentitySnapshot(params.freelancerId);
+  if (!snapshot) return null;
+
+  const normalizedWhatsApp = normalizePhoneRecipient(snapshot.whatsapp_jid || snapshot.phone);
+  if (normalizedWhatsApp && snapshot.whatsapp_jid !== normalizedWhatsApp) {
+    await pool.query(
+      `UPDATE freelancer_profiles
+          SET whatsapp_jid = $2,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [snapshot.id, normalizedWhatsApp],
+    );
+    snapshot.whatsapp_jid = normalizedWhatsApp;
+  }
+
+  const normalizedPhone = normalizePhoneRecipient(snapshot.phone) ?? snapshot.phone ?? null;
+  const personId = await syncFreelancerPerson({
+    freelancerId: snapshot.id,
+    tenantId: params.tenantId,
+    displayName: snapshot.display_name,
+    userId: snapshot.user_id,
+    email: snapshot.email,
+    emailPersonal: snapshot.email_personal,
+    phone: normalizedPhone,
+    whatsappJid: snapshot.whatsapp_jid,
+    existingPersonId: snapshot.person_id ?? null,
+  });
+
+  if (params.enableWhatsAppPrefs && normalizedWhatsApp && snapshot.user_id) {
+    await upsertNotificationPreferences(snapshot.user_id, [
+      { event_type: 'job_assigned', channel: 'whatsapp', enabled: true },
+      { event_type: 'job_assigned', channel: 'in_app', enabled: true },
+      { event_type: 'deadline_alert', channel: 'whatsapp', enabled: true },
+      { event_type: 'deadline_alert', channel: 'in_app', enabled: true },
+      { event_type: 'contract_signed', channel: 'whatsapp', enabled: true },
+      { event_type: 'contract_signed', channel: 'in_app', enabled: true },
+    ]);
+  }
+
+  return {
+    personId,
+    whatsappJid: snapshot.whatsapp_jid ?? null,
+  };
+}
+
 type OnboardingStep = 'empresa' | 'representante' | 'pagamento' | 'skills' | 'avatar';
 
 type OnboardingMissingField = {
@@ -679,19 +729,14 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        body.max_concurrent_jobs ?? null, body.portfolio_url ?? null,
        body.platform_expertise ?? null, body.languages ?? null],
     );
-    const snapshot = await loadFreelancerIdentitySnapshot(res.rows[0].id);
-    if (snapshot) {
-      res.rows[0].person_id = await syncFreelancerPerson({
-        freelancerId: snapshot.id,
-        tenantId,
-        displayName: snapshot.display_name,
-        userId: snapshot.user_id,
-        email: snapshot.email,
-        emailPersonal: snapshot.email_personal,
-        phone: snapshot.phone,
-        whatsappJid: snapshot.whatsapp_jid,
-        existingPersonId: snapshot.person_id ?? null,
-      });
+    const synced = await syncFreelancerOperationalIdentity({
+      tenantId,
+      freelancerId: res.rows[0].id,
+      enableWhatsAppPrefs: true,
+    });
+    if (synced) {
+      res.rows[0].person_id = synced.personId;
+      res.rows[0].whatsapp_jid = synced.whatsappJid;
     }
     return reply.status(201).send(res.rows[0]);
   });
@@ -1004,19 +1049,14 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
     const tenantId = (request as any).user?.tenant_id;
-    const snapshot = await loadFreelancerIdentitySnapshot(res.rows[0].id);
-    if (snapshot) {
-      res.rows[0].person_id = await syncFreelancerPerson({
-        freelancerId: snapshot.id,
-        tenantId,
-        displayName: snapshot.display_name,
-        userId: snapshot.user_id,
-        email: snapshot.email,
-        emailPersonal: snapshot.email_personal,
-        phone: snapshot.phone,
-        whatsappJid: snapshot.whatsapp_jid,
-        existingPersonId: snapshot.person_id ?? null,
-      });
+    const synced = await syncFreelancerOperationalIdentity({
+      tenantId,
+      freelancerId: res.rows[0].id,
+      enableWhatsAppPrefs: true,
+    });
+    if (synced) {
+      res.rows[0].person_id = synced.personId;
+      res.rows[0].whatsapp_jid = synced.whatsappJid;
     }
     return reply.send(res.rows[0]);
   });
@@ -2550,43 +2590,17 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       ],
     );
 
-    // Sync phone → whatsapp_jid + person_identities + notification prefs (non-blocking)
-    if (body.phone) {
-      const rawPhone = String(body.phone).replace(/\D/g, '');
-      const phone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
-      // Persist whatsapp_jid derived from phone (plain number — whatsappService normalizes it)
-      pool.query(
-        `UPDATE freelancer_profiles SET whatsapp_jid = $2 WHERE user_id = $1 AND (whatsapp_jid IS NULL OR whatsapp_jid = '')`,
-        [userId, phone],
-      ).catch(() => {});
-
-      // Sync to people / person_identities directory
-      pool.query(
-        `SELECT id, person_id, display_name FROM freelancer_profiles WHERE user_id = $1`,
-        [userId],
-      ).then(({ rows: fpRows }) => {
-        if (!fpRows[0]) return;
-        const fp = fpRows[0];
-        return syncFreelancerPerson({
-          freelancerId: fp.id,
-          tenantId,
-          displayName: fp.display_name ?? body.representante_nome ?? null,
-          userId,
-          phone,
-          existingPersonId: fp.person_id ?? null,
-        });
-      }).catch(() => {});
-
-      // Enable WhatsApp for key freelancer event types
-      upsertNotificationPreferences(userId, [
-        { event_type: 'job_assigned',    channel: 'whatsapp', enabled: true },
-        { event_type: 'job_assigned',    channel: 'in_app',   enabled: true },
-        { event_type: 'deadline_alert',  channel: 'whatsapp', enabled: true },
-        { event_type: 'deadline_alert',  channel: 'in_app',   enabled: true },
-        { event_type: 'contract_signed', channel: 'whatsapp', enabled: true },
-        { event_type: 'contract_signed', channel: 'in_app',   enabled: true },
-      ]).catch(() => {});
-    }
+    pool.query<{ id: string }>(
+      `SELECT id FROM freelancer_profiles WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    ).then(({ rows }) => {
+      if (!rows[0]?.id) return;
+      return syncFreelancerOperationalIdentity({
+        tenantId,
+        freelancerId: rows[0].id,
+        enableWhatsAppPrefs: true,
+      });
+    }).catch(() => {});
 
     return reply.send({ ok: true, message: 'Cadastro salvo. Aguardando assinatura do contrato.' });
   });

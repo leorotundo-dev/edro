@@ -1467,6 +1467,9 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
   const freelancerReviewCount = freelancers.filter(
     (f) => !Boolean(f.phone || f.whatsapp_jid || f.email_personal || f.cpf || f.pix_key || f.bank_name),
   ).length;
+  const freelancersWhatsReadyCount = freelancers.filter((f) => f.whatsapp_delivery?.deliverable_now).length;
+  const freelancersMetaBlockedCount = freelancers.filter((f) => f.whatsapp_delivery?.meta_blocked).length;
+  const freelancersWithoutNumberCount = freelancers.filter((f) => !f.whatsapp_delivery?.has_number).length;
   const internalWithIdentityCount = internalPeople.filter((p) => (p.identities?.length ?? 0) > 0).length;
   const analyticsRevenueTotal = analyticsData?.pl?.reduce((sum, row: any) => sum + Number(row?.receita ?? 0), 0) ?? 0;
   const analyticsCostTotal = analyticsData?.byFreelancer?.reduce((sum, row) => sum + Number(row.cost ?? 0), 0) ?? 0;
@@ -1806,6 +1809,23 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
               <Typography variant="body2" color="text.secondary">
                 Ajuste dados de freelancers e mantenha o diretório interno da Edro no mesmo fluxo.
               </Typography>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.25 }}>
+                <Chip
+                  size="small"
+                  label={`${freelancersWhatsReadyCount} entregáveis agora`}
+                  sx={statusChipStyles('#13DEB9', true)}
+                />
+                <Chip
+                  size="small"
+                  label={`${freelancersMetaBlockedCount} Meta bloqueia`}
+                  sx={statusChipStyles(freelancersMetaBlockedCount > 0 ? '#ef4444' : '#6b7280', true)}
+                />
+                <Chip
+                  size="small"
+                  label={`${freelancersWithoutNumberCount} sem número`}
+                  sx={statusChipStyles(freelancersWithoutNumberCount > 0 ? '#f59e0b' : '#6b7280', true)}
+                />
+              </Stack>
             </Box>
 
             <Grid container spacing={1.5}>
