@@ -137,7 +137,7 @@ async function runAllocationPhase(): Promise<void> {
             j.status, j.owner_id,
             c.display_name AS client_name
        FROM jobs j
-       LEFT JOIN edro_clients c ON c.id = j.client_id AND c.tenant_id = j.tenant_id
+       LEFT JOIN edro_clients c ON c.id::text = j.client_id::text AND c.tenant_id = j.tenant_id
       WHERE j.status = 'ready'
         AND j.owner_id IS NULL
         AND j.tenant_id IS NOT NULL
@@ -258,7 +258,7 @@ async function runMonitorPhase(): Promise<void> {
             j.updated_at, j.allocated_at, j.owner_id,
             c.display_name AS client_name
        FROM jobs j
-       LEFT JOIN edro_clients c ON c.id = j.client_id AND c.tenant_id = j.tenant_id
+       LEFT JOIN edro_clients c ON c.id::text = j.client_id::text AND c.tenant_id = j.tenant_id
       WHERE j.status IN ('allocated', 'in_progress')
         AND j.owner_id IS NOT NULL
         AND j.tenant_id IS NOT NULL
