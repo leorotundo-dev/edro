@@ -117,7 +117,10 @@ export async function buildIntelligenceContext(params: {
   query?: string;
   maxTokens?: number;
 }): Promise<IntelligenceContext> {
-  const maxTokens = params.maxTokens || 8000;
+  // Default raised from 8000 → 60000: modern models (Sonnet/Opus) support 200K context.
+  // Karpathy's insight: at ~400K words, no RAG needed — long context + flat files wins.
+  // 60K leaves ample room for system prompt + output while feeding the full KB.
+  const maxTokens = params.maxTokens || 60_000;
 
   // Parallel fetch all data sources for performance
   const [
@@ -871,34 +874,34 @@ function estimateContextTokens(context: IntelligenceContext): number {
 function truncateContext(context: IntelligenceContext, maxTokens: number): IntelligenceContext {
   const truncated = { ...context };
 
-  // Truncate library packed text if too large (max 30% of budget)
+  // Truncate library packed text if too large (max 40% of budget — more room with 60K default)
   const libraryTokens = Math.ceil(context.library.packedText.length / 4);
-  if (libraryTokens > maxTokens * 0.3) {
+  if (libraryTokens > maxTokens * 0.4) {
     truncated.library = {
       ...context.library,
-      packedText: context.library.packedText.slice(0, Math.floor(maxTokens * 0.3 * 4)),
-      sources: context.library.sources.slice(0, 5),
+      packedText: context.library.packedText.slice(0, Math.floor(maxTokens * 0.4 * 4)),
+      sources: context.library.sources.slice(0, 20),
     };
   }
 
-  // Truncate clipping to top 5
+  // Truncate clipping to top 20 (was 5)
   truncated.clipping = {
     ...context.clipping,
-    recent: context.clipping.recent.slice(0, 5),
+    recent: context.clipping.recent.slice(0, 20),
   };
 
-  // Truncate social to top 5
+  // Truncate social to top 20 (was 5)
   truncated.social = {
     ...context.social,
-    trends: context.social.trends.slice(0, 5),
+    trends: context.social.trends.slice(0, 20),
   };
 
-  // Truncate client content to top items
+  // Truncate client content to top items (expanded limits)
   truncated.clientContent = {
     ...context.clientContent,
-    recentPosts: context.clientContent.recentPosts.slice(0, 5),
-    websitePages: context.clientContent.websitePages.slice(0, 3),
-    conversationMemories: context.clientContent.conversationMemories.slice(0, 6),
+    recentPosts: context.clientContent.recentPosts.slice(0, 20),
+    websitePages: context.clientContent.websitePages.slice(0, 10),
+    conversationMemories: context.clientContent.conversationMemories.slice(0, 20),
   };
 
   // Keep opportunities and briefings intact (high priority)

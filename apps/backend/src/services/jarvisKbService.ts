@@ -242,7 +242,7 @@ export async function buildKbContext(
        ORDER BY
          CASE evidence_level WHEN 'rule' THEN 1 WHEN 'pattern' THEN 2 ELSE 3 END,
          uplift_value DESC NULLS LAST
-       LIMIT 30`,
+       LIMIT 200`,
       [tenantId, clientId]
     ),
     query(
@@ -252,7 +252,7 @@ export async function buildKbContext(
        ORDER BY
          CASE evidence_level WHEN 'rule' THEN 1 ELSE 2 END,
          client_count DESC, avg_uplift DESC NULLS LAST
-       LIMIT 20`,
+       LIMIT 100`,
       [tenantId]
     ),
   ]);
