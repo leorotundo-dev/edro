@@ -552,16 +552,16 @@ export default function OperationsOverviewClient() {
                     },
                     {
                       key: 'copy',
-                      eyebrow: 'Subir redação',
+                      eyebrow: 'Handoff criativo',
                       title: copyQueue.length
-                        ? `${copyQueue.length} demanda(s) prontas para IA`
+                        ? `${copyQueue.length} demanda(s) prontas para copy`
                         : 'Sem fila de copy agora',
                       subtitle: copyQueue.length
-                        ? 'Handoff direto para redação, revisão e avanço do pipeline criativo.'
+                        ? 'Demandas prontas para briefing, copy, revisão ou avanço criativo.'
                         : 'Nenhum briefing está aguardando geração ou subida de redação.',
                       icon: <IconSparkles size={16} />,
                       color: '#13DEB9',
-                      primaryLabel: 'Abrir bandeja IA',
+                      primaryLabel: 'Abrir handoff criativo',
                       primaryHref: '/admin/operacoes/ia',
                       secondaryLabel: 'Abrir Studio',
                       secondaryHref: '/studio/editor',
@@ -645,8 +645,8 @@ export default function OperationsOverviewClient() {
                     },
                     {
                       key: 'copy',
-                      eyebrow: 'Operação -> Redação',
-                      title: 'Demandas prontas para IA',
+                      eyebrow: 'Operação -> Criação',
+                      title: 'Demandas prontas para copy',
                       empty: 'Nenhum briefing pronto para redação agora.',
                       href: '/admin/operacoes/ia',
                       rows: copyQueue.slice(0, 3).map((job) => ({
@@ -658,7 +658,7 @@ export default function OperationsOverviewClient() {
                     },
                     {
                       key: 'approval',
-                      eyebrow: 'IA -> Aprovação',
+                      eyebrow: 'Criação -> Aprovação',
                       title: 'Demandas em validação',
                       empty: 'Nenhuma demanda está parada em aprovação agora.',
                       href: '/admin/operacoes/ia',
