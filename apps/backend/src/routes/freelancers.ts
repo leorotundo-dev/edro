@@ -13,7 +13,7 @@ import { saveFile, readFile } from '../library/storage';
 import { env } from '../env';
 import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
-import { sendWhatsAppText } from '../services/whatsappService';
+import { isWhatsAppConfigured, sendWhatsAppText } from '../services/whatsappService';
 import { upsertNotificationPreferences } from '../services/notificationService';
 import { issuePortalLoginCode } from '../services/authService';
 import {
@@ -22,6 +22,7 @@ import {
   syncBriefingExecutionSnapshot,
 } from '../services/briefingExecutionService';
 import { generateEdroAvatarForFreelancer } from '../services/avatarGenerationService';
+import { isConfigured as isEvolutionConfigured } from '../services/integrations/evolutionApiService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,197 @@ function formatHours(minutes: number): string {
 
 function normalizeDigits(value: string) {
   return value.replace(/\D/g, '');
+}
+
+function normalizePhoneRecipient(value: string | null | undefined) {
+  if (!value) return null;
+  return value.split('@')[0]?.replace(/\D/g, '') || null;
+}
+
+function displayPhoneRecipient(value: string | null | undefined) {
+  if (!value) return null;
+  const base = value.split('@')[0]?.trim();
+  return base || null;
+}
+
+function isMetaAllowlistError(error: string | null | undefined) {
+  const message = String(error || '').toLowerCase();
+  return message.includes('131030') || message.includes('allowed list');
+}
+
+type FreelancerWhatsAppBase = {
+  id: string;
+  person_id?: string | null;
+  phone?: string | null;
+  whatsapp_jid?: string | null;
+};
+
+type WhatsAppDeliveryStatus = {
+  resolved_phone: string | null;
+  has_number: boolean;
+  edro_ready: boolean;
+  meta_status: 'ready' | 'blocked' | 'unknown' | 'not_configured';
+  meta_blocked: boolean;
+  evolution_available: boolean;
+  deliverable_now: boolean;
+  last_attempt_at: string | null;
+  last_error: string | null;
+};
+
+function buildWhatsAppDeliveryStatus(params: Partial<WhatsAppDeliveryStatus> = {}): WhatsAppDeliveryStatus {
+  return {
+    resolved_phone: params.resolved_phone ?? null,
+    has_number: params.has_number ?? false,
+    edro_ready: params.edro_ready ?? false,
+    meta_status: params.meta_status ?? 'unknown',
+    meta_blocked: params.meta_blocked ?? false,
+    evolution_available: params.evolution_available ?? false,
+    deliverable_now: params.deliverable_now ?? false,
+    last_attempt_at: params.last_attempt_at ?? null,
+    last_error: params.last_error ?? null,
+  };
+}
+
+async function loadFreelancerWhatsAppStatuses(
+  tenantId: string,
+  freelancers: FreelancerWhatsAppBase[],
+): Promise<Map<string, WhatsAppDeliveryStatus>> {
+  const result = new Map<string, WhatsAppDeliveryStatus>();
+  if (!freelancers.length) return result;
+
+  const personIds = Array.from(
+    new Set(
+      freelancers
+        .map((freelancer) => freelancer.person_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const fallbackByPerson = new Map<string, string>();
+  if (personIds.length) {
+    const identityRes = await pool.query<{
+      person_id: string;
+      identity_type: 'whatsapp_jid' | 'phone_e164';
+      identity_value: string;
+    }>(
+      `SELECT DISTINCT ON (pi.person_id)
+              pi.person_id,
+              pi.identity_type,
+              pi.identity_value
+         FROM person_identities pi
+        WHERE pi.tenant_id = $1
+          AND pi.person_id = ANY($2::uuid[])
+          AND pi.identity_type IN ('whatsapp_jid', 'phone_e164')
+        ORDER BY pi.person_id,
+                 CASE WHEN pi.identity_type = 'whatsapp_jid' THEN 0 ELSE 1 END,
+                 pi.is_primary DESC,
+                 pi.updated_at DESC`,
+      [tenantId, personIds],
+    );
+
+    for (const row of identityRes.rows) {
+      if (!fallbackByPerson.has(row.person_id)) {
+        fallbackByPerson.set(row.person_id, row.identity_value);
+      }
+    }
+  }
+
+  const normalizedRecipients = Array.from(
+    new Set(
+      freelancers
+        .map((freelancer) => {
+          const fallback = freelancer.person_id ? fallbackByPerson.get(freelancer.person_id) ?? null : null;
+          return normalizePhoneRecipient(freelancer.whatsapp_jid || freelancer.phone || fallback);
+        })
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const latestNotificationByRecipient = new Map<string, { status: string; error: string | null; last_attempt_at: string | null }>();
+  if (normalizedRecipients.length) {
+    const notificationRes = await pool.query<{
+      normalized_recipient: string;
+      status: string;
+      error: string | null;
+      last_attempt_at: string | null;
+    }>(
+      `SELECT DISTINCT ON (normalized_recipient)
+              normalized_recipient,
+              status,
+              error,
+              last_attempt_at
+         FROM (
+           SELECT regexp_replace(split_part(recipient, '@', 1), '[^0-9]', '', 'g') AS normalized_recipient,
+                  status,
+                  error,
+                  COALESCE(sent_at, created_at)::text AS last_attempt_at,
+                  COALESCE(sent_at, created_at) AS last_event_at
+             FROM edro_notifications
+            WHERE channel = 'whatsapp'
+         ) notifications
+        WHERE normalized_recipient = ANY($1::text[])
+        ORDER BY normalized_recipient, last_event_at DESC NULLS LAST`,
+      [normalizedRecipients],
+    );
+
+    for (const row of notificationRes.rows) {
+      latestNotificationByRecipient.set(row.normalized_recipient, {
+        status: row.status,
+        error: row.error,
+        last_attempt_at: row.last_attempt_at,
+      });
+    }
+  }
+
+  const evolutionRes = await pool.query<{ status: string | null }>(
+    `SELECT status
+       FROM evolution_instances
+      WHERE tenant_id = $1
+      ORDER BY last_seen_at DESC NULLS LAST, connected_at DESC NULLS LAST, created_at DESC
+      LIMIT 1`,
+    [tenantId],
+  );
+  const evolutionAvailable =
+    isEvolutionConfigured()
+    && ['connected', 'open'].includes(String(evolutionRes.rows[0]?.status || '').toLowerCase());
+  const metaConfigured = isWhatsAppConfigured();
+
+  for (const freelancer of freelancers) {
+    const fallback = freelancer.person_id ? fallbackByPerson.get(freelancer.person_id) ?? null : null;
+    const resolvedValue = freelancer.whatsapp_jid || freelancer.phone || fallback;
+    const normalizedRecipient = normalizePhoneRecipient(resolvedValue);
+    const latestNotification = normalizedRecipient
+      ? latestNotificationByRecipient.get(normalizedRecipient) ?? null
+      : null;
+    const metaBlocked = isMetaAllowlistError(latestNotification?.error);
+
+    let metaStatus: WhatsAppDeliveryStatus['meta_status'] = 'unknown';
+    if (!metaConfigured) {
+      metaStatus = 'not_configured';
+    } else if (metaBlocked) {
+      metaStatus = 'blocked';
+    } else if (latestNotification?.status === 'sent') {
+      metaStatus = 'ready';
+    }
+
+    const hasNumber = Boolean(normalizedRecipient);
+    result.set(
+      freelancer.id,
+      buildWhatsAppDeliveryStatus({
+        resolved_phone: displayPhoneRecipient(resolvedValue),
+        has_number: hasNumber,
+        edro_ready: hasNumber,
+        meta_status: metaStatus,
+        meta_blocked: metaBlocked,
+        evolution_available: evolutionAvailable,
+        deliverable_now: hasNumber && (evolutionAvailable || metaStatus === 'ready'),
+        last_attempt_at: latestNotification?.last_attempt_at ?? null,
+        last_error: latestNotification?.error ?? null,
+      }),
+    );
+  }
+
+  return result;
 }
 
 function isValidCnpj(value: string) {
@@ -349,7 +541,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        ORDER BY fp.display_name`,
       [tenantId],
     );
-    return reply.send(rows.rows);
+    const whatsappStatus = await loadFreelancerWhatsAppStatuses(tenantId, rows.rows);
+    return reply.send(
+      rows.rows.map((row) => ({
+        ...row,
+        whatsapp_delivery: whatsappStatus.get(row.id) ?? buildWhatsAppDeliveryStatus(),
+      })),
+    );
   });
 
   const freelancerCreateSchema = z.object({
@@ -499,6 +697,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
   app.get('/freelancers/:id', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const { id } = request.params;
+    const tenantId = (request as any).user?.tenant_id;
     const res = await pool.query(
       `SELECT fp.*, eu.email
        FROM freelancer_profiles fp
@@ -507,7 +706,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       [id],
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Not found' });
-    return reply.send(res.rows[0]);
+    const whatsappStatus = await loadFreelancerWhatsAppStatuses(tenantId, res.rows);
+    return reply.send({
+      ...res.rows[0],
+      whatsapp_delivery: whatsappStatus.get(res.rows[0].id) ?? buildWhatsAppDeliveryStatus(),
+    });
   });
 
   // ── GET /freelancers/:id/stats — full profile stats for the lúdic profile page ──
@@ -588,8 +791,13 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const wl = workloadRes.rows[0];
     const acc = accuracyRes.rows[0];
 
+    const whatsappStatus = await loadFreelancerWhatsAppStatuses(tenantId, [profile]);
+
     return reply.send({
-      profile,
+      profile: {
+        ...profile,
+        whatsapp_delivery: whatsappStatus.get(profile.id) ?? buildWhatsAppDeliveryStatus(),
+      },
       recentJobs: jobsRes.rows,
       workload: {
         activeJobs: wl?.active_jobs ?? 0,

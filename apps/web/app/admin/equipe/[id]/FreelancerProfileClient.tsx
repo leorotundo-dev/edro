@@ -58,6 +58,9 @@ type FreelancerStats = {
     user_id: string;
     display_name: string;
     email: string;
+    phone: string | null;
+    whatsapp_jid: string | null;
+    email_personal: string | null;
     specialty: string | null;
     role_title: string | null;
     department: string | null;
@@ -83,6 +86,7 @@ type FreelancerStats = {
     contract_status: 'none' | 'pending_signature' | 'signed' | 'cancelled' | null;
     contract_signed_s3_key: string | null;
     contract_unsigned_s3_key: string | null;
+    whatsapp_delivery?: WhatsAppDeliveryStatus | null;
   };
   recentJobs: {
     id: string;
@@ -110,6 +114,18 @@ type FreelancerStats = {
     sampleCount: number;
     driftPercent: number;
   } | null;
+};
+
+type WhatsAppDeliveryStatus = {
+  resolved_phone: string | null;
+  has_number: boolean;
+  edro_ready: boolean;
+  meta_status: 'ready' | 'blocked' | 'unknown' | 'not_configured';
+  meta_blocked: boolean;
+  evolution_available: boolean;
+  deliverable_now: boolean;
+  last_attempt_at: string | null;
+  last_error: string | null;
 };
 
 type PortalAccessCodeResponse = {
@@ -141,6 +157,100 @@ function formatMins(mins: number) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+function compactWhatsAppError(error: string | null | undefined) {
+  if (!error) return null;
+  return error.length > 120 ? `${error.slice(0, 117)}...` : error;
+}
+
+function statusChipStyles(color: string, filled = false) {
+  return {
+    height: 22,
+    fontSize: '0.68rem',
+    fontWeight: 700,
+    ...(filled
+      ? {
+          bgcolor: alpha(color, 0.12),
+          color,
+          border: `1px solid ${alpha(color, 0.24)}`,
+        }
+      : {
+          color,
+          border: `1px solid ${alpha(color, 0.24)}`,
+        }),
+  };
+}
+
+function WhatsAppOperationalCard({ status }: { status?: WhatsAppDeliveryStatus | null }) {
+  if (!status) return null;
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+        <IconBolt size={16} color="#22a84d" />
+        <Typography variant="subtitle2" fontWeight={800}>WhatsApp operacional</Typography>
+      </Stack>
+      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
+        <Chip
+          size="small"
+          label={status.has_number ? `Numero salvo${status.resolved_phone ? ` · ${status.resolved_phone}` : ''}` : 'Sem numero salvo'}
+          sx={statusChipStyles(status.has_number ? '#13DEB9' : '#6b7280', true)}
+        />
+        <Chip
+          size="small"
+          label={status.edro_ready ? 'Pronto no Edro' : 'Pendente no Edro'}
+          sx={statusChipStyles(status.edro_ready ? '#4570EA' : '#6b7280', true)}
+        />
+        <Chip
+          size="small"
+          label={
+            status.meta_status === 'blocked'
+              ? 'Meta bloqueia'
+              : status.meta_status === 'ready'
+              ? 'Meta pronta'
+              : status.meta_status === 'not_configured'
+              ? 'Meta off'
+              : 'Meta indefinida'
+          }
+          sx={statusChipStyles(
+            status.meta_status === 'blocked'
+              ? '#ef4444'
+              : status.meta_status === 'ready'
+              ? '#13DEB9'
+              : status.meta_status === 'not_configured'
+              ? '#6b7280'
+              : '#f59e0b',
+            true,
+          )}
+        />
+        <Chip
+          size="small"
+          label={status.evolution_available ? 'Evolution disponivel' : 'Evolution offline'}
+          sx={statusChipStyles(status.evolution_available ? '#8b5cf6' : '#6b7280', true)}
+        />
+        <Chip
+          size="small"
+          label={status.deliverable_now ? 'Entregavel agora' : 'Nao entregavel agora'}
+          sx={statusChipStyles(status.deliverable_now ? '#13DEB9' : '#ef4444', true)}
+        />
+      </Stack>
+      {(status.last_attempt_at || status.last_error) && (
+        <Stack spacing={0.35}>
+          {status.last_attempt_at && (
+            <Typography variant="caption" color="text.secondary">
+              Ultima tentativa: {new Date(status.last_attempt_at).toLocaleString('pt-BR')}
+            </Typography>
+          )}
+          {status.last_error && (
+            <Typography variant="caption" sx={{ color: '#dc2626', fontWeight: 700 }}>
+              Ultimo erro: {compactWhatsAppError(status.last_error)}
+            </Typography>
+          )}
+        </Stack>
+      )}
+    </Paper>
+  );
 }
 
 const LEVEL_CONFIG = {
@@ -731,6 +841,8 @@ export default function FreelancerProfileClient({ id }: { id: string }) {
           {/* ── RIGHT COLUMN ─────────────────────────────────────────────── */}
           <Grid size={{ xs: 12, md: 5 }}>
             <Stack spacing={3}>
+
+              <WhatsAppOperationalCard status={profile.whatsapp_delivery} />
 
               {/* Score breakdown */}
               {(profile.punctuality_score != null || profile.approval_rate != null) && (

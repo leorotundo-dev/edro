@@ -103,6 +103,19 @@ type FreelancerProfile = {
   jobs_completed: number | null;
   unavailable_until: string | null;
   active_timers?: { briefing_id: string; briefing_title?: string; started_at: string }[];
+  whatsapp_delivery?: WhatsAppDeliveryStatus | null;
+};
+
+type WhatsAppDeliveryStatus = {
+  resolved_phone: string | null;
+  has_number: boolean;
+  edro_ready: boolean;
+  meta_status: 'ready' | 'blocked' | 'unknown' | 'not_configured';
+  meta_blocked: boolean;
+  evolution_available: boolean;
+  deliverable_now: boolean;
+  last_attempt_at: string | null;
+  last_error: string | null;
 };
 
 type TenantUser = {
@@ -226,6 +239,121 @@ const AVATAR_COLORS = [
 function avatarColor(name: string): string {
   const code = (name?.charCodeAt(0) ?? 0) + (name?.charCodeAt(1) ?? 0);
   return AVATAR_COLORS[code % AVATAR_COLORS.length];
+}
+
+function compactWhatsAppError(error: string | null | undefined) {
+  if (!error) return null;
+  return error.length > 110 ? `${error.slice(0, 107)}...` : error;
+}
+
+function statusChipStyles(color: string, filled = false) {
+  return {
+    height: 20,
+    fontSize: '0.68rem',
+    fontWeight: 700,
+    ...(filled
+      ? {
+          bgcolor: alpha(color, 0.12),
+          color,
+          borderColor: alpha(color, 0.24),
+          border: '1px solid',
+        }
+      : {
+          color,
+          borderColor: alpha(color, 0.24),
+          border: '1px solid',
+        }),
+  };
+}
+
+function WhatsAppDeliveryBadges({
+  status,
+  compact = false,
+}: {
+  status?: WhatsAppDeliveryStatus | null;
+  compact?: boolean;
+}) {
+  if (!status) return null;
+
+  if (compact) {
+    return (
+      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+        <Chip
+          size="small"
+          label={status.has_number ? 'Numero salvo' : 'Sem numero'}
+          sx={statusChipStyles(status.has_number ? '#13DEB9' : '#6b7280', true)}
+        />
+        <Chip
+          size="small"
+          label={status.deliverable_now ? 'Entregavel agora' : status.meta_blocked ? 'Meta bloqueia' : 'Entrega pendente'}
+          sx={statusChipStyles(status.deliverable_now ? '#13DEB9' : status.meta_blocked ? '#ef4444' : '#f59e0b', true)}
+        />
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+        <Chip
+          size="small"
+          label={status.has_number ? `Numero salvo${status.resolved_phone ? ` · ${status.resolved_phone}` : ''}` : 'Sem numero salvo'}
+          sx={statusChipStyles(status.has_number ? '#13DEB9' : '#6b7280', true)}
+        />
+        <Chip
+          size="small"
+          label={status.edro_ready ? 'Pronto no Edro' : 'Pendente no Edro'}
+          sx={statusChipStyles(status.edro_ready ? '#4570EA' : '#6b7280', true)}
+        />
+        <Chip
+          size="small"
+          label={
+            status.meta_status === 'blocked'
+              ? 'Meta bloqueia'
+              : status.meta_status === 'ready'
+              ? 'Meta pronta'
+              : status.meta_status === 'not_configured'
+              ? 'Meta off'
+              : 'Meta indefinida'
+          }
+          sx={statusChipStyles(
+            status.meta_status === 'blocked'
+              ? '#ef4444'
+              : status.meta_status === 'ready'
+              ? '#13DEB9'
+              : status.meta_status === 'not_configured'
+              ? '#6b7280'
+              : '#f59e0b',
+            true,
+          )}
+        />
+        <Chip
+          size="small"
+          label={status.evolution_available ? 'Evolution disponivel' : 'Evolution offline'}
+          sx={statusChipStyles(status.evolution_available ? '#8b5cf6' : '#6b7280', true)}
+        />
+        <Chip
+          size="small"
+          label={status.deliverable_now ? 'Entregavel agora' : 'Nao entregavel agora'}
+          sx={statusChipStyles(status.deliverable_now ? '#13DEB9' : '#ef4444', true)}
+        />
+      </Stack>
+      {(status.last_attempt_at || status.last_error) && (
+        <Stack spacing={0.25}>
+          {status.last_attempt_at && (
+            <Typography variant="caption" color="text.secondary">
+              Ultima tentativa: {new Date(status.last_attempt_at).toLocaleString('pt-BR')}
+            </Typography>
+          )}
+          {status.last_error && (
+            <Typography variant="caption" sx={{ color: '#dc2626', fontWeight: 700 }}>
+              Ultimo erro: {compactWhatsAppError(status.last_error)}
+            </Typography>
+          )}
+        </Stack>
+      )}
+    </Stack>
+  );
 }
 
 function FreelancerContacts({
@@ -468,6 +596,7 @@ function FreelancerContacts({
                       )}
                     </Stack>
                   )}
+                  <WhatsAppDeliveryBadges status={fl.whatsapp_delivery} compact />
                   {!hasContact && !hasFinancial && !isEditing && (
                     <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
                       Sem dados cadastrais — clique no lápis para adicionar
@@ -2049,6 +2178,7 @@ export default function EquipePage({ embedded = false, forcedTab }: EquipePagePr
                       <CardContent sx={{ p: '20px !important' }}>
                         <Stack spacing={1.25}>
                           <Typography variant="subtitle2" fontWeight={800}>Contato e cadastro</Typography>
+                          <WhatsAppDeliveryBadges status={drawerFl.whatsapp_delivery} />
                           {drawerFl.phone && (
                             <Typography variant="body2"><strong>Telefone:</strong> {drawerFl.phone}</Typography>
                           )}
