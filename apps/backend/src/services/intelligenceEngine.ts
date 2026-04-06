@@ -105,6 +105,27 @@ export type IntelligenceContext = {
     client_pattern_count: number;
     agency_pattern_count: number;
   } | null;
+  work_history: {
+    recent_cards: {
+      title: string;
+      job_type: string | null;
+      cycle_time_hours: number | null;
+      revision_count: number;
+      was_overdue: boolean | null;
+      finished_at: string | null;
+      terminal_stage: string | null;
+    }[];
+    board_metrics: {
+      board_name: string;
+      median_cycle_time_hours: number | null;
+      avg_revision_count: number | null;
+      pct_approved_first_try: number | null;
+      pct_on_time: number | null;
+      bottleneck_stage: string | null;
+    } | null;
+    total_cards: number;
+    total_boards: number;
+  } | null;
 };
 
 /**
@@ -141,6 +162,8 @@ export async function buildIntelligenceContext(params: {
     clientDirectivesData,
     meetingSummariesData,
     meetingActionsData,
+    trelloCardsData,
+    trelloBoardMetricsData,
   ] = await Promise.allSettled([
     // Client profile
     query(`
@@ -327,6 +350,36 @@ export async function buildIntelligenceContext(params: {
       LIMIT 20
     `, [params.client_id, params.tenant_id]),
 
+    // Trello/project work history — recent finished cards with analytics
+    query(`
+      SELECT pc.title,
+             pca.parsed_job_type, pca.cycle_time_hours, pca.revision_count,
+             pca.was_overdue, pca.finished_at, pca.terminal_stage
+      FROM project_cards pc
+      JOIN project_boards pb ON pb.id = pc.board_id
+      LEFT JOIN project_card_analytics pca ON pca.card_id = pc.id
+      WHERE pb.tenant_id = $2
+        AND pb.client_id = $1
+        AND pb.is_archived = false
+        AND (pca.terminal_stage IN ('FINALIZADO','DONE','CONCLUÍDO') OR pca.terminal_stage IS NULL)
+      ORDER BY pca.finished_at DESC NULLS LAST, pc.updated_at DESC
+      LIMIT 30
+    `, [params.client_id, params.tenant_id]),
+
+    // Board-level aggregate metrics for the client
+    query(`
+      SELECT pb.name AS board_name,
+             pba.median_cycle_time_hours, pba.avg_revision_count,
+             pba.pct_approved_first_try, pba.pct_on_time,
+             pba.bottleneck_stage
+      FROM project_board_analytics pba
+      JOIN project_boards pb ON pb.id = pba.board_id
+      WHERE pb.tenant_id = $2 AND pb.client_id = $1
+        AND pb.is_archived = false
+      ORDER BY pba.cards_done DESC
+      LIMIT 1
+    `, [params.client_id, params.tenant_id]),
+
   ]);
 
   // Extract data from settled promises (graceful degradation)
@@ -353,6 +406,8 @@ export async function buildIntelligenceContext(params: {
   const clientDirectives = clientDirectivesData.status === 'fulfilled' ? clientDirectivesData.value.rows : [];
   const meetingSummaries = meetingSummariesData.status === 'fulfilled' ? meetingSummariesData.value.rows : [];
   const meetingActions = meetingActionsData.status === 'fulfilled' ? meetingActionsData.value.rows : [];
+  const trelloCards = trelloCardsData.status === 'fulfilled' ? trelloCardsData.value.rows : [];
+  const trelloBoardMetrics = trelloBoardMetricsData.status === 'fulfilled' ? trelloBoardMetricsData.value.rows[0] ?? null : null;
 
   // Jarvis KB — accumulated knowledge for this client + agency patterns
   let jarvisKb: { summary: string; client_pattern_count: number; agency_pattern_count: number } | null = null;
@@ -516,6 +571,27 @@ export async function buildIntelligenceContext(params: {
       ? buildMeetingIntelligence(meetingSummaries, meetingActions)
       : null,
     jarvis_kb: jarvisKb,
+    work_history: trelloCards.length > 0 ? {
+      recent_cards: trelloCards.slice(0, 20).map((c: any) => ({
+        title: c.title,
+        job_type: c.parsed_job_type ?? null,
+        cycle_time_hours: c.cycle_time_hours !== null ? Number(c.cycle_time_hours) : null,
+        revision_count: Number(c.revision_count) || 0,
+        was_overdue: c.was_overdue ?? null,
+        finished_at: c.finished_at ? new Date(c.finished_at).toISOString() : null,
+        terminal_stage: c.terminal_stage ?? null,
+      })),
+      board_metrics: trelloBoardMetrics ? {
+        board_name: trelloBoardMetrics.board_name,
+        median_cycle_time_hours: trelloBoardMetrics.median_cycle_time_hours !== null ? Number(trelloBoardMetrics.median_cycle_time_hours) : null,
+        avg_revision_count: trelloBoardMetrics.avg_revision_count !== null ? Number(trelloBoardMetrics.avg_revision_count) : null,
+        pct_approved_first_try: trelloBoardMetrics.pct_approved_first_try !== null ? Number(trelloBoardMetrics.pct_approved_first_try) : null,
+        pct_on_time: trelloBoardMetrics.pct_on_time !== null ? Number(trelloBoardMetrics.pct_on_time) : null,
+        bottleneck_stage: trelloBoardMetrics.bottleneck_stage ?? null,
+      } : null,
+      total_cards: trelloCards.length,
+      total_boards: trelloBoardMetrics ? 1 : 0,
+    } : null,
   };
 
   // Token validation: estimate tokens and truncate if needed
@@ -708,6 +784,32 @@ export function formatIntelligencePrompt(context: IntelligenceContext): string {
         sections.push(`- [${a.type}] ${a.title}${responsibleStr}${deadlineStr} [${a.priority}]`);
         if (a.description) sections.push(`  ${a.description}`);
         if (a.excerpt) sections.push(`  Trecho: "${a.excerpt}"`);
+      });
+    }
+  }
+
+  // Work history (Trello/project cards)
+  if (context.work_history && context.work_history.total_cards > 0) {
+    const wh = context.work_history;
+    sections.push(`\n# HISTÓRICO DE TRABALHO (Trello — ${wh.total_cards} cards)`);
+    if (wh.board_metrics) {
+      const bm = wh.board_metrics;
+      const cycleStr = bm.median_cycle_time_hours !== null ? `${(bm.median_cycle_time_hours / 24).toFixed(1)} dias` : 'n/a';
+      const revStr = bm.avg_revision_count !== null ? bm.avg_revision_count.toFixed(1) : 'n/a';
+      const onTimeStr = bm.pct_on_time !== null ? `${bm.pct_on_time.toFixed(0)}%` : 'n/a';
+      const firstTryStr = bm.pct_approved_first_try !== null ? `${bm.pct_approved_first_try.toFixed(0)}%` : 'n/a';
+      sections.push(`## Métricas do Board "${bm.board_name}":`);
+      sections.push(`- Cycle time mediano: ${cycleStr} | Revisões médias: ${revStr} | No prazo: ${onTimeStr} | Aprovado de primeira: ${firstTryStr}`);
+      if (bm.bottleneck_stage) sections.push(`- Gargalo identificado: ${bm.bottleneck_stage}`);
+    }
+    if (wh.recent_cards.length > 0) {
+      sections.push(`## Cards recentes:`);
+      wh.recent_cards.slice(0, 10).forEach((card) => {
+        const type = card.job_type ? `[${card.job_type}]` : '';
+        const cycle = card.cycle_time_hours !== null ? ` — ${(card.cycle_time_hours / 24).toFixed(1)}d` : '';
+        const revs = card.revision_count > 0 ? ` — ${card.revision_count} revisão(ões)` : '';
+        const overdue = card.was_overdue ? ' ⚠ atrasado' : '';
+        sections.push(`- ${type} ${card.title}${cycle}${revs}${overdue}`.trim());
       });
     }
   }

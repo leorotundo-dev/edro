@@ -13,7 +13,7 @@
  */
 
 import { query } from '../db';
-import { synthesizeClientKb, promoteToAgencyKb } from '../services/jarvisKbService';
+import { synthesizeClientKb, promoteToAgencyKb, synthesizeTrelloKb } from '../services/jarvisKbService';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -49,6 +49,18 @@ export async function runJarvisKbWorkerOnce(): Promise<void> {
       } catch (err) {
         errors++;
         console.error(`[jarvisKbWorker] Error on client=${clientId}:`, err);
+      }
+
+      // Synthesize Trello work history patterns into KB
+      try {
+        const trelloCount = await synthesizeTrelloKb(tenant_id, clientId);
+        if (trelloCount > 0) {
+          totalClientEntries += trelloCount;
+          console.log(`[jarvisKbWorker] client=${clientId} → ${trelloCount} Trello KB entries synthesized`);
+        }
+      } catch (err) {
+        // Trello not configured or no data — graceful degradation
+        console.warn(`[jarvisKbWorker] Trello KB skip for client=${clientId}:`, (err as any)?.message);
       }
 
       // Rate limiting — avoid hammering the DB

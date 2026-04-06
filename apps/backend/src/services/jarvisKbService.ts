@@ -302,6 +302,125 @@ function rowToAgencyEntry(r: any): KbEntry {
   };
 }
 
+// ── Synthesize: project_card_analytics → jarvis_kb_entries ───────────────────
+// Extracts recurring work patterns from Trello history for a client and files them as KB entries.
+// Examples: "Reels tem cycle_time 40% menor que Carrossel" or "% de aprovação na primeira tentativa"
+
+export async function synthesizeTrelloKb(
+  tenantId: string,
+  clientId: string
+): Promise<number> {
+  // Aggregate by job_type (parsed from card title): avg cycle_time, revision_count, approval rate
+  const { rows } = await query(
+    `SELECT
+       pca.parsed_job_type,
+       COUNT(*)::int                          AS card_count,
+       AVG(pca.cycle_time_hours)              AS avg_cycle_hours,
+       AVG(pca.revision_count)                AS avg_revisions,
+       AVG(pca.approval_cycles)               AS avg_approval_cycles,
+       AVG(CASE WHEN pca.was_overdue THEN 1 ELSE 0 END) AS overdue_rate,
+       AVG(CASE WHEN pca.revision_count = 0 THEN 1.0 ELSE 0.0 END) AS first_try_rate
+     FROM project_card_analytics pca
+     JOIN project_boards pb ON pb.id = pca.board_id
+     WHERE pb.tenant_id = $1
+       AND pb.client_id = $2
+       AND pb.is_archived = false
+       AND pca.terminal_stage IN ('FINALIZADO','DONE','CONCLUÍDO')
+       AND pca.parsed_job_type IS NOT NULL
+     GROUP BY pca.parsed_job_type
+     HAVING COUNT(*) >= 2`,
+    [tenantId, clientId]
+  );
+
+  if (!rows.length) return 0;
+
+  let upserted = 0;
+
+  for (const row of rows) {
+    const jobType: string = row.parsed_job_type;
+    const count: number = Number(row.card_count);
+    const avgCycleDays: number = row.avg_cycle_hours !== null ? Number(row.avg_cycle_hours) / 24 : 0;
+    const avgRevisions: number = row.avg_revisions !== null ? Number(row.avg_revisions) : 0;
+    const overdueRate: number = row.overdue_rate !== null ? Number(row.overdue_rate) * 100 : 0;
+    const firstTryRate: number = row.first_try_rate !== null ? Number(row.first_try_rate) * 100 : 0;
+
+    const evidence = evidenceFromSampleAndConfidence(count, firstTryRate / 100);
+    const topic = `work_pattern:${jobType}:cycle_time`;
+
+    const parts: string[] = [
+      `[${evidence}] Tipo "${jobType}" (${count} cards): cycle time médio ${avgCycleDays.toFixed(1)} dias`,
+      `revisões médias ${avgRevisions.toFixed(1)}`,
+    ];
+    if (firstTryRate > 0) parts.push(`aprovado de primeira em ${firstTryRate.toFixed(0)}% dos casos`);
+    if (overdueRate > 0) parts.push(`atraso em ${overdueRate.toFixed(0)}% das entregas`);
+
+    const content = parts.join(', ') + '.';
+
+    await upsertKbEntry(tenantId, clientId, {
+      topic,
+      category: 'work_pattern',
+      content,
+      evidence_level: evidence,
+      sample_size: count,
+      source: 'trello_analytics',
+      source_data: {
+        job_type: jobType,
+        avg_cycle_days: avgCycleDays,
+        avg_revisions: avgRevisions,
+        overdue_rate: overdueRate,
+        first_try_rate: firstTryRate,
+      },
+    });
+    upserted++;
+  }
+
+  // Also file a board-level health summary if we have enough data
+  const { rows: boardRows } = await query(
+    `SELECT
+       pb.name AS board_name,
+       pba.median_cycle_time_hours,
+       pba.avg_revision_count,
+       pba.pct_on_time,
+       pba.pct_approved_first_try,
+       pba.bottleneck_stage,
+       pba.cards_done
+     FROM project_board_analytics pba
+     JOIN project_boards pb ON pb.id = pba.board_id
+     WHERE pb.tenant_id = $1 AND pb.client_id = $2 AND pb.is_archived = false
+       AND pba.cards_done >= 3
+     ORDER BY pba.cards_done DESC
+     LIMIT 1`,
+    [tenantId, clientId]
+  );
+
+  if (boardRows[0]) {
+    const bm = boardRows[0];
+    const cycleDays = bm.median_cycle_time_hours !== null ? (Number(bm.median_cycle_time_hours) / 24).toFixed(1) : 'n/a';
+    const onTime = bm.pct_on_time !== null ? `${Number(bm.pct_on_time).toFixed(0)}%` : 'n/a';
+    const firstTry = bm.pct_approved_first_try !== null ? `${Number(bm.pct_approved_first_try).toFixed(0)}%` : 'n/a';
+    const bottleneck = bm.bottleneck_stage ? ` Gargalo: ${bm.bottleneck_stage}.` : '';
+
+    const evidence = evidenceFromSampleAndConfidence(Number(bm.cards_done), 0.8);
+    await upsertKbEntry(tenantId, clientId, {
+      topic: `work_pattern:board:health`,
+      category: 'work_pattern',
+      content: `[${evidence}] Board "${bm.board_name}" (${bm.cards_done} cards): cycle time mediano ${cycleDays} dias, entregue no prazo ${onTime}, aprovado de primeira ${firstTry}.${bottleneck}`,
+      evidence_level: evidence,
+      sample_size: Number(bm.cards_done),
+      source: 'trello_analytics',
+      source_data: {
+        board_name: bm.board_name,
+        median_cycle_days: cycleDays,
+        pct_on_time: bm.pct_on_time,
+        bottleneck_stage: bm.bottleneck_stage,
+      },
+    });
+    upserted++;
+  }
+
+  return upserted;
+}
+
 // ── Search KB entries ─────────────────────────────────────────────────────────
 
 export interface KbSearchResult {
