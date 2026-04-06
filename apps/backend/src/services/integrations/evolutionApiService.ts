@@ -41,7 +41,7 @@ function baseUrl() {
   return url.replace(/\/$/, '');
 }
 
-async function evolFetch(path: string, opts: RequestInit = {}) {
+async function evolFetch<T = Record<string, any>>(path: string, opts: RequestInit = {}): Promise<T> {
   const apiKey = env.EVOLUTION_API_KEY;
   if (!apiKey) throw new Error('EVOLUTION_API_KEY não configurada.');
 
@@ -58,7 +58,7 @@ async function evolFetch(path: string, opts: RequestInit = {}) {
     const text = await res.text().catch(() => '');
     throw new Error(`Evolution API error (${res.status}): ${text.slice(0, 300)}`);
   }
-  return res.json();
+  return (await res.json()) as T;
 }
 
 // ── Instance management ────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ export async function getQrCode(
   const name = instanceName(tenantId);
 
   const once = async (): Promise<EvolutionQrCode> => {
-    const data = await evolFetch(`/instance/connect/${name}`);
+    const data = await evolFetch<{ base64?: string; code?: string }>(`/instance/connect/${name}`);
     // v2 returns { count, base64, code } when QR is ready; { count: 0 } when not ready yet
     return {
       base64: data.base64 ?? '',
@@ -166,7 +166,9 @@ export async function getQrCode(
 
 export async function getInstanceStatus(tenantId: string): Promise<EvolutionInstanceStatus> {
   const name = instanceName(tenantId);
-  const data = await evolFetch(`/instance/connectionState/${name}`);
+  const data = await evolFetch<{
+    instance?: { state?: EvolutionInstanceStatus['state']; profileName?: string; number?: string };
+  }>(`/instance/connectionState/${name}`);
 
   const state = data.instance?.state ?? 'close';
 
@@ -393,7 +395,7 @@ export async function fetchGroupHistory(
 ): Promise<EvolutionHistoryMessage[]> {
   const name = instanceName(tenantId);
 
-  const data = await evolFetch(`/chat/findMessages/${name}`, {
+  const data = await evolFetch<any>(`/chat/findMessages/${name}`, {
     method: 'POST',
     body: JSON.stringify({
       where: { key: { remoteJid: groupJid } },

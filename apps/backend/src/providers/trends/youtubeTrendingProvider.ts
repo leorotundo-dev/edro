@@ -27,7 +27,9 @@ export class YouTubeTrendingProvider implements TrendProvider {
       const errBody = await response.text().catch(() => '');
       throw new Error(`YouTube API error ${response.status}: ${errBody.slice(0, 200)}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as {
+      items?: Array<Record<string, any>>;
+    };
     const items = data.items ?? [];
     const now = new Date().toISOString();
 

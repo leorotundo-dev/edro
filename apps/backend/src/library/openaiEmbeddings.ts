@@ -21,11 +21,14 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
       }),
     });
 
-    const payload = await response.json();
+    const payload = (await response.json()) as {
+      error?: { message?: string };
+      data?: Array<{ embedding: number[] }>;
+    };
     if (!response.ok) {
       throw new Error(payload?.error?.message || 'openai_embedding_failed');
     }
 
-    return payload.data.map((item: any) => item.embedding);
+    return (payload.data ?? []).map((item) => item.embedding);
   }
 }

@@ -304,7 +304,13 @@ Responda APENAS com JSON:
       return fallback;
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
+    };
     const raw = (data?.candidates?.[0]?.content?.parts ?? [])
       .map((p: any) => p.text || '')
       .join('')

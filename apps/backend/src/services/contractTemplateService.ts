@@ -9,6 +9,8 @@
 
 import PDFDocument from 'pdfkit';
 
+type PdfDocumentInstance = InstanceType<typeof PDFDocument>;
+
 export interface ContractData {
   // Agência
   agency_razao_social: string;
@@ -451,23 +453,23 @@ export async function generateContractPdf(data: ContractData): Promise<Buffer> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function divider(doc: PDFKit.PDFDocument) {
+function divider(doc: PdfDocumentInstance) {
   doc.moveTo(60, doc.y).lineTo(535, doc.y).strokeColor('#cccccc').lineWidth(0.5).stroke().moveDown(1);
 }
 
-function section(doc: PDFKit.PDFDocument, title: string, color: string) {
+function section(doc: PdfDocumentInstance, title: string, color: string) {
   doc.fontSize(11).fillColor(color).font('Helvetica-Bold').text(title).moveDown(0.4);
 }
 
-function subsection(doc: PDFKit.PDFDocument, title: string, color: string) {
+function subsection(doc: PdfDocumentInstance, title: string, color: string) {
   doc.fontSize(9).fillColor(color).font('Helvetica-Bold').text(title).moveDown(0.3);
 }
 
-function body(doc: PDFKit.PDFDocument, text: string) {
+function body(doc: PdfDocumentInstance, text: string) {
   doc.fontSize(9).fillColor('#333333').font('Helvetica').text(text, { lineGap: 2 }).moveDown(0.3);
 }
 
-function glosaTable(doc: PDFKit.PDFDocument, headerColor: string) {
+function glosaTable(doc: PdfDocumentInstance, headerColor: string) {
   const tableLeft = 70;
   const colWidths = [130, 70, 245];
   const rowHeight = 16;

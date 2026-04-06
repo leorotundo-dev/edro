@@ -39,12 +39,15 @@ export class GoogleTrendsProvider implements TrendProvider {
       const errBody = await response.text().catch(() => '');
       throw new Error(`Google Trends proxy error ${response.status}: ${errBody.slice(0, 200)}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as {
+      observed_at?: string;
+      signals?: Array<Record<string, unknown>>;
+    };
     const now = data.observed_at ?? new Date().toISOString();
 
-    return (data.signals ?? []).map((signal: any) => ({
+    return (data.signals ?? []).map((signal) => ({
       source: this.source_id,
-      topic: String(signal.topic),
+      topic: String(signal.topic ?? ''),
       score: Math.max(0, Math.min(100, Number(signal.score ?? 0))),
       confidence: 0.6,
       locale: params.locality,

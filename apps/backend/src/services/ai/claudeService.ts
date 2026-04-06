@@ -262,7 +262,9 @@ export async function generateWithTools(params: ClaudeToolsParams): Promise<Clau
     throw new Error(`Claude error: ${response.status} ${text}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as Partial<AnthropicResponse> & {
+    stop_reason?: string;
+  };
   return {
     content: data.content || [],
     stop_reason: data.stop_reason || 'end_turn',

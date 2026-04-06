@@ -696,7 +696,7 @@ export default async function evolutionRoutes(app: FastifyInstance) {
     try {
       const webhookData = await fetch(`${evolutionUrl.replace(/\/$/, '')}/webhook/find/${name}`, {
         headers: { apikey: process.env.EVOLUTION_API_KEY || '', 'Content-Type': 'application/json' },
-      }).then(r => r.json()).catch(() => null);
+      }).then(async (r) => (await r.json()) as { webhook?: { url?: string }; url?: string }).catch(() => null);
       if (webhookData) {
         webhookUrl = webhookData?.webhook?.url || webhookData?.url || '';
         webhookConfigured = !!webhookUrl;

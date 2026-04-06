@@ -61,7 +61,7 @@ export async function fetchMetaAdsCampaigns(tenantId: string, clientId: string):
     throw new Error(`meta_api_${resp.status}: ${errBody.slice(0, 200)}`);
   }
 
-  const data = await resp.json();
+  const data = (await resp.json()) as { data?: any[] };
   const campaigns: MetaCampaign[] = (data.data || []).map((c: any) => ({
     id: c.id,
     name: c.name,

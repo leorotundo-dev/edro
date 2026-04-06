@@ -78,7 +78,7 @@ async function transcribeAudio(buffer: Buffer, mimeType: string): Promise<string
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       ...form.getHeaders(),
     },
-    body: form.getBuffer() as unknown as BodyInit,
+    body: form.getBuffer() as any,
   });
 
   if (!res.ok) {

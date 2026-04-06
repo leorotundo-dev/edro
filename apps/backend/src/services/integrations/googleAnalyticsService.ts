@@ -86,7 +86,10 @@ export async function fetchGoogleAnalyticsReport(
     throw new Error(`ga4_api_${resp.status}: ${errBody.slice(0, 200)}`);
   }
 
-  const data = await resp.json();
+  const data = (await resp.json()) as {
+    rows?: any[];
+    totals?: Array<{ metricValues?: Array<{ value?: string }> }>;
+  };
   const gaRows = (data.rows || []).map((r: any) => ({
     dimension: r.dimensionValues?.[0]?.value || '',
     sessions: parseInt(r.metricValues?.[0]?.value || '0', 10),
@@ -145,7 +148,7 @@ async function getServiceAccountToken(serviceAccountJson: string): Promise<strin
   });
 
   if (!resp.ok) throw new Error('sa_token_exchange_failed');
-  const data = await resp.json();
+  const data = (await resp.json()) as { access_token?: string };
   return data.access_token;
 }
 
@@ -157,6 +160,6 @@ async function refreshOAuthToken(clientId: string, clientSecret: string, refresh
   });
 
   if (!resp.ok) throw new Error('oauth_refresh_failed');
-  const data = await resp.json();
+  const data = (await resp.json()) as { access_token?: string };
   return data.access_token;
 }

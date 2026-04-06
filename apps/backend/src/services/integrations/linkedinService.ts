@@ -139,7 +139,8 @@ async function createUgcPost(
   }
 
   // LinkedIn returns the post ID in the header x-restli-id or body
-  const postId = res.headers.get('x-restli-id') || (await res.json().catch(() => ({}))).id || '';
+  const payload = (await res.json().catch(() => ({}))) as { id?: string };
+  const postId = res.headers.get('x-restli-id') || payload.id || '';
   return postId;
 }
 

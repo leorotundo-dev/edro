@@ -142,7 +142,7 @@ async function uploadZipToFal(zipBytes: Uint8Array, fileName: string): Promise<s
     const text = await res.text().catch(() => '');
     throw new Error(`fal.ai storage upload → ${res.status}: ${text.slice(0, 300)}`);
   }
-  const json = await res.json();
+  const json = (await res.json()) as { url?: string };
   if (!json?.url) throw new Error('fal.ai storage: sem URL na resposta');
   return json.url as string;
 }

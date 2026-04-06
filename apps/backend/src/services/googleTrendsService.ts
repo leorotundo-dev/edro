@@ -30,7 +30,7 @@ export async function queryGoogleTrends(
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return [];
-    const data = await res.json();
+    const data = (await res.json()) as { signals?: TrendSignal[] };
     return (data.signals ?? []) as TrendSignal[];
   } catch {
     return [];

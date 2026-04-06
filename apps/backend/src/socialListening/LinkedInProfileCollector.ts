@@ -88,7 +88,7 @@ export class LinkedInProfileCollector {
         return { mentions: [], hasMore: false };
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       const posts: LinkedInPost[] = Array.isArray(data)
         ? data
         : data?.data ?? data?.posts ?? [];
@@ -138,7 +138,7 @@ export class LinkedInProfileCollector {
 
       if (!response.ok) return null;
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
 
       if (type === 'company') {
         return {

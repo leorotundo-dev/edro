@@ -16,7 +16,13 @@ type VisionCompletionParams = CompletionParams & {
 type GeminiResponse = {
   candidates?: Array<{
     content?: {
-      parts?: Array<{ text?: string }>;
+      parts?: Array<{
+        text?: string;
+        inlineData?: {
+          data?: string;
+          mimeType?: string;
+        };
+      }>;
     };
   }>;
   usageMetadata?: {
@@ -238,7 +244,7 @@ export async function generateWithTools(params: GeminiToolsParams): Promise<Gemi
     throw new Error(`Gemini error: ${response.status} ${text}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as GeminiResponse;
   const parts = data.candidates?.[0]?.content?.parts || [];
   const inputTokens = data.usageMetadata?.promptTokenCount || 0;
   const outputTokens = data.usageMetadata?.candidatesTokenCount || 0;
@@ -402,7 +408,7 @@ export async function generateImage(params: {
     throw new Error(`Gemini image error: ${response.status} ${text}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as GeminiResponse;
   const responseParts = data.candidates?.[0]?.content?.parts || [];
   const imagePart = responseParts.find((p: any) => p.inlineData?.data);
 

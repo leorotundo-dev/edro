@@ -78,9 +78,19 @@ export async function searchPerplexity(options: PerplexitySearchOptions): Promis
     throw new Error(`Perplexity API error (${response.status}): ${errorText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as {
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    model?: string;
+    choices?: Array<{ message?: { content?: string } }>;
+    citations?: string[];
+    search_results?: Array<{ title?: string; url?: string; snippet?: string; date?: string }>;
+  };
   const durationMs = Date.now() - startMs;
-  const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  const usage = {
+    prompt_tokens: data.usage?.prompt_tokens || 0,
+    completion_tokens: data.usage?.completion_tokens || 0,
+    total_tokens: data.usage?.total_tokens || 0,
+  };
   const modelUsed = data.model || options.model || 'sonar';
 
   // Log cost (fire-and-forget)
