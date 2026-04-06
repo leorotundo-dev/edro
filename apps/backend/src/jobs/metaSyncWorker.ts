@@ -11,6 +11,8 @@
 
 import { query } from '../db/db';
 import { syncMetaPerformanceForClient } from '../services/integrations/metaSyncService';
+import { recomputeClientLearningRules } from '../services/learningEngine';
+import { synthesizeClientKb } from '../services/jarvisKbService';
 
 const MAX_PER_TICK       = 8;
 
@@ -62,6 +64,14 @@ export async function runMetaSyncWorkerOnce(): Promise<void> {
         console.log(
           `[metaSync] ${row.client_name}: synced=${result.synced} skipped=${result.skipped} errors=${result.errors.length}`,
         );
+      }
+
+      // Chain: performance data → LearningEngine → KB synthesis (fire-and-forget)
+      if (result.synced > 0) {
+        recomputeClientLearningRules(row.tenant_id, row.client_id)
+          .then(() => synthesizeClientKb(row.tenant_id, row.client_id))
+          .then(count => { if (count > 0) console.log(`[metaSync] KB updated for ${row.client_name}: ${count} entries`); })
+          .catch(err => console.warn(`[metaSync] KB chain failed for ${row.client_name}:`, err?.message));
       }
     } catch (err: any) {
       const msg = err?.message || String(err);

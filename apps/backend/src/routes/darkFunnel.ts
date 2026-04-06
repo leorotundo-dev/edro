@@ -5,6 +5,7 @@ import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { hasClientPerm, requireClientPerm } from '../auth/clientPerms';
 import { parseDarkFunnelSignal } from '../services/darkFunnelParser';
+import { fileOutputToKb } from '../services/jarvisKbFilingService';
 
 const PostBody = z.object({
   client_id: z.string().min(1),
@@ -58,6 +59,21 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
         body.recorded_by ?? null,
       ]
     );
+
+    // File dark funnel signal to KB (fire-and-forget)
+    if (finalChannel && finalConfidence && finalConfidence >= 0.7) {
+      fileOutputToKb(tenantId, body.client_id, body.raw_text, 'qa_answer', {
+        triggers: ['dark_funnel'],
+        micro_behavior: finalStage ?? undefined,
+        platform: finalChannel,
+        metadata: {
+          source_type: body.source_type,
+          confidence: finalConfidence,
+          journey_stage: finalStage,
+          event_id: event.id,
+        },
+      }).catch(() => {});
+    }
 
     return reply.status(201).send({ success: true, data: event });
   });

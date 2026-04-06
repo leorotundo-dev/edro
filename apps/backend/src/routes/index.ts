@@ -70,6 +70,7 @@ import jarvisRoutes from './jarvis';
 import daBillingRoutes from './daBilling';
 import jobBriefingsRoutes from './jobBriefings';
 import multiFormatRoutes from './multiFormat';
+import { jarvisKbRoutes } from './jarvisKb';
 import { env } from '../env';
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -156,4 +157,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(daBillingRoutes, { prefix: '/api' });
   app.register(jobBriefingsRoutes, { prefix: '/api' });
   app.register(multiFormatRoutes, { prefix: '/api' });
+  app.register(jarvisKbRoutes, { prefix: '/api' });
 }

@@ -164,10 +164,14 @@ export async function syncReporteiLearningRules(
     rules++;
   }
 
-  // Trigger learning rules rebuild for this client (non-blocking)
-  import('../services/learningEngine').then(({ recomputeClientLearningRules }) => {
-    recomputeClientLearningRules(clientId, tenantId).catch(() => {});
-  }).catch(() => {});
+  // Chain: Reportei data → LearningEngine → KB synthesis (non-blocking)
+  import('../services/learningEngine').then(({ recomputeClientLearningRules }) =>
+    recomputeClientLearningRules(clientId, tenantId)
+  ).then(() =>
+    import('../services/jarvisKbService').then(({ synthesizeClientKb }) =>
+      synthesizeClientKb(tenantId, clientId)
+    )
+  ).catch(() => {});
 
   return { rules };
 }
