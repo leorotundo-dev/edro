@@ -96,6 +96,8 @@ export default function OperationsPeopleClient() {
   return (
     <OperationsShell
       section="people"
+      titleOverride="Pessoas"
+      subtitleOverride="Leitura individual da pauta, da carga da equipe e do que ainda está sem dono."
       summary={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Chip label={`${plannerData.owners.length} pessoas`} size="small" />
@@ -118,14 +120,14 @@ export default function OperationsPeopleClient() {
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} justifyContent="space-between">
             <Box>
               <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 900, letterSpacing: '0.18em' }}>
-                PAUTA POR PESSOA
+                LEITURA INDIVIDUAL
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, mt: 0.4 }}>
-                Carga individual sem depender do planner semanal
+                Quem está com o quê agora
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 760, mt: 0.8 }}>
-                Essa tela traz de volta a leitura explícita das antigas abas por nome da planilha: quem está com o quê,
-                quem tem espaço e o que ainda está sem responsável.
+                Use esta vista para entender a pauta de cada pessoa, onde existe folga e o que ainda precisa ganhar dono
+                antes de entrar na semana.
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
@@ -133,7 +135,7 @@ export default function OperationsPeopleClient() {
                 Ver sem dono
               </Button>
               <Button component={Link} href="/admin/operacoes/semana?view=distribution" variant="contained">
-                Abrir distribuição
+                Ir para semana
               </Button>
             </Stack>
           </Stack>
@@ -260,7 +262,7 @@ export default function OperationsPeopleClient() {
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           {selectedOwner
-                            ? 'Pauta individual direta, sem abrir o planner semanal.'
+                            ? 'A pauta atual dessa pessoa, com foco em propriedade e carga.'
                             : 'Escolha uma pessoa para ver a pauta.'}
                         </Typography>
                       </Box>

@@ -183,7 +183,9 @@ export default function OperationsIaClient() {
 
   return (
     <OperationsShell
-      section="ia"
+      section="jobs"
+      titleOverride="Handoff criativo"
+      subtitleOverride="Demandas que precisam de briefing, copy ou aprovação dentro da pauta."
       summary={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Chip label={`${totalInFlow} itens na bandeja`} size="small" />
@@ -207,14 +209,14 @@ export default function OperationsIaClient() {
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} justifyContent="space-between">
             <Box>
               <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 900, letterSpacing: '0.18em' }}>
-                EXTRAÇÃO PARA IA
+                HANDOFF CRIATIVO
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, mt: 0.4 }}>
-                A bandeja operacional da redação
+                Briefing, copy e aprovação dentro da pauta
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 760, mt: 0.8 }}>
-                Essa área agora lê direto o Trello dentro da Central: tudo que está aguardando briefing, infos,
-                redação ou aprovação aparece aqui como handoff operacional, sem depender de uma fila paralela.
+                Essa área lê direto o Trello dentro da Central: tudo que está aguardando briefing, infos,
+                redação ou aprovação aparece aqui como recorte operacional da pauta, sem criar um fluxo paralelo.
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>

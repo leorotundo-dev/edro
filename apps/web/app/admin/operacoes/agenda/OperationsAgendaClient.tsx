@@ -311,6 +311,9 @@ export default function OperationsAgendaClient() {
   const selectedAgendaLabel = selectedJob
     ? String(selectedJob.metadata?.calendar_item?.label || (selectedLayer ? LAYER_LABELS[selectedLayer] : 'Sem camada'))
     : 'Sem camada';
+  const shellSubtitle = viewMode === 'calendar'
+    ? 'Janela temporal da operação para prazos, aprovações, publicações e impacto no calendário.'
+    : 'Distribuição da carga da equipe para replanejar a semana e resolver apertos.';
 
   async function reloadAgenda() {
     await refresh();
@@ -370,6 +373,8 @@ export default function OperationsAgendaClient() {
   return (
     <OperationsShell
       section="semana"
+      titleOverride="Semana"
+      subtitleOverride={shellSubtitle}
       onNewDemand={() => openCreate('client_request')}
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
@@ -403,8 +408,12 @@ export default function OperationsAgendaClient() {
           <Grid size={{ xs: 12 }}>
             <OpsPanel
               eyebrow="Semáforo da semana"
-              title="Onde mexer primeiro"
-              subtitle="Veja quem está apertado, o que ficou sem dono e quais dias já estão pesados antes de redistribuir a semana."
+              title={viewMode === 'calendar' ? 'Onde o calendário aperta' : 'Onde a distribuição aperta'}
+              subtitle={
+                viewMode === 'calendar'
+                  ? 'Veja prazos, aprovações e publicações que pressionam a semana antes de decidir.'
+                  : 'Veja quem está apertado, o que ficou sem dono e quais dias já estão pesados antes de redistribuir.'
+              }
               action={
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
@@ -1074,8 +1083,12 @@ export default function OperationsAgendaClient() {
             <Stack spacing={3}>
               <JobFocusRail
                 job={selectedJob}
-                title="Mesa da semana"
-                subtitle="Resolva dono, prazo e contexto sem perder a leitura da distribuicao."
+                title={viewMode === 'calendar' ? 'Janela da semana' : 'Distribuição da semana'}
+                subtitle={
+                  viewMode === 'calendar'
+                    ? 'Resolva prazo, aprovação e contexto sem perder a leitura temporal da operação.'
+                    : 'Resolva dono, carga e encaixe sem perder a leitura da distribuição.'
+                }
                 primaryLabel={isNativeMeeting ? 'Abrir reunioes' : 'Abrir comandos'}
                 onPrimaryAction={() => {
                   if (!selectedJob) return;

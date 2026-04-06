@@ -16,7 +16,6 @@ import {
   IconLayoutKanban,
   IconPlus,
   IconSearch,
-  IconSparkles,
   IconTargetArrow,
   IconCalendarTime,
   IconAlertTriangle,
@@ -42,40 +41,40 @@ type LegacyViewAlias = {
 
 const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; icon: ReactElement }> = [
   { key: 'overview', label: 'Hoje', href: '/admin/operacoes', icon: <IconTargetArrow size={16} /> },
-  { key: 'jobs', label: 'Fila', href: '/admin/operacoes/jobs', icon: <IconLayoutKanban size={16} /> },
-  { key: 'ia', label: 'IA', href: '/admin/operacoes/ia', icon: <IconSparkles size={16} /> },
+  { key: 'jobs', label: 'Pauta Geral', href: '/admin/operacoes/jobs?view=table&group=client', icon: <IconLayoutKanban size={16} /> },
   { key: 'people', label: 'Pessoas', href: '/admin/operacoes/pessoas', icon: <IconUsers size={16} /> },
   { key: 'semana', label: 'Semana', href: '/admin/operacoes/semana', icon: <IconCalendarTime size={16} /> },
   { key: 'radar', label: 'Riscos', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} /> },
-  { key: 'quality', label: 'Qualidade', href: '/admin/operacoes/qualidade', icon: <IconChecklist size={16} /> },
+  { key: 'quality', label: 'SLA', href: '/admin/operacoes/qualidade', icon: <IconChecklist size={16} /> },
 ];
 
 const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string }> = {
   overview: { title: 'Hoje', subtitle: 'O retrato operacional da agência para decidir agora.' },
-  jobs: { title: 'Fila', subtitle: 'Todas as demandas organizadas para triagem e ação.' },
-  ia: { title: 'IA', subtitle: 'Briefings prontos para copy, produção e revisão num só fluxo.' },
+  jobs: { title: 'Pauta Geral', subtitle: 'A carteira operacional da agência organizada para leitura e decisão.' },
+  ia: { title: 'Handoff criativo', subtitle: 'Demandas que precisam de briefing, copy ou aprovação dentro da pauta.' },
   people: { title: 'Pessoas', subtitle: 'Pauta individual e carga da equipe num lugar direto.' },
   semana: { title: 'Semana', subtitle: 'Calendário, distribuição e capacidade na mesma leitura.' },
   radar: { title: 'Riscos', subtitle: 'Tudo que pode travar, atrasar ou estourar.' },
-  quality: { title: 'Qualidade', subtitle: 'SLA e precisão operacional no mesmo lugar.' },
+  quality: { title: 'SLA', subtitle: 'Prazo, estimativa e precisão operacional no mesmo lugar.' },
 };
 
 const COMMANDS: CommandOption[] = [
   { label: 'Nova demanda', subtitle: 'Abrir cadastro guiado de demanda', kind: 'route', href: '/admin/operacoes/jobs?new=1' },
-  { label: 'Painel de Controle', subtitle: 'Abrir o cockpit principal da operação', kind: 'route', href: '/admin/operacoes' },
+  { label: 'Hoje', subtitle: 'Abrir a mesa de decisão da operação', kind: 'route', href: '/admin/operacoes' },
+  { label: 'Fila', subtitle: 'Abrir a fila operacional bruta da agência', kind: 'route', href: '/admin/operacoes/jobs' },
   { label: 'Banco de Dados (Filtros)', subtitle: 'Abrir a fila em tabela crua da operação', kind: 'route', href: '/admin/operacoes/jobs?view=table' },
   { label: 'Pauta Geral', subtitle: 'Abrir a fila agrupada por cliente', kind: 'route', href: '/admin/operacoes/jobs?view=table&group=client' },
   { label: 'Externos', subtitle: 'Abrir a mesa de risco e exceções', kind: 'route', href: '/admin/operacoes/radar' },
-  { label: 'Auditoria SLA', subtitle: 'Abrir a leitura de SLA da operação', kind: 'route', href: '/admin/operacoes/qualidade' },
-  { label: 'Extração para IA', subtitle: 'Abrir a bandeja operacional da redação', kind: 'route', href: '/admin/operacoes/ia' },
+  { label: 'SLA', subtitle: 'Abrir a leitura de prazo e estimativa da operação', kind: 'route', href: '/admin/operacoes/qualidade' },
+  { label: 'Handoff criativo', subtitle: 'Abrir a bandeja de briefing, copy e aprovação', kind: 'route', href: '/admin/operacoes/ia' },
   { label: 'Pauta - Nome', subtitle: 'Abrir a pauta individual por pessoa', kind: 'route', href: '/admin/operacoes/pessoas' },
   { label: 'Demandas sem responsável', subtitle: 'Ir direto para a fila sem responsável definido', kind: 'route', href: '/admin/operacoes/jobs?unassigned=true' },
-  { label: 'Bandeja IA', subtitle: 'Abrir os briefings prontos para copy e revisão', kind: 'route', href: '/admin/operacoes/ia' },
+  { label: 'Prontos para copy', subtitle: 'Abrir os itens prontos para redação e revisão', kind: 'route', href: '/admin/operacoes/ia' },
   { label: 'Pauta por pessoa', subtitle: 'Abrir a carga individual da equipe', kind: 'route', href: '/admin/operacoes/pessoas' },
   { label: 'Distribuição da semana', subtitle: 'Abrir a semana no modo distribuição da equipe', kind: 'route', href: '/admin/operacoes/semana?view=distribution' },
   { label: 'Agenda operacional', subtitle: 'Ver impacto temporal da semana em calendário', kind: 'route', href: '/admin/operacoes/semana?view=calendar' },
   { label: 'Riscos críticos', subtitle: 'Abrir exceções e itens em risco', kind: 'route', href: '/admin/operacoes/radar' },
-  { label: 'Qualidade da operação', subtitle: 'Abrir SLA e calibração operacional', kind: 'route', href: '/admin/operacoes/qualidade' },
+  { label: 'SLA da operação', subtitle: 'Abrir prazo e calibração operacional', kind: 'route', href: '/admin/operacoes/qualidade' },
   { label: 'Jarvis, o que tá pegando fogo?', subtitle: 'Ver riscos críticos e bloqueios', kind: 'jarvis', prompt: 'O que tá pegando fogo? Me mostra os jobs atrasados, bloqueados e sem dono que precisam de ação agora.' },
   { label: 'Jarvis, o que vai atrasar amanhã?', subtitle: 'Leitura de risco do dia seguinte', kind: 'jarvis', prompt: 'Quais itens provavelmente vão atrasar amanhã e por quê?' },
   { label: 'Jarvis, quem tá sobrecarregado?', subtitle: 'Ver capacidade da equipe', kind: 'jarvis', prompt: 'Me mostra a carga de trabalho de cada pessoa da equipe. Quem tá sobrecarregado e quem tem espaço?' },
@@ -85,11 +84,11 @@ const COMMANDS: CommandOption[] = [
 const LEGACY_VIEWS: LegacyViewAlias[] = [
   { label: 'Painel de Controle', subtitle: 'Hoje', href: '/admin/operacoes' },
   { label: 'Banco de Dados (Filtros)', subtitle: 'Fila > Tabela', href: '/admin/operacoes/jobs?view=table' },
-  { label: 'Pauta Geral', subtitle: 'Fila > Cliente', href: '/admin/operacoes/jobs?view=table&group=client' },
+  { label: 'Pauta Geral', subtitle: 'Carteira por cliente', href: '/admin/operacoes/jobs?view=table&group=client' },
   { label: 'Extração para IA', subtitle: 'IA', href: '/admin/operacoes/ia' },
   { label: 'Pauta - Nome', subtitle: 'Pessoas', href: '/admin/operacoes/pessoas' },
   { label: 'Externos', subtitle: 'Riscos', href: '/admin/operacoes/radar' },
-  { label: 'Auditoria SLA', subtitle: 'Qualidade', href: '/admin/operacoes/qualidade' },
+  { label: 'Auditoria SLA', subtitle: 'SLA', href: '/admin/operacoes/qualidade' },
 ];
 
 function dispatchOpsJarvisPrompt(prompt: string) {
@@ -101,16 +100,22 @@ export default function OperationsShell({
   children,
   summary,
   onNewDemand,
+  titleOverride,
+  subtitleOverride,
 }: {
   section: OperationsSection;
   children: ReactNode;
   summary?: ReactNode;
   onNewDemand?: () => void;
+  titleOverride?: string;
+  subtitleOverride?: string;
 }) {
   const router = useRouter();
   const [commandInput, setCommandInput] = useState('');
   const [jarvisOpen, setJarvisOpen] = useState(false);
   const copy = SECTION_COPY[section];
+  const title = titleOverride || copy.title;
+  const subtitle = subtitleOverride || copy.subtitle;
 
   const commandOptions = useMemo(() => COMMANDS, []);
 
@@ -141,8 +146,8 @@ export default function OperationsShell({
 
   return (
     <AppShell
-      title={copy.title}
-      meta={copy.subtitle}
+      title={title}
+      meta={subtitle}
       action={{ label: OPS_COPY.shell.newDemand, icon: <IconPlus size={16} />, onClick: () => (onNewDemand ? onNewDemand() : router.push('/admin/operacoes/jobs?new=1')) }}
     >
       {/* Ops navigation bar — glass + pill nav */}
@@ -228,7 +233,7 @@ export default function OperationsShell({
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  placeholder="Buscar ou pedir ao Jarvis..."
+                  placeholder="Ir para uma vista ou chamar o Jarvis..."
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault();

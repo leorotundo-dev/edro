@@ -50,7 +50,6 @@ export default function OperationsRadarClient() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
-  const [viewMode, setViewMode] = useState<'cockpit' | 'signals' | 'risks'>('cockpit');
 
   // ── Operational signals ──────────────────────────────────────────────────
   type Signal = {
@@ -168,7 +167,7 @@ export default function OperationsRadarClient() {
   useJarvisPage(
     {
       screen: 'operations_radar',
-      radarView: viewMode,
+      radarView: 'desk',
       clientId: selectedJob?.client_id ?? null,
       currentJobId: selectedJob?.id ?? null,
       currentJobTitle: selectedJob?.title ?? null,
@@ -179,7 +178,6 @@ export default function OperationsRadarClient() {
       signalsTotal: signals.length,
     },
     [
-      viewMode,
       selectedJob?.id,
       selectedJob?.client_id,
       selectedJob?.title,
@@ -200,11 +198,6 @@ export default function OperationsRadarClient() {
     }
     setSelectedJob(null);
   }, [critical, high, jobs, selectedJob]);
-
-  const handleViewModeChange = (next: 'cockpit' | 'signals' | 'risks') => {
-    setViewMode(next);
-    if (next === 'signals') setSelectedJob(null);
-  };
 
   const refreshRadar = useCallback(async () => {
     await refresh();
@@ -255,6 +248,8 @@ export default function OperationsRadarClient() {
   return (
     <OperationsShell
       section="radar"
+      titleOverride="Riscos"
+      subtitleOverride="Mesa de exceção da operação: sinais, bloqueios e demandas que podem estourar."
       onNewDemand={() => openCreate('client_request')}
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
@@ -278,22 +273,6 @@ export default function OperationsRadarClient() {
     >
       {error ? <Alert severity="error">{error}</Alert> : null}
       {riskError ? <Alert severity="error">{riskError}</Alert> : null}
-
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
-        {[
-          { key: 'cockpit' as const, label: 'Cockpit', subtitle: 'Sinais + riscos' },
-          { key: 'signals' as const, label: 'Sinais', subtitle: 'Tudo que acabou de acender' },
-          { key: 'risks' as const, label: 'Riscos', subtitle: 'Demandas que podem estourar' },
-        ].map((item) => (
-          <Button
-            key={item.key}
-            variant={viewMode === item.key ? 'contained' : 'outlined'}
-            onClick={() => handleViewModeChange(item.key)}
-          >
-            {item.label}
-          </Button>
-        ))}
-      </Stack>
 
       {loading || riskLoading ? (
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
@@ -381,18 +360,15 @@ export default function OperationsRadarClient() {
                     ))}
                   </Box>
 
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Button variant="contained" onClick={() => handleViewModeChange('cockpit')}>
-                      Ver cockpit
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button variant="contained" component="a" href="#sinais-operacionais">
+                      Ir para sinais
                     </Button>
                     <Button variant="outlined" onClick={() => openCreate('client_request')}>
                       Nova demanda
                     </Button>
-                    <Button variant="outlined" onClick={() => handleViewModeChange('signals')}>
-                      Ver sinais
-                    </Button>
-                    <Button variant="outlined" onClick={() => handleViewModeChange('risks')}>
-                      Ver riscos
+                    <Button variant="outlined" component="a" href="#riscos-da-operacao">
+                      Ir para riscos
                     </Button>
                     <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
                       Resolver sem dono
@@ -405,8 +381,8 @@ export default function OperationsRadarClient() {
               </OpsPanel>
 
               {/* ── Operational Signals ─────────────────────────────── */}
-              {viewMode !== 'risks' && (signalsLoading || signals.length > 0) && (
-                <Box>
+              {(signalsLoading || signals.length > 0) && (
+                <Box id="sinais-operacionais">
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
                     <Stack direction="row" spacing={0.75} alignItems="center">
                       <IconBell size={15} style={{ color: theme.palette.warning.main }} />
@@ -516,9 +492,9 @@ export default function OperationsRadarClient() {
               )}
 
               {/* ── Jarvis Cross-Source Alerts ──────────────────────── */}
-              {viewMode === 'cockpit' && <JarvisAlertsSectionClient />}
+              <JarvisAlertsSectionClient />
 
-              {viewMode !== 'signals' && (
+              <Box id="riscos-da-operacao">
               <OpsSection
                 eyebrow="Pontos de atenção"
                 title={OPS_COPY.radar.title}
@@ -678,7 +654,7 @@ export default function OperationsRadarClient() {
                   </Box>
                 </Stack>
               </OpsSection>
-              )}
+              </Box>
             </Stack>
           </Grid>
 

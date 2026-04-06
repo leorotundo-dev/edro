@@ -46,10 +46,12 @@ export default function QualidadeWorkspaceClient() {
   return (
     <OperationsShell
       section="quality"
+      titleOverride="SLA"
+      subtitleOverride="Prazo, estimativa e precisão operacional no mesmo lugar."
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
           <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Mesa da qualidade
+            Mesa do SLA
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 420 }}>
             {currentMeta.subtitle}
@@ -69,7 +71,7 @@ export default function QualidadeWorkspaceClient() {
           <Stack spacing={1.75}>
             <Box>
               <Typography variant="overline" sx={{ fontWeight: 900, color: 'warning.main', letterSpacing: '0.12em', lineHeight: 1 }}>
-                QUALIDADE DA OPERAÇÃO
+                SLA DA OPERAÇÃO
               </Typography>
               <Typography variant="h6" fontWeight={900} sx={{ mt: 0.5 }}>
                 Onde a agência está acertando e onde está escorregando

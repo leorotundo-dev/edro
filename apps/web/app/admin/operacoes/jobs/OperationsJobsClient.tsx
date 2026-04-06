@@ -349,10 +349,34 @@ export default function OperationsJobsClient() {
       }, {}),
     [jobs, currentUserId]
   );
+  const shellTitle = groupMode === 'client'
+    ? 'Pauta Geral'
+    : groupMode === 'owner'
+      ? 'Pauta por pessoa'
+      : groupMode === 'risk'
+        ? 'Exceções da fila'
+        : viewMode === 'table'
+          ? 'Banco de Dados'
+          : viewMode === 'board'
+            ? 'Quadro da fila'
+            : 'Fila';
+  const shellSubtitle = groupMode === 'client'
+    ? 'A carteira operacional da agência agrupada por cliente para leitura rápida da conta.'
+    : groupMode === 'owner'
+      ? 'A pauta agrupada por responsável para distribuição e acompanhamento.'
+      : groupMode === 'risk'
+        ? 'A fila agrupada por criticidade para agir nas exceções primeiro.'
+        : viewMode === 'table'
+          ? 'A leitura crua e auditável da operação inteira.'
+          : viewMode === 'board'
+            ? 'A visão por colunas da fila operacional.'
+            : 'Todas as demandas organizadas para triagem e ação.';
 
   return (
     <OperationsShell
       section="jobs"
+      titleOverride={shellTitle}
+      subtitleOverride={shellSubtitle}
       onNewDemand={() => setComposerOpen(true)}
       summary={
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
