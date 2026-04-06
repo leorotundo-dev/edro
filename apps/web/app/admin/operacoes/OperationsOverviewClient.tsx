@@ -311,7 +311,7 @@ export default function OperationsOverviewClient() {
         <Grid container spacing={3.5}>
           <Grid size={{ xs: 12 }}>
             <OpsPanel
-              eyebrow="Mesa de comando"
+              eyebrow="Mesa de decisão"
               title="O que decidir agora"
               subtitle="A mesa do dia concentra só o que exige decisão imediata: risco, prazo, dono, retorno do cliente e gargalos de entrada."
             >
@@ -452,10 +452,7 @@ export default function OperationsOverviewClient() {
                 </Box>
 
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button variant="contained" component={Link} href="/admin/operacoes/jobs?view=table&group=client">
-                    Abrir pauta geral
-                  </Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
+                  <Button variant="contained" component={Link} href="/admin/operacoes/jobs?unassigned=true">
                     Resolver sem dono
                   </Button>
                   <Button variant="outlined" component={Link} href="/admin/operacoes/ia">
