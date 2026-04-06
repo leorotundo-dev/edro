@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   buildBackendApiUrl,
   CLIENT_PORTAL_COOKIE,
+  getSessionCookieConfig,
   isPortalSessionValid,
 } from '@/lib/serverAuth';
 
