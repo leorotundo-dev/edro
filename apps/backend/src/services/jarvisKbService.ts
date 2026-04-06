@@ -233,12 +233,13 @@ export async function buildKbContext(
   tenantId: string,
   clientId: string
 ): Promise<KbContext> {
-  const [clientRows, agencyRows] = await Promise.all([
+  const [clientRows, agencyRows, connectionRows] = await Promise.all([
     query(
       `SELECT topic, category, content, evidence_level, uplift_metric, uplift_value, confidence, sample_size, source
        FROM jarvis_kb_entries
        WHERE tenant_id=$1 AND client_id=$2
          AND evidence_level IN ('one_case','pattern','rule')
+         AND category != 'connection'
        ORDER BY
          CASE evidence_level WHEN 'rule' THEN 1 WHEN 'pattern' THEN 2 ELSE 3 END,
          uplift_value DESC NULLS LAST
@@ -255,12 +256,22 @@ export async function buildKbContext(
        LIMIT 100`,
       [tenantId]
     ),
+    query(
+      `SELECT topic, content, source_data
+       FROM jarvis_kb_entries
+       WHERE tenant_id=$1 AND client_id=$2
+         AND category = 'connection'
+       ORDER BY updated_at DESC
+       LIMIT 20`,
+      [tenantId, clientId]
+    ),
   ]);
 
   const clientPatterns = clientRows.rows.map(rowToKbEntry);
   const agencyPatterns = agencyRows.rows.map(rowToAgencyEntry);
+  const connections = connectionRows.rows;
 
-  const summary = buildPromptBlock(clientPatterns, agencyPatterns);
+  const summary = buildPromptBlock(clientPatterns, agencyPatterns, connections);
 
   return { client_patterns: clientPatterns, agency_patterns: agencyPatterns, summary };
 }
@@ -353,7 +364,7 @@ export async function searchKbEntries(
   }));
 }
 
-function buildPromptBlock(client: KbEntry[], agency: KbEntry[]): string {
+function buildPromptBlock(client: KbEntry[], agency: KbEntry[], connections: any[] = []): string {
   const lines: string[] = ['=== JARVIS KB — Padrões Aprendidos ===\n'];
 
   if (client.length) {
@@ -368,11 +379,17 @@ function buildPromptBlock(client: KbEntry[], agency: KbEntry[]): string {
     lines.push('');
   }
 
+  if (connections.length) {
+    lines.push('## Conexões detectadas pelo Connector (hipóteses a explorar):');
+    for (const c of connections) lines.push(`- ${c.content}`);
+    lines.push('');
+  }
+
   if (!client.length && !agency.length) {
     lines.push('Nenhum padrão confirmado ainda. Usando conhecimento base apenas.');
   }
 
-  lines.push('Priorize padrões [regra] e [padrão] ao sugerir gatilhos e formatos. Não ignore [1 caso] — registre para validação futura.');
+  lines.push('Priorize padrões [regra] e [padrão] ao sugerir gatilhos e formatos. Use as conexões como hipóteses a testar — não como fatos confirmados.');
 
   return lines.join('\n');
 }

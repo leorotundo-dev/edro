@@ -3,11 +3,10 @@
  *
  * Runs monthly (self-throttled).
  * For each client with KB entries:
- *   1. Calls Claude to analyze the KB wiki
- *   2. Detects: contradictions, claims without source, gaps, stale entries
- *   3. Suggests 3 new articles based on missing patterns
- *   4. Writes health findings as new jarvis_kb_entries with
- *      category='health_finding', evidence_level='hypothesis'
+ *   1. Health check — contradictions, claims without source, gaps, suggestions
+ *   2. Connector — finds non-obvious connections between KB entries across categories
+ *      (e.g. trigger:loss_aversion [pattern] + dark_funnel:linkedin → hypothesis of correlation)
+ *   3. Writes findings as jarvis_kb_entries with category='health_finding'|'connection'
  */
 
 import { query } from '../db';
@@ -213,5 +212,127 @@ Responda APENAS em JSON válido (sem markdown):
 
   if (filed > 0) {
     console.log(`[jarvisKbHealthWorker] client=${clientId}: filed ${filed} health findings`);
+  }
+
+  // Run Connector after health check
+  await runConnectorForClient(tenantId, clientId, entries);
+}
+
+// ── Connector ─────────────────────────────────────────────────────────────────
+// Finds non-obvious connections between KB entries across categories.
+// The insight: patterns in one category often correlate with patterns in another
+// but nobody explicitly connected them. The Connector makes those links explicit.
+
+async function runConnectorForClient(
+  tenantId: string,
+  clientId: string,
+  entries: any[]
+): Promise<void> {
+  // Only run if we have entries from multiple categories — no point connecting 1 category
+  const categories = new Set(entries.map((e: any) => e.category));
+  if (categories.size < 2) return;
+
+  // Focus on confirmed patterns — hypothesis-only entries have no signal yet
+  const confirmed = entries.filter((e: any) =>
+    ['one_case', 'pattern', 'rule'].includes(e.evidence_level)
+  );
+  if (confirmed.length < 3) return;
+
+  const kbSummary = confirmed
+    .map((e: any) => `[${e.category}/${e.evidence_level}] ${e.topic}: ${e.content.slice(0, 200)}`)
+    .join('\n');
+
+  const prompt = `Você é um analista de padrões de marketing comportamental.
+
+Analise as entradas do KB abaixo e encontre CONEXÕES NÃO-ÓBVIAS entre elas.
+
+O que procurar:
+- Um trigger que performa bem + um canal específico de dark funnel → hipótese de correlação
+- Um AMD que funciona numa fase + uma persona → sugestão de combinação a testar
+- Um padrão de plataforma + um padrão de trigger → possível combinação de alta performance
+- Sequências lógicas: "se isso funciona, então aquilo provavelmente também funciona"
+- Contradições que na verdade podem ser explicadas por contexto diferente (persona, fase, canal)
+
+Ignore conexões óbvias. Foque em insights que um estrategista não veria olhando as entradas individualmente.
+
+KB CONFIRMADO (${confirmed.length} entradas):
+${kbSummary}
+
+Responda APENAS em JSON válido (sem markdown), máximo 5 conexões:
+{
+  "connections": [
+    {
+      "entry_a": "topic da entrada A",
+      "entry_b": "topic da entrada B",
+      "connection_type": "correlation | sequence | combination | explanation",
+      "hypothesis": "A hipótese específica que conecta as duas entradas",
+      "suggested_test": "Como testar essa conexão na próxima campanha"
+    }
+  ]
+}`;
+
+  let analysisResult: string;
+  try {
+    const result = await orchestrate('campaign_strategy', {
+      prompt,
+      temperature: 0.4,
+      maxTokens: 1200,
+    }, { tenant_id: tenantId, feature: 'jarvis_kb_connector' });
+    analysisResult = result.output;
+  } catch (err) {
+    console.error(`[jarvisKbConnector] AI call failed for client=${clientId}:`, err);
+    return;
+  }
+
+  let parsed: any;
+  try {
+    const trimmed = analysisResult.trim();
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    parsed = JSON.parse(trimmed.slice(start, end + 1));
+  } catch {
+    return;
+  }
+
+  if (!Array.isArray(parsed.connections) || !parsed.connections.length) return;
+
+  let filed = 0;
+  for (const conn of parsed.connections) {
+    if (!conn.entry_a || !conn.entry_b || !conn.hypothesis) continue;
+
+    const topic = `connection:${conn.entry_a}:${conn.entry_b}`.slice(0, 200);
+    const content = [
+      `[hipótese][conexão] ${conn.connection_type?.toUpperCase() ?? 'CONEXÃO'} entre "${conn.entry_a}" e "${conn.entry_b}".`,
+      `Hipótese: ${conn.hypothesis}`,
+      conn.suggested_test ? `Teste sugerido: ${conn.suggested_test}` : '',
+    ].filter(Boolean).join(' ');
+
+    try {
+      await query(
+        `INSERT INTO jarvis_kb_entries
+           (tenant_id, client_id, topic, category, content, evidence_level, source, source_data)
+         VALUES ($1,$2,$3,'connection',$4,'hypothesis','jarvis_kb_connector',$5::jsonb)
+         ON CONFLICT (tenant_id, client_id, topic)
+         DO UPDATE SET
+           content    = EXCLUDED.content,
+           updated_at = now()`,
+        [
+          tenantId, clientId, topic, content,
+          JSON.stringify({
+            entry_a: conn.entry_a,
+            entry_b: conn.entry_b,
+            connection_type: conn.connection_type,
+            analyzed_at: new Date().toISOString(),
+          }),
+        ]
+      );
+      filed++;
+    } catch (err) {
+      console.error(`[jarvisKbConnector] Failed to file connection:`, err);
+    }
+  }
+
+  if (filed > 0) {
+    console.log(`[jarvisKbConnector] client=${clientId}: filed ${filed} connections`);
   }
 }
