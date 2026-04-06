@@ -321,7 +321,7 @@ export async function proposeAllocations(
        COALESCE(wl.active_jobs, 0)         AS active_jobs,
        COALESCE(wl.active_minutes, 0)      AS active_minutes_this_week
      FROM freelancer_profiles fp
-     JOIN tenant_users tu ON tu.user_id = fp.user_id AND tu.tenant_id = $1
+     JOIN tenant_users tu ON tu.user_id = fp.user_id AND tu.tenant_id::text = $1::text
      LEFT JOIN LATERAL (
        SELECT
          COUNT(*)::int                                  AS active_jobs,
@@ -423,7 +423,7 @@ export async function updateFreelancerScores(
               ELSE ROUND((approval_rate * 0.9 + $5 * 0.1)::numeric, 2)
             END,
             updated_at = now()
-      WHERE user_id = $1`,
+      WHERE user_id::text = $1::text`,
     [
       rows[0].owner_id,
       outcome.wasLate ? 1 : 0,

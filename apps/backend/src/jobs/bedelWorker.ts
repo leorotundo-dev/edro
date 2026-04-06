@@ -74,7 +74,7 @@ async function getAdminRecipients(tenantId: string): Promise<AdminRecipient[]> {
        FROM tenant_users tu
        LEFT JOIN edro_users u ON u.id = tu.user_id
        LEFT JOIN freelancer_profiles fp ON fp.user_id = tu.user_id
-      WHERE tu.tenant_id = $1
+      WHERE tu.tenant_id::text = $1::text
         AND tu.role IN ('admin', 'manager', 'gestor')
       LIMIT 10`,
     [tenantId],
@@ -137,7 +137,7 @@ async function runAllocationPhase(): Promise<void> {
             j.status, j.owner_id,
             c.display_name AS client_name
        FROM jobs j
-       LEFT JOIN edro_clients c ON c.id::text = j.client_id::text AND c.tenant_id = j.tenant_id
+       LEFT JOIN edro_clients c ON c.id::text = j.client_id::text
       WHERE j.status = 'ready'
         AND j.owner_id IS NULL
         AND j.tenant_id IS NOT NULL
@@ -206,7 +206,7 @@ async function runAllocationPhase(): Promise<void> {
             `SELECT u.email, fp.whatsapp_jid
                FROM edro_users u
                LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
-              WHERE u.id = $1
+              WHERE u.id::text = $1::text
               LIMIT 1`,
             [best.freelancerId],
           );
@@ -258,7 +258,7 @@ async function runMonitorPhase(): Promise<void> {
             j.updated_at, j.allocated_at, j.owner_id,
             c.display_name AS client_name
        FROM jobs j
-       LEFT JOIN edro_clients c ON c.id::text = j.client_id::text AND c.tenant_id = j.tenant_id
+       LEFT JOIN edro_clients c ON c.id::text = j.client_id::text
       WHERE j.status IN ('allocated', 'in_progress')
         AND j.owner_id IS NOT NULL
         AND j.tenant_id IS NOT NULL
