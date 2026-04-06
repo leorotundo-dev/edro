@@ -92,17 +92,18 @@ export default function OperationsPeopleClient() {
   );
 
   const overloadedOwners = plannerData.owners.filter((owner) => owner.usage >= 1).length;
+  const ownersWithSlack = plannerData.owners.filter((owner) => owner.usage < 0.55).length;
 
   return (
     <OperationsShell
       section="people"
       titleOverride="Pessoas"
-      subtitleOverride="Leitura individual da pauta por responsável. Distribuição e encaixe moram em Semana."
+      subtitleOverride="Quem está com o quê agora. Redistribuição temporal e encaixe moram em Semana."
       summary={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Chip label={`${plannerData.owners.length} pessoas`} size="small" />
-          <Chip label={`${plannerData.unassigned_jobs.length} sem dono`} size="small" color={plannerData.unassigned_jobs.length ? 'warning' : 'default'} />
-          <Chip label={`${overloadedOwners} sobrecarregadas`} size="small" color={overloadedOwners ? 'error' : 'default'} />
+          <Chip label={`${ownersWithSlack} com folga`} size="small" color={ownersWithSlack ? 'success' : 'default'} />
+          <Chip label={`${overloadedOwners} sob pressão`} size="small" color={overloadedOwners ? 'error' : 'default'} />
         </Stack>
       }
     >
@@ -126,19 +127,19 @@ export default function OperationsPeopleClient() {
                 Quem está com o quê agora
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 760, mt: 0.8 }}>
-                Use esta vista para entender a pauta atual de cada pessoa, onde existe folga e o que ainda precisa
-                ganhar dono antes de redistribuir a semana.
+                Use esta vista para ler a pauta atual por pessoa. Se precisar mexer em dias, folga e encaixe da
+                semana, vá para Semana. O que está sem dono entra aqui só para não escapar da leitura.
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
               <Button component={Link} href="/admin/operacoes/jobs?view=table&group=client" variant="text">
                 Abrir pauta geral
               </Button>
-              <Button component={Link} href="/admin/operacoes/jobs?unassigned=true" variant="outlined">
-                Ver sem dono
-              </Button>
               <Button component={Link} href="/admin/operacoes/semana?view=distribution" variant="contained">
-                Ir para distribuição
+                Abrir semana
+              </Button>
+              <Button component={Link} href="/admin/operacoes/jobs?unassigned=true" variant="outlined">
+                Resolver sem dono
               </Button>
             </Stack>
           </Stack>
@@ -265,7 +266,7 @@ export default function OperationsPeopleClient() {
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           {selectedOwner
-                            ? 'A pauta atual dessa pessoa, com foco em propriedade e carga.'
+                            ? 'A pauta atual dessa pessoa. Para redistribuir dias e encaixe, abra Semana.'
                             : 'Escolha uma pessoa para ver a pauta.'}
                         </Typography>
                       </Box>
@@ -345,31 +346,40 @@ export default function OperationsPeopleClient() {
                         <IconUserOff size={16} />
                       </Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
-                        Sem responsável
+                        Aguardando dono
                       </Typography>
                     </Stack>
 
+                    <Typography variant="body2" color="text.secondary">
+                      Itens que ainda não entraram na leitura individual porque a operação não definiu responsável.
+                    </Typography>
+
                     {plannerData.unassigned_jobs.length ? (
-                      plannerData.unassigned_jobs.slice(0, 8).map((job) => (
-                        <Paper
-                          key={job.id}
-                          elevation={0}
-                          sx={{
-                            borderRadius: 2,
-                            px: 1.4,
-                            py: 1.2,
-                            border: `1px solid ${alpha('#FFAE1F', 0.24)}`,
-                            bgcolor: dark ? alpha('#FFAE1F', 0.08) : alpha('#FFAE1F', 0.05),
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                            {job.title}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
-                            {job.client_name || 'Sem cliente'}
-                          </Typography>
-                        </Paper>
-                      ))
+                      <>
+                        {plannerData.unassigned_jobs.slice(0, 8).map((job) => (
+                          <Paper
+                            key={job.id}
+                            elevation={0}
+                            sx={{
+                              borderRadius: 2,
+                              px: 1.4,
+                              py: 1.2,
+                              border: `1px solid ${alpha('#FFAE1F', 0.24)}`,
+                              bgcolor: dark ? alpha('#FFAE1F', 0.08) : alpha('#FFAE1F', 0.05),
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                              {job.title}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
+                              {job.client_name || 'Sem cliente'}
+                            </Typography>
+                          </Paper>
+                        ))}
+                        <Button component={Link} href="/admin/operacoes/jobs?unassigned=true" variant="outlined" size="small">
+                          Resolver na pauta geral
+                        </Button>
+                      </>
                     ) : (
                       <Stack spacing={1.2} alignItems="flex-start">
                         <Stack direction="row" spacing={1} alignItems="center">

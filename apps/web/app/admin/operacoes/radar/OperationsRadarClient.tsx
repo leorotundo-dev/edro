@@ -249,13 +249,14 @@ export default function OperationsRadarClient() {
     <OperationsShell
       section="radar"
       titleOverride="Riscos"
-      subtitleOverride="Mesa de exceção da operação: sinais, bloqueios e demandas que podem estourar."
+      subtitleOverride="Mesa de exceção da operação: só sinais, bloqueios e demandas que já pedem contenção."
       onNewDemand={() => openCreate('client_request')}
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
           {[
             { value: critical.length, label: OPS_COPY.radar.summaryCritical, color: critical.length ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.4), pulse: critical.length > 0 },
             { value: high.length, label: OPS_COPY.radar.summaryHigh, color: high.length ? theme.palette.warning.main : alpha(theme.palette.text.primary, 0.4), pulse: false },
+            { value: signals.length, label: 'sinais ativos', color: signals.length ? theme.palette.warning.main : alpha(theme.palette.text.primary, 0.4), pulse: false },
             { value: clientRisk.filter((c) => c.critical > 0).length, label: OPS_COPY.radar.summaryClients, color: clientRisk.some((c) => c.critical > 0) ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.4), pulse: false },
           ].map((kpi) => (
             <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline"
@@ -283,7 +284,7 @@ export default function OperationsRadarClient() {
               <OpsPanel
                 eyebrow="Semáforo dos riscos"
                 title="O que pode quebrar a operação"
-                subtitle="Aqui ficam sinais do momento e demandas que realmente podem estourar. Primeiro veja o semáforo, depois desça para o detalhe."
+                subtitle="Aqui entram só exceções de verdade: sinais do momento, bloqueios e demandas que já pedem contenção. Carteira, semana e pessoas ficam fora desta leitura."
                 action={
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip size="small" variant="outlined" label="Ao vivo do Trello" />
@@ -371,8 +372,8 @@ export default function OperationsRadarClient() {
                     <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
                       Resolver sem dono
                     </Button>
-                    <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
-                      Abrir semana
+                    <Button variant="outlined" component={Link} href="/admin/operacoes">
+                      Voltar ao hoje
                     </Button>
                   </Stack>
                 </Stack>

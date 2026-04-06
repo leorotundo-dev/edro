@@ -275,6 +275,10 @@ export default function OperationsAgendaClient() {
   );
   const overloadedOwners = useMemo(() => distributionRows.filter((row) => row.usage >= 0.85).length, [distributionRows]);
   const ownersWithSlack = useMemo(() => distributionRows.filter((row) => row.usage < 0.55).length, [distributionRows]);
+  const pressedDays = useMemo(
+    () => weekPulseDays.filter((day) => day.tone === 'error' || day.tone === 'warning').length,
+    [weekPulseDays]
+  );
   const busiestDay = useMemo(
     () => [...weekPulseDays].sort((a, b) => b.plannedMinutes - a.plannedMinutes || b.jobCount - a.jobCount)[0],
     [weekPulseDays]
@@ -312,8 +316,8 @@ export default function OperationsAgendaClient() {
     ? String(selectedJob.metadata?.calendar_item?.label || (selectedLayer ? LAYER_LABELS[selectedLayer] : 'Sem camada'))
     : 'Sem camada';
   const shellSubtitle = viewMode === 'calendar'
-    ? 'Janela temporal da operação para prazos, aprovações, publicações e impacto no calendário.'
-    : 'Distribuição da carga da equipe para replanejar a semana e resolver apertos.';
+    ? 'Leitura temporal da operação: prazos, aprovações e publicações que mexem na semana.'
+    : 'Leitura de capacidade: quem está apertado, quem ainda comporta demanda e onde a semana já pesou.';
 
   async function reloadAgenda() {
     await refresh();
@@ -378,12 +382,19 @@ export default function OperationsAgendaClient() {
       onNewDemand={() => openCreate('client_request')}
       summary={
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
-          {[
-            { value: groupedDays.length, label: OPS_COPY.agenda.summaryDays },
-            { value: filteredJobs.length, label: OPS_COPY.agenda.summaryItems },
-            { value: layers.length, label: OPS_COPY.agenda.summaryLayers },
-            { value: plannerData.owners.length, label: OPS_COPY.agenda.summaryDistributed },
-          ].map((kpi) => (
+          {(viewMode === 'calendar'
+            ? [
+                { value: groupedDays.length, label: OPS_COPY.agenda.summaryDays },
+                { value: filteredJobs.length, label: OPS_COPY.agenda.summaryItems },
+                { value: layerCountMap.approvals || 0, label: 'aprovações na semana' },
+                { value: pressedDays, label: 'dias pressionados' },
+              ]
+            : [
+                { value: plannerData.owners.length, label: OPS_COPY.agenda.summaryDistributed },
+                { value: overloadedOwners, label: 'sob pressão' },
+                { value: ownersWithSlack, label: 'com folga' },
+                { value: plannerData.unassigned_jobs.length, label: 'sem dono' },
+              ]).map((kpi) => (
             <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
               <Typography variant="body1" sx={{ fontWeight: 900, lineHeight: 1 }}>
                 {kpi.value}
@@ -411,8 +422,8 @@ export default function OperationsAgendaClient() {
               title={viewMode === 'calendar' ? 'Onde o calendário aperta' : 'Onde a distribuição aperta'}
               subtitle={
                 viewMode === 'calendar'
-                  ? 'Veja prazos, aprovações e publicações que pressionam a semana antes de decidir.'
-                  : 'Redistribua a carga da equipe vendo quem apertou, o que ficou sem dono e quais dias já pesaram.'
+                  ? 'Veja só o que pressiona a semana no tempo. Risco estrutural continua em Riscos.'
+                  : 'Veja só a capacidade da equipe e o encaixe da semana. Crise estrutural continua em Riscos.'
               }
               action={
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -433,8 +444,8 @@ export default function OperationsAgendaClient() {
                     { label: 'Aperto', value: overloadedOwners, subtitle: 'Pessoas sob pressão', href: '/admin/operacoes/semana?view=distribution', icon: <IconAlertTriangle size={16} />, color: '#FA896B' },
                     { label: 'Folga', value: ownersWithSlack, subtitle: 'Pessoas com espaço', href: '/admin/operacoes/semana?view=distribution', icon: <IconUsers size={16} />, color: '#13DEB9' },
                     { label: 'Sem dono', value: plannerData.unassigned_jobs.length, subtitle: 'Demandas soltas', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconInbox size={16} />, color: '#FFAE1F' },
-                    { label: 'Aprovações', value: layerCountMap.approvals || 0, subtitle: 'Esperando cliente', href: '/admin/operacoes/radar', icon: <IconCircleCheckFilled size={16} />, color: '#FFAE1F' },
-                    { label: 'Riscos', value: layerCountMap.risks || 0, subtitle: 'Podem estourar', href: '/admin/operacoes/radar', icon: <IconCalendarClock size={16} />, color: '#E85219' },
+                    { label: 'Aprovações', value: layerCountMap.approvals || 0, subtitle: 'Esperando cliente', href: '/admin/operacoes/semana?view=calendar', icon: <IconCircleCheckFilled size={16} />, color: '#FFAE1F' },
+                    { label: 'Dias pesados', value: pressedDays, subtitle: 'Pedem reencaixe', href: '/admin/operacoes/semana', icon: <IconCalendarClock size={16} />, color: '#E85219' },
                   ].map((item) => (
                     <Box
                       key={item.label}
@@ -1086,8 +1097,8 @@ export default function OperationsAgendaClient() {
                 title={viewMode === 'calendar' ? 'Janela da semana' : 'Distribuição da semana'}
                 subtitle={
                   viewMode === 'calendar'
-                    ? 'Resolva prazo, aprovação e contexto sem perder a leitura temporal da operação.'
-                    : 'Resolva dono, carga e encaixe sem perder a leitura da distribuição.'
+                    ? 'Veja como esta demanda entra no tempo da semana: prazo, aprovação e impacto de calendário.'
+                    : 'Veja como esta demanda pesa na distribuição: dono, carga e encaixe.'
                 }
                 primaryLabel={isNativeMeeting ? 'Abrir reunioes' : 'Abrir comandos'}
                 onPrimaryAction={() => {
