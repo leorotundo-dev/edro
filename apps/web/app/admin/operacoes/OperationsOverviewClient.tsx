@@ -51,7 +51,17 @@ import {
   ownerTentativeMinutes,
   sortByOperationalPriority,
 } from '@/components/operations/derived';
-import { formatSkillLabel, formatSourceLabel, getNextAction, getRisk, type OperationsJob } from '@/components/operations/model';
+import {
+  formatSkillLabel,
+  formatSourceLabel,
+  getNextAction,
+  getRisk,
+  isApprovalQueueJob,
+  isCopyReadyJob,
+  isWaitingBriefing,
+  isWaitingInfo,
+  type OperationsJob,
+} from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
 import { OPS_COPY } from '@/components/operations/copy';
@@ -62,14 +72,6 @@ const FLOW_COLUMNS = [
   { key: 'esperando', label: 'Esperando', color: '#FFAE1F', stages: ['awaiting_approval', 'approved', 'scheduled', 'blocked'] },
   { key: 'entregue', label: 'Entregue', color: '#13DEB9', stages: ['published', 'done'] },
 ] as const;
-
-type CopyQueueBriefing = {
-  id: string;
-  title: string;
-  client_name: string | null;
-  status: string;
-  due_at: string | null;
-};
 
 type LatestDigest = {
   id: string;
@@ -97,7 +99,6 @@ export default function OperationsOverviewClient() {
   const [sendingDigest, setSendingDigest] = useState(false);
   const [signalStats, setSignalStats] = useState({ total: 0, critical: 0, attention: 0 });
   const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; client_name: string; form_data: { type?: string; objective?: string } }>>([]);
-  const [copyQueue, setCopyQueue] = useState<CopyQueueBriefing[]>([]);
   const [latestDailyDigest, setLatestDailyDigest] = useState<LatestDigest | null>(null);
   const [digestHistory, setDigestHistory] = useState<DigestHistoryItem[]>([]);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
@@ -179,6 +180,14 @@ export default function OperationsOverviewClient() {
     () => jobs.filter((j) => j.status === 'awaiting_approval'),
     [jobs]
   );
+  const copyQueue = useMemo(
+    () => jobs.filter((job) => !isWaitingBriefing(job) && !isWaitingInfo(job) && isCopyReadyJob(job)).sort(sortByOperationalPriority).slice(0, 6),
+    [jobs]
+  );
+  const approvalQueue = useMemo(
+    () => jobs.filter(isApprovalQueueJob).sort(sortByOperationalPriority).slice(0, 6),
+    [jobs]
+  );
 
   const loadOverviewRuntime = useCallback(async () => {
     try {
@@ -205,18 +214,15 @@ export default function OperationsOverviewClient() {
 
   const loadCommandDesk = useCallback(async () => {
     try {
-      const [digestResponse, digestHistoryResponse, briefingResponse] = await Promise.all([
+      const [digestResponse, digestHistoryResponse] = await Promise.all([
         apiGet<{ daily?: LatestDigest | null }>('/admin/diario/latest'),
         apiGet<{ digests?: DigestHistoryItem[] }>('/admin/diario'),
-        apiGet<{ success: boolean; data: CopyQueueBriefing[] }>('/edro/briefings?status=copy_ia&limit=6'),
       ]);
       setLatestDailyDigest(digestResponse?.daily ?? null);
       setDigestHistory((digestHistoryResponse?.digests || []).filter((digest) => digest.type === 'daily').slice(0, 3));
-      setCopyQueue(briefingResponse?.data ?? []);
     } catch {
       setLatestDailyDigest(null);
       setDigestHistory([]);
-      setCopyQueue([]);
     }
   }, []);
 
@@ -548,15 +554,15 @@ export default function OperationsOverviewClient() {
                       key: 'copy',
                       eyebrow: 'Subir redação',
                       title: copyQueue.length
-                        ? `${copyQueue.length} briefing(s) em Copy IA`
+                        ? `${copyQueue.length} demanda(s) prontas para IA`
                         : 'Sem fila de copy agora',
                       subtitle: copyQueue.length
                         ? 'Handoff direto para redação, revisão e avanço do pipeline criativo.'
                         : 'Nenhum briefing está aguardando geração ou subida de redação.',
                       icon: <IconSparkles size={16} />,
                       color: '#13DEB9',
-                      primaryLabel: 'Abrir Copy IA',
-                      primaryHref: '/edro?status=copy_ia',
+                      primaryLabel: 'Abrir bandeja IA',
+                      primaryHref: '/admin/operacoes/ia',
                       secondaryLabel: 'Abrir Studio',
                       secondaryHref: '/studio/editor',
                     },
@@ -639,13 +645,25 @@ export default function OperationsOverviewClient() {
                     {
                       key: 'copy',
                       eyebrow: 'Operação -> Redação',
-                      title: 'Briefings prontos para Copy IA',
+                      title: 'Demandas prontas para IA',
                       empty: 'Nenhum briefing pronto para redação agora.',
-                      href: '/edro?status=copy_ia',
-                      rows: copyQueue.slice(0, 3).map((briefing) => ({
-                        key: briefing.id,
-                        title: briefing.title,
-                        subtitle: briefing.client_name || 'Sem cliente',
+                      href: '/admin/operacoes/ia',
+                      rows: copyQueue.slice(0, 3).map((job) => ({
+                        key: job.id,
+                        title: job.title,
+                        subtitle: job.client_name || 'Sem cliente',
+                      })),
+                    },
+                    {
+                      key: 'approval',
+                      eyebrow: 'IA -> Aprovação',
+                      title: 'Demandas em validação',
+                      empty: 'Nenhuma demanda está parada em aprovação agora.',
+                      href: '/admin/operacoes/ia',
+                      rows: approvalQueue.slice(0, 3).map((job) => ({
+                        key: job.id,
+                        title: job.title,
+                        subtitle: job.client_name || 'Sem cliente',
                       })),
                     },
                   ].map((handoff) => (

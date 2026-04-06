@@ -483,6 +483,122 @@ export function getDeliveryStatus(job: Partial<OperationsJob>): DeliveryStatus {
   return { emoji: '🟢', label: 'No prazo', color: '#16a34a' };
 }
 
+function normalizeOpsText(value?: string | null) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+export function getTrelloLabels(job: Partial<OperationsJob>) {
+  return Array.isArray(job.metadata?.labels) ? job.metadata.labels as Array<{ color?: string; name?: string }> : [];
+}
+
+export function getTrelloLabelNames(job: Partial<OperationsJob>) {
+  return getTrelloLabels(job)
+    .map((label) => normalizeOpsText(label?.name))
+    .filter(Boolean);
+}
+
+export function getTrelloListName(job: Partial<OperationsJob>) {
+  return String(job.metadata?.list_name || '');
+}
+
+export function getOperationalText(job: Partial<OperationsJob>) {
+  return [
+    job.title,
+    job.summary,
+    getTrelloListName(job),
+    ...getTrelloLabelNames(job),
+  ]
+    .map((part) => normalizeOpsText(part))
+    .join(' ');
+}
+
+export function hasOperationalLabel(job: Partial<OperationsJob>, pattern: RegExp) {
+  return getTrelloLabelNames(job).some((label) => pattern.test(label));
+}
+
+export function isMissingDeadline(job: Partial<OperationsJob>) {
+  return !job.deadline_at;
+}
+
+export function isUnlabeled(job: Partial<OperationsJob>) {
+  return getTrelloLabelNames(job).length === 0;
+}
+
+export function isStandByJob(job: Partial<OperationsJob>) {
+  return getDeliveryStatus(job).label === 'Stand-by';
+}
+
+export function isWaitingBriefing(job: Partial<OperationsJob>) {
+  if (job.automation_status === 'briefing_pending') return true;
+  const text = getOperationalText(job);
+  return /aguardando briefing|briefing pendente|novo briefing/.test(text);
+}
+
+export function isWaitingInfo(job: Partial<OperationsJob>) {
+  const text = getOperationalText(job);
+  return /aguardando info|aguardando infos|falta info|faltam infos|waiting info|sem informacao|sem informacoes/.test(text);
+}
+
+export function isCopyReadyJob(job: Partial<OperationsJob>) {
+  if (job.automation_status === 'copy_pending') return true;
+  if (job.job_type === 'copy') return true;
+  const text = getOperationalText(job);
+  return /fazer redacao|redacao|copy ia|copy pronto|legenda|texto/.test(text);
+}
+
+export function isApprovalQueueJob(job: Partial<OperationsJob>) {
+  if (job.status === 'awaiting_approval' || job.status === 'approved') return true;
+  const text = getOperationalText(job);
+  return /para aprovar|aprovacao|aprovacao cliente|aguardando aprovacao|approval/.test(text);
+}
+
+export function isPriorityQueueJob(job: Partial<OperationsJob>) {
+  if (job.is_urgent || job.priority_band === 'p0' || job.priority_band === 'p1') return true;
+  return hasOperationalLabel(job, /prioridade|atencao|urgente/);
+}
+
+export type OperationalFocusKey =
+  | 'mine'
+  | 'urgent'
+  | 'unassigned'
+  | 'missing_deadline'
+  | 'standby'
+  | 'waiting_briefing'
+  | 'waiting_info'
+  | 'unlabeled'
+  | 'copy_ready'
+  | 'approval';
+
+export function matchesOperationalFocus(job: Partial<OperationsJob>, focus: OperationalFocusKey, currentUserId?: string | null) {
+  switch (focus) {
+    case 'mine':
+      return Boolean(currentUserId) && (job.owner_id === currentUserId || job.assignees?.some((assignee) => assignee.user_id === currentUserId));
+    case 'urgent':
+      return isPriorityQueueJob(job);
+    case 'unassigned':
+      return !job.owner_id && !job.assignees?.length;
+    case 'missing_deadline':
+      return isMissingDeadline(job);
+    case 'standby':
+      return isStandByJob(job);
+    case 'waiting_briefing':
+      return isWaitingBriefing(job);
+    case 'waiting_info':
+      return isWaitingInfo(job);
+    case 'unlabeled':
+      return isUnlabeled(job);
+    case 'copy_ready':
+      return isCopyReadyJob(job);
+    case 'approval':
+      return isApprovalQueueJob(job);
+    default:
+      return false;
+  }
+}
+
 export function groupBy<T>(list: T[], keyFn: (item: T) => string) {
   return list.reduce<Record<string, T[]>>((acc, item) => {
     const key = keyFn(item);

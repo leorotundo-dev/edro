@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
@@ -39,6 +39,7 @@ import {
   IconPlayerPlay,
   IconSearch,
   IconTable,
+  IconTagOff,
   IconTruck,
   IconUserOff,
   IconUsers,
@@ -68,7 +69,19 @@ import {
   sortByOperationalPriority,
   type GroupedSection,
 } from '@/components/operations/derived';
-import { formatSkillLabel, formatSourceLabel, getDeliveryStatus, getNextAction, getRisk, groupBy, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
+import {
+  formatSkillLabel,
+  formatSourceLabel,
+  getDeliveryStatus,
+  getNextAction,
+  getRisk,
+  groupBy,
+  matchesOperationalFocus,
+  STAGE_LABELS,
+  type OperationalFocusKey,
+  type OperationsJob,
+  type OperationsOwner,
+} from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -105,7 +118,7 @@ export default function OperationsJobsClient() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [clientFilter, setClientFilter] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
-  const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [quickFilter, setQuickFilter] = useState<OperationalFocusKey | null>(null);
   const [deadlineFilter, setDeadlineFilter] = useState<string | null>(null);
   const [deliveryFilter, setDeliveryFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -180,9 +193,7 @@ export default function OperationsJobsClient() {
       .filter((job) => !clientFilter || job.client_id === clientFilter)
       .filter((job) => !ownerFilter || job.owner_id === ownerFilter || job.assignees?.some((a) => a.user_id === ownerFilter))
       .filter((job) => {
-        if (quickFilter === 'urgent') return Boolean(job.is_urgent);
-        if (quickFilter === 'unassigned') return !job.owner_id && !job.assignees?.length;
-        if (quickFilter === 'mine') return job.owner_id === currentUserId || job.assignees?.some((a) => a.user_id === currentUserId);
+        if (quickFilter) return matchesOperationalFocus(job, quickFilter, currentUserId);
         return true;
       })
       .filter((job) => {
@@ -321,6 +332,23 @@ export default function OperationsJobsClient() {
     { label: 'Esperando cliente', value: waitingClientJobs.length, subtitle: 'Aprovação ou retorno', href: '/admin/operacoes/jobs', icon: <IconLoader2 size={16} />, color: '#FFAE1F' },
     { label: 'Urgentes', value: urgentJobs.length, subtitle: 'P0 ou marcadas como urgente', href: '/admin/operacoes/radar', icon: <IconUrgent size={16} />, color: '#E85219' },
   ];
+  const semanticFilters: Array<{ key: OperationalFocusKey; label: string; icon: ReactElement }> = [
+    { key: 'missing_deadline', label: 'Sem prazo', icon: <IconCalendarDue size={13} /> },
+    { key: 'waiting_briefing', label: 'Aguardando briefing', icon: <IconInbox size={13} /> },
+    { key: 'waiting_info', label: 'Aguardando infos', icon: <IconAlertTriangle size={13} /> },
+    { key: 'unlabeled', label: 'Sem etiqueta', icon: <IconTagOff size={13} /> },
+    { key: 'copy_ready', label: 'Fazer redação', icon: <IconPlayerPlay size={13} /> },
+    { key: 'approval', label: 'Para aprovar', icon: <IconLoader2 size={13} /> },
+    { key: 'standby', label: 'Stand-by', icon: <IconChevronDown size={13} /> },
+  ];
+  const semanticCounts = useMemo(
+    () =>
+      semanticFilters.reduce<Record<string, number>>((acc, filter) => {
+        acc[filter.key] = jobs.filter((job) => matchesOperationalFocus(job, filter.key, currentUserId)).length;
+        return acc;
+      }, {}),
+    [jobs, currentUserId]
+  );
 
   return (
     <OperationsShell
@@ -650,6 +678,26 @@ export default function OperationsJobsClient() {
                       Limpar filtros
                     </Button>
                   )}
+                </Stack>
+
+                <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap sx={{ px: 2, pb: compactBoard ? 0.9 : 1.4 }}>
+                  {semanticFilters.map((filter) => {
+                    const count = semanticCounts[filter.key] ?? 0;
+                    if (!count) return null;
+                    const active = quickFilter === filter.key;
+                    return (
+                      <Chip
+                        key={filter.key}
+                        icon={filter.icon}
+                        label={`${filter.label} ${count}`}
+                        clickable
+                        color={active ? 'primary' : 'default'}
+                        onClick={() => setQuickFilter(active ? null : filter.key)}
+                        variant={active ? 'filled' : 'outlined'}
+                        sx={{ height: 28, '& .MuiChip-label': { fontWeight: 700 } }}
+                      />
+                    );
+                  })}
                 </Stack>
 
                 {/* Advanced filters */}
