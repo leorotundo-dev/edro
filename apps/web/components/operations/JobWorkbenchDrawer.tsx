@@ -1079,6 +1079,7 @@ export default function JobWorkbenchDrawer({
   const progressTarget = nextStatus(detailJob, intakeComplete);
   const nextAction = getNextAction(detailJob || { ...payload, priority_band: priorityPreview.priorityBand } as Partial<OperationsJob>);
   const detailRisk = detailJob ? getRisk(detailJob) : null;
+  const demandBriefing = String(detailJob?.summary || '').trim();
   const missingDecisionItems = getMissingDecisionItems(form);
   const createReady = Boolean(form.title.trim()) && missingDecisionItems.length === 0;
   const quickAllocationOptions = allocationProposals
@@ -1706,6 +1707,58 @@ export default function JobWorkbenchDrawer({
                   <Typography variant="body2" color="text.secondary">
                     Veja a decisao, execute o proximo passo e abra os atalhos sem entrar no editor completo.
                   </Typography>
+                </Box>
+              ) : null}
+              {demandBriefing ? (
+                <Box
+                  sx={(theme) => ({
+                    p: 1.5,
+                    borderRadius: 2.5,
+                    border: '1px solid',
+                    borderColor: alpha(theme.palette.info.main, 0.2),
+                    bgcolor: alpha(theme.palette.info.main, 0.04),
+                  })}
+                >
+                  <Stack spacing={1.2}>
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'info.main', letterSpacing: 0.45 }}>
+                          {detailJob.source === 'trello' ? 'BRIEFING DO TRELLO' : 'RESUMO DA DEMANDA'}
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700}>
+                          Contexto que chegou junto com a demanda
+                        </Typography>
+                      </Box>
+                      {detailJob.metadata?.trello_url ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="info"
+                          component="a"
+                          href={String(detailJob.metadata.trello_url)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir no Trello
+                        </Button>
+                      ) : null}
+                    </Stack>
+                    <Box
+                      sx={(theme) => ({
+                        p: 1.25,
+                        borderRadius: 2,
+                        border: '1px solid',
+                        borderColor: alpha(theme.palette.info.main, 0.12),
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.72) : '#fff',
+                        maxHeight: isQuickView ? 240 : 'none',
+                        overflowY: isQuickView ? 'auto' : 'visible',
+                      })}
+                    >
+                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere', lineHeight: 1.6 }}>
+                        {demandBriefing}
+                      </Typography>
+                    </Box>
+                  </Stack>
                 </Box>
               ) : null}
               <Typography variant="h6" fontWeight={800}>Painel da demanda</Typography>
