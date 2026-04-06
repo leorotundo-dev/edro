@@ -371,6 +371,9 @@ function FreelancerContacts({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ContactForm>(EMPTY_CONTACT_FORM);
   const [saving, setSaving] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchNotice, setBatchNotice] = useState('');
+  const [batchError, setBatchError] = useState('');
 
   const deliverableCount = freelancers.filter((fl) => fl.is_active && fl.whatsapp_delivery?.deliverable_now).length;
   const blockedCount = freelancers.filter((fl) => fl.is_active && fl.whatsapp_delivery?.meta_blocked).length;
@@ -406,6 +409,7 @@ function FreelancerContacts({
       fl.whatsapp_jid?.toLowerCase().includes(q)
     );
   });
+  const visibleTestable = filtered.filter((fl) => fl.whatsapp_delivery?.has_number);
 
   const openEdit = (fl: FreelancerProfile) => {
     setEditingId(fl.id);
@@ -479,6 +483,35 @@ function FreelancerContacts({
     finally { setSaving(false); }
   };
 
+  const handleBatchTestVisible = async () => {
+    if (!visibleTestable.length || batchBusy) return;
+    setBatchBusy(true);
+    setBatchError('');
+    setBatchNotice('');
+    let sent = 0;
+    let failed = 0;
+    for (const freelancer of visibleTestable) {
+      try {
+        await apiPost(`/freelancers/${freelancer.id}/whatsapp/test`, {});
+        sent += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    try {
+      await onUpdated();
+    } catch {
+      // keep summary visible even if reload fails
+    } finally {
+      setBatchBusy(false);
+    }
+    if (sent > 0) {
+      setBatchNotice(`Teste disparado para ${sent} colaborador(es).${failed > 0 ? ` ${failed} falharam.` : ''}`);
+    } else {
+      setBatchError(failed > 0 ? `Nenhum teste enviado. ${failed} falharam.` : 'Não há colaboradores com número utilizável neste filtro.');
+    }
+  };
+
   const set = (patch: Partial<ContactForm>) => setForm((f) => ({ ...f, ...patch }));
 
   if (loading) {
@@ -520,6 +553,41 @@ function FreelancerContacts({
           <ToggleButton value="missing_number">Sem número ({missingNumberCount})</ToggleButton>
           <ToggleButton value="pending">Pendentes ({pendingCount})</ToggleButton>
         </ToggleButtonGroup>
+      </Stack>
+
+      {(batchNotice || batchError) && (
+        <Alert severity={batchError ? 'error' : 'success'} onClose={() => { setBatchNotice(''); setBatchError(''); }}>
+          {batchError || batchNotice}
+        </Alert>
+      )}
+
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between">
+        <Typography variant="caption" color="text.secondary">
+          {filtered.length} colaborador(es) no filtro atual · {visibleTestable.length} com número utilizável
+        </Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<IconBrandWhatsapp size={14} />}
+            onClick={handleBatchTestVisible}
+            disabled={batchBusy || visibleTestable.length === 0}
+          >
+            {batchBusy ? 'Testando visíveis...' : `Testar visíveis (${visibleTestable.length})`}
+          </Button>
+          {(search || statusFilter !== 'all') && (
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('all');
+              }}
+            >
+              Limpar filtro
+            </Button>
+          )}
+        </Stack>
       </Stack>
 
       {filtered.length === 0 && (
