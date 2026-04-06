@@ -561,13 +561,16 @@ export default function OperationsOverviewClient() {
                         </Stack>
                         <Chip
                           size="small"
+                          clickable={column.items.length > 0}
                           label={column.items.length}
+                          onClick={column.items.length > 0 ? () => openCommands(column.items[0]!) : undefined}
                           sx={{
                             height: 22,
                             fontSize: '0.68rem',
                             fontWeight: 800,
                             bgcolor: alpha(column.color, 0.14),
                             color: column.color,
+                            cursor: column.items.length > 0 ? 'pointer' : 'default',
                           }}
                         />
                       </Stack>
@@ -602,7 +605,12 @@ export default function OperationsOverviewClient() {
                                       {!job.owner_name ? (
                                         <Chip
                                           size="small"
+                                          clickable
                                           label="Sem dono"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            openCommands(job);
+                                          }}
                                           sx={{
                                             height: 20,
                                             fontSize: '0.62rem',
@@ -633,13 +641,19 @@ export default function OperationsOverviewClient() {
                                   <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap alignItems="center">
                                     <Chip
                                       size="small"
+                                      clickable
                                       label={job.owner_name || 'Sem responsável'}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openCommands(job);
+                                      }}
                                       sx={{
                                         height: 22,
                                         fontSize: '0.66rem',
                                         fontWeight: 700,
                                         bgcolor: alpha(column.color, 0.08),
                                         color: 'text.primary',
+                                        cursor: 'pointer',
                                       }}
                                     />
                                     <Button
