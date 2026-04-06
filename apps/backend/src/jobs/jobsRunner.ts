@@ -40,6 +40,8 @@ import { runCompetitorIntelligenceWorkerOnce } from './competitorIntelligenceWor
 import { runOpportunityDetectorWorkerOnce } from './opportunityDetectorWorker';
 import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
 import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
+import { runJarvisKbHealthWorkerOnce } from './jarvisKbHealthWorker';
+import { runJarvisProposalWorkerOnce } from './jarvisProposalWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -158,4 +160,8 @@ export function startJobsRunner() {
   startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 300_000);
   // Jarvis Alert Engine — 2x/day, cross-source alerts (stalled cards, no-reply, expiring contracts, market opportunities)
   startWorkerLoop('jarvisAlerts', runJarvisAlertWorkerOnce, 20000, 120_000);
+  // Jarvis KB Health — monthly, detects contradictions/gaps/stale entries and suggests new articles
+  startWorkerLoop('jarvisKbHealth', runJarvisKbHealthWorkerOnce, 20500, 600_000);
+  // Jarvis Proactive Proposals — daily at 05h UTC, generates campaign proposals from KB + calendar + trends
+  startWorkerLoop('jarvisProposals', runJarvisProposalWorkerOnce, 21000, 300_000);
 }

@@ -658,6 +658,18 @@ export const TOOLS: ToolDefinition[] = [
     required: [],
     category: 'read',
   },
+
+  // ── JARVIS KB ──
+  {
+    name: 'search_jarvis_kb',
+    description: 'Busca padrões aprendidos no KB do JARVIS para este cliente. Use quando precisar de evidência sobre o que funcionou antes (gatilhos, personas, AMDs, plataformas). Retorna até 5 entradas ordenadas por nível de evidência.',
+    parameters: {
+      query: { type: 'string', description: 'Termo de busca (ex: "loss aversion", "linkedin", "salvar", "persona CEO")' },
+      category: { type: 'string', description: 'Filtrar por categoria: trigger | platform | amd | persona | proposal | health_finding' },
+    },
+    required: ['query'],
+    category: 'read',
+  },
 ];
 
 // ── Operations Tools (tenant-scoped, no clientId required) ────

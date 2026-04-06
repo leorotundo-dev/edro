@@ -1536,4 +1536,99 @@ export default async function campaignRoutes(app: FastifyInstance) {
       return reply.send({ success: true, data: rows[0] });
     }
   );
+
+  // ─── Campaign Assets (multi-format support) ────────────────────────────────
+
+  // GET /campaigns/:id/assets — list assets linked to a campaign
+  app.get(
+    '/campaigns/:id/assets',
+    { preHandler: [requirePerm('clients:read'), requireCampaignPerm('read')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const { id: campaignId } = request.params as { id: string };
+      const { asset_type } = request.query as { asset_type?: string };
+
+      const params: any[] = [tenantId, campaignId];
+      let typeFilter = '';
+      if (asset_type) {
+        params.push(asset_type);
+        typeFilter = `AND asset_type = $${params.length}`;
+      }
+
+      const { rows } = await pool.query(
+        `SELECT id, asset_type, asset_id, content, format, behavior_intent_id, phase, performance, created_at
+         FROM campaign_assets
+         WHERE tenant_id = $1 AND campaign_id = $2 ${typeFilter}
+         ORDER BY created_at DESC`,
+        params
+      );
+
+      return reply.send({ success: true, data: rows });
+    }
+  );
+
+  // POST /campaigns/:id/assets — link an asset to a campaign
+  app.post(
+    '/campaigns/:id/assets',
+    { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const { id: campaignId } = request.params as { id: string };
+
+      const body = z.object({
+        asset_type: z.string(),
+        asset_id: z.string().optional(),
+        content: z.string().optional(),
+        format: z.string().optional(),
+        behavior_intent_id: z.string().optional(),
+        phase: z.enum(['historia', 'prova', 'convite']).optional(),
+        performance: z.record(z.any()).optional(),
+      }).parse(request.body);
+
+      const { rows } = await pool.query(
+        `INSERT INTO campaign_assets
+           (tenant_id, campaign_id, asset_type, asset_id, content, format,
+            behavior_intent_id, phase, performance)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+         RETURNING *`,
+        [
+          tenantId, campaignId,
+          body.asset_type,
+          body.asset_id ?? null,
+          body.content ?? null,
+          body.format ?? null,
+          body.behavior_intent_id ?? null,
+          body.phase ?? null,
+          body.performance ? JSON.stringify(body.performance) : null,
+        ]
+      );
+
+      return reply.status(201).send({ success: true, data: rows[0] });
+    }
+  );
+
+  // PATCH /campaigns/assets/:assetId/performance — update performance metrics
+  app.patch(
+    '/campaigns/assets/:assetId/performance',
+    { preHandler: [requirePerm('clients:write')] },
+    async (request: any, reply) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const { assetId } = request.params as { assetId: string };
+
+      const { performance } = z.object({
+        performance: z.record(z.any()),
+      }).parse(request.body);
+
+      const { rows } = await pool.query(
+        `UPDATE campaign_assets
+         SET performance = $1::jsonb
+         WHERE id = $2 AND tenant_id = $3
+         RETURNING id, asset_type, performance`,
+        [JSON.stringify(performance), assetId, tenantId]
+      );
+
+      if (!rows[0]) return reply.status(404).send({ error: 'asset_not_found' });
+      return reply.send({ success: true, data: rows[0] });
+    }
+  );
 }

@@ -291,6 +291,68 @@ function rowToAgencyEntry(r: any): KbEntry {
   };
 }
 
+// ── Search KB entries ─────────────────────────────────────────────────────────
+
+export interface KbSearchResult {
+  id: string;
+  topic: string;
+  category: string;
+  content: string;
+  evidence_level: string;
+  uplift_metric?: string;
+  uplift_value?: number;
+  source: string;
+}
+
+/**
+ * Full-text search on jarvis_kb_entries content column + optional category filter.
+ * Returns top 5 matching entries ordered by evidence level + recency.
+ */
+export async function searchKbEntries(
+  tenantId: string,
+  clientId: string,
+  searchQuery: string,
+  category?: string
+): Promise<KbSearchResult[]> {
+  const params: any[] = [tenantId, clientId, `%${searchQuery.toLowerCase()}%`];
+  let categoryFilter = '';
+  if (category) {
+    params.push(category);
+    categoryFilter = `AND category = $${params.length}`;
+  }
+
+  const { rows } = await query(
+    `SELECT id, topic, category, content, evidence_level, uplift_metric,
+            uplift_value, source
+     FROM jarvis_kb_entries
+     WHERE tenant_id = $1
+       AND client_id = $2
+       AND LOWER(content) LIKE $3
+       ${categoryFilter}
+     ORDER BY
+       CASE evidence_level
+         WHEN 'rule'     THEN 1
+         WHEN 'pattern'  THEN 2
+         WHEN 'one_case' THEN 3
+         ELSE 4
+       END,
+       updated_at DESC
+     LIMIT 5`,
+    params
+  );
+
+  return rows.map((r: any) => ({
+    id: r.id,
+    topic: r.topic,
+    category: r.category,
+    content: r.content,
+    evidence_level: r.evidence_level,
+    uplift_metric: r.uplift_metric,
+    uplift_value: r.uplift_value !== null ? Number(r.uplift_value) : undefined,
+    source: r.source,
+  }));
+}
+
 function buildPromptBlock(client: KbEntry[], agency: KbEntry[]): string {
   const lines: string[] = ['=== JARVIS KB — Padrões Aprendidos ===\n'];
 

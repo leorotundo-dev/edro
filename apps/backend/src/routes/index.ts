@@ -69,6 +69,7 @@ import trelloRoutes from './trello';
 import jarvisRoutes from './jarvis';
 import daBillingRoutes from './daBilling';
 import jobBriefingsRoutes from './jobBriefings';
+import multiFormatRoutes from './multiFormat';
 import { env } from '../env';
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -154,4 +155,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(jarvisRoutes, { prefix: '/api' });
   app.register(daBillingRoutes, { prefix: '/api' });
   app.register(jobBriefingsRoutes, { prefix: '/api' });
+  app.register(multiFormatRoutes, { prefix: '/api' });
 }

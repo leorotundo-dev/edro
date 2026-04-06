@@ -30,6 +30,8 @@ import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
 import { analyzeCognitiveLoad } from '../cognitiveLoadService';
 import { generateWithProvider } from './copyOrchestrator';
+import { searchKbEntries } from '../jarvisKbService';
+import { fileOutputToKb } from '../jarvisKbFilingService';
 import { enqueueJob } from '../../jobs/jobQueue';
 import crypto from 'crypto';
 
@@ -159,6 +161,8 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   get_job_creative_drafts: toolGetJobCreativeDrafts,
   approve_creative_draft: toolApproveCreativeDraft,
   regenerate_creative_draft: toolRegenerateCreativeDraft,
+  // JARVIS KB
+  search_jarvis_kb: toolSearchJarvisKb,
 };
 
 export async function executeTool(
@@ -311,6 +315,13 @@ async function toolGenerateCopy(args: any, ctx: ToolContext): Promise<ToolResult
     payload: copyResult.payload,
     createdBy: ctx.userEmail ?? null,
   });
+
+  // Fire-and-forget: file this output back to JARVIS KB
+  void fileOutputToKb(ctx.tenantId, ctx.clientId, copyResult.output, 'copy', {
+    platform: payload.platform,
+    micro_behavior: payload.amd ?? payload.micro_behavior,
+    phase: payload.campaign_phase,
+  }).catch(() => { /* non-blocking */ });
 
   return {
     success: true,
@@ -2706,4 +2717,67 @@ async function toolRegenerateCreativeDraft(args: any, ctx: ToolContext): Promise
   await enqueueJob(ctx.tenantId, 'job_automation', { jobId: job_id, step: draftStep });
 
   return { success: true, data: { message: `Regeneração de ${draftStep} enfileirada. automation_status → ${automationStatus}.` } };
+}
+
+// ── JARVIS KB ────────────────────────────────────────────────────
+
+async function toolSearchJarvisKb(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (!args.query) return { success: false, error: 'query é obrigatório' };
+
+  try {
+    const results = await searchKbEntries(
+      ctx.tenantId,
+      ctx.clientId,
+      args.query,
+      args.category,
+    );
+
+    if (!results.length) {
+      return {
+        success: true,
+        data: {
+          entries: [],
+          message: `Nenhum padrão encontrado para "${args.query}"${args.category ? ` na categoria "${args.category}"` : ''}. O KB ainda está sendo construído para este cliente.`,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        entries: results,
+        total: results.length,
+        query: args.query,
+      },
+      metadata: { row_count: results.length },
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Erro ao buscar KB' };
+  }
+}
+
+// ── Hook: file copy output to KB after generation ────────────────
+
+/**
+ * Called after copy generation (via tool) to file the output back to KB.
+ * Fire-and-forget — does not throw.
+ */
+export async function fileCopyOutputToKb(
+  tenantId: string,
+  clientId: string,
+  output: string,
+  ctx: {
+    platform?: string;
+    triggers?: string[];
+    persona?: string;
+    micro_behavior?: string;
+    phase?: string;
+  } = {}
+): Promise<void> {
+  try {
+    await fileOutputToKb(tenantId, clientId, output, 'copy', ctx);
+  } catch (err) {
+    // non-blocking
+    console.warn('[toolExecutor] fileCopyOutputToKb failed (non-critical):', err);
+  }
 }
