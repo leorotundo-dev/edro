@@ -97,7 +97,7 @@ export default function OperationsPeopleClient() {
     <OperationsShell
       section="people"
       titleOverride="Pessoas"
-      subtitleOverride="Leitura individual da pauta, da carga da equipe e do que ainda está sem dono."
+      subtitleOverride="Leitura individual da pauta por responsável. Distribuição e encaixe moram em Semana."
       summary={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Chip label={`${plannerData.owners.length} pessoas`} size="small" />
@@ -126,16 +126,19 @@ export default function OperationsPeopleClient() {
                 Quem está com o quê agora
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 760, mt: 0.8 }}>
-                Use esta vista para entender a pauta de cada pessoa, onde existe folga e o que ainda precisa ganhar dono
-                antes de entrar na semana.
+                Use esta vista para entender a pauta atual de cada pessoa, onde existe folga e o que ainda precisa
+                ganhar dono antes de redistribuir a semana.
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+              <Button component={Link} href="/admin/operacoes/jobs?view=table&group=client" variant="text">
+                Abrir pauta geral
+              </Button>
               <Button component={Link} href="/admin/operacoes/jobs?unassigned=true" variant="outlined">
                 Ver sem dono
               </Button>
               <Button component={Link} href="/admin/operacoes/semana?view=distribution" variant="contained">
-                Ir para semana
+                Ir para distribuição
               </Button>
             </Stack>
           </Stack>

@@ -51,7 +51,7 @@ const LANES: LaneDefinition[] = [
   {
     key: 'waiting_briefing',
     label: 'Aguardando briefing',
-    subtitle: 'Demandas que ainda precisam completar a entrada antes de cair na IA.',
+    subtitle: 'Demandas que ainda precisam completar a entrada antes de seguir para criação.',
     color: '#5D87FF',
     icon: <IconFileText size={16} />,
   },
@@ -64,7 +64,7 @@ const LANES: LaneDefinition[] = [
   },
   {
     key: 'copy_ready',
-    label: 'Fazer redação',
+    label: 'Prontas para copy',
     subtitle: 'Cards do Trello já prontos para virar copy, direção ou briefing assistido.',
     color: '#13DEB9',
     icon: <IconSparkles size={16} />,

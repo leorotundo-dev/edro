@@ -412,7 +412,7 @@ export default function OperationsAgendaClient() {
               subtitle={
                 viewMode === 'calendar'
                   ? 'Veja prazos, aprovações e publicações que pressionam a semana antes de decidir.'
-                  : 'Veja quem está apertado, o que ficou sem dono e quais dias já estão pesados antes de redistribuir.'
+                  : 'Redistribua a carga da equipe vendo quem apertou, o que ficou sem dono e quais dias já pesaram.'
               }
               action={
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

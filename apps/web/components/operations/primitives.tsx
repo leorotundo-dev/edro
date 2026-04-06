@@ -1830,7 +1830,7 @@ export function OperationsContextRail({
                   Aguardando briefing
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25, fontSize: '0.72rem' }}>
-                  Preencha o briefing para que a IA possa gerar o conteúdo.
+                  Preencha o briefing para que o Jarvis possa gerar o conteúdo.
                 </Typography>
                 <Button
                   component={Link}
@@ -1854,7 +1854,7 @@ export function OperationsContextRail({
               </Box>
             ) : job.automation_status && job.automation_status !== 'none' ? (
               <Box sx={{ py: 0.5, px: 0.25 }}>
-                <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.75 }}>Pipeline IA</Typography>
+                <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.75 }}>Pipeline criativo</Typography>
                 <AutomationPipeline automationStatus={job.automation_status} />
                 {job.estimated_delivery_at ? (
                   <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.75 }}>

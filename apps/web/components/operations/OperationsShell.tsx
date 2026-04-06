@@ -7,6 +7,7 @@ import { OPS_COPY } from './copy';
 import OperationsJarvisDrawer from './OperationsJarvisDrawer';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -21,6 +22,7 @@ import {
   IconAlertTriangle,
   IconChecklist,
   IconUsers,
+  IconBrain,
 } from '@tabler/icons-react';
 
 export type OperationsSection = 'overview' | 'jobs' | 'ia' | 'people' | 'semana' | 'radar' | 'quality';
@@ -28,9 +30,7 @@ export type OperationsSection = 'overview' | 'jobs' | 'ia' | 'people' | 'semana'
 type CommandOption = {
   label: string;
   subtitle: string;
-  kind: 'route' | 'jarvis';
-  href?: string;
-  prompt?: string;
+  href: string;
 };
 
 const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; icon: ReactElement }> = [
@@ -43,41 +43,33 @@ const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; ico
 ];
 
 const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string }> = {
-  overview: { title: 'Hoje', subtitle: 'O retrato operacional da agência para decidir agora.' },
-  jobs: { title: 'Pauta Geral', subtitle: 'A carteira operacional da agência organizada para leitura e decisão.' },
+  overview: { title: 'Hoje', subtitle: 'Mesa de decisão da operação para agir agora.' },
+  jobs: { title: 'Pauta Geral', subtitle: 'A carteira operacional da agência para leitura, triagem e decisão.' },
   ia: { title: 'Handoff criativo', subtitle: 'Demandas que precisam de briefing, copy ou aprovação dentro da pauta.' },
-  people: { title: 'Pessoas', subtitle: 'Pauta individual e carga da equipe num lugar direto.' },
-  semana: { title: 'Semana', subtitle: 'Calendário, distribuição e capacidade na mesma leitura.' },
-  radar: { title: 'Riscos', subtitle: 'Tudo que pode travar, atrasar ou estourar.' },
+  people: { title: 'Pessoas', subtitle: 'Leitura individual da pauta por responsável e do que ainda está sem dono.' },
+  semana: { title: 'Semana', subtitle: 'Distribuição, capacidade e encaixe temporal da operação.' },
+  radar: { title: 'Riscos', subtitle: 'Mesa de exceção para sinais, bloqueios e itens que podem estourar.' },
   quality: { title: 'SLA', subtitle: 'Prazo, estimativa e precisão operacional no mesmo lugar.' },
 };
 
 const COMMANDS: CommandOption[] = [
-  { label: 'Nova demanda', subtitle: 'Abrir cadastro guiado de demanda', kind: 'route', href: '/admin/operacoes/jobs?new=1' },
-  { label: 'Hoje', subtitle: 'Abrir a mesa de decisão da operação', kind: 'route', href: '/admin/operacoes' },
-  { label: 'Fila', subtitle: 'Abrir a fila operacional bruta da agência', kind: 'route', href: '/admin/operacoes/jobs' },
-  { label: 'Banco de Dados (Filtros)', subtitle: 'Abrir a fila em tabela crua da operação', kind: 'route', href: '/admin/operacoes/jobs?view=table' },
-  { label: 'Pauta Geral', subtitle: 'Abrir a fila agrupada por cliente', kind: 'route', href: '/admin/operacoes/jobs?view=table&group=client' },
-  { label: 'Externos', subtitle: 'Abrir a mesa de risco e exceções', kind: 'route', href: '/admin/operacoes/radar' },
-  { label: 'SLA', subtitle: 'Abrir a leitura de prazo e estimativa da operação', kind: 'route', href: '/admin/operacoes/qualidade' },
-  { label: 'Handoff criativo', subtitle: 'Abrir a bandeja de briefing, copy e aprovação', kind: 'route', href: '/admin/operacoes/ia' },
-  { label: 'Pauta - Nome', subtitle: 'Abrir a pauta individual por pessoa', kind: 'route', href: '/admin/operacoes/pessoas' },
-  { label: 'Demandas sem responsável', subtitle: 'Ir direto para a fila sem responsável definido', kind: 'route', href: '/admin/operacoes/jobs?unassigned=true' },
-  { label: 'Prontos para copy', subtitle: 'Abrir os itens prontos para redação e revisão', kind: 'route', href: '/admin/operacoes/ia' },
-  { label: 'Pauta por pessoa', subtitle: 'Abrir a carga individual da equipe', kind: 'route', href: '/admin/operacoes/pessoas' },
-  { label: 'Distribuição da semana', subtitle: 'Abrir a semana no modo distribuição da equipe', kind: 'route', href: '/admin/operacoes/semana?view=distribution' },
-  { label: 'Agenda operacional', subtitle: 'Ver impacto temporal da semana em calendário', kind: 'route', href: '/admin/operacoes/semana?view=calendar' },
-  { label: 'Riscos críticos', subtitle: 'Abrir exceções e itens em risco', kind: 'route', href: '/admin/operacoes/radar' },
-  { label: 'SLA da operação', subtitle: 'Abrir prazo e calibração operacional', kind: 'route', href: '/admin/operacoes/qualidade' },
-  { label: 'Jarvis, o que tá pegando fogo?', subtitle: 'Ver riscos críticos e bloqueios', kind: 'jarvis', prompt: 'O que tá pegando fogo? Me mostra os jobs atrasados, bloqueados e sem dono que precisam de ação agora.' },
-  { label: 'Jarvis, o que vai atrasar amanhã?', subtitle: 'Leitura de risco do dia seguinte', kind: 'jarvis', prompt: 'Quais itens provavelmente vão atrasar amanhã e por quê?' },
-  { label: 'Jarvis, quem tá sobrecarregado?', subtitle: 'Ver capacidade da equipe', kind: 'jarvis', prompt: 'Me mostra a carga de trabalho de cada pessoa da equipe. Quem tá sobrecarregado e quem tem espaço?' },
-  { label: 'Jarvis, resumo da operação', subtitle: 'Snapshot completo da operação', kind: 'jarvis', prompt: 'Me dá um resumo executivo da operação: quantos jobs por status, gargalos, riscos e próximas ações.' },
+  { label: 'Nova demanda', subtitle: 'Abrir cadastro guiado de demanda', href: '/admin/operacoes/jobs?new=1' },
+  { label: 'Hoje', subtitle: 'Abrir a mesa de decisão da operação', href: '/admin/operacoes' },
+  { label: 'Fila', subtitle: 'Abrir a fila operacional bruta da agência', href: '/admin/operacoes/jobs' },
+  { label: 'Banco de Dados (Filtros)', subtitle: 'Abrir a fila em tabela crua da operação', href: '/admin/operacoes/jobs?view=table' },
+  { label: 'Pauta Geral', subtitle: 'Abrir a carteira agrupada por cliente', href: '/admin/operacoes/jobs?view=table&group=client' },
+  { label: 'Externos', subtitle: 'Abrir a mesa de risco e exceções', href: '/admin/operacoes/radar' },
+  { label: 'SLA', subtitle: 'Abrir a leitura de prazo e estimativa da operação', href: '/admin/operacoes/qualidade' },
+  { label: 'Handoff criativo', subtitle: 'Abrir a bandeja de briefing, copy e aprovação', href: '/admin/operacoes/ia' },
+  { label: 'Pauta - Nome', subtitle: 'Abrir a pauta individual por pessoa', href: '/admin/operacoes/pessoas' },
+  { label: 'Demandas sem responsável', subtitle: 'Ir direto para a fila sem responsável definido', href: '/admin/operacoes/jobs?unassigned=true' },
+  { label: 'Prontos para copy', subtitle: 'Abrir os itens prontos para copy, revisão e aprovação', href: '/admin/operacoes/ia' },
+  { label: 'Pauta por pessoa', subtitle: 'Abrir a carga individual da equipe', href: '/admin/operacoes/pessoas' },
+  { label: 'Distribuição da semana', subtitle: 'Abrir a semana no modo distribuição da equipe', href: '/admin/operacoes/semana?view=distribution' },
+  { label: 'Agenda operacional', subtitle: 'Ver impacto temporal da semana em calendário', href: '/admin/operacoes/semana?view=calendar' },
+  { label: 'Riscos críticos', subtitle: 'Abrir exceções e itens em risco', href: '/admin/operacoes/radar' },
+  { label: 'SLA da operação', subtitle: 'Abrir prazo e calibração operacional', href: '/admin/operacoes/qualidade' },
 ];
-
-function dispatchOpsJarvisPrompt(prompt: string) {
-  window.dispatchEvent(new CustomEvent('jarvis-ops-send', { detail: { message: prompt } }));
-}
 
 export default function OperationsShell({
   section,
@@ -103,25 +95,13 @@ export default function OperationsShell({
 
   const commandOptions = useMemo(() => COMMANDS, []);
 
-  const handleRunCommand = (value: string | CommandOption | null) => {
-    const trimmed = typeof value === 'string' ? value.trim() : '';
-    if (!value || (!trimmed && typeof value === 'string')) return;
-
-    if (typeof value !== 'string') {
-      if (value.kind === 'route' && value.label === OPS_COPY.shell.newDemand && onNewDemand) {
-        onNewDemand();
-      } else if (value.kind === 'route' && value.href) {
-        router.push(value.href);
-      } else if (value.kind === 'jarvis' && value.prompt) {
-        setJarvisOpen(true);
-        setTimeout(() => dispatchOpsJarvisPrompt(value.prompt!), 200);
-      }
-      setCommandInput('');
-      return;
+  const handleRunCommand = (value: CommandOption | null) => {
+    if (!value) return;
+    if (value.label === OPS_COPY.shell.newDemand && onNewDemand) {
+      onNewDemand();
+    } else {
+      router.push(value.href);
     }
-
-    setJarvisOpen(true);
-    setTimeout(() => dispatchOpsJarvisPrompt(trimmed), 200);
     setCommandInput('');
   };
 
@@ -205,57 +185,63 @@ export default function OperationsShell({
               })}
             </Stack>
 
-            {/* Command bar */}
-            <Autocomplete
-              freeSolo
-              size="small"
-              options={commandOptions}
-              getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
-              inputValue={commandInput}
-              onInputChange={(_event, value) => setCommandInput(value)}
-              onChange={(_event, value) => handleRunCommand(value)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="Ir para uma vista ou chamar o Jarvis..."
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      handleRunCommand(commandInput);
-                    }
-                  }}
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <IconSearch size={15} style={{ opacity: 0.4 }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              )}
-              renderOption={(props, option) => (
-                <Box component="li" {...props} key={option.label} sx={{ '&.MuiAutocomplete-option': { py: 1 } }}>
-                  <Stack spacing={0.15}>
-                    <Typography variant="body2" fontWeight={700}>{option.label}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>{option.subtitle}</Typography>
-                  </Stack>
-                </Box>
-              )}
-              sx={{
-                width: { xs: '100%', md: 260 },
-                flexShrink: 0,
-                '& .MuiOutlinedInput-root': {
-                  height: 36,
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0 }}>
+              <Autocomplete
+                size="small"
+                options={commandOptions}
+                getOptionLabel={(option) => option.label}
+                inputValue={commandInput}
+                onInputChange={(_event, value) => setCommandInput(value)}
+                onChange={(_event, value) => handleRunCommand(value)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Ir para uma vista da Central..."
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <IconSearch size={15} style={{ opacity: 0.4 }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <Box component="li" {...props} key={option.label} sx={{ '&.MuiAutocomplete-option': { py: 1 } }}>
+                    <Stack spacing={0.15}>
+                      <Typography variant="body2" fontWeight={700}>{option.label}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>{option.subtitle}</Typography>
+                    </Stack>
+                  </Box>
+                )}
+                sx={{
+                  width: { xs: '100%', md: 280 },
+                  '& .MuiOutlinedInput-root': {
+                    height: 36,
+                    borderRadius: 2,
+                    fontSize: '0.8rem',
+                    bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.03),
+                  },
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: alpha(theme.palette.divider, dark ? 0.2 : 0.15),
+                  },
+                }}
+              />
+              <Button
+                variant="outlined"
+                onClick={() => setJarvisOpen(true)}
+                startIcon={<IconBrain size={16} />}
+                sx={{
+                  minHeight: 36,
                   borderRadius: 2,
-                  fontSize: '0.8rem',
-                  bgcolor: dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.03),
-                },
-                '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: alpha(theme.palette.divider, dark ? 0.2 : 0.15),
-                },
-              }}
-            />
+                  whiteSpace: 'nowrap',
+                  borderColor: alpha(theme.palette.primary.main, 0.28),
+                }}
+              >
+                Chamar Jarvis
+              </Button>
+            </Stack>
           </Stack>
 
           {/* Summary stats row */}

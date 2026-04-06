@@ -373,7 +373,7 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} alignItems="center">
         <IconSparkles size={16} />
-        <Typography variant="body2" fontWeight={900}>Rascunho IA</Typography>
+        <Typography variant="body2" fontWeight={900}>Rascunho do Jarvis</Typography>
         {copyDrafts.length > 1 && (
           <Chip label={`${copyDrafts.length} peças`} size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
         )}
@@ -449,7 +449,7 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
       )) : pendingCopy ? (
         <Box sx={{ p: 2, borderRadius: 2.5, border: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary" fontWeight={700}>
-            A IA esta rabiscando o copy...
+            O Jarvis esta rabiscando o copy...
           </Typography>
           <Skeleton variant="text" width="80%" sx={{ mx: 'auto', mt: 1 }} />
           <Skeleton variant="text" width="60%" sx={{ mx: 'auto' }} />
@@ -509,7 +509,7 @@ function CreativeDraftsPanel({ jobId }: { jobId: string }) {
       ) : pendingImage ? (
         <Box sx={{ p: 2, borderRadius: 2.5, border: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary" fontWeight={700}>
-            A IA esta desenhando a imagem...
+            O Jarvis esta desenhando a imagem...
           </Typography>
           <Skeleton variant="rounded" height={120} sx={{ mt: 1 }} />
         </Box>
@@ -1809,7 +1809,7 @@ export default function JobWorkbenchDrawer({
                   </Grid>
                 ) : null}
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <EntityLinkCard label="Studio criativo" value="Abrir contexto criativo" href={`/studio?jobId=${detailJob.id}`} subtitle="Criacao, briefing e IA ligados a esta demanda" />
+                  <EntityLinkCard label="Studio criativo" value="Abrir contexto criativo" href={`/studio?jobId=${detailJob.id}`} subtitle="Criacao, briefing e Jarvis ligados a esta demanda" />
                 </Grid>
                 {detailJob.source === 'meeting' ? (
                   <Grid size={{ xs: 12, md: 6 }}>
@@ -1927,7 +1927,7 @@ export default function JobWorkbenchDrawer({
               <>
                 <Divider />
                 <Stack spacing={1.5}>
-                  <Typography variant="h6" fontWeight={800}>Pipeline IA</Typography>
+                  <Typography variant="h6" fontWeight={800}>Pipeline criativo</Typography>
                   <AutomationPipeline automationStatus={detailJob.automation_status} />
                   {detailJob.automation_status === 'briefing_pending' && (
                     <BriefingApprovalPanel
