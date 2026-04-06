@@ -49,6 +49,14 @@ function upsertJob(list: OperationsJob[], job: OperationsJob) {
   return next;
 }
 
+function normalizeDeadlineForTrello(value?: string | null) {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 export type SyncHealth = {
   stale_boards: number;
   unlinked_boards: number;
@@ -86,7 +94,8 @@ export function useOperationsData(query = '?active=true') {
     try {
       // Use Trello as the data source for the Operations Center
       const feed = await apiGet<{ jobs: OperationsJob[]; owners: any[]; clients: any[]; sync_health?: SyncHealth }>(`/trello/ops-feed${query}`);
-      setJobs(feed?.jobs ?? []);
+      const nextJobs = feed?.jobs ?? [];
+      setJobs(nextJobs);
       setLookups({
         jobTypes: [],
         skills: [],
@@ -95,19 +104,21 @@ export function useOperationsData(query = '?active=true') {
         owners: feed?.owners ?? [],
       });
       if (feed?.sync_health) setSyncHealth(feed.sync_health);
+      return nextJobs;
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar dados do Trello.');
+      return [] as OperationsJob[];
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [query]);
 
   useEffect(() => {
     load({ sync: true });
   }, [load]);
 
   const createJob = useCallback(async (payload: Record<string, any>): Promise<OperationsJob> => {
-    const response = await apiPost<{ data: OperationsJob }>('/jobs', { ...payload, source: payload.source || 'manual' });
+    const response = await apiPost<{ data: OperationsJob }>('/trello/ops-cards', { ...payload, source: payload.source || 'manual' });
     if (!response?.data) throw new Error('Erro ao criar job.');
     setJobs((current) => [response.data!, ...current]);
     return response.data!;
@@ -129,14 +140,40 @@ export function useOperationsData(query = '?active=true') {
     if (payload.status) {
       return changeStatus(jobId, payload.status);
     }
+
+    const currentJob = jobs.find((job) => job.id === jobId);
+    if (currentJob?.source === 'trello') {
+      const boardId = currentJob.metadata?.board_id as string | undefined;
+      if (!boardId) throw new Error('Card Trello sem board vinculado no metadata.');
+
+      const ownerId = typeof payload.owner_id === 'string' ? payload.owner_id : null;
+      if (ownerId && ownerId !== currentJob.owner_id) {
+        const owner = lookups.owners.find((item) => item.id === ownerId);
+        if (!owner?.email) throw new Error('Não foi possível localizar o e-mail do responsável.');
+        await apiPost(`/trello/ops-cards/${jobId}/assign`, { email: owner.email });
+      }
+
+      const trelloPatch: Record<string, any> = {};
+      if (payload.title !== undefined) trelloPatch.title = payload.title;
+      if (payload.summary !== undefined) trelloPatch.description = payload.summary;
+      if (payload.deadline_at !== undefined) trelloPatch.due_date = normalizeDeadlineForTrello(payload.deadline_at);
+
+      if (Object.keys(trelloPatch).length) {
+        await apiPatch(`/trello/project-boards/${boardId}/cards/${jobId}`, trelloPatch);
+      }
+
+      const nextJobs = await load();
+      return nextJobs.find((job) => job.id === jobId) ?? null;
+    }
+
     const response = await apiPatch<{ data?: OperationsJob }>(`/jobs/${jobId}`, payload);
     if (response?.data) {
       setJobs((current) => upsertJob(current, response.data!));
       return response.data;
     }
-    await load();
-    return null;
-  }, [changeStatus, load]);
+    const nextJobs = await load();
+    return nextJobs.find((job) => job.id === jobId) ?? null;
+  }, [changeStatus, jobs, load, lookups.owners]);
 
   const fetchJob = useCallback(async (jobId: string) => {
     // Return from local state (already loaded from Trello feed)

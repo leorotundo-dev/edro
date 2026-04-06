@@ -1012,7 +1012,12 @@ export default function OperationsJobsClient() {
         jobTypes={lookups.jobTypes} skills={lookups.skills} channels={lookups.channels} clients={lookups.clients} owners={lookups.owners}
         currentUserId={currentUserId}
         onClose={() => setComposerOpen(false)}
-        onCreate={async (payload) => { const c = await createJob(payload); setComposerOpen(false); router.push(`/admin/operacoes/jobs/${c.id}/briefing`); return c; }}
+        onCreate={async (payload) => {
+          const c = await createJob(payload);
+          setComposerOpen(false);
+          openJobDetail(c);
+          return c;
+        }}
         onUpdate={updateJob} onStatusChange={changeStatus}
       />
 

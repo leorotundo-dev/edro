@@ -333,7 +333,15 @@ export default async function trelloRoutes(app: FastifyInstance) {
     }
 
     // Sync move/edit back to Trello
-    if (body.list_id !== undefined || body.due_complete !== undefined || body.title !== undefined || body.is_archived !== undefined) {
+    if (
+      body.list_id !== undefined ||
+      body.position !== undefined ||
+      body.due_complete !== undefined ||
+      body.due_date !== undefined ||
+      body.description !== undefined ||
+      body.title !== undefined ||
+      body.is_archived !== undefined
+    ) {
       try {
         const creds = await getTrelloCredentials(tenantId);
         if (creds) {
@@ -352,9 +360,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
                 [body.list_id, tenantId]
               );
               if (listRows[0]?.trello_list_id) trelloUpdate.idList = listRows[0].trello_list_id;
-              if (body.position !== undefined) trelloUpdate.pos = String(body.position);
             }
+            if (body.position !== undefined) trelloUpdate.pos = String(body.position);
             if (body.due_complete !== undefined) trelloUpdate.dueComplete = String(body.due_complete);
+            if (body.due_date !== undefined) trelloUpdate.due = toTrelloDueValue(body.due_date);
+            if (body.description !== undefined) trelloUpdate.desc = body.description ?? '';
             if (body.title !== undefined) trelloUpdate.name = body.title;
             if (body.is_archived !== undefined) trelloUpdate.closed = String(body.is_archived);
 
@@ -671,6 +681,24 @@ export default async function trelloRoutes(app: FastifyInstance) {
     if (/pronto\b|ready\b/.test(n)) return 'ready';
     if (/planej|classif/.test(n)) return 'planned';
     return 'intake';
+  }
+
+  function effectiveListOpsStatus(listName: string, overrideStatus?: string | null) {
+    return overrideStatus ?? listNameToOpsStatus(listName);
+  }
+
+  function normalizeDeadlineDate(value?: string | null) {
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  function toTrelloDueValue(value?: string | null) {
+    const normalized = normalizeDeadlineDate(value);
+    if (!normalized) return '';
+    return `${normalized}T12:00:00.000Z`;
   }
 
   function computePriorityBand(dueDate: string | null, dueComplete: boolean): { band: string; score: number } {
@@ -1029,6 +1057,195 @@ export default async function trelloRoutes(app: FastifyInstance) {
     });
   });
 
+  // POST /trello/ops-cards — create a new operational demand directly on the Trello-backed flow
+  app.post('/trello/ops-cards', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      client_id: z.string().uuid().nullable().optional(),
+      title: z.string().trim().min(3),
+      summary: z.string().trim().max(5000).nullable().optional(),
+      deadline_at: z.string().nullable().optional(),
+      owner_id: z.string().uuid().nullable().optional(),
+      source: z.string().trim().optional(),
+      job_type: z.string().trim().optional(),
+      is_urgent: z.boolean().optional(),
+    }).parse(request.body);
+
+    const boardRes = await query<{ id: string; name: string; client_id: string | null; client_name: string | null }>(
+      `SELECT pb.id, pb.name, pb.client_id, cl.name as client_name
+       FROM project_boards pb
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pb.tenant_id = $1 AND pb.is_archived = false
+         AND ($2::uuid IS NULL OR pb.client_id = $2::text)
+       ORDER BY CASE WHEN pb.client_id = $2::text THEN 0 ELSE 1 END, pb.updated_at DESC, pb.created_at ASC
+       LIMIT 1`,
+      [tenantId, body.client_id ?? null],
+    );
+    const board = boardRes.rows[0];
+    if (!board) return reply.status(400).send({ error: 'Nenhum board Trello vinculado para este cliente.' });
+
+    const listRes = await query<{ id: string; name: string; trello_list_id: string | null; override_status: string | null }>(
+      `SELECT pl.id, pl.name, pl.trello_list_id, m.ops_status as override_status
+       FROM project_lists pl
+       LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
+       WHERE pl.board_id = $1 AND pl.is_archived = false
+       ORDER BY pl.position`,
+      [board.id, tenantId],
+    );
+    if (!listRes.rows.length) return reply.status(400).send({ error: 'O board vinculado não possui listas ativas.' });
+
+    const preferredList =
+      listRes.rows.find((list) => effectiveListOpsStatus(list.name, list.override_status) === 'intake') ??
+      listRes.rows.find((list) => effectiveListOpsStatus(list.name, list.override_status) === 'planned') ??
+      listRes.rows[0];
+
+    const dueDateValue = normalizeDeadlineDate(body.deadline_at ?? null);
+    const labels = body.is_urgent ? [{ color: 'red', name: 'Urgente' }] : [];
+
+    let trelloCardId: string | null = null;
+    let trelloUrl: string | null = null;
+    try {
+      const creds = await getTrelloCredentials(tenantId);
+      if (creds && preferredList.trello_list_id) {
+        const params = new URLSearchParams({
+          key: creds.apiKey,
+          token: creds.apiToken,
+          idList: preferredList.trello_list_id,
+          name: body.title,
+          desc: body.summary ?? '',
+          pos: 'bottom',
+          ...(dueDateValue ? { due: toTrelloDueValue(dueDateValue) } : {}),
+        });
+        const res = await fetch(`https://api.trello.com/1/cards?${params}`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (res.ok) {
+          const created = await res.json() as { id: string; shortUrl: string };
+          trelloCardId = created.id;
+          trelloUrl = created.shortUrl;
+        } else {
+          console.warn('[trello ops] card creation sync failed:', res.status, await res.text().catch(() => ''));
+        }
+      }
+    } catch (err: any) {
+      console.warn('[trello ops] create card sync failed:', err?.message);
+    }
+
+    const positionRes = await query<{ max_pos: string }>(
+      `SELECT COALESCE(MAX(position), 0) + 65536 AS max_pos
+       FROM project_cards
+       WHERE list_id = $1 AND tenant_id = $2 AND is_archived = false`,
+      [preferredList.id, tenantId],
+    );
+    const position = Number(positionRes.rows[0]?.max_pos ?? 65536);
+
+    const insertRes = await query<{ id: string }>(
+      `INSERT INTO project_cards (
+        board_id, list_id, tenant_id, title, description, position, due_date, labels, trello_card_id, trello_url
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id`,
+      [
+        board.id,
+        preferredList.id,
+        tenantId,
+        body.title,
+        body.summary ?? null,
+        position,
+        dueDateValue,
+        JSON.stringify(labels),
+        trelloCardId,
+        trelloUrl,
+      ],
+    );
+
+    let ownerName: string | null = null;
+    let ownerEmail: string | null = null;
+
+    if (body.owner_id) {
+      const ownerRes = await query<{ email: string | null; name: string | null }>(
+        `SELECT email, name FROM edro_users WHERE id = $1 LIMIT 1`,
+        [body.owner_id],
+      );
+      ownerEmail = ownerRes.rows[0]?.email ?? null;
+      ownerName = ownerRes.rows[0]?.name ?? null;
+
+      if (ownerEmail) {
+        const memberRes = await query<{ trello_member_id: string | null; display_name: string | null }>(
+          `SELECT DISTINCT pcm.trello_member_id, pcm.display_name
+           FROM project_card_members pcm
+           JOIN project_cards pc ON pc.id = pcm.card_id
+           JOIN project_boards pb ON pb.id = pc.board_id
+           WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
+           LIMIT 1`,
+          [ownerEmail, tenantId],
+        );
+        const trelloMemberId = memberRes.rows[0]?.trello_member_id ?? null;
+        const displayName = memberRes.rows[0]?.display_name ?? ownerName ?? ownerEmail;
+        await query(
+          `INSERT INTO project_card_members (card_id, tenant_id, trello_member_id, display_name, email)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (card_id, trello_member_id) DO UPDATE SET display_name = $4, email = $5`,
+          [insertRes.rows[0].id, tenantId, trelloMemberId ?? ownerEmail, displayName, ownerEmail],
+        );
+
+        if (trelloCardId && trelloMemberId) {
+          try {
+            const creds = await getTrelloCredentials(tenantId);
+            if (creds) {
+              const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, value: trelloMemberId });
+              const syncRes = await fetch(`https://api.trello.com/1/cards/${trelloCardId}/idMembers?${params}`, {
+                method: 'POST',
+                signal: AbortSignal.timeout(8_000),
+              });
+              if (!syncRes.ok) console.warn('[trello ops] owner sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
+            }
+          } catch (err: any) {
+            console.warn('[trello ops] owner assignment sync failed:', err?.message);
+          }
+        }
+      }
+    }
+
+    const { band, score } = computePriorityBand(dueDateValue, false);
+    return reply.send({
+      ok: true,
+      data: {
+        id: insertRes.rows[0].id,
+        title: body.title,
+        summary: body.summary ?? null,
+        client_id: board.client_id ?? body.client_id ?? null,
+        client_name: board.client_name ?? board.name,
+        job_type: body.job_type || 'copy',
+        complexity: 'm',
+        channel: null,
+        source: 'trello',
+        status: effectiveListOpsStatus(preferredList.name, preferredList.override_status),
+        priority_score: score,
+        priority_band: band,
+        impact_level: 2,
+        dependency_level: 2,
+        owner_id: body.owner_id ?? null,
+        owner_name: ownerName,
+        owner_email: ownerEmail,
+        deadline_at: dueDateValue ? `${dueDateValue}T23:59:00` : null,
+        estimated_minutes: null,
+        actual_minutes: null,
+        metadata: {
+          trello_card_id: trelloCardId,
+          trello_url: trelloUrl,
+          board_id: board.id,
+          board_name: board.name,
+          list_id: preferredList.id,
+          list_name: preferredList.name,
+          labels,
+          due_complete: false,
+        },
+      },
+    });
+  });
+
   // POST /trello/ops-cards/:cardId/status — move card to best matching list
   app.post('/trello/ops-cards/:cardId/status', { preHandler: [authGuard] }, async (request: any, reply) => {
     const { cardId } = request.params as { cardId: string };
@@ -1043,15 +1260,19 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const { board_id, trello_card_id } = cardRows[0];
 
     // Find best matching list on the same board
-    const { rows: lists } = await query<{ id: string; name: string; trello_list_id: string | null }>(
-      `SELECT id, name, trello_list_id FROM project_lists WHERE board_id = $1 AND is_archived = false ORDER BY position`,
-      [board_id],
+    const { rows: lists } = await query<{ id: string; name: string; trello_list_id: string | null; override_status: string | null }>(
+      `SELECT pl.id, pl.name, pl.trello_list_id, m.ops_status as override_status
+       FROM project_lists pl
+       LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
+       WHERE pl.board_id = $1 AND pl.is_archived = false
+       ORDER BY pl.position`,
+      [board_id, tenantId],
     );
 
     const targetStatus = status.toLowerCase();
     // Score each list: higher = better match
     const scored = lists.map((l) => {
-      const mapped = listNameToOpsStatus(l.name);
+      const mapped = effectiveListOpsStatus(l.name, l.override_status);
       return { ...l, score: mapped === targetStatus ? 10 : 0 };
     });
     const best = scored.sort((a, b) => b.score - a.score)[0];
@@ -1097,7 +1318,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     return reply.send({
       ok: true,
       data: {
-        id: c.id, title: c.title, status: listNameToOpsStatus(c.list_name),
+        id: c.id, title: c.title, status: targetStatus,
         client_name: c.client_name ?? c.board_name, deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
         source: 'trello', job_type: 'copy', complexity: 'm', impact_level: 2, dependency_level: 2,
         priority_band: band, priority_score: score,
