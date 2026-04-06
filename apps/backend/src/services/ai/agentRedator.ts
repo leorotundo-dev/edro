@@ -10,6 +10,7 @@
  */
 
 import { generateCompletion } from './claudeService';
+import { getRelevantSkills, detectCalendarEventType, detectSectorKeywords } from '../jarvisSkillsService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,8 @@ export type AgentRedatorParams = {
   brandVoiceOverride?: Partial<BrandVoiceContext>;
   strategyOverride?: Partial<HookStrategy>;
   appealsOverride?: Array<'dor' | 'logica' | 'prova_social'>;
+  // Pre-loaded skill graph block (injected by orchestrator)
+  skillBlock?: string;
 };
 
 // ─── Plugin 1 — Brand Voice RAG ──────────────────────────────────────────────
@@ -132,9 +135,12 @@ async function plugin2Strategist(
     G07: 'Dor/Solução — nomear a dor e resolver',
   };
 
-  const prompt = `Você é um redator sênior e estrategista de conteúdo publicitário.
-NÃO escreva o texto final. Sua tarefa é criar a ESTRATÉGIA e os GANCHOS para os primeiros 3 segundos.
+  const skillSection = params.skillBlock ? `\n${params.skillBlock}\n` : '';
 
+  const prompt = `Você é o melhor redator e estrategista de conteúdo publicitário do mundo.
+Você domina profundamente os mestres da publicidade (Ogilvy, Hopkins, Halbert, Schwartz, Bernbach, Caples, Kennedy), os níveis de consciência de Schwartz, storytelling avançado e psicologia do comportamento.
+NÃO escreva o texto final. Sua tarefa é criar a ESTRATÉGIA e os GANCHOS para os primeiros 3 segundos.
+${skillSection}
 CONTEXTO:
 - Tom de voz: ${bv.tom}
 - Persona: ${bv.persona}
@@ -207,7 +213,7 @@ async function plugin3Generator(
 
   const hook = strategy.hooks[appeal === 'dor' ? 0 : appeal === 'logica' ? 1 : 2] ?? strategy.hooks[0];
 
-  const prompt = `Você é um redator publicitário especialista. Escreva uma variante completa de copy.
+  const prompt = `Você é o melhor redator publicitário do mundo. Escreva uma variante completa de copy aplicando os melhores princípios de craft.
 
 REGRAS DE MARCA (OBRIGATÓRIAS):
 - Tom: ${bv.tom}
@@ -440,6 +446,31 @@ export async function runAgentRedator(params: AgentRedatorParams): Promise<Agent
     return fn().then((v) => { timings[key] = Date.now() - start; return v; });
   };
 
+  // Skill Graph — load relevant craft knowledge before P2 Strategist
+  let skillBlock = params.skillBlock ?? '';
+  if (!skillBlock) {
+    try {
+      const profile = params.clientProfile ?? {};
+      const briefingText = [params.briefing?.title, params.briefing?.payload?.objective, params.briefing?.payload?.theme].filter(Boolean).join(' ');
+      const calendarEventType = detectCalendarEventType(briefingText) ?? undefined;
+      const sectorKeywords = detectSectorKeywords(profile);
+
+      skillBlock = await getRelevantSkills({
+        platform: params.platform ?? undefined,
+        format: params.format ?? undefined,
+        trigger: params.trigger ?? undefined,
+        amd: params.amd ?? undefined,
+        calendarEventType,
+        sectorKeywords,
+        objective: briefingText,
+        agentType: 'copy',
+      });
+    } catch {
+      // Graceful degradation — skills not critical to pipeline
+    }
+  }
+  const paramsWithSkills = { ...params, skillBlock };
+
   // Plugin 1 — Brand Voice (skip if user provided override)
   const brandVoice: BrandVoiceContext = params.brandVoiceOverride
     ? { ...(await t('p1_brand_voice', () => plugin1BrandVoice(params))), ...params.brandVoiceOverride }
@@ -450,7 +481,7 @@ export async function runAgentRedator(params: AgentRedatorParams): Promise<Agent
     params.strategyOverride.structure && params.strategyOverride.hooks?.length
     ? params.strategyOverride as HookStrategy
     : await t('p2_strategist', () =>
-        plugin2Strategist(params, brandVoice).then((s) => ({ ...s, ...params.strategyOverride }))
+        plugin2Strategist(paramsWithSkills, brandVoice).then((s) => ({ ...s, ...params.strategyOverride }))
       );
 
   // Plugin 3 — Fan-out: up to 3 variants in parallel

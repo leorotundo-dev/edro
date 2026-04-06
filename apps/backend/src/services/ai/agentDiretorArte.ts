@@ -13,6 +13,7 @@
 import { generateCompletion } from './claudeService';
 import { generateImageWithFal, type FalModel, type FalLoraConfig } from './falAiService';
 import { loadCachedStyle, analyzeClientVisualStyle, type ClientVisualStyle } from '../visualStyleAnalyzer';
+import { getRelevantSkills, detectCalendarEventType, detectSectorKeywords } from '../jarvisSkillsService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -182,6 +183,7 @@ async function plugin2PromptBrain(
   params: AgentDAParams,
   brandVisual: BrandVisualContext,
   promptRefinements?: string,
+  skillBlock?: string,
 ): Promise<FalApiPayload> {
   const hasLora = !!brandVisual.loraId;
   const model: FalModel = hasLora ? 'flux-lora' : 'flux-pro';
@@ -201,8 +203,12 @@ async function plugin2PromptBrain(
     G07: 'contraste antes/depois, dor vs solução, transformação',
   };
 
-  const prompt = `Você é um Diretor de Arte de alta performance especializado em criação de prompts para IA generativa de imagens.
+  const skillSection = skillBlock ? `\n${skillBlock}\n` : '';
+
+  const prompt = `Você é o melhor Diretor de Arte do mundo, especializado em criação de prompts para IA generativa de imagens.
+Você domina composição visual, psicologia das cores, hierarquia de Gestalt, storytelling visual e direção criativa para todas as plataformas.
 Sua tarefa é engenheirar o prompt PERFEITO para o Fal.ai ${model} baseado no briefing abaixo.
+${skillSection}
 
 CONTEXTO DO CRIATIVO:
 - Copy aprovada: ${params.copy?.slice(0, 300) ?? 'não informada'}
@@ -407,6 +413,27 @@ export async function runAgentDiretorArte(params: AgentDAParams): Promise<AgentD
     return fn().then((v) => { timings[key] = Date.now() - start; return v; });
   };
 
+  // Skill Graph — load relevant visual craft knowledge before P2 Prompt Brain
+  let daSkillBlock = '';
+  try {
+    const profile = params.clientProfile ?? {};
+    const briefingText = [params.briefing?.title, params.campaignConcept].filter(Boolean).join(' ');
+    const calendarEventType = detectCalendarEventType(briefingText) ?? undefined;
+    const sectorKeywords = detectSectorKeywords(profile);
+
+    daSkillBlock = await getRelevantSkills({
+      platform: params.platform ?? undefined,
+      format: params.format ?? undefined,
+      trigger: params.trigger ?? undefined,
+      calendarEventType,
+      sectorKeywords,
+      objective: briefingText,
+      agentType: 'art',
+    });
+  } catch {
+    // Graceful degradation
+  }
+
   // P1 — Brand Visual RAG (merge with override if provided)
   let brandVisual = await t('p1_brand_rag', () => plugin1BrandVisualRag(params));
   if (params.brandVisualOverride) brandVisual = { ...brandVisual, ...params.brandVisualOverride };
@@ -419,9 +446,9 @@ export async function runAgentDiretorArte(params: AgentDAParams): Promise<AgentD
   let promptRefinements: string | undefined;
 
   while (attempts <= MAX_CRITIQUE_RETRIES) {
-    // P2 — Prompt Brain
+    // P2 — Prompt Brain (with skill graph injected)
     payload = await t(`p2_prompt_brain_${attempts}`, () =>
-      plugin2PromptBrain(params, brandVisual, promptRefinements)
+      plugin2PromptBrain(params, brandVisual, promptRefinements, daSkillBlock)
     );
     if (params.payloadOverride) payload = { ...payload, ...params.payloadOverride };
 
