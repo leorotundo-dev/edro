@@ -350,7 +350,12 @@ export async function notifyEvent(input: NotifyEventInput) {
       const notif = await createNotification({
         channel: 'whatsapp',
         recipient: resolvedPhone,
-        payload: input.payload,
+        payload: {
+          message: input.body || input.title,
+          title: input.title,
+          body: input.body || null,
+          ...input.payload,
+        },
       });
       await dispatchNotification({
         id: notif.id,
