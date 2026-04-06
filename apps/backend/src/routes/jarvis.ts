@@ -222,6 +222,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           userEmail,
           role: userRole,
           explicitConfirmation,
+          pageData: body.page_data ?? undefined,
         };
         const memoryBlocks = await buildJarvisMemoryBlocks({
           tenantId,

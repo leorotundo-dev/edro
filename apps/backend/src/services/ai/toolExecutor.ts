@@ -65,6 +65,7 @@ export type ToolContext = {
   explicitConfirmation?: boolean;
   conversationId?: string | null;
   conversationRoute?: 'planning' | 'operations';
+  pageData?: Record<string, unknown> | null;
 };
 
 export type OperationsToolContext = {
@@ -239,6 +240,25 @@ function applyContextualConfirmation<T extends { explicitConfirmation?: boolean 
     return { ...args, confirmed: true };
   }
   return args;
+}
+
+function contextualString(value: unknown) {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
+function resolveContextJobId(args: Record<string, any>, ctx: ToolContext) {
+  return contextualString(args.job_id)
+    || contextualString(ctx.pageData?.currentJobId)
+    || contextualString(ctx.pageData?.jobId)
+    || null;
+}
+
+function resolveContextBriefingId(args: Record<string, any>, ctx: ToolContext) {
+  return contextualString(args.briefing_id)
+    || contextualString(ctx.pageData?.currentBriefingId)
+    || contextualString(ctx.pageData?.briefingId)
+    || null;
 }
 
 async function enforceToolAccess(
@@ -2374,9 +2394,12 @@ async function resolvePrimaryClientEmail(tenantId: string, clientId: string) {
 
 async function resolvePostWorkflowContext(args: any, ctx: ToolContext): Promise<ResolvedPostWorkflowContext> {
   const backgroundJobId = String(args.background_job_id || '').trim() || null;
-  const providedBriefingId = String(args.briefing_id || '').trim() || null;
-  const providedSessionId = String(args.creative_session_id || '').trim() || null;
-  const providedJobId = String(args.job_id || '').trim() || null;
+  const providedBriefingId = resolveContextBriefingId(args, ctx);
+  const providedSessionId = contextualString(args.creative_session_id)
+    || contextualString(ctx.pageData?.creativeSessionId)
+    || contextualString(ctx.pageData?.currentCreativeSessionId)
+    || null;
+  const providedJobId = resolveContextJobId(args, ctx);
 
   let briefingId = providedBriefingId;
   let creativeSessionId = providedSessionId;
@@ -4969,7 +4992,7 @@ async function opsManageAllocation(args: any, ctx: OperationsToolContext): Promi
 // ══════════════════════════════════════════════════════════════════
 
 async function toolGetJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
-  const { job_id } = args;
+  const job_id = resolveContextJobId(args, ctx);
   if (!job_id) return { success: false, error: 'job_id é obrigatório' };
 
   // Fetch job + client name
@@ -5053,7 +5076,7 @@ async function toolGetJobBriefing(args: any, ctx: ToolContext): Promise<ToolResu
 }
 
 async function toolFillJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
-  const { job_id } = args;
+  const job_id = resolveContextJobId(args, ctx);
   if (!job_id) return { success: false, error: 'job_id é obrigatório' };
 
   // Verify job + get client_id
@@ -5155,7 +5178,7 @@ async function toolFillJobBriefing(args: any, ctx: ToolContext): Promise<ToolRes
 }
 
 async function toolSubmitJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
-  const { job_id } = args;
+  const job_id = resolveContextJobId(args, ctx);
   if (!job_id) return { success: false, error: 'job_id é obrigatório' };
 
   const { rows } = await query<any>(
@@ -5177,7 +5200,7 @@ async function toolSubmitJobBriefing(args: any, ctx: ToolContext): Promise<ToolR
 }
 
 async function toolApproveJobBriefing(args: any, ctx: ToolContext): Promise<ToolResult> {
-  const { job_id } = args;
+  const job_id = resolveContextJobId(args, ctx);
   if (!job_id) return { success: false, error: 'job_id é obrigatório' };
 
   const { rows } = await query<any>(
@@ -5202,7 +5225,7 @@ async function toolApproveJobBriefing(args: any, ctx: ToolContext): Promise<Tool
 }
 
 async function toolGetJobCreativeDrafts(args: any, ctx: ToolContext): Promise<ToolResult> {
-  const { job_id } = args;
+  const job_id = resolveContextJobId(args, ctx);
   if (!job_id) return { success: false, error: 'job_id é obrigatório' };
 
   const { rows } = await query<any>(
@@ -5226,7 +5249,8 @@ async function toolGetJobCreativeDrafts(args: any, ctx: ToolContext): Promise<To
 }
 
 async function toolApproveCreativeDraft(args: any, ctx: ToolContext): Promise<ToolResult> {
-  const { draft_id, job_id } = args;
+  const { draft_id } = args;
+  const job_id = resolveContextJobId(args, ctx);
   if (!draft_id || !job_id) return { success: false, error: 'draft_id e job_id são obrigatórios' };
 
   const { rows } = await query<any>(
@@ -5253,7 +5277,8 @@ async function toolApproveCreativeDraft(args: any, ctx: ToolContext): Promise<To
 }
 
 async function toolRegenerateCreativeDraft(args: any, ctx: ToolContext): Promise<ToolResult> {
-  const { job_id, step } = args;
+  const job_id = resolveContextJobId(args, ctx);
+  const { step } = args;
   if (!job_id) return { success: false, error: 'job_id é obrigatório' };
   const draftStep = step === 'image' ? 'image' : 'copy';
 

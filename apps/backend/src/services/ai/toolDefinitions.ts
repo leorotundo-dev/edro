@@ -999,7 +999,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   // ── Briefing tools ──────────────────────────────────────────────────────────
   {
     name: 'get_job_briefing',
-    description: 'Busca o briefing de um job e o contexto do cliente pré-preenchido (tom, clusters, estilo visual). Use antes de criar ou completar um briefing.',
+    description: 'Busca o briefing de um job e o contexto do cliente pré-preenchido (tom, clusters, estilo visual). Use antes de criar ou completar um briefing. Se houver um job já selecionado na tela atual, use esse contexto como prioridade.',
     parameters: {
       job_id: { type: 'string', description: 'UUID do job' },
     },
@@ -1008,7 +1008,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'fill_job_briefing',
-    description: 'Preenche ou atualiza o briefing inteligente de um job. Informe os campos do job que são específicos — o perfil do cliente já é carregado automaticamente. Chame get_job_briefing primeiro para ver o contexto do cliente.',
+    description: 'Preenche ou atualiza o briefing inteligente de um job. Informe os campos do job que são específicos — o perfil do cliente já é carregado automaticamente. Chame get_job_briefing primeiro para ver o contexto do cliente. Se a tela atual já estiver focada em um job, trate esse job como alvo padrão.',
     parameters: {
       job_id: { type: 'string', description: 'UUID do job' },
       context_trigger: { type: 'string', description: 'Por que este job existe agora', enum: ['lançamento_produto', 'ativacao_sazonalidade', 'oportunidade_tendencia', 'demanda_cliente', 'estrategia_proativa', 'crise_reputacao'] },
@@ -1029,7 +1029,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'submit_job_briefing',
-    description: 'Submete o briefing de um job para aprovação. O briefing deve estar preenchido (use fill_job_briefing antes).',
+    description: 'Submete o briefing de um job para aprovação. O briefing deve estar preenchido (use fill_job_briefing antes). Se já houver um job em foco na tela, use-o como alvo padrão.',
     parameters: {
       job_id: { type: 'string', description: 'UUID do job' },
     },
@@ -1038,7 +1038,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'approve_job_briefing',
-    description: 'Aprova o briefing de um job e dispara a geração de copy pelo pipeline de IA. Use depois de submit_job_briefing ou quando o briefing já estiver submetido.',
+    description: 'Aprova o briefing de um job e dispara a geração de copy pelo pipeline de IA. Use depois de submit_job_briefing ou quando o briefing já estiver submetido. Se houver um job atual na tela, use esse contexto.',
     parameters: {
       job_id: { type: 'string', description: 'UUID do job' },
     },
@@ -1047,7 +1047,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'get_job_creative_drafts',
-    description: 'Busca os rascunhos de copy e imagem gerados pela IA para um job. Retorna hook, corpo, CTA e score Fogg por peça.',
+    description: 'Busca os rascunhos de copy e imagem gerados pela IA para um job. Retorna hook, corpo, CTA e score Fogg por peça. Se o usuário estiver olhando um job, use esse contexto.',
     parameters: {
       job_id: { type: 'string', description: 'UUID do job' },
     },
@@ -1066,7 +1066,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'regenerate_creative_draft',
-    description: 'Descarta o rascunho atual e solicita nova geração de copy ou imagem para o job.',
+    description: 'Descarta o rascunho atual e solicita nova geração de copy ou imagem para o job. Se existir um job em foco na tela, considere-o o alvo padrão.',
     parameters: {
       job_id: { type: 'string', description: 'UUID do job' },
       step: { type: 'string', description: 'Etapa a regenerar', enum: ['copy', 'image'] },
