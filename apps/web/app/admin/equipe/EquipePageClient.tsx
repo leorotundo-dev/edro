@@ -440,6 +440,14 @@ function FreelancerContacts({
     return a.display_name.localeCompare(b.display_name, 'pt-BR');
   });
   const visibleTestable = rankedFiltered.filter((fl) => fl.whatsapp_delivery?.has_number);
+  const visibleBlocked = rankedFiltered.filter((fl) => fl.whatsapp_delivery?.meta_blocked);
+  const visibleMissingNumber = rankedFiltered.filter((fl) => !fl.whatsapp_delivery?.has_number);
+  const visiblePending = rankedFiltered.filter(
+    (fl) =>
+      Boolean(fl.whatsapp_delivery?.has_number) &&
+      !Boolean(fl.whatsapp_delivery?.deliverable_now) &&
+      !Boolean(fl.whatsapp_delivery?.meta_blocked),
+  );
 
   const openEdit = (fl: FreelancerProfile) => {
     setEditingId(fl.id);
@@ -542,6 +550,34 @@ function FreelancerContacts({
     }
   };
 
+  const handleCopyBlockedNumbers = async () => {
+    const blockedLines = visibleBlocked
+      .map((freelancer) => {
+        const number =
+          freelancer.whatsapp_delivery?.resolved_phone ||
+          freelancer.phone ||
+          freelancer.whatsapp_jid?.replace('@s.whatsapp.net', '') ||
+          '';
+        return number ? `${freelancer.display_name} - ${number}` : '';
+      })
+      .filter(Boolean);
+
+    if (!blockedLines.length) {
+      setBatchError('Nenhum número bloqueado visível para copiar.');
+      setBatchNotice('');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(blockedLines.join('\n'));
+      setBatchError('');
+      setBatchNotice(`${blockedLines.length} número(s) bloqueado(s) copiados para saneamento externo.`);
+    } catch {
+      setBatchNotice('');
+      setBatchError('Falha ao copiar os números bloqueados.');
+    }
+  };
+
   const handleTestSingle = async (freelancer: FreelancerProfile) => {
     if (!freelancer.whatsapp_delivery?.has_number || cardTestBusyId) return;
     setCardTestBusyId(freelancer.id);
@@ -607,11 +643,43 @@ function FreelancerContacts({
         </Alert>
       )}
 
+      {(visibleBlocked.length > 0 || visibleMissingNumber.length > 0 || visiblePending.length > 0) && (
+        <Alert
+          severity={visibleBlocked.length > 0 ? 'warning' : 'info'}
+          action={
+            visibleBlocked.length > 0 ? (
+              <Button color="inherit" size="small" onClick={handleCopyBlockedNumbers}>
+                Copiar bloqueados
+              </Button>
+            ) : undefined
+          }
+        >
+          {[
+            visibleBlocked.length > 0 ? `${visibleBlocked.length} bloqueado(s) pela Meta` : null,
+            visibleMissingNumber.length > 0 ? `${visibleMissingNumber.length} sem número` : null,
+            visiblePending.length > 0 ? `${visiblePending.length} pendente(s) de entrega` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </Alert>
+      )}
+
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between">
         <Typography variant="caption" color="text.secondary">
           {filtered.length} colaborador(es) no filtro atual · {visibleTestable.length} com número utilizável
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          {visibleBlocked.length > 0 && (
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              startIcon={<IconPhone size={14} />}
+              onClick={handleCopyBlockedNumbers}
+            >
+              Copiar bloqueados ({visibleBlocked.length})
+            </Button>
+          )}
           <Button
             size="small"
             variant="outlined"
