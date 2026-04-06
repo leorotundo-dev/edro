@@ -1,5 +1,6 @@
 import { sendEmail } from './emailService';
 import { sendWhatsAppText } from './whatsappService';
+import { sendDirectMessage as sendEvolutionDirectMessage, isConfigured as isEvolutionConfigured } from './integrations/evolutionApiService';
 import { updateNotificationStatus, createNotification } from '../repositories/edroBriefingRepository';
 import { query } from '../db/db';
 
@@ -54,6 +55,11 @@ function buildEmailSubject(payload?: Record<string, any> | null) {
   return 'Edro: nova notificação';
 }
 
+function shouldFallbackToEvolution(error?: string | null) {
+  const message = String(error || '').toLowerCase();
+  return message.includes('131030') || message.includes('allowed list');
+}
+
 export async function dispatchNotification(input: DispatchNotificationInput) {
   if (input.channel === 'email') {
     const prebuilt = input.payload?._email as
@@ -106,6 +112,31 @@ export async function dispatchNotification(input: DispatchNotificationInput) {
         sentAt: new Date(),
       });
     } else {
+      const canFallback =
+        Boolean(input.tenantId)
+        && isEvolutionConfigured()
+        && shouldFallbackToEvolution(result.error);
+
+      if (canFallback && input.tenantId) {
+        try {
+          await sendEvolutionDirectMessage(input.tenantId, input.recipient, text);
+          await updateNotificationStatus({
+            id: input.id,
+            status: 'sent',
+            sentAt: new Date(),
+            error: `meta_fallback:${result.error || 'allowed_list'} -> evolution_ok`,
+          });
+          return;
+        } catch (fallbackErr: any) {
+          await updateNotificationStatus({
+            id: input.id,
+            status: 'failed',
+            error: `meta:${result.error || 'whatsapp_failed'} | evolution:${fallbackErr?.message || 'failed'}`,
+          });
+          return;
+        }
+      }
+
       await updateNotificationStatus({
         id: input.id,
         status: 'failed',
