@@ -27,6 +27,11 @@ function getBoardBindingScore(clientKey: string, boardKey: string) {
   return 0;
 }
 
+function currentYearCardClause(alias: string) {
+  return `COALESCE(${alias}.due_date::timestamp, ${alias}.created_at) >= date_trunc('year', CURRENT_DATE)
+          AND COALESCE(${alias}.due_date::timestamp, ${alias}.created_at) < (date_trunc('year', CURRENT_DATE) + interval '1 year')`;
+}
+
 export default async function trelloRoutes(app: FastifyInstance) {
 
   // POST /trello/connect — salva credenciais e valida
@@ -131,13 +136,17 @@ export default async function trelloRoutes(app: FastifyInstance) {
                FROM project_cards pc
                JOIN project_lists pl ON pl.id = pc.list_id
                WHERE pc.board_id = b.id AND pc.is_archived = false
+                 AND ${currentYearCardClause('pc')}
                  AND (UPPER(pl.name) LIKE '%ANDAMENTO%'
                       OR UPPER(pl.name) LIKE '%PRODUÇÃO%'
                       OR UPPER(pl.name) LIKE '%FAZENDO%'
                       OR UPPER(pl.name) LIKE '%EXECUÇÃO%')
               ) AS in_progress_count
        FROM project_boards b
-       LEFT JOIN project_cards c ON c.board_id = b.id AND c.is_archived = false
+       LEFT JOIN project_cards c
+         ON c.board_id = b.id
+        AND c.is_archived = false
+        AND ${currentYearCardClause('c')}
        WHERE b.tenant_id = $1
          AND b.is_archived = false
          AND ($2::text IS NULL OR b.client_id = $2)
@@ -249,6 +258,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
        FROM project_cards c
        LEFT JOIN project_card_members m ON m.card_id = c.id
        WHERE c.board_id = $1
+         AND ${currentYearCardClause('c')}
        GROUP BY c.id
        ORDER BY c.position ASC`,
       [boardId],
@@ -569,6 +579,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN project_card_analytics ca ON ca.card_id = c.id
        WHERE b.tenant_id = $1
          AND c.due_date BETWEEN $2::date AND $3::date
+         AND ${currentYearCardClause('c')}
          AND c.is_archived = false
        ORDER BY c.due_date ASC, b.name ASC`,
       [tenantId, startDate, endDate],
@@ -914,6 +925,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
        WHERE pc.tenant_id = $1
          AND pc.is_archived = false
+         AND ${currentYearCardClause('pc')}
          AND pl.is_archived = false
          AND (
            NOT $2::boolean
@@ -1731,7 +1743,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
        LEFT JOIN project_card_members pcm ON pcm.card_id = pc.id
        LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
-       WHERE pc.tenant_id = $1 AND pc.is_archived = false AND pl.is_archived = false
+       WHERE pc.tenant_id = $1
+         AND pc.is_archived = false
+         AND ${currentYearCardClause('pc')}
+         AND pl.is_archived = false
        ORDER BY pc.due_date ASC NULLS LAST`,
       [tenantId],
     );
@@ -1812,7 +1827,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
        JOIN project_boards pb ON pb.id = pc.board_id
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
-       WHERE pc.tenant_id = $1 AND pc.is_archived = false AND pl.is_archived = false
+       WHERE pc.tenant_id = $1
+         AND pc.is_archived = false
+         AND ${currentYearCardClause('pc')}
+         AND pl.is_archived = false
          AND pc.due_date BETWEEN $2::date AND $3::date
        ORDER BY pc.due_date ASC, pc.position ASC`,
       [tenantId, windowStart.toISOString().slice(0, 10), windowEnd.toISOString().slice(0, 10)],

@@ -226,6 +226,11 @@ function hasDaFeedbackSignal(metadata?: Record<string, any> | null) {
   );
 }
 
+function currentYearJobClause(alias: string) {
+  return `COALESCE(${alias}.deadline_at, ${alias}.created_at) >= date_trunc('year', CURRENT_DATE)
+          AND COALESCE(${alias}.deadline_at, ${alias}.created_at) < (date_trunc('year', CURRENT_DATE) + interval '1 year')`;
+}
+
 async function getSupportData(tenantId: string) {
   const [jobTypesRes, skillsRes, channelsRes, clientsRes, ownersRes] = await Promise.all([
     query(`SELECT code, label, default_skill, default_definition_of_done FROM job_types ORDER BY label ASC`),
@@ -404,7 +409,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string;
     const params = request.query as Record<string, string | undefined>;
     const values: any[] = [tenantId];
-    const where = [`j.tenant_id = $1`];
+    const where = [`j.tenant_id = $1`, currentYearJobClause('j')];
 
     if (params.status) {
       values.push(params.status);
@@ -487,10 +492,11 @@ export default async function jobsRoutes(app: FastifyInstance) {
     const { rows } = await query<any>(
       `SELECT j.id, j.title, c.name AS client_name, j.status, j.job_size,
               j.deadline_at, j.estimated_minutes, j.created_at
-         FROM jobs j
-         LEFT JOIN clients c ON c.id = j.client_id
-        WHERE j.tenant_id = $1
+        FROM jobs j
+        LEFT JOIN clients c ON c.id = j.client_id
+       WHERE j.tenant_id = $1
           AND j.owner_id  = $2
+          AND ${currentYearJobClause('j')}
         ORDER BY
           CASE WHEN j.status IN ('done','archived') THEN 1 ELSE 0 END,
           j.deadline_at ASC NULLS LAST,
@@ -1720,7 +1726,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { status: statusFilter } = request.query as { status?: string };
 
-    let where = `WHERE j.tenant_id = $1 AND j.owner_id IS NULL`;
+    let where = `WHERE j.tenant_id = $1 AND j.owner_id IS NULL AND ${currentYearJobClause('j')}`;
     const vals: any[] = [tenantId];
 
     if (statusFilter === 'in_pool') {
