@@ -35,6 +35,32 @@ Padrões que estão sendo rastreados e precisam de mais evidência:
 
 ---
 
+## Mecanismo automático de filing (implementado 2026-04-06)
+
+A partir desta versão, o JARVIS arquiva automaticamente insights de cada output gerado:
+
+- **jarvisKbFilingService**: toda vez que o JARVIS gera copy, briefing, proposta de campanha ou resposta, os gatilhos usados, persona e AMD são arquivados como `evidence_level='hypothesis'` em `jarvis_kb_entries`.
+- **Upgrade automático**: ao acumular performance real (MetaSync → LearningEngine → jarvisKbWorker), entradas hypothesis sobem para `one_case → pattern → rule`.
+- **Health check mensal** (jarvisKbHealthWorker): detecta contradições, afirmações sem fonte, lacunas e sugere 3 novos artigos por cliente.
+- **Ferramenta de IA** `search_jarvis_kb`: o JARVIS pode consultar o próprio KB durante geração de copy, fechando o loop de aprendizado.
+
+O pipeline completo:
+```
+Output gerado → fileOutputToKb (hypothesis)
+      ↓
+Performance real (Meta/reportei)
+      ↓
+LearningEngine → learningRules
+      ↓
+jarvisKbWorker → synthesizeClientKb (one_case/pattern/rule)
+      ↓
+promoteToAgencyKb (padrões em 3+ clientes)
+      ↓
+JARVIS usa KB em próximos outputs via buildKbContext + search_jarvis_kb
+```
+
+---
+
 ## Como usar este arquivo no planejamento
 
 Antes de definir triggers de uma nova campanha, o Motor deve:
