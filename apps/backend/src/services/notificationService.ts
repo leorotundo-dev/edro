@@ -196,6 +196,73 @@ export async function upsertNotificationPreferences(
   }
 }
 
+type ResolvedUserChannels = {
+  email: string | null;
+  phone: string | null;
+};
+
+async function resolveUserNotificationChannels(
+  tenantId: string,
+  userId: string,
+): Promise<ResolvedUserChannels> {
+  const { rows } = await query<ResolvedUserChannels>(
+    `WITH base AS (
+       SELECT eu.id,
+              eu.email,
+              fp.whatsapp_jid AS profile_whatsapp,
+              fp.person_id AS freelancer_person_id
+         FROM edro_users eu
+         LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+        WHERE eu.id = $1
+        LIMIT 1
+     ),
+     candidate_people AS (
+       SELECT freelancer_person_id AS person_id
+         FROM base
+        WHERE freelancer_person_id IS NOT NULL
+       UNION
+       SELECT pi.person_id
+         FROM base b
+         JOIN person_identities pi
+           ON pi.tenant_id = $2
+          AND pi.identity_type = 'edro_user_id'
+          AND pi.normalized_value = LOWER(b.id::text)
+       UNION
+       SELECT pi.person_id
+         FROM base b
+         JOIN person_identities pi
+           ON pi.tenant_id = $2
+          AND pi.identity_type = 'email'
+          AND pi.normalized_value = LOWER(b.email)
+     )
+     SELECT (SELECT email FROM base) AS email,
+            COALESCE(
+              NULLIF((SELECT profile_whatsapp FROM base), ''),
+              (
+                SELECT pi.identity_value
+                  FROM person_identities pi
+                 WHERE pi.tenant_id = $2
+                   AND pi.person_id IN (SELECT person_id FROM candidate_people)
+                   AND pi.identity_type = 'whatsapp_jid'
+                 ORDER BY pi.is_primary DESC, pi.updated_at DESC
+                 LIMIT 1
+              ),
+              (
+                SELECT pi.identity_value
+                  FROM person_identities pi
+                 WHERE pi.tenant_id = $2
+                   AND pi.person_id IN (SELECT person_id FROM candidate_people)
+                   AND pi.identity_type = 'phone_e164'
+                 ORDER BY pi.is_primary DESC, pi.updated_at DESC
+                 LIMIT 1
+              )
+            ) AS phone`,
+    [userId, tenantId],
+  );
+
+  return rows[0] ?? { email: null, phone: null };
+}
+
 // ============================================================
 // NOTIFY EVENT — multi-channel dispatch based on preferences
 // ============================================================
@@ -225,6 +292,19 @@ export async function notifyEvent(input: NotifyEventInput) {
     ? prefs.filter((p: any) => p.enabled).map((p: any) => p.channel)
     : (input.defaultChannels?.length ? input.defaultChannels : ['email', 'in_app']);
 
+  let resolvedEmail = input.recipientEmail ?? null;
+  let resolvedPhone = input.recipientPhone ?? null;
+
+  if ((!resolvedEmail || !resolvedPhone) && input.userId && input.tenantId) {
+    try {
+      const resolved = await resolveUserNotificationChannels(input.tenantId, input.userId);
+      resolvedEmail = resolvedEmail || resolved.email;
+      resolvedPhone = resolvedPhone || resolved.phone;
+    } catch (err) {
+      console.error('[notifyEvent] resolveUserNotificationChannels error:', err);
+    }
+  }
+
   // Always create in-app notification
   if (enabledChannels.includes('in_app') || prefs.length === 0) {
     try {
@@ -242,11 +322,11 @@ export async function notifyEvent(input: NotifyEventInput) {
   }
 
   // Send email if enabled and recipient available
-  if (enabledChannels.includes('email') && input.recipientEmail) {
+  if (enabledChannels.includes('email') && resolvedEmail) {
     try {
       const notif = await createNotification({
         channel: 'email',
-        recipient: input.recipientEmail,
+        recipient: resolvedEmail,
         payload: {
           _email: { subject: `Edro: ${input.title}`, text: input.body || input.title },
           ...input.payload,
@@ -255,7 +335,7 @@ export async function notifyEvent(input: NotifyEventInput) {
       await dispatchNotification({
         id: notif.id,
         channel: 'email',
-        recipient: input.recipientEmail,
+        recipient: resolvedEmail,
         tenantId: input.tenantId,
         payload: notif.payload,
       });
@@ -265,17 +345,17 @@ export async function notifyEvent(input: NotifyEventInput) {
   }
 
   // Send WhatsApp if enabled and phone available
-  if (enabledChannels.includes('whatsapp') && input.recipientPhone) {
+  if (enabledChannels.includes('whatsapp') && resolvedPhone) {
     try {
       const notif = await createNotification({
         channel: 'whatsapp',
-        recipient: input.recipientPhone,
+        recipient: resolvedPhone,
         payload: input.payload,
       });
       await dispatchNotification({
         id: notif.id,
         channel: 'whatsapp',
-        recipient: input.recipientPhone,
+        recipient: resolvedPhone,
         tenantId: input.tenantId,
         payload: notif.payload,
       });
