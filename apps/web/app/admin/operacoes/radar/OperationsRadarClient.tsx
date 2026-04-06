@@ -295,7 +295,7 @@ export default function OperationsRadarClient() {
                   <Box
                     sx={{
                       display: 'grid',
-                      gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+                      gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
                       gap: 1.25,
                     }}
                   >
@@ -303,9 +303,7 @@ export default function OperationsRadarClient() {
                       { label: 'Críticos', value: critical.length, subtitle: 'Precisam de ação agora', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} />, color: '#FA896B' },
                       { label: 'Altos', value: high.length, subtitle: 'Ainda cabem, mas já apertam', href: '/admin/operacoes/radar', icon: <IconFlag size={16} />, color: '#FFAE1F' },
                       { label: 'Sinais ativos', value: signals.length, subtitle: `${attentionSignals} em atenção`, href: '/admin/operacoes/radar', icon: <IconBell size={16} />, color: '#E85219' },
-                      { label: 'Bloqueados', value: blockedJobs.length, subtitle: 'Parados por dependência', href: '/admin/operacoes/radar', icon: <IconClockPause size={16} />, color: '#FA896B' },
-                      { label: 'Esperando cliente', value: waitingClientJobs.length, subtitle: 'Aprovação ou retorno', href: '/admin/operacoes/jobs', icon: <IconCheck size={16} />, color: '#FFAE1F' },
-                      { label: 'Sem dono', value: unassignedJobs.length, subtitle: 'Sem responsável definido', href: '/admin/operacoes/jobs?unassigned=true', icon: <IconRefresh size={16} />, color: '#5D87FF' },
+                      { label: 'Clientes em risco', value: clientRisk.filter((client) => client.critical > 0).length, subtitle: 'Contas com itens críticos abertos', href: '/admin/operacoes/jobs?view=table&group=client', icon: <IconCheck size={16} />, color: '#5D87FF' },
                     ].map((item) => (
                       <Box
                         key={item.label}
@@ -360,15 +358,15 @@ export default function OperationsRadarClient() {
                     ))}
                   </Box>
 
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Button variant="contained" component="a" href="#sinais-operacionais">
                       Ir para sinais
                     </Button>
-                    <Button variant="outlined" onClick={() => openCreate('client_request')}>
-                      Nova demanda
-                    </Button>
                     <Button variant="outlined" component="a" href="#riscos-da-operacao">
                       Ir para riscos
+                    </Button>
+                    <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?view=table&group=client">
+                      Abrir pauta geral
                     </Button>
                     <Button variant="outlined" component={Link} href="/admin/operacoes/jobs?unassigned=true">
                       Resolver sem dono

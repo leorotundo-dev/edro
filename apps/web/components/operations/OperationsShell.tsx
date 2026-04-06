@@ -31,6 +31,7 @@ type CommandOption = {
   label: string;
   subtitle: string;
   href: string;
+  searchTerms?: string[];
 };
 
 const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; icon: ReactElement }> = [
@@ -54,21 +55,18 @@ const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string 
 
 const COMMANDS: CommandOption[] = [
   { label: 'Nova demanda', subtitle: 'Abrir cadastro guiado de demanda', href: '/admin/operacoes/jobs?new=1' },
-  { label: 'Hoje', subtitle: 'Abrir a mesa de decisão da operação', href: '/admin/operacoes' },
-  { label: 'Fila', subtitle: 'Abrir a fila operacional bruta da agência', href: '/admin/operacoes/jobs' },
-  { label: 'Banco de Dados (Filtros)', subtitle: 'Abrir a fila em tabela crua da operação', href: '/admin/operacoes/jobs?view=table' },
+  { label: 'Hoje', subtitle: 'Abrir a mesa de decisão da operação', href: '/admin/operacoes', searchTerms: ['painel de controle'] },
   { label: 'Pauta Geral', subtitle: 'Abrir a carteira agrupada por cliente', href: '/admin/operacoes/jobs?view=table&group=client' },
-  { label: 'Externos', subtitle: 'Abrir a mesa de risco e exceções', href: '/admin/operacoes/radar' },
-  { label: 'SLA', subtitle: 'Abrir a leitura de prazo e estimativa da operação', href: '/admin/operacoes/qualidade' },
-  { label: 'Handoff criativo', subtitle: 'Abrir a bandeja de briefing, copy e aprovação', href: '/admin/operacoes/ia' },
-  { label: 'Pauta - Nome', subtitle: 'Abrir a pauta individual por pessoa', href: '/admin/operacoes/pessoas' },
+  { label: 'Banco de Dados', subtitle: 'Abrir a fila em tabela crua da operação', href: '/admin/operacoes/jobs?view=table', searchTerms: ['banco de dados filtros', 'fila tabela'] },
+  { label: 'Fila', subtitle: 'Abrir a fila operacional bruta da agência', href: '/admin/operacoes/jobs' },
+  { label: 'Pessoas', subtitle: 'Abrir a pauta individual por responsável', href: '/admin/operacoes/pessoas', searchTerms: ['pauta nome', 'pauta por pessoa'] },
+  { label: 'Semana', subtitle: 'Abrir distribuição e encaixe temporal da operação', href: '/admin/operacoes/semana' },
+  { label: 'Riscos', subtitle: 'Abrir a mesa de exceção da operação', href: '/admin/operacoes/radar', searchTerms: ['externos', 'riscos críticos'] },
+  { label: 'SLA', subtitle: 'Abrir a leitura de prazo e estimativa da operação', href: '/admin/operacoes/qualidade', searchTerms: ['auditoria sla', 'qualidade'] },
+  { label: 'Handoff criativo', subtitle: 'Abrir a bandeja de briefing, copy e aprovação', href: '/admin/operacoes/ia', searchTerms: ['extração para ia', 'prontos para copy'] },
   { label: 'Demandas sem responsável', subtitle: 'Ir direto para a fila sem responsável definido', href: '/admin/operacoes/jobs?unassigned=true' },
-  { label: 'Prontos para copy', subtitle: 'Abrir os itens prontos para copy, revisão e aprovação', href: '/admin/operacoes/ia' },
-  { label: 'Pauta por pessoa', subtitle: 'Abrir a carga individual da equipe', href: '/admin/operacoes/pessoas' },
   { label: 'Distribuição da semana', subtitle: 'Abrir a semana no modo distribuição da equipe', href: '/admin/operacoes/semana?view=distribution' },
   { label: 'Agenda operacional', subtitle: 'Ver impacto temporal da semana em calendário', href: '/admin/operacoes/semana?view=calendar' },
-  { label: 'Riscos críticos', subtitle: 'Abrir exceções e itens em risco', href: '/admin/operacoes/radar' },
-  { label: 'SLA da operação', subtitle: 'Abrir prazo e calibração operacional', href: '/admin/operacoes/qualidade' },
 ];
 
 export default function OperationsShell({
@@ -193,6 +191,14 @@ export default function OperationsShell({
                 inputValue={commandInput}
                 onInputChange={(_event, value) => setCommandInput(value)}
                 onChange={(_event, value) => handleRunCommand(value)}
+                filterOptions={(options, state) => {
+                  const query = state.inputValue.trim().toLowerCase();
+                  if (!query) return options;
+                  return options.filter((option) => {
+                    const haystack = [option.label, option.subtitle, ...(option.searchTerms || [])].join(' ').toLowerCase();
+                    return haystack.includes(query);
+                  });
+                }}
                 renderInput={(params) => (
                   <TextField
                     {...params}
