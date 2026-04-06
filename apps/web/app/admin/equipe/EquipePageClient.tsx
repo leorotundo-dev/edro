@@ -270,6 +270,22 @@ function whatsappDeliveryActionLabel(status?: WhatsAppDeliveryStatus | null) {
   return 'Testar entrega';
 }
 
+function whatsappRecommendedAction(status?: WhatsAppDeliveryStatus | null) {
+  if (!status?.has_number) {
+    return 'Cadastre o telefone para o Edro conseguir resolver e entregar WhatsApp.';
+  }
+  if (status.meta_blocked && status.evolution_available) {
+    return 'Meta bloqueia este número, mas a Evolution pode assumir o envio operacional.';
+  }
+  if (status.meta_blocked) {
+    return 'Número bloqueado na Meta; revise a allowlist ou saneie o destino externo.';
+  }
+  if (!status.deliverable_now) {
+    return 'Número salvo, mas ainda sem rota firme de entrega. Vale testar agora.';
+  }
+  return 'Pronto para alertas automáticos e testes operacionais agora.';
+}
+
 function statusChipStyles(color: string, filled = false) {
   return {
     height: 20,
@@ -578,6 +594,29 @@ function FreelancerContacts({
     }
   };
 
+  const handleCopySingleNumber = async (freelancer: FreelancerProfile) => {
+    const number =
+      freelancer.whatsapp_delivery?.resolved_phone ||
+      freelancer.phone ||
+      freelancer.whatsapp_jid?.replace('@s.whatsapp.net', '') ||
+      '';
+
+    if (!number) {
+      setBatchNotice('');
+      setBatchError(`Nenhum número utilizável para ${freelancer.display_name}.`);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(`${freelancer.display_name} - ${number}`);
+      setBatchError('');
+      setBatchNotice(`Número de ${freelancer.display_name} copiado.`);
+    } catch {
+      setBatchNotice('');
+      setBatchError(`Falha ao copiar o número de ${freelancer.display_name}.`);
+    }
+  };
+
   const handleTestSingle = async (freelancer: FreelancerProfile) => {
     if (!freelancer.whatsapp_delivery?.has_number || cardTestBusyId) return;
     setCardTestBusyId(freelancer.id);
@@ -719,6 +758,7 @@ function FreelancerContacts({
           const hasFinancial = fl.cpf || fl.pix_key || fl.bank_name;
           const whatsappAccent = whatsappDeliveryAccent(fl.whatsapp_delivery);
           const whatsappActionLabel = whatsappDeliveryActionLabel(fl.whatsapp_delivery);
+          const recommendedAction = whatsappRecommendedAction(fl.whatsapp_delivery);
           const canTestFromCard = Boolean(fl.whatsapp_delivery?.has_number);
           const testingThisCard = cardTestBusyId === fl.id;
 
@@ -824,34 +864,51 @@ function FreelancerContacts({
                   )}
                   <WhatsAppDeliveryBadges status={fl.whatsapp_delivery} compact />
                   {!isEditing && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.9, display: 'block', lineHeight: 1.45 }}>
+                      {recommendedAction}
+                    </Typography>
+                  )}
+                  {!isEditing && (
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.25 }}>
-                      <Button
-                        size="small"
-                        variant={fl.whatsapp_delivery?.deliverable_now ? 'contained' : 'outlined'}
-                        startIcon={<IconBrandWhatsapp size={14} />}
-                        onClick={() => handleTestSingle(fl)}
-                        disabled={!canTestFromCard || testingThisCard || batchBusy}
-                        sx={
-                          fl.whatsapp_delivery?.deliverable_now
-                            ? {
-                                bgcolor: '#25D366',
-                                '&:hover': { bgcolor: '#1da851' },
-                              }
-                            : undefined
-                        }
-                      >
-                        {testingThisCard ? 'Testando...' : whatsappActionLabel}
-                      </Button>
-                      {!fl.whatsapp_delivery?.deliverable_now && (
-                        <Typography variant="caption" color="text.secondary">
-                          {fl.whatsapp_delivery?.meta_blocked && fl.whatsapp_delivery?.evolution_available
-                            ? 'Meta bloqueia; Evolution assume'
-                            : fl.whatsapp_delivery?.meta_blocked
-                            ? 'Número travado na Meta'
-                            : fl.whatsapp_delivery?.has_number
-                            ? 'Número salvo, entrega pendente'
-                            : 'Precisa cadastrar o número'}
-                        </Typography>
+                      {!fl.whatsapp_delivery?.has_number ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<IconEdit size={14} />}
+                          onClick={() => openEdit(fl)}
+                        >
+                          Cadastrar número
+                        </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant={fl.whatsapp_delivery?.deliverable_now ? 'contained' : 'outlined'}
+                          startIcon={<IconBrandWhatsapp size={14} />}
+                          onClick={() => handleTestSingle(fl)}
+                          disabled={!canTestFromCard || testingThisCard || batchBusy}
+                          sx={
+                            fl.whatsapp_delivery?.deliverable_now
+                              ? {
+                                  bgcolor: '#25D366',
+                                  '&:hover': { bgcolor: '#1da851' },
+                                }
+                              : undefined
+                          }
+                        >
+                          {testingThisCard ? 'Testando...' : whatsappActionLabel}
+                        </Button>
+                      )}
+                      {(fl.whatsapp_delivery?.meta_blocked || !fl.whatsapp_delivery?.has_number) && (
+                        <Button
+                          size="small"
+                          variant="text"
+                          startIcon={<IconPhone size={14} />}
+                          onClick={() =>
+                            fl.whatsapp_delivery?.has_number ? handleCopySingleNumber(fl) : openEdit(fl)
+                          }
+                        >
+                          {fl.whatsapp_delivery?.has_number ? 'Copiar número' : 'Editar cadastro'}
+                        </Button>
                       )}
                     </Stack>
                   )}
