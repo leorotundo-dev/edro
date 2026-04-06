@@ -1681,6 +1681,10 @@ export function OperationsContextRail({
   eyebrow?: string;
   lead?: React.ReactNode;
 }) {
+  const deliveryStatus = job ? getDeliveryStatus(job) : null;
+  const suggestedAction = job ? getNextAction(job) : null;
+  const stageLabel = job ? STAGE_LABELS[job.status] ?? job.status : null;
+
   return (
     <Paper
       elevation={0}
@@ -1748,11 +1752,51 @@ export function OperationsContextRail({
               <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.1 }}>
                 <PriorityPill priorityBand={job.priority_band} />
                 <RiskFlag job={job} />
+                {stageLabel ? (
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={stageLabel}
+                    sx={{ height: 22, fontSize: '0.68rem', fontWeight: 700 }}
+                  />
+                ) : null}
+                {deliveryStatus ? (
+                  <Chip
+                    size="small"
+                    label={`${deliveryStatus.emoji} ${deliveryStatus.label}`}
+                    sx={{
+                      height: 22,
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      bgcolor: alpha('#5D87FF', 0.08),
+                      color: '#5D87FF',
+                      border: `1px solid ${alpha('#5D87FF', 0.18)}`,
+                    }}
+                  />
+                ) : null}
               </Stack>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.1 }}>
-                {job.summary || 'Esta demanda ainda precisa de um resumo curto para orientar a equipe.'}
-              </Typography>
+              <Box
+                sx={(theme) => ({
+                  mt: 1.25,
+                  p: 1.4,
+                  borderRadius: 2,
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.common.black, 0.02),
+                  border: `1px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.05)}`,
+                })}
+              >
+                <Typography variant="overline" sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', color: 'text.secondary' }}>
+                  Leitura rápida
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45 }}>
+                  {job.summary || 'Esta demanda ainda precisa de um resumo curto para orientar a equipe.'}
+                </Typography>
+                {suggestedAction ? (
+                  <Typography variant="caption" sx={{ display: 'block', mt: 0.9, color: 'text.secondary' }}>
+                    Próximo passo sugerido: <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>{suggestedAction.label}</Box>
+                  </Typography>
+                ) : null}
+              </Box>
             </Box>
 
             <Box sx={(theme) => ({

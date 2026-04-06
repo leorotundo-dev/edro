@@ -24,7 +24,7 @@ export const OPS_COPY = {
     pulseTitle: 'Demandas para organizar',
     pulseSubtitle: 'Itens que ainda precisam de responsável, prazo ou decisão.',
     supportTitle: 'Demanda em foco',
-    supportSubtitle: 'Veja o contexto da demanda selecionada e decida o próximo passo sem sair da Central.',
+    supportSubtitle: 'Leia a demanda selecionada, entenda o contexto e resolva o próximo passo sem sair da Central.',
     emptyUnassigned: 'Nenhuma demanda está sem responsável agora.',
     emptyToday: 'Nenhuma entrega importante vence hoje.',
     emptyApprovals: 'Nenhuma aprovação do cliente está pressionando o fluxo agora.',
