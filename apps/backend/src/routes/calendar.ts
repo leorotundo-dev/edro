@@ -160,6 +160,15 @@ function normalizeKeywords(values: unknown): string[] {
   return list;
 }
 
+function normalizeDuplicateEventName(value: unknown): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function buildEventSearchText(event: any): string {
   const tags = Array.isArray(event?.tags) ? event.tags : [];
   const categories = Array.isArray(event?.categories) ? event.categories : [];
@@ -1269,17 +1278,37 @@ export default async function calendarRoutes(app: FastifyInstance) {
       if (eventId.startsWith('calendar_event:')) {
         const customEventId = eventId.slice('calendar_event:'.length);
         const { rows } = await query<any>(
-          `SELECT id FROM calendar_events WHERE id=$1 LIMIT 1`,
+          `SELECT id, title, event_date, client_id
+             FROM calendar_events
+            WHERE id=$1
+            LIMIT 1`,
           [customEventId]
         );
-        if (!rows[0]) return reply.status(404).send({ error: 'event_not_found' });
+        const ev = rows[0];
+        if (!ev) return reply.status(404).send({ error: 'event_not_found' });
 
-        await query(`DELETE FROM calendar_events WHERE id=$1`, [customEventId]);
-        return reply.send({ success: true });
+        const normalizedName = normalizeDuplicateEventName(ev.title);
+        const { rows: siblings } = await query<{ id: string; title: string }>(
+          `SELECT id, title
+             FROM calendar_events
+            WHERE event_date = $1
+              AND client_id IS NOT DISTINCT FROM $2`,
+          [ev.event_date, ev.client_id ?? null]
+        );
+        const idsToDelete = siblings
+          .filter((row) => normalizeDuplicateEventName(row.title) === normalizedName)
+          .map((row) => row.id);
+        const finalIds = idsToDelete.length ? idsToDelete : [customEventId];
+
+        await query(`DELETE FROM calendar_events WHERE id = ANY($1::uuid[])`, [finalIds]);
+        return reply.send({ success: true, removed_count: finalIds.length });
       }
 
       const { rows } = await query<any>(
-        `SELECT id, source, tenant_id FROM events WHERE id=$1 LIMIT 1`,
+        `SELECT id, source, tenant_id, name, date, start_date, end_date
+           FROM events
+          WHERE id=$1
+          LIMIT 1`,
         [eventId]
       );
       const ev = rows[0];
@@ -1290,13 +1319,29 @@ export default async function calendarRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: 'cannot_delete_another_tenants_event' });
       }
 
+      const normalizedName = normalizeDuplicateEventName(ev.name);
+      const { rows: siblings } = await query<{ id: string; name: string }>(
+        `SELECT id, name
+           FROM events
+          WHERE (tenant_id=$1 OR tenant_id IS NULL)
+            AND COALESCE(date::text, '') = COALESCE($2::text, '')
+            AND COALESCE(start_date::text, '') = COALESCE($3::text, '')
+            AND COALESCE(end_date::text, '') = COALESCE($4::text, '')
+            AND status <> 'deleted'`,
+        [tenantId, ev.date ?? null, ev.start_date ?? null, ev.end_date ?? null]
+      );
+      const idsToDelete = siblings
+        .filter((row) => normalizeDuplicateEventName(row.name) === normalizedName)
+        .map((row) => row.id);
+      const finalIds = idsToDelete.length ? idsToDelete : [eventId];
+
       // Soft-delete: mark status='deleted' so it survives CSV re-seeding on next deploy.
       // Hard-delete overrides/relevance so the event stops appearing in client calendars.
-      await query(`DELETE FROM calendar_event_overrides WHERE calendar_event_id=$1`, [eventId]);
-      await query(`DELETE FROM calendar_event_relevance WHERE calendar_event_id=$1`, [eventId]);
-      await query(`UPDATE events SET status='deleted', updated_at=NOW() WHERE id=$1`, [eventId]);
+      await query(`DELETE FROM calendar_event_overrides WHERE calendar_event_id = ANY($1::text[])`, [finalIds]);
+      await query(`DELETE FROM calendar_event_relevance WHERE calendar_event_id = ANY($1::text[])`, [finalIds]);
+      await query(`UPDATE events SET status='deleted', updated_at=NOW() WHERE id = ANY($1::text[])`, [finalIds]);
 
-      return reply.send({ success: true });
+      return reply.send({ success: true, removed_count: finalIds.length });
     }
   );
 

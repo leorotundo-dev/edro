@@ -533,6 +533,27 @@ function buildEventSecondaryText(event: CalendarEventItem, selectedClient: Clien
   return parts.join(' • ');
 }
 
+function normalizeCalendarEventName(value?: string | null) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildCalendarEventDedupKey(dateISO: string, item: CalendarEventItem, fallbackIndex: number) {
+  if (item.layer !== 'editorial') {
+    return `${item.layer || 'event'}:${item.id || String(fallbackIndex)}`;
+  }
+
+  const normalizedName = normalizeCalendarEventName(item.slug || item.name);
+  const clientKey = item.client_id || item.client_name || 'global';
+  const originKey = item.origin || 'editorial';
+
+  return `${item.layer}:${originKey}:${clientKey}:${dateISO}:${normalizedName || item.id || String(fallbackIndex)}`;
+}
+
 export default function CalendarHubPage({ initialClientId, noShell, embedded, lockClient, brandColor }: CalendarHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -838,8 +859,7 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
       Object.entries(days).forEach(([date, items]) => {
         const unique = new Map<string, CalendarEventItem>();
         (items || []).forEach((item, index) => {
-          const nameKey = `${item.slug || item.name || ''}`.trim().toLowerCase();
-          const key = `${item.layer || 'editorial'}:${item.id || nameKey || String(index)}`;
+          const key = buildCalendarEventDedupKey(date, item, index);
           if (!unique.has(key)) unique.set(key, item);
         });
         map.set(date, Array.from(unique.values()));
