@@ -7,7 +7,6 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -126,6 +125,34 @@ export default function OperationsOverviewClient() {
     () => jobs.filter(isApprovalQueueJob).sort(sortByOperationalPriority).slice(0, 6),
     [jobs]
   );
+  const decisionQueue = useMemo(() => {
+    const seen = new Set<string>();
+    const items: Array<{
+      reason: string;
+      color: string;
+      showStage?: boolean;
+      job: OperationsJob;
+    }> = [];
+
+    [
+      { reason: 'Sem dono', color: '#E85219', jobs: unassignedJobs, showStage: false },
+      { reason: 'Vence hoje', color: '#FFAE1F', jobs: todayJobs, showStage: false },
+      { reason: 'Esperando cliente', color: '#13DEB9', jobs: overviewRuntime.approvals, showStage: true },
+    ].forEach((bucket) => {
+      bucket.jobs.forEach((job) => {
+        if (seen.has(job.id)) return;
+        seen.add(job.id);
+        items.push({
+          reason: bucket.reason,
+          color: bucket.color,
+          showStage: bucket.showStage,
+          job,
+        });
+      });
+    });
+
+    return items.slice(0, 10);
+  }, [overviewRuntime.approvals, todayJobs, unassignedJobs]);
 
   const loadOverviewRuntime = useCallback(async () => {
     try {
@@ -476,82 +503,44 @@ export default function OperationsOverviewClient() {
               <OpsPanel
                 eyebrow="Fila curta do dia"
                 title="Triagem imediata"
-                subtitle="Três listas curtas para resolver sem trocar de tela: dono, prazo imediato e retorno do cliente."
+                subtitle="Uma fila única com o que já pede decisão agora: dono, prazo imediato e retorno do cliente."
               >
-                {[
-                  {
-                    key: 'unassigned',
-                    icon: <IconInbox size={16} />,
-                    color: '#E85219',
-                    label: 'Sem responsável',
-                    count: unassignedJobs.length,
-                    countColor: 'warning' as const,
-                  },
-                  {
-                    key: 'today',
-                    icon: <IconCalendarClock size={16} />,
-                    color: '#FFAE1F',
-                    label: 'Vence hoje',
-                    count: todayJobs.length,
-                    countColor: 'default' as const,
-                  },
-                  {
-                    key: 'approvals',
-                    icon: <IconCircleCheckFilled size={16} />,
-                    color: '#13DEB9',
-                    label: 'Aprovações do cliente',
-                    count: overviewRuntime.summary.approvals_pending_total + overviewRuntime.summary.approvals_blocked_total,
-                    countColor: overviewRuntime.summary.approvals_blocked_total ? 'error' as const : 'default' as const,
-                  },
-                ].map((section, idx) => (
-                  <Box key={section.key}>
-                    {idx > 0 && <Divider sx={{ mb: 2.5 }} />}
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Box sx={{
-                          width: 30, height: 30, borderRadius: 1.5,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          bgcolor: alpha(section.color, 0.12), color: section.color,
-                        }}>
-                          {section.icon}
-                        </Box>
-                        <Typography variant="body2" fontWeight={700}>{section.label}</Typography>
+                <Stack spacing={1}>
+                  {decisionQueue.length ? decisionQueue.map((entry) => (
+                    <Box key={`${entry.reason}-${entry.job.id}`}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 0.25, mb: 0.8 }}>
+                        <Chip
+                          size="small"
+                          label={entry.reason}
+                          sx={{
+                            height: 20,
+                            fontSize: '0.64rem',
+                            fontWeight: 800,
+                            bgcolor: alpha(entry.color, 0.12),
+                            color: entry.color,
+                            border: `1px solid ${alpha(entry.color, 0.26)}`,
+                            '& .MuiChip-label': { px: 0.8 },
+                          }}
+                        />
                       </Stack>
-                      <Chip
-                        size="small"
-                        color={section.countColor}
-                        label={`${section.count}`}
-                        sx={{ fontWeight: 700, minWidth: 32 }}
+                      <OpsJobRow
+                        job={entry.job}
+                        selected={selectedJob?.id === entry.job.id}
+                        onClick={() => setSelectedJob(entry.job)}
+                        showStage={entry.showStage}
+                        onAdvance={handleAdvance}
+                        onAssign={handleAssign}
+                        owners={lookups.owners}
                       />
-                    </Stack>
-                    <Stack spacing={0.5}>
-                      {section.key === 'unassigned' && unassignedJobs.slice(0, 4).map((job) => (
-                        <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} onAssign={handleAssign} owners={lookups.owners} />
-                      ))}
-                      {section.key === 'today' && todayJobs.slice(0, 4).map((job) => (
-                        <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
-                      ))}
-                      {section.key === 'approvals' && overviewRuntime.approvals.slice(0, 4).map((job) => (
-                        <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} showStage onAdvance={handleAdvance} onAssign={handleAssign} owners={lookups.owners} />
-                      ))}
-                      {(section.key === 'unassigned' && !unassignedJobs.length) && (
-                        <Box sx={(theme) => ({ py: 1.5, px: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.success.main, 0.06), border: `1px solid ${alpha(theme.palette.success.main, 0.15)}` })}>
-                          <Typography variant="body2" color="success.main" fontWeight={600} fontSize="0.8rem">{OPS_COPY.overview.emptyUnassigned}</Typography>
-                        </Box>
-                      )}
-                      {(section.key === 'today' && !todayJobs.length) && (
-                        <Box sx={(theme) => ({ py: 1.5, px: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.text.primary, 0.025) })}>
-                          <Typography variant="body2" color="text.secondary" fontSize="0.8rem">{OPS_COPY.overview.emptyToday}</Typography>
-                        </Box>
-                      )}
-                      {(section.key === 'approvals' && !overviewRuntime.approvals.length) && (
-                        <Box sx={(theme) => ({ py: 1.5, px: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.text.primary, 0.025) })}>
-                          <Typography variant="body2" color="text.secondary" fontSize="0.8rem">{OPS_COPY.overview.emptyApprovals}</Typography>
-                        </Box>
-                      )}
-                    </Stack>
-                  </Box>
-                ))}
+                    </Box>
+                  )) : (
+                    <Box sx={(theme) => ({ py: 1.5, px: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.success.main, 0.06), border: `1px solid ${alpha(theme.palette.success.main, 0.15)}` })}>
+                      <Typography variant="body2" color="success.main" fontWeight={600} fontSize="0.8rem">
+                        Nada pede triagem imediata agora.
+                      </Typography>
+                    </Box>
+                  )}
+                </Stack>
               </OpsPanel>
             </Stack>
           </Grid>
