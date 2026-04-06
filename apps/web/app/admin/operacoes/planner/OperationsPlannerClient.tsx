@@ -681,6 +681,7 @@ export default function OperationsPlannerClient() {
         open={detailOpen && Boolean(selectedJob)}
         mode="edit"
         job={selectedJob}
+        presentation="modal"
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}
         channels={lookups.channels}

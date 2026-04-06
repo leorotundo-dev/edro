@@ -1300,6 +1300,7 @@ export default function OperationsOverviewClient() {
         open={drawerOpen}
         mode={drawerMode}
         job={selectedJob}
+        presentation="modal"
         initialComposerPath={createComposerPath}
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}

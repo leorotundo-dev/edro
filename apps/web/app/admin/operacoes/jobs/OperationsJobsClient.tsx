@@ -993,12 +993,12 @@ export default function OperationsJobsClient() {
         open={detailOpen && Boolean(selectedJob)}
         mode="edit"
         job={selectedJob}
-        presentation={viewMode === 'board' ? 'modal' : 'drawer'}
+        presentation="modal"
         jobTypes={lookups.jobTypes} skills={lookups.skills} channels={lookups.channels} clients={lookups.clients} owners={lookups.owners}
         currentUserId={currentUserId}
         onClose={() => {
           setDetailOpen(false);
-          if (viewMode === 'board') setSelectedJob(null);
+          setSelectedJob(null);
         }}
         onCreate={createJob}
         onUpdate={async (id, p) => { const u = await updateJob(id, p); await refresh(); setSelectedJob(u as OperationsJob); return u; }}

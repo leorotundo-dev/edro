@@ -92,12 +92,14 @@ function SignalCard({
   signal,
   selected,
   onClick,
+  onOpenDemand,
   onResolve,
   onSnooze,
 }: {
   signal: Signal;
   selected?: boolean;
   onClick: () => void;
+  onOpenDemand?: () => void;
   onResolve: () => void;
   onSnooze: () => void;
 }) {
@@ -180,11 +182,26 @@ function SignalCard({
         {/* Actions row */}
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25 }}>
           {(signal.actions || []).map((action, idx) =>
-            action.href ? (
+            signal.entity_type === 'job' && signal.entity_id && action.label.toLowerCase().includes('demanda') ? (
+              <Button
+                key={idx}
+                size="small"
+                variant={idx === 0 ? 'contained' : 'text'}
+                color={idx === 0 && cfg.color !== 'default' ? cfg.color : undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDemand?.();
+                }}
+                sx={{ height: 26, fontSize: '0.7rem', fontWeight: 700, borderRadius: 2, px: 1.5, textTransform: 'none' }}
+              >
+                {action.label}
+              </Button>
+            ) : action.href ? (
               <Button
                 key={idx}
                 component={Link}
                 href={action.href}
+                onClick={(e) => e.stopPropagation()}
                 size="small"
                 variant={idx === 0 ? 'contained' : 'text'}
                 color={idx === 0 && cfg.color !== 'default' ? cfg.color : undefined}
@@ -537,6 +554,7 @@ export default function SignalFeedClient({ embedded = false }: { embedded?: bool
                         signal={signal}
                         selected={selectedSignal?.id === signal.id}
                         onClick={() => handleSelectSignal(signal)}
+                        onOpenDemand={() => handleSelectSignal(signal)}
                         onResolve={() => handleResolve(signal.id)}
                         onSnooze={() => handleSnooze(signal.id)}
                       />
@@ -610,6 +628,7 @@ export default function SignalFeedClient({ embedded = false }: { embedded?: bool
         open={drawerOpen}
         mode="edit"
         job={drawerJob}
+        presentation="modal"
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}
         channels={lookups.channels}

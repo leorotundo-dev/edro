@@ -771,6 +771,7 @@ export default function WeekCalendarClient() {
         open={drawerOpen}
         mode="edit"
         job={selectedJob || null}
+        presentation="modal"
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}
         channels={lookups.channels}

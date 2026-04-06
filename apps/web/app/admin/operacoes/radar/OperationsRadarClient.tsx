@@ -209,6 +209,22 @@ export default function OperationsRadarClient() {
     setDetailOpen(true);
   }, []);
 
+  const openSignalDemand = useCallback(async (signal: Signal) => {
+    if (signal.entity_type !== 'job' || !signal.entity_id) {
+      return;
+    }
+    const existing = jobs.find((job) => job.id === signal.entity_id);
+    if (existing) {
+      openCommands(existing);
+      return;
+    }
+    const fetched = await fetchJob(signal.entity_id);
+    if (!fetched) return;
+    setSelectedJob(fetched);
+    setDrawerMode('edit');
+    setDetailOpen(true);
+  }, [fetchJob, jobs, openCommands]);
+
   return (
     <OperationsShell
       section="radar"
@@ -421,10 +437,23 @@ export default function OperationsRadarClient() {
                                   {(signal.actions ?? []).filter((a) => a.href).length > 0 && (
                                     <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
                                       {(signal.actions ?? []).filter((a) => a.href).map((a, i) => (
-                                        <Link key={i} href={a.href!} underline="hover"
-                                          sx={{ fontSize: '0.72rem', fontWeight: 700 }}>
-                                          {a.label} →
-                                        </Link>
+                                        signal.entity_type === 'job' && signal.entity_id && a.label.toLowerCase().includes('demanda') ? (
+                                          <Link
+                                            key={i}
+                                            component="button"
+                                            type="button"
+                                            underline="hover"
+                                            onClick={() => { void openSignalDemand(signal); }}
+                                            sx={{ fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                                          >
+                                            {a.label} →
+                                          </Link>
+                                        ) : (
+                                          <Link key={i} href={a.href!} underline="hover"
+                                            sx={{ fontSize: '0.72rem', fontWeight: 700 }}>
+                                            {a.label} →
+                                          </Link>
+                                        )
                                       ))}
                                     </Stack>
                                   )}
@@ -806,6 +835,7 @@ export default function OperationsRadarClient() {
         open={detailOpen && (drawerMode === 'create' || (Boolean(selectedJob) && !isStandaloneRiskItem))}
         mode={drawerMode}
         job={selectedJob}
+        presentation="modal"
         initialComposerPath={createComposerPath}
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}

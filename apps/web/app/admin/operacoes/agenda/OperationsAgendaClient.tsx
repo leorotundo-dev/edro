@@ -1201,6 +1201,7 @@ export default function OperationsAgendaClient() {
         open={detailOpen && (drawerMode === 'create' || (Boolean(selectedJob) && !isStandaloneAgendaItem))}
         mode={drawerMode}
         job={selectedJob}
+        presentation="modal"
         initialComposerPath={createComposerPath}
         jobTypes={lookups.jobTypes}
         skills={lookups.skills}
