@@ -42,6 +42,7 @@ import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
 import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
 import { runJarvisKbHealthWorkerOnce } from './jarvisKbHealthWorker';
 import { runJarvisProposalWorkerOnce } from './jarvisProposalWorker';
+import { runJarvisSkillLearnWorkerOnce } from './jarvisSkillLearnWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -164,4 +165,6 @@ export function startJobsRunner() {
   startWorkerLoop('jarvisKbHealth', runJarvisKbHealthWorkerOnce, 20500, 600_000);
   // Jarvis Proactive Proposals — daily at 05h UTC, generates campaign proposals from KB + calendar + trends
   startWorkerLoop('jarvisProposals', runJarvisProposalWorkerOnce, 21000, 300_000);
+  // Jarvis Skill Learn — weekly, autonomous research from authoritative sources (Cannes, D&AD, Meta, Behance, etc.)
+  startWorkerLoop('jarvisSkillLearn', runJarvisSkillLearnWorkerOnce, 21500, 600_000);
 }

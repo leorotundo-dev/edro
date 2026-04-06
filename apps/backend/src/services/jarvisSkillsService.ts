@@ -15,6 +15,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { query } from '../db';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -271,9 +272,72 @@ export async function getRelevantSkills(ctx: SkillContext): Promise<string> {
     lines.push('');
   }
 
+  // Also load auto-learned skills from DB (jarvis_kb_entries with category='skill_learned')
+  const dbSkills = await loadLearnedSkillsFromDb(ctx);
+  if (dbSkills.length > 0) {
+    lines.push('\n## Skills Aprendidos Autonomamente (pesquisa recente):');
+    for (const skill of dbSkills) {
+      lines.push(`- ${skill}`);
+    }
+    lines.push('');
+  }
+
   lines.push('=== FIM DO SKILL GRAPH ===');
 
   return lines.join('\n');
+}
+
+// ── Load auto-learned skills from DB ─────────────────────────────────────────
+
+async function loadLearnedSkillsFromDb(ctx: SkillContext): Promise<string[]> {
+  try {
+    // Build relevance filter based on context
+    const agentTypeFilter = ctx.agentType === 'copy'
+      ? `AND (source_data->>'agent_type' IN ('copy', 'both') OR source_data->>'agent_type' IS NULL)`
+      : `AND (source_data->>'agent_type' IN ('art', 'both') OR source_data->>'agent_type' IS NULL)`;
+
+    // Category hints from context
+    const categoryHints: string[] = [];
+    if (ctx.calendarEventType) {
+      if (ctx.calendarEventType.includes('mother') || ctx.calendarEventType.includes('mae')) {
+        categoryHints.push('publicidade_global', 'publicidade_br', 'tendencias_visuais');
+      }
+      categoryHints.push('plataformas');
+    }
+    if (ctx.sectorKeywords?.some(k => ['financeiro', 'banco', 'fintech'].includes(k))) {
+      categoryHints.push('setor_financeiro', 'comportamento');
+    }
+    if (ctx.agentType === 'art') {
+      categoryHints.push('design_arte', 'cinema_foto', 'tendencias_visuais');
+    }
+    if (ctx.agentType === 'copy') {
+      categoryHints.push('comportamento', 'publicidade_global');
+    }
+
+    const categoryFilter = categoryHints.length > 0
+      ? `AND source_data->>'source_category' = ANY($2::text[])`
+      : '';
+
+    const params: any[] = ['__agency__'];
+    if (categoryHints.length > 0) params.push(categoryHints);
+
+    const { rows } = await query(
+      `SELECT content
+       FROM jarvis_kb_entries
+       WHERE tenant_id = $1
+         AND client_id IS NULL
+         AND category = 'skill_learned'
+         ${agentTypeFilter}
+         ${categoryFilter}
+       ORDER BY updated_at DESC
+       LIMIT 8`,
+      params
+    );
+
+    return rows.map((r: any) => r.content as string);
+  } catch {
+    return [];
+  }
 }
 
 // ── Detect calendar event from text / date context ───────────────────────────
