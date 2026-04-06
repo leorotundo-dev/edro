@@ -93,6 +93,48 @@ type BriefingBoardTarget = {
   trelloListId: string | null;
 };
 
+async function resolveAgencyNotificationPhones(tenantId: string): Promise<string[]> {
+  const { rows } = await pool.query<{ phone: string | null }>(
+    `WITH recipients AS (
+       SELECT fp.whatsapp_jid AS phone
+         FROM tenant_users tu
+         LEFT JOIN freelancer_profiles fp ON fp.user_id = tu.user_id
+        WHERE tu.tenant_id::text = $1::text
+          AND tu.role IN ('admin', 'manager', 'gestor')
+       UNION
+       SELECT pi.identity_value AS phone
+         FROM tenant_users tu
+         JOIN person_identities pi
+           ON pi.tenant_id::text = tu.tenant_id::text
+          AND pi.identity_type IN ('whatsapp_jid', 'phone_e164')
+          AND pi.person_id IN (
+            SELECT fp.person_id
+              FROM freelancer_profiles fp
+             WHERE fp.user_id = tu.user_id
+               AND fp.person_id IS NOT NULL
+          )
+        WHERE tu.tenant_id::text = $1::text
+          AND tu.role IN ('admin', 'manager', 'gestor')
+     )
+     SELECT DISTINCT NULLIF(TRIM(phone), '') AS phone
+       FROM recipients
+      WHERE NULLIF(TRIM(phone), '') IS NOT NULL`,
+    [tenantId],
+  ).catch(() => ({ rows: [] as Array<{ phone: string | null }> }));
+
+  const envFallback = (process.env.WHATSAPP_AGENCY_PHONES ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return Array.from(
+    new Set(
+      [...rows.map((row) => row.phone).filter((value): value is string => Boolean(value)), ...envFallback]
+        .map((value) => value.trim()),
+    ),
+  );
+}
+
 async function findBriefingBoardTarget(tenantId: string, clientId?: string | null): Promise<BriefingBoardTarget | null> {
   // Priority 1: tenant_settings key 'trello_jobs_list_id'
   const settingRes = await pool.query(
@@ -332,7 +374,7 @@ Responda em JSON com esta estrutura exata:
     }
 
     // ── 4. WhatsApp alert (Meta Cloud API → fallback Evolution API) ──────────
-    const agencyPhones = (process.env.WHATSAPP_AGENCY_PHONES ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const agencyPhones = await resolveAgencyNotificationPhones(tenantId);
     if (agencyPhones.length) {
       const deadline = formData.deadline
         ? new Date(formData.deadline + 'T00:00').toLocaleDateString('pt-BR')
@@ -554,7 +596,7 @@ export async function sendBriefingAcceptedWhatsApp(p: {
   aiEnriched?: PipelineInput['aiEnriched'];
   trelloUrl?: string;
 }): Promise<void> {
-  const agencyPhones = (process.env.WHATSAPP_AGENCY_PHONES ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const agencyPhones = await resolveAgencyNotificationPhones(p.tenantId);
   if (!agencyPhones.length) return;
   const hasMetaApi = isWhatsAppConfigured();
   const hasEvolution = Boolean(process.env.EVOLUTION_API_KEY);
