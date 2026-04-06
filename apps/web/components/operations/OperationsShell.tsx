@@ -33,12 +33,6 @@ type CommandOption = {
   prompt?: string;
 };
 
-type LegacyViewAlias = {
-  label: string;
-  subtitle: string;
-  href: string;
-};
-
 const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; icon: ReactElement }> = [
   { key: 'overview', label: 'Hoje', href: '/admin/operacoes', icon: <IconTargetArrow size={16} /> },
   { key: 'jobs', label: 'Pauta Geral', href: '/admin/operacoes/jobs?view=table&group=client', icon: <IconLayoutKanban size={16} /> },
@@ -79,16 +73,6 @@ const COMMANDS: CommandOption[] = [
   { label: 'Jarvis, o que vai atrasar amanhã?', subtitle: 'Leitura de risco do dia seguinte', kind: 'jarvis', prompt: 'Quais itens provavelmente vão atrasar amanhã e por quê?' },
   { label: 'Jarvis, quem tá sobrecarregado?', subtitle: 'Ver capacidade da equipe', kind: 'jarvis', prompt: 'Me mostra a carga de trabalho de cada pessoa da equipe. Quem tá sobrecarregado e quem tem espaço?' },
   { label: 'Jarvis, resumo da operação', subtitle: 'Snapshot completo da operação', kind: 'jarvis', prompt: 'Me dá um resumo executivo da operação: quantos jobs por status, gargalos, riscos e próximas ações.' },
-];
-
-const LEGACY_VIEWS: LegacyViewAlias[] = [
-  { label: 'Painel de Controle', subtitle: 'Hoje', href: '/admin/operacoes' },
-  { label: 'Banco de Dados (Filtros)', subtitle: 'Fila > Tabela', href: '/admin/operacoes/jobs?view=table' },
-  { label: 'Pauta Geral', subtitle: 'Carteira por cliente', href: '/admin/operacoes/jobs?view=table&group=client' },
-  { label: 'Extração para IA', subtitle: 'IA', href: '/admin/operacoes/ia' },
-  { label: 'Pauta - Nome', subtitle: 'Pessoas', href: '/admin/operacoes/pessoas' },
-  { label: 'Externos', subtitle: 'Riscos', href: '/admin/operacoes/radar' },
-  { label: 'Auditoria SLA', subtitle: 'SLA', href: '/admin/operacoes/qualidade' },
 ];
 
 function dispatchOpsJarvisPrompt(prompt: string) {
@@ -273,57 +257,6 @@ export default function OperationsShell({
               }}
             />
           </Stack>
-
-          <Box
-            sx={{
-              pt: 1,
-              pb: summary ? 0.5 : 0.25,
-              borderTop: `1px solid ${alpha(theme.palette.divider, dark ? 0.1 : 0.08)}`,
-            }}
-          >
-            <Stack spacing={0.85}>
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 900,
-                  color: 'text.secondary',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                }}
-              >
-                Vistas da planilha
-              </Typography>
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                {LEGACY_VIEWS.map((view) => (
-                  <Box
-                    key={view.label}
-                    onClick={() => router.push(view.href)}
-                    sx={{
-                      px: 1.25,
-                      py: 0.8,
-                      borderRadius: 1.5,
-                      cursor: 'pointer',
-                      border: `1px solid ${alpha(theme.palette.divider, dark ? 0.2 : 0.14)}`,
-                      bgcolor: dark ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.common.black, 0.02),
-                      minWidth: { xs: 'calc(50% - 6px)', lg: 'auto' },
-                      transition: 'all 160ms ease',
-                      '&:hover': {
-                        borderColor: alpha(theme.palette.primary.main, 0.35),
-                        bgcolor: alpha(theme.palette.primary.main, dark ? 0.12 : 0.05),
-                      },
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
-                      {view.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
-                      {view.subtitle}
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-            </Stack>
-          </Box>
 
           {/* Summary stats row */}
           {summary ? (
