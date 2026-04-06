@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authGuard } from '../auth/rbac';
+import { authGuard, can, normalizeRole } from '../auth/rbac';
 import { getJarvisAlerts, dismissAlert, snoozeAlert } from '../services/jarvisAlertEngine';
 import { query } from '../db';
 import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
@@ -33,6 +33,16 @@ import {
 } from '../services/jarvisPolicyService';
 import crypto from 'crypto';
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type CreativeExecutionTarget = {
+  jobId: string | null;
+  jobTitle: string | null;
+  clientId: string | null;
+  briefingId: string | null;
+  creativeSessionId: string | null;
+};
+
 const jarvisChatSchema = z.object({
   message: z.string().min(1),
   clientId: z.string().trim().min(1).optional().nullable(),
@@ -60,6 +70,298 @@ function buildPageDataContext(pageData?: Record<string, unknown> | null) {
     });
   if (!lines.length) return '';
   return `\n\nCONTEXTO DA TELA ATUAL:\n${lines.join('\n')}\nINSTRUÇÃO: trate job, briefing, sessão criativa e cliente atuais como contexto prioritário para agir sem pedir de novo o que já está visível na tela.`;
+}
+
+function readPageDataString(pageData: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!pageData || typeof pageData !== 'object') return null;
+  for (const key of keys) {
+    const value = pageData[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function asUuid(value?: string | null) {
+  const trimmed = String(value || '').trim();
+  return UUID_PATTERN.test(trimmed) ? trimmed : null;
+}
+
+function shouldDelegateToCreativeExecutor(message: string, pageData?: Record<string, unknown> | null) {
+  const hasContextTarget = Boolean(
+    asUuid(readPageDataString(pageData, ['currentJobId', 'jobId']))
+      || asUuid(readPageDataString(pageData, ['currentBriefingId', 'briefing_id', 'briefingId']))
+      || asUuid(readPageDataString(pageData, ['creativeSessionId', 'creative_session_id', 'currentCreativeSessionId', 'sessionId']))
+  );
+  if (!hasContextTarget) return false;
+
+  const haystack = message.toLowerCase();
+  const actionSignals = ['resolve', 'resolva', 'gere', 'gera', 'crie', 'cria', 'faça', 'faz', 'monte', 'monta', 'escreva', 'escreve', 'desenvolva', 'desenvolve'];
+  const creativeSignals = [
+    'copy', 'legenda', 'headline', 'cta', 'roteiro', 'conceito',
+    'visual brief', 'direção criativa', 'direcao criativa',
+    'arte', 'imagem', 'criativo', 'carrossel',
+  ];
+
+  return actionSignals.some((token) => haystack.includes(token))
+    && creativeSignals.some((token) => haystack.includes(token));
+}
+
+function shouldSkipArte(message: string) {
+  const haystack = message.toLowerCase();
+  const artSignals = ['arte', 'imagem', 'visual', 'mockup', 'direção de arte', 'direcao de arte', 'carrossel'];
+  const copyOnlySignals = ['copy', 'legenda', 'headline', 'cta', 'texto', 'roteiro'];
+  if (artSignals.some((token) => haystack.includes(token))) return false;
+  return copyOnlySignals.some((token) => haystack.includes(token));
+}
+
+async function resolveCreativeExecutionTarget(params: {
+  tenantId: string;
+  bodyClientId?: string | null;
+  pageData?: Record<string, unknown> | null;
+}): Promise<CreativeExecutionTarget | null> {
+  const sessionId = asUuid(readPageDataString(params.pageData, ['creativeSessionId', 'creative_session_id', 'currentCreativeSessionId', 'sessionId']));
+  const pageJobId = asUuid(readPageDataString(params.pageData, ['currentJobId', 'jobId']));
+  const pageBriefingId = asUuid(readPageDataString(params.pageData, ['currentBriefingId', 'briefing_id', 'briefingId']));
+
+  let creativeSessionId = sessionId;
+  let jobId = pageJobId;
+  let briefingId = pageBriefingId;
+
+  if (creativeSessionId) {
+    const { rows } = await query<{ id: string; job_id: string; briefing_id: string | null }>(
+      `SELECT id, job_id, briefing_id
+         FROM creative_sessions
+        WHERE tenant_id = $1
+          AND id = $2
+        LIMIT 1`,
+      [params.tenantId, creativeSessionId],
+    );
+    const session = rows[0];
+    if (session) {
+      jobId = jobId || session.job_id;
+      briefingId = briefingId || session.briefing_id || null;
+    }
+  }
+
+  let jobTitle: string | null = null;
+  let clientId = params.bodyClientId || readPageDataString(params.pageData, ['clientId', 'currentClientId']);
+
+  if (jobId) {
+    const { rows } = await query<{
+      id: string;
+      title: string;
+      client_id: string | null;
+      metadata: Record<string, any> | null;
+    }>(
+      `SELECT id, title, client_id, COALESCE(metadata, '{}'::jsonb) AS metadata
+         FROM jobs
+        WHERE tenant_id = $1
+          AND id = $2
+        LIMIT 1`,
+      [params.tenantId, jobId],
+    );
+    const job = rows[0];
+    if (!job) return null;
+    jobTitle = job.title || null;
+    clientId = clientId || job.client_id || null;
+    briefingId = briefingId || asUuid(job.metadata?.briefing_id) || null;
+
+    if (!briefingId) {
+      const { rows: sessionRows } = await query<{ id: string; briefing_id: string | null }>(
+        `SELECT id, briefing_id
+           FROM creative_sessions
+          WHERE tenant_id = $1
+            AND job_id = $2
+          ORDER BY updated_at DESC
+          LIMIT 1`,
+        [params.tenantId, jobId],
+      );
+      if (sessionRows[0]) {
+        creativeSessionId = creativeSessionId || sessionRows[0].id;
+        briefingId = sessionRows[0].briefing_id || null;
+      }
+    }
+  }
+
+  if (!briefingId) return null;
+
+  if (!clientId) {
+    const { rows } = await query<{ main_client_id: string | null }>(
+      `SELECT main_client_id
+         FROM edro_briefings
+        WHERE tenant_id = $1
+          AND id = $2
+        LIMIT 1`,
+      [params.tenantId, briefingId],
+    );
+    clientId = rows[0]?.main_client_id || null;
+  }
+
+  return {
+    jobId,
+    jobTitle,
+    clientId: clientId || null,
+    briefingId,
+    creativeSessionId,
+  };
+}
+
+function selectBestCopyVariant(copy: any) {
+  const variants = Array.isArray(copy?.variants) ? copy.variants : [];
+  if (!variants.length) return null;
+  const approved = variants.filter((variant) => Boolean(variant?.audit?.approved));
+  const pool = approved.length ? approved : variants;
+  return [...pool].sort((left, right) => Number(right?.audit?.score || 0) - Number(left?.audit?.score || 0))[0] || variants[0];
+}
+
+async function runCreativeExecutionCapability(params: {
+  tenantId: string;
+  userId?: string | null;
+  userRole?: string | null;
+  message: string;
+  bodyClientId?: string | null;
+  pageData?: Record<string, unknown> | null;
+}) {
+  if (!can(normalizeRole(params.userRole), 'clients:write')) return null;
+
+  const target = await resolveCreativeExecutionTarget({
+    tenantId: params.tenantId,
+    bodyClientId: params.bodyClientId,
+    pageData: params.pageData,
+  });
+  if (!target?.briefingId) return null;
+
+  const [{ runJarvisExecutor }, creativeSessionModule] = await Promise.all([
+    import('../services/jarvisExecutor'),
+    import('../services/jobs/creativeSessionService'),
+  ]);
+  const { openCreativeSession, updateCreativeSessionMetadata, addCreativeVersion, addCreativeAsset } = creativeSessionModule;
+
+  const skipArte = shouldSkipArte(params.message);
+  const creativeContext = target.jobId
+    ? await openCreativeSession(params.tenantId, target.jobId, params.userId ?? null, { briefing_id: target.briefingId }).catch(() => null)
+    : null;
+  const sessionId = creativeContext?.session?.id || target.creativeSessionId || null;
+
+  const result = await runJarvisExecutor({
+    briefingId: target.briefingId,
+    clientId: target.clientId,
+    tenantId: params.tenantId,
+    skipArte,
+  });
+
+  const bestVariant = selectBestCopyVariant(result.copy);
+
+  if (target.jobId && sessionId) {
+    await updateCreativeSessionMetadata(params.tenantId, sessionId, target.jobId, params.userId ?? null, {
+      metadata: {
+        jarvis_last_execution: {
+          source: 'jarvis_chat',
+          message: params.message,
+          executed_at: new Date().toISOString(),
+          briefing_id: target.briefingId,
+          concept_id: result.conceito.chosen.concept_id,
+          skip_arte: skipArte,
+        },
+      },
+      reason: 'jarvis_global_creative_execution',
+    }).catch(() => {});
+
+    if (bestVariant) {
+      await addCreativeVersion(params.tenantId, sessionId, target.jobId, params.userId ?? null, {
+        version_type: 'copy',
+        source: 'ai',
+        select: true,
+        payload: {
+          title: bestVariant.title,
+          body: bestVariant.body,
+          cta: bestVariant.cta,
+          legenda: bestVariant.legenda,
+          hashtags: bestVariant.hashtags,
+          final_text: bestVariant.audit?.final_text || [bestVariant.title, bestVariant.body, bestVariant.cta].filter(Boolean).join('\n\n'),
+          audit: bestVariant.audit,
+          concept: result.conceito.chosen,
+          strategy: result.copy.strategy,
+          brand_voice: result.copy.brandVoice,
+          generated_by: 'jarvis_global',
+        },
+      }).catch(() => {});
+    }
+
+    await addCreativeVersion(params.tenantId, sessionId, target.jobId, params.userId ?? null, {
+      version_type: 'layout',
+      source: 'ai',
+      payload: {
+        concept: result.conceito.chosen,
+        visual_brief: result.visual_brief,
+        generated_by: 'jarvis_global',
+      },
+    }).catch(() => {});
+
+    await addCreativeVersion(params.tenantId, sessionId, target.jobId, params.userId ?? null, {
+      version_type: 'image_prompt',
+      source: 'ai',
+      payload: {
+        concept: result.conceito.chosen,
+        visual_brief: result.visual_brief,
+        prompt: result.arte?.payload?.prompt ?? null,
+        negative_prompt: result.arte?.payload?.negativePrompt ?? null,
+        critique: result.arte?.critique ?? null,
+        generated_by: 'jarvis_global',
+      },
+    }).catch(() => {});
+
+    if (result.arte?.imageUrl) {
+      await addCreativeAsset(params.tenantId, sessionId, target.jobId, params.userId ?? null, {
+        asset_type: 'image',
+        source: 'ai',
+        file_url: result.arte.imageUrl,
+        thumb_url: result.arte.imageUrl,
+        select: true,
+        metadata: {
+          concept: result.conceito.chosen,
+          critique: result.arte.critique,
+          prompt: result.arte.payload?.prompt ?? null,
+          generated_by: 'jarvis_global',
+        },
+      }).catch(() => {});
+    }
+  }
+
+  const studioUrl = target.jobId
+    ? `/studio/editor?jobId=${encodeURIComponent(target.jobId)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`
+    : `/studio/pipeline/${encodeURIComponent(target.briefingId)}`;
+
+  const summaryLines = [
+    `Resolvi a direção criativa de ${target.jobTitle ? `"${target.jobTitle}"` : 'esta demanda'} e já deixei o resultado salvo no Studio.`,
+    `Conceito escolhido: ${result.conceito.chosen.headline_concept}.`,
+    bestVariant?.title ? `Copy principal: ${bestVariant.title}.` : null,
+    result.arte?.imageUrl
+      ? 'A arte inicial também foi gerada e vinculada à sessão criativa.'
+      : 'Gerei a copy e o visual brief; a arte pode ser refinada no Studio na sequência.',
+    'Se quiser, posso continuar daqui mesmo refinando tom, CTA, formato ou ângulo criativo.',
+  ].filter(Boolean);
+
+  return {
+    response: summaryLines.join('\n'),
+    artifacts: [
+      {
+        type: 'creative_execution',
+        message: target.jobTitle || 'Execução criativa concluída',
+        studio_url: studioUrl,
+        creative_session_id: sessionId,
+        briefing_id: target.briefingId,
+        job_id: target.jobId,
+        concept_headline: result.conceito.chosen.headline_concept,
+        copy_title: bestVariant?.title ?? null,
+        image_url: result.arte?.imageUrl ?? null,
+        has_arte: Boolean(result.arte?.imageUrl),
+        duration_ms: result.duration_ms,
+      },
+    ],
+    provider: 'studio_executor',
+    model: skipArte ? 'jarvis_executor_copy' : 'jarvis_executor_full',
+  };
 }
 
 export default async function jarvisRoutes(app: FastifyInstance) {
@@ -205,6 +507,74 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           },
         });
       } else {
+        if (decision.intent === 'creative_execution' && shouldDelegateToCreativeExecutor(body.message, body.page_data ?? undefined)) {
+          const creativeResult = await runCreativeExecutionCapability({
+            tenantId,
+            userId,
+            userRole,
+            message: body.message,
+            bodyClientId: clientId,
+            pageData: body.page_data ?? undefined,
+          });
+
+          if (creativeResult) {
+            finalText = creativeResult.response;
+            resultProvider = creativeResult.provider;
+            resultModel = creativeResult.model;
+            artifacts = creativeResult.artifacts;
+            toolsUsed = 0;
+
+            const durationMs = Date.now() - startMs;
+            const observability = buildJarvisObservability(decision, {
+              durationMs,
+              toolsUsed,
+              provider: resultProvider,
+              model: resultModel,
+              loadedMemoryBlocks: ['CCO criativo do Studio', 'Direção de arte', 'Memória do cliente'],
+            });
+
+            const savedConversationId = await saveUnifiedConversation({
+              route: decision.route,
+              tenantId,
+              edroClientId,
+              userId,
+              conversationId: effectiveConversationId,
+              message: body.message,
+              assistantContent: finalText,
+              provider: resultProvider || body.provider,
+              observability,
+              artifacts,
+            }).catch(() => effectiveConversationId);
+
+            request.log?.info({
+              event: 'jarvis_chat_completed',
+              clientId,
+              conversationId: savedConversationId,
+              attachmentCount: body.inline_attachments?.length ?? 0,
+              artifactsCount: artifacts.length,
+              ...observability,
+            });
+
+            return reply.send({
+              success: true,
+              data: {
+                response: finalText,
+                provider: resultProvider,
+                model: resultModel,
+                conversationId: savedConversationId,
+                artifacts,
+                intent: decision.intent,
+                route: decision.route,
+                primaryMemory: decision.primaryMemory,
+                secondaryMemories: decision.secondaryMemories,
+                retrievalBudget: decision.retrievalBudget,
+                durationMs,
+                observability,
+              },
+            });
+          }
+        }
+
         const [clientContext, psychContext, perfContext] = await Promise.race([
           Promise.all([
             buildClientContext(tenantId, clientId!),

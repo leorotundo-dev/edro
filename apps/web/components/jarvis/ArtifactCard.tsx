@@ -48,6 +48,7 @@ const ARTIFACT_MAP: Record<string, ArtifactMeta> = {
   create_campaign:           { icon: IconSparkles,     label: 'Campanha criada',                color: '#8B5CF6' },
   retrieve_client_evidence:  { icon: IconMessageSearch,label: 'Evidências recuperadas',         color: '#0EA5E9' },
   create_post_pipeline:      { icon: IconSparkles,     label: 'Pipeline de post criado',        color: '#E85219' },
+  creative_execution:        { icon: IconSparkles,     label: 'Direção criativa resolvida',     color: '#E85219' },
 };
 
 type Props = { artifact: Artifact; clientId?: string | null };
@@ -140,6 +141,16 @@ export default function ArtifactCard({ artifact, clientId }: Props) {
                 )}
               </Box>
             )}
+          </>
+        )}
+        {artifact.type === 'creative_execution' && (
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45, fontSize: '0.68rem' }}>
+              {artifact.concept_headline ? `Conceito: ${artifact.concept_headline}` : ''}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45, fontSize: '0.68rem' }}>
+              {artifact.copy_title ? `Copy: ${artifact.copy_title} · ` : ''}{artifact.has_arte ? 'copy + arte prontas' : 'copy + visual brief prontos'}
+            </Typography>
           </>
         )}
         {artifact.type === 'retrieve_client_evidence' && evidenceItems.length > 0 && (
