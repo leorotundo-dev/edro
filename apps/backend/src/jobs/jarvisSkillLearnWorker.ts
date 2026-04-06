@@ -52,124 +52,328 @@ interface SkillSource {
 
 const SKILL_SOURCES: SkillSource[] = [
 
-  // ── Publicidade Global ──────────────────────────────────────────────────────
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // PUBLICIDADE & ESTRATÉGIA CRIATIVA
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   {
     category: 'publicidade_global',
-    label: 'Publicidade Global (premiações e tendências)',
+    label: 'Premiações Globais de Publicidade (Cannes, D&AD, Clio, One Show)',
     queries: [
-      'Cannes Lions 2025 Grand Prix winning campaigns strategy',
-      'D&AD 2025 pencil winners copywriting art direction',
-      'Clio Awards 2025 best campaigns behavioral psychology',
-      'advertising effectiveness trends 2025 research',
-      'best copywriting campaigns 2025 analysis what worked',
+      'Cannes Lions 2025 Grand Prix winners creative strategy analysis',
+      'D&AD Black Pencil 2025 art direction copywriting technique',
+      'One Show Gold Pencil 2025 campaign breakdown',
+      'Clio Awards 2025 best integrated campaign analysis',
+      'Effie Awards 2025 most effective campaigns strategy',
+      'ANDY Awards 2025 outstanding campaigns creative direction',
+      'advertising effectiveness IPA Effectiveness Awards 2025',
+      'Lurzer Archive best print ads 2025 visual direction',
     ],
-    extractionFocus: 'técnicas criativas vencedoras, estratégias de copy, direção de arte, gatilhos psicológicos utilizados, por que funcionou',
+    extractionFocus: 'técnicas criativas vencedoras, estratégias de copy, direção de arte premiada, gatilhos psicológicos utilizados, insight criativo central, por que a campanha funcionou',
     agentType: 'both',
     frequencyWeeks: 2,
   },
 
-  // ── Publicidade Brasil ──────────────────────────────────────────────────────
   {
     category: 'publicidade_br',
-    label: 'Publicidade Brasileira',
+    label: 'Publicidade Brasileira (CCSP, Caboré, Colunistas)',
     queries: [
-      'Cannes Lions Brasil 2025 campanhas brasileiras premiadas',
-      'tendências publicidade digital Brasil 2025',
-      'CCSP melhores campanhas brasileiras 2025',
-      'marketing comportamental brasil tendências consumidor 2025',
-      'Meio Mensagem campanhas destaque 2025',
+      'Cannes Lions Brasil 2025 campanhas brasileiras Grand Prix',
+      'Prêmio CCSP 2025 melhores campanhas publicidade brasileira',
+      'Caboré 2025 profissionais destaque publicidade brasil',
+      'Colunistas Brasil 2025 campanhas premiadas criação',
+      'Meio Mensagem 2025 campanhas criativas destaque análise',
+      'tendências publicidade digital Brasil 2025 consumidor',
+      'marketing comportamental brasil consumidor 2025 pesquisa',
+      'publicidade brasileira premiada internacionalmente 2025',
     ],
-    extractionFocus: 'técnicas de comunicação que funcionam com o consumidor brasileiro, referências culturais, linguagem, tom, tendências locais',
+    extractionFocus: 'técnicas que funcionam com o consumidor brasileiro, referências culturais relevantes, linguagem, tom, humor, emoção brasileira, tendências locais de consumo',
     agentType: 'both',
     frequencyWeeks: 2,
   },
 
-  // ── Plataformas Digitais ────────────────────────────────────────────────────
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // PLATAFORMAS DIGITAIS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   {
     category: 'plataformas',
-    label: 'Atualizações de Plataformas',
+    label: 'Algoritmos e Melhores Práticas de Plataformas',
     queries: [
-      'Instagram algorithm changes 2025 content strategy',
-      'TikTok algorithm update 2025 what works',
-      'LinkedIn content strategy 2025 best practices',
-      'Meta for Business advertising best practices 2025',
-      'Instagram Reels performance tips 2025',
-      'WhatsApp Business marketing best practices 2025',
+      'Instagram algorithm 2025 reach organic content what works',
+      'Instagram Reels best practices 2025 performance hooks',
+      'TikTok algorithm update 2025 FYP content strategy',
+      'LinkedIn algorithm 2025 organic reach content format',
+      'Meta Business advertising creative best practices 2025',
+      'YouTube Shorts algorithm 2025 retention optimization',
+      'WhatsApp Business marketing campaigns 2025 best practices',
+      'Pinterest algorithm 2025 visual content strategy',
     ],
-    extractionFocus: 'mudanças de algoritmo, novos formatos, o que está tendo mais alcance, melhores práticas atuais de copy e visual por plataforma',
+    extractionFocus: 'mudanças de algoritmo recentes, o que está tendo alcance orgânico, formatos com melhor performance, duração ideal de vídeo, melhores práticas de copy e visual por plataforma',
     agentType: 'both',
     frequencyWeeks: 1,
   },
 
-  // ── Design e Arte ───────────────────────────────────────────────────────────
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // DESIGN GRÁFICO & IDENTIDADE VISUAL
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   {
-    category: 'design_arte',
-    label: 'Design, Arte e Estética',
+    category: 'design_grafico',
+    label: 'Design Gráfico — Behance, Awwwards, Communication Arts, It\'s Nice That',
     queries: [
-      'graphic design trends 2025 visual communication',
-      'Behance top design projects 2025 advertising',
-      'Awwwards best websites 2025 visual trends',
-      'Communication Arts advertising annual 2025',
-      'typography trends 2025 branding advertising',
-      'color trends 2025 advertising design',
+      'Behance graphic design trends 2025 top advertising projects',
+      'Communication Arts design annual 2025 winners analysis',
+      'It\'s Nice That best design work 2025 visual direction',
+      'Awwwards site of the year 2025 design trends',
+      'Creative Review best visual identities 2025 branding',
+      'HOW Design awards 2025 outstanding graphic design',
+      'logo design trends 2025 brand identity evolution',
+      'brand identity redesign 2025 visual direction strategy',
     ],
-    extractionFocus: 'tendências estéticas, paletas de cor, direção de arte, composição visual, tipografia, o que está ganhando premiações e por quê',
+    extractionFocus: 'tendências de design gráfico, direção visual de identidades, o que está ganhando premiações, técnicas de composição e hierarquia visual premiadas',
     agentType: 'art',
     frequencyWeeks: 2,
   },
 
-  // ── Tendências Visuais e Culturais ─────────────────────────────────────────
   {
-    category: 'tendencias_visuais',
-    label: 'Tendências Visuais e Culturais',
+    category: 'tipografia',
+    label: 'Tipografia — Type Directors Club, I Love Typography, Fonts in Use',
     queries: [
-      'Pantone color of the year 2025 meaning brand applications',
-      'Pinterest predicts 2025 visual trends',
-      'Adobe color trends 2025 design',
-      'visual aesthetic trends social media 2025',
-      'AI generated imagery trends advertising 2025',
-      'photography trends advertising 2025',
+      'Type Directors Club TDC awards 2025 typography excellence',
+      'typography trends 2025 advertising branding variable fonts',
+      'Fonts in Use interesting typography applications 2025',
+      'I Love Typography best font combinations 2025 editorial',
+      'Typewolf fonts of the year 2025 recommendations',
+      'expressive typography advertising campaigns 2025',
+      'custom lettering advertising 2025 visual communication',
     ],
-    extractionFocus: 'tendências visuais emergentes, paletas, estilos fotográficos, estéticas dominantes, como aplicar em publicidade',
+    extractionFocus: 'tendências tipográficas, combinações de fontes que funcionam, tipografia expressiva em publicidade, como tipografia comunica emoção antes do conteúdo',
+    agentType: 'art',
+    frequencyWeeks: 3,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FOTOGRAFIA
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'fotografia_editorial',
+    label: 'Fotografia — Magnum, World Press Photo, Lens Culture, British Journal',
+    queries: [
+      'World Press Photo 2025 winners visual storytelling analysis',
+      'Magnum Photos 2025 best photography documentary style',
+      'Lens Culture awards 2025 outstanding photography direction',
+      'British Journal of Photography 2025 emerging photographers',
+      'photography direction advertising campaigns 2025 lighting',
+      'portrait photography trends 2025 lighting techniques',
+      'lifestyle photography advertising 2025 authentic direction',
+      'food photography trends 2025 styling direction',
+    ],
+    extractionFocus: 'estilos fotográficos premiados, técnicas de direção de fotografia, iluminação, composição, styling, como técnicas documentais aplicam em publicidade',
+    agentType: 'art',
+    frequencyWeeks: 3,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // CINEMA & CINEMATOGRAFIA
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'cinema_cinematografia',
+    label: 'Cinema — ASC, No Film School, A24, Criterion, Sundance',
+    queries: [
+      'best cinematography 2025 ASC awards visual style analysis',
+      'A24 film aesthetics 2025 visual language color grading',
+      'No Film School cinematography techniques 2025 commercial',
+      'Sundance 2025 best visual films direction analysis',
+      'Cannes Palme d\'Or 2025 visual direction cinematography',
+      'Oscar nominated cinematography 2025 techniques analysis',
+      'color grading trends 2025 film commercial video',
+      'short film advertising best director techniques 2025',
+    ],
+    extractionFocus: 'técnicas cinematográficas aplicáveis em vídeo curto/Reels, color grading dominante, movimentos de câmera, iluminação, estilos visuais que estão sendo premiados',
     agentType: 'art',
     frequencyWeeks: 4,
   },
 
-  // ── Comportamento e Psicologia ──────────────────────────────────────────────
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // MOTION, ANIMAÇÃO & IDENTIDADE EM MOVIMENTO
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'motion_animacao',
+    label: 'Motion Design — Motionographer, Stash, Art of the Title',
+    queries: [
+      'Motionographer best motion design 2025 advertising',
+      'Stash Magazine motion design trends 2025 commercial',
+      'Art of the Title best title sequences 2025 technique',
+      'motion graphics trends advertising 2025 social media',
+      'animation advertising campaigns 2025 visual style',
+      '2D animation advertising 2025 brand campaigns',
+      'kinetic typography video 2025 advertising',
+      'after effects motion design techniques 2025 brand',
+    ],
+    extractionFocus: 'tendências em motion design, técnicas de animação para publicidade em redes sociais, motion identity, como movimento comunica emoção de marca',
+    agentType: 'art',
+    frequencyWeeks: 3,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ILUSTRAÇÃO & ARTE CONCEITUAL
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'ilustracao',
+    label: 'Ilustração — Society of Illustrators, 3x3, Grain Edit',
+    queries: [
+      'Society of Illustrators awards 2025 best illustration advertising',
+      '3x3 Magazine illustration annual 2025 trends',
+      'editorial illustration trends 2025 advertising campaigns',
+      'brand illustration style 2025 visual identity',
+      'character design advertising 2025 brand mascots',
+      'conceptual illustration advertising 2025 techniques',
+      'flat illustration vs realistic illustration advertising 2025',
+    ],
+    extractionFocus: 'tendências em ilustração para publicidade, estilos que estão ganhando, como ilustração constrói identidade de marca, técnicas de ilustração conceitual',
+    agentType: 'art',
+    frequencyWeeks: 4,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TENDÊNCIAS VISUAIS & CULTURAIS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'tendencias_visuais',
+    label: 'Tendências Visuais — Pantone, Pinterest, Adobe, Shutterstock Trends',
+    queries: [
+      'Pantone color of the year 2025 2026 brand applications meaning',
+      'Pinterest predicts 2025 visual aesthetic trends',
+      'Adobe creative trends 2025 visual communication',
+      'Shutterstock creative trends 2025 visual direction',
+      'Getty Images visual trends 2025 advertising photography',
+      'visual aesthetic trends Instagram TikTok 2025',
+      'color palette trends branding 2025 2026',
+      'AI visual generation style trends advertising 2025',
+    ],
+    extractionFocus: 'tendências de cor, estética, composição, paletas emergentes, estilos visuais em ascensão ou declínio, como aplicar em publicidade',
+    agentType: 'art',
+    frequencyWeeks: 3,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // MODA & LIFESTYLE (REFERÊNCIAS VISUAIS)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'moda_lifestyle',
+    label: 'Moda e Lifestyle como Referência Visual — Vogue, Dazed, i-D, System',
+    queries: [
+      'Vogue Italia editorial photography direction 2025',
+      'fashion advertising campaigns 2025 visual direction analysis',
+      'Dazed magazine visual aesthetic 2025 art direction',
+      'i-D magazine photography 2025 editorial style',
+      'luxury brand advertising visual direction 2025',
+      'fashion week advertising campaigns 2025 visual trends',
+      'lifestyle brand photography 2025 direction composition',
+      'high fashion advertising editorial 2025 art direction',
+    ],
+    extractionFocus: 'estética visual da moda aplicável a publicidade, direção de arte de editorial, paletas, composição, iluminação, como moda de ponta influencia publicidade geral',
+    agentType: 'art',
+    frequencyWeeks: 4,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ARQUITETURA & ESPAÇO (REFERÊNCIAS VISUAIS)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'arquitetura_espaco',
+    label: 'Arquitetura e Espaço — Dezeen, ArchDaily, Wallpaper*',
+    queries: [
+      'Dezeen best architecture 2025 visual aesthetic spaces',
+      'Wallpaper magazine design awards 2025 interior visual trends',
+      'ArchDaily visual design 2025 space photography',
+      'interior design trends 2025 advertising set design',
+      'retail store design 2025 brand experience visual',
+      'spatial design advertising installations 2025',
+    ],
+    extractionFocus: 'tendências de espaço e ambiente como referência para set design, composição e paleta, como arquitetura e design de interiores influenciam estética visual publicitária',
+    agentType: 'art',
+    frequencyWeeks: 5,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ARTE CONTEMPORÂNEA
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'arte_contemporanea',
+    label: 'Arte Contemporânea — Artsy, frieze, MoMA, Tate, Venice Biennale',
+    queries: [
+      'Venice Biennale 2025 contemporary art visual trends',
+      'frieze art fair 2025 artists visual direction',
+      'MoMA contemporary art exhibitions 2025 visual language',
+      'Tate Modern 2025 exhibitions visual aesthetics',
+      'contemporary art advertising crossover 2025',
+      'art Basel 2025 visual trends collectors market',
+      'contemporary Brazilian art international 2025',
+      'Pinacoteca São Paulo Itaú Cultural 2025 visual art',
+    ],
+    extractionFocus: 'tendências da arte contemporânea que influenciam publicidade, movimentos artísticos sendo absorvidos por marcas, como arte de galeria migra para visual de marca',
+    agentType: 'art',
+    frequencyWeeks: 5,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // CULTURA VISUAL BRASILEIRA
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {
+    category: 'cultura_visual_br',
+    label: 'Cultura Visual Brasileira — Itaú Cultural, Casa Vogue, Zupi, SET',
+    queries: [
+      'Itaú Cultural exposições arte 2025 visual brasileiro',
+      'Casa Vogue Brasil tendências estéticas 2025',
+      'Zupi design gráfico brasileiro tendências 2025',
+      'fotografia brasileira contemporânea 2025 referências',
+      'design brasileiro premiado internacionalmente 2025',
+      'estética urbana brasileira São Paulo Rio 2025',
+      'cultura visual periférica brasil publicidade 2025',
+      'grafite arte de rua brasil publicidade 2025',
+    ],
+    extractionFocus: 'referências visuais genuinamente brasileiras, estética que ressoa com consumidor local, como cultura popular brasileira aparece em publicidade de impacto',
+    agentType: 'art',
+    frequencyWeeks: 3,
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // COMPORTAMENTO & PSICOLOGIA DO CONSUMO
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   {
     category: 'comportamento',
-    label: 'Psicologia do Consumo e Neuromarketing',
+    label: 'Psicologia do Consumo, Neuromarketing e Economia Comportamental',
     queries: [
       'neuromarketing advertising effectiveness research 2025',
-      'behavioral economics marketing 2025 insights',
-      'consumer psychology advertising what works research',
-      'attention economy social media behavior 2025',
-      'emotional marketing effectiveness research 2025',
-      'decision making heuristics advertising research',
+      'behavioral economics consumer decision making 2025',
+      'attention economy social media behavior research 2025',
+      'emotional advertising effectiveness neuroscience 2025',
+      'Kahneman system 1 system 2 advertising application 2025',
+      'loss aversion marketing effectiveness research',
+      'social proof mechanisms advertising effectiveness 2025',
+      'consumer psychology visual processing advertising',
     ],
-    extractionFocus: 'descobertas sobre como o cérebro processa publicidade, gatilhos psicológicos comprovados, heurísticas de decisão, o que move o consumidor',
+    extractionFocus: 'descobertas sobre como o cérebro processa publicidade, gatilhos psicológicos comprovados por pesquisa, heurísticas de decisão, o que realmente move o comportamento',
     agentType: 'copy',
     frequencyWeeks: 3,
   },
 
-  // ── Cinema e Fotografia ─────────────────────────────────────────────────────
-  {
-    category: 'cinema_foto',
-    label: 'Cinema, Fotografia e Referências Visuais',
-    queries: [
-      'best cinematography 2025 visual style analysis',
-      'A24 visual aesthetics 2025 films',
-      'World Press Photo 2025 winners documentary photography',
-      'short film advertising visual storytelling 2025',
-      'photography direction advertising campaigns 2025',
-      'motion graphics trends video advertising 2025',
-    ],
-    extractionFocus: 'estilos visuais de referência, técnicas cinematográficas aplicáveis a vídeo curto/Reels, direção de fotografia, composição de cena',
-    agentType: 'art',
-    frequencyWeeks: 4,
-  },
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // SETORES ESPECÍFICOS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  // ── Setor Financeiro / Fintech ──────────────────────────────────────────────
   {
     category: 'setor_financeiro',
     label: 'Marketing Setor Financeiro',

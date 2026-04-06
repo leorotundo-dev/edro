@@ -1,5 +1,5 @@
 ---
-description: "MOC de direção de arte — mapa de todo o conhecimento visual do JARVIS"
+description: "MOC de arte — mapa de todo o conhecimento de direção de arte do JARVIS"
 tags: [arte, moc, visual, design]
 ---
 
@@ -10,6 +10,9 @@ tags: [arte, moc, visual, design]
 - [[composicao-e-hierarquia]] — Gestalt, regra dos terços, fluxo visual, F-pattern, Z-pattern. **Crítico.**
 - [[cor-e-emocao]] — Psicologia das cores por setor e objetivo emocional.
 - [[tipografia-expressiva]] — Como fonte, peso e espaçamento comunicam antes das palavras.
+- [[mestres-visuais]] — Cartier-Bresson, Avedon, Salgado, Kubrick, Deakins, Lubezki, Saul Bass, Paul Rand. O cânone visual.
+- [[movimentos-esteticos]] — Bauhaus, Swiss Style, A24, Dark Academia, Y2K, Quiet Luxury, Solarpunk. DNA de cada estética.
+- [[referencias-cinematograficas]] — Color grading, movimentos de câmera, estilos cinematográficos aplicados em Reels.
 
 ## Por Contexto de Tarefa
 
