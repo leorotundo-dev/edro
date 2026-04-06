@@ -381,23 +381,23 @@ export default function OperationsOverviewClient() {
                   {[
                     {
                       key: 'portal',
-                      eyebrow: 'Entrada do cliente',
-                      title: pendingRequests.length ? `${pendingRequests.length} pedido(s) chegaram` : 'Nenhum pedido novo agora',
+                      eyebrow: 'Solicitações novas',
+                      title: pendingRequests.length ? `${pendingRequests.length} pedido(s) no portal` : 'Nenhum pedido novo agora',
                       subtitle: pendingRequests.length
                         ? pendingRequests.slice(0, 3).map((request) => request.client_name).join(' · ')
                         : 'A bandeja de solicitações está limpa neste momento.',
                       href: '/admin/solicitacoes',
-                      cta: 'Abrir solicitações',
+                      cta: 'Abrir portal',
                     },
                     {
                       key: 'creative',
-                      eyebrow: 'Handoff criativo',
+                      eyebrow: 'Criativo em espera',
                       title: copyQueue.length ? `${copyQueue.length} demanda(s) prontas para copy` : 'Sem fila de copy agora',
                       subtitle: approvalQueue.length
                         ? `${approvalQueue.length} demanda(s) em aprovação ou revisão criativa`
                         : 'Nenhuma demanda está parada em aprovação criativa.',
                       href: '/admin/operacoes/ia',
-                      cta: 'Abrir handoff',
+                      cta: 'Abrir handoff criativo',
                     },
                     {
                       key: 'digest',
@@ -455,9 +455,6 @@ export default function OperationsOverviewClient() {
                   <Button variant="contained" component={Link} href="/admin/operacoes/jobs?unassigned=true">
                     Resolver sem dono
                   </Button>
-                  <Button variant="outlined" component={Link} href="/admin/operacoes/ia">
-                    Handoff criativo
-                  </Button>
                   <Button variant="outlined" component={Link} href="/admin/operacoes/semana?view=distribution">
                     Replanejar semana
                   </Button>
@@ -478,7 +475,7 @@ export default function OperationsOverviewClient() {
             <Stack spacing={2.5}>
               <OpsPanel
                 eyebrow="Fila curta do dia"
-                title="O que precisa de ação agora"
+                title="Triagem imediata"
                 subtitle="Três listas curtas para resolver sem trocar de tela: dono, prazo imediato e retorno do cliente."
               >
                 {[
