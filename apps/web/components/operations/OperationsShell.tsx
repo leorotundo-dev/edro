@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { OPS_COPY } from './copy';
-import OperationsJarvisDrawer from './OperationsJarvisDrawer';
+import { useJarvis } from '@/contexts/JarvisContext';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -85,8 +85,8 @@ export default function OperationsShell({
   subtitleOverride?: string;
 }) {
   const router = useRouter();
+  const { open: openJarvis } = useJarvis();
   const [commandInput, setCommandInput] = useState('');
-  const [jarvisOpen, setJarvisOpen] = useState(false);
   const copy = SECTION_COPY[section];
   const title = titleOverride || copy.title;
   const subtitle = subtitleOverride || copy.subtitle;
@@ -236,7 +236,7 @@ export default function OperationsShell({
               />
               <Button
                 variant="outlined"
-                onClick={() => setJarvisOpen(true)}
+                onClick={() => openJarvis()}
                 startIcon={<IconBrain size={16} />}
                 sx={{
                   minHeight: 36,
@@ -267,9 +267,6 @@ export default function OperationsShell({
       <Box>
         {children}
       </Box>
-
-      {/* Operations Jarvis Drawer */}
-      <OperationsJarvisDrawer open={jarvisOpen} onClose={() => setJarvisOpen(false)} />
     </AppShell>
   );
 }

@@ -20,6 +20,7 @@ import {
   IconRefresh,
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
+import AskJarvisButton from '@/components/jarvis/AskJarvisButton';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
@@ -850,7 +851,34 @@ export default function OperationsOverviewClient() {
                   </Grid>
                 ) : null
               }
-              sections={[]}
+              sections={
+                selectedJob
+                  ? [
+                      {
+                        title: 'Jarvis nesta demanda',
+                        content: (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <AskJarvisButton
+                              message={`Resuma a demanda "${selectedJob.title}" do cliente "${selectedJob.client_name || 'Sem cliente'}" e me diga o próximo passo operacional.`}
+                              label="Resumir"
+                              variant="outlined"
+                            />
+                            <AskJarvisButton
+                              message={`Transforme a demanda "${selectedJob.title}" do cliente "${selectedJob.client_name || 'Sem cliente'}" em briefing e próximos passos.`}
+                              label="Virar briefing"
+                              variant="outlined"
+                            />
+                            <AskJarvisButton
+                              message={`Gere o copy inicial da demanda "${selectedJob.title}" do cliente "${selectedJob.client_name || 'Sem cliente'}".`}
+                              label="Gerar copy"
+                              variant="outlined"
+                            />
+                          </Stack>
+                        ),
+                      },
+                    ]
+                  : []
+              }
             />
           </Grid>
         </Grid>

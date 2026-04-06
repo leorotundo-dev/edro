@@ -41,6 +41,7 @@ import Collapse from '@mui/material/Collapse';
 import LinearProgress from '@mui/material/LinearProgress';
 import Tooltip from '@mui/material/Tooltip';
 import { IconShieldCheck, IconChevronDown, IconChevronUp, IconBolt, IconCheck, IconX as IconXMark } from '@tabler/icons-react';
+import AskJarvisButton from '@/components/jarvis/AskJarvisButton';
 import {
   AutomationPipeline,
   BlockReason,
@@ -1798,6 +1799,51 @@ export default function JobWorkbenchDrawer({
                         Ver calendario
                       </Button>
                     ) : null}
+                  </Stack>
+                </Stack>
+              </Box>
+              <Box
+                sx={(theme) => ({
+                  p: 1.5,
+                  borderRadius: 2.5,
+                  border: '1px solid',
+                  borderColor: alpha(theme.palette.warning.main, 0.18),
+                  bgcolor: alpha(theme.palette.warning.main, 0.05),
+                })}
+              >
+                <Stack spacing={1.25}>
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 900, color: 'warning.dark', letterSpacing: 0.45 }}>
+                      JARVIS NESTA DEMANDA
+                    </Typography>
+                    <Typography variant="body2" fontWeight={700}>
+                      Use o Jarvis no contexto certo, sem sair do workspace
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      O Jarvis não é uma etapa da demanda. Ele entra aqui para resumir, virar briefing, gerar copy ou preparar aprovação.
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <AskJarvisButton
+                      message={`Resuma a demanda "${detailJob.title}" do cliente "${detailJob.client_name || 'Sem cliente'}" e me diga o próximo passo operacional.`}
+                      label="Resumir demanda"
+                      variant="outlined"
+                    />
+                    <AskJarvisButton
+                      message={`Transforme a demanda "${detailJob.title}" do cliente "${detailJob.client_name || 'Sem cliente'}" em um briefing objetivo para a equipe executar.`}
+                      label="Virar briefing"
+                      variant="outlined"
+                    />
+                    <AskJarvisButton
+                      message={`Gere o copy inicial e a direção criativa da demanda "${detailJob.title}" do cliente "${detailJob.client_name || 'Sem cliente'}".`}
+                      label="Gerar copy"
+                      variant="outlined"
+                    />
+                    <AskJarvisButton
+                      message={`Prepare a aprovação da demanda "${detailJob.title}" para o cliente, com resumo do que foi feito e do que precisa ser validado.`}
+                      label="Preparar aprovação"
+                      variant="outlined"
+                    />
                   </Stack>
                 </Stack>
               </Box>

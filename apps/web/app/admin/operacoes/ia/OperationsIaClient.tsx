@@ -23,6 +23,7 @@ import {
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import AskJarvisButton from '@/components/jarvis/AskJarvisButton';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 import {
   formatDateTime,
@@ -184,8 +185,8 @@ export default function OperationsIaClient() {
   return (
     <OperationsShell
       section="jobs"
-      titleOverride="Handoff criativo"
-      subtitleOverride="Demandas que precisam de briefing, copy ou aprovação dentro da pauta."
+      titleOverride="Pauta Geral · Handoff criativo"
+      subtitleOverride="Recorte salvo da pauta para briefing, copy e aprovação, sem criar um fluxo paralelo."
       summary={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Chip label={`${totalInFlow} itens na bandeja`} size="small" />
@@ -209,21 +210,24 @@ export default function OperationsIaClient() {
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} justifyContent="space-between">
             <Box>
               <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 900, letterSpacing: '0.18em' }}>
-                HANDOFF CRIATIVO
+                RECORTE DA PAUTA GERAL
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, mt: 0.4 }}>
-                Briefing, copy e aprovação dentro da pauta
+                Handoff criativo dentro da carteira
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 760, mt: 0.8 }}>
-                Essa área lê direto o Trello dentro da Central: tudo que está aguardando briefing, infos,
-                redação ou aprovação aparece aqui como recorte operacional da pauta, sem criar um fluxo paralelo.
+                Isso não é um sistema à parte. É só a parte da pauta que, neste momento, pede briefing,
+                copy, revisão criativa ou aprovação. Tudo continua vindo do mesmo Trello e da mesma carteira operacional.
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+              <Button component={Link} href="/admin/operacoes/jobs?view=table&group=client" variant="contained">
+                Abrir pauta geral
+              </Button>
               <Button component={Link} href="/admin/operacoes/jobs?view=table" variant="outlined">
                 Abrir banco mestre
               </Button>
-              <Button component={Link} href="/studio/editor" variant="contained">
+              <Button component={Link} href="/studio/editor" variant="outlined">
                 Abrir Studio
               </Button>
             </Stack>
@@ -404,6 +408,17 @@ export default function OperationsIaClient() {
                                         {getPrimaryActionLabel(lane.key)}
                                       </Button>
                                     ) : null}
+                                    <AskJarvisButton
+                                      message={
+                                        lane.key === 'copy_ready'
+                                          ? `Resolva a direção criativa e gere o copy inicial da demanda "${job.title}" do cliente "${job.client_name || 'Sem cliente'}".`
+                                          : lane.key === 'approval'
+                                            ? `Resuma a demanda "${job.title}" e prepare a aprovação ou o ajuste que precisa voltar para o cliente.`
+                                            : `Leia a demanda "${job.title}" do cliente "${job.client_name || 'Sem cliente'}" e diga o próximo passo operacional e criativo.`
+                                      }
+                                      label="Jarvis"
+                                      variant="outlined"
+                                    />
                                   </Stack>
                                 </Stack>
                               </Paper>
