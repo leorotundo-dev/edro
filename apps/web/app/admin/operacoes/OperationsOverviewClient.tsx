@@ -41,13 +41,6 @@ import {
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
 
-const FLOW_COLUMNS = [
-  { key: 'entrada', label: 'Entrada', color: '#5D87FF', stages: ['intake', 'planned', 'ready'] },
-  { key: 'producao', label: 'Produção', color: '#E85219', stages: ['allocated', 'in_progress', 'in_review'] },
-  { key: 'esperando', label: 'Esperando', color: '#FFAE1F', stages: ['awaiting_approval', 'approved', 'scheduled', 'blocked'] },
-  { key: 'entregue', label: 'Entregue', color: '#13DEB9', stages: ['published', 'done'] },
-] as const;
-
 type LatestDigest = {
   id: string;
   type: 'daily' | 'weekly';
@@ -260,14 +253,39 @@ export default function OperationsOverviewClient() {
       esperandoClienteJobs.length,
     ]
   );
-  const flowColumns = useMemo(() => {
-    return FLOW_COLUMNS.map((column) => {
-      const items = jobs
-        .filter((job) => job.status !== 'archived' && column.stages.some((stage) => stage === job.status))
-        .sort(sortByOperationalPriority);
-      return { ...column, items };
-    });
-  }, [jobs]);
+  const overviewColumns = useMemo(
+    () => [
+      {
+        key: 'pegando_fogo',
+        label: 'Pegando fogo',
+        color: '#FA896B',
+        subtitle: 'Demandas críticas do Trello',
+        items: criticalJobs,
+      },
+      {
+        key: 'vence_hoje',
+        label: 'Vence hoje',
+        color: '#5D87FF',
+        subtitle: 'Demandas com prazo imediato',
+        items: todayJobs,
+      },
+      {
+        key: 'sem_dono',
+        label: 'Sem dono',
+        color: '#FFAE1F',
+        subtitle: 'Demandas sem responsável',
+        items: unassignedJobs,
+      },
+      {
+        key: 'esperando_cliente',
+        label: 'Esperando cliente',
+        color: '#13DEB9',
+        subtitle: 'Aprovações e retornos pendentes',
+        items: [...overviewRuntime.approvals].sort(sortByOperationalPriority),
+      },
+    ],
+    [criticalJobs, overviewRuntime.approvals, todayJobs, unassignedJobs]
+  );
 
   return (
     <OperationsShell
@@ -491,7 +509,7 @@ export default function OperationsOverviewClient() {
             <OpsPanel
               eyebrow="Pauta Geral"
               title="Como a carteira está andando"
-              subtitle="Acompanhe entrada, produção, espera e entrega sem dividir a atenção com painéis laterais. Aqui a operação lê o Trello em linguagem de agência."
+              subtitle="A leitura abaixo espelha os mesmos critérios do topo: risco, prazo, dono e espera do cliente, agora com as demandas do Trello separadas em colunas."
               action={
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip size="small" variant="outlined" label={`${jobs.length} demandas ativas`} />
@@ -507,7 +525,7 @@ export default function OperationsOverviewClient() {
                     gap: 1.5,
                   }}
                 >
-                  {flowColumns.map((column) => (
+                  {overviewColumns.map((column) => (
                     <Box
                       key={column.key}
                       sx={(theme) => ({
@@ -532,9 +550,14 @@ export default function OperationsOverviewClient() {
                       >
                         <Stack direction="row" spacing={0.8} alignItems="center">
                           <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: column.color, flexShrink: 0 }} />
-                          <Typography variant="subtitle2" fontWeight={800} sx={{ color: column.color }}>
-                            {column.label}
-                          </Typography>
+                          <Box>
+                            <Typography variant="subtitle2" fontWeight={800} sx={{ color: column.color, lineHeight: 1.1 }}>
+                              {column.label}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.1 }}>
+                              {column.subtitle}
+                            </Typography>
+                          </Box>
                         </Stack>
                         <Chip
                           size="small"
@@ -638,10 +661,18 @@ export default function OperationsOverviewClient() {
                               <Button
                                 size="small"
                                 component={Link}
-                                href={`/admin/operacoes/jobs?group=status&highlight=${column.items[0]?.id ?? ''}`}
+                                href={
+                                  column.key === 'pegando_fogo'
+                                    ? '/admin/operacoes/radar'
+                                    : column.key === 'vence_hoje'
+                                      ? '/admin/operacoes/jobs?group=status'
+                                      : column.key === 'sem_dono'
+                                        ? '/admin/operacoes/jobs?unassigned=true'
+                                        : '/admin/operacoes/jobs'
+                                }
                                 sx={{ alignSelf: 'flex-start', px: 0.2, fontWeight: 700, color: column.color }}
                               >
-                                +{column.items.length - 3} mais na pauta
+                                +{column.items.length - 3} mais nesta coluna
                               </Button>
                             ) : null}
                           </>
