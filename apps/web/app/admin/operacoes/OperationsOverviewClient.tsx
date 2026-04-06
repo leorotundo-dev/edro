@@ -474,13 +474,12 @@ export default function OperationsOverviewClient() {
             </OpsPanel>
           </Grid>
 
-          <Grid size={{ xs: 12, lg: 3 }}>
+          <Grid size={{ xs: 12, lg: 4 }}>
             <Stack spacing={2.5}>
-              {/* Card: Sem responsável */}
               <OpsPanel
-                eyebrow="O QUE ENTROU"
-                title="Demandas para organizar"
-                subtitle="Itens que ainda precisam de responsável, prazo ou decisão."
+                eyebrow="Fila curta do dia"
+                title="O que precisa de ação agora"
+                subtitle="Três listas curtas para resolver sem trocar de tela: dono, prazo imediato e retorno do cliente."
               >
                 {[
                   {
@@ -560,7 +559,7 @@ export default function OperationsOverviewClient() {
             </Stack>
           </Grid>
 
-          <Grid size={{ xs: 12, lg: 4 }}>
+          <Grid size={{ xs: 12, lg: 8 }}>
             <OperationsContextRail
               job={selectedJob}
               eyebrow={OPS_COPY.common.contextEyebrow}
