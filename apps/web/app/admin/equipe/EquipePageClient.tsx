@@ -367,13 +367,35 @@ function FreelancerContacts({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'deliverable' | 'blocked' | 'missing_number' | 'pending'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ContactForm>(EMPTY_CONTACT_FORM);
   const [saving, setSaving] = useState(false);
 
+  const deliverableCount = freelancers.filter((fl) => fl.is_active && fl.whatsapp_delivery?.deliverable_now).length;
+  const blockedCount = freelancers.filter((fl) => fl.is_active && fl.whatsapp_delivery?.meta_blocked).length;
+  const missingNumberCount = freelancers.filter((fl) => fl.is_active && !fl.whatsapp_delivery?.has_number).length;
+  const pendingCount = freelancers.filter(
+    (fl) => fl.is_active && !fl.whatsapp_delivery?.deliverable_now && !fl.whatsapp_delivery?.meta_blocked && Boolean(fl.whatsapp_delivery?.has_number),
+  ).length;
+
   const filtered = freelancers.filter((fl) => {
-    if (!search.trim()) return fl.is_active;
+    if (!fl.is_active) return false;
+
+    const matchesStatus =
+      statusFilter === 'all'
+        ? true
+        : statusFilter === 'deliverable'
+        ? Boolean(fl.whatsapp_delivery?.deliverable_now)
+        : statusFilter === 'blocked'
+        ? Boolean(fl.whatsapp_delivery?.meta_blocked)
+        : statusFilter === 'missing_number'
+        ? !Boolean(fl.whatsapp_delivery?.has_number)
+        : !Boolean(fl.whatsapp_delivery?.deliverable_now) && !Boolean(fl.whatsapp_delivery?.meta_blocked) && Boolean(fl.whatsapp_delivery?.has_number);
+
+    if (!matchesStatus) return false;
     const q = search.toLowerCase();
+    if (!search.trim()) return true;
     return (
       fl.display_name.toLowerCase().includes(q) ||
       fl.email?.toLowerCase().includes(q) ||
@@ -466,26 +488,43 @@ function FreelancerContacts({
   return (
     <Stack spacing={2}>
       {/* Search */}
-      <TextField
-        size="small"
-        placeholder="Buscar por nome, email, especialidade, departamento..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <IconSearch size={16} />
-              </InputAdornment>
-            ),
-          },
-        }}
-        sx={{ maxWidth: 420 }}
-      />
+      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.25} alignItems={{ xs: 'stretch', lg: 'center' }} justifyContent="space-between">
+        <TextField
+          size="small"
+          placeholder="Buscar por nome, email, especialidade, departamento..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <IconSearch size={16} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{ maxWidth: 420 }}
+        />
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={statusFilter}
+          onChange={(_, value) => {
+            if (value) setStatusFilter(value);
+          }}
+          sx={{ flexWrap: 'wrap', gap: 0.75 }}
+        >
+          <ToggleButton value="all">Todos</ToggleButton>
+          <ToggleButton value="deliverable">Entregáveis ({deliverableCount})</ToggleButton>
+          <ToggleButton value="blocked">Meta bloqueia ({blockedCount})</ToggleButton>
+          <ToggleButton value="missing_number">Sem número ({missingNumberCount})</ToggleButton>
+          <ToggleButton value="pending">Pendentes ({pendingCount})</ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
 
       {filtered.length === 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-          {search ? 'Nenhum resultado encontrado.' : 'Nenhum freelancer ativo.'}
+          {search || statusFilter !== 'all' ? 'Nenhum resultado encontrado.' : 'Nenhum freelancer ativo.'}
         </Typography>
       )}
 
