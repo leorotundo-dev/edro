@@ -43,6 +43,23 @@ const SCORE_MAX = 1.00;
 const ARCHIVE_THRESHOLD = 0.30;
 
 let running = false;
+let referenceScoreColumnCache: 'trust_score' | 'confidence_score' | null = null;
+
+async function resolveReferenceScoreColumn(): Promise<'trust_score' | 'confidence_score'> {
+  if (referenceScoreColumnCache) return referenceScoreColumnCache;
+
+  const { rows } = await query<{ column_name: string }>(
+    `SELECT column_name
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'da_references'
+        AND column_name IN ('trust_score', 'confidence_score')`,
+  );
+
+  const available = new Set(rows.map((row) => String(row.column_name || '').toLowerCase()));
+  referenceScoreColumnCache = available.has('trust_score') ? 'trust_score' : 'confidence_score';
+  return referenceScoreColumnCache;
+}
 
 export async function runFeedbackProcessorWorkerOnce(): Promise<void> {
   if (running) return;
@@ -57,6 +74,8 @@ export async function runFeedbackProcessorWorkerOnce(): Promise<void> {
 }
 
 async function processBatch(): Promise<void> {
+  const referenceScoreColumn = await resolveReferenceScoreColumn();
+
   // Fetch unprocessed events with reference data
   const { rows: events } = await query<{
     id: string;
@@ -92,12 +111,14 @@ async function processBatch(): Promise<void> {
     const tenantId = evt.tenant_id;
     const clientId = evt.client_id ?? null;
 
-    // 1. Update global trust_score on da_references
+    // 1. Update the global reference quality column on da_references.
+    // Production still has environments where da_references lacks trust_score,
+    // so we transparently fall back to confidence_score.
     await query(
       `UPDATE da_references
-       SET trust_score = GREATEST($2, LEAST($3, trust_score + $4)),
+       SET ${referenceScoreColumn} = GREATEST($2, LEAST($3, COALESCE(${referenceScoreColumn}, 0.60) + $4)),
            status = CASE
-             WHEN GREATEST($2, LEAST($3, trust_score + $4)) < $5 THEN 'archived'
+             WHEN GREATEST($2, LEAST($3, COALESCE(${referenceScoreColumn}, 0.60) + $4)) < $5 THEN 'archived'
              ELSE status
            END,
            updated_at = now()
@@ -174,11 +195,13 @@ async function propagateToSimilarReferences(
   if (!allTags.length) return;
 
   // Update global scores for similar references (share ≥1 tag, exclude source)
+  const referenceScoreColumn = await resolveReferenceScoreColumn();
+
   await query(
     `UPDATE da_references
-     SET trust_score = GREATEST($3, LEAST($4, trust_score + $5)),
+     SET ${referenceScoreColumn} = GREATEST($3, LEAST($4, COALESCE(${referenceScoreColumn}, 0.60) + $5)),
          status = CASE
-           WHEN GREATEST($3, LEAST($4, trust_score + $5)) < $6 THEN 'archived'
+           WHEN GREATEST($3, LEAST($4, COALESCE(${referenceScoreColumn}, 0.60) + $5)) < $6 THEN 'archived'
            ELSE status
          END,
          updated_at = now()

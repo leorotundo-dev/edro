@@ -135,7 +135,7 @@ async function runAllocationPhase(): Promise<void> {
   const { rows: jobs } = await query<PendingJob>(
     `SELECT j.id, j.tenant_id, j.title, j.deadline_at, j.updated_at, j.allocated_at,
             j.status, j.owner_id,
-            c.display_name AS client_name
+            c.name AS client_name
        FROM jobs j
        LEFT JOIN edro_clients c ON c.id::text = j.client_id::text
       WHERE j.status = 'ready'
@@ -256,7 +256,7 @@ async function runMonitorPhase(): Promise<void> {
   const { rows: jobs } = await query<PendingJob>(
     `SELECT j.id, j.tenant_id, j.title, j.status, j.deadline_at,
             j.updated_at, j.allocated_at, j.owner_id,
-            c.display_name AS client_name
+            c.name AS client_name
        FROM jobs j
        LEFT JOIN edro_clients c ON c.id::text = j.client_id::text
       WHERE j.status IN ('allocated', 'in_progress')
