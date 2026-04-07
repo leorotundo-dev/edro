@@ -105,13 +105,18 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
 
   return (
     <Box
+      component={Link}
+      href={`/admin/pessoas/${encodeURIComponent(owner.id)}`}
       sx={{
+        textDecoration: 'none',
+        color: 'inherit',
         borderRadius: 3,
         border: `1px solid ${dark ? alpha('#fff', 0.08) : alpha('#000', 0.07)}`,
         bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
+        cursor: 'pointer',
         transition: 'box-shadow 0.15s, transform 0.15s',
         '&:hover': {
           boxShadow: dark ? '0 4px 24px rgba(0,0,0,0.4)' : '0 4px 24px rgba(0,0,0,0.1)',
@@ -204,28 +209,13 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
           ))}
         </Stack>
 
-        {/* CTA */}
-        <Button
-          component={Link}
-          href={`/admin/pessoas/${encodeURIComponent(owner.id)}`}
-          variant="contained"
-          fullWidth
-          endIcon={<IconArrowUpRight size={15} />}
-          sx={{
-            mt: 'auto',
-            fontWeight: 800,
-            fontSize: '0.78rem',
-            textTransform: 'none',
-            borderRadius: 2,
-            py: 0.9,
-            bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.85),
-            color: '#fff',
-            '&:hover': { bgcolor: dark ? alpha('#fff', 0.18) : '#000' },
-            boxShadow: 'none',
-          }}
-        >
-          Ver pauta
-        </Button>
+        {/* CTA row */}
+        <Stack direction="row" justifyContent="flex-end" alignItems="center" sx={{ mt: 'auto' }}>
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ opacity: 0.45, fontSize: '0.72rem', fontWeight: 700 }}>
+            <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.72rem' }}>Ver perfil</Typography>
+            <IconArrowUpRight size={13} />
+          </Stack>
+        </Stack>
       </Box>
     </Box>
   );
