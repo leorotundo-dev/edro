@@ -25,6 +25,7 @@ const securityHeaders = [
 const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   transpilePackages: ['@mui/material', '@mui/system', '@mui/lab'],
+  outputFileTracingRoot: repoRoot,
   turbopack: {
     root: repoRoot,
   },

@@ -63,7 +63,7 @@ export default function AgendaPage() {
   );
 
   const { data, isLoading } = useSWR<{ jobs?: Job[] }>('/freelancers/portal/me/jobs', swrFetcher);
-  const allJobs = data?.jobs ?? [];
+  const allJobs = useMemo(() => data?.jobs ?? [], [data?.jobs]);
 
   // Group jobs by date key YYYY-MM-DD
   const jobsByDate = useMemo(() => {

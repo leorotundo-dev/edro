@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useEffect, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { swrFetcher, apiPost, apiPatch } from '@/lib/api';
@@ -262,7 +262,7 @@ export default function StudioEditorPage({ params }: { params: Promise<{ briefin
   );
 
   const briefing = data?.briefing;
-  const versions = data?.versions ?? [];
+  const versions = useMemo(() => data?.versions ?? [], [data?.versions]);
 
   // Editor state
   const [draft, setDraft] = useState('');
@@ -296,7 +296,7 @@ export default function StudioEditorPage({ params }: { params: Promise<{ briefin
       setDraft(latest.output);
       setActiveVersionId(latest.id);
     }
-  }, [versions]);
+  }, [versions, draft, activeVersionId]);
 
   const handleSelectVersion = useCallback((v: CopyVersion) => {
     setDraft(v.output);
