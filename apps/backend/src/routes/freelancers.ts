@@ -609,6 +609,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send(
       rows.rows.map((row) => ({
         ...row,
+        avatar_url: row.avatar_generated_key
+          ? `/api/proxy/freelancers/${row.id}/avatar`
+          : (row.avatar_url ?? null),
         whatsapp_delivery: whatsappStatus.get(row.id) ?? buildWhatsAppDeliveryStatus(),
       })),
     );
@@ -855,6 +858,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send({
       profile: {
         ...profile,
+        avatar_url: profile.avatar_generated_key
+          ? `/api/proxy/freelancers/${profile.id}/avatar`
+          : (profile.avatar_url ?? null),
         whatsapp_delivery: whatsappStatus.get(profile.id) ?? buildWhatsAppDeliveryStatus(),
       },
       recentJobs: jobsRes.rows,
@@ -1359,6 +1365,39 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     } catch {
       return reply.status(404).send({ error: 'Avatar not found' });
     }
+  });
+
+  // GET /freelancers/:id/avatar — admin endpoint to serve any freelancer's avatar by fp.id
+  app.get('/freelancers/:id/avatar', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const { id } = request.params as { id: string };
+    const res = await pool.query(
+      `SELECT COALESCE(p.avatar_generated_key, fp.avatar_url) AS key,
+              p.avatar_generated_key
+         FROM freelancer_profiles fp
+         LEFT JOIN people p ON p.id = fp.person_id
+        WHERE fp.id = $1
+        LIMIT 1`,
+      [id],
+    );
+    const row = res.rows[0];
+    const generatedKey = row?.avatar_generated_key ?? null;
+    const fallback = row?.key ?? null;
+
+    if (generatedKey) {
+      try {
+        const buf = await readFile(generatedKey);
+        const ext = generatedKey.split('.').pop()?.toLowerCase() || '';
+        const ct = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        return reply.type(ct).header('Cache-Control', 'public, max-age=86400').send(buf);
+      } catch { /* fall through to URL */ }
+    }
+
+    // Fallback: if avatar_url is a full URL, redirect to it
+    if (fallback && /^https?:\/\//.test(fallback)) {
+      return reply.redirect(fallback, 302);
+    }
+
+    return reply.status(404).send({ error: 'Avatar not found' });
   });
 
   app.post('/freelancers/portal/me/avatar', async (request: any, reply) => {
