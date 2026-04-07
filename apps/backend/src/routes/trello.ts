@@ -1980,6 +1980,39 @@ export default async function trelloRoutes(app: FastifyInstance) {
     return reply.send({ suggestions: scored.slice(0, 5) });
   });
 
+  // POST /trello/ops-cards/:cardId/comments — post an internal comment
+  app.post('/trello/ops-cards/:cardId/comments', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const userId = (request.user?.sub || request.user?.id || null) as string | null;
+    const { body: commentBody } = z.object({ body: z.string().min(1).max(5000) }).parse(request.body);
+
+    // Verify card belongs to tenant
+    const { rows: cardRows } = await query<{ id: string }>(
+      `SELECT id FROM project_cards WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+
+    // Resolve author name from edro_users
+    let authorName: string | null = null;
+    if (userId) {
+      const { rows: uRows } = await query<{ name: string | null; email: string | null }>(
+        `SELECT name, email FROM edro_users WHERE id = $1 LIMIT 1`, [userId],
+      );
+      if (uRows[0]) authorName = uRows[0].name || (uRows[0].email ? uRows[0].email.split('@')[0] : null);
+    }
+
+    const { rows } = await query<{ id: string; body: string; author_name: string | null; commented_at: string }>(
+      `INSERT INTO project_card_comments (card_id, tenant_id, body, author_name)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, body, author_name, commented_at`,
+      [cardId, tenantId, commentBody, authorName],
+    );
+
+    return reply.status(201).send({ data: { ...rows[0], created_at: rows[0].commented_at } });
+  });
+
   // POST /trello/ops-cards/:cardId/assign — assign member + sync to Trello
   app.post('/trello/ops-cards/:cardId/assign', { preHandler: [authGuard] }, async (request: any, reply) => {
     const { cardId } = request.params as { cardId: string };

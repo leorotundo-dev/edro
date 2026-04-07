@@ -574,6 +574,32 @@ export default async function jobsRoutes(app: FastifyInstance) {
     };
   });
 
+  // POST /jobs/:jobId/comments
+  app.post('/jobs/:jobId/comments', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
+    const { jobId } = request.params as { jobId: string };
+    const { body: commentBody } = z.object({ body: z.string().min(1).max(5000) }).parse(request.body);
+
+    // Verify job belongs to tenant
+    const { rows: jobRows } = await query(
+      `SELECT id FROM edro_jobs WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [jobId, tenantId]
+    );
+    if (!jobRows.length) return reply.status(404).send({ error: 'Job não encontrado.' });
+
+    const { rows } = await query<{ id: string; body: string; author_id: string; created_at: string; author_name: string }>(
+      `INSERT INTO job_comments (job_id, author_id, body)
+       VALUES ($1, $2, $3)
+       RETURNING id, job_id, author_id, body, created_at,
+         (SELECT COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1))
+            FROM edro_users u WHERE u.id = $2) AS author_name`,
+      [jobId, userId, commentBody]
+    );
+
+    return reply.status(201).send({ data: rows[0] });
+  });
+
   app.post('/jobs', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const userId = ((request.user as any)?.sub || (request.user as any)?.id || null) as string | null;
