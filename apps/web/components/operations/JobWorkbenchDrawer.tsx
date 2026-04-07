@@ -34,6 +34,7 @@ import {
   IconFileText,
   IconCircleCheck,
   IconCircleX,
+  IconCalendar,
 } from '@tabler/icons-react';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import IconButton from '@mui/material/IconButton';
@@ -933,6 +934,221 @@ function StatusTimeline({ history }: { history: NonNullable<OperationsJob['histo
   );
 }
 
+/* ─── Types hoisted for use in sub-components ────────────────── */
+
+type AllocationProposal = {
+  freelancerId: string;
+  name: string;
+  specialty: string | null;
+  experienceLevel: string | null;
+  score: number;
+  estimatedMinutes: number;
+  estimatedAvailableAt: string;
+  estimatedCompletionAt: string;
+  currentActiveJobs: number;
+  maxConcurrentJobs: number;
+  punctualityScore: number | null;
+  approvalRate: number | null;
+  jobsCompleted: number;
+  rationale: string;
+  skills?: Array<{ id: string; label: string; level: string }>;
+};
+
+/* ─── Job Journey Panel (Quick View) ─────────────────────────── */
+
+const JOURNEY_STATUS_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'archived'];
+
+function JobJourneyPanel({
+  job,
+  directives,
+  quickAllocProposals,
+  onTakeOwnership,
+  onAssignOwner,
+  submitting,
+  currentUserId,
+}: {
+  job: OperationsJob;
+  directives: Array<{ id: string; directive_type: 'boost' | 'avoid'; directive: string }>;
+  quickAllocProposals: AllocationProposal[];
+  onTakeOwnership: () => void;
+  onAssignOwner: (id: string) => void;
+  submitting: boolean;
+  currentUserId?: string | null;
+}) {
+  const idx = JOURNEY_STATUS_ORDER.indexOf(job.status);
+  const past = (s: string) => idx >= JOURNEY_STATUS_ORDER.indexOf(s);
+
+  const hasAuto = Boolean(job.automation_status && job.automation_status !== 'none');
+  const briefingDone = hasAuto && job.automation_status !== 'briefing_pending';
+  const copyActive = ['copy_generating', 'copy_pending'].includes(job.automation_status ?? '');
+  const copyDone = ['copy_done', 'copy_approved'].includes(job.automation_status ?? '');
+
+  type StepDef = {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    status: 'done' | 'active' | 'pending';
+    detail: string;
+    href?: string;
+    action?: { label: string; fn: () => void };
+  };
+
+  const steps: StepDef[] = [
+    {
+      id: 'briefing',
+      label: 'Briefing do cliente',
+      icon: <IconFileText size={13} />,
+      status: briefingDone ? 'done' : hasAuto ? 'active' : 'pending',
+      detail: briefingDone ? 'Aprovado e completo' : hasAuto ? 'Aguardando aprovação' : 'Ainda não iniciado',
+      href: `/admin/operacoes/jobs/${job.id}/briefing`,
+    },
+    {
+      id: 'allocation',
+      label: 'Responsável',
+      icon: <IconUserPlus size={13} />,
+      status: job.owner_id ? 'done' : 'pending',
+      detail: job.owner_name ?? 'Sem responsável — ninguém assumiu ainda',
+      action: !job.owner_id && currentUserId ? { label: 'Assumir', fn: onTakeOwnership } : undefined,
+    },
+    {
+      id: 'copy',
+      label: 'Copy / Produção',
+      icon: <IconBrush size={13} />,
+      status: copyDone ? 'done' : copyActive ? 'active' : past('in_progress') ? 'active' : 'pending',
+      detail: copyDone ? 'Pronto para revisão' : copyActive ? 'Sendo gerado pelo Jarvis…' : past('in_progress') ? 'Em produção' : 'Não iniciado',
+      href: `/studio?jobId=${job.id}`,
+    },
+    {
+      id: 'approval',
+      label: 'Aprovação',
+      icon: <IconThumbUp size={13} />,
+      status: past('approved') ? 'done' : past('awaiting_approval') ? 'active' : 'pending',
+      detail: past('approved') ? 'Aprovado pelo cliente' : past('awaiting_approval') ? 'Aguardando aprovação do cliente' : 'Ainda não chegou aqui',
+    },
+    {
+      id: 'debrief',
+      label: 'Debriefing',
+      icon: <IconCalendar size={13} />,
+      status: past('published') ? 'done' : past('scheduled') ? 'active' : 'pending',
+      detail: past('published') ? 'Reunião realizada' : past('scheduled') ? 'Agendar com o cliente' : 'Após publicação',
+      href: past('scheduled') ? '/admin/reunioes' : undefined,
+    },
+    {
+      id: 'delivery',
+      label: 'Entrega',
+      icon: <IconCircleCheck size={13} />,
+      status: past('done') ? 'done' : past('published') ? 'active' : 'pending',
+      detail: job.status === 'done' ? 'Job concluído' : job.status === 'published' ? 'Publicado e monitorando' : 'Pendente',
+    },
+  ];
+
+  return (
+    <Stack spacing={2}>
+      {/* Journey timeline */}
+      <Box sx={{ position: 'relative', pl: 0.5 }}>
+        <Box sx={{ position: 'absolute', left: 9, top: 12, bottom: 12, width: '1px', bgcolor: 'divider' }} />
+        <Stack spacing={0}>
+          {steps.map((step) => {
+            const dotColor = step.status === 'done' ? '#13DEB9' : step.status === 'active' ? '#ff6600' : '#e4e4e7';
+            const isActive = step.status === 'active';
+            return (
+              <Stack key={step.id} direction="row" alignItems="flex-start" spacing={1.5} sx={{ py: 1.1, position: 'relative' }}>
+                <Box sx={{
+                  width: 20, height: 20, borderRadius: '50%', bgcolor: dotColor, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.15, zIndex: 1,
+                  boxShadow: isActive ? '0 0 0 3px rgba(255,102,0,0.18)' : 'none',
+                }}>
+                  {step.status === 'done' && <IconCheck size={11} color="#fff" />}
+                  {step.status === 'active' && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#fff' }} />}
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography
+                        variant="body2"
+                        fontWeight={isActive ? 800 : step.status === 'done' ? 600 : 500}
+                        sx={{ color: step.status === 'pending' ? 'text.disabled' : 'text.primary', fontSize: '0.8rem', lineHeight: 1.3 }}
+                      >
+                        {step.label}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: isActive ? '#ff6600' : 'text.secondary', fontWeight: isActive ? 700 : 400, fontSize: '0.72rem' }}
+                      >
+                        {step.detail}
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, mt: 0.15 }}>
+                      {step.action && (
+                        <Button size="small" variant="outlined" onClick={step.action.fn} disabled={submitting}
+                          sx={{ fontSize: '0.68rem', py: 0.25, px: 0.75, minWidth: 'unset', lineHeight: 1.4 }}>
+                          {step.action.label}
+                        </Button>
+                      )}
+                      {step.href && !step.action && (
+                        <Button component={Link} href={step.href} size="small" variant="text"
+                          sx={{ fontSize: '0.68rem', py: 0.25, px: 0.75, minWidth: 'unset', color: isActive ? '#ff6600' : 'primary.main', lineHeight: 1.4 }}>
+                          Abrir →
+                        </Button>
+                      )}
+                    </Stack>
+                  </Stack>
+                  {/* Inline allocation proposals under Responsável */}
+                  {step.id === 'allocation' && !job.owner_id && quickAllocProposals.length > 0 && (
+                    <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }} flexWrap="wrap" useFlexGap>
+                      {quickAllocProposals.map((p) => (
+                        <Button key={p.freelancerId} size="small" variant="outlined" onClick={() => onAssignOwner(p.freelancerId)} disabled={submitting}
+                          sx={{ fontSize: '0.65rem', py: 0.125, px: 0.75, minWidth: 'unset', borderColor: 'rgba(232,82,25,0.4)', color: '#E85219' }}>
+                          ★ Alocar {p.name.split(' ')[0]}
+                        </Button>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+              </Stack>
+            );
+          })}
+        </Stack>
+      </Box>
+
+      {/* Radar de Comunicação */}
+      {directives.length > 0 && (
+        <Box sx={(theme) => ({
+          p: 1.5, borderRadius: 2,
+          border: `1px solid ${alpha(theme.palette.warning.main, 0.25)}`,
+          bgcolor: alpha(theme.palette.warning.main, 0.04),
+        })}>
+          <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.75 }}>
+            <IconShieldCheck size={13} color="#E85219" />
+            <Typography variant="caption" fontWeight={900} sx={{ color: '#E85219', textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: 0.5 }}>
+              Radar de Comunicação · {directives.length} {directives.length === 1 ? 'regra' : 'regras'} ativas
+            </Typography>
+          </Stack>
+          <Stack spacing={0.35}>
+            {directives.slice(0, 4).map((d) => (
+              <Typography key={d.id} variant="caption" sx={{ fontSize: '0.7rem', lineHeight: 1.4, color: d.directive_type === 'boost' ? 'success.dark' : 'error.dark' }}>
+                {d.directive_type === 'boost' ? '✅' : '🚫'} {d.directive}
+              </Typography>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
+      {/* Quick links */}
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        <Button component={Link} href={`/studio?jobId=${job.id}`} size="small" variant="outlined" startIcon={<IconBrush size={14} />} sx={{ fontSize: '0.72rem' }}>
+          Abrir Studio
+        </Button>
+        {job.client_id && (
+          <Button component={Link} href={`/clients/${job.client_id}`} size="small" variant="outlined" sx={{ fontSize: '0.72rem' }}>
+            Ver cliente
+          </Button>
+        )}
+      </Stack>
+    </Stack>
+  );
+}
+
 export default function JobWorkbenchDrawer({
   open,
   mode,
@@ -988,23 +1204,6 @@ export default function JobWorkbenchDrawer({
     p75: number;
     confidence: 'high' | 'medium' | 'low' | 'none';
     sampleCount: number;
-  };
-  type AllocationProposal = {
-    freelancerId: string;
-    name: string;
-    specialty: string | null;
-    experienceLevel: string | null;
-    score: number;
-    estimatedMinutes: number;
-    estimatedAvailableAt: string;
-    estimatedCompletionAt: string;
-    currentActiveJobs: number;
-    maxConcurrentJobs: number;
-    punctualityScore: number | null;
-    approvalRate: number | null;
-    jobsCompleted: number;
-    rationale: string;
-    skills?: Array<{ id: string; label: string; level: string }>;
   };
   const [allocationProposals, setAllocationProposals] = useState<AllocationProposal[]>([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
@@ -1851,69 +2050,19 @@ export default function JobWorkbenchDrawer({
         {detailJob ? (
           <>
             {!isQuickView ? <Divider /> : null}
+            {isQuickView ? (
+              <JobJourneyPanel
+                job={detailJob}
+                directives={clientDirectives}
+                quickAllocProposals={quickAllocationOptions}
+                onTakeOwnership={handleTakeOwnership}
+                onAssignOwner={handleAssignOwner}
+                submitting={submitting}
+                currentUserId={currentUserId}
+              />
+            ) : null}
+            {!isQuickView ? (
             <Stack spacing={2}>
-              {isQuickView ? (
-                <Box>
-                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45 }}>
-                    QUICK VIEW
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Veja a decisao, execute o proximo passo e abra os atalhos sem entrar no editor completo.
-                  </Typography>
-                </Box>
-              ) : null}
-              {demandBriefing ? (
-                <Box
-                  sx={(theme) => ({
-                    p: 1.5,
-                    borderRadius: 2.5,
-                    border: '1px solid',
-                    borderColor: alpha(theme.palette.info.main, 0.2),
-                    bgcolor: alpha(theme.palette.info.main, 0.04),
-                  })}
-                >
-                  <Stack spacing={1.2}>
-                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-                      <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'info.main', letterSpacing: 0.45 }}>
-                          {detailJob.source === 'trello' ? 'BRIEFING DO TRELLO' : 'RESUMO DA DEMANDA'}
-                        </Typography>
-                        <Typography variant="body2" fontWeight={700}>
-                          Contexto que chegou junto com a demanda
-                        </Typography>
-                      </Box>
-                      {detailJob.metadata?.trello_url ? (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="info"
-                          component="a"
-                          href={String(detailJob.metadata.trello_url)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Abrir no Trello
-                        </Button>
-                      ) : null}
-                    </Stack>
-                    <Box
-                      sx={(theme) => ({
-                        p: 1.25,
-                        borderRadius: 2,
-                        border: '1px solid',
-                        borderColor: alpha(theme.palette.info.main, 0.12),
-                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.72) : '#fff',
-                        maxHeight: isQuickView ? 240 : 'none',
-                        overflowY: isQuickView ? 'auto' : 'visible',
-                      })}
-                    >
-                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere', lineHeight: 1.6 }}>
-                        {demandBriefing}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Box>
-              ) : null}
               <Typography variant="h6" fontWeight={800}>Painel da demanda</Typography>
               <Grid container spacing={1.5}>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -2173,6 +2322,7 @@ export default function JobWorkbenchDrawer({
                 </Box>
               ) : null}
             </Stack>
+            ) : null}
 
             {!isQuickView && detailJob.automation_status && detailJob.automation_status !== 'none' ? (
               <>

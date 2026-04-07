@@ -11,8 +11,9 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import useSWR from 'swr';
+import { useRouter } from 'next/navigation';
 import { swrFetcher } from '@/lib/api';
-import { IconTrendingUp, IconDownload, IconArrowRight } from '@tabler/icons-react';
+import { IconTrendingUp, IconDownload, IconChartBar } from '@tabler/icons-react';
 
 type Report = { id: string; period_month: string; title: string; created_at: string; pdf_url: string | null };
 
@@ -27,6 +28,7 @@ type ResultsSummary = {
 };
 
 export default function ResultadosPage() {
+  const router = useRouter();
   const { data: reportsData, isLoading: reportsLoading } = useSWR<{ reports: Report[] }>('/portal/client/reports', swrFetcher);
   // NEW endpoint — gracefully stub if not ready
   // GET /portal/client/results
@@ -108,24 +110,33 @@ export default function ResultadosPage() {
             /* Fallback: show latest report as summary */
             <Card sx={{ borderRadius: 3 }}>
               <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
                   <Box>
                     <Typography variant="h6">{latestReport.title ?? `Relatório ${latestReport.period_month}`}</Typography>
                     <Typography variant="body2" color="text.secondary">
                       Publicado em {new Date(latestReport.created_at).toLocaleDateString('pt-BR')}
                     </Typography>
                   </Box>
-                  {latestReport.pdf_url && (
+                  <Stack direction="row" spacing={1}>
                     <Button
-                      startIcon={<IconDownload size={16} />}
-                      href={latestReport.pdf_url}
-                      target="_blank"
-                      rel="noreferrer"
+                      startIcon={<IconChartBar size={16} />}
                       variant="contained"
+                      onClick={() => router.push(`/resultados/${latestReport.period_month}`)}
                     >
-                      Baixar PDF
+                      Ver relatório
                     </Button>
-                  )}
+                    {latestReport.pdf_url && (
+                      <Button
+                        startIcon={<IconDownload size={16} />}
+                        href={latestReport.pdf_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        variant="outlined"
+                      >
+                        PDF
+                      </Button>
+                    )}
+                  </Stack>
                 </Stack>
               </CardContent>
             </Card>
@@ -141,7 +152,7 @@ export default function ResultadosPage() {
                 <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
                   <Stack divider={<Divider />}>
                     {reports.map((report) => (
-                      <Box key={report.id} sx={{ px: 3, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box key={report.id} sx={{ px: 3, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                         <Box>
                           <Typography variant="subtitle2">{report.title ?? `Relatório ${report.period_month}`}</Typography>
                           <Typography variant="caption" color="text.secondary">
@@ -149,6 +160,15 @@ export default function ResultadosPage() {
                           </Typography>
                         </Box>
                         <Stack direction="row" spacing={1} alignItems="center">
+                          <Button
+                            size="small"
+                            startIcon={<IconChartBar size={14} />}
+                            variant="contained"
+                            onClick={() => router.push(`/resultados/${report.period_month}`)}
+                            sx={{ flexShrink: 0 }}
+                          >
+                            Ver relatório
+                          </Button>
                           {report.pdf_url ? (
                             <Button
                               size="small"
@@ -159,12 +179,11 @@ export default function ResultadosPage() {
                               variant="outlined"
                               sx={{ flexShrink: 0 }}
                             >
-                              Baixar PDF
+                              PDF
                             </Button>
                           ) : (
-                            <Chip label="Sem arquivo" size="small" color="default" variant="outlined" />
+                            <Chip label="Sem PDF" size="small" color="default" variant="outlined" />
                           )}
-                          <IconArrowRight size={16} color="#9ca3af" />
                         </Stack>
                       </Box>
                     ))}
