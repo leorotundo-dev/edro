@@ -1040,6 +1040,83 @@ type AllocationProposal = {
   skills?: Array<{ id: string; label: string; level: string }>;
 };
 
+/* ─── Deadline countdown ─────────────────────────────────────── */
+
+function DeadlineBar({ deadline_at, is_urgent }: { deadline_at?: string | null; is_urgent?: boolean }) {
+  if (!deadline_at) return null;
+  const daysLeft = Math.ceil((new Date(deadline_at).getTime() - Date.now()) / 86_400_000);
+  const color = daysLeft < 0 ? '#FA896B' : daysLeft <= 2 ? '#FA896B' : daysLeft <= 5 ? '#FFAE1F' : '#13DEB9';
+  const label = daysLeft < 0
+    ? `Atrasado ${Math.abs(daysLeft)}d`
+    : daysLeft === 0 ? 'Vence hoje'
+    : daysLeft === 1 ? 'Vence amanhã'
+    : `${daysLeft}d restantes`;
+
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.25} sx={(theme) => ({
+      px: 1.5, py: 0.875, borderRadius: 2,
+      bgcolor: alpha(color, 0.08),
+      border: `1px solid ${alpha(color, 0.25)}`,
+    })}>
+      <IconCalendar size={15} color={color} />
+      <Box sx={{ flex: 1 }}>
+        <Typography variant="caption" fontWeight={900} sx={{ color, display: 'block', fontSize: '0.76rem' }}>
+          {label}{is_urgent ? ' · URGENTE' : ''}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+          {new Date(deadline_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
+/* ─── Copy preview (approved draft inline) ───────────────────── */
+
+function CopyPreviewInline({ jobId }: { jobId: string }) {
+  const [draft, setDraft] = useState<Pick<CreativeDraft, 'hook_text' | 'content_text' | 'cta_text'> | null>(null);
+
+  useEffect(() => {
+    apiGet<{ data: CreativeDraft[] }>(`/jobs/${jobId}/creative-drafts`)
+      .then((res) => {
+        const approved = (res.data ?? []).find(
+          (d) => d.draft_type === 'copy' && (d.approval_status === 'approved' || d.status === 'done'),
+        );
+        if (approved) setDraft({ hook_text: approved.hook_text, content_text: approved.content_text, cta_text: approved.cta_text });
+      })
+      .catch(() => undefined);
+  }, [jobId]);
+
+  if (!draft) return null;
+
+  return (
+    <Box sx={(theme) => ({
+      mt: 0.75, p: 1.25, borderRadius: 1.5,
+      bgcolor: alpha('#13DEB9', 0.05),
+      border: `1px solid ${alpha('#13DEB9', 0.2)}`,
+    })}>
+      {draft.hook_text && (
+        <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.3, fontSize: '0.72rem', color: 'text.primary' }}>
+          {draft.hook_text}
+        </Typography>
+      )}
+      {draft.content_text && (
+        <Typography variant="caption" color="text.secondary" sx={{
+          fontSize: '0.7rem', lineHeight: 1.45,
+          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {draft.content_text}
+        </Typography>
+      )}
+      {draft.cta_text && (
+        <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mt: 0.4, fontSize: '0.68rem', color: '#13DEB9' }}>
+          CTA: {draft.cta_text}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 /* ─── Job Journey Panel (Quick View) ─────────────────────────── */
 
 const JOURNEY_STATUS_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'archived'];
@@ -1130,10 +1207,15 @@ function JobJourneyPanel({
     },
   ];
 
+  const briefingSummary = String(job.summary || '').trim();
+
   return (
     <Stack spacing={2}>
       {/* Compact kanban — change status without leaving the popup */}
       <JobFlowKanban job={job} submitting={submitting} onChange={onStatusChange} />
+
+      {/* Prazo visual */}
+      <DeadlineBar deadline_at={job.deadline_at} is_urgent={job.is_urgent} />
 
       {/* Journey timeline */}
       <Box sx={{ position: 'relative', pl: 0.5 }}>
@@ -1195,12 +1277,41 @@ function JobJourneyPanel({
                       ))}
                     </Stack>
                   )}
+                  {/* Copy preview when copy is done */}
+                  {step.id === 'copy' && copyDone && <CopyPreviewInline jobId={job.id} />}
                 </Box>
               </Stack>
             );
           })}
         </Stack>
       </Box>
+
+      {/* Briefing / contexto que chegou com a demanda */}
+      {briefingSummary && (
+        <Box sx={(theme) => ({
+          p: 1.5, borderRadius: 2,
+          border: `1px solid ${alpha(theme.palette.info.main, 0.18)}`,
+          bgcolor: alpha(theme.palette.info.main, 0.04),
+        })}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.75 }}>
+            <Typography variant="caption" fontWeight={900} sx={{ color: 'info.main', textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: 0.5 }}>
+              {job.source === 'trello' ? 'Briefing do Trello' : 'Resumo da demanda'}
+            </Typography>
+            {job.metadata?.trello_url && (
+              <Button size="small" variant="text" color="info" component="a" href={String(job.metadata.trello_url)} target="_blank" rel="noreferrer"
+                sx={{ fontSize: '0.65rem', py: 0, px: 0.5, minWidth: 'unset' }}>
+                Abrir →
+              </Button>
+            )}
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{
+            fontSize: '0.72rem', lineHeight: 1.5, whiteSpace: 'pre-line',
+            display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          }}>
+            {briefingSummary}
+          </Typography>
+        </Box>
+      )}
 
       {/* Radar de Comunicação */}
       {directives.length > 0 && (
