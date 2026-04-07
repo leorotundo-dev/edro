@@ -1733,11 +1733,13 @@ export default function JobWorkbenchDrawer({
             </Box>
           ) : detailJob ? (
             <Stack spacing={1.5}>
-              <JobFlowKanban
-                job={{ ...detailJob, ...payload, priority_band: priorityPreview.priorityBand, owner_name: selectedOwner?.name || detailJob.owner_name }}
-                submitting={submitting}
-                onChange={handleStatusChange}
-              />
+              {!isQuickView && (
+                <JobFlowKanban
+                  job={{ ...detailJob, ...payload, priority_band: priorityPreview.priorityBand, owner_name: selectedOwner?.name || detailJob.owner_name }}
+                  submitting={submitting}
+                  onChange={handleStatusChange}
+                />
+              )}
               <NextActionBar
                 job={{ ...detailJob, ...payload, priority_band: priorityPreview.priorityBand, owner_name: selectedOwner?.name || detailJob.owner_name }}
                 onPrimaryAction={progressTarget ? () => handleStatusChange(progressTarget) : undefined}
