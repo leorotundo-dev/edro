@@ -62,6 +62,7 @@ import {
   getNextAction,
   getStageIndex,
   getRisk,
+  getStageIndex,
   isIntakeComplete,
   STAGE_FLOW,
   STAGE_LABELS,
@@ -934,6 +935,91 @@ function StatusTimeline({ history }: { history: NonNullable<OperationsJob['histo
   );
 }
 
+/* ─── Compact Kanban (Quick View) ────────────────────────────── */
+
+function JobFlowKanban({
+  job,
+  submitting,
+  onChange,
+}: {
+  job: OperationsJob;
+  submitting: boolean;
+  onChange: (status: string) => void;
+}) {
+  const blocked = job.status === 'blocked';
+  const activeIndex = getStageIndex(job.status);
+  const currentListName = String(job.metadata?.list_name || '').trim();
+
+  return (
+    <Box sx={(theme) => ({
+      p: 1.25,
+      borderRadius: 2,
+      border: '1px solid',
+      borderColor: alpha(theme.palette.primary.main, 0.16),
+      bgcolor: alpha(theme.palette.primary.main, 0.03),
+    })}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45, lineHeight: 1 }}>
+          Etapa do fluxo
+        </Typography>
+        {currentListName && (
+          <Chip size="small" variant="outlined" color="primary" label={`Trello · ${currentListName}`} sx={{ fontWeight: 700, height: 18, fontSize: '0.62rem' }} />
+        )}
+        {blocked && (
+          <Chip size="small" color="warning" label="Pausado" sx={{ fontWeight: 700, height: 18, fontSize: '0.62rem' }} />
+        )}
+      </Stack>
+      <Box sx={{ overflowX: 'auto', pb: 0.25, mx: -0.25 }}>
+        <Stack direction="row" spacing={0.5} sx={{ minWidth: 'max-content', px: 0.25 }}>
+          {STAGE_FLOW.map((stage, index) => {
+            const isCurrent = job.status === stage.key;
+            const isDone = !blocked && index < activeIndex;
+            const disabled = submitting || isCurrent;
+            const dotColor = isCurrent ? '#ff6600' : isDone ? '#13DEB9' : '#e4e4e7';
+            return (
+              <Box
+                key={stage.key}
+                component="button"
+                type="button"
+                disabled={disabled}
+                onClick={() => { if (!disabled) onChange(stage.key); }}
+                sx={(theme) => ({
+                  appearance: 'none',
+                  textAlign: 'center',
+                  width: 76,
+                  flexShrink: 0,
+                  py: 0.75,
+                  px: 0.5,
+                  borderRadius: 1.5,
+                  border: '1.5px solid',
+                  borderColor: isCurrent ? '#ff6600' : isDone ? alpha('#13DEB9', 0.4) : alpha(theme.palette.text.primary, 0.1),
+                  bgcolor: isCurrent ? 'rgba(255,102,0,0.08)' : isDone ? alpha('#13DEB9', 0.06) : theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.55) : '#fff',
+                  cursor: disabled ? 'default' : 'pointer',
+                  transition: 'all 130ms ease',
+                  '&:hover': disabled ? undefined : {
+                    borderColor: '#ff6600',
+                    bgcolor: 'rgba(255,102,0,0.06)',
+                  },
+                  '&:disabled': { opacity: isCurrent ? 1 : 0.85 },
+                })}
+              >
+                <Stack spacing={0.3} alignItems="center">
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', bgcolor: dotColor, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto' }}>
+                    {isDone && <IconCheck size={9} color="#fff" />}
+                  </Box>
+                  <Typography variant="caption" sx={{ fontWeight: isCurrent ? 900 : 600, fontSize: '0.62rem', color: isCurrent ? '#ff6600' : 'text.primary', lineHeight: 1.2, display: 'block' }}>
+                    {stage.label}
+                  </Typography>
+                </Stack>
+              </Box>
+            );
+          })}
+        </Stack>
+      </Box>
+    </Box>
+  );
+}
+
 /* ─── Types hoisted for use in sub-components ────────────────── */
 
 type AllocationProposal = {
@@ -964,6 +1050,7 @@ function JobJourneyPanel({
   quickAllocProposals,
   onTakeOwnership,
   onAssignOwner,
+  onStatusChange,
   submitting,
   currentUserId,
 }: {
@@ -972,6 +1059,7 @@ function JobJourneyPanel({
   quickAllocProposals: AllocationProposal[];
   onTakeOwnership: () => void;
   onAssignOwner: (id: string) => void;
+  onStatusChange: (s: string) => void;
   submitting: boolean;
   currentUserId?: string | null;
 }) {
@@ -1044,6 +1132,9 @@ function JobJourneyPanel({
 
   return (
     <Stack spacing={2}>
+      {/* Compact kanban — change status without leaving the popup */}
+      <JobFlowKanban job={job} submitting={submitting} onChange={onStatusChange} />
+
       {/* Journey timeline */}
       <Box sx={{ position: 'relative', pl: 0.5 }}>
         <Box sx={{ position: 'absolute', left: 9, top: 12, bottom: 12, width: '1px', bgcolor: 'divider' }} />
@@ -2057,6 +2148,7 @@ export default function JobWorkbenchDrawer({
                 quickAllocProposals={quickAllocationOptions}
                 onTakeOwnership={handleTakeOwnership}
                 onAssignOwner={handleAssignOwner}
+                onStatusChange={handleStatusChange}
                 submitting={submitting}
                 currentUserId={currentUserId}
               />
