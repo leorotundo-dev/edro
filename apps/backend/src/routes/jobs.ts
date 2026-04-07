@@ -449,22 +449,26 @@ export default async function jobsRoutes(app: FastifyInstance) {
          c.profile->'brand_colors'->>0 AS client_brand_color,
          COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
          u.email AS owner_email,
+         fp_owner.avatar_url AS owner_avatar_url,
          ja.estimated_delivery_at,
          ja.queue_position,
          COALESCE(
            (SELECT jsonb_agg(jsonb_build_object(
              'user_id', eu.id,
              'name', COALESCE(NULLIF(eu.name,''), split_part(eu.email,'@',1)),
-             'email', eu.email
+             'email', eu.email,
+             'avatar_url', fp_a.avatar_url
            ) ORDER BY jassign.assigned_at)
            FROM job_assignees jassign
            JOIN edro_users eu ON eu.id = jassign.user_id
+           LEFT JOIN freelancer_profiles fp_a ON fp_a.user_id = eu.id
            WHERE jassign.job_id = j.id),
            '[]'::jsonb
          ) AS assignees
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        LEFT JOIN edro_users u ON u.id = j.owner_id
+       LEFT JOIN freelancer_profiles fp_owner ON fp_owner.user_id = j.owner_id
        LEFT JOIN job_allocations ja ON ja.job_id = j.id AND ja.allocation_kind = 'primary'
       WHERE ${where.join(' AND ')}
       ORDER BY
@@ -517,20 +521,24 @@ export default async function jobsRoutes(app: FastifyInstance) {
          c.profile->'brand_colors'->>0 AS client_brand_color,
          COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
          u.email AS owner_email,
+         fp_owner.avatar_url AS owner_avatar_url,
          COALESCE(
            (SELECT jsonb_agg(jsonb_build_object(
              'user_id', eu.id,
              'name', COALESCE(NULLIF(eu.name,''), split_part(eu.email,'@',1)),
-             'email', eu.email
+             'email', eu.email,
+             'avatar_url', fp_a.avatar_url
            ) ORDER BY jassign.assigned_at)
            FROM job_assignees jassign
            JOIN edro_users eu ON eu.id = jassign.user_id
+           LEFT JOIN freelancer_profiles fp_a ON fp_a.user_id = eu.id
            WHERE jassign.job_id = j.id),
            '[]'::jsonb
          ) AS assignees
        FROM jobs j
        LEFT JOIN clients c ON c.id = j.client_id
        LEFT JOIN edro_users u ON u.id = j.owner_id
+       LEFT JOIN freelancer_profiles fp_owner ON fp_owner.user_id = j.owner_id
       WHERE j.tenant_id = $1 AND j.id = $2
       LIMIT 1`,
       [tenantId, jobId]

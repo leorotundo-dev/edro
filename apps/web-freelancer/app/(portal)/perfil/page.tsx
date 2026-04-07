@@ -235,10 +235,10 @@ export default function PerfilPage() {
     }
   }
 
-  async function generateAvatar() {
+  async function submitAvatar(mode: 'ai' | 'direct') {
     const file = avatarFile ?? avatarInputRef.current?.files?.[0] ?? null;
     if (!file) {
-      setError((prev) => ({ ...prev, avatar: 'Selecione uma foto antes de gerar o avatar.' }));
+      setError((prev) => ({ ...prev, avatar: 'Selecione uma foto antes de continuar.' }));
       return;
     }
     setSaving((prev) => ({ ...prev, avatar: true }));
@@ -246,17 +246,22 @@ export default function PerfilPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      await apiPostFormData('/freelancers/portal/me/avatar', formData);
+      const path = mode === 'direct'
+        ? '/freelancers/portal/me/avatar?mode=direct'
+        : '/freelancers/portal/me/avatar';
+      await apiPostFormData(path, formData);
       await mutate();
       setAvatarFile(null);
       setAvatarPreview('');
       if (avatarInputRef.current) avatarInputRef.current.value = '';
     } catch (e: any) {
-      setError((prev) => ({ ...prev, avatar: e?.message ?? 'Não foi possível gerar o avatar.' }));
+      setError((prev) => ({ ...prev, avatar: e?.message ?? 'Não foi possível salvar o avatar.' }));
     } finally {
       setSaving((prev) => ({ ...prev, avatar: false }));
     }
   }
+
+  const generateAvatar = () => submitAvatar('ai');
 
   if (!profile) {
     return <div className="portal-empty"><p className="portal-card-title">Carregando perfil</p></div>;
@@ -305,7 +310,10 @@ export default function PerfilPage() {
                   setAvatarPreview(file ? URL.createObjectURL(file) : '');
                 }}
               />
-              <button type="button" className="portal-button" onClick={generateAvatar} disabled={saving.avatar}>{saving.avatar ? 'Gerando avatar...' : 'Gerar avatar'}</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="portal-button" style={{ flex: 1 }} onClick={generateAvatar} disabled={saving.avatar}>{saving.avatar ? 'Salvando...' : 'Gerar avatar IA'}</button>
+                <button type="button" className="portal-button" style={{ flex: 1, background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }} onClick={() => submitAvatar('direct')} disabled={saving.avatar}>Salvar foto diretamente</button>
+              </div>
               {error.avatar && <span style={{ fontSize: 12, color: '#FA896B' }}>{error.avatar}</span>}
             </div>
           </div>
