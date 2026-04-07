@@ -1,7 +1,7 @@
-import OperationsPeopleClient from './OperationsPeopleClient';
+import { redirect } from 'next/navigation';
 
-export const metadata = { title: 'Pessoas | Central de Operações | Edro Studio' };
+export const metadata = { title: 'Pessoas | Edro Studio' };
 
 export default function Page() {
-  return <OperationsPeopleClient />;
+  redirect('/admin/pessoas?view=colaboradores');
 }
