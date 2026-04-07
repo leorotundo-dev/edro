@@ -22,10 +22,18 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
+import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
+import LinearProgress from '@mui/material/LinearProgress';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import {
   IconArrowUpRight,
+  IconBrandWhatsapp,
   IconBriefcase,
   IconClock,
+  IconDots,
+  IconMail,
   IconSearch,
   IconUsers,
   IconUserCheck,
@@ -100,24 +108,27 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
   const pct = Math.min(100, Math.round(usage * 100));
   const hasJobs = jobs.length > 0;
 
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+
   const nameMatch = q && owner.name.toLowerCase().includes(q.toLowerCase());
   const emailMatch = q && owner.email?.toLowerCase().includes(q.toLowerCase());
   if (q && !nameMatch && !emailMatch) return null;
 
+  const previewJobs = jobs.slice(0, 3);
+  const extraJobs = jobs.length - previewJobs.length;
+
+  // bar color based on load
+  const barColor = pct >= 100 ? '#FA896B' : pct >= 85 ? '#FFAE1F' : '#13DEB9';
+
   return (
     <Box
-      component={Link}
-      href={`/admin/pessoas/${encodeURIComponent(owner.id)}`}
       sx={{
-        textDecoration: 'none',
-        color: 'inherit',
         borderRadius: 3,
         border: `1px solid ${dark ? alpha('#fff', 0.08) : alpha('#000', 0.07)}`,
         bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        cursor: 'pointer',
         transition: 'box-shadow 0.15s, transform 0.15s',
         '&:hover': {
           boxShadow: dark ? '0 4px 24px rgba(0,0,0,0.4)' : '0 4px 24px rgba(0,0,0,0.1)',
@@ -125,99 +136,173 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
         },
       }}
     >
-      {/* Avatar area — fills top */}
-      <Box sx={{ position: 'relative', bgcolor: alpha(theme.palette.primary.main, 0.06), pt: '72%' }}>
+      {/* ── Avatar (full-width) ── */}
+      <Box
+        component={Link}
+        href={`/admin/pessoas/${encodeURIComponent(owner.id)}`}
+        sx={{ textDecoration: 'none', color: 'inherit', position: 'relative', bgcolor: alpha(theme.palette.primary.main, 0.06), pt: '72%', display: 'block' }}
+      >
         <Avatar
           src={owner.avatar_url ?? undefined}
           sx={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            borderRadius: 0,
-            fontSize: '2.8rem',
-            fontWeight: 900,
-            bgcolor: alpha(theme.palette.primary.main, 0.12),
-            color: 'primary.main',
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            borderRadius: 0, fontSize: '2.8rem', fontWeight: 900,
+            bgcolor: alpha(theme.palette.primary.main, 0.12), color: 'primary.main',
           }}
         >
           {initials(owner.name)}
         </Avatar>
 
-        {/* Status badge top-right */}
+        {/* Status badge */}
         <Chip
           size="small"
           label={hasJobs ? state.label : 'Disponível'}
           sx={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            bgcolor: hasJobs ? alpha(state.color, 0.85) : alpha('#13DEB9', 0.85),
-            color: '#fff',
-            fontWeight: 800,
-            fontSize: '0.62rem',
-            height: 20,
+            position: 'absolute', bottom: 10, left: 10,
+            bgcolor: hasJobs ? alpha(state.color, 0.88) : alpha('#13DEB9', 0.88),
+            color: '#fff', fontWeight: 800, fontSize: '0.6rem', height: 20,
             backdropFilter: 'blur(4px)',
           }}
         />
+
+        {/* 3-dot menu button */}
+        <IconButton
+          size="small"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
+          sx={{
+            position: 'absolute', top: 8, right: 8,
+            bgcolor: alpha('#000', 0.35), color: '#fff', backdropFilter: 'blur(4px)',
+            width: 26, height: 26,
+            '&:hover': { bgcolor: alpha('#000', 0.55) },
+          }}
+        >
+          <IconDots size={14} />
+        </IconButton>
       </Box>
 
-      {/* Body */}
-      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1 }}>
-        {/* Name + role */}
-        <Box>
-          <Typography variant="subtitle1" fontWeight={900} sx={{ lineHeight: 1.2 }}>
-            {owner.name}
+      {/* ── Body ── */}
+      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 0, flex: 1 }}>
+        {/* Name + specialty + contact icons */}
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+          <Box
+            component={Link}
+            href={`/admin/pessoas/${encodeURIComponent(owner.id)}`}
+            sx={{ textDecoration: 'none', color: 'inherit', flex: 1, minWidth: 0 }}
+          >
+            <Typography variant="subtitle1" fontWeight={900} sx={{ lineHeight: 1.2 }} noWrap>
+              {owner.name}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }} noWrap>
+              {owner.specialty || owner.role || 'Equipe'}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={0.25} sx={{ flexShrink: 0, mt: 0.25 }}>
+            {owner.email && (
+              <Tooltip title={owner.email}>
+                <IconButton size="small" component="a" href={`mailto:${owner.email}`} onClick={(e) => e.stopPropagation()}
+                  sx={{ p: 0.5, color: 'text.disabled', '&:hover': { color: '#5D87FF' } }}>
+                  <IconMail size={14} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
+        </Stack>
+
+        <Divider sx={{ my: 1.5 }} />
+
+        {/* Position */}
+        <Box sx={{ mb: 1.5 }}>
+          <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'text.disabled', display: 'block', mb: 0.3 }}>
+            Posição
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
-            {owner.specialty || owner.role || 'Equipe'}
+          <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem' }} noWrap>
+            {owner.specialty || owner.role || '—'}
           </Typography>
         </Box>
 
-        {/* Stats row */}
-        <Stack
-          direction="row"
-          divider={<Box sx={{ width: '1px', bgcolor: 'divider', my: 0.25 }} />}
-          sx={{
-            borderRadius: 2,
-            border: `1px solid ${theme.palette.divider}`,
-            overflow: 'hidden',
-          }}
-        >
-          {[
-            { icon: <IconBriefcase size={13} />, value: hasJobs ? String(jobs.length) : '0', label: 'Jobs' },
-            { icon: <IconClock size={13} />, value: hasJobs ? formatHours(freeMinutes) : '16h', label: 'Livres' },
-            {
-              icon: <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: hasJobs ? state.color : '#13DEB9' }} />,
-              value: hasJobs ? `${pct}%` : '0%',
-              label: 'Carga',
-            },
-          ].map((stat, i) => (
-            <Box
-              key={i}
-              sx={{ flex: 1, py: 1, px: 0.5, textAlign: 'center', bgcolor: dark ? 'transparent' : alpha('#000', 0.01) }}
-            >
-              <Stack direction="row" spacing={0.4} alignItems="center" justifyContent="center" sx={{ color: 'text.secondary', mb: 0.3 }}>
-                {stat.icon}
-              </Stack>
-              <Typography variant="body2" fontWeight={900} sx={{ lineHeight: 1, fontSize: '0.85rem' }}>
-                {stat.value}
-              </Typography>
-              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>
-                {stat.label}
-              </Typography>
-            </Box>
-          ))}
-        </Stack>
-
-        {/* CTA row */}
-        <Stack direction="row" justifyContent="flex-end" alignItems="center" sx={{ mt: 'auto' }}>
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ opacity: 0.45, fontSize: '0.72rem', fontWeight: 700 }}>
-            <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.72rem' }}>Ver perfil</Typography>
-            <IconArrowUpRight size={13} />
+        {/* Availability bar */}
+        <Box sx={{ mb: 1.75 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+            <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'text.disabled' }}>
+              Disponibilidade
+            </Typography>
+            <Typography variant="caption" sx={{ fontSize: '0.68rem', fontWeight: 700, color: barColor }}>
+              {hasJobs ? `${formatHours(freeMinutes)} livres` : 'Livre'}
+            </Typography>
           </Stack>
+          <LinearProgress
+            variant="determinate"
+            value={pct}
+            sx={{
+              height: 5, borderRadius: 3,
+              bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+              '& .MuiLinearProgress-bar': { bgcolor: barColor, borderRadius: 3 },
+            }}
+          />
+        </Box>
+
+        {/* Jobs preview + CTA */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto' }}>
+          <Stack direction="row" spacing={-0.75}>
+            {previewJobs.map((job, i) => (
+              <Tooltip key={job.id} title={job.title}>
+                <Avatar
+                  sx={{
+                    width: 24, height: 24, fontSize: '0.5rem', fontWeight: 800,
+                    border: `2px solid ${dark ? '#1e1e2d' : '#fff'}`,
+                    bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF',
+                    zIndex: previewJobs.length - i,
+                  }}
+                >
+                  {(job.client_name || job.title || '?')[0].toUpperCase()}
+                </Avatar>
+              </Tooltip>
+            ))}
+            {extraJobs > 0 && (
+              <Avatar sx={{ width: 24, height: 24, fontSize: '0.5rem', fontWeight: 800, border: `2px solid ${dark ? '#1e1e2d' : '#fff'}`, bgcolor: 'action.selected', zIndex: 0 }}>
+                +{extraJobs}
+              </Avatar>
+            )}
+            {!hasJobs && (
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>Sem jobs ativos</Typography>
+            )}
+          </Stack>
+          <Button
+            component={Link}
+            href={`/admin/pessoas/${encodeURIComponent(owner.id)}`}
+            size="small"
+            endIcon={<IconArrowUpRight size={12} />}
+            sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'none', color: 'text.secondary', p: '2px 6px', minWidth: 0 }}
+          >
+            Ver perfil
+          </Button>
         </Stack>
       </Box>
+
+      {/* Context menu */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={!!menuAnchor}
+        onClose={() => setMenuAnchor(null)}
+        slotProps={{ paper: { sx: { borderRadius: 2, minWidth: 160, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } } }}
+      >
+        <MenuItem component={Link} href={`/admin/pessoas/${encodeURIComponent(owner.id)}`} onClick={() => setMenuAnchor(null)}
+          sx={{ fontSize: '0.82rem', gap: 1 }}>
+          Ver perfil completo
+        </MenuItem>
+        {owner.email && (
+          <MenuItem component="a" href={`mailto:${owner.email}`} onClick={() => setMenuAnchor(null)}
+            sx={{ fontSize: '0.82rem', gap: 1 }}>
+            <IconMail size={14} /> Enviar email
+          </MenuItem>
+        )}
+        {owner.email && (
+          <MenuItem onClick={() => { navigator.clipboard.writeText(owner.email!); setMenuAnchor(null); }}
+            sx={{ fontSize: '0.82rem', gap: 1 }}>
+            Copiar email
+          </MenuItem>
+        )}
+      </Menu>
     </Box>
   );
 }
