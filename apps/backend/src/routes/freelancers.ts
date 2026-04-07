@@ -597,7 +597,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   app.get('/freelancers', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const tenantId = (request as any).user?.tenant_id;
     const rows = await pool.query(
-      `SELECT fp.*, eu.email
+      `SELECT fp.*, eu.email,
+              COALESCE(NULLIF(eu.name, ''), split_part(eu.email, '@', 1)) AS user_name
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
        JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
