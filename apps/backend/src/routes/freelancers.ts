@@ -599,11 +599,15 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const rows = await pool.query(
       `SELECT fp.*, eu.email,
               COALESCE(NULLIF(eu.name, ''), split_part(eu.email, '@', 1)) AS user_name,
-              COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url
+              COALESCE(p.avatar_url, p2.avatar_url, fp.avatar_url) AS avatar_url
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
        JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
        LEFT JOIN people p ON p.id = fp.person_id
+       LEFT JOIN person_identities pi
+              ON pi.identity_type = 'edro_user_id'
+             AND pi.normalized_value = LOWER(eu.id::text)
+       LEFT JOIN people p2 ON p2.id = pi.person_id
        ORDER BY fp.display_name`,
       [tenantId],
     );
@@ -782,10 +786,14 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     // Profile
     const profileRes = await pool.query(
       `SELECT fp.*, eu.email,
-              COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url
+              COALESCE(p.avatar_url, p2.avatar_url, fp.avatar_url) AS avatar_url
          FROM freelancer_profiles fp
          JOIN edro_users eu ON eu.id = fp.user_id
          LEFT JOIN people p ON p.id = fp.person_id
+         LEFT JOIN person_identities pi
+                ON pi.identity_type = 'edro_user_id'
+               AND pi.normalized_value = LOWER(eu.id::text)
+         LEFT JOIN people p2 ON p2.id = pi.person_id
         WHERE fp.id = $1`,
       [id],
     );
