@@ -1736,7 +1736,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
          pcm.display_name as owner_name, pcm.email as owner_email,
          eu.id as owner_user_id,
-         COALESCE(per.avatar_url, per2.avatar_url, fp.avatar_url) as owner_avatar_url
+         fp.avatar_url as owner_avatar_url
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
@@ -1745,11 +1745,6 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN project_card_members pcm ON pcm.card_id = pc.id
        LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
        LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
-       LEFT JOIN people per ON per.id = fp.person_id
-       LEFT JOIN person_identities pident
-              ON pident.identity_type = 'edro_user_id'
-             AND pident.normalized_value = LOWER(eu.id::text)
-       LEFT JOIN people per2 ON per2.id = pident.person_id
        WHERE pc.tenant_id = $1
          AND pc.is_archived = false
          AND ${currentYearCardClause('pc')}
