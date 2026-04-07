@@ -27,17 +27,13 @@ import {
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
-  ClientThumb,
   EmptyOperationState,
-  EntityLinkCard,
-  OperationsContextRail,
   OpsJobRow,
   OpsPanel,
   OpsSection,
-  PersonThumb,
-  SourceThumb,
 } from '@/components/operations/primitives';
-import { formatSourceLabel, getNextAction, type OperationsJob } from '@/components/operations/model';
+import { getNextAction, type OperationsJob } from '@/components/operations/model';
+import { sortByOperationalPriority } from '@/components/operations/derived';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 import JarvisAlertsSectionClient from '@/components/operations/JarvisAlertsSectionClient';
@@ -160,9 +156,18 @@ export default function OperationsRadarClient() {
     () => signals.filter((signal) => signal.severity >= 70 && signal.severity < 90).length,
     [signals]
   );
-  const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
-  const isStandaloneRiskItem = Boolean(selectedJob?.metadata?.calendar_item?.standalone);
-  const isNativeMeeting = selectedJob?.metadata?.calendar_item?.source_type === 'meeting';
+  const clientRiskJobs = useMemo(() => {
+    const grouped = new Map<string, OperationsJob[]>();
+    [...critical, ...high]
+      .sort(sortByOperationalPriority)
+      .forEach((job) => {
+        if (!job.client_id) return;
+        const bucket = grouped.get(job.client_id) ?? [];
+        bucket.push(job);
+        grouped.set(job.client_id, bucket);
+      });
+    return grouped;
+  }, [critical, high]);
 
   useJarvisPage(
     {
@@ -229,6 +234,17 @@ export default function OperationsRadarClient() {
     setDetailOpen(true);
   }, []);
 
+  const openRiskJob = useCallback((job: OperationsJob) => {
+    setSelectedJob(job);
+    if (job.metadata?.calendar_item?.standalone) {
+      if (job.source === 'meeting') {
+        router.push('/admin/reunioes');
+      }
+      return;
+    }
+    openCommands(job);
+  }, [openCommands, router]);
+
   const openSignalDemand = useCallback(async (signal: Signal) => {
     if (signal.entity_type !== 'job' || !signal.entity_id) {
       return;
@@ -279,7 +295,7 @@ export default function OperationsRadarClient() {
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
       ) : (
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, lg: 7.6 }}>
+          <Grid size={{ xs: 12 }}>
             <Stack spacing={3}>
               <OpsPanel
                 eyebrow="Semáforo dos riscos"
@@ -544,7 +560,7 @@ export default function OperationsRadarClient() {
                         <Button
                           variant="outlined"
                           size="small"
-                          onClick={() => setSelectedJob(critical[0])}
+                          onClick={() => openRiskJob(critical[0])}
                         >
                           Abrir mais crítico
                         </Button>
@@ -569,7 +585,7 @@ export default function OperationsRadarClient() {
                           <OpsJobRow
                             job={job}
                             selected={selectedJob?.id === job.id}
-                            onClick={() => setSelectedJob(job)}
+                            onClick={() => openRiskJob(job)}
                             showStage
                             onAdvance={handleAdvance}
                             onAssign={handleAssign}
@@ -611,7 +627,7 @@ export default function OperationsRadarClient() {
                         <Button
                           variant="outlined"
                           size="small"
-                          onClick={() => setSelectedJob(high[0])}
+                          onClick={() => openRiskJob(high[0])}
                         >
                           Abrir mais urgente
                         </Button>
@@ -636,7 +652,7 @@ export default function OperationsRadarClient() {
                           <OpsJobRow
                             job={job}
                             selected={selectedJob?.id === job.id}
-                            onClick={() => setSelectedJob(job)}
+                            onClick={() => openRiskJob(job)}
                             showStage
                             onAdvance={handleAdvance}
                             onAssign={handleAssign}
@@ -651,190 +667,119 @@ export default function OperationsRadarClient() {
                       )}
                     </Stack>
                   </Box>
+
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, xl: 7 }}>
+                      <Box
+                        sx={(theme) => {
+                          const dark = theme.palette.mode === 'dark';
+                          return {
+                            px: 2,
+                            py: 2,
+                            borderRadius: 2,
+                            border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                            bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                          };
+                        }}
+                      >
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                          <Box>
+                            <Typography variant="body1" fontWeight={900}>{OPS_COPY.radar.attentionClientsTitle}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Clique no cliente ou no chip para abrir a demanda mais crítica.
+                            </Typography>
+                          </Box>
+                          <Chip size="small" label={`${clientRisk.length} cliente${clientRisk.length === 1 ? '' : 's'}`} />
+                        </Stack>
+                        {clientRisk.length ? (
+                          <Stack spacing={1}>
+                            {clientRisk.map((item) => {
+                              const leadJob = clientRiskJobs.get(item.clientId)?.[0] ?? null;
+                              return (
+                                <Box
+                                  key={item.clientId}
+                                  onClick={leadJob ? () => openRiskJob(leadJob) : undefined}
+                                  sx={{
+                                    px: 1.25,
+                                    py: 1.1,
+                                    borderRadius: 2,
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    cursor: leadJob ? 'pointer' : 'default',
+                                    transition: 'all 150ms ease',
+                                    '&:hover': leadJob ? {
+                                      borderColor: alpha(theme.palette.warning.main, 0.35),
+                                      bgcolor: alpha(theme.palette.warning.main, 0.05),
+                                    } : undefined,
+                                  }}
+                                >
+                                  <Stack direction="row" spacing={1.25} alignItems="center" justifyContent="space-between">
+                                    <Box sx={{ minWidth: 0 }}>
+                                      <Typography variant="body2" fontWeight={800} noWrap>{item.clientName}</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {item.open} demandas ativas · {item.total} min previstos
+                                      </Typography>
+                                    </Box>
+                                    <Chip
+                                      size="small"
+                                      color={item.critical > 0 ? 'error' : 'default'}
+                                      label={`${item.critical} em risco`}
+                                      clickable={Boolean(leadJob)}
+                                      onClick={leadJob ? (event) => {
+                                        event.stopPropagation();
+                                        openRiskJob(leadJob);
+                                      } : undefined}
+                                    />
+                                  </Stack>
+                                </Box>
+                              );
+                            })}
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            {OPS_COPY.radar.attentionClientsEmpty}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Grid>
+
+                    <Grid size={{ xs: 12, xl: 5 }}>
+                      <Box
+                        sx={(theme) => {
+                          const dark = theme.palette.mode === 'dark';
+                          return {
+                            px: 2,
+                            py: 2,
+                            borderRadius: 2,
+                            border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+                            bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+                          };
+                        }}
+                      >
+                        <Stack spacing={1.25}>
+                          <Box>
+                            <Typography variant="body1" fontWeight={900}>{OPS_COPY.radar.rulesTitle}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              A mesma leitura de risco continua, só sem a coluna lateral.
+                            </Typography>
+                          </Box>
+                          <Alert severity="info">Bloqueado, atrasado ou P0 sem responsável sobe para risco crítico.</Alert>
+                          <Alert severity="warning">Prazo em até 24h e aprovação pendente contam como risco alto.</Alert>
+                          <Alert severity="info">Entrada incompleta e demanda sem responsável entram como risco médio até a operação resolver.</Alert>
+                        </Stack>
+                      </Box>
+                    </Grid>
+                  </Grid>
                 </Stack>
               </OpsSection>
               </Box>
             </Stack>
           </Grid>
-
-          <Grid size={{ xs: 12, lg: 4.4 }}>
-            <OperationsContextRail
-              eyebrow={OPS_COPY.common.contextEyebrow}
-              title={OPS_COPY.common.focusTitle}
-              subtitle={OPS_COPY.radar.focusSubtitle}
-              job={selectedJob}
-              primaryLabel={isNativeMeeting ? 'Abrir reuniões' : focusedAction?.label}
-              onPrimaryAction={() => {
-                if (!selectedJob) return;
-                if (isNativeMeeting) {
-                  router.push('/admin/reunioes');
-                  return;
-                }
-                setDetailOpen(true);
-              }}
-              emptyTitle="Selecione uma demanda"
-              emptyDescription={OPS_COPY.radar.focusEmptySubtitle}
-              links={
-                selectedJob ? (
-                  <Grid container spacing={1.25}>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Cliente"
-                        value={selectedJob.client_name || 'Sem cliente'}
-                        href={selectedJob.client_id ? `/clients/${selectedJob.client_id}` : undefined}
-                        subtitle="Conta em risco"
-                        accent={selectedJob.client_brand_color || '#E85219'}
-                        thumbnail={<ClientThumb name={selectedJob.client_name} logoUrl={selectedJob.client_logo_url} accent={selectedJob.client_brand_color || '#E85219'} size={26} />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Responsável"
-                        value={selectedJob.owner_name || 'Sem responsável'}
-                        href={(() => {
-                          const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
-                          return owner?.freelancer_profile_id
-                            ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/semana?view=distribution';
-                        })()}
-                        subtitle="Quem precisa agir primeiro"
-                        thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Agenda"
-                        value={selectedJob.deadline_at ? 'Prazo em andamento' : 'Sem prazo'}
-                        href="/admin/operacoes/semana?view=calendar"
-                        subtitle={selectedJob.deadline_at ? 'Acompanhar impacto no calendário' : 'Defina prazo para medir risco'}
-                        thumbnail={<SourceThumb source="agenda" jobType="meeting" accent="#13DEB9" />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Origem"
-                        value={formatSourceLabel(selectedJob.source)}
-                        subtitle={selectedJob.job_type}
-                        thumbnail={<SourceThumb source={selectedJob.source} jobType={selectedJob.job_type} accent="#E85219" />}
-                      />
-                    </Grid>
-                  </Grid>
-                ) : null
-              }
-              sections={[
-                {
-                  title: OPS_COPY.radar.attentionClientsTitle,
-                  content: clientRisk.length ? (
-                    <Stack spacing={1}>
-                      {clientRisk.map((item) => (
-                        <Box
-                          key={item.clientId}
-                          sx={{
-                            px: 1.25,
-                            py: 1.1,
-                            borderRadius: 2,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                          }}
-                        >
-                          <Stack direction="row" spacing={1.25} alignItems="center" justifyContent="space-between">
-                            <Stack direction="row" spacing={1.1} alignItems="center" sx={{ minWidth: 0 }}>
-                              <ClientThumb
-                                name={item.clientName}
-                                logoUrl={item.clientLogoUrl}
-                                accent={item.clientBrandColor || '#E85219'}
-                                size={30}
-                              />
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="body2" fontWeight={800} noWrap>{item.clientName}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {item.open} demandas ativas · {item.total} min previstos
-                                </Typography>
-                              </Box>
-                            </Stack>
-                            <Chip size="small" color={item.critical > 0 ? 'error' : 'default'} label={`${item.critical} em risco`} />
-                          </Stack>
-                        </Box>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      {OPS_COPY.radar.attentionClientsEmpty}
-                    </Typography>
-                  ),
-                },
-                {
-                  title: OPS_COPY.radar.rulesTitle,
-                  content: (
-                    <Stack spacing={1.25}>
-                      <Alert severity="info">Bloqueado, atrasado ou P0 sem responsável sobe para risco crítico.</Alert>
-                      <Alert severity="warning">Prazo em até 24h e aprovação pendente contam como risco alto.</Alert>
-                      <Alert severity="info">Entrada incompleta e demanda sem responsável entram como risco médio até a operação resolver.</Alert>
-                    </Stack>
-                  ),
-                },
-                {
-                  content: (
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Button
-                        variant="contained"
-                        onClick={() => {
-                          if (!selectedJob) return;
-                          if (isNativeMeeting) {
-                            router.push('/admin/reunioes');
-                            return;
-                          }
-                          openCommands(selectedJob);
-                        }}
-                        disabled={!selectedJob}
-                      >
-                        {isNativeMeeting ? 'Abrir reuniões' : OPS_COPY.common.openDetail}
-                      </Button>
-                      {!isStandaloneRiskItem && selectedJob && !selectedJob.owner_id && currentUserId ? (
-                        <Button
-                          variant="outlined"
-                          onClick={async () => {
-                            await handleAssign(selectedJob.id, currentUserId);
-                          }}
-                        >
-                          Assumir agora
-                        </Button>
-                      ) : null}
-                      {selectedJob ? (
-                        <Button
-                          variant="outlined"
-                          component={Link}
-                          href="/admin/operacoes/semana?view=distribution"
-                        >
-                          Ver semana
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="outlined"
-                        onClick={async () => {
-                          await refreshRadar();
-                        }}
-                      >
-                        {OPS_COPY.radar.refresh}
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        onClick={() => selectedJob && fetchJob(selectedJob.id).then((job) => setSelectedJob(job))}
-                        disabled={!selectedJob || isStandaloneRiskItem}
-                      >
-                        {isNativeMeeting ? 'Demanda indisponível' : OPS_COPY.common.refreshDetail}
-                      </Button>
-                    </Stack>
-                  ),
-                },
-              ]}
-            />
-          </Grid>
         </Grid>
       )}
 
       <JobWorkbenchDrawer
-        open={detailOpen && (drawerMode === 'create' || (Boolean(selectedJob) && !isStandaloneRiskItem))}
+        open={detailOpen && (drawerMode === 'create' || Boolean(selectedJob))}
         mode={drawerMode}
         job={selectedJob}
         presentation="modal"
