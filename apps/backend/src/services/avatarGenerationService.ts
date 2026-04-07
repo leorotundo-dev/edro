@@ -87,6 +87,38 @@ async function mirrorFreelancerAvatar(params: {
   );
 }
 
+/** Save an uploaded image directly as the avatar, with no AI generation. */
+export async function saveDirectAvatarForFreelancer(params: {
+  tenantId: string;
+  freelancerId: string;
+  personId: string;
+  sourceBuffer: Buffer;
+  sourceFilename: string;
+  sourceMimeType: string;
+}) {
+  const sourceExt = path.extname(params.sourceFilename).replace('.', '') || fileExtFromMime(params.sourceMimeType);
+  const key = buildKey(params.tenantId, 'avatars-generated', `${params.personId}.${sourceExt}`);
+  await saveFile(params.sourceBuffer, key);
+
+  const avatarUrl = buildStoragePublicUrl(key) ?? key;
+
+  await updatePersonAvatarState({
+    personId: params.personId,
+    tenantId: params.tenantId,
+    avatarSourceKey: key,
+    avatarGeneratedKey: key,
+    avatarUrl,
+    status: 'ready',
+    provider: 'direct-upload',
+    promptVersion: null,
+    error: null,
+  });
+
+  await mirrorFreelancerAvatar({ freelancerId: params.freelancerId, avatarUrl });
+
+  return { avatarUrl, sourceKey: key, generatedKey: key, promptVersion: null, provider: 'direct-upload' };
+}
+
 export async function generateEdroAvatarForFreelancer(params: {
   tenantId: string;
   freelancerId: string;

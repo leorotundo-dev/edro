@@ -22,7 +22,8 @@ import {
   isFreelancerVisibleBriefingStatus,
   syncBriefingExecutionSnapshot,
 } from '../services/briefingExecutionService';
-import { generateEdroAvatarForFreelancer } from '../services/avatarGenerationService';
+import { generateEdroAvatarForFreelancer, saveDirectAvatarForFreelancer } from '../services/avatarGenerationService';
+import { isFalConfigured } from '../services/ai/falAiService';
 import { isConfigured as isEvolutionConfigured } from '../services/integrations/evolutionApiService';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -1364,6 +1365,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     if (!userId || !tenantId) return reply.status(401).send({ error: 'Unauthorized' });
 
+    // ?mode=direct skips AI generation; also falls back to direct when FAL is unconfigured
+    const { mode } = (request.query ?? {}) as { mode?: string };
+    const useDirect = mode === 'direct' || !isFalConfigured();
+
     const file = await request.file();
     if (!file) {
       return reply.status(400).send({ error: 'Envie uma foto em JPG, PNG ou WebP.' });
@@ -1407,14 +1412,17 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     });
 
     const buffer = await file.toBuffer();
-    const result = await generateEdroAvatarForFreelancer({
+    const avatarParams = {
       tenantId,
       freelancerId: snapshot.id,
       personId,
       sourceBuffer: buffer,
       sourceFilename: file.filename,
       sourceMimeType: file.mimetype,
-    });
+    };
+    const result = useDirect
+      ? await saveDirectAvatarForFreelancer(avatarParams)
+      : await generateEdroAvatarForFreelancer(avatarParams);
 
     return reply.send({
       ok: true,
