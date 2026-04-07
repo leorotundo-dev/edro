@@ -485,7 +485,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   });
 
   // GET /portal/client/reports/:month/data — authenticated interactive report data
-  app.get('/portal/client/reports/:month/data', async (request: any, reply) => {
+  app.get('/portal/client/reports/:month/data', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
 
