@@ -57,6 +57,16 @@ type InternalPerson = {
   identities: Array<{ type: string; value: string; primary: boolean }> | null;
 };
 
+type FreelancerProfileLite = {
+  id: string;
+  user_id: string;
+  email: string;
+  display_name: string;
+  specialty: string | null;
+  role_title: string | null;
+  avatar_url: string | null;
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function initials(name: string) {
@@ -197,7 +207,7 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
         {/* CTA */}
         <Button
           component={Link}
-          href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(owner.id)}`}
+          href={`/admin/pessoas/${encodeURIComponent(owner.id)}`}
           variant="contained"
           fullWidth
           endIcon={<IconArrowUpRight size={15} />}
@@ -230,27 +240,48 @@ function primaryEmail(identities: InternalPerson['identities']): string | null {
     ?? identities.find((i) => i.type === 'email')?.value ?? null;
 }
 
-/** Merge ops-planner owners + people directory internals into a unified list. */
+/** Merge ops-planner + people directory + freelancer profiles into a unified list. */
 function mergeColaboradores(
   plannerOwners: PlannerOwner[],
   internalPeople: InternalPerson[],
+  freelancers: FreelancerProfileLite[],
 ): PlannerOwner[] {
-  // Index planner owners by email (lowercased)
-  const byEmail = new Map<string, PlannerOwner>();
-  for (const o of plannerOwners) {
-    if (o.owner.email) byEmail.set(o.owner.email.toLowerCase(), o);
+  // Index freelancer profiles by email and by user_id for fast lookup
+  const fpByEmail  = new Map<string, FreelancerProfileLite>();
+  const fpByUserId = new Map<string, FreelancerProfileLite>();
+  for (const fp of freelancers) {
+    if (fp.email) fpByEmail.set(fp.email.toLowerCase(), fp);
+    if (fp.user_id) fpByUserId.set(fp.user_id, fp);
   }
 
-  // Start with all planner owners (they have real workload)
-  const result: PlannerOwner[] = [...plannerOwners];
-  const seen = new Set(plannerOwners.map((o) => o.owner.email?.toLowerCase()).filter(Boolean));
+  // Start with all planner owners — enrich from freelancer profile where possible
+  const result: PlannerOwner[] = plannerOwners.map((o) => {
+    const fp = fpByUserId.get(o.owner.id) ?? (o.owner.email ? fpByEmail.get(o.owner.email.toLowerCase()) : undefined);
+    if (!fp) return o;
+    return {
+      ...o,
+      owner: {
+        ...o.owner,
+        name:       fp.display_name || o.owner.name,
+        specialty:  fp.specialty   ?? fp.role_title ?? o.owner.specialty,
+        avatar_url: o.owner.avatar_url ?? fp.avatar_url,
+      },
+    };
+  });
 
-  // Add internal people who don't appear in planner (0 jobs)
+  // Index planner owners by email for dedup
+  const byEmail = new Map<string, PlannerOwner>();
+  for (const o of result) {
+    if (o.owner.email) byEmail.set(o.owner.email.toLowerCase(), o);
+  }
+  const seen = new Set(result.map((o) => o.owner.email?.toLowerCase()).filter(Boolean));
+
+  // Add internal people who don't appear in planner (0 jobs) — enrich from freelancer profiles
   for (const p of internalPeople) {
     const email = primaryEmail(p.identities);
     const key = email?.toLowerCase() ?? '';
     if (key && seen.has(key)) {
-      // Already in planner — patch avatar if missing
+      // Already in planner — patch avatar if still missing
       const existing = byEmail.get(key);
       if (existing && !existing.owner.avatar_url && p.avatar_url) {
         existing.owner.avatar_url = p.avatar_url;
@@ -258,14 +289,15 @@ function mergeColaboradores(
       continue;
     }
     seen.add(key);
+    const fp = (email ? fpByEmail.get(email.toLowerCase()) : undefined);
     result.push({
       owner: {
-        id: p.id,
-        name: p.display_name,
-        email: email,
-        avatar_url: p.avatar_url,
-        role: null,
-        specialty: null,
+        id:         fp?.user_id ?? p.id,
+        name:       fp?.display_name || p.display_name,
+        email:      email,
+        avatar_url: fp?.avatar_url ?? p.avatar_url,
+        role:       fp?.role_title ?? null,
+        specialty:  fp?.specialty ?? null,
       },
       allocable_minutes: 960,
       committed_minutes: 0,
@@ -296,13 +328,15 @@ function ColaboradoresView() {
     setLoading(true);
     setError('');
     try {
-      const [plannerRes, peopleRes] = await Promise.all([
+      const [plannerRes, peopleRes, freelancersRes] = await Promise.all([
         apiGet<{ data?: { owners: PlannerOwner[]; unassigned_jobs: OperationsJob[] } }>('/trello/ops-planner'),
         apiGet<{ success: boolean; data: InternalPerson[] }>('/people?internal=true&limit=200'),
+        apiGet<FreelancerProfileLite[]>('/freelancers').catch(() => [] as FreelancerProfileLite[]),
       ]);
       const merged = mergeColaboradores(
         plannerRes?.data?.owners ?? [],
         peopleRes?.data ?? [],
+        freelancersRes ?? [],
       );
       setOwners(merged);
     } catch (err: any) {
