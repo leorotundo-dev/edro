@@ -73,12 +73,15 @@ async function downloadMedia(mediaId: string, accessToken: string): Promise<Buff
   return Buffer.from(buffer);
 }
 
+const EDRO_SENDER_HEADER = '*Edro.Studio*\n\n';
+
 async function sendWhatsAppText(
   phoneNumberId: string,
   to:            string,
   text:          string,
   accessToken:   string,
 ): Promise<void> {
+  const body = text.startsWith(EDRO_SENDER_HEADER) ? text : EDRO_SENDER_HEADER + text;
   // codeql[js/request-forgery] GRAPH_API is hardcoded to graph.facebook.com; phoneNumberId comes from the connectors DB table
   await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
     method:  'POST',
@@ -90,7 +93,7 @@ async function sendWhatsAppText(
       messaging_product: 'whatsapp',
       to,
       type: 'text',
-      text: { body: text },
+      text: { body },
     }),
   }).catch(() => {}); // non-blocking
 }

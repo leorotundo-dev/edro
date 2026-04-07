@@ -1,255 +1,383 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import AppShell from '@/components/AppShell';
-import EquipePageClient from '@/app/admin/equipe/EquipePageClient';
 import PeopleDirectoryClient from './PeopleDirectoryClient';
-import WorkspaceHero from '@/components/shared/WorkspaceHero';
 import { apiGet } from '@/lib/api';
+import type { OperationsJob } from '@/components/operations/model';
+import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { IconAddressBook, IconUserCheck } from '@tabler/icons-react';
+import { alpha, useTheme } from '@mui/material/styles';
+import {
+  IconArrowUpRight,
+  IconBriefcase,
+  IconSearch,
+  IconUsers,
+  IconUserOff,
+  IconUserCheck,
+} from '@tabler/icons-react';
 
-type PersonSummary = {
-  id: string;
-  display_name: string;
-  is_internal: boolean;
+// ── Types ─────────────────────────────────────────────────────────────────
+
+type PlannerOwner = {
+  owner: {
+    id: string;
+    name: string;
+    email?: string | null;
+    avatar_url?: string | null;
+    role?: string | null;
+    specialty?: string | null;
+  };
+  allocable_minutes: number;
+  committed_minutes: number;
+  tentative_minutes: number;
+  usage: number;
+  jobs: OperationsJob[];
 };
 
-type FreelancerSummary = {
-  id: string;
-  is_active: boolean;
-  active_timers?: { briefing_id: string }[];
-};
+// ── Helpers ───────────────────────────────────────────────────────────────
 
-const PEOPLE_TABS = [
-  {
-    value: 'operacao',
-    label: 'Operação',
-    description: 'Quem está ativo, rodando timer e tocando a operação da Edro.',
-  },
-  {
-    value: 'cadastro',
-    label: 'Cadastro',
-    description: 'Cadastros, perfis, funções e dados-base da equipe interna e dos freelancers.',
-  },
-  {
-    value: 'financeiro',
-    label: 'Financeiro',
-    description: 'Horas, custos e leitura financeira da equipe.',
-  },
-  {
-    value: 'clientes',
-    label: 'Clientes',
-    description: 'O diretório externo: quem representa os clientes da agência.',
-  },
-] as const;
-
-type PeopleTabValue = (typeof PEOPLE_TABS)[number]['value'];
-
-type PeopleWorkspaceStats = {
-  freelancersTotal: number;
-  activeFreelancers: number;
-  runningTimers: number;
-  internalPeople: number;
-  externalPeople: number;
-  duplicatePeople: number;
-};
-
-const EMPTY_STATS: PeopleWorkspaceStats = {
-  freelancersTotal: 0,
-  activeFreelancers: 0,
-  runningTimers: 0,
-  internalPeople: 0,
-  externalPeople: 0,
-  duplicatePeople: 0,
-};
-
-function isPeopleTab(value: string | null): value is PeopleTabValue {
-  return PEOPLE_TABS.some((tab) => tab.value === value);
+function initials(name: string) {
+  return (name || '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
 }
 
-function normalizePeopleTab(value: string | null): PeopleTabValue {
-  if (isPeopleTab(value)) return value;
-  if (value === 'equipe') return 'operacao';
-  if (value === 'contatos') return 'clientes';
-  return 'operacao';
+function formatHours(minutes: number) {
+  const m = Math.max(0, Math.round(minutes || 0));
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  if (!h) return `${min}min`;
+  if (!min) return `${h}h`;
+  return `${h}h${min}`;
 }
 
-function computeDuplicatePeople(people: PersonSummary[]) {
-  const counts = new Map<string, number>();
-  for (const person of people) {
-    const normalized = person.display_name.trim().toLowerCase();
-    if (!normalized || normalized === 'pessoa sem nome') continue;
-    counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
-  }
-  let duplicates = 0;
-  for (const count of Array.from(counts.values())) {
-    if (count > 1) duplicates += count;
-  }
-  return duplicates;
+function ownerState(usage: number) {
+  if (usage >= 1) return { label: 'Estourado', color: '#FA896B' };
+  if (usage >= 0.85) return { label: 'Atenção', color: '#FFAE1F' };
+  return { label: 'Controlado', color: '#13DEB9' };
 }
+
+// ── ColaboradorCard ───────────────────────────────────────────────────────
+
+function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  const { owner, usage, jobs, allocable_minutes, committed_minutes, tentative_minutes } = row;
+  const state = ownerState(usage);
+  const freeMinutes = Math.max(0, allocable_minutes - committed_minutes - tentative_minutes);
+  const pct = Math.min(100, Math.round(usage * 100));
+
+  const nameMatch = q && owner.name.toLowerCase().includes(q.toLowerCase());
+  const emailMatch = q && owner.email?.toLowerCase().includes(q.toLowerCase());
+  if (q && !nameMatch && !emailMatch) return null;
+
+  return (
+    <Box
+      sx={{
+        borderRadius: 2.5,
+        border: `1px solid ${dark ? alpha('#fff', 0.08) : alpha('#000', 0.07)}`,
+        bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
+        p: 2.25,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.5,
+        transition: 'box-shadow 0.15s',
+        '&:hover': { boxShadow: dark ? '0 2px 12px rgba(0,0,0,0.35)' : '0 2px 12px rgba(0,0,0,0.08)' },
+      }}
+    >
+      {/* Header */}
+      <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between">
+        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+          <Avatar
+            src={owner.avatar_url ?? undefined}
+            sx={{
+              width: 40, height: 40, fontSize: '0.8rem', fontWeight: 800, flexShrink: 0,
+              bgcolor: alpha(theme.palette.primary.main, 0.14),
+              color: 'primary.main',
+            }}
+          >
+            {initials(owner.name)}
+          </Avatar>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
+              {owner.name}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontSize: '0.7rem' }}>
+              {owner.specialty || owner.role || 'Equipe'}
+            </Typography>
+          </Box>
+        </Stack>
+        <Chip
+          size="small"
+          label={state.label}
+          sx={{
+            bgcolor: alpha(state.color, 0.14),
+            color: state.color,
+            fontWeight: 800,
+            fontSize: '0.65rem',
+            height: 20,
+            flexShrink: 0,
+          }}
+        />
+      </Stack>
+
+      {/* Stats row */}
+      <Stack direction="row" spacing={2.5}>
+        <Box>
+          <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{jobs.length}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+            jobs ativos
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{formatHours(freeMinutes)}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+            livres
+          </Typography>
+        </Box>
+      </Stack>
+
+      {/* Workload bar */}
+      <Box>
+        <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+            Carga comprometida
+          </Typography>
+          <Typography variant="caption" fontWeight={800} sx={{ color: state.color, fontSize: '0.68rem' }}>
+            {pct}%
+          </Typography>
+        </Stack>
+        <Box sx={{ height: 5, borderRadius: 99, bgcolor: alpha(state.color, 0.14) }}>
+          <Box sx={{ height: 5, borderRadius: 99, width: `${pct}%`, bgcolor: state.color, transition: 'width 0.3s' }} />
+        </Box>
+      </Box>
+
+      {/* Footer */}
+      <Button
+        component={Link}
+        href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(owner.id)}`}
+        size="small"
+        variant="outlined"
+        endIcon={<IconArrowUpRight size={13} />}
+        sx={{ alignSelf: 'flex-start', fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', py: 0.4, px: 1.25 }}
+      >
+        Ver pauta
+      </Button>
+    </Box>
+  );
+}
+
+// ── UnassignedPanel ───────────────────────────────────────────────────────
+
+function UnassignedPanel({ jobs }: { jobs: OperationsJob[] }) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  if (!jobs.length) return null;
+
+  return (
+    <Box
+      sx={{
+        borderRadius: 2.5,
+        border: `1px solid ${alpha('#FFAE1F', 0.3)}`,
+        bgcolor: dark ? alpha('#FFAE1F', 0.06) : alpha('#FFAE1F', 0.04),
+        p: 2.25,
+      }}
+    >
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
+        <IconUserOff size={16} color="#FFAE1F" />
+        <Typography variant="subtitle2" fontWeight={800}>
+          Sem dono ({jobs.length})
+        </Typography>
+      </Stack>
+      <Stack spacing={0.75}>
+        {jobs.slice(0, 6).map((job) => (
+          <Typography key={job.id} variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+            · {job.title}{job.client_name ? ` — ${job.client_name}` : ''}
+          </Typography>
+        ))}
+        {jobs.length > 6 && (
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
+            +{jobs.length - 6} mais
+          </Typography>
+        )}
+      </Stack>
+      <Button
+        component={Link}
+        href="/admin/operacoes/jobs?unassigned=true"
+        size="small"
+        variant="outlined"
+        color="warning"
+        sx={{ mt: 1.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}
+      >
+        Resolver na pauta
+      </Button>
+    </Box>
+  );
+}
+
+// ── ColaboradoresView ─────────────────────────────────────────────────────
+
+function ColaboradoresView() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [owners, setOwners] = useState<PlannerOwner[]>([]);
+  const [unassigned, setUnassigned] = useState<OperationsJob[]>([]);
+  const [q, setQ] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await apiGet<{ data?: { owners: PlannerOwner[]; unassigned_jobs: OperationsJob[] } }>('/trello/ops-planner');
+      setOwners(res?.data?.owners ?? []);
+      setUnassigned(res?.data?.unassigned_jobs ?? []);
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao carregar colaboradores');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const overloaded = owners.filter((o) => o.usage >= 1).length;
+  const withSlack = owners.filter((o) => o.usage < 0.55).length;
+
+  return (
+    <Stack spacing={2.5}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between">
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip label={`${owners.length} pessoas`} size="small" variant="outlined" />
+          <Chip label={`${withSlack} com folga`} size="small" color={withSlack ? 'success' : 'default'} variant="outlined" />
+          {overloaded > 0 && <Chip label={`${overloaded} sob pressão`} size="small" color="error" variant="outlined" />}
+          {unassigned.length > 0 && <Chip label={`${unassigned.length} sem dono`} size="small" color="warning" variant="outlined" />}
+        </Stack>
+        <Button
+          component={Link}
+          href="/admin/equipe"
+          size="small"
+          variant="text"
+          endIcon={<IconArrowUpRight size={13} />}
+          sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', whiteSpace: 'nowrap' }}
+        >
+          Gestão da equipe
+        </Button>
+      </Stack>
+
+      <TextField
+        fullWidth size="small"
+        placeholder="Buscar colaborador..."
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        InputProps={{
+          startAdornment: <InputAdornment position="start"><IconSearch size={16} style={{ opacity: 0.4 }} /></InputAdornment>,
+        }}
+        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+      />
+
+      {error && <Alert severity="error">{error}</Alert>}
+
+      {loading ? (
+        <Box sx={{ py: 8, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
+      ) : (
+        <Grid container spacing={2}>
+          {owners.map((row) => (
+            <Grid key={row.owner.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+              <ColaboradorCard row={row} q={q} />
+            </Grid>
+          ))}
+          {unassigned.length > 0 && (
+            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+              <UnassignedPanel jobs={unassigned} />
+            </Grid>
+          )}
+          {!loading && owners.length === 0 && (
+            <Grid size={{ xs: 12 }}>
+              <Typography color="text.secondary" sx={{ py: 6, textAlign: 'center' }}>
+                Nenhum colaborador com jobs ativos encontrado.
+              </Typography>
+            </Grid>
+          )}
+        </Grid>
+      )}
+    </Stack>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────
+
+type PeopleView = 'colaboradores' | 'clientes';
 
 export default function PessoasWorkspaceClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = normalizePeopleTab(searchParams.get('tab'));
-  const [stats, setStats] = useState<PeopleWorkspaceStats>(EMPTY_STATS);
-  const [loadingStats, setLoadingStats] = useState(true);
+  const rawView = searchParams.get('view');
+  const view: PeopleView = rawView === 'clientes' ? 'clientes' : 'colaboradores';
 
-  useEffect(() => {
-    let active = true;
-
-    const loadStats = async () => {
-      try {
-        setLoadingStats(true);
-        const [freelancersRes, peopleRes] = await Promise.all([
-          apiGet<FreelancerSummary[]>('/freelancers').catch(() => [] as FreelancerSummary[]),
-          apiGet<{ success: boolean; data: PersonSummary[] }>('/people?limit=400').catch(
-            () => ({ success: false, data: [] as PersonSummary[] }),
-          ),
-        ]);
-
-        if (!active) return;
-
-        const freelancers = freelancersRes ?? [];
-        const people = peopleRes.data ?? [];
-
-        setStats({
-          freelancersTotal: freelancers.length,
-          activeFreelancers: freelancers.filter((freelancer) => freelancer.is_active).length,
-          runningTimers: freelancers.filter((freelancer) => (freelancer.active_timers ?? []).length > 0).length,
-          internalPeople: people.filter((person) => person.is_internal).length,
-          externalPeople: people.filter((person) => !person.is_internal).length,
-          duplicatePeople: computeDuplicatePeople(people),
-        });
-      } finally {
-        if (active) setLoadingStats(false);
-      }
-    };
-
-    loadStats();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const handleTabChange = (_: unknown, value: PeopleTabValue) => {
+  const setView = (v: PeopleView) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === 'operacao') {
-      params.delete('tab');
+    if (v === 'colaboradores') {
+      params.delete('view');
     } else {
-      params.set('tab', value);
+      params.set('view', v);
     }
-    const query = params.toString();
-    router.replace(query ? `/admin/pessoas?${query}` : '/admin/pessoas');
+    const q = params.toString();
+    router.replace(q ? `/admin/pessoas?${q}` : '/admin/pessoas');
   };
-
-  const activeConfig = PEOPLE_TABS.find((tab) => tab.value === activeTab) ?? PEOPLE_TABS[0];
 
   return (
     <AppShell title="Pessoas">
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <WorkspaceHero
-          eyebrow="Contacts / Users"
-          title="Pessoas"
-          description="Um único menu para decidir rápido entre operação, cadastro, financeiro e contatos dos clientes."
-          leftChips={[
-            { label: `${stats.activeFreelancers} freelas ativos` },
-            { label: `${stats.externalPeople} contatos externos` },
-          ]}
-          loading={loadingStats}
-          loadingLabel="Carregando retrato da equipe..."
-          rightContent={
-            <>
-              <Chip
-                icon={<IconUserCheck size={14} />}
-                label={`${stats.runningTimers} timers rodando`}
-                size="small"
-                color="success"
-                variant="outlined"
-              />
-              <Chip
-                icon={<IconAddressBook size={14} />}
-                label={`${stats.duplicatePeople} contatos para revisar`}
-                size="small"
-                color={stats.duplicatePeople > 0 ? 'warning' : 'default'}
-                variant="outlined"
-              />
-            </>
-          }
-        />
-
-        <Box
-          sx={(theme) => ({
-            borderRadius: 4,
-            border: `1px solid ${theme.palette.divider}`,
-            bgcolor: 'background.paper',
-            overflow: 'hidden',
-          })}
-        >
-          <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 2.5 }, pb: 1.5 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between">
-              <Tabs
-                value={activeTab}
-                onChange={handleTabChange}
-                variant="scrollable"
-                allowScrollButtonsMobile
-                scrollButtons="auto"
-              >
-                {PEOPLE_TABS.map((tab) => (
-                  <Tab key={tab.value} value={tab.value} label={tab.label} />
-                ))}
-              </Tabs>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                {(activeTab === 'operacao' || activeTab === 'cadastro' || activeTab === 'financeiro') && (
-                  <>
-                    <Chip label={`${stats.freelancersTotal} freelancers`} size="small" variant="outlined" />
-                    <Chip label={`${stats.internalPeople} internos`} size="small" variant="outlined" />
-                    <Chip label={`${stats.runningTimers} em execução`} size="small" color="success" variant="outlined" />
-                  </>
-                )}
-                {activeTab === 'clientes' && (
-                  <>
-                    <Chip label={`${stats.externalPeople} contatos externos`} size="small" variant="outlined" />
-                    <Chip
-                      label={`${stats.duplicatePeople} duplicados`}
-                      size="small"
-                      color={stats.duplicatePeople > 0 ? 'warning' : 'default'}
-                      variant="outlined"
-                    />
-                  </>
-                )}
-              </Stack>
-            </Stack>
-
-            <Box sx={{ mt: 1.5 }}>
-              <Typography variant="body2" color="text.secondary">
-                {activeConfig.description}
-              </Typography>
-            </Box>
+      <Stack spacing={3}>
+        {/* Header */}
+        <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between">
+          <Box>
+            <Typography variant="h5" fontWeight={900}>Pessoas</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.3 }}>
+              {view === 'colaboradores'
+                ? 'Colaboradores e carga de trabalho atual.'
+                : 'Contatos externos vinculados aos clientes da agência.'}
+            </Typography>
           </Box>
+          <ToggleButtonGroup
+            value={view}
+            exclusive
+            onChange={(_e, v) => { if (v) setView(v); }}
+            size="small"
+          >
+            <ToggleButton value="colaboradores" sx={{ px: 2, py: 0.6, fontSize: '0.78rem', fontWeight: 700, textTransform: 'none', gap: 0.75 }}>
+              <IconUserCheck size={15} />
+              Colaboradores
+            </ToggleButton>
+            <ToggleButton value="clientes" sx={{ px: 2, py: 0.6, fontSize: '0.78rem', fontWeight: 700, textTransform: 'none', gap: 0.75 }}>
+              <IconUsers size={15} />
+              Clientes
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
 
-          <Box sx={{ px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
-            {activeTab === 'operacao' && <EquipePageClient embedded forcedTab={0} />}
-            {activeTab === 'cadastro' && <EquipePageClient embedded forcedTab={1} />}
-            {activeTab === 'financeiro' && <EquipePageClient embedded forcedTab={2} />}
-            {activeTab === 'clientes' && (
-              <PeopleDirectoryClient
-                embedded
-                fixedFilter="external"
-                title="Contatos dos Clientes"
-                description="Somente pessoas externas vinculadas aos clientes da agência."
-              />
-            )}
-          </Box>
-        </Box>
-      </Box>
+        {/* Content */}
+        {view === 'colaboradores' && <ColaboradoresView />}
+        {view === 'clientes' && (
+          <PeopleDirectoryClient
+            embedded
+            fixedFilter="external"
+            title="Contatos dos Clientes"
+          />
+        )}
+      </Stack>
     </AppShell>
   );
 }

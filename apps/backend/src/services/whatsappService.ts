@@ -40,6 +40,8 @@ type SendWhatsAppTextOptions = {
   meta?: Record<string, any>;
 };
 
+const EDRO_SENDER_HEADER = '*Edro.Studio*\n\n';
+
 export async function sendWhatsAppText(
   to: string,
   text: string,
@@ -49,6 +51,7 @@ export async function sendWhatsAppText(
   const tenantId = options?.tenantId ?? null;
   const event = options?.event ?? 'message_sent';
   const phone = normalizePhone(to);
+  const body = text.startsWith(EDRO_SENDER_HEADER) ? text : EDRO_SENDER_HEADER + text;
   if (!config) {
     if (tenantId) {
       logActivity({
@@ -80,7 +83,7 @@ export async function sendWhatsAppText(
         messaging_product: 'whatsapp',
         to: phone,
         type: 'text',
-        text: { body: text },
+        text: { body: body },
       }),
     });
 
