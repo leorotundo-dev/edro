@@ -1136,7 +1136,7 @@ export default function OperationsAgendaClient() {
                             : '/admin/operacoes/semana?view=distribution';
                         })()}
                         subtitle="Quem precisa agir primeiro"
-                        thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}
+                        thumbnail={<PersonThumb name={selectedJob.owner_name} src={selectedJob.owner_avatar_url} accent="#5D87FF" size={26} />}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>

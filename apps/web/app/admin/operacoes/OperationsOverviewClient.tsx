@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -755,6 +756,7 @@ export default function OperationsOverviewClient() {
                                     <Chip
                                       size="small"
                                       clickable
+                                      avatar={job.owner_avatar_url ? <Avatar src={job.owner_avatar_url} /> : undefined}
                                       label={job.owner_name || 'Sem responsável'}
                                       onClick={(event) => {
                                         event.stopPropagation();

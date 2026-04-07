@@ -1135,7 +1135,7 @@ export default function OperationsJobsClient() {
                           </Typography>
 
                           <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
-                            {job.owner_name ? <PersonThumb name={job.owner_name} accent="#5D87FF" size={22} /> : <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: alpha(theme.palette.warning.main, 0.14) }} />}
+                            {job.owner_name ? <PersonThumb name={job.owner_name} src={job.owner_avatar_url} accent="#5D87FF" size={22} /> : <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: alpha(theme.palette.warning.main, 0.14) }} />}
                             <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {job.owner_name || 'Sem responsável'}
                             </Typography>
