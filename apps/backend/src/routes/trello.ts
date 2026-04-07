@@ -1736,7 +1736,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
          cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
          pcm.display_name as owner_name, pcm.email as owner_email,
          eu.id as owner_user_id,
-         fp.avatar_url as owner_avatar_url
+         fp.id as owner_fp_id,
+         fp.avatar_url as owner_avatar_url,
+         fp.avatar_generated_key as owner_avatar_generated_key
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
@@ -1772,7 +1774,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
           name: row.owner_name as string,
           email: row.owner_email as string,
           user_id: row.owner_user_id as string | null,
-          avatar_url: (row.owner_avatar_url as string | null) ?? null,
+          avatar_url: row.owner_avatar_generated_key && row.owner_fp_id
+            ? `/api/proxy/freelancers/${row.owner_fp_id}/avatar`
+            : ((row.owner_avatar_url as string | null) ?? null),
           jobs: [],
         });
       }
