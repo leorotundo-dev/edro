@@ -3767,8 +3767,8 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       custom_prompt: z.string().optional(),
       /** Override image model (e.g. 'imagen-3.0-generate-001', Leonardo model ID) */
       image_model: z.string().optional(),
-      /** Image generation provider ('gemini' | 'leonardo') */
-      image_provider: z.enum(['gemini', 'leonardo']).optional(),
+      /** Image generation provider ('gemini' | 'leonardo' | 'fal') */
+      image_provider: z.enum(['gemini', 'leonardo', 'fal']).optional(),
       /** Aspect ratio for Imagen 3 / Leonardo ('1:1' | '3:4' | '4:3' | '9:16' | '16:9') */
       aspect_ratio: z.string().optional(),
       /** Negative prompt */
@@ -4025,7 +4025,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
         imageProvider: body.image_provider || undefined,
         aspectRatio: body.aspect_ratio || undefined,
         negativePrompt: body.negative_prompt || undefined,
-        numImages: body.image_provider === 'leonardo' ? (body.num_images ?? 3) : 1,
+        numImages: body.image_provider === 'leonardo' || body.image_provider === 'fal' ? (body.num_images ?? 3) : 1,
         tenantId: tenantId || undefined,
         initImageBuffer,
         initImageMime,
@@ -4200,7 +4200,7 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
       headline: z.string().max(300).optional(),
       brand: z.string().max(200).optional(),
       client_id: z.string().optional(),
-      provider: z.enum(['gemini', 'leonardo']).optional(),
+      provider: z.enum(['gemini', 'leonardo', 'fal']).optional(),
     });
 
     let body: z.infer<typeof bodySchema>;

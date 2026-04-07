@@ -121,7 +121,7 @@ type ArtDirectorParams = Omit<
   /** Perfil estético sintetizado do cliente — gerado a partir do histórico de aprovações */
   aestheticProfile?: string;
   /** Image generation provider — determines prompt style (prose vs SD keywords) */
-  provider?: 'gemini' | 'leonardo';
+  provider?: 'gemini' | 'leonardo' | 'fal';
 };
 
 /**
@@ -366,7 +366,7 @@ export async function generateAdCreative(params: AdCreativeRequest): Promise<AdC
         numImages: params.numImages ?? 1,
         referenceImageUrl: params.referenceImageUrl,
         referenceImageStrength: params.referenceImageStrength,
-        model: (params.falModel as any) || 'flux-pro',
+        model: (params.falModel as any) || (params.imageModel as any) || 'flux-pro',
       });
       return {
         success: true,
@@ -425,7 +425,7 @@ export async function refineScenePrompt(params: {
   headline?: string;
   brand?: string;
   aestheticProfile?: string;
-  provider?: 'gemini' | 'leonardo';
+  provider?: 'gemini' | 'leonardo' | 'fal';
 }): Promise<string> {
   const apiKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY;
   if (!apiKey) {
