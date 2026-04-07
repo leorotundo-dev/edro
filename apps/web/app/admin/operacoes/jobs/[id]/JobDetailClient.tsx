@@ -109,6 +109,28 @@ function checklistPct(job: OperationsJob) {
   return Math.round((items.filter((i) => i.checked).length / items.length) * 100);
 }
 
+// ── Markdown link parser ──────────────────────────────────────────────────────
+
+function renderDescription(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    parts.push(
+      <Box key={key++} component="a" href={match[2]} target="_blank" rel="noreferrer"
+           sx={{ color: '#5D87FF', textDecoration: 'none', fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}>
+        {match[1]}
+      </Box>,
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function MetaRow({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
@@ -334,7 +356,7 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
               <Chip size="small" label="Urgente" sx={{ fontWeight: 800, fontSize: '0.68rem', height: 22, bgcolor: alpha('#F9A825', 0.12), color: '#F9A825', border: `1px solid ${alpha('#F9A825', 0.3)}` }} />
             )}
           </Stack>
-          <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.2, fontSize: { xs: '1.4rem', md: '1.7rem' } }}>
+          <Typography fontWeight={800} sx={{ lineHeight: 1.2, fontSize: { xs: '1.4rem', md: '1.7rem' }, color: 'text.primary' }}>
             {job.title}
           </Typography>
           <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
@@ -412,14 +434,14 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
 
             {/* Description */}
             {job.summary && (
-              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
+              <Box>
                 <Typography variant="caption" fontWeight={700} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1 }}>
                   Descrição
                 </Typography>
-                <Typography variant="body2" sx={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                  {job.summary}
+                <Typography variant="body2" sx={{ lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
+                  {renderDescription(job.summary)}
                 </Typography>
-              </Paper>
+              </Box>
             )}
 
             {/* Checklists */}
