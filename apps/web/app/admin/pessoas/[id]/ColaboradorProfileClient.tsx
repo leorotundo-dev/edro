@@ -187,16 +187,50 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
       setLoading(true);
       setError('');
       try {
-        // 1. Get all ops-planner owners to find this one
-        const plannerRes = await apiGet<{ data?: { owners: PlannerOwner[] } }>('/trello/ops-planner');
-        const owner = plannerRes?.data?.owners.find((o) => o.owner.id === decodeURIComponent(id)) ?? null;
+        const decodedId = decodeURIComponent(id);
+
+        // 1. Parallel: ops-planner + all freelancer profiles
+        const [plannerRes, freelancersRes] = await Promise.all([
+          apiGet<{ data?: { owners: PlannerOwner[] } }>('/trello/ops-planner'),
+          apiGet<FreelancerProfile[]>('/freelancers').catch(() => null),
+        ]);
+
+        const owner = plannerRes?.data?.owners.find((o) => o.owner.id === decodedId) ?? null;
         if (active) setPlanner(owner);
 
-        // 2. Try to find freelancer profile by user_id to get full stats
-        const freelancersRes = await apiGet<FreelancerProfile[]>('/freelancers');
-        const fp = freelancersRes?.find(
-          (f) => f.user_id === decodeURIComponent(id) || f.id === decodeURIComponent(id),
+        // 2. Find freelancer profile — by user_id, fp.id, or email match via planner
+        let fp = (freelancersRes ?? []).find(
+          (f) => f.user_id === decodedId || f.id === decodedId,
         ) ?? null;
+
+        // 3. Fallback: if id was a people.id (old card URL), match by planner owner email
+        if (!fp && owner?.owner.email) {
+          fp = (freelancersRes ?? []).find(
+            (f) => f.email?.toLowerCase() === owner.owner.email!.toLowerCase(),
+          ) ?? null;
+        }
+
+        // 4. Fallback: if still not found, try people directory to resolve email then match
+        if (!fp && !owner) {
+          const peopleRes = await apiGet<{ success: boolean; data: Array<{ id: string; display_name: string; avatar_url: string | null; identities: Array<{ type: string; value: string; primary: boolean }> | null }> }>('/people?internal=true&limit=200').catch(() => null);
+          const person = (peopleRes?.data ?? []).find((p) => p.id === decodedId);
+          if (person) {
+            const email = person.identities?.find((i) => i.type === 'email' && i.primary)?.value
+              ?? person.identities?.find((i) => i.type === 'email')?.value ?? null;
+            if (email) {
+              fp = (freelancersRes ?? []).find(
+                (f) => f.email?.toLowerCase() === email.toLowerCase(),
+              ) ?? null;
+            }
+            // If still no fp, set planner-like data from people record so at least name shows
+            if (!fp && active) {
+              setPlanner({
+                owner: { id: decodedId, name: person.display_name, email, avatar_url: person.avatar_url },
+                usage: 0, jobs: [], allocable_minutes: 960, committed_minutes: 0, tentative_minutes: 0,
+              });
+            }
+          }
+        }
 
         if (fp) {
           const statsRes = await apiGet<FreelancerStats>(`/freelancers/${fp.id}/stats`);
