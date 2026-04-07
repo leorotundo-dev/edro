@@ -2,6 +2,7 @@ import JobDetailClient from './JobDetailClient';
 
 export const metadata = { title: 'Detalhe do Job | Edro Studio' };
 
-export default function Page({ params }: { params: { id: string } }) {
-  return <JobDetailClient id={params.id} />;
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <JobDetailClient id={id} />;
 }

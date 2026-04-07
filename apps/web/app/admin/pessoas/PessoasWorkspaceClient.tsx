@@ -62,6 +62,7 @@ type FreelancerProfileLite = {
   user_id: string;
   email: string;
   display_name: string;
+  user_name?: string | null;
   specialty: string | null;
   role_title: string | null;
   avatar_url: string | null;
@@ -254,7 +255,8 @@ function mergeColaboradores(
       ...o,
       owner: {
         ...o.owner,
-        name:       fp.display_name || o.owner.name,
+        // Keep planner's proper name (e.g. "Leo Rotundo") — fall back to fp name only if planner has none
+        name:       o.owner.name || fp.user_name || fp.display_name,
         specialty:  fp.specialty   ?? fp.role_title ?? o.owner.specialty,
         avatar_url: o.owner.avatar_url ?? fp.avatar_url,
       },
@@ -288,7 +290,8 @@ function mergeColaboradores(
       owner: {
         // Use fp.id (freelancer_profiles PK) so the profile page can match via f.id === decodedId
         id:         fp?.id ?? p.id,
-        name:       fp?.display_name || p.display_name,
+        // Prefer eu.name (proper full name) → fp.display_name (username) → p.display_name
+        name:       fp?.user_name || fp?.display_name || p.display_name,
         email:      email ?? fp?.email ?? null,
         avatar_url: fp?.avatar_url ?? p.avatar_url,
         role:       fp?.role_title ?? null,
