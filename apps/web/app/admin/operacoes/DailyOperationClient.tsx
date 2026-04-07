@@ -444,7 +444,7 @@ export default function DailyOperationClient() {
         open={!!detailJobId}
         onClose={() => setDetailJobId(null)}
         fullWidth
-        maxWidth="xl"
+        maxWidth="lg"
         scroll="paper"
         PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh' } }}
       >
