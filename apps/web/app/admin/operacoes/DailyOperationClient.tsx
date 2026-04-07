@@ -142,7 +142,11 @@ function DailyOpCard({ job, onOpen }: { job: OperationsJob; onOpen: (j: Operatio
 
   return (
     <Box
+      component={Link}
+      href={`/admin/operacoes/jobs/${job.id}`}
       sx={{
+        textDecoration: 'none',
+        color: 'inherit',
         borderRadius: 3,
         border: `1px solid ${ct.border}`,
         bgcolor: ct.bg,
@@ -157,7 +161,6 @@ function DailyOpCard({ job, onOpen }: { job: OperationsJob; onOpen: (j: Operatio
           boxShadow: dark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 4px 20px rgba(0,0,0,0.09)',
         },
       }}
-      onClick={() => onOpen(job)}
     >
       {/* Top row: client label + menu */}
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
@@ -183,8 +186,9 @@ function DailyOpCard({ job, onOpen }: { job: OperationsJob; onOpen: (j: Operatio
             </Tooltip>
           )}
           <IconButton
+            component="span"
             size="small"
-            onClick={(e) => { e.stopPropagation(); onOpen(job); }}
+            onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
             sx={{ p: 0.25, opacity: 0.45, '&:hover': { opacity: 1 } }}
           >
             <IconDots size={14} />
