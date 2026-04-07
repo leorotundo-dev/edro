@@ -316,7 +316,7 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   const checkedCount = allItems.filter((i) => i.checked).length;
 
   return (
-    <Box sx={{ px: { xs: 2, md: 4 }, py: 3, maxWidth: 1200, mx: 'auto' }}>
+    <Box sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
       {/* ── Breadcrumb (hidden in modal mode) ── */}
       {!onClose && (
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2.5 }}>
