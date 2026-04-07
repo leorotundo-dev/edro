@@ -365,17 +365,27 @@ export default function PlatformClient() {
         }
       }
 
-      const briefingId =
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const rawBriefingId =
         creativeContext?.session?.briefing_id ||
         (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
+      const briefingId = rawBriefingId && UUID_RE.test(rawBriefingId) ? rawBriefingId : null;
+      if (rawBriefingId && !briefingId && typeof window !== 'undefined') {
+        // stale / non-UUID value — clear it so it stops causing 500s
+        window.localStorage.removeItem('edro_briefing_id');
+      }
       if (briefingId) {
-        const briefingResponse = await apiGet<{ success: boolean; data: any }>(`/edro/briefings/${briefingId}`);
-        const briefing = briefingResponse?.data?.briefing;
-        if (briefing) {
-          clientId = briefing.client_id || clientId;
-          clientName = briefing.client_name || clientName;
-          objective = briefing.payload?.objective || objective;
-          briefingText = `${briefing.title || 'Briefing'}\n${JSON.stringify(briefing.payload || {}, null, 2)}`;
+        try {
+          const briefingResponse = await apiGet<{ success: boolean; data: any }>(`/edro/briefings/${briefingId}`);
+          const briefing = briefingResponse?.data?.briefing;
+          if (briefing) {
+            clientId = briefing.client_id || clientId;
+            clientName = briefing.client_name || clientName;
+            objective = briefing.payload?.objective || objective;
+            briefingText = `${briefing.title || 'Briefing'}\n${JSON.stringify(briefing.payload || {}, null, 2)}`;
+          }
+        } catch {
+          // briefing fetch failed — continue with available context, don't crash the page
         }
       }
 
@@ -611,7 +621,10 @@ export default function PlatformClient() {
     return [{ key: 'all', label: 'Todas', count: allFormats.length }, ...options];
   }, [productionAreas, allFormats.length]);
 
-  const hasTopContext = Boolean(topContext.clients && topContext.event && topContext.date);
+  const hasTopContext = Boolean(
+    (topContext.clients && topContext.event && topContext.date) ||
+    creativeContext?.job?.client_id,
+  );
 
   const platformsForArea = useMemo(() => {
     const map = new Map<string, number>();
