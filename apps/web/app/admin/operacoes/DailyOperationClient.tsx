@@ -70,50 +70,32 @@ function checklistPct(job: OperationsJob): number | null {
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '';
-  const d = new Date(iso);
-  return `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getFullYear()).slice(2)}`;
+  // Handle "YYYY-MM-DD", "YYYY-MM-DDT...", "YYYY-MM-DD HH:MM:SS" formats
+  const datePart = String(iso).split(/[T ]/)[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  if (!year || !month || !day) return '';
+  return `${day}.${String(month).padStart(2, '0')}.${String(year).slice(2)}`;
 }
 
-function cardTheme(job: OperationsJob, dark: boolean) {
+function cardBg(job: OperationsJob, dark: boolean): string {
   const risk = getRisk(job).level;
-  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical') {
-    return {
-      bg:     dark ? alpha('#F9A825', 0.14) : '#FFFDE7',
-      border: dark ? alpha('#F9A825', 0.35) : '#FFE082',
-      bar:    '#F9A825',
-      label:  dark ? '#FFD54F' : '#E65100',
-    };
-  }
-  if (job.status === 'awaiting_approval') {
-    return {
-      bg:     dark ? alpha('#7C3AED', 0.12) : '#EDE7F6',
-      border: dark ? alpha('#7C3AED', 0.3)  : '#D1C4E9',
-      bar:    '#7C3AED',
-      label:  dark ? '#CE93D8' : '#6A1B9A',
-    };
-  }
-  if (job.status === 'in_review') {
-    return {
-      bg:     dark ? alpha('#5D87FF', 0.1) : '#E8EAF6',
-      border: dark ? alpha('#5D87FF', 0.25) : '#C5CAE9',
-      bar:    '#5D87FF',
-      label:  dark ? '#90CAF9' : '#283593',
-    };
-  }
-  if (job.status === 'blocked') {
-    return {
-      bg:     dark ? alpha('#FA896B', 0.1) : '#FFF3F0',
-      border: dark ? alpha('#FA896B', 0.3)  : '#FFCCBC',
-      bar:    '#FA896B',
-      label:  dark ? '#FFAB91' : '#BF360C',
-    };
-  }
-  return {
-    bg:     dark ? alpha('#fff', 0.03) : '#fff',
-    border: dark ? alpha('#fff', 0.08) : alpha('#000', 0.07),
-    bar:    '#5D87FF',
-    label:  dark ? alpha('#fff', 0.4)  : alpha('#000', 0.4),
-  };
+  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical')
+    return dark ? alpha('#F9A825', 0.07) : alpha('#F9A825', 0.05);
+  if (job.status === 'awaiting_approval')
+    return dark ? alpha('#7C3AED', 0.07) : alpha('#7C3AED', 0.04);
+  if (job.status === 'blocked')
+    return dark ? alpha('#FA896B', 0.07) : alpha('#FA896B', 0.04);
+  return dark ? alpha('#fff', 0.03) : '#fff';
+}
+
+function barColor(job: OperationsJob): string {
+  const risk = getRisk(job).level;
+  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical') return '#F9A825';
+  if (job.status === 'blocked') return '#FA896B';
+  if (job.status === 'awaiting_approval') return '#7C3AED';
+  if (job.status === 'in_review') return '#5D87FF';
+  if (job.status === 'in_progress' || job.status === 'allocated') return '#13DEB9';
+  return '#5D87FF';
 }
 
 function initials(name?: string | null) {
@@ -140,112 +122,112 @@ function StatNumber({ value, label, color }: { value: number; label: string; col
 function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j: OperationsJob) => void; onDetail: (j: OperationsJob) => void }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
-  const ct = cardTheme(job, dark);
   const pct = checklistPct(job);
   const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
+  const bg = cardBg(job, dark);
+  const bar = barColor(job);
 
   return (
     <Box
       onClick={() => onDetail(job)}
       sx={{
-        borderRadius: 3,
-        border: `1px solid ${ct.border}`,
-        bgcolor: ct.bg,
-        p: 2,
+        borderRadius: 2.5,
+        bgcolor: bg,
+        boxShadow: dark ? '0 1px 4px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 1.25,
         cursor: 'pointer',
-        transition: 'transform 0.13s, box-shadow 0.13s',
+        transition: 'box-shadow 0.15s, transform 0.15s',
         '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: dark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 4px 20px rgba(0,0,0,0.09)',
+          boxShadow: dark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 4px 20px rgba(0,0,0,0.1)',
+          transform: 'translateY(-1px)',
         },
       }}
     >
-      {/* Top row: client label + menu */}
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+      <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
+        {/* Client + menu */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Typography
+            variant="caption"
+            noWrap
+            sx={{
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'text.disabled',
+              maxWidth: '75%',
+            }}
+          >
+            {job.client_name || 'Sem cliente'}
+          </Typography>
+          <Stack direction="row" spacing={0.25} alignItems="center">
+            {isUrgent && (
+              <Box sx={{ color: '#F9A825', display: 'flex', lineHeight: 1 }}>
+                <IconAlertTriangle size={11} />
+              </Box>
+            )}
+            <IconButton
+              component="span"
+              size="small"
+              onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
+              sx={{ p: 0.25, opacity: 0, '.MuiBox-root:hover &': { opacity: 0.5 }, '&:hover': { opacity: '1 !important' } }}
+            >
+              <IconDots size={13} />
+            </IconButton>
+          </Stack>
+        </Stack>
+
+        {/* Title */}
         <Typography
-          variant="caption"
+          variant="body2"
+          fontWeight={600}
           sx={{
-            fontSize: '0.62rem',
-            fontWeight: 800,
-            textTransform: 'uppercase',
-            letterSpacing: '0.07em',
-            color: ct.label,
-            lineHeight: 1.2,
+            fontSize: '0.82rem',
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            flex: 1,
+            color: 'text.primary',
           }}
         >
-          {job.client_name || 'Sem cliente'}
+          {job.title}
         </Typography>
-        <Stack direction="row" spacing={0.25} alignItems="center">
-          {isUrgent && (
-            <Tooltip title="Urgente">
-              <Box sx={{ color: '#F9A825', display: 'flex' }}>
-                <IconAlertTriangle size={12} />
-              </Box>
-            </Tooltip>
-          )}
-          <IconButton
-            component="span"
-            size="small"
-            onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
-            sx={{ p: 0.25, opacity: 0.45, '&:hover': { opacity: 1 } }}
-          >
-            <IconDots size={14} />
-          </IconButton>
-        </Stack>
-      </Stack>
 
-      {/* Title */}
-      <Typography
-        variant="body2"
-        fontWeight={700}
-        sx={{
-          lineHeight: 1.35,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-          flex: 1,
-        }}
-      >
-        {job.title}
-      </Typography>
-
-      {/* Progress bar */}
-      <Box>
+        {/* Progress bar */}
         <LinearProgress
           variant="determinate"
           value={pct ?? 0}
           sx={{
-            height: 3,
-            borderRadius: 2,
-            bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.07),
-            '& .MuiLinearProgress-bar': { bgcolor: ct.bar, borderRadius: 2 },
+            height: 2,
+            borderRadius: 1,
+            bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+            '& .MuiLinearProgress-bar': { bgcolor: bar, borderRadius: 1 },
           }}
         />
-      </Box>
 
-      {/* Footer: avatar + name + date */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Stack direction="row" spacing={0.75} alignItems="center">
-          <Avatar
-            src={job.owner_avatar_url ?? undefined}
-            sx={{ width: 22, height: 22, fontSize: '0.55rem', fontWeight: 800 }}
-          >
-            {initials(job.owner_name)}
-          </Avatar>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', fontWeight: 600 }}>
-            {job.owner_name?.split(' ')[0] ?? 'Sem dono'}
-          </Typography>
+        {/* Footer */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            <Avatar
+              src={job.owner_avatar_url ?? undefined}
+              sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF' }}
+            >
+              {initials(job.owner_name)}
+            </Avatar>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', fontWeight: 500 }}>
+              {job.owner_name?.split(' ')[0] ?? 'Sem dono'}
+            </Typography>
+          </Stack>
+          {job.deadline_at && (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>
+              {fmtDate(job.deadline_at)}
+            </Typography>
+          )}
         </Stack>
-        {job.deadline_at && (
-          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>
-            {fmtDate(job.deadline_at)}
-          </Typography>
-        )}
-      </Stack>
+      </Box>
     </Box>
   );
 }
