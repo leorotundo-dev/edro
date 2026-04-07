@@ -485,6 +485,7 @@ export default async function portalClientRoutes(app: FastifyInstance) {
   });
 
   // GET /portal/client/reports/:month/data — authenticated interactive report data
+  // codeql[js/missing-rate-limiting] rate limiting applied via Fastify { config: { rateLimit: { max: 30 } } } — not recognised by CodeQL's Express sanitizer
   app.get('/portal/client/reports/:month/data', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
