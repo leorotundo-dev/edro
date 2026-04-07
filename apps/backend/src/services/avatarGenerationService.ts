@@ -140,43 +140,45 @@ export async function generateEdroAvatarForFreelancer(params: {
     tenantId: params.tenantId,
     avatarSourceKey: sourceKey,
     status: 'pending',
-    provider: 'fal-ai:flux-dev-image-to-image',
+    provider: 'fal-ai/flux-pro/v1.1',
     promptVersion: EDRO_AVATAR_PROMPT_VERSION,
     error: null,
   });
 
   try {
     const sourcePublicUrl = buildStoragePublicUrl(sourceKey);
-    let provider = 'fal-ai:flux-dev-image-to-image';
-    const dataUrl = `data:${params.sourceMimeType};base64,${params.sourceBuffer.toString('base64')}`;
+    // Base64 data URL works as IP-Adapter reference when no public S3 URL is available
+    const imageRef = sourcePublicUrl ?? `data:${params.sourceMimeType};base64,${params.sourceBuffer.toString('base64')}`;
 
-    const result = await (async () => {
-      if (sourcePublicUrl) {
-        try {
-          return await generateImg2ImgWithFal({
-            imageUrl: sourcePublicUrl,
-            prompt: EDRO_AVATAR_PROMPT,
-            strength: 0.82,
-            aspectRatio: '1:1',
-            numImages: 1,
-          });
-        } catch {
-          provider = 'fal-ai:nano-banana-pro';
-        }
-      } else {
-        provider = 'fal-ai:nano-banana-pro';
-      }
+    // Strategy 1 — flux-pro/v1.1 with IP-Adapter
+    // IP-Adapter extracts the face/identity from the reference photo and preserves it
+    // while the text prompt drives the style (3D avatar, orange cap, etc.)
+    // referenceImageStrength 0.38: 38% identity weight, 62% style weight — good balance
+    let provider = 'fal-ai/flux-pro/v1.1';
+    let result: Awaited<ReturnType<typeof generateImageWithFal>>;
 
-      return generateImageWithFal({
-        model: 'nano-banana-pro',
+    try {
+      result = await generateImageWithFal({
+        model: 'flux-pro',
         prompt: EDRO_AVATAR_PROMPT,
         negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
         aspectRatio: '1:1',
         numImages: 1,
-        referenceImageUrl: dataUrl,
-        referenceImageStrength: 0.78,
+        referenceImageUrl: imageRef,
+        referenceImageStrength: 0.38,
       });
-    })();
+    } catch (primaryErr: any) {
+      // Strategy 2 — flux-dev img2img (requires public URL; lower strength for better likeness)
+      if (!sourcePublicUrl) throw primaryErr;
+      provider = 'fal-ai/flux-dev/image-to-image';
+      result = await generateImg2ImgWithFal({
+        imageUrl: sourcePublicUrl,
+        prompt: EDRO_AVATAR_PROMPT,
+        strength: 0.72,
+        aspectRatio: '1:1',
+        numImages: 1,
+      });
+    }
 
     let avatarGeneratedKey: string | null = null;
     let avatarUrl = result.imageUrl;

@@ -123,27 +123,36 @@ export async function generateImageWithFal(params: {
   // Limit prompt to 2000 chars
   const prompt = (params.prompt ?? '').slice(0, 1990);
 
+  // flux-pro/v1.1 has a simpler API: no user-controlled steps/guidance, uses safety_tolerance
+  const isFluxPro = model === 'flux-pro' || model === 'flux-pro-ultra';
+
   const body: Record<string, any> = {
     prompt,
-    image_size: { width, height },
-    num_images: numImages,
-    num_inference_steps: params.numInferenceSteps ?? (model === 'flux-dev' ? 20 : 28),
-    guidance_scale: params.guidanceScale ?? (model === 'flux-dev' ? 3.0 : 3.5),
+    image_size:  { width, height },
+    num_images:  numImages,
     output_format: 'jpeg',
-    enable_safety_checker: false,
   };
 
-  if (params.negativePrompt) body.negative_prompt = params.negativePrompt;
-  if (params.seed)           body.seed = params.seed;
+  if (!isFluxPro) {
+    body.num_inference_steps = params.numInferenceSteps ?? (model === 'flux-dev' ? 20 : 28);
+    body.guidance_scale      = params.guidanceScale ?? (model === 'flux-dev' ? 3.0 : 3.5);
+    body.enable_safety_checker = false;
+  } else {
+    // flux-pro safety: "6" = least restrictive — needed for portrait/face generation
+    body.safety_tolerance = '6';
+  }
+
+  if (params.negativePrompt && !isFluxPro) body.negative_prompt = params.negativePrompt;
+  if (params.seed) body.seed = params.seed;
 
   // LoRA injection — supported by flux-lora and flux-control-canny
   if (params.loras?.length && (model === 'flux-lora' || model === 'flux-control-canny' || String(model).includes('lora'))) {
     body.loras = params.loras.map((l) => ({ path: l.path, scale: l.scale ?? 0.85 }));
   }
 
-  // IP-Adapter reference image
+  // IP-Adapter reference image (flux-pro and flux-dev)
   if (params.referenceImageUrl) {
-    body.image_prompt = params.referenceImageUrl;
+    body.image_prompt          = params.referenceImageUrl;
     body.image_prompt_strength = params.referenceImageStrength ?? 0.15;
   }
 
