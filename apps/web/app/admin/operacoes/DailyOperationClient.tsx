@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence, animate } from 'framer-motion';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -105,10 +106,24 @@ function initials(name?: string | null) {
 // ── StatNumber ────────────────────────────────────────────────────────────────
 
 function StatNumber({ value, label, color }: { value: number; label: string; color?: string }) {
+  const [display, setDisplay] = useState(0);
+  const prevRef = useRef(0);
+
+  useEffect(() => {
+    const from = prevRef.current;
+    prevRef.current = value;
+    const ctrl = animate(from, value, {
+      duration: 0.7,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    });
+    return ctrl.stop;
+  }, [value]);
+
   return (
     <Stack spacing={0} alignItems="flex-start">
       <Typography variant="h3" fontWeight={900} sx={{ lineHeight: 1, color: color || 'text.primary', fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
-        {value}
+        {display}
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         {label}
@@ -412,13 +427,29 @@ export default function DailyOperationClient() {
           <Typography color="text.secondary">Nenhuma demanda encontrada para este filtro.</Typography>
         </Box>
       ) : (
-        <Grid container spacing={2}>
-          {displayed.map((job) => (
-            <Grid key={job.id} size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 }}>
-              <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={filter}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <Grid container spacing={2}>
+              {displayed.map((job, i) => (
+                <Grid key={job.id} size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 }}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.28, delay: Math.min(i * 0.025, 0.6), ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
+                  </motion.div>
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
+          </motion.div>
+        </AnimatePresence>
       )}
 
       {/* Job detail dialog */}
