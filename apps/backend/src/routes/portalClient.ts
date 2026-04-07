@@ -1503,6 +1503,14 @@ ${contextBlock}`;
       }).catch(() => null);
 
       internalUrl = card?.internalUrl ?? null;
+      const trelloSyncStatus =
+        card?.cardId ? 'synced'
+        : card?.localCardId ? 'internal_only'
+        : 'failed';
+      const trelloSyncMessage =
+        card?.cardId ? 'Card criado no Trello com sucesso.'
+        : card?.localCardId ? 'Demanda criada no quadro interno, mas não entrou no Trello externo.'
+        : 'Aceite salvo, mas a demanda não entrou em nenhum quadro operacional.';
 
       if (card) {
         await pool.query(
@@ -1514,19 +1522,34 @@ ${contextBlock}`;
                         'trello_card_url', $2,
                         'internal_board_id', $3,
                         'local_card_id', $4,
-                        'internal_url', $5
+                        'internal_url', $5,
+                        'trello_sync_status', $6,
+                        'trello_sync_message', $7
                       )
                     )
-            WHERE id = $6 AND tenant_id = $7`,
+            WHERE id = $8 AND tenant_id = $9`,
           [
             card.cardId,
             card.cardUrl,
             card.boardId,
             card.localCardId,
             card.internalUrl,
+            trelloSyncStatus,
+            trelloSyncMessage,
             row.id,
             tenantId,
           ],
+        ).catch(() => {});
+      } else {
+        await pool.query(
+          `UPDATE portal_briefing_requests
+              SET auto_pipeline_output = COALESCE(auto_pipeline_output, '{}'::jsonb) ||
+                jsonb_build_object(
+                  'trello_sync_status', $1,
+                  'trello_sync_message', $2
+                )
+            WHERE id = $3 AND tenant_id = $4`,
+          [trelloSyncStatus, trelloSyncMessage, row.id, tenantId],
         ).catch(() => {});
       }
 

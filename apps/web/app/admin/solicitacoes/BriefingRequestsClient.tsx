@@ -48,6 +48,8 @@ type BriefingRequest = {
     pre_call_brief?: string;
     learning_highlights?: string[];
     risk_flags?: string[];
+    trello_sync_status?: 'pending' | 'synced' | 'mapping_missing' | 'not_configured' | 'failed' | 'internal_only';
+    trello_sync_message?: string;
     trello_card_url?: string;
     internal_board_id?: string;
     local_card_id?: string;
@@ -91,6 +93,90 @@ const STATUS_MAP: Record<string, { label: string; color: 'default' | 'info' | 'w
   declined:  { label: 'Recusada', color: 'error' },
   converted: { label: 'Convertida', color: 'success' },
 };
+
+type TrelloOperationalState = {
+  headline: string;
+  detail: string;
+  color: 'default' | 'info' | 'warning' | 'success' | 'error';
+  hasTrello: boolean;
+  hasInternal: boolean;
+};
+
+function getTrelloOperationalState(req: BriefingRequest): TrelloOperationalState {
+  const pipeline = req.auto_pipeline_output;
+  const syncStatus = pipeline?.trello_sync_status;
+  const syncMessage = pipeline?.trello_sync_message;
+  const hasTrello = Boolean(req.trello_card_id || pipeline?.trello_card_url);
+  const hasInternal = Boolean(pipeline?.internal_url || pipeline?.local_card_id);
+
+  if (hasTrello) {
+    return {
+      headline: 'Entrou no Trello',
+      detail: syncMessage ?? 'O aceite já gerou um card no Trello para esta solicitação.',
+      color: 'success',
+      hasTrello,
+      hasInternal,
+    };
+  }
+
+  if (syncStatus === 'internal_only' || (req.status === 'accepted' && hasInternal)) {
+    return {
+      headline: 'Entrou só no quadro interno',
+      detail: syncMessage ?? 'A demanda foi criada internamente, mas ainda não existe card no Trello externo.',
+      color: 'warning',
+      hasTrello,
+      hasInternal,
+    };
+  }
+
+  if (syncStatus === 'mapping_missing') {
+    return {
+      headline: 'Trello não mapeado',
+      detail: syncMessage ?? 'Existe quadro interno, mas a lista do Trello ainda não está mapeada para esta entrada.',
+      color: 'warning',
+      hasTrello,
+      hasInternal,
+    };
+  }
+
+  if (syncStatus === 'not_configured') {
+    return {
+      headline: 'Trello não configurado',
+      detail: syncMessage ?? 'A integração com o Trello não está disponível neste tenant.',
+      color: 'warning',
+      hasTrello,
+      hasInternal,
+    };
+  }
+
+  if (syncStatus === 'failed') {
+    return {
+      headline: 'Falhou ao entrar no Trello',
+      detail: syncMessage ?? 'O briefing foi processado, mas a criação do card no Trello falhou.',
+      color: 'error',
+      hasTrello,
+      hasInternal,
+    };
+  }
+
+  if (pipeline) {
+    return {
+      headline: 'Jarvis analisou o briefing',
+      detail: 'A IA já enriqueceu o pedido, mas o status operacional do Trello ainda não foi confirmado.',
+      color: 'info',
+      hasTrello,
+      hasInternal,
+    };
+  }
+
+  return {
+    headline: 'Aguardando processamento',
+    detail: 'O briefing ainda não passou pela automação operacional.',
+    color: 'default',
+    hasTrello,
+    hasInternal,
+  };
+}
 
 export default function BriefingRequestsClient() {
   const router = useRouter();
@@ -318,6 +404,8 @@ export default function BriefingRequestsClient() {
 function JarvisPanel({ req }: { req: BriefingRequest }) {
   const p = req.auto_pipeline_output;
   const internalUrl = p?.internal_url ?? null;
+  const trelloUrl = p?.trello_card_url ?? null;
+  const trelloState = getTrelloOperationalState(req);
 
   if (!p && !req.ai_enriched) return null;
 
@@ -348,34 +436,38 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
       sx={{
         mt: 1.5,
         border: '1px solid',
-        borderColor: 'primary.light',
+        borderColor:
+          trelloState.color === 'success' ? 'success.light'
+          : trelloState.color === 'error' ? 'error.light'
+          : trelloState.color === 'warning' ? 'warning.light'
+          : 'primary.light',
         borderRadius: '8px !important',
-        bgcolor: 'rgba(93,135,255,0.03)',
+        bgcolor:
+          trelloState.color === 'success' ? 'rgba(20,184,92,0.05)'
+          : trelloState.color === 'error' ? 'rgba(239,68,68,0.05)'
+          : trelloState.color === 'warning' ? 'rgba(245,158,11,0.06)'
+          : 'rgba(93,135,255,0.03)',
         '&:before': { display: 'none' },
       }}
     >
       <AccordionSummary expandIcon={<IconChevronDown size={16} />} sx={{ minHeight: 40, py: 0, px: 1.5 }}>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-          <IconRobot size={14} />
-          <Typography variant="caption" fontWeight={700} color="primary.main">
-            Jarvis processou este briefing
+          <IconBrandTrello size={14} />
+          <Typography variant="caption" fontWeight={700} color={`${trelloState.color}.main`}>
+            {trelloState.headline}
           </Typography>
+          <Chip
+            label={trelloState.hasTrello ? 'Card no Trello' : trelloState.hasInternal ? 'Quadro interno' : 'Sem card'}
+            size="small"
+            color={trelloState.color}
+            variant="outlined"
+            sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
+          />
           {p.risk_flags?.length ? (
             <Chip
               label={`${p.risk_flags.length} risco${p.risk_flags.length > 1 ? 's' : ''}`}
               size="small" color="warning" variant="outlined"
               icon={<IconAlertTriangle size={11} />}
-              sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
-            />
-          ) : null}
-          {internalUrl ? (
-            <Chip label="Quadro interno" size="small" color="info" variant="outlined"
-              icon={<IconBrandTrello size={11} />}
-              sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
-            />
-          ) : p.trello_card_url ? (
-            <Chip label="Trello sync" size="small" color="default" variant="outlined"
-              icon={<IconBrandTrello size={11} />}
               sx={{ height: 18, '& .MuiChip-label': { fontSize: '0.6rem' } }}
             />
           ) : null}
@@ -388,6 +480,25 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
       <AccordionDetails sx={{ px: 1.5, pb: 1.5, pt: 0 }}>
         <Divider sx={{ mb: 1.5 }} />
         <Stack spacing={1.5}>
+          <Box
+            sx={{
+              p: 1.25,
+              borderRadius: 1.5,
+              bgcolor:
+                trelloState.color === 'success' ? 'success.light'
+                : trelloState.color === 'error' ? 'error.light'
+                : trelloState.color === 'warning' ? 'warning.light'
+                : 'action.hover',
+            }}
+          >
+            <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.25 }}>
+              Situação operacional
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {trelloState.detail}
+            </Typography>
+          </Box>
+
           {p.risk_flags?.length ? (
             <Box sx={{ p: 1.25, bgcolor: 'warning.light', borderRadius: 1.5 }}>
               <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
@@ -453,8 +564,21 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
             </Box>
           ) : null}
 
-          {internalUrl && (
-            <Box>
+          {(trelloUrl || internalUrl) && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {trelloUrl && (
+                <Button
+                  variant="outlined" size="small" color="success"
+                  startIcon={<IconBrandTrello size={14} />}
+                  href={trelloUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                >
+                  Abrir no Trello
+                </Button>
+              )}
+              {internalUrl && (
               <Button
                 variant="outlined" size="small" color="info"
                 startIcon={<IconBrandTrello size={14} />}
@@ -463,6 +587,7 @@ function JarvisPanel({ req }: { req: BriefingRequest }) {
               >
                 Abrir no quadro interno
               </Button>
+              )}
             </Box>
           )}
         </Stack>

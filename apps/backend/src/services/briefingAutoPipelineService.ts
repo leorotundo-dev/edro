@@ -50,6 +50,8 @@ interface PipelineOutput {
   risk_flags: string[];
   trello_card_id?: string;
   trello_card_url?: string;
+  trello_sync_status?: 'pending' | 'synced' | 'mapping_missing' | 'not_configured' | 'failed' | 'internal_only';
+  trello_sync_message?: string;
   internal_board_id?: string;
   local_card_id?: string;
   internal_url?: string;
@@ -245,6 +247,8 @@ export async function runBriefingAutoPipeline(input: PipelineInput): Promise<voi
       pre_call_brief:      '',
       learning_highlights: [],
       risk_flags:          [],
+      trello_sync_status:  'pending',
+      trello_sync_message: 'Aguardando criação do card no Trello.',
       whatsapp_sent:       false,
       pipeline_ran_at:     new Date().toISOString(),
     };
@@ -316,9 +320,17 @@ Responda em JSON com esta estrutura exata:
 
     // ── 3. Create Trello card ──────────────────────────────────────────────────
     const trelloCreds = await getTrelloCredentials(tenantId).catch(() => null);
-    if (trelloCreds) {
-      const target = await findBriefingBoardTarget(tenantId, clientId);
-      if (target?.trelloListId) {
+    const target = await findBriefingBoardTarget(tenantId, clientId);
+    if (!target) {
+      output.trello_sync_status = 'failed';
+      output.trello_sync_message = 'Nenhum quadro interno foi encontrado para receber esta solicitação.';
+    } else if (!trelloCreds) {
+      output.trello_sync_status = 'not_configured';
+      output.trello_sync_message = 'A integração com o Trello não está configurada neste tenant.';
+    } else if (!target.trelloListId) {
+      output.trello_sync_status = 'mapping_missing';
+      output.trello_sync_message = 'A solicitação caiu no quadro interno, mas a lista do Trello ainda não está mapeada.';
+    } else {
         const cardName = `${aiEnriched?.suggested_title ?? formData.type ?? 'Novo Job'} — ${client.name}`;
         const urgencyEmoji = { urgent: '🔴', high: '🟠', medium: '🟡', low: '🟢' }[aiEnriched?.urgency ?? ''] ?? '⚪';
         const cardDesc = [
@@ -367,10 +379,13 @@ Responda em JSON com esta estrutura exata:
           const card = await trelloRes.json() as { id: string; shortUrl: string };
           output.trello_card_id  = card.id;
           output.trello_card_url = card.shortUrl;
+          output.trello_sync_status = 'synced';
+          output.trello_sync_message = 'Card criado no Trello com sucesso.';
         } else {
+          output.trello_sync_status = 'failed';
+          output.trello_sync_message = `Falha ao criar o card no Trello${trelloRes?.status ? ` (${trelloRes.status})` : ''}.`;
           console.warn(`[briefingPipeline] Trello card creation failed: ${trelloRes?.status}`);
         }
-      }
     }
 
     // ── 4. WhatsApp alert (Meta Cloud API → fallback Evolution API) ──────────
