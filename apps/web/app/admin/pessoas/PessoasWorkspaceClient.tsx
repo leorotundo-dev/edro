@@ -236,12 +236,14 @@ function mergeColaboradores(
   internalPeople: InternalPerson[],
   freelancers: FreelancerProfileLite[],
 ): PlannerOwner[] {
-  // Index freelancer profiles by email and by user_id for fast lookup
-  const fpByEmail  = new Map<string, FreelancerProfileLite>();
-  const fpByUserId = new Map<string, FreelancerProfileLite>();
+  // Index freelancer profiles by email, user_id and display_name for fast lookup
+  const fpByEmail       = new Map<string, FreelancerProfileLite>();
+  const fpByUserId      = new Map<string, FreelancerProfileLite>();
+  const fpByDisplayName = new Map<string, FreelancerProfileLite>();
   for (const fp of freelancers) {
-    if (fp.email) fpByEmail.set(fp.email.toLowerCase(), fp);
-    if (fp.user_id) fpByUserId.set(fp.user_id, fp);
+    if (fp.email)        fpByEmail.set(fp.email.toLowerCase(), fp);
+    if (fp.user_id)      fpByUserId.set(fp.user_id, fp);
+    if (fp.display_name) fpByDisplayName.set(fp.display_name.toLowerCase(), fp);
   }
 
   // Start with all planner owners — enrich from freelancer profile where possible
@@ -279,12 +281,15 @@ function mergeColaboradores(
       continue;
     }
     seen.add(key);
-    const fp = (email ? fpByEmail.get(email.toLowerCase()) : undefined);
+    // Match freelancer: by email first, then by display_name (handles missing identities)
+    const fp = (email ? fpByEmail.get(email.toLowerCase()) : undefined)
+      ?? fpByDisplayName.get(p.display_name.toLowerCase());
     result.push({
       owner: {
-        id:         fp?.user_id ?? p.id,
+        // Use fp.id (freelancer_profiles PK) so the profile page can match via f.id === decodedId
+        id:         fp?.id ?? p.id,
         name:       fp?.display_name || p.display_name,
-        email:      email,
+        email:      email ?? fp?.email ?? null,
         avatar_url: fp?.avatar_url ?? p.avatar_url,
         role:       fp?.role_title ?? null,
         specialty:  fp?.specialty ?? null,
