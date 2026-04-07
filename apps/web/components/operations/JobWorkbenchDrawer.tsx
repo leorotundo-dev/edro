@@ -51,7 +51,6 @@ import {
   NextActionBar,
   PriorityPill,
   RiskFlag,
-  StageRail,
 } from './primitives';
 import {
   calculatePriorityPreview,
@@ -60,8 +59,10 @@ import {
   formatDateTime,
   formatMinutes,
   getNextAction,
+  getStageIndex,
   getRisk,
   isIntakeComplete,
+  STAGE_FLOW,
   STAGE_LABELS,
   type OperationsJob,
   type OperationsLookup,
@@ -184,6 +185,151 @@ function FoggBar({ label, value }: { label: string; value?: number | null }) {
         <Box sx={{ height: 4, borderRadius: 2, bgcolor: color, width: `${pct}%`, transition: 'width 300ms ease' }} />
       </Box>
     </Stack>
+  );
+}
+
+function JobFlowKanban({
+  job,
+  submitting,
+  onChange,
+}: {
+  job: OperationsJob;
+  submitting: boolean;
+  onChange: (status: string) => void;
+}) {
+  const blocked = job.status === 'blocked';
+  const activeIndex = getStageIndex(job.status);
+  const currentListName = String(job.metadata?.list_name || '').trim();
+
+  return (
+    <Box
+      sx={(theme) => ({
+        p: 1.5,
+        borderRadius: 2.5,
+        border: '1px solid',
+        borderColor: alpha(theme.palette.primary.main, 0.18),
+        bgcolor: alpha(theme.palette.primary.main, 0.04),
+      })}
+    >
+      <Stack spacing={1.25}>
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+          <Box>
+            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45 }}>
+              FLUXO KANBAN
+            </Typography>
+            <Typography variant="body2" fontWeight={700}>
+              Controle a etapa deste job sem sair do popup
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+            {currentListName ? (
+              <Chip
+                size="small"
+                variant="outlined"
+                color="primary"
+                label={`Trello · ${currentListName}`}
+                sx={{ fontWeight: 700 }}
+              />
+            ) : null}
+            {blocked ? (
+              <Chip
+                size="small"
+                color="warning"
+                label="Fluxo pausado"
+                sx={{ fontWeight: 700 }}
+              />
+            ) : null}
+          </Stack>
+        </Stack>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+            gap: 1,
+          }}
+        >
+          {STAGE_FLOW.map((stage, index) => {
+            const isCurrent = job.status === stage.key;
+            const isDone = !blocked && index < activeIndex;
+            const disabled = submitting || isCurrent;
+
+            return (
+              <Box
+                key={stage.key}
+                component="button"
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  if (!disabled) onChange(stage.key);
+                }}
+                sx={(theme) => {
+                  const accent = isCurrent
+                    ? theme.palette.primary.main
+                    : isDone
+                      ? theme.palette.success.main
+                      : alpha(theme.palette.text.primary, 0.18);
+
+                  return {
+                    appearance: 'none',
+                    textAlign: 'left',
+                    p: 1.25,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: accent,
+                    bgcolor: isCurrent
+                      ? alpha(theme.palette.primary.main, 0.1)
+                      : isDone
+                        ? alpha(theme.palette.success.main, 0.08)
+                        : theme.palette.mode === 'dark'
+                          ? alpha(theme.palette.background.paper, 0.55)
+                          : '#fff',
+                    cursor: disabled ? 'default' : 'pointer',
+                    transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease',
+                    '&:hover': disabled ? undefined : {
+                      transform: 'translateY(-1px)',
+                      boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, 0.08)}`,
+                      borderColor: theme.palette.primary.main,
+                    },
+                    '&:disabled': {
+                      opacity: isCurrent ? 1 : 0.88,
+                    },
+                  };
+                }}
+              >
+                <Stack spacing={0.65}>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                    <Typography variant="caption" sx={{ fontWeight: 900, color: isCurrent ? 'primary.main' : 'text.primary' }}>
+                      {stage.label}
+                    </Typography>
+                    {isCurrent ? (
+                      <Chip size="small" color="primary" label="Atual" sx={{ height: 20, fontWeight: 700 }} />
+                    ) : isDone ? (
+                      <IconCheck size={14} color="#16a34a" />
+                    ) : (
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                        {index + 1}
+                      </Typography>
+                    )}
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                    {isCurrent
+                      ? 'Etapa atual do card no fluxo'
+                      : isDone
+                        ? 'Etapa ja concluida'
+                        : 'Clique para mover o job para ca'}
+                  </Typography>
+                </Stack>
+              </Box>
+            );
+          })}
+        </Box>
+
+        <Typography variant="caption" color="text.secondary">
+          Clique em qualquer coluna para mover o job. A mudanca usa o mesmo sync operacional que reflete no Trello.
+        </Typography>
+      </Stack>
+    </Box>
   );
 }
 
@@ -1169,11 +1315,18 @@ export default function JobWorkbenchDrawer({
               </Stack>
             </Box>
           ) : detailJob ? (
-            <NextActionBar
-              job={{ ...detailJob, ...payload, priority_band: priorityPreview.priorityBand, owner_name: selectedOwner?.name || detailJob.owner_name }}
-              onPrimaryAction={progressTarget ? () => handleStatusChange(progressTarget) : undefined}
-              primaryLabel={progressTarget ? nextAction.label : undefined}
-            />
+            <Stack spacing={1.5}>
+              <JobFlowKanban
+                job={{ ...detailJob, ...payload, priority_band: priorityPreview.priorityBand, owner_name: selectedOwner?.name || detailJob.owner_name }}
+                submitting={submitting}
+                onChange={handleStatusChange}
+              />
+              <NextActionBar
+                job={{ ...detailJob, ...payload, priority_band: priorityPreview.priorityBand, owner_name: selectedOwner?.name || detailJob.owner_name }}
+                onPrimaryAction={progressTarget ? () => handleStatusChange(progressTarget) : undefined}
+                primaryLabel={progressTarget ? nextAction.label : undefined}
+              />
+            </Stack>
           ) : null}
           {error ? <Alert severity="error">{error}</Alert> : null}
         </Stack>
@@ -1900,7 +2053,6 @@ export default function JobWorkbenchDrawer({
                   </Stack>
                 </Stack>
               </Box>
-              <StageRail status={detailJob.status} />
               <Grid container spacing={1.5}>
                 {detailJob.client_id ? (
                   <Grid size={{ xs: 12, md: 6 }}>

@@ -1390,8 +1390,12 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     }
     const primaryClient = selectedClients[0];
     const params = new URLSearchParams();
-    if (primaryClient?.id) params.set('client_id', primaryClient.id);
-    if (primaryClient?.name) params.set('client_name', primaryClient.name);
+    if (primaryClient?.id) params.set('clientId', primaryClient.id);
+    if (primaryClient?.name) params.set('client', primaryClient.name);
+    if (selectedClients.length > 1) {
+      params.set('clientIds', selectedClients.map((client) => client.id).join(','));
+      params.set('clients', selectedClients.map((client) => client.name).join(', '));
+    }
     // Pre-fill briefing title with event + date
     const dateLabel = dateISO
       ? new Date(dateISO + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
@@ -1402,10 +1406,16 @@ export default function CalendarHubPage({ initialClientId, noShell, embedded, lo
     if (titleSuggestion) params.set('title', titleSuggestion);
     if (dateISO) params.set('date', dateISO);
     if (event?.name) params.set('event', event.name);
-    if (event?.why) params.set('event_why', event.why);
-    if (event?.categories?.length) params.set('event_categories', event.categories.join(', '));
+    if (event?.why) params.set('notes', event.why);
+    if (event?.categories?.length) params.set('categories', event.categories.join(', '));
+    if (event?.tags?.length) params.set('tags', event.tags.join(', '));
+    if (Number.isFinite(event?.score)) params.set('score', String(event.score));
+    if (event?.source) params.set('source', event.source);
+    params.set('ref', 'calendar');
+    params.set('sourceId', event.id);
+    params.set('fresh', '1');
     persistStudioContext(event, dateISO);
-    router.push(`/edro/novo?${params.toString()}`);
+    router.push(`/studio/brief?${params.toString()}`);
   };
 
   const handleOpenAddEvent = () => {
