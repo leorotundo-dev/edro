@@ -24,6 +24,8 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconArrowUpRight,
+  IconBriefcase,
+  IconClock,
   IconSearch,
   IconUsers,
   IconUserCheck,
@@ -85,6 +87,7 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
   const state = ownerState(usage);
   const freeMinutes = Math.max(0, allocable_minutes - committed_minutes - tentative_minutes);
   const pct = Math.min(100, Math.round(usage * 100));
+  const hasJobs = jobs.length > 0;
 
   const nameMatch = q && owner.name.toLowerCase().includes(q.toLowerCase());
   const emailMatch = q && owner.email?.toLowerCase().includes(q.toLowerCase());
@@ -93,107 +96,127 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
   return (
     <Box
       sx={{
-        borderRadius: 2.5,
+        borderRadius: 3,
         border: `1px solid ${dark ? alpha('#fff', 0.08) : alpha('#000', 0.07)}`,
         bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
-        p: 2.25,
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        gap: 1.5,
-        transition: 'box-shadow 0.15s',
-        '&:hover': { boxShadow: dark ? '0 2px 12px rgba(0,0,0,0.35)' : '0 2px 12px rgba(0,0,0,0.08)' },
+        transition: 'box-shadow 0.15s, transform 0.15s',
+        '&:hover': {
+          boxShadow: dark ? '0 4px 24px rgba(0,0,0,0.4)' : '0 4px 24px rgba(0,0,0,0.1)',
+          transform: 'translateY(-2px)',
+        },
       }}
     >
-      {/* Header */}
-      <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between">
-        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-          <Avatar
-            src={owner.avatar_url ?? undefined}
-            sx={{
-              width: 40, height: 40, fontSize: '0.8rem', fontWeight: 800, flexShrink: 0,
-              bgcolor: alpha(theme.palette.primary.main, 0.14),
-              color: 'primary.main',
-            }}
-          >
-            {initials(owner.name)}
-          </Avatar>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
-              {owner.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontSize: '0.7rem' }}>
-              {owner.specialty || owner.role || 'Equipe'}
-            </Typography>
-          </Box>
-        </Stack>
+      {/* Avatar area — fills top */}
+      <Box sx={{ position: 'relative', bgcolor: alpha(theme.palette.primary.main, 0.06), pt: '72%' }}>
+        <Avatar
+          src={owner.avatar_url ?? undefined}
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            borderRadius: 0,
+            fontSize: '2.8rem',
+            fontWeight: 900,
+            bgcolor: alpha(theme.palette.primary.main, 0.12),
+            color: 'primary.main',
+          }}
+        >
+          {initials(owner.name)}
+        </Avatar>
+
+        {/* Status badge top-right */}
         <Chip
           size="small"
-          label={state.label}
+          label={hasJobs ? state.label : 'Disponível'}
           sx={{
-            bgcolor: alpha(state.color, 0.14),
-            color: state.color,
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            bgcolor: hasJobs ? alpha(state.color, 0.85) : alpha('#13DEB9', 0.85),
+            color: '#fff',
             fontWeight: 800,
-            fontSize: '0.65rem',
+            fontSize: '0.62rem',
             height: 20,
-            flexShrink: 0,
+            backdropFilter: 'blur(4px)',
           }}
         />
-      </Stack>
+      </Box>
 
-      {jobs.length === 0 ? (
-        /* No active jobs */
-        <Chip
-          label="Sem jobs ativos"
-          size="small"
-          variant="outlined"
-          sx={{ alignSelf: 'flex-start', fontSize: '0.65rem', height: 20, color: 'text.disabled', borderColor: 'divider' }}
-        />
-      ) : (
-        <>
-          {/* Stats row */}
-          <Stack direction="row" spacing={2.5}>
-            <Box>
-              <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{jobs.length}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-                jobs ativos
+      {/* Body */}
+      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1 }}>
+        {/* Name + role */}
+        <Box>
+          <Typography variant="subtitle1" fontWeight={900} sx={{ lineHeight: 1.2 }}>
+            {owner.name}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+            {owner.specialty || owner.role || 'Equipe'}
+          </Typography>
+        </Box>
+
+        {/* Stats row */}
+        <Stack
+          direction="row"
+          divider={<Box sx={{ width: '1px', bgcolor: 'divider', my: 0.25 }} />}
+          sx={{
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            overflow: 'hidden',
+          }}
+        >
+          {[
+            { icon: <IconBriefcase size={13} />, value: hasJobs ? String(jobs.length) : '0', label: 'Jobs' },
+            { icon: <IconClock size={13} />, value: hasJobs ? formatHours(freeMinutes) : '16h', label: 'Livres' },
+            {
+              icon: <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: hasJobs ? state.color : '#13DEB9' }} />,
+              value: hasJobs ? `${pct}%` : '0%',
+              label: 'Carga',
+            },
+          ].map((stat, i) => (
+            <Box
+              key={i}
+              sx={{ flex: 1, py: 1, px: 0.5, textAlign: 'center', bgcolor: dark ? 'transparent' : alpha('#000', 0.01) }}
+            >
+              <Stack direction="row" spacing={0.4} alignItems="center" justifyContent="center" sx={{ color: 'text.secondary', mb: 0.3 }}>
+                {stat.icon}
+              </Stack>
+              <Typography variant="body2" fontWeight={900} sx={{ lineHeight: 1, fontSize: '0.85rem' }}>
+                {stat.value}
+              </Typography>
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>
+                {stat.label}
               </Typography>
             </Box>
-            <Box>
-              <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{formatHours(freeMinutes)}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-                livres
-              </Typography>
-            </Box>
-          </Stack>
+          ))}
+        </Stack>
 
-          {/* Workload bar */}
-          <Box>
-            <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-                Carga comprometida
-              </Typography>
-              <Typography variant="caption" fontWeight={800} sx={{ color: state.color, fontSize: '0.68rem' }}>
-                {pct}%
-              </Typography>
-            </Stack>
-            <Box sx={{ height: 5, borderRadius: 99, bgcolor: alpha(state.color, 0.14) }}>
-              <Box sx={{ height: 5, borderRadius: 99, width: `${pct}%`, bgcolor: state.color, transition: 'width 0.3s' }} />
-            </Box>
-          </Box>
-
-          {/* Footer */}
-          <Button
-            component={Link}
-            href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(owner.id)}`}
-            size="small"
-            variant="outlined"
-            endIcon={<IconArrowUpRight size={13} />}
-            sx={{ alignSelf: 'flex-start', fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', py: 0.4, px: 1.25 }}
-          >
-            Ver pauta
-          </Button>
-        </>
-      )}
+        {/* CTA */}
+        <Button
+          component={Link}
+          href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(owner.id)}`}
+          variant="contained"
+          fullWidth
+          endIcon={<IconArrowUpRight size={15} />}
+          sx={{
+            mt: 'auto',
+            fontWeight: 800,
+            fontSize: '0.78rem',
+            textTransform: 'none',
+            borderRadius: 2,
+            py: 0.9,
+            bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.85),
+            color: '#fff',
+            '&:hover': { bgcolor: dark ? alpha('#fff', 0.18) : '#000' },
+            boxShadow: 'none',
+          }}
+        >
+          Ver pauta
+        </Button>
+      </Box>
     </Box>
   );
 }
