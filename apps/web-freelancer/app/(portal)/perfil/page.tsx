@@ -163,16 +163,36 @@ export default function PerfilPage() {
     });
   }, [profile]);
 
-  async function saveSection(section: string, payload: Record<string, unknown>) {
-    setSaving((prev) => ({ ...prev, [section]: true }));
-    setError((prev) => ({ ...prev, [section]: '' }));
+  function buildProfilePayload() {
+    const weeklyCapacityHoursRaw = availability.weekly_capacity_hours.trim();
+    const weeklyCapacityHours = weeklyCapacityHoursRaw ? parseFloat(weeklyCapacityHoursRaw) : null;
+
+    return {
+      ...contact,
+      ...legal,
+      ...payment,
+      available_days: availability.available_days,
+      available_hours_start: availability.available_hours_start || null,
+      available_hours_end: availability.available_hours_end || null,
+      weekly_capacity_hours: Number.isFinite(weeklyCapacityHours) ? weeklyCapacityHours : null,
+      unavailable_until: availability.unavailable_until || null,
+      skills_json: arsenal.skills_json,
+      skills: arsenal.skills_json.map((skill) => skill.id),
+      portfolio_url: arsenal.portfolio_url || null,
+      weekly_capacity: arsenal.weekly_capacity || null,
+    };
+  }
+
+  async function saveProfile() {
+    setSaving((prev) => ({ ...prev, profile: true }));
+    setError((prev) => ({ ...prev, profile: '' }));
     try {
-      await apiPatch('/freelancers/portal/me', payload);
+      await apiPatch('/freelancers/portal/me', buildProfilePayload());
       await mutate();
     } catch (e: any) {
-      setError((prev) => ({ ...prev, [section]: e?.message ?? 'Não foi possível salvar.' }));
+      setError((prev) => ({ ...prev, profile: e?.message ?? 'Não foi possível salvar o perfil.' }));
     } finally {
-      setSaving((prev) => ({ ...prev, [section]: false }));
+      setSaving((prev) => ({ ...prev, profile: false }));
     }
   }
 
@@ -344,7 +364,6 @@ export default function PerfilPage() {
           <div><label className="portal-field-label">CEP</label><input className="portal-input" value={legal.address_cep} onChange={(e) => setLegal((prev) => ({ ...prev, address_cep: e.target.value }))} /></div>
         </div>
         {error.legal && <p style={{ marginTop: 12, fontSize: 12, color: '#FA896B' }}>{error.legal}</p>}
-        <div className="portal-inline-stack" style={{ marginTop: 16 }}><button type="button" className="portal-button" onClick={() => saveSection('legal', legal)} disabled={saving.legal}>{saving.legal ? 'Salvando...' : 'Salvar cadastro PJ'}</button></div>
       </section>
 
       <section className="portal-card">
@@ -357,7 +376,6 @@ export default function PerfilPage() {
           <div><label className="portal-field-label">Conta</label><input className="portal-input" value={payment.bank_account} onChange={(e) => setPayment((prev) => ({ ...prev, bank_account: e.target.value }))} /></div>
         </div>
         {error.payment && <p style={{ marginTop: 12, fontSize: 12, color: '#FA896B' }}>{error.payment}</p>}
-        <div className="portal-inline-stack" style={{ marginTop: 16 }}><button type="button" className="portal-button" onClick={() => saveSection('payment', payment)} disabled={saving.payment}>{saving.payment ? 'Salvando...' : 'Salvar pagamento'}</button></div>
       </section>
 
       <section className="portal-card">
@@ -368,7 +386,6 @@ export default function PerfilPage() {
           <div><label className="portal-field-label">Capacidade declarada</label><select className="portal-input" value={arsenal.weekly_capacity} onChange={(e) => setArsenal((prev) => ({ ...prev, weekly_capacity: parseInt(e.target.value, 10) }))} title="Capacidade declarada"><option value={10}>Baixa</option><option value={20}>Média</option><option value={40}>Alta</option><option value={80}>Máxima</option></select></div>
         </div>
         {error.arsenal && <p style={{ marginTop: 12, fontSize: 12, color: '#FA896B' }}>{error.arsenal}</p>}
-        <div className="portal-inline-stack" style={{ marginTop: 16 }}><button type="button" className="portal-button" onClick={() => saveSection('arsenal', { skills_json: arsenal.skills_json, skills: arsenal.skills_json.map((s) => s.id), portfolio_url: arsenal.portfolio_url || null, weekly_capacity: arsenal.weekly_capacity || null })} disabled={saving.arsenal}>{saving.arsenal ? 'Salvando...' : 'Salvar arsenal'}</button></div>
       </section>
 
       <section className="portal-card">
@@ -383,7 +400,6 @@ export default function PerfilPage() {
         </div>
         {profile.whatsapp_jid && <p className="portal-field-hint" style={{ marginTop: 8 }}>WhatsApp atual: {formatJid(profile.whatsapp_jid)}</p>}
         {error.contact && <p style={{ marginTop: 12, fontSize: 12, color: '#FA896B' }}>{error.contact}</p>}
-        <div className="portal-inline-stack" style={{ marginTop: 16 }}><button type="button" className="portal-button" onClick={() => saveSection('contact', contact)} disabled={saving.contact}>{saving.contact ? 'Salvando...' : 'Salvar contato'}</button></div>
       </section>
 
       <section className="portal-card">
@@ -399,7 +415,6 @@ export default function PerfilPage() {
           <div><label className="portal-field-label">Indisponível até</label><input type="date" className="portal-input" value={availability.unavailable_until} onChange={(e) => setAvailability((prev) => ({ ...prev, unavailable_until: e.target.value }))} /></div>
         </div>
         {error.availability && <p style={{ marginTop: 12, fontSize: 12, color: '#FA896B' }}>{error.availability}</p>}
-        <div className="portal-inline-stack" style={{ marginTop: 16 }}><button type="button" className="portal-button" onClick={() => saveSection('availability', { ...availability, weekly_capacity_hours: availability.weekly_capacity_hours ? parseFloat(availability.weekly_capacity_hours) : null, unavailable_until: availability.unavailable_until || null })} disabled={saving.availability}>{saving.availability ? 'Salvando...' : 'Salvar disponibilidade'}</button></div>
       </section>
 
       <section className="portal-card">
@@ -410,6 +425,19 @@ export default function PerfilPage() {
           <div className="portal-profile-field"><span className="portal-profile-label">CNPJ atual</span><span className="portal-profile-value">{profile.cnpj ? formatCnpj(profile.cnpj) : '—'}</span></div>
           <div className="portal-profile-field"><span className="portal-profile-label">WhatsApp atual</span><span className="portal-profile-value">{profile.whatsapp_jid ? formatJid(profile.whatsapp_jid) : '—'}</span></div>
         </div>
+      </section>
+
+      <section className="portal-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <h3 className="portal-section-title" style={{ marginBottom: 6 }}>Salvar perfil</h3>
+            <p className="portal-field-hint">Use este botão para salvar todas as alterações da página de Perfil.</p>
+          </div>
+          <button type="button" className="portal-button" onClick={saveProfile} disabled={saving.profile}>
+            {saving.profile ? 'Salvando tudo...' : 'Salvar tudo'}
+          </button>
+        </div>
+        {error.profile && <p style={{ marginTop: 12, fontSize: 12, color: '#FA896B' }}>{error.profile}</p>}
       </section>
     </div>
   );
