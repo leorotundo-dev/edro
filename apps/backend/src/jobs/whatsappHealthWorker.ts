@@ -9,7 +9,7 @@
  */
 
 import { query } from '../db';
-import { getInstanceStatus, isConfigured } from '../services/integrations/evolutionApiService';
+import { configureWebhook, getInstanceStatus, isConfigured } from '../services/integrations/evolutionApiService';
 import { env } from '../env';
 
 const THROTTLE_MS = 5 * 60 * 1000;
@@ -96,6 +96,10 @@ async function checkAndHeal(tenantId: string, name: string): Promise<void> {
     if (recheck.state === 'open') {
       console.log(`[whatsappHealth] ${name}: reconnected successfully via restart`);
       await resolveQrSignal(tenantId, name);
+      // Re-register webhook — Evolution may have lost its event config after restart
+      await configureWebhook(name).catch((err: any) => {
+        console.warn(`[whatsappHealth] ${name}: webhook re-registration failed: ${err?.message}`);
+      });
       return;
     }
 
