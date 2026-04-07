@@ -1337,13 +1337,22 @@ export function ContextDrawer({
     </Box>
   );
 
-  const body = (
+  const drawerBody = (
     <Stack sx={{ height: '100%' }}>
       {header}
       <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 2.25, md: 2.5 } }}>
         {children}
       </Box>
     </Stack>
+  );
+
+  const modalBody = (
+    <Box sx={{ height: '100%', overflowY: 'auto' }}>
+      {header}
+      <Box sx={{ p: { xs: 2.25, md: 2.5 } }}>
+        {children}
+      </Box>
+    </Box>
   );
 
   if (presentation === 'modal') {
@@ -1363,7 +1372,7 @@ export function ContextDrawer({
           },
         }}
       >
-        {body}
+        {modalBody}
       </Dialog>
     );
   }
@@ -1382,7 +1391,7 @@ export function ContextDrawer({
         },
       }}
     >
-      {body}
+      {drawerBody}
     </Drawer>
   );
 }

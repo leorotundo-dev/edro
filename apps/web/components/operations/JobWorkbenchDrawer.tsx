@@ -19,6 +19,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Skeleton from '@mui/material/Skeleton';
 import { alpha } from '@mui/material/styles';
 import Link from 'next/link';
@@ -34,6 +35,7 @@ import {
   IconFileText,
   IconCircleCheck,
   IconCircleX,
+  IconCalendar,
 } from '@tabler/icons-react';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import IconButton from '@mui/material/IconButton';
@@ -185,151 +187,6 @@ function FoggBar({ label, value }: { label: string; value?: number | null }) {
         <Box sx={{ height: 4, borderRadius: 2, bgcolor: color, width: `${pct}%`, transition: 'width 300ms ease' }} />
       </Box>
     </Stack>
-  );
-}
-
-function JobFlowKanban({
-  job,
-  submitting,
-  onChange,
-}: {
-  job: OperationsJob;
-  submitting: boolean;
-  onChange: (status: string) => void;
-}) {
-  const blocked = job.status === 'blocked';
-  const activeIndex = getStageIndex(job.status);
-  const currentListName = String(job.metadata?.list_name || '').trim();
-
-  return (
-    <Box
-      sx={(theme) => ({
-        p: 1.5,
-        borderRadius: 2.5,
-        border: '1px solid',
-        borderColor: alpha(theme.palette.primary.main, 0.18),
-        bgcolor: alpha(theme.palette.primary.main, 0.04),
-      })}
-    >
-      <Stack spacing={1.25}>
-        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-          <Box>
-            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45 }}>
-              FLUXO KANBAN
-            </Typography>
-            <Typography variant="body2" fontWeight={700}>
-              Controle a etapa deste job sem sair do popup
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-            {currentListName ? (
-              <Chip
-                size="small"
-                variant="outlined"
-                color="primary"
-                label={`Trello · ${currentListName}`}
-                sx={{ fontWeight: 700 }}
-              />
-            ) : null}
-            {blocked ? (
-              <Chip
-                size="small"
-                color="warning"
-                label="Fluxo pausado"
-                sx={{ fontWeight: 700 }}
-              />
-            ) : null}
-          </Stack>
-        </Stack>
-
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-            gap: 1,
-          }}
-        >
-          {STAGE_FLOW.map((stage, index) => {
-            const isCurrent = job.status === stage.key;
-            const isDone = !blocked && index < activeIndex;
-            const disabled = submitting || isCurrent;
-
-            return (
-              <Box
-                key={stage.key}
-                component="button"
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                  if (!disabled) onChange(stage.key);
-                }}
-                sx={(theme) => {
-                  const accent = isCurrent
-                    ? theme.palette.primary.main
-                    : isDone
-                      ? theme.palette.success.main
-                      : alpha(theme.palette.text.primary, 0.18);
-
-                  return {
-                    appearance: 'none',
-                    textAlign: 'left',
-                    p: 1.25,
-                    borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: accent,
-                    bgcolor: isCurrent
-                      ? alpha(theme.palette.primary.main, 0.1)
-                      : isDone
-                        ? alpha(theme.palette.success.main, 0.08)
-                        : theme.palette.mode === 'dark'
-                          ? alpha(theme.palette.background.paper, 0.55)
-                          : '#fff',
-                    cursor: disabled ? 'default' : 'pointer',
-                    transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease',
-                    '&:hover': disabled ? undefined : {
-                      transform: 'translateY(-1px)',
-                      boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, 0.08)}`,
-                      borderColor: theme.palette.primary.main,
-                    },
-                    '&:disabled': {
-                      opacity: isCurrent ? 1 : 0.88,
-                    },
-                  };
-                }}
-              >
-                <Stack spacing={0.65}>
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                    <Typography variant="caption" sx={{ fontWeight: 900, color: isCurrent ? 'primary.main' : 'text.primary' }}>
-                      {stage.label}
-                    </Typography>
-                    {isCurrent ? (
-                      <Chip size="small" color="primary" label="Atual" sx={{ height: 20, fontWeight: 700 }} />
-                    ) : isDone ? (
-                      <IconCheck size={14} color="#16a34a" />
-                    ) : (
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
-                        {index + 1}
-                      </Typography>
-                    )}
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
-                    {isCurrent
-                      ? 'Etapa atual do card no fluxo'
-                      : isDone
-                        ? 'Etapa ja concluida'
-                        : 'Clique para mover o job para ca'}
-                  </Typography>
-                </Stack>
-              </Box>
-            );
-          })}
-        </Box>
-
-        <Typography variant="caption" color="text.secondary">
-          Clique em qualquer coluna para mover o job. A mudanca usa o mesmo sync operacional que reflete no Trello.
-        </Typography>
-      </Stack>
-    </Box>
   );
 }
 
@@ -933,6 +790,583 @@ function StatusTimeline({ history }: { history: NonNullable<OperationsJob['histo
   );
 }
 
+/* ─── Compact Kanban (Quick View) ────────────────────────────── */
+
+function JobFlowKanban({
+  job,
+  submitting,
+  onChange,
+}: {
+  job: OperationsJob;
+  submitting: boolean;
+  onChange: (status: string) => void;
+}) {
+  const blocked = job.status === 'blocked';
+  const activeIndex = getStageIndex(job.status);
+  const currentListName = String(job.metadata?.list_name || '').trim();
+
+  return (
+    <Box sx={(theme) => ({
+      p: 1.25,
+      borderRadius: 2,
+      border: '1px solid',
+      borderColor: alpha(theme.palette.primary.main, 0.16),
+      bgcolor: alpha(theme.palette.primary.main, 0.03),
+    })}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45, lineHeight: 1 }}>
+          Etapa do fluxo
+        </Typography>
+        {currentListName && (
+          <Chip size="small" variant="outlined" color="primary" label={`Trello · ${currentListName}`} sx={{ fontWeight: 700, height: 18, fontSize: '0.62rem' }} />
+        )}
+        {blocked && (
+          <Chip size="small" color="warning" label="Pausado" sx={{ fontWeight: 700, height: 18, fontSize: '0.62rem' }} />
+        )}
+      </Stack>
+      <Box sx={{ overflowX: 'auto', pb: 0.25, mx: -0.25 }}>
+        <Stack direction="row" spacing={0.5} sx={{ minWidth: 'max-content', px: 0.25 }}>
+          {STAGE_FLOW.map((stage, index) => {
+            const isCurrent = job.status === stage.key;
+            const isDone = !blocked && index < activeIndex;
+            const disabled = submitting || isCurrent;
+            const dotColor = isCurrent ? '#ff6600' : isDone ? '#13DEB9' : '#e4e4e7';
+            return (
+              <Box
+                key={stage.key}
+                component="button"
+                type="button"
+                disabled={disabled}
+                onClick={() => { if (!disabled) onChange(stage.key); }}
+                sx={(theme) => ({
+                  appearance: 'none',
+                  textAlign: 'center',
+                  width: 76,
+                  flexShrink: 0,
+                  py: 0.75,
+                  px: 0.5,
+                  borderRadius: 1.5,
+                  border: '1.5px solid',
+                  borderColor: isCurrent ? '#ff6600' : isDone ? alpha('#13DEB9', 0.4) : alpha(theme.palette.text.primary, 0.1),
+                  bgcolor: isCurrent ? 'rgba(255,102,0,0.08)' : isDone ? alpha('#13DEB9', 0.06) : theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.55) : '#fff',
+                  cursor: disabled ? 'default' : 'pointer',
+                  transition: 'all 130ms ease',
+                  '&:hover': disabled ? undefined : {
+                    borderColor: '#ff6600',
+                    bgcolor: 'rgba(255,102,0,0.06)',
+                  },
+                  '&:disabled': { opacity: isCurrent ? 1 : 0.85 },
+                })}
+              >
+                <Stack spacing={0.3} alignItems="center">
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', bgcolor: dotColor, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto' }}>
+                    {isDone && <IconCheck size={9} color="#fff" />}
+                  </Box>
+                  <Typography variant="caption" sx={{ fontWeight: isCurrent ? 900 : 600, fontSize: '0.62rem', color: isCurrent ? '#ff6600' : 'text.primary', lineHeight: 1.2, display: 'block' }}>
+                    {stage.label}
+                  </Typography>
+                </Stack>
+              </Box>
+            );
+          })}
+        </Stack>
+      </Box>
+    </Box>
+  );
+}
+
+/* ─── Types hoisted for use in sub-components ────────────────── */
+
+type AllocationProposal = {
+  freelancerId: string;
+  name: string;
+  specialty: string | null;
+  experienceLevel: string | null;
+  score: number;
+  estimatedMinutes: number;
+  estimatedAvailableAt: string;
+  estimatedCompletionAt: string;
+  currentActiveJobs: number;
+  maxConcurrentJobs: number;
+  punctualityScore: number | null;
+  approvalRate: number | null;
+  jobsCompleted: number;
+  rationale: string;
+  skills?: Array<{ id: string; label: string; level: string }>;
+};
+
+/* ─── Deadline countdown ─────────────────────────────────────── */
+
+function DeadlineBar({ deadline_at, is_urgent }: { deadline_at?: string | null; is_urgent?: boolean }) {
+  if (!deadline_at) return null;
+  const daysLeft = Math.ceil((new Date(deadline_at).getTime() - Date.now()) / 86_400_000);
+  const color = daysLeft < 0 ? '#FA896B' : daysLeft <= 2 ? '#FA896B' : daysLeft <= 5 ? '#FFAE1F' : '#13DEB9';
+  const label = daysLeft < 0
+    ? `Atrasado ${Math.abs(daysLeft)}d`
+    : daysLeft === 0 ? 'Vence hoje'
+    : daysLeft === 1 ? 'Vence amanhã'
+    : `${daysLeft}d restantes`;
+
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.25} sx={(theme) => ({
+      px: 1.5, py: 0.875, borderRadius: 2,
+      bgcolor: alpha(color, 0.08),
+      border: `1px solid ${alpha(color, 0.25)}`,
+    })}>
+      <IconCalendar size={15} color={color} />
+      <Box sx={{ flex: 1 }}>
+        <Typography variant="caption" fontWeight={900} sx={{ color, display: 'block', fontSize: '0.76rem' }}>
+          {label}{is_urgent ? ' · URGENTE' : ''}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+          {new Date(deadline_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
+/* ─── Copy preview (approved draft inline) ───────────────────── */
+
+function CopyPreviewInline({ jobId }: { jobId: string }) {
+  const [draft, setDraft] = useState<Pick<CreativeDraft, 'hook_text' | 'content_text' | 'cta_text'> | null>(null);
+
+  useEffect(() => {
+    apiGet<{ data: CreativeDraft[] }>(`/jobs/${jobId}/creative-drafts`)
+      .then((res) => {
+        const approved = (res.data ?? []).find(
+          (d) => d.draft_type === 'copy' && (d.approval_status === 'approved' || d.status === 'done'),
+        );
+        if (approved) setDraft({ hook_text: approved.hook_text, content_text: approved.content_text, cta_text: approved.cta_text });
+      })
+      .catch(() => undefined);
+  }, [jobId]);
+
+  if (!draft) return null;
+
+  return (
+    <Box sx={(theme) => ({
+      mt: 0.75, p: 1.25, borderRadius: 1.5,
+      bgcolor: alpha('#13DEB9', 0.05),
+      border: `1px solid ${alpha('#13DEB9', 0.2)}`,
+    })}>
+      {draft.hook_text && (
+        <Typography variant="caption" fontWeight={800} sx={{ display: 'block', mb: 0.3, fontSize: '0.72rem', color: 'text.primary' }}>
+          {draft.hook_text}
+        </Typography>
+      )}
+      {draft.content_text && (
+        <Typography variant="caption" color="text.secondary" sx={{
+          fontSize: '0.7rem', lineHeight: 1.45,
+          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {draft.content_text}
+        </Typography>
+      )}
+      {draft.cta_text && (
+        <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mt: 0.4, fontSize: '0.68rem', color: '#13DEB9' }}>
+          CTA: {draft.cta_text}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+/* ─── DA Assignment Block ─────────────────────────────────────── */
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+}
+
+function avatarBg(name: string) {
+  const palette = ['#5D87FF', '#E85219', '#13DEB9', '#FFAE1F', '#FA896B', '#9B59B6', '#2ECC71'];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return palette[Math.abs(h) % palette.length];
+}
+
+function DAAssignmentBlock({
+  job,
+  allProposals,
+  onAssign,
+  onTakeOwnership,
+  submitting,
+  currentUserId,
+}: {
+  job: OperationsJob;
+  allProposals: AllocationProposal[];
+  onAssign: (id: string) => void;
+  onTakeOwnership: () => void;
+  submitting: boolean;
+  currentUserId?: string | null;
+}) {
+  const [picking, setPicking] = useState(!job.owner_id);
+
+  // Reset to "show picker" if job loses its owner
+  useEffect(() => {
+    if (!job.owner_id) setPicking(true);
+  }, [job.owner_id]);
+
+  // Only DAs who still have capacity
+  const available = allProposals.filter(
+    (p) => p.currentActiveJobs < p.maxConcurrentJobs && p.freelancerId !== job.owner_id,
+  );
+
+  return (
+    <Box sx={(theme) => ({
+      p: 1.5, borderRadius: 2,
+      border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+      bgcolor: theme.palette.background.paper,
+    })}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.25 }}>
+        <Typography variant="caption" fontWeight={900} sx={{ textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: 0.5, color: 'text.secondary' }}>
+          DA responsável
+        </Typography>
+        {job.owner_id && !picking && (
+          <Button size="small" variant="text" onClick={() => setPicking(true)} disabled={submitting}
+            sx={{ fontSize: '0.65rem', py: 0, minWidth: 'unset' }}>
+            Trocar
+          </Button>
+        )}
+      </Stack>
+
+      {/* Current assignee */}
+      {job.owner_id && !picking ? (
+        <Stack direction="row" alignItems="center" spacing={1.25}>
+          <Avatar sx={{ width: 36, height: 36, bgcolor: avatarBg(job.owner_name || ''), fontSize: '0.72rem', fontWeight: 800 }}>
+            {initials(job.owner_name || '?')}
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem' }}>{job.owner_name}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+              Responsável atual
+            </Typography>
+          </Box>
+        </Stack>
+      ) : (
+        /* Picker — only available DAs */
+        <Stack spacing={0.625}>
+          {/* "Assumir eu mesmo" */}
+          {!job.owner_id && currentUserId && (
+            <Box
+              component="button"
+              type="button"
+              disabled={submitting}
+              onClick={() => { onTakeOwnership(); setPicking(false); }}
+              sx={(theme) => ({
+                appearance: 'none', textAlign: 'left', width: '100%', cursor: 'pointer',
+                p: 0.875, borderRadius: 1.5,
+                border: `1px dashed ${alpha(theme.palette.primary.main, 0.4)}`,
+                bgcolor: alpha(theme.palette.primary.main, 0.04),
+                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                '&:disabled': { opacity: 0.5 },
+              })}
+            >
+              <Typography variant="caption" fontWeight={700} color="primary.main" sx={{ fontSize: '0.72rem' }}>
+                ↩ Assumir eu mesmo
+              </Typography>
+            </Box>
+          )}
+
+          {available.length === 0 && allProposals.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem', py: 0.5 }}>
+              Todos os DAs estão com capacidade cheia no momento.
+            </Typography>
+          )}
+          {available.length === 0 && allProposals.length === 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem', py: 0.5 }}>
+              Carregando disponibilidade…
+            </Typography>
+          )}
+
+          {available.map((p) => {
+            const slotsLeft = p.maxConcurrentJobs - p.currentActiveJobs;
+            const bg = avatarBg(p.name);
+            const availNow = new Date(p.estimatedAvailableAt) <= new Date();
+            return (
+              <Box
+                key={p.freelancerId}
+                component="button"
+                type="button"
+                disabled={submitting}
+                onClick={() => { onAssign(p.freelancerId); setPicking(false); }}
+                sx={(theme) => ({
+                  appearance: 'none', textAlign: 'left', width: '100%', cursor: 'pointer',
+                  p: 0.875, borderRadius: 1.5,
+                  border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : '#fafafa',
+                  transition: 'all 130ms ease',
+                  '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.04)' },
+                  '&:disabled': { opacity: 0.5 },
+                })}
+              >
+                <Stack direction="row" alignItems="center" spacing={1.25}>
+                  <Avatar sx={{ width: 30, height: 30, bgcolor: bg, fontSize: '0.65rem', fontWeight: 800, flexShrink: 0 }}>
+                    {initials(p.name)}
+                  </Avatar>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.75rem', display: 'block' }}>{p.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                      {p.specialty || 'Freelancer'} · {p.currentActiveJobs}/{p.maxConcurrentJobs} jobs
+                    </Typography>
+                  </Box>
+                  <Stack alignItems="flex-end" spacing={0.25} sx={{ flexShrink: 0 }}>
+                    <Chip
+                      size="small"
+                      label={availNow ? 'Disponível' : 'Em breve'}
+                      color={availNow ? 'success' : 'warning'}
+                      sx={{ height: 18, fontSize: '0.58rem', fontWeight: 700 }}
+                    />
+                    {slotsLeft > 0 && (
+                      <Typography variant="caption" sx={{ fontSize: '0.58rem', color: 'text.disabled' }}>
+                        {slotsLeft} vaga{slotsLeft > 1 ? 's' : ''}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Stack>
+              </Box>
+            );
+          })}
+
+          {picking && job.owner_id && (
+            <Button size="small" variant="text" onClick={() => setPicking(false)} sx={{ alignSelf: 'flex-start', fontSize: '0.65rem', py: 0.25 }}>
+              Cancelar
+            </Button>
+          )}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
+/* ─── Job Journey Panel (Quick View) ─────────────────────────── */
+
+const JOURNEY_STATUS_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'archived'];
+
+function JobJourneyPanel({
+  job,
+  directives,
+  allProposals,
+  onTakeOwnership,
+  onAssignOwner,
+  onStatusChange,
+  submitting,
+  currentUserId,
+}: {
+  job: OperationsJob;
+  directives: Array<{ id: string; directive_type: 'boost' | 'avoid'; directive: string }>;
+  allProposals: AllocationProposal[];
+  onTakeOwnership: () => void;
+  onAssignOwner: (id: string) => void;
+  onStatusChange: (s: string) => void;
+  submitting: boolean;
+  currentUserId?: string | null;
+}) {
+  const idx = JOURNEY_STATUS_ORDER.indexOf(job.status);
+  const past = (s: string) => idx >= JOURNEY_STATUS_ORDER.indexOf(s);
+
+  const hasAuto = Boolean(job.automation_status && job.automation_status !== 'none');
+  const briefingDone = hasAuto && job.automation_status !== 'briefing_pending';
+  const copyActive = ['copy_generating', 'copy_pending'].includes(job.automation_status ?? '');
+  const copyDone = ['copy_done', 'copy_approved'].includes(job.automation_status ?? '');
+
+  type StepDef = {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    status: 'done' | 'active' | 'pending';
+    detail: string;
+    href?: string;
+    action?: { label: string; fn: () => void };
+  };
+
+  const steps: StepDef[] = [
+    {
+      id: 'briefing',
+      label: 'Briefing do cliente',
+      icon: <IconFileText size={13} />,
+      status: briefingDone ? 'done' : hasAuto ? 'active' : 'pending',
+      detail: briefingDone ? 'Aprovado e completo' : hasAuto ? 'Aguardando aprovação' : 'Ainda não iniciado',
+      href: `/admin/operacoes/jobs/${job.id}/briefing`,
+    },
+    {
+      id: 'copy',
+      label: 'Copy / Produção',
+      icon: <IconBrush size={13} />,
+      status: copyDone ? 'done' : copyActive ? 'active' : past('in_progress') ? 'active' : 'pending',
+      detail: copyDone ? 'Pronto para revisão' : copyActive ? 'Sendo gerado pelo Jarvis…' : past('in_progress') ? 'Em produção' : 'Não iniciado',
+      href: `/studio?jobId=${job.id}`,
+    },
+    {
+      id: 'approval',
+      label: 'Aprovação',
+      icon: <IconThumbUp size={13} />,
+      status: past('approved') ? 'done' : past('awaiting_approval') ? 'active' : 'pending',
+      detail: past('approved') ? 'Aprovado pelo cliente' : past('awaiting_approval') ? 'Aguardando aprovação do cliente' : 'Ainda não chegou aqui',
+    },
+    {
+      id: 'debrief',
+      label: 'Debriefing',
+      icon: <IconCalendar size={13} />,
+      status: past('published') ? 'done' : past('scheduled') ? 'active' : 'pending',
+      detail: past('published') ? 'Reunião realizada' : past('scheduled') ? 'Agendar com o cliente' : 'Após publicação',
+      href: past('scheduled') ? '/admin/reunioes' : undefined,
+    },
+    {
+      id: 'delivery',
+      label: 'Entrega',
+      icon: <IconCircleCheck size={13} />,
+      status: past('done') ? 'done' : past('published') ? 'active' : 'pending',
+      detail: job.status === 'done' ? 'Job concluído' : job.status === 'published' ? 'Publicado e monitorando' : 'Pendente',
+    },
+  ];
+
+  const briefingSummary = String(job.summary || '').trim();
+
+  return (
+    <Stack spacing={2}>
+      {/* Compact kanban — change status without leaving the popup */}
+      <JobFlowKanban job={job} submitting={submitting} onChange={onStatusChange} />
+
+      {/* Prazo visual */}
+      <DeadlineBar deadline_at={job.deadline_at} is_urgent={job.is_urgent} />
+
+      {/* DA responsável + picker com disponibilidade */}
+      <DAAssignmentBlock
+        job={job}
+        allProposals={allProposals}
+        onAssign={onAssignOwner}
+        onTakeOwnership={onTakeOwnership}
+        submitting={submitting}
+        currentUserId={currentUserId}
+      />
+
+      {/* Journey timeline */}
+      <Box sx={{ position: 'relative', pl: 0.5 }}>
+        <Box sx={{ position: 'absolute', left: 9, top: 12, bottom: 12, width: '1px', bgcolor: 'divider' }} />
+        <Stack spacing={0}>
+          {steps.map((step) => {
+            const dotColor = step.status === 'done' ? '#13DEB9' : step.status === 'active' ? '#ff6600' : '#e4e4e7';
+            const isActive = step.status === 'active';
+            return (
+              <Stack key={step.id} direction="row" alignItems="flex-start" spacing={1.5} sx={{ py: 1.1, position: 'relative' }}>
+                <Box sx={{
+                  width: 20, height: 20, borderRadius: '50%', bgcolor: dotColor, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.15, zIndex: 1,
+                  boxShadow: isActive ? '0 0 0 3px rgba(255,102,0,0.18)' : 'none',
+                }}>
+                  {step.status === 'done' && <IconCheck size={11} color="#fff" />}
+                  {step.status === 'active' && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#fff' }} />}
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography
+                        variant="body2"
+                        fontWeight={isActive ? 800 : step.status === 'done' ? 600 : 500}
+                        sx={{ color: step.status === 'pending' ? 'text.disabled' : 'text.primary', fontSize: '0.8rem', lineHeight: 1.3 }}
+                      >
+                        {step.label}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: isActive ? '#ff6600' : 'text.secondary', fontWeight: isActive ? 700 : 400, fontSize: '0.72rem' }}
+                      >
+                        {step.detail}
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, mt: 0.15 }}>
+                      {step.action && (
+                        <Button size="small" variant="outlined" onClick={step.action.fn} disabled={submitting}
+                          sx={{ fontSize: '0.68rem', py: 0.25, px: 0.75, minWidth: 'unset', lineHeight: 1.4 }}>
+                          {step.action.label}
+                        </Button>
+                      )}
+                      {step.href && !step.action && (
+                        <Button component={Link} href={step.href} size="small" variant="text"
+                          sx={{ fontSize: '0.68rem', py: 0.25, px: 0.75, minWidth: 'unset', color: isActive ? '#ff6600' : 'primary.main', lineHeight: 1.4 }}>
+                          Abrir →
+                        </Button>
+                      )}
+                    </Stack>
+                  </Stack>
+                  {/* Copy preview when copy is done */}
+                  {step.id === 'copy' && copyDone && <CopyPreviewInline jobId={job.id} />}
+                </Box>
+              </Stack>
+            );
+          })}
+        </Stack>
+      </Box>
+
+      {/* Briefing / contexto que chegou com a demanda */}
+      {briefingSummary && (
+        <Box sx={(theme) => ({
+          p: 1.5, borderRadius: 2,
+          border: `1px solid ${alpha(theme.palette.info.main, 0.18)}`,
+          bgcolor: alpha(theme.palette.info.main, 0.04),
+        })}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.75 }}>
+            <Typography variant="caption" fontWeight={900} sx={{ color: 'info.main', textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: 0.5 }}>
+              {job.source === 'trello' ? 'Briefing do Trello' : 'Resumo da demanda'}
+            </Typography>
+            {job.metadata?.trello_url && (
+              <Button size="small" variant="text" color="info" component="a" href={String(job.metadata.trello_url)} target="_blank" rel="noreferrer"
+                sx={{ fontSize: '0.65rem', py: 0, px: 0.5, minWidth: 'unset' }}>
+                Abrir →
+              </Button>
+            )}
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{
+            fontSize: '0.72rem', lineHeight: 1.5, whiteSpace: 'pre-line',
+            display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          }}>
+            {briefingSummary}
+          </Typography>
+        </Box>
+      )}
+
+      {/* Radar de Comunicação */}
+      {directives.length > 0 && (
+        <Box sx={(theme) => ({
+          p: 1.5, borderRadius: 2,
+          border: `1px solid ${alpha(theme.palette.warning.main, 0.25)}`,
+          bgcolor: alpha(theme.palette.warning.main, 0.04),
+        })}>
+          <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.75 }}>
+            <IconShieldCheck size={13} color="#E85219" />
+            <Typography variant="caption" fontWeight={900} sx={{ color: '#E85219', textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: 0.5 }}>
+              Radar de Comunicação · {directives.length} {directives.length === 1 ? 'regra' : 'regras'} ativas
+            </Typography>
+          </Stack>
+          <Stack spacing={0.35}>
+            {directives.slice(0, 4).map((d) => (
+              <Typography key={d.id} variant="caption" sx={{ fontSize: '0.7rem', lineHeight: 1.4, color: d.directive_type === 'boost' ? 'success.dark' : 'error.dark' }}>
+                {d.directive_type === 'boost' ? '✅' : '🚫'} {d.directive}
+              </Typography>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
+      {/* Quick links */}
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        <Button component={Link} href={`/studio?jobId=${job.id}`} size="small" variant="outlined" startIcon={<IconBrush size={14} />} sx={{ fontSize: '0.72rem' }}>
+          Abrir Studio
+        </Button>
+        {job.client_id && (
+          <Button component={Link} href={`/clients/${job.client_id}`} size="small" variant="outlined" sx={{ fontSize: '0.72rem' }}>
+            Ver cliente
+          </Button>
+        )}
+      </Stack>
+    </Stack>
+  );
+}
+
 export default function JobWorkbenchDrawer({
   open,
   mode,
@@ -988,23 +1422,6 @@ export default function JobWorkbenchDrawer({
     p75: number;
     confidence: 'high' | 'medium' | 'low' | 'none';
     sampleCount: number;
-  };
-  type AllocationProposal = {
-    freelancerId: string;
-    name: string;
-    specialty: string | null;
-    experienceLevel: string | null;
-    score: number;
-    estimatedMinutes: number;
-    estimatedAvailableAt: string;
-    estimatedCompletionAt: string;
-    currentActiveJobs: number;
-    maxConcurrentJobs: number;
-    punctualityScore: number | null;
-    approvalRate: number | null;
-    jobsCompleted: number;
-    rationale: string;
-    skills?: Array<{ id: string; label: string; level: string }>;
   };
   const [allocationProposals, setAllocationProposals] = useState<AllocationProposal[]>([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
@@ -1851,69 +2268,20 @@ export default function JobWorkbenchDrawer({
         {detailJob ? (
           <>
             {!isQuickView ? <Divider /> : null}
+            {isQuickView ? (
+              <JobJourneyPanel
+                job={detailJob}
+                directives={clientDirectives}
+                allProposals={allocationProposals}
+                onTakeOwnership={handleTakeOwnership}
+                onAssignOwner={handleAssignOwner}
+                onStatusChange={handleStatusChange}
+                submitting={submitting}
+                currentUserId={currentUserId}
+              />
+            ) : null}
+            {!isQuickView ? (
             <Stack spacing={2}>
-              {isQuickView ? (
-                <Box>
-                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 0.45 }}>
-                    QUICK VIEW
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Veja a decisao, execute o proximo passo e abra os atalhos sem entrar no editor completo.
-                  </Typography>
-                </Box>
-              ) : null}
-              {demandBriefing ? (
-                <Box
-                  sx={(theme) => ({
-                    p: 1.5,
-                    borderRadius: 2.5,
-                    border: '1px solid',
-                    borderColor: alpha(theme.palette.info.main, 0.2),
-                    bgcolor: alpha(theme.palette.info.main, 0.04),
-                  })}
-                >
-                  <Stack spacing={1.2}>
-                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-                      <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'info.main', letterSpacing: 0.45 }}>
-                          {detailJob.source === 'trello' ? 'BRIEFING DO TRELLO' : 'RESUMO DA DEMANDA'}
-                        </Typography>
-                        <Typography variant="body2" fontWeight={700}>
-                          Contexto que chegou junto com a demanda
-                        </Typography>
-                      </Box>
-                      {detailJob.metadata?.trello_url ? (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="info"
-                          component="a"
-                          href={String(detailJob.metadata.trello_url)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Abrir no Trello
-                        </Button>
-                      ) : null}
-                    </Stack>
-                    <Box
-                      sx={(theme) => ({
-                        p: 1.25,
-                        borderRadius: 2,
-                        border: '1px solid',
-                        borderColor: alpha(theme.palette.info.main, 0.12),
-                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.72) : '#fff',
-                        maxHeight: isQuickView ? 240 : 'none',
-                        overflowY: isQuickView ? 'auto' : 'visible',
-                      })}
-                    >
-                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere', lineHeight: 1.6 }}>
-                        {demandBriefing}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Box>
-              ) : null}
               <Typography variant="h6" fontWeight={800}>Painel da demanda</Typography>
               <Grid container spacing={1.5}>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -2173,6 +2541,7 @@ export default function JobWorkbenchDrawer({
                 </Box>
               ) : null}
             </Stack>
+            ) : null}
 
             {!isQuickView && detailJob.automation_status && detailJob.automation_status !== 'none' ? (
               <>

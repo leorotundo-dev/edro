@@ -484,6 +484,72 @@ export default async function portalClientRoutes(app: FastifyInstance) {
       .send(buf);
   });
 
+  // GET /portal/client/reports/:month/data — authenticated interactive report data
+  // codeql[js/missing-rate-limiting] rate limiting applied via Fastify { config: { rateLimit: { max: 30 } } } — not recognised by CodeQL's Express sanitizer
+  app.get('/portal/client/reports/:month/data', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { month } = request.params as { month: string };
+    if (!/^\d{4}-\d{2}$/.test(month)) return reply.status(400).send({ error: 'Invalid month format' });
+
+    const clientRes = await pool.query(
+      `SELECT name, segment_primary, city, uf FROM clients WHERE id = $1`,
+      [clientId],
+    );
+    if (!clientRes.rows[0]) return reply.status(404).send({ error: 'Client not found' });
+    const client = clientRes.rows[0];
+
+    const [jobsRes, invoicesRes, budgetsRes, healthRes, metricsRes] = await Promise.all([
+      pool.query(
+        `SELECT pc.title, pc.status, pc.due_at, pc.updated_at
+         FROM project_cards pc
+         WHERE pc.client_id = $1
+           AND to_char(pc.created_at, 'YYYY-MM') = $2
+         ORDER BY pc.updated_at DESC
+         LIMIT 50`,
+        [clientId, month],
+      ),
+      pool.query(
+        `SELECT description, amount_brl, status, due_date, paid_at
+         FROM invoices
+         WHERE client_id = $1 AND period_month = $2 AND status != 'cancelled'`,
+        [clientId, month],
+      ),
+      pool.query(
+        `SELECT platform, planned_brl, realized_brl
+         FROM media_budgets
+         WHERE client_id = $1 AND period_month = $2`,
+        [clientId, month],
+      ),
+      pool.query(
+        `SELECT score, trend, factors
+         FROM client_health_scores
+         WHERE client_id = $1
+         ORDER BY period_date DESC LIMIT 1`,
+        [clientId],
+      ),
+      pool.query(
+        `SELECT platform, time_window, payload
+         FROM learned_insights
+         WHERE client_id = $1
+           AND time_window = '30d'
+         ORDER BY created_at DESC`,
+        [clientId],
+      ),
+    ]);
+
+    return reply.send({
+      client: { name: client.name, segment: client.segment_primary, city: client.city, uf: client.uf },
+      period_month: month,
+      jobs: jobsRes.rows,
+      invoices: invoicesRes.rows,
+      media_budgets: budgetsRes.rows,
+      health: healthRes.rows[0] || null,
+      metrics: metricsRes.rows,
+    });
+  });
+
   // GET /portal/client/invoices — faturas do cliente
   app.get('/portal/client/invoices', async (request: any, reply) => {
     const clientId = requireClient(request, reply);
