@@ -609,9 +609,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send(
       rows.rows.map((row) => ({
         ...row,
-        avatar_url: row.avatar_generated_key
+        avatar_url: row.avatar_url
           ? `/api/proxy/freelancers/${row.id}/avatar`
-          : (row.avatar_url ?? null),
+          : null,
         whatsapp_delivery: whatsappStatus.get(row.id) ?? buildWhatsAppDeliveryStatus(),
       })),
     );
@@ -858,9 +858,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     return reply.send({
       profile: {
         ...profile,
-        avatar_url: profile.avatar_generated_key
+        avatar_url: profile.avatar_url
           ? `/api/proxy/freelancers/${profile.id}/avatar`
-          : (profile.avatar_url ?? null),
+          : null,
         whatsapp_delivery: whatsappStatus.get(profile.id) ?? buildWhatsAppDeliveryStatus(),
       },
       recentJobs: jobsRes.rows,
