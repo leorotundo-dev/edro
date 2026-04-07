@@ -598,10 +598,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const tenantId = (request as any).user?.tenant_id;
     const rows = await pool.query(
       `SELECT fp.*, eu.email,
-              COALESCE(NULLIF(eu.name, ''), split_part(eu.email, '@', 1)) AS user_name
+              COALESCE(NULLIF(eu.name, ''), split_part(eu.email, '@', 1)) AS user_name,
+              COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
        JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
+       LEFT JOIN people p ON p.id = fp.person_id
        ORDER BY fp.display_name`,
       [tenantId],
     );
@@ -779,9 +781,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     // Profile
     const profileRes = await pool.query(
-      `SELECT fp.*, eu.email
+      `SELECT fp.*, eu.email,
+              COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url
          FROM freelancer_profiles fp
          JOIN edro_users eu ON eu.id = fp.user_id
+         LEFT JOIN people p ON p.id = fp.person_id
         WHERE fp.id = $1`,
       [id],
     );
