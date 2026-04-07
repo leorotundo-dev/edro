@@ -179,7 +179,7 @@ function HistoryRow({ row }: { row: { id: string; from_status?: string | null; t
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function JobDetailClient({ id }: { id: string }) {
+export default function JobDetailClient({ id, onClose }: { id: string; onClose?: () => void }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const router = useRouter();
@@ -284,7 +284,7 @@ export default function JobDetailClient({ id }: { id: string }) {
     return (
       <Box sx={{ p: 4 }}>
         <Alert severity="error">{error || 'Job não encontrado.'}</Alert>
-        <Button startIcon={<IconArrowLeft size={16} />} sx={{ mt: 2 }} onClick={() => router.back()}>Voltar</Button>
+        <Button startIcon={<IconArrowLeft size={16} />} sx={{ mt: 2 }} onClick={() => onClose ? onClose() : router.back()}>Voltar</Button>
       </Box>
     );
   }
@@ -295,22 +295,24 @@ export default function JobDetailClient({ id }: { id: string }) {
 
   return (
     <Box sx={{ px: { xs: 2, md: 4 }, py: 3, maxWidth: 1200, mx: 'auto' }}>
-      {/* ── Breadcrumb ── */}
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2.5 }}>
-        <Button
-          component={Link}
-          href="/admin/operacoes"
-          startIcon={<IconArrowLeft size={15} />}
-          size="small"
-          sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.78rem', textTransform: 'none', p: '4px 8px', minWidth: 0 }}
-        >
-          Central de Operações
-        </Button>
-        <Typography color="text.disabled" sx={{ fontSize: '0.78rem' }}>/</Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>
-          {job.client_name || 'Sem cliente'}
-        </Typography>
-      </Stack>
+      {/* ── Breadcrumb (hidden in modal mode) ── */}
+      {!onClose && (
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2.5 }}>
+          <Button
+            component={Link}
+            href="/admin/operacoes"
+            startIcon={<IconArrowLeft size={15} />}
+            size="small"
+            sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.78rem', textTransform: 'none', p: '4px 8px', minWidth: 0 }}
+          >
+            Central de Operações
+          </Button>
+          <Typography color="text.disabled" sx={{ fontSize: '0.78rem' }}>/</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>
+            {job.client_name || 'Sem cliente'}
+          </Typography>
+        </Stack>
+      )}
 
       {/* ── Header ── */}
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
