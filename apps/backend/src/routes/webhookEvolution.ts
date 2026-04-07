@@ -310,7 +310,10 @@ async function extractContent(msg: any, tenantId: string): Promise<{
   // Audio / voice note — transcribe with Whisper
   const audioMsg = message.audioMessage ?? message.pttMessage;
   if (audioMsg) {
-    const transcription = await transcribeEvolutionAudio(msg, tenantId).catch(() => null);
+    const transcription = await transcribeEvolutionAudio(msg, tenantId).catch((err: any) => {
+      console.warn(`[webhookEvolution] Audio transcription failed: ${err?.message ?? 'unknown error'}`);
+      return null;
+    });
     return { type: 'audio', content: transcription, mediaUrl: null };
   }
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { requireClientPerm } from '../auth/clientPerms';
 import { authGuard, requirePerm } from '../auth/rbac';
@@ -139,30 +140,45 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
       const client = rows[0];
       if (!client.whatsapp_phone) return reply.code(400).send({ error: 'client_has_no_whatsapp_phone', hint: 'Configure o número do WhatsApp do cliente no perfil.' });
 
-      const result = await sendWhatsAppText(client.whatsapp_phone, message, {
-        tenantId,
-        event: 'manual_message_sent',
-        meta: {
-          channel: 'admin_inbox',
-          client_id,
-        },
-      });
-      if (!result.ok) return reply.code(500).send({ error: result.error });
-
+      // INSERT before sending — prevents ghost sends where the message is delivered
+      // to the client but never tracked because the DB write failed after a successful send.
       const phoneId = env.WHATSAPP_PHONE_ID || 'outbound';
-      const outboundMessageId = result.messageId ?? `out_${Date.now()}`;
+      const localId = `out_${Date.now()}_${randomUUID().slice(0, 8)}`;
       const { rows: outboundRows } = await query<{ created_at: string }>(`
         INSERT INTO whatsapp_messages
           (tenant_id, client_id, phone_number_id, wa_message_id, sender_phone, direction, type, raw_text)
         VALUES ($1, $2, $3, $4, $5, 'outbound', 'text', $6)
-        ON CONFLICT (wa_message_id) DO NOTHING
         RETURNING created_at
-      `, [tenantId, client_id, phoneId, outboundMessageId, client.whatsapp_phone, message]);
+      `, [tenantId, client_id, phoneId, localId, client.whatsapp_phone, message]);
+
+      const result = await sendWhatsAppText(client.whatsapp_phone, message, {
+        tenantId,
+        event: 'manual_message_sent',
+        meta: { channel: 'admin_inbox', client_id },
+      });
+
+      if (!result.ok) {
+        // Mark row as failed so history shows the attempt without polluting threads
+        await query(
+          `UPDATE whatsapp_messages SET wa_message_id = $1 WHERE wa_message_id = $2`,
+          [`${localId}_failed`, localId],
+        ).catch(() => {});
+        return reply.code(500).send({ error: result.error });
+      }
+
+      // Update to real Meta message ID if returned (enables read-receipt correlation)
+      const finalId = result.messageId ?? localId;
+      if (finalId !== localId) {
+        await query(
+          `UPDATE whatsapp_messages SET wa_message_id = $1 WHERE wa_message_id = $2`,
+          [finalId, localId],
+        ).catch(() => {});
+      }
 
       await persistWhatsAppMessageMemory({
         tenantId,
         clientId: client_id,
-        externalMessageId: outboundMessageId,
+        externalMessageId: finalId,
         text: message,
         senderName: 'Edro',
         senderPhone: client.whatsapp_phone,
@@ -172,7 +188,7 @@ export default async function whatsappInboxRoutes(app: FastifyInstance) {
         channel: 'manual',
       }).catch(() => {});
 
-      return reply.send({ success: true, message_id: result.messageId });
+      return reply.send({ success: true, message_id: finalId });
     },
   );
 
