@@ -49,6 +49,14 @@ type PlannerOwner = {
   jobs: OperationsJob[];
 };
 
+type InternalPerson = {
+  id: string;
+  display_name: string;
+  is_internal: boolean;
+  avatar_url: string | null;
+  identities: Array<{ type: string; value: string; primary: boolean }> | null;
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function initials(name: string) {
@@ -134,48 +142,60 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
         />
       </Stack>
 
-      {/* Stats row */}
-      <Stack direction="row" spacing={2.5}>
-        <Box>
-          <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{jobs.length}</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-            jobs ativos
-          </Typography>
-        </Box>
-        <Box>
-          <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{formatHours(freeMinutes)}</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-            livres
-          </Typography>
-        </Box>
-      </Stack>
+      {jobs.length === 0 ? (
+        /* No active jobs */
+        <Chip
+          label="Sem jobs ativos"
+          size="small"
+          variant="outlined"
+          sx={{ alignSelf: 'flex-start', fontSize: '0.65rem', height: 20, color: 'text.disabled', borderColor: 'divider' }}
+        />
+      ) : (
+        <>
+          {/* Stats row */}
+          <Stack direction="row" spacing={2.5}>
+            <Box>
+              <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{jobs.length}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+                jobs ativos
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{formatHours(freeMinutes)}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+                livres
+              </Typography>
+            </Box>
+          </Stack>
 
-      {/* Workload bar */}
-      <Box>
-        <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
-            Carga comprometida
-          </Typography>
-          <Typography variant="caption" fontWeight={800} sx={{ color: state.color, fontSize: '0.68rem' }}>
-            {pct}%
-          </Typography>
-        </Stack>
-        <Box sx={{ height: 5, borderRadius: 99, bgcolor: alpha(state.color, 0.14) }}>
-          <Box sx={{ height: 5, borderRadius: 99, width: `${pct}%`, bgcolor: state.color, transition: 'width 0.3s' }} />
-        </Box>
-      </Box>
+          {/* Workload bar */}
+          <Box>
+            <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+                Carga comprometida
+              </Typography>
+              <Typography variant="caption" fontWeight={800} sx={{ color: state.color, fontSize: '0.68rem' }}>
+                {pct}%
+              </Typography>
+            </Stack>
+            <Box sx={{ height: 5, borderRadius: 99, bgcolor: alpha(state.color, 0.14) }}>
+              <Box sx={{ height: 5, borderRadius: 99, width: `${pct}%`, bgcolor: state.color, transition: 'width 0.3s' }} />
+            </Box>
+          </Box>
 
-      {/* Footer */}
-      <Button
-        component={Link}
-        href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(owner.id)}`}
-        size="small"
-        variant="outlined"
-        endIcon={<IconArrowUpRight size={13} />}
-        sx={{ alignSelf: 'flex-start', fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', py: 0.4, px: 1.25 }}
-      >
-        Ver pauta
-      </Button>
+          {/* Footer */}
+          <Button
+            component={Link}
+            href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(owner.id)}`}
+            size="small"
+            variant="outlined"
+            endIcon={<IconArrowUpRight size={13} />}
+            sx={{ alignSelf: 'flex-start', fontSize: '0.7rem', fontWeight: 700, textTransform: 'none', py: 0.4, px: 1.25 }}
+          >
+            Ver pauta
+          </Button>
+        </>
+      )}
     </Box>
   );
 }
@@ -228,6 +248,68 @@ function UnassignedPanel({ jobs }: { jobs: OperationsJob[] }) {
   );
 }
 
+// ── merge helpers ─────────────────────────────────────────────────────────
+
+function primaryEmail(identities: InternalPerson['identities']): string | null {
+  if (!identities) return null;
+  return identities.find((i) => i.type === 'email' && i.primary)?.value
+    ?? identities.find((i) => i.type === 'email')?.value ?? null;
+}
+
+/** Merge ops-planner owners + people directory internals into a unified list. */
+function mergeColaboradores(
+  plannerOwners: PlannerOwner[],
+  internalPeople: InternalPerson[],
+): PlannerOwner[] {
+  // Index planner owners by email (lowercased)
+  const byEmail = new Map<string, PlannerOwner>();
+  for (const o of plannerOwners) {
+    if (o.owner.email) byEmail.set(o.owner.email.toLowerCase(), o);
+  }
+
+  // Start with all planner owners (they have real workload)
+  const result: PlannerOwner[] = [...plannerOwners];
+  const seen = new Set(plannerOwners.map((o) => o.owner.email?.toLowerCase()).filter(Boolean));
+
+  // Add internal people who don't appear in planner (0 jobs)
+  for (const p of internalPeople) {
+    const email = primaryEmail(p.identities);
+    const key = email?.toLowerCase() ?? '';
+    if (key && seen.has(key)) {
+      // Already in planner — patch avatar if missing
+      const existing = byEmail.get(key);
+      if (existing && !existing.owner.avatar_url && p.avatar_url) {
+        existing.owner.avatar_url = p.avatar_url;
+      }
+      continue;
+    }
+    seen.add(key);
+    result.push({
+      owner: {
+        id: p.id,
+        name: p.display_name,
+        email: email,
+        avatar_url: p.avatar_url,
+        role: null,
+        specialty: null,
+      },
+      allocable_minutes: 960,
+      committed_minutes: 0,
+      tentative_minutes: 0,
+      usage: 0,
+      jobs: [],
+    });
+  }
+
+  // Sort: with jobs first, then alphabetically
+  result.sort((a, b) => {
+    if (b.jobs.length !== a.jobs.length) return b.jobs.length - a.jobs.length;
+    return a.owner.name.localeCompare(b.owner.name, 'pt-BR');
+  });
+
+  return result;
+}
+
 // ── ColaboradoresView ─────────────────────────────────────────────────────
 
 function ColaboradoresView() {
@@ -241,9 +323,16 @@ function ColaboradoresView() {
     setLoading(true);
     setError('');
     try {
-      const res = await apiGet<{ data?: { owners: PlannerOwner[]; unassigned_jobs: OperationsJob[] } }>('/trello/ops-planner');
-      setOwners(res?.data?.owners ?? []);
-      setUnassigned(res?.data?.unassigned_jobs ?? []);
+      const [plannerRes, peopleRes] = await Promise.all([
+        apiGet<{ data?: { owners: PlannerOwner[]; unassigned_jobs: OperationsJob[] } }>('/trello/ops-planner'),
+        apiGet<{ success: boolean; data: InternalPerson[] }>('/people?internal=true&limit=200'),
+      ]);
+      const merged = mergeColaboradores(
+        plannerRes?.data?.owners ?? [],
+        peopleRes?.data ?? [],
+      );
+      setOwners(merged);
+      setUnassigned(plannerRes?.data?.unassigned_jobs ?? []);
     } catch (err: any) {
       setError(err?.message || 'Erro ao carregar colaboradores');
     } finally {
@@ -254,7 +343,7 @@ function ColaboradoresView() {
   useEffect(() => { load(); }, [load]);
 
   const overloaded = owners.filter((o) => o.usage >= 1).length;
-  const withSlack = owners.filter((o) => o.usage < 0.55).length;
+  const withSlack = owners.filter((o) => o.usage < 0.55 && o.jobs.length > 0).length;
 
   return (
     <Stack spacing={2.5}>
