@@ -62,6 +62,17 @@ type InAppNotification = {
   created_at: string;
 };
 
+type JarvisAlert = {
+  id: string;
+  client_id: string | null;
+  client_name: string | null;
+  alert_type: string;
+  title: string;
+  body?: string | null;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  created_at: string;
+};
+
 export default function OperationsOverviewClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
   const [syncing, setSyncing] = useState(false);
@@ -71,6 +82,7 @@ export default function OperationsOverviewClient() {
   const [pendingRequests, setPendingRequests] = useState<Array<{ id: string; client_name: string; form_data: { type?: string; objective?: string } }>>([]);
   const [latestDailyDigest, setLatestDailyDigest] = useState<LatestDigest | null>(null);
   const [bedelNotifications, setBedelNotifications] = useState<InAppNotification[]>([]);
+  const [jarvisAlerts, setJarvisAlerts] = useState<JarvisAlert[]>([]);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
 
@@ -152,9 +164,10 @@ export default function OperationsOverviewClient() {
 
   const loadCommandDesk = useCallback(async () => {
     try {
-      const [digestResponse, notificationsResponse] = await Promise.all([
+      const [digestResponse, notificationsResponse, jarvisAlertsResponse] = await Promise.all([
         apiGet<{ daily?: LatestDigest | null }>('/admin/diario/latest'),
         apiGet<{ notifications?: InAppNotification[]; unreadCount?: number }>('/notifications').catch(() => ({ notifications: [] })),
+        apiGet<{ data?: JarvisAlert[] }>('/jarvis/alerts?limit=5').catch(() => ({ data: [] })),
       ]);
       setLatestDailyDigest(digestResponse?.daily ?? null);
       setBedelNotifications(
@@ -162,9 +175,11 @@ export default function OperationsOverviewClient() {
           .filter((notification) => notification.event_type.startsWith('bedel_'))
           .slice(0, 3)
       );
+      setJarvisAlerts(jarvisAlertsResponse?.data ?? []);
     } catch {
       setLatestDailyDigest(null);
       setBedelNotifications([]);
+      setJarvisAlerts([]);
     }
   }, []);
 
@@ -286,6 +301,84 @@ export default function OperationsOverviewClient() {
     ],
     [criticalJobs, overviewRuntime.approvals, todayJobs, unassignedJobs]
   );
+  const topJarvisAlert = jarvisAlerts[0] ?? null;
+  const homeBanners = useMemo(() => {
+    const banners: Array<{
+      key: string;
+      severity: 'success' | 'info' | 'warning' | 'error';
+      title: string;
+      body: string;
+      href?: string;
+      actionLabel?: string;
+      jarvisMessage?: string;
+    }> = [];
+
+    if (pendingRequests.length > 0) {
+      const preview = pendingRequests
+        .slice(0, 3)
+        .map((request) => request.client_name)
+        .join(' · ');
+      banners.push({
+        key: 'new_jobs',
+        severity: 'info',
+        title: `${pendingRequests.length} novo(s) job(s) chegando pelo portal`,
+        body: preview
+          ? `${preview}${pendingRequests.length > 3 ? ' · …' : ''}. Entre na triagem para transformar isso em demanda operacional.`
+          : 'Há novas solicitações de cliente aguardando triagem na operação.',
+        href: '/admin/solicitacoes',
+        actionLabel: 'Abrir solicitações',
+      });
+    }
+
+    if (topJarvisAlert) {
+      const severity =
+        topJarvisAlert.priority === 'urgent'
+          ? 'error'
+          : topJarvisAlert.priority === 'high'
+            ? 'warning'
+            : 'info';
+      const body = [topJarvisAlert.client_name, topJarvisAlert.body]
+        .filter(Boolean)
+        .join(' · ');
+      banners.push({
+        key: 'jarvis_alert',
+        severity,
+        title: `Jarvis alerta: ${topJarvisAlert.title}`,
+        body: body || 'O Jarvis detectou algo que merece atenção agora.',
+        href: '/admin/operacoes/radar',
+        actionLabel: 'Abrir riscos',
+        jarvisMessage: `Explique este alerta do Jarvis e diga o que a operação deve fazer agora: ${topJarvisAlert.title}${topJarvisAlert.body ? ` — ${topJarvisAlert.body}` : ''}${topJarvisAlert.client_name ? ` — cliente ${topJarvisAlert.client_name}` : ''}.`,
+      });
+    }
+
+    if (syncHealth?.needs_attention) {
+      const warningParts = [
+        syncHealth.stale_boards > 0
+          ? `${syncHealth.stale_boards} board(s) com sync desatualizado${syncHealth.oldest_sync_hours != null ? ` há ${syncHealth.oldest_sync_hours}h` : ''}`
+          : null,
+        syncHealth.unlinked_boards > 0
+          ? `${syncHealth.unlinked_boards} board(s) sem cliente vinculado`
+          : null,
+        (syncHealth.unmapped_lists ?? 0) > 0
+          ? `${syncHealth.unmapped_lists} lista(s) sem status mapeado`
+          : null,
+      ].filter(Boolean);
+
+      banners.push({
+        key: 'sync_health',
+        severity:
+          syncHealth.stale_boards > 0 || (syncHealth.unmapped_lists ?? 0) > 0
+            ? 'warning'
+            : 'info',
+        title: 'Operação precisa de saneamento no Trello',
+        body: warningParts.join(' · '),
+        href: '/admin/trello',
+        actionLabel: 'Configurar',
+      });
+    }
+
+    return banners;
+  }, [pendingRequests, syncHealth, topJarvisAlert]);
 
   return (
     <OperationsShell
@@ -294,38 +387,58 @@ export default function OperationsOverviewClient() {
     >
       {error ? <Alert severity="error">{error}</Alert> : null}
 
-      {!loading && syncHealth?.needs_attention && (
-        <Alert
-          severity={syncHealth.stale_boards > 0 || (syncHealth.unmapped_lists ?? 0) > 0 ? 'warning' : 'info'}
-          sx={{ mb: 2 }}
-          action={
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Button
-                size="small"
-                color="inherit"
-                variant="outlined"
-                disabled={syncing}
-                onClick={handleSyncNow}
-              >
-                {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
-              </Button>
-              <Button size="small" color="inherit" href="/admin/trello" component="a">
-                Configurar
-              </Button>
-            </Stack>
-          }
-        >
-          {syncHealth.stale_boards > 0 && (
-            <span>{syncHealth.stale_boards} board(s) com dados desatualizados{syncHealth.oldest_sync_hours != null ? ` (há ${syncHealth.oldest_sync_hours}h)` : ''}. </span>
-          )}
-          {syncHealth.unlinked_boards > 0 && (
-            <span>{syncHealth.unlinked_boards} board(s) sem cliente vinculado — cards aparecem sem contexto. </span>
-          )}
-          {(syncHealth.unmapped_lists ?? 0) > 0 && (
-            <span>{syncHealth.unmapped_lists} lista(s) sem status mapeado — cards aparecem como Intake incorretamente. <a href="/admin/trello?tab=mapping" style={{ color: 'inherit', fontWeight: 600 }}>Mapear →</a></span>
-          )}
-        </Alert>
-      )}
+      {!loading && homeBanners.length > 0 ? (
+        <Stack spacing={1.25} sx={{ mb: 2 }}>
+          {homeBanners.map((banner) => (
+            <Alert
+              key={banner.key}
+              severity={banner.severity}
+              sx={{ alignItems: 'center' }}
+              action={
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  {banner.key === 'sync_health' ? (
+                    <Button
+                      size="small"
+                      color="inherit"
+                      variant="outlined"
+                      disabled={syncing}
+                      onClick={handleSyncNow}
+                    >
+                      {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
+                    </Button>
+                  ) : null}
+                  {banner.jarvisMessage ? (
+                    <AskJarvisButton
+                      message={banner.jarvisMessage}
+                      label="Perguntar ao Jarvis"
+                      variant="outlined"
+                    />
+                  ) : null}
+                  {banner.href && banner.actionLabel ? (
+                    <Button
+                      size="small"
+                      color="inherit"
+                      href={banner.href}
+                      component={Link}
+                    >
+                      {banner.actionLabel}
+                    </Button>
+                  ) : null}
+                </Stack>
+              }
+            >
+              <Stack spacing={0.2}>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  {banner.title}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {banner.body}
+                </Typography>
+              </Stack>
+            </Alert>
+          ))}
+        </Stack>
+      ) : null}
 
       {loading ? (
         <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}>
