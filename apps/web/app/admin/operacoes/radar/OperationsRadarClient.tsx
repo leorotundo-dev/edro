@@ -261,6 +261,17 @@ export default function OperationsRadarClient() {
     setDetailOpen(true);
   }, [fetchJob, jobs, openCommands]);
 
+  const openRiskJob = useCallback((job: OperationsJob) => {
+    setSelectedJob(job);
+    if (job.metadata?.calendar_item?.standalone) {
+      if (job.source === 'meeting') {
+        router.push('/admin/reunioes');
+      }
+      return;
+    }
+    openCommands(job);
+  }, [openCommands, router]);
+
   return (
     <OperationsShell
       section="radar"
@@ -775,6 +786,8 @@ export default function OperationsRadarClient() {
               </Box>
             </Stack>
           </Grid>
+
+
         </Grid>
       )}
 
