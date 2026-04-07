@@ -1735,7 +1735,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pb.id as board_id, pb.name as board_name, pb.client_id,
          cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
          pcm.display_name as owner_name, pcm.email as owner_email,
-         eu.id as owner_user_id
+         eu.id as owner_user_id,
+         fp.avatar_url as owner_avatar_url
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
@@ -1743,6 +1744,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
        LEFT JOIN project_card_members pcm ON pcm.card_id = pc.id
        LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
        WHERE pc.tenant_id = $1
          AND pc.is_archived = false
          AND ${currentYearCardClause('pc')}
@@ -1751,7 +1753,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       [tenantId],
     );
 
-    const ownerMap = new Map<string, { name: string; email: string | null; user_id: string | null; jobs: Record<string, any>[] }>();
+    const ownerMap = new Map<string, { name: string; email: string | null; user_id: string | null; avatar_url: string | null; jobs: Record<string, any>[] }>();
     const unassigned: Record<string, any>[] = [];
     const seenUnassigned = new Set<string>();
 
@@ -1770,6 +1772,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
           name: row.owner_name as string,
           email: row.owner_email as string,
           user_id: row.owner_user_id as string | null,
+          avatar_url: (row.owner_avatar_url as string | null) ?? null,
           jobs: [],
         });
       }
@@ -1784,6 +1787,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
           id: m.user_id ?? m.email ?? m.name,
           name: m.name,
           email: m.email,
+          avatar_url: m.avatar_url,
           role: 'staff',
           specialty: null,
           person_type: 'freelancer' as const,

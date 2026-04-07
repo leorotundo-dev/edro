@@ -204,15 +204,18 @@ export function ClientThumb({
 
 export function PersonThumb({
   name,
+  src,
   accent = '#5D87FF',
   size = 28,
 }: {
   name?: string | null;
+  src?: string | null;
   accent?: string;
   size?: number;
 }) {
   return (
     <Avatar
+      src={src ?? undefined}
       sx={{
         width: size,
         height: size,
@@ -1816,12 +1819,13 @@ export function OperationsContextRail({
             })}>
               <Grid container spacing={1.25}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <ContextMetaRow
-                    icon={<IconUser size={15} />}
-                    label="Responsável"
-                    value={job.owner_name || 'Sem responsável'}
-                    accent="#5D87FF"
-                  />
+                  <Stack direction="row" spacing={1.1} alignItems="center">
+                    <PersonThumb name={job.owner_name} src={job.owner_avatar_url} accent="#5D87FF" size={28} />
+                    <Box>
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary', display: 'block', lineHeight: 1.2 }}>Responsável</Typography>
+                      <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.3 }}>{job.owner_name || 'Sem responsável'}</Typography>
+                    </Box>
+                  </Stack>
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Stack direction="row" spacing={1.1} alignItems="center">
@@ -2082,6 +2086,7 @@ export function PipelineCard({
               {job.owner_name ? (
                 <Tooltip title={job.owner_name} arrow>
                   <Avatar
+                    src={job.owner_avatar_url ?? undefined}
                     sx={{
                       width: 24,
                       height: 24,

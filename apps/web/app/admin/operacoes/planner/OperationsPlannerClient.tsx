@@ -109,7 +109,7 @@ function TeamHeatStrip({
   onSelect,
 }: {
   rows: Array<{
-    owner: { id: string; name: string; role?: string | null; specialty?: string | null; person_type?: 'internal' | 'freelancer'; freelancer_profile_id?: string | null };
+    owner: { id: string; name: string; avatar_url?: string | null; role?: string | null; specialty?: string | null; person_type?: 'internal' | 'freelancer'; freelancer_profile_id?: string | null };
     allocableMinutes: number;
     committedMinutes: number;
     usage: number;
@@ -160,7 +160,7 @@ function TeamHeatStrip({
             })}
           >
             <Stack spacing={0.75} alignItems="center" textAlign="center">
-              <PersonThumb name={row.owner.name} accent={accent} size={40} />
+              <PersonThumb name={row.owner.name} src={row.owner.avatar_url} accent={accent} size={40} />
               <Box>
                 <Typography
                   variant="body2"
@@ -221,6 +221,7 @@ export default function OperationsPlannerClient() {
         id: string;
         name: string;
         email?: string | null;
+        avatar_url?: string | null;
         role?: string | null;
         specialty?: string | null;
         person_type?: 'internal' | 'freelancer';
@@ -424,7 +425,7 @@ export default function OperationsPlannerClient() {
                         <Box sx={{ px: 2.5, pt: 2.5, pb: 2 }}>
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
                             <Stack direction="row" spacing={1.5} alignItems="center">
-                              <PersonThumb name={row.owner.name} accent={accent} size={46} />
+                              <PersonThumb name={row.owner.name} src={row.owner.avatar_url} accent={accent} size={46} />
                               <Box>
                                 <Typography variant="body1" fontWeight={900} lineHeight={1.2}>
                                   {row.owner.name}
@@ -566,7 +567,7 @@ export default function OperationsPlannerClient() {
                             : '/admin/operacoes/planner';
                         })()}
                         subtitle={formatSkillLabel(selectedJob.required_skill)}
-                        thumbnail={<PersonThumb name={selectedJob.owner_name} accent="#5D87FF" size={26} />}
+                        thumbnail={<PersonThumb name={selectedJob.owner_name} src={selectedJob.owner_avatar_url} accent="#5D87FF" size={26} />}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
