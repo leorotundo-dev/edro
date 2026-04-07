@@ -283,6 +283,11 @@ export async function unlinkGroup(tenantId: string, groupJid: string): Promise<v
 
 // ── Send message ───────────────────────────────────────────────────────────
 
+const EDRO_SENDER_HEADER = '*Edro.Studio*\n\n';
+function withSenderHeader(text: string): string {
+  return text.startsWith(EDRO_SENDER_HEADER) ? text : EDRO_SENDER_HEADER + text;
+}
+
 export async function sendGroupMessage(tenantId: string, groupJid: string, text: string): Promise<void> {
   const name = instanceName(tenantId);
   // Warm up group metadata cache before sending. Evolution v2.1.1 has shown
@@ -291,7 +296,7 @@ export async function sendGroupMessage(tenantId: string, groupJid: string, text:
   try {
     await evolFetch(`/message/sendText/${name}`, {
       method: 'POST',
-      body: JSON.stringify({ number: groupJid, text }),
+      body: JSON.stringify({ number: groupJid, text: withSenderHeader(text) }),
     });
     logActivity({ tenantId, service: 'evolution', event: 'group_message_sent', status: 'ok', records: 1, meta: { groupJid } });
   } catch (err: any) {
@@ -308,7 +313,7 @@ export async function sendDirectMessage(tenantId: string, phone: string, text: s
   try {
     await evolFetch(`/message/sendText/${name}`, {
       method: 'POST',
-      body: JSON.stringify({ number: jid, text }),
+      body: JSON.stringify({ number: jid, text: withSenderHeader(text) }),
     });
     logActivity({ tenantId, service: 'evolution', event: 'direct_message_sent', status: 'ok', records: 1, meta: { phone } });
   } catch (err: any) {
