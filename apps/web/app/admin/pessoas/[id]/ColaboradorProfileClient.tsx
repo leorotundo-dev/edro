@@ -53,7 +53,7 @@ type FreelancerProfile = {
 
 type FreelancerStats = {
   profile: FreelancerProfile;
-  jobs: Array<{
+  recentJobs: Array<{
     id: string;
     title: string;
     status: string;
@@ -61,9 +61,9 @@ type FreelancerStats = {
     deadline_at: string | null;
     complexity: string | null;
   }>;
-  workload: { active_jobs: number; active_minutes: number };
-  trend: Array<{ month: string; count: number; punctuality: number }>;
-  time_accuracy: { avg_estimated: number; avg_actual: number; sample_count: number };
+  workload: { activeJobs: number; activeMinutes: number; weeklyCapacityMinutes: number };
+  monthlyTrend: Array<{ month: string; count: number; punctuality: number }>;
+  timeAccuracy: { avgEstimated: number; avgActual: number; sampleCount: number; driftPercent: number } | null;
 };
 
 type PlannerOwner = {
@@ -257,7 +257,7 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
     : null;
   const usage = planner?.usage ?? 0;
   const state = ownerState(usage);
-  const activeJobs = planner?.jobs ?? stats?.jobs.filter((j) => !['done', 'published', 'archived'].includes(j.status)) ?? [];
+  const activeJobs = planner?.jobs ?? stats?.recentJobs?.filter((j) => !['done', 'published', 'archived'].includes(j.status)) ?? [];
   const pct = Math.min(100, Math.round(usage * 100));
 
   if (loading) {
@@ -472,9 +472,9 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
             label="Carga"
             color={state.color}
           />
-          {stats?.trend && stats.trend.length > 0 && (
+          {stats?.monthlyTrend && stats.monthlyTrend.length > 0 && (
             <StatBox
-              value={String(stats.trend.reduce((s, t) => s + t.count, 0))}
+              value={String(stats.monthlyTrend.reduce((s, t) => s + t.count, 0))}
               label="Jobs entregues"
               sub="últimos 6 meses"
               color="#5D87FF"
