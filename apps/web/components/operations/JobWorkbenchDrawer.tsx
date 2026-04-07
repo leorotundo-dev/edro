@@ -19,6 +19,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Skeleton from '@mui/material/Skeleton';
 import { alpha } from '@mui/material/styles';
 import Link from 'next/link';
@@ -1117,6 +1118,176 @@ function CopyPreviewInline({ jobId }: { jobId: string }) {
   );
 }
 
+/* ─── DA Assignment Block ─────────────────────────────────────── */
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+}
+
+function avatarBg(name: string) {
+  const palette = ['#5D87FF', '#E85219', '#13DEB9', '#FFAE1F', '#FA896B', '#9B59B6', '#2ECC71'];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return palette[Math.abs(h) % palette.length];
+}
+
+function DAAssignmentBlock({
+  job,
+  allProposals,
+  onAssign,
+  onTakeOwnership,
+  submitting,
+  currentUserId,
+}: {
+  job: OperationsJob;
+  allProposals: AllocationProposal[];
+  onAssign: (id: string) => void;
+  onTakeOwnership: () => void;
+  submitting: boolean;
+  currentUserId?: string | null;
+}) {
+  const [picking, setPicking] = useState(!job.owner_id);
+
+  // Reset to "show picker" if job loses its owner
+  useEffect(() => {
+    if (!job.owner_id) setPicking(true);
+  }, [job.owner_id]);
+
+  // Only DAs who still have capacity
+  const available = allProposals.filter(
+    (p) => p.currentActiveJobs < p.maxConcurrentJobs && p.freelancerId !== job.owner_id,
+  );
+
+  return (
+    <Box sx={(theme) => ({
+      p: 1.5, borderRadius: 2,
+      border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+      bgcolor: theme.palette.background.paper,
+    })}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.25 }}>
+        <Typography variant="caption" fontWeight={900} sx={{ textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: 0.5, color: 'text.secondary' }}>
+          DA responsável
+        </Typography>
+        {job.owner_id && !picking && (
+          <Button size="small" variant="text" onClick={() => setPicking(true)} disabled={submitting}
+            sx={{ fontSize: '0.65rem', py: 0, minWidth: 'unset' }}>
+            Trocar
+          </Button>
+        )}
+      </Stack>
+
+      {/* Current assignee */}
+      {job.owner_id && !picking ? (
+        <Stack direction="row" alignItems="center" spacing={1.25}>
+          <Avatar sx={{ width: 36, height: 36, bgcolor: avatarBg(job.owner_name || ''), fontSize: '0.72rem', fontWeight: 800 }}>
+            {initials(job.owner_name || '?')}
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem' }}>{job.owner_name}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>
+              Responsável atual
+            </Typography>
+          </Box>
+        </Stack>
+      ) : (
+        /* Picker — only available DAs */
+        <Stack spacing={0.625}>
+          {/* "Assumir eu mesmo" */}
+          {!job.owner_id && currentUserId && (
+            <Box
+              component="button"
+              type="button"
+              disabled={submitting}
+              onClick={() => { onTakeOwnership(); setPicking(false); }}
+              sx={(theme) => ({
+                appearance: 'none', textAlign: 'left', width: '100%', cursor: 'pointer',
+                p: 0.875, borderRadius: 1.5,
+                border: `1px dashed ${alpha(theme.palette.primary.main, 0.4)}`,
+                bgcolor: alpha(theme.palette.primary.main, 0.04),
+                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                '&:disabled': { opacity: 0.5 },
+              })}
+            >
+              <Typography variant="caption" fontWeight={700} color="primary.main" sx={{ fontSize: '0.72rem' }}>
+                ↩ Assumir eu mesmo
+              </Typography>
+            </Box>
+          )}
+
+          {available.length === 0 && allProposals.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem', py: 0.5 }}>
+              Todos os DAs estão com capacidade cheia no momento.
+            </Typography>
+          )}
+          {available.length === 0 && allProposals.length === 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem', py: 0.5 }}>
+              Carregando disponibilidade…
+            </Typography>
+          )}
+
+          {available.map((p) => {
+            const slotsLeft = p.maxConcurrentJobs - p.currentActiveJobs;
+            const bg = avatarBg(p.name);
+            const availNow = new Date(p.estimatedAvailableAt) <= new Date();
+            return (
+              <Box
+                key={p.freelancerId}
+                component="button"
+                type="button"
+                disabled={submitting}
+                onClick={() => { onAssign(p.freelancerId); setPicking(false); }}
+                sx={(theme) => ({
+                  appearance: 'none', textAlign: 'left', width: '100%', cursor: 'pointer',
+                  p: 0.875, borderRadius: 1.5,
+                  border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : '#fafafa',
+                  transition: 'all 130ms ease',
+                  '&:hover': { borderColor: '#ff6600', bgcolor: 'rgba(255,102,0,0.04)' },
+                  '&:disabled': { opacity: 0.5 },
+                })}
+              >
+                <Stack direction="row" alignItems="center" spacing={1.25}>
+                  <Avatar sx={{ width: 30, height: 30, bgcolor: bg, fontSize: '0.65rem', fontWeight: 800, flexShrink: 0 }}>
+                    {initials(p.name)}
+                  </Avatar>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.75rem', display: 'block' }}>{p.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                      {p.specialty || 'Freelancer'} · {p.currentActiveJobs}/{p.maxConcurrentJobs} jobs
+                    </Typography>
+                  </Box>
+                  <Stack alignItems="flex-end" spacing={0.25} sx={{ flexShrink: 0 }}>
+                    <Chip
+                      size="small"
+                      label={availNow ? 'Disponível' : 'Em breve'}
+                      color={availNow ? 'success' : 'warning'}
+                      sx={{ height: 18, fontSize: '0.58rem', fontWeight: 700 }}
+                    />
+                    {slotsLeft > 0 && (
+                      <Typography variant="caption" sx={{ fontSize: '0.58rem', color: 'text.disabled' }}>
+                        {slotsLeft} vaga{slotsLeft > 1 ? 's' : ''}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Stack>
+              </Box>
+            );
+          })}
+
+          {picking && job.owner_id && (
+            <Button size="small" variant="text" onClick={() => setPicking(false)} sx={{ alignSelf: 'flex-start', fontSize: '0.65rem', py: 0.25 }}>
+              Cancelar
+            </Button>
+          )}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
 /* ─── Job Journey Panel (Quick View) ─────────────────────────── */
 
 const JOURNEY_STATUS_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'archived'];
@@ -1124,7 +1295,7 @@ const JOURNEY_STATUS_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_pro
 function JobJourneyPanel({
   job,
   directives,
-  quickAllocProposals,
+  allProposals,
   onTakeOwnership,
   onAssignOwner,
   onStatusChange,
@@ -1133,7 +1304,7 @@ function JobJourneyPanel({
 }: {
   job: OperationsJob;
   directives: Array<{ id: string; directive_type: 'boost' | 'avoid'; directive: string }>;
-  quickAllocProposals: AllocationProposal[];
+  allProposals: AllocationProposal[];
   onTakeOwnership: () => void;
   onAssignOwner: (id: string) => void;
   onStatusChange: (s: string) => void;
@@ -1166,14 +1337,6 @@ function JobJourneyPanel({
       status: briefingDone ? 'done' : hasAuto ? 'active' : 'pending',
       detail: briefingDone ? 'Aprovado e completo' : hasAuto ? 'Aguardando aprovação' : 'Ainda não iniciado',
       href: `/admin/operacoes/jobs/${job.id}/briefing`,
-    },
-    {
-      id: 'allocation',
-      label: 'Responsável',
-      icon: <IconUserPlus size={13} />,
-      status: job.owner_id ? 'done' : 'pending',
-      detail: job.owner_name ?? 'Sem responsável — ninguém assumiu ainda',
-      action: !job.owner_id && currentUserId ? { label: 'Assumir', fn: onTakeOwnership } : undefined,
     },
     {
       id: 'copy',
@@ -1216,6 +1379,16 @@ function JobJourneyPanel({
 
       {/* Prazo visual */}
       <DeadlineBar deadline_at={job.deadline_at} is_urgent={job.is_urgent} />
+
+      {/* DA responsável + picker com disponibilidade */}
+      <DAAssignmentBlock
+        job={job}
+        allProposals={allProposals}
+        onAssign={onAssignOwner}
+        onTakeOwnership={onTakeOwnership}
+        submitting={submitting}
+        currentUserId={currentUserId}
+      />
 
       {/* Journey timeline */}
       <Box sx={{ position: 'relative', pl: 0.5 }}>
@@ -1266,17 +1439,6 @@ function JobJourneyPanel({
                       )}
                     </Stack>
                   </Stack>
-                  {/* Inline allocation proposals under Responsável */}
-                  {step.id === 'allocation' && !job.owner_id && quickAllocProposals.length > 0 && (
-                    <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }} flexWrap="wrap" useFlexGap>
-                      {quickAllocProposals.map((p) => (
-                        <Button key={p.freelancerId} size="small" variant="outlined" onClick={() => onAssignOwner(p.freelancerId)} disabled={submitting}
-                          sx={{ fontSize: '0.65rem', py: 0.125, px: 0.75, minWidth: 'unset', borderColor: 'rgba(232,82,25,0.4)', color: '#E85219' }}>
-                          ★ Alocar {p.name.split(' ')[0]}
-                        </Button>
-                      ))}
-                    </Stack>
-                  )}
                   {/* Copy preview when copy is done */}
                   {step.id === 'copy' && copyDone && <CopyPreviewInline jobId={job.id} />}
                 </Box>
@@ -2256,7 +2418,7 @@ export default function JobWorkbenchDrawer({
               <JobJourneyPanel
                 job={detailJob}
                 directives={clientDirectives}
-                quickAllocProposals={quickAllocationOptions}
+                allProposals={allocationProposals}
                 onTakeOwnership={handleTakeOwnership}
                 onAssignOwner={handleAssignOwner}
                 onStatusChange={handleStatusChange}
