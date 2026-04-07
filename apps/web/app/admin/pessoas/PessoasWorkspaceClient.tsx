@@ -261,6 +261,68 @@ function mergeColaboradores(
   return result;
 }
 
+// ── merge helpers ─────────────────────────────────────────────────────────
+
+function primaryEmail(identities: InternalPerson['identities']): string | null {
+  if (!identities) return null;
+  return identities.find((i) => i.type === 'email' && i.primary)?.value
+    ?? identities.find((i) => i.type === 'email')?.value ?? null;
+}
+
+/** Merge ops-planner owners + people directory internals into a unified list. */
+function mergeColaboradores(
+  plannerOwners: PlannerOwner[],
+  internalPeople: InternalPerson[],
+): PlannerOwner[] {
+  // Index planner owners by email (lowercased)
+  const byEmail = new Map<string, PlannerOwner>();
+  for (const o of plannerOwners) {
+    if (o.owner.email) byEmail.set(o.owner.email.toLowerCase(), o);
+  }
+
+  // Start with all planner owners (they have real workload)
+  const result: PlannerOwner[] = [...plannerOwners];
+  const seen = new Set(plannerOwners.map((o) => o.owner.email?.toLowerCase()).filter(Boolean));
+
+  // Add internal people who don't appear in planner (0 jobs)
+  for (const p of internalPeople) {
+    const email = primaryEmail(p.identities);
+    const key = email?.toLowerCase() ?? '';
+    if (key && seen.has(key)) {
+      // Already in planner — patch avatar if missing
+      const existing = byEmail.get(key);
+      if (existing && !existing.owner.avatar_url && p.avatar_url) {
+        existing.owner.avatar_url = p.avatar_url;
+      }
+      continue;
+    }
+    seen.add(key);
+    result.push({
+      owner: {
+        id: p.id,
+        name: p.display_name,
+        email: email,
+        avatar_url: p.avatar_url,
+        role: null,
+        specialty: null,
+      },
+      allocable_minutes: 960,
+      committed_minutes: 0,
+      tentative_minutes: 0,
+      usage: 0,
+      jobs: [],
+    });
+  }
+
+  // Sort: with jobs first, then alphabetically
+  result.sort((a, b) => {
+    if (b.jobs.length !== a.jobs.length) return b.jobs.length - a.jobs.length;
+    return a.owner.name.localeCompare(b.owner.name, 'pt-BR');
+  });
+
+  return result;
+}
+
 // ── ColaboradoresView ─────────────────────────────────────────────────────
 
 function ColaboradoresView() {
