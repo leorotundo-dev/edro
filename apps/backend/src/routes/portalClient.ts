@@ -1380,8 +1380,6 @@ Regras:
     const pendingArt = pendingArtRes.rows as any[];
     const invoices = invoicesRes.rows as any[];
     const requests = requestsRes.rows as any[];
-    const portalRole = getPortalContactRole(request);
-    const portalCapabilities = getPortalCapabilities(portalRole);
 
     const inReview  = active.filter(j => j.status === 'review');
     const inProd    = active.filter(j => j.status === 'in_progress');
@@ -1392,8 +1390,6 @@ Regras:
     const lines: string[] = [
       `Data atual: ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}`,
       `Cliente: ${clientName}`,
-      `Perfil no portal: ${portalRole ?? 'legacy'}`,
-      `Capacidades no portal: ${portalCapabilities.length ? portalCapabilities.join(', ') : 'read'}`,
       '',
       '## Pipeline ativo',
     ];
@@ -1453,13 +1449,6 @@ Seu papel: responder perguntas sobre pedidos, prazos, aprovações, entregas e f
 Seja direto, objetivo e prestativo. Nunca invente dados — se não souber, diga claramente.
 Responda em português brasileiro.
 
-Regras de governança do portal:
-- Você pode sempre responder perguntas e resumir contexto da conta.
-- Só sugira "abrir novo pedido" para contatos com capacidade "request".
-- Só sugira "aprovar", "pedir ajuste" ou "revisar criativo" para contatos com capacidade "approve".
-- Se o contato não tiver a capacidade necessária, explique isso de forma objetiva e oriente a envolver alguém com o papel adequado.
-- Não finja ter executado ações. Neste canal você orienta e contextualiza; não confirme ações que não foram realmente feitas.
-
 ${contextBlock}`;
 
     const prompt = historyBlock
@@ -1468,11 +1457,7 @@ ${contextBlock}`;
 
     try {
       const result = await generateCompletion({ prompt, systemPrompt, maxTokens: 600, temperature: 0.3 });
-      return reply.send({
-        reply: result.text,
-        role: portalRole,
-        capabilities: portalCapabilities,
-      });
+      return reply.send({ reply: result.text });
     } catch (err: any) {
       return reply.status(503).send({ error: 'assistant_unavailable', detail: err.message });
     }
