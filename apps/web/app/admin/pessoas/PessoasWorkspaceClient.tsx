@@ -24,10 +24,8 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconArrowUpRight,
-  IconBriefcase,
   IconSearch,
   IconUsers,
-  IconUserOff,
   IconUserCheck,
 } from '@tabler/icons-react';
 
@@ -200,53 +198,6 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
   );
 }
 
-// ── UnassignedPanel ───────────────────────────────────────────────────────
-
-function UnassignedPanel({ jobs }: { jobs: OperationsJob[] }) {
-  const theme = useTheme();
-  const dark = theme.palette.mode === 'dark';
-  if (!jobs.length) return null;
-
-  return (
-    <Box
-      sx={{
-        borderRadius: 2.5,
-        border: `1px solid ${alpha('#FFAE1F', 0.3)}`,
-        bgcolor: dark ? alpha('#FFAE1F', 0.06) : alpha('#FFAE1F', 0.04),
-        p: 2.25,
-      }}
-    >
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
-        <IconUserOff size={16} color="#FFAE1F" />
-        <Typography variant="subtitle2" fontWeight={800}>
-          Sem dono ({jobs.length})
-        </Typography>
-      </Stack>
-      <Stack spacing={0.75}>
-        {jobs.slice(0, 6).map((job) => (
-          <Typography key={job.id} variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
-            · {job.title}{job.client_name ? ` — ${job.client_name}` : ''}
-          </Typography>
-        ))}
-        {jobs.length > 6 && (
-          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
-            +{jobs.length - 6} mais
-          </Typography>
-        )}
-      </Stack>
-      <Button
-        component={Link}
-        href="/admin/operacoes/jobs?unassigned=true"
-        size="small"
-        variant="outlined"
-        color="warning"
-        sx={{ mt: 1.25, fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}
-      >
-        Resolver na pauta
-      </Button>
-    </Box>
-  );
-}
 
 // ── merge helpers ─────────────────────────────────────────────────────────
 
@@ -316,7 +267,6 @@ function ColaboradoresView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [owners, setOwners] = useState<PlannerOwner[]>([]);
-  const [unassigned, setUnassigned] = useState<OperationsJob[]>([]);
   const [q, setQ] = useState('');
 
   const load = useCallback(async () => {
@@ -332,7 +282,6 @@ function ColaboradoresView() {
         peopleRes?.data ?? [],
       );
       setOwners(merged);
-      setUnassigned(plannerRes?.data?.unassigned_jobs ?? []);
     } catch (err: any) {
       setError(err?.message || 'Erro ao carregar colaboradores');
     } finally {
@@ -352,7 +301,6 @@ function ColaboradoresView() {
           <Chip label={`${owners.length} pessoas`} size="small" variant="outlined" />
           <Chip label={`${withSlack} com folga`} size="small" color={withSlack ? 'success' : 'default'} variant="outlined" />
           {overloaded > 0 && <Chip label={`${overloaded} sob pressão`} size="small" color="error" variant="outlined" />}
-          {unassigned.length > 0 && <Chip label={`${unassigned.length} sem dono`} size="small" color="warning" variant="outlined" />}
         </Stack>
         <Button
           component={Link}
@@ -388,12 +336,7 @@ function ColaboradoresView() {
               <ColaboradorCard row={row} q={q} />
             </Grid>
           ))}
-          {unassigned.length > 0 && (
-            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-              <UnassignedPanel jobs={unassigned} />
-            </Grid>
-          )}
-          {!loading && owners.length === 0 && (
+{!loading && owners.length === 0 && (
             <Grid size={{ xs: 12 }}>
               <Typography color="text.secondary" sx={{ py: 6, textAlign: 'center' }}>
                 Nenhum colaborador com jobs ativos encontrado.
