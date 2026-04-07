@@ -476,12 +476,23 @@ function buildFreelancerOnboardingState(profile: Record<string, any>) {
     pushMissing('skills', 'Ao menos uma especialidade', 'skills');
   }
 
-  const hasAvatar = Boolean(
-    hasValue(profile.avatar_url)
-    || hasValue(profile.person_avatar_url)
-    || hasValue(profile.avatar_generated_key)
-    || hasValue(profile.avatar_source_key),
+  const hasGeneratedAvatar = Boolean(
+    hasValue(profile.avatar_generated_key)
+    || (
+      profile.avatar_generation_status === 'ready'
+      && (
+        hasValue(profile.person_avatar_url)
+        || hasValue(profile.avatar_url)
+      )
+    ),
   );
+  const hasLegacyAvatar = Boolean(
+    hasValue(profile.avatar_url)
+    && !hasValue(profile.person_avatar_url)
+    && !hasValue(profile.avatar_generated_key)
+    && !hasValue(profile.avatar_source_key),
+  );
+  const hasAvatar = hasGeneratedAvatar || hasLegacyAvatar;
   if (!hasAvatar) pushMissing('avatar', 'Avatar Edro gerado', 'avatar');
 
   const nextStep = missing[0]?.step ?? null;
@@ -1311,7 +1322,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     );
     if (!res.rows.length) return reply.status(404).send({ error: 'Freelancer profile not found' });
     const row = res.rows[0];
-    if (row.avatar_generated_key || row.avatar_source_key) {
+    if (row.avatar_generated_key) {
       const cacheBust = row.avatar_generated_at ? `?v=${new Date(row.avatar_generated_at).getTime()}` : '';
       row.avatar_url = `/api/proxy/freelancers/portal/me/avatar${cacheBust}`;
     }
@@ -1323,8 +1334,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
     const res = await pool.query(
-      `SELECT p.avatar_generated_key,
-              p.avatar_source_key
+      `SELECT p.avatar_generated_key
          FROM freelancer_profiles fp
          LEFT JOIN people p ON p.id = fp.person_id
         WHERE fp.user_id = $1
@@ -1333,7 +1343,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     );
 
     const row = res.rows[0];
-    const key = row?.avatar_generated_key ?? row?.avatar_source_key ?? null;
+    const key = row?.avatar_generated_key ?? null;
     if (!key) return reply.status(404).send({ error: 'Avatar not found' });
 
     try {
@@ -2737,7 +2747,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               fp.avatar_url,
               p.avatar_url AS person_avatar_url,
               p.avatar_generated_key,
-              p.avatar_source_key
+              p.avatar_source_key,
+              p.avatar_generation_status
          FROM freelancer_profiles fp
          LEFT JOIN people p ON p.id = fp.person_id
         WHERE fp.user_id = $1`,
@@ -3652,7 +3663,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               fp.avatar_url,
               p.avatar_url AS person_avatar_url,
               p.avatar_generated_key,
-              p.avatar_source_key
+              p.avatar_source_key,
+              p.avatar_generation_status
          FROM freelancer_profiles fp
          LEFT JOIN people p ON p.id = fp.person_id
         WHERE fp.user_id = $1`,

@@ -51,6 +51,24 @@ const ALERT_TYPE_LABEL: Record<string, string> = {
   job_no_briefing:    'Job sem briefing',
 };
 
+function getClientHref(alert: JarvisAlertItem) {
+  if (!alert.client_id) return null;
+  if (alert.alert_type === 'meeting_no_card') {
+    return `/clients/${alert.client_id}/radar?sub=comunicacao&inner=reunioes`;
+  }
+  if (alert.alert_type === 'whatsapp_no_reply') {
+    return `/clients/${alert.client_id}/radar?sub=comunicacao&inner=whatsapp`;
+  }
+  return `/clients/${alert.client_id}/operacao`;
+}
+
+function getClientHrefLabel(alertType: string) {
+  if (alertType === 'meeting_no_card' || alertType === 'whatsapp_no_reply') {
+    return 'Ver comunicação →';
+  }
+  return 'Ver operação →';
+}
+
 export default function JarvisAlertsSectionClient({ limit = 20 }: { limit?: number }) {
   const theme = useTheme();
   const [alerts, setAlerts] = useState<JarvisAlertItem[]>([]);
@@ -135,7 +153,7 @@ export default function JarvisAlertsSectionClient({ limit = 20 }: { limit?: numb
       <Stack spacing={0.75}>
         {alerts.map((a) => {
           const color = PRIORITY_COLOR_MAP[a.priority] ?? '#6b7280';
-          const clientHref = a.client_id ? `/clients/${a.client_id}/operacao` : null;
+          const clientHref = getClientHref(a);
 
           return (
             <Box
@@ -187,7 +205,7 @@ export default function JarvisAlertsSectionClient({ limit = 20 }: { limit?: numb
                       '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
                     }}
                   >
-                    Ver operação →
+                    {getClientHrefLabel(a.alert_type)}
                   </Button>
                 )}
               </Box>

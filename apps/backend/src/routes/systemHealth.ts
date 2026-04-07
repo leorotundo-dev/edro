@@ -39,8 +39,8 @@ const GAP_META: Record<string, { label: string; priority: string; tab: string; s
 const ALERT_URLS: Record<string, string> = {
   card_stalled:         '/operacao',
   job_no_briefing:      '/operacao',
-  whatsapp_no_reply:    '/operacao?sub=whatsapp',
-  meeting_no_card:      '/operacao?sub=reunioes',
+  whatsapp_no_reply:    '/radar?sub=comunicacao&inner=whatsapp',
+  meeting_no_card:      '/radar?sub=comunicacao&inner=reunioes',
   contract_expiring:    '/identidade',
   market_opportunity:   '/radar',
 };

@@ -148,9 +148,8 @@ export async function generateEdroAvatarForFreelancer(params: {
 
     let avatarGeneratedKey: string | null = null;
     let avatarUrl = result.imageUrl;
-    const publicUrl = buildStoragePublicUrl('');
 
-    if (publicUrl !== null) {
+    try {
       const generatedResponse = await fetch(result.imageUrl);
       if (!generatedResponse.ok) {
         throw new Error(`Falha ao baixar avatar gerado (${generatedResponse.status})`);
@@ -159,6 +158,10 @@ export async function generateEdroAvatarForFreelancer(params: {
       avatarGeneratedKey = buildKey(params.tenantId, 'avatars-generated', `${params.personId}.jpg`);
       await saveFile(generatedBuffer, avatarGeneratedKey);
       avatarUrl = buildStoragePublicUrl(avatarGeneratedKey) ?? result.imageUrl;
+    } catch {
+      // Keep the provider URL as a compatible fallback when storage mirroring fails.
+      avatarGeneratedKey = null;
+      avatarUrl = result.imageUrl;
     }
 
     await updatePersonAvatarState({

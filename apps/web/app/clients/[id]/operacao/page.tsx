@@ -3,49 +3,49 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { apiGet, apiPatch } from '@/lib/api';
+import { useJarvisPage } from '@/hooks/useJarvisPage';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import CircularProgress from '@mui/material/CircularProgress';
-import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
 import {
   IconBrandTrello,
   IconCalendarEvent,
-  IconMessage2,
   IconNotes,
 } from '@tabler/icons-react';
 import ProjectBoardClient from '@/app/projetos/[boardId]/ProjectBoardClient';
 import OperacaoRadarSection from './OperacaoRadarSection';
-import MeetingsClient from '../meetings/MeetingsClient';
-import WhatsAppClientTab from '../whatsapp/WhatsAppClientTab';
 import ClientCalendarClient from '../calendar/ClientCalendarClient';
 import ClientBriefingsClient from '../briefings/ClientBriefingsClient';
 import CampaignsClient from '../campaigns/CampaignsClient';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type OperacaoSub = 'board' | 'producao' | 'comunicacao' | 'agenda';
+type OperacaoSub = 'board' | 'producao' | 'agenda';
 type ProducaoInner = 'briefings' | 'campanhas';
-type ComunicacaoInner = 'reunioes' | 'whatsapp';
+type LegacyCommunicationInner = 'reunioes' | 'whatsapp';
 
 const SUB_TABS = [
-  { value: 'board' as const,       label: 'Board',       icon: <IconBrandTrello size={16} /> },
-  { value: 'producao' as const,    label: 'Produção',    icon: <IconNotes size={16} /> },
-  { value: 'comunicacao' as const, label: 'Comunicação', icon: <IconMessage2 size={16} /> },
-  { value: 'agenda' as const,      label: 'Agenda',      icon: <IconCalendarEvent size={16} /> },
+  { value: 'board' as const,    label: 'Board',    icon: <IconBrandTrello size={16} /> },
+  { value: 'producao' as const, label: 'Produção', icon: <IconNotes size={16} /> },
+  { value: 'agenda' as const,   label: 'Agenda',   icon: <IconCalendarEvent size={16} /> },
 ];
 
 function parseSub(v: string | null): OperacaoSub {
   if (v === 'producao') return 'producao';
-  if (v === 'comunicacao') return 'comunicacao';
   if (v === 'agenda') return 'agenda';
   return 'board';
+}
+
+function parseLegacyCommunicationInner(sub: string | null, inner: string | null): LegacyCommunicationInner | null {
+  if (sub === 'whatsapp' || inner === 'whatsapp') return 'whatsapp';
+  if (sub === 'comunicacao' || sub === 'reunioes' || inner === 'reunioes') return 'reunioes';
+  return null;
 }
 
 // ── Trello Board ──────────────────────────────────────────────────────────────
@@ -148,28 +148,6 @@ function ProducaoSection({ clientId }: { clientId: string }) {
   );
 }
 
-// ── Comunicação — Reuniões + WhatsApp ─────────────────────────────────────────
-
-function ComunicacaoSection({ clientId }: { clientId: string }) {
-  const [inner, setInner] = useState<ComunicacaoInner>('reunioes');
-  return (
-    <Box>
-      <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-        <ButtonGroup size="small" variant="outlined">
-          <Button variant={inner === 'reunioes' ? 'contained' : 'outlined'} onClick={() => setInner('reunioes')}>
-            Reuniões
-          </Button>
-          <Button variant={inner === 'whatsapp' ? 'contained' : 'outlined'} onClick={() => setInner('whatsapp')}>
-            WhatsApp
-          </Button>
-        </ButtonGroup>
-      </Box>
-      {inner === 'reunioes' && <MeetingsClient clientId={clientId} />}
-      {inner === 'whatsapp' && <WhatsAppClientTab clientId={clientId} />}
-    </Box>
-  );
-}
-
 // ── Agenda — Calendário + Financeiro ──────────────────────────────────────────
 
 function AgendaSection({ clientId }: { clientId: string }) {
@@ -188,10 +166,28 @@ export default function OperacaoPage() {
   const searchParams = useSearchParams();
   const clientId = params.id as string;
   const [tab, setTab] = useState<OperacaoSub>(() => parseSub(searchParams.get('sub')));
+  const legacyCommunicationInner = parseLegacyCommunicationInner(searchParams.get('sub'), searchParams.get('inner'));
+
+  useJarvisPage({
+    screen: 'client_operacao',
+    clientId,
+    territory: 'operacao',
+    activeTab: tab,
+    operacaoTab: tab,
+  }, [clientId, tab]);
 
   useEffect(() => {
+    if (!legacyCommunicationInner) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('sub', 'comunicacao');
+    next.set('inner', legacyCommunicationInner);
+    router.replace(`/clients/${clientId}/radar?${next.toString()}`);
+  }, [clientId, legacyCommunicationInner, router, searchParams]);
+
+  useEffect(() => {
+    if (legacyCommunicationInner) return;
     setTab(parseSub(searchParams.get('sub')));
-  }, [searchParams]);
+  }, [legacyCommunicationInner, searchParams]);
 
   const changeTab = (value: OperacaoSub) => {
     setTab(value);
@@ -204,6 +200,8 @@ export default function OperacaoPage() {
     const qs = next.toString();
     router.replace(qs ? `/clients/${clientId}/operacao?${qs}` : `/clients/${clientId}/operacao`);
   };
+
+  if (legacyCommunicationInner) return null;
 
   return (
     <Box>
@@ -221,7 +219,6 @@ export default function OperacaoPage() {
 
       {tab === 'board'       && <TrelloBoardSection clientId={clientId} />}
       {tab === 'producao'    && <ProducaoSection    clientId={clientId} />}
-      {tab === 'comunicacao' && <ComunicacaoSection clientId={clientId} />}
       {tab === 'agenda'      && <AgendaSection      clientId={clientId} />}
     </Box>
   );
