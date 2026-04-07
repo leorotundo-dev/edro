@@ -1624,7 +1624,7 @@ export default function EditorClient() {
           headline: editorCopy.headline || undefined,
           body_text: editorCopy.body || undefined,
           custom_prompt: artePrompt || undefined,
-          image_model: (imageProvider === 'leonardo' || imageProvider === 'fal') ? undefined : imageModel,
+          image_model: imageModel || undefined,
           image_provider: imageProvider !== 'gemini' ? imageProvider : undefined,
           aspect_ratio: (imageProvider === 'leonardo' || imageProvider === 'fal' || imageModel.startsWith('imagen-')) ? imageAspectRatio : undefined,
           negative_prompt: imageNegativePrompt || undefined,

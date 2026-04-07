@@ -36,11 +36,19 @@ const FAL_ENDPOINTS: Record<FalModel, string> = {
 
 /** Resolve a fal model name or direct fal.ai path to an endpoint URL */
 function resolveEndpoint(model: string): string {
+  const aliasMap: Record<string, string> = {
+    'fal-flux-pro': 'flux-pro',
+    'fal-flux-schnell': 'flux-dev',
+    'fal-flux-realism': 'flux-realism',
+    'fal-flux-dev': 'flux-dev',
+    'flux-schnell': 'flux-dev',
+  };
+  const normalizedModel = aliasMap[model] || (model.startsWith('fal-') ? model.slice(4) : model);
   // Known alias
-  if (model in FAL_ENDPOINTS) return FAL_ENDPOINTS[model as FalModel];
+  if (normalizedModel in FAL_ENDPOINTS) return FAL_ENDPOINTS[normalizedModel as FalModel];
   // Direct fal.ai path (e.g. "fal-ai/recraft-v3" or full URL)
-  if (model.startsWith('https://')) return model;
-  if (model.startsWith('fal-ai/')) return `https://fal.run/${model}`;
+  if (normalizedModel.startsWith('https://')) return normalizedModel;
+  if (normalizedModel.startsWith('fal-ai/')) return `https://fal.run/${normalizedModel}`;
   // Fallback to flux-pro
   return FAL_ENDPOINTS['flux-pro'];
 }

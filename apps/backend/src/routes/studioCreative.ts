@@ -50,7 +50,7 @@ const generateSchema = z.object({
   /** Segment/industry of the client */
   segment: z.string().optional(),
   /** Image generation provider */
-  image_provider: z.enum(['gemini', 'leonardo']).default('gemini'),
+  image_provider: z.enum(['gemini', 'leonardo', 'fal']).default('gemini'),
   /** Model alias — e.g. 'leonardo-phoenix', 'leonardo-lightning-xl' */
   image_model: z.string().optional(),
   /** Aspect ratio: '1:1' | '4:5' | '9:16' | '16:9' */
@@ -96,7 +96,7 @@ const refineSchema = z.object({
   instruction: z.string().min(1),
   headline: z.string().optional(),
   brand: z.string().optional(),
-  image_provider: z.enum(['gemini', 'leonardo']).optional(),
+  image_provider: z.enum(['gemini', 'leonardo', 'fal']).optional(),
 });
 
 const clientIdSchema = z.string().trim().min(1);
