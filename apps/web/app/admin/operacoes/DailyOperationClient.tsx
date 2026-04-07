@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -20,9 +22,11 @@ import {
   IconDots,
   IconPlus,
   IconRefresh,
+  IconX,
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import JobDetailClient from './jobs/[id]/JobDetailClient';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 import { getRisk, type OperationsJob } from '@/components/operations/model';
 import { sortByOperationalPriority } from '@/components/operations/derived';
@@ -133,7 +137,7 @@ function StatNumber({ value, label, color }: { value: number; label: string; col
 
 // ── DailyOpCard ───────────────────────────────────────────────────────────────
 
-function DailyOpCard({ job, onOpen }: { job: OperationsJob; onOpen: (j: OperationsJob) => void }) {
+function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j: OperationsJob) => void; onDetail: (j: OperationsJob) => void }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const ct = cardTheme(job, dark);
@@ -142,11 +146,8 @@ function DailyOpCard({ job, onOpen }: { job: OperationsJob; onOpen: (j: Operatio
 
   return (
     <Box
-      component={Link}
-      href={`/admin/operacoes/jobs/${job.id}`}
+      onClick={() => onDetail(job)}
       sx={{
-        textDecoration: 'none',
-        color: 'inherit',
         borderRadius: 3,
         border: `1px solid ${ct.border}`,
         bgcolor: ct.bg,
@@ -260,6 +261,7 @@ export default function DailyOperationClient() {
   const [drawerMode, setDrawerMode]   = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
   const [syncing, setSyncing]   = useState(false);
+  const [detailJobId, setDetailJobId] = useState<string | null>(null);
 
   // Sync selected job with fresh data
   useEffect(() => {
@@ -272,6 +274,10 @@ export default function DailyOperationClient() {
     setSelectedJob(job);
     setDrawerMode('edit');
     setDrawerOpen(true);
+  }, []);
+
+  const openDetail = useCallback((job: OperationsJob) => {
+    setDetailJobId(job.id);
   }, []);
 
   const openCreate = useCallback(() => {
@@ -427,13 +433,38 @@ export default function DailyOperationClient() {
         <Grid container spacing={2}>
           {displayed.map((job) => (
             <Grid key={job.id} size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 }}>
-              <DailyOpCard job={job} onOpen={openCommands} />
+              <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
             </Grid>
           ))}
         </Grid>
       )}
 
-      {/* Drawer */}
+      {/* Job detail dialog */}
+      <Dialog
+        open={!!detailJobId}
+        onClose={() => setDetailJobId(null)}
+        fullWidth
+        maxWidth="xl"
+        scroll="paper"
+        PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh' } }}
+      >
+        <DialogTitle sx={{ p: 0, position: 'relative' }}>
+          <IconButton
+            onClick={() => setDetailJobId(null)}
+            size="small"
+            sx={{ position: 'absolute', top: 12, right: 12, zIndex: 10, opacity: 0.6, '&:hover': { opacity: 1 } }}
+          >
+            <IconX size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {detailJobId && (
+            <JobDetailClient id={detailJobId} onClose={() => setDetailJobId(null)} />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick-edit drawer (⋮ button) */}
       <JobWorkbenchDrawer
         open={drawerOpen}
         mode={drawerMode}
