@@ -348,7 +348,110 @@ export async function generateInstantCharacterWithFal(params: {
   if (!apiKey) throw new Error('FAL_API_KEY não configurada');
 
   const { width, height } = resolveSize(params.aspectRatio);
+  const model = 'fal-ai/instant-character';
+  const body: Record<string, any> = {
+    prompt: params.prompt.slice(0, 1990),
+    image_url: params.imageUrl,
+    image_size: { width, height },
+    scale: params.scale ?? 1.1,
+    guidance_scale: params.guidanceScale ?? 3.5,
+    num_inference_steps: params.numInferenceSteps ?? 28,
+    num_images: params.numImages ?? 1,
+    enable_safety_checker: false,
+    output_format: 'jpeg',
+  };
 
+  if (params.negativePrompt) body.negative_prompt = params.negativePrompt;
+  if (params.seed) body.seed = params.seed;
+
+  const queueRes = await fetch(`https://queue.fal.run/${model}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!queueRes.ok) {
+    const err = await queueRes.text().catch(() => 'unknown');
+    throw new Error(`fal.ai instant-character submit failed (${queueRes.status}): ${err.slice(0, 300)}`);
+  }
+
+  const queue = await queueRes.json() as { request_id?: string };
+  if (!queue.request_id) {
+    throw new Error('fal.ai instant-character: request_id não retornado');
+  }
+
+  const statusUrl = `https://queue.fal.run/${model}/requests/${queue.request_id}/status`;
+  const resultUrl = `https://queue.fal.run/${model}/requests/${queue.request_id}`;
+
+  for (let i = 0; i < 30; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+
+    const statusRes = await fetch(statusUrl, {
+      headers: { Authorization: `Key ${apiKey}` },
+    });
+
+    if (!statusRes.ok) {
+      const err = await statusRes.text().catch(() => 'unknown');
+      throw new Error(`fal.ai instant-character status failed (${statusRes.status}): ${err.slice(0, 300)}`);
+    }
+
+    const statusData = await statusRes.json() as { status?: string };
+    if (statusData.status === 'COMPLETED') {
+      const resultRes = await fetch(resultUrl, {
+        headers: { Authorization: `Key ${apiKey}` },
+      });
+
+      if (!resultRes.ok) {
+        const err = await resultRes.text().catch(() => 'unknown');
+        throw new Error(`fal.ai instant-character result failed (${resultRes.status}): ${err.slice(0, 300)}`);
+      }
+
+      const data = await resultRes.json() as {
+        images?: Array<{ url: string; seed?: number }>;
+        image?: { url: string; seed?: number };
+        error?: string;
+      };
+
+      if (data.error) throw new Error(`fal.ai instant-character error: ${data.error}`);
+
+      const images = data.images ?? (data.image ? [data.image] : []);
+      if (!images.length) throw new Error('fal.ai instant-character: nenhuma imagem retornada');
+
+      const imageUrls = images.map((img) => img.url);
+      return {
+        imageUrl: imageUrls[0],
+        imageUrls,
+        endpoint: model,
+        seed: images[0]?.seed,
+      };
+    }
+
+    if (statusData.status === 'FAILED') {
+      throw new Error('fal.ai instant-character: geração falhou na fila');
+    }
+  }
+
+  throw new Error('fal.ai instant-character: timeout aguardando resultado da fila');
+}
+
+export async function generateInstantCharacterSyncWithFal(params: {
+  prompt: string;
+  imageUrl: string;
+  negativePrompt?: string;
+  aspectRatio?: string;
+  numImages?: number;
+  scale?: number;
+  guidanceScale?: number;
+  numInferenceSteps?: number;
+  seed?: number;
+}): Promise<FalImageResult> {
+  const apiKey = env.FAL_API_KEY;
+  if (!apiKey) throw new Error('FAL_API_KEY não configurada');
+
+  const { width, height } = resolveSize(params.aspectRatio);
   const body: Record<string, any> = {
     prompt: params.prompt.slice(0, 1990),
     image_url: params.imageUrl,
