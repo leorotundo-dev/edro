@@ -7,6 +7,8 @@ import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 import { query } from '../db';
 import { syncTenantLearningRules } from '../services/reporteiLearningSync';
 import { runPerformanceAlertWorkerForTenant } from '../jobs/performanceAlertWorker';
+import { ingestReporteiRawMetrics, refreshReporteiInventory } from '../services/reporteiInventoryService';
+import { buildReporteiSemanticPreview } from '../services/reporteiSemanticService';
 
 // ── Name normalization for auto-matching ──────────────────────────────────────
 function normName(s: string): string {
@@ -303,8 +305,104 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
       const token = process.env.REPORTEI_TOKEN || '';
       if (!token) return { error: 'No token.' };
       try {
-        return await new ReporteiClient().getAvailableMetrics(slug, { token });
+        return await new ReporteiClient().getAvailableMetrics(slug, undefined, { token });
       } catch (e: any) { return { error: e.message }; }
+    }
+  );
+
+  // ── POST /admin/reportei/inventory/refresh ───────────────────────────────
+  // Descobre projetos, integrações, catálogo de métricas e recursos brutos da company
+  app.post(
+    '/admin/reportei/inventory/refresh',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const { include_resources } = z
+        .object({ include_resources: z.boolean().default(true) })
+        .parse(request.body ?? {});
+
+      const token = process.env.REPORTEI_TOKEN || '';
+      if (!token) return reply.status(400).send({ error: 'REPORTEI_TOKEN not set' });
+
+      try {
+        const result = await refreshReporteiInventory(tenantId, token, {
+          includeResources: include_resources,
+        });
+        return reply.send({ ok: true, ...result });
+      } catch (e: any) {
+        return reply.status(500).send({ error: e.message });
+      }
+    }
+  );
+
+  // ── POST /admin/reportei/raw/ingest ──────────────────────────────────────
+  // Persiste payload bruto completo de metrics/get-data para um projeto/cliente
+  app.post(
+    '/admin/reportei/raw/ingest',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const body = z.object({
+        project_id: z.number().int().positive().optional(),
+        client_id: z.string().min(1).optional(),
+        windows: z.array(z.string().regex(/^\d+d$/)).default(['7d', '30d', '90d']),
+        metrics_per_request: z.number().int().min(1).max(100).default(50),
+        include_inactive: z.boolean().default(false),
+      }).parse(request.body ?? {});
+
+      if (!body.project_id && !body.client_id) {
+        return reply.status(400).send({ error: 'project_id or client_id is required' });
+      }
+
+      const token = process.env.REPORTEI_TOKEN || '';
+      if (!token) return reply.status(400).send({ error: 'REPORTEI_TOKEN not set' });
+
+      try {
+        const result = await ingestReporteiRawMetrics(tenantId, token, {
+          projectId: body.project_id ?? null,
+          clientId: body.client_id ?? null,
+          windows: body.windows,
+          metricsPerRequest: body.metrics_per_request,
+          includeInactive: body.include_inactive,
+        });
+        return reply.send({ ok: true, ...result });
+      } catch (e: any) {
+        return reply.status(500).send({ error: e.message });
+      }
+    }
+  );
+
+  // ── GET /admin/reportei/semantic-preview ─────────────────────────────────
+  // Lê o raw lake do Reportei e organiza métricas por família semântica
+  app.get(
+    '/admin/reportei/semantic-preview',
+    { preHandler: [authGuard, tenantGuard(), requirePerm('admin')] },
+    async (request: any, reply: any) => {
+      const tenantId = (request.user as any).tenant_id as string;
+      const querySchema = z.object({
+        client_id: z.string().min(1).optional(),
+        project_id: z.coerce.number().int().positive().optional(),
+        time_window: z.string().regex(/^\d+d$/).optional(),
+        limit: z.coerce.number().int().min(1).max(1000).default(200),
+      });
+      const params = querySchema.parse(request.query ?? {});
+
+      if (!params.client_id && !params.project_id) {
+        return reply.status(400).send({ error: 'client_id or project_id is required' });
+      }
+
+      try {
+        const preview = await buildReporteiSemanticPreview({
+          tenantId,
+          clientId: params.client_id ?? null,
+          projectId: params.project_id ?? null,
+          timeWindow: params.time_window ?? null,
+          limit: params.limit,
+        });
+        return reply.send({ ok: true, ...preview });
+      } catch (e: any) {
+        return reply.status(500).send({ error: e.message });
+      }
     }
   );
 

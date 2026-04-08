@@ -7,6 +7,13 @@ export type ReporteiConfig = {
   token: string;
 };
 
+type ReporteiListParams = {
+  page?: number;
+  per_page?: number;
+  sortBy?: string;
+  descending?: boolean;
+};
+
 export type ReporteiMetricRequest = {
   id: string;             // UUID from GET /metrics (preferred) or reference_key as fallback
   reference_key?: string; // e.g. "ig:impressions" — set when id is a UUID
@@ -161,8 +168,87 @@ export class ReporteiClient {
    * List available metrics for an integration.
    * Requires integration_slug (e.g. "instagram_business", "facebook_ads")
    */
-  async getAvailableMetrics(integrationSlug: string, overrides?: Partial<ReporteiConfig>): Promise<any> {
-    return this.get(`/metrics?integration_slug=${encodeURIComponent(integrationSlug)}`, overrides);
+  async getAvailableMetrics(
+    integrationSlug: string,
+    params?: { page?: number; per_page?: number },
+    overrides?: Partial<ReporteiConfig>,
+  ): Promise<any> {
+    const qs = new URLSearchParams({ integration_slug: integrationSlug });
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    return this.get(`/metrics?${qs.toString()}`, overrides);
+  }
+
+  async getTemplates(params?: ReporteiListParams, overrides?: Partial<ReporteiConfig>): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    return this.get(`/templates${qs.toString() ? '?' + qs : ''}`, overrides);
+  }
+
+  async getReports(
+    params?: ReporteiListParams & { project_id?: number; created_at?: string; updated_at?: string },
+    overrides?: Partial<ReporteiConfig>,
+  ): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.project_id) qs.set('project_id', String(params.project_id));
+    if (params?.created_at) qs.set('created_at', params.created_at);
+    if (params?.updated_at) qs.set('updated_at', params.updated_at);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.sortBy) qs.set('sortBy', params.sortBy);
+    if (typeof params?.descending === 'boolean') qs.set('descending', String(params.descending));
+    return this.get(`/reports${qs.toString() ? '?' + qs : ''}`, overrides);
+  }
+
+  async getDashboards(
+    params?: ReporteiListParams & { project_id?: number; created_at?: string; updated_at?: string },
+    overrides?: Partial<ReporteiConfig>,
+  ): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.project_id) qs.set('project_id', String(params.project_id));
+    if (params?.created_at) qs.set('created_at', params.created_at);
+    if (params?.updated_at) qs.set('updated_at', params.updated_at);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.sortBy) qs.set('sortBy', params.sortBy);
+    if (typeof params?.descending === 'boolean') qs.set('descending', String(params.descending));
+    return this.get(`/dashboards${qs.toString() ? '?' + qs : ''}`, overrides);
+  }
+
+  async getWebhooks(
+    params?: ReporteiListParams & { project_id?: number; event_type?: string; source?: string; status?: string },
+    overrides?: Partial<ReporteiConfig>,
+  ): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.project_id) qs.set('project_id', String(params.project_id));
+    if (params?.event_type) qs.set('event_type', params.event_type);
+    if (params?.source) qs.set('source', params.source);
+    if (params?.status) qs.set('status', params.status);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.sortBy) qs.set('sortBy', params.sortBy);
+    if (typeof params?.descending === 'boolean') qs.set('descending', String(params.descending));
+    return this.get(`/webhooks${qs.toString() ? '?' + qs : ''}`, overrides);
+  }
+
+  async getWebhookEvents(overrides?: Partial<ReporteiConfig>): Promise<any> {
+    return this.get('/webhooks/events', overrides);
+  }
+
+  async getTimelineEvents(
+    params?: ReporteiListParams & { project_id?: number; report_id?: number; date?: string },
+    overrides?: Partial<ReporteiConfig>,
+  ): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.project_id) qs.set('project_id', String(params.project_id));
+    if (params?.report_id) qs.set('report_id', String(params.report_id));
+    if (params?.date) qs.set('date', params.date);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.sortBy) qs.set('sortBy', params.sortBy);
+    if (typeof params?.descending === 'boolean') qs.set('descending', String(params.descending));
+    return this.get(`/timeline-events${qs.toString() ? '?' + qs : ''}`, overrides);
   }
 
   /**
@@ -178,7 +264,7 @@ export class ReporteiClient {
     overrides?: Partial<ReporteiConfig>
   ): Promise<ReporteiMetricRequest[] | null> {
     try {
-      const res = await this.getAvailableMetrics(slug, overrides);
+      const res = await this.getAvailableMetrics(slug, undefined, overrides);
       const items: any[] = res?.data ?? (Array.isArray(res) ? res : []);
       if (!items.length) return null;
 

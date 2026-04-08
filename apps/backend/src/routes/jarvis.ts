@@ -21,7 +21,8 @@ import {
 import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
-import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
+import { buildBriefingDiagnostics, type BriefingConflict, type BriefingDiagnostics } from '../services/briefingDiagnosticService';
+import { buildReporteiSemanticPromptBlock, buildReporteiSemanticSummary, type ReporteiSemanticSummary } from '../services/reporteiSemanticService';
 import {
   analyzeClientMemoryGovernance,
   applyClientMemoryGovernanceAction,
@@ -226,7 +227,11 @@ function buildClientStatePreflightContext(state: ReturnType<typeof emptyClientSt
   return parts.join('\n');
 }
 
-function emptyBriefingDiagnosticsPreflight() {
+function emptyBriefingDiagnosticsPreflight(): {
+  briefing_id: string | null;
+  title: string;
+  diagnostics: BriefingDiagnostics;
+} {
   return {
     briefing_id: null as string | null,
     title: '',
@@ -234,7 +239,7 @@ function emptyBriefingDiagnosticsPreflight() {
       gaps: [] as string[],
       tensions: [] as string[],
       recommendations: [] as string[],
-      conflicts: [] as Array<{ type: string; severity: string; message: string }>,
+      conflicts: [] as BriefingConflict[],
       severity: 'none' as const,
       requires_confirmation: false,
       recommended_resolution: null as string | null,
@@ -287,6 +292,10 @@ function buildMemoryGovernancePreflightContext(preflight: ClientMemoryGovernance
     lines.push('INSTRUÇÃO: a memória viva está sob pressão alta. Não confie cegamente no contexto acumulado; proponha limpeza/substituição antes de criar se isso puder contaminar a resposta.');
   }
   return lines.join('\n');
+}
+
+function buildReporteiPreflightContext(summary: ReporteiSemanticSummary | null) {
+  return buildReporteiSemanticPromptBlock(summary, 'REPORTEI PREFLIGHT QUANTITATIVO:');
 }
 
 function buildKeyFactsUsedPreview(livingMemory: Awaited<ReturnType<typeof buildClientLivingMemory>> | null) {
@@ -488,6 +497,14 @@ async function runCreativeExecutionCapability(params: {
         limit: 80,
       }).catch(() => null)
     : null;
+  const reporteiSummaryPreflight = target.clientId
+    ? await buildReporteiSemanticSummary({
+        tenantId: params.tenantId,
+        clientId: target.clientId,
+        timeWindow: '30d',
+        platform: briefingPayload.platform ?? briefingPayload.plataforma ?? null,
+      }).catch(() => null)
+    : null;
   const briefingDiagnostics = briefing && livingMemoryPreflight
     ? buildBriefingDiagnostics({
         briefing: {
@@ -500,6 +517,7 @@ async function runCreativeExecutionCapability(params: {
         },
         livingMemory: livingMemoryPreflight,
         memoryGovernance: memoryGovernancePreflight,
+        reporteiSummary: reporteiSummaryPreflight,
       })
     : null;
 
@@ -521,6 +539,7 @@ async function runCreativeExecutionCapability(params: {
           briefing_id: target.briefingId,
           job_id: target.jobId,
           memory_governance: memoryGovernancePreflight,
+          reportei_summary: reporteiSummaryPreflight,
           key_facts_used: buildKeyFactsUsedPreview(livingMemoryPreflight),
           ignored_memory_facts: buildIgnoredMemoryFactsPreview(memoryGovernancePreflight),
           suggested_actions: memoryGovernancePreflight.suggestions.slice(0, 4),
@@ -657,6 +676,9 @@ async function runCreativeExecutionCapability(params: {
     buildKeyFactsUsedPreview(livingMemoryPreflight).length
       ? `Baseei a resposta em ${buildKeyFactsUsedPreview(livingMemoryPreflight).length} fato(s)-chave da memória viva do cliente.`
       : null,
+    reporteiSummaryPreflight?.integrations
+      ? `Também considerei ${reporteiSummaryPreflight.integrations} integração(ões) do Reportei e ${reporteiSummaryPreflight.family_summary.length} família(s) quantitativa(s) do período.`
+      : null,
     buildBriefingCompensationsPreview(result.briefing_diagnostics).length
       ? `Compensei ${buildBriefingCompensationsPreview(result.briefing_diagnostics).length} lacuna(s)/tensão(ões) do briefing durante a criação.`
       : null,
@@ -702,6 +724,7 @@ async function runCreativeExecutionCapability(params: {
         applied_governance_actions: params.appliedGovernanceActions || [],
         briefing_diagnostics: result.briefing_diagnostics,
         memory_governance: memoryGovernancePreflight,
+        reportei_summary: reporteiSummaryPreflight,
         duration_ms: result.duration_ms,
       },
     ],
@@ -1056,7 +1079,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         const resolvedBriefingId = creativeTarget?.briefingId
           || asUuid(readPageDataString(body.page_data, ['currentBriefingId', 'briefing_id', 'briefingId']));
 
-        const [[clientContext, psychContext, perfContext, livingMemoryPreflight], clientStatePreflight, briefingDiagnosticsPreflight] = await Promise.all([
+        const [[clientContext, psychContext, perfContext, livingMemoryPreflight], clientStatePreflight, memoryGovernancePreflight, reporteiSummaryPreflight] = await Promise.all([
           Promise.race([
             Promise.all([
               buildClientContext(tenantId, clientId!),
@@ -1091,46 +1114,53 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             ), 2500)),
           ]),
           Promise.race([
-            (async () => {
-              if (!resolvedBriefingId) return emptyBriefingDiagnosticsPreflight();
-              const briefing = await getBriefingById(resolvedBriefingId, tenantId);
-              if (!briefing) return emptyBriefingDiagnosticsPreflight();
-              const payload = (briefing.payload || {}) as Record<string, any>;
-              return {
-                briefing_id: briefing.id,
-                title: briefing.title,
-                diagnostics: buildBriefingDiagnostics({
-                  briefing: {
-                    title: briefing.title,
-                    objective: payload.objective ?? payload.objetivo ?? '',
-                    context: payload.context ?? payload.notes ?? payload.additional_notes ?? null,
-                    platform: payload.platform ?? payload.plataforma ?? null,
-                    format: payload.format ?? payload.formato ?? payload.creative_format ?? null,
-                    payload,
-                  },
-                  livingMemory: livingMemoryPreflight,
-                  memoryGovernance: await analyzeClientMemoryGovernance({
-                    tenantId,
-                    clientId: clientId!,
-                    daysBack: 365,
-                    limit: 80,
-                  }).catch(() => null),
-                }),
-              };
-            })().catch(() => emptyBriefingDiagnosticsPreflight()),
-            new Promise<ReturnType<typeof emptyBriefingDiagnosticsPreflight>>((resolve) => setTimeout(() => resolve(
-              emptyBriefingDiagnosticsPreflight(),
-            ), 2500)),
-          ]),
-        ]);
-        const memoryGovernancePreflight = clientId
-          ? await analyzeClientMemoryGovernance({
+            analyzeClientMemoryGovernance({
               tenantId,
-              clientId,
+              clientId: clientId!,
               daysBack: 365,
               limit: 80,
-            }).catch(() => emptyMemoryGovernancePreflight())
-          : emptyMemoryGovernancePreflight();
+            }).catch(() => emptyMemoryGovernancePreflight()),
+            new Promise<ClientMemoryGovernanceAnalysis>((resolve) => setTimeout(() => resolve(
+              emptyMemoryGovernancePreflight(),
+            ), 2500)),
+          ]),
+          Promise.race([
+            buildReporteiSemanticSummary({
+              tenantId,
+              clientId: clientId!,
+              timeWindow: '30d',
+            }).catch(() => null),
+            new Promise<ReporteiSemanticSummary | null>((resolve) => setTimeout(() => resolve(null), 2500)),
+          ]),
+        ]);
+        const briefingDiagnosticsPreflight = await Promise.race([
+          (async () => {
+            if (!resolvedBriefingId) return emptyBriefingDiagnosticsPreflight();
+            const briefing = await getBriefingById(resolvedBriefingId, tenantId);
+            if (!briefing) return emptyBriefingDiagnosticsPreflight();
+            const payload = (briefing.payload || {}) as Record<string, any>;
+            return {
+              briefing_id: briefing.id,
+              title: briefing.title,
+              diagnostics: buildBriefingDiagnostics({
+                briefing: {
+                  title: briefing.title,
+                  objective: payload.objective ?? payload.objetivo ?? '',
+                  context: payload.context ?? payload.notes ?? payload.additional_notes ?? null,
+                  platform: payload.platform ?? payload.plataforma ?? null,
+                  format: payload.format ?? payload.formato ?? payload.creative_format ?? null,
+                  payload,
+                },
+                livingMemory: livingMemoryPreflight,
+                memoryGovernance: memoryGovernancePreflight,
+                reporteiSummary: reporteiSummaryPreflight,
+              }),
+            };
+          })().catch(() => emptyBriefingDiagnosticsPreflight()),
+          new Promise<ReturnType<typeof emptyBriefingDiagnosticsPreflight>>((resolve) => setTimeout(() => resolve(
+            emptyBriefingDiagnosticsPreflight(),
+          ), 2500)),
+        ]);
 
         const toolCtx: ToolContext = {
           tenantId,
@@ -1159,8 +1189,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           : '';
         const briefingDiagnosticsPreflightContext = buildBriefingDiagnosticsPreflightContext(briefingDiagnosticsPreflight);
         const memoryGovernancePreflightContext = buildMemoryGovernancePreflightContext(memoryGovernancePreflight);
+        const reporteiPreflightContext = buildReporteiPreflightContext(reporteiSummaryPreflight);
         const clientStatePreflightContext = `\n\n${buildClientStatePreflightContext(clientStatePreflight)}\nINSTRUÇÃO: trate este snapshot como retrato atual do cliente e use-o para calibrar prioridade, risco, oportunidade e timing da resposta.`;
-        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${memoryGovernancePreflightContext ? `\n\n${memoryGovernancePreflightContext}` : ''}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}`;
+        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${memoryGovernancePreflightContext ? `\n\n${memoryGovernancePreflightContext}` : ''}${reporteiPreflightContext ? `\n\n${reporteiPreflightContext}` : ''}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}`;
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
@@ -1223,6 +1254,12 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             diagnostics: briefingDiagnosticsPreflight.diagnostics,
           });
         }
+        if (reporteiSummaryPreflight?.integrations) {
+          artifacts.unshift({
+            type: 'reportei_preflight',
+            reportei_summary: reporteiSummaryPreflight,
+          });
+        }
         artifacts.unshift({
           type: 'client_state_preflight',
           open_alerts: clientStatePreflight.open_alerts,
@@ -1241,6 +1278,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             'Estado do cliente preflight',
             ...(livingMemoryPreflight.block ? ['Memória viva preflight'] : []),
             ...((memoryGovernancePreflight.summary.governance_pressure !== 'low' || memoryGovernancePreflight.summary.active_conflicts || memoryGovernancePreflight.summary.stale_facts) ? ['Governança da memória preflight'] : []),
+            ...(reporteiSummaryPreflight?.integrations ? ['Quantitativo Reportei preflight'] : []),
             ...(briefingDiagnosticsPreflight.diagnostics.block ? ['Diagnóstico de briefing preflight'] : []),
             ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
             ...memoryBlocks.map((block) => block.label),

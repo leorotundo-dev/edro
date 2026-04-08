@@ -1,4 +1,5 @@
 import type { ClientLivingMemory } from './clientLivingMemoryService';
+import type { ReporteiSemanticSummary } from './reporteiSemanticService';
 
 type ConflictSeverity = 'none' | 'low' | 'medium' | 'high';
 
@@ -27,6 +28,11 @@ export type BriefingDiagnostics = {
   requires_confirmation: boolean;
   recommended_resolution: string | null;
   block: string;
+  quantitative_summary?: {
+    integrations: number;
+    families: string[];
+    top_metrics: string[];
+  } | null;
 };
 
 const DATE_HINTS = [
@@ -137,11 +143,14 @@ export function buildBriefingDiagnostics(params: {
   };
   livingMemory: ClientLivingMemory;
   memoryGovernance?: MemoryGovernanceInput | null;
+  reporteiSummary?: ReporteiSemanticSummary | null;
 }): BriefingDiagnostics {
-  const { briefing, livingMemory, memoryGovernance } = params;
+  const { briefing, livingMemory, memoryGovernance, reporteiSummary } = params;
   const payload = briefing.payload || {};
   const briefingText = buildBriefingText(briefing);
   const normalizedText = normalize(briefingText);
+  const quantitativeFamilies = reporteiSummary?.family_summary?.map((item) => item.family) ?? [];
+  const quantitativeTopMetrics = reporteiSummary?.top_metrics?.slice(0, 4).map((item) => item.reference_key) ?? [];
 
   const gaps: string[] = [];
   const tensions: string[] = [];
@@ -163,11 +172,17 @@ export function buildBriefingDiagnostics(params: {
   if (!String(payload.cta || '').trim()) {
     gaps.push('CTA ou proxima acao desejada nao estao claros.');
   }
+  if (reporteiSummary?.integrations && !String(briefing.platform || payload.platform || '').trim()) {
+    gaps.push('Briefing nao explicita plataforma apesar de haver sinais quantitativos recentes do Reportei para orientar a decisão.');
+  }
   if (!hasDateSignal(briefingText) && livingMemory.pendingActions.length > 0) {
     gaps.push('Briefing nao menciona data, prazo ou marco temporal apesar de haver compromissos pendentes no contexto do cliente.');
   }
   if (briefingText.replace(/\s+/g, ' ').trim().length < 180 && livingMemory.evidence.length > 0) {
     gaps.push('Briefing curto para o volume de contexto implicito ja presente na memoria viva do cliente.');
+  }
+  if (quantitativeFamilies.includes('conversion') && !String(payload.cta || '').trim()) {
+    gaps.push('Há sinais quantitativos de conversão/tráfego no Reportei, mas o briefing não deixa claro qual ação o conteúdo deve perseguir.');
   }
 
   const directiveConflicts = findDirectiveConflicts(briefingText, livingMemory);
@@ -185,6 +200,9 @@ export function buildBriefingDiagnostics(params: {
   }
   if (!hasDateSignal(briefingText) && livingMemory.evidence.some((item) => item.score >= 2.5)) {
     tensions.push('Ha evidencias recentes relevantes na memoria viva que nao aparecem explicitamente no briefing.');
+  }
+  if (reporteiSummary?.integrations && quantitativeFamilies.length && briefingText.replace(/\s+/g, ' ').trim().length < 240) {
+    tensions.push(`O briefing não traduz os sinais quantitativos recentes do Reportei (${quantitativeFamilies.join(', ')}) em decisão criativa explícita.`);
   }
   if (decisionSignals.length > 0 && briefingText.replace(/\s+/g, ' ').trim().length < 220) {
     tensions.push('Ha decisoes recentes do cliente registradas na memoria viva que o briefing nao explicita com clareza.');
@@ -237,6 +255,15 @@ export function buildBriefingDiagnostics(params: {
   if (livingMemory.pendingActions.length > 0) {
     recommendations.push('Antes de escrever, alinhar a copy aos compromissos pendentes e datas vivas do cliente.');
   }
+  if (reporteiSummary?.integrations) {
+    recommendations.push('Cruzar o briefing com os sinais quantitativos recentes do Reportei para calibrar plataforma, gancho, formato e CTA.');
+  }
+  if (quantitativeFamilies.includes('engagement') || quantitativeFamilies.includes('reach')) {
+    recommendations.push('Usar os sinais de alcance e engajamento do Reportei para priorizar o tipo de hook e o grau de explicação da peça.');
+  }
+  if (quantitativeFamilies.includes('traffic') || quantitativeFamilies.includes('conversion')) {
+    recommendations.push('Se a peça precisa gerar ação, amarrar CTA e destino aos sinais de tráfego/conversão mais fortes do Reportei.');
+  }
   if (livingMemory.directives.length > 0) {
     recommendations.push('Respeitar as diretivas ativas do cliente como restricoes de primeira ordem, mesmo quando o briefing nao mencionar isso.');
   }
@@ -256,6 +283,13 @@ export function buildBriefingDiagnostics(params: {
   const severity = resolveConflictSeverity(conflicts);
   const requiresConfirmation = severity === 'high' || conflicts.filter((item) => item.severity === 'medium').length >= 2;
   const recommendedResolution = resolveRecommendedResolution(conflicts);
+  const quantitativeSummary = reporteiSummary?.integrations
+    ? {
+        integrations: reporteiSummary.integrations,
+        families: quantitativeFamilies,
+        top_metrics: quantitativeTopMetrics,
+      }
+    : null;
 
   const lines: string[] = [];
   if (gaps.length || tensions.length || recommendations.length || conflicts.length) {
@@ -265,6 +299,9 @@ export function buildBriefingDiagnostics(params: {
     if (conflicts.length) lines.push(`- Conflitos: ${conflicts.map((item) => item.message).join(' | ')}`);
     if (memoryGovernance?.summary.governance_pressure && memoryGovernance.summary.governance_pressure !== 'low') {
       lines.push(`- Governança da memória: pressão ${memoryGovernance.summary.governance_pressure}, fatos envelhecidos ${memoryGovernance.summary.stale_facts || 0}, conflitos internos ${memoryGovernance.summary.active_conflicts || 0}`);
+    }
+    if (quantitativeSummary?.families.length) {
+      lines.push(`- Reportei: integrações ${quantitativeSummary.integrations}, famílias ${quantitativeSummary.families.join(', ')}, métricas-chave ${quantitativeSummary.top_metrics.join(' | ')}`);
     }
     if (recommendations.length) lines.push(`- Recomendacoes: ${recommendations.join(' | ')}`);
     if (requiresConfirmation) {
@@ -283,5 +320,6 @@ export function buildBriefingDiagnostics(params: {
     requires_confirmation: requiresConfirmation,
     recommended_resolution: recommendedResolution,
     block: lines.join('\n'),
+    quantitative_summary: quantitativeSummary,
   };
 }

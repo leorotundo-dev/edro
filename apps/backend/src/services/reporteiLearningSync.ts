@@ -11,6 +11,11 @@
  */
 
 import { query } from '../db';
+import {
+  buildReporteiEditorialInsights,
+  buildReporteiSemanticSummary,
+  reporteiPlatformFromSlug,
+} from './reporteiSemanticService';
 
 const SIGNIFICANCE_THRESHOLD = 15; // min delta_pct to flag
 const DROP_THRESHOLD = -20;
@@ -63,6 +68,11 @@ interface Snapshot {
   synced_at: string;
 }
 
+type RawWindowPlatform = {
+  integration_slug: string;
+  time_window: string | null;
+};
+
 function buildInsightText(platform: string, metricKey: string, delta: number, value: number | null): string {
   const label = METRIC_LABELS[metricKey] ?? metricKey;
   const dir = delta > 0 ? 'alta' : 'queda';
@@ -103,42 +113,83 @@ export async function syncReporteiLearningRules(
      ORDER BY platform, time_window`,
     [clientId, tenantId]
   ).catch(() => ({ rows: [] as Snapshot[] }));
+  const { rows: rawKeys } = await query<RawWindowPlatform>(
+    `SELECT DISTINCT integration_slug, time_window
+       FROM reportei_metric_raw_payloads
+      WHERE client_id = $1
+        AND tenant_id = $2
+        AND synced_at > NOW() - INTERVAL '8 days'`,
+    [clientId, tenantId],
+  ).catch(() => ({ rows: [] as RawWindowPlatform[] }));
 
-  if (!snapshots.length) return { rules: 0 };
+  const contexts = new Map<string, { platform: string; time_window: string }>();
+  for (const snap of snapshots) {
+    contexts.set(`${snap.platform}:${snap.time_window}`, {
+      platform: snap.platform,
+      time_window: snap.time_window,
+    });
+  }
+  for (const raw of rawKeys) {
+    const platform = reporteiPlatformFromSlug(raw.integration_slug);
+    const timeWindow = raw.time_window || '30d';
+    if (!platform) continue;
+    contexts.set(`${platform}:${timeWindow}`, {
+      platform,
+      time_window: timeWindow,
+    });
+  }
+
+  if (!contexts.size) return { rules: 0 };
 
   let rules = 0;
 
-  for (const snap of snapshots) {
+  for (const context of contexts.values()) {
+    const snap = snapshots.find((item) => item.platform === context.platform && item.time_window === context.time_window) || null;
     const significantMetrics: Array<{ key: string; delta: number; value: number | null }> = [];
 
-    for (const [key, mv] of Object.entries(snap.metrics)) {
-      if (mv.delta_pct == null || Math.abs(mv.delta_pct) < SIGNIFICANCE_THRESHOLD) continue;
-      if (!(key in METRIC_LABELS)) continue;
-      significantMetrics.push({ key, delta: mv.delta_pct, value: mv.value });
+    if (snap?.metrics) {
+      for (const [key, mv] of Object.entries(snap.metrics)) {
+        if (mv.delta_pct == null || Math.abs(mv.delta_pct) < SIGNIFICANCE_THRESHOLD) continue;
+        if (!(key in METRIC_LABELS)) continue;
+        significantMetrics.push({ key, delta: mv.delta_pct, value: mv.value });
+      }
     }
 
-    if (!significantMetrics.length) continue;
+    const semanticSummary = await buildReporteiSemanticSummary({
+      tenantId,
+      clientId,
+      timeWindow: context.time_window,
+      platform: context.platform,
+    }).catch(() => null);
+
+    if (!significantMetrics.length && !semanticSummary?.integrations) continue;
 
     // Build insight text summarizing the platform performance
     const topMetrics = significantMetrics
       .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
       .slice(0, 4);
 
-    const summary = topMetrics
-      .map((m) => buildInsightText(snap.platform, m.key, m.delta, m.value))
-      .join('\n');
+    const summaryParts = topMetrics
+      .map((m) => buildInsightText(context.platform, m.key, m.delta, m.value));
+    const editorialInsights = buildReporteiEditorialInsights(semanticSummary, context.platform);
+    if (editorialInsights.length) {
+      summaryParts.push(...editorialInsights);
+    }
+    const summary = summaryParts.join('\n');
 
-    const overallDelta = topMetrics.reduce((sum, m) => sum + m.delta, 0) / topMetrics.length;
+    const overallDelta = topMetrics.length
+      ? topMetrics.reduce((sum, m) => sum + m.delta, 0) / topMetrics.length
+      : 0;
     const trend: 'spike' | 'drop' | 'stable' =
       overallDelta >= SPIKE_THRESHOLD ? 'spike' : overallDelta <= DROP_THRESHOLD ? 'drop' : 'stable';
 
     const payload = {
-      platform: snap.platform,
-      window: snap.time_window,
+      platform: context.platform,
+      window: context.time_window,
       trend,
       summary,
       by_format: [{
-        format: snap.platform.toLowerCase(),
+        format: context.platform.toLowerCase(),
         score: trend === 'spike' ? 75 : trend === 'drop' ? 25 : 50,
         kpis: topMetrics.map((m) => ({
           metric: m.key,
@@ -146,19 +197,21 @@ export async function syncReporteiLearningRules(
           value: m.value,
           delta_pct: m.delta,
         })),
-        notes: [summary],
+        notes: summaryParts.slice(0, 3),
       }],
       by_tag: [],
-      observed_at: snap.synced_at,
-      source: 'reportei_sync',
-      raw: snap.metrics,
+      editorial_insights: editorialInsights,
+      semantic_summary: semanticSummary,
+      observed_at: snap?.synced_at ?? new Date().toISOString(),
+      source: semanticSummary?.integrations ? 'reportei_raw_semantic' : 'reportei_sync',
+      raw: snap?.metrics ?? null,
     };
 
     // Upsert into learned_insights (replace if exists for same client+platform+window this week)
     await query(
       `INSERT INTO learned_insights (tenant_id, client_id, platform, time_window, payload)
        VALUES ($1, $2, $3, $4, $5::jsonb)`,
-      [tenantId, clientId, snap.platform, snap.time_window, JSON.stringify(payload)]
+      [tenantId, clientId, context.platform, context.time_window, JSON.stringify(payload)]
     ).catch(() => {}); // best-effort, ignore duplicate
 
     rules++;
@@ -176,8 +229,15 @@ export async function syncReporteiLearningRules(
 export async function syncAllClientsLearningRules(): Promise<{ clients: number; total_rules: number }> {
   const { rows: clients } = await query<{ client_id: string; tenant_id: string }>(
     `SELECT DISTINCT client_id, tenant_id
-     FROM reportei_metric_snapshots
-     WHERE synced_at > NOW() - INTERVAL '8 days'`
+       FROM (
+         SELECT client_id, tenant_id
+           FROM reportei_metric_snapshots
+          WHERE synced_at > NOW() - INTERVAL '8 days'
+         UNION
+         SELECT client_id, tenant_id
+           FROM reportei_metric_raw_payloads
+          WHERE synced_at > NOW() - INTERVAL '8 days'
+       ) t`
   ).catch(() => ({ rows: [] }));
 
   let totalRules = 0;
@@ -192,9 +252,17 @@ export async function syncAllClientsLearningRules(): Promise<{ clients: number; 
 export async function syncTenantLearningRules(tenantId: string): Promise<{ clients: number; total_rules: number }> {
   const { rows: clients } = await query<{ client_id: string }>(
     `SELECT DISTINCT client_id
-     FROM reportei_metric_snapshots
-     WHERE tenant_id = $1
-       AND synced_at > NOW() - INTERVAL '8 days'`,
+       FROM (
+         SELECT client_id
+           FROM reportei_metric_snapshots
+          WHERE tenant_id = $1
+            AND synced_at > NOW() - INTERVAL '8 days'
+         UNION
+         SELECT client_id
+           FROM reportei_metric_raw_payloads
+          WHERE tenant_id = $1
+            AND synced_at > NOW() - INTERVAL '8 days'
+       ) t`,
     [tenantId],
   ).catch(() => ({ rows: [] }));
 

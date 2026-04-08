@@ -88,6 +88,7 @@ import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
 import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
 import { analyzeClientMemoryGovernance } from '../services/clientMemoryGovernanceService';
+import { buildReporteiSemanticPromptBlock, buildReporteiSemanticSummary } from '../services/reporteiSemanticService';
 import { audit } from '../audit/audit';
 import {
   buildArtDirectionFeedbackMetadata,
@@ -337,6 +338,10 @@ function buildReporteiCopyContext(params: {
     promptBlock: lines.join('\n'),
     summary,
   };
+}
+
+function mergeReporteiPromptBlocks(...blocks: Array<string | null | undefined>) {
+  return blocks.filter((item) => String(item || '').trim()).join('\n\n');
 }
 
 function resolveUser(request: any) {
@@ -2004,6 +2009,14 @@ export default async function edroRoutes(app: FastifyInstance) {
           limit: 80,
         }).catch(() => null)
       : null;
+    const reporteiSemanticSummary = selectedClientId
+      ? await buildReporteiSemanticSummary({
+          tenantId,
+          clientId: selectedClientId,
+          timeWindow: '30d',
+          platform: selectedPlatform ?? null,
+        }).catch(() => null)
+      : null;
     const briefingDiagnostics = buildBriefingDiagnostics({
       briefing: {
         title: briefing.title,
@@ -2015,6 +2028,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       },
       livingMemory,
       memoryGovernance,
+      reporteiSummary: reporteiSemanticSummary,
     });
     const performanceHint = selectedPlatform
       ? await fetchPerformanceHint(tenantId, selectedClientId, selectedPlatform)
@@ -2024,6 +2038,7 @@ export default async function edroRoutes(app: FastifyInstance) {
       selectedFormat,
       selectedPlatform,
     });
+    const reporteiSemanticBlock = buildReporteiSemanticPromptBlock(reporteiSemanticSummary, 'SINAIS QUANTITATIVOS DO REPORTEI:');
     const stages = await ensureBriefingStages(briefing.id, user.email);
     const unlock = ensureStageUnlocked('copy_ia', stages as any);
     const allowAutoStage = Boolean(
@@ -2377,7 +2392,8 @@ export default async function edroRoutes(app: FastifyInstance) {
           webResearchBlock,
         ].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${livingMemoryBlock}${diagnosticsBlock}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
+        const reporteiHintBlock = mergeReporteiPromptBlocks(reporteiContext?.promptBlock, reporteiSemanticBlock);
+        const enrichedPrompt = `${prompt}${livingMemoryBlock}${diagnosticsBlock}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${reporteiHintBlock ? `\n\n${reporteiHintBlock}` : ''}${webResearchBlock}`;
 
         let result;
         if (pipeline === 'adversarial') {
@@ -2540,6 +2556,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     } as Record<string, any>;
     if (reporteiContext?.summary) {
       edroPayload.reportei = reporteiContext.summary;
+    }
+    if (reporteiSemanticSummary?.integrations) {
+      edroPayload.reportei_semantic_summary = reporteiSemanticSummary;
     }
     if (briefingDiagnostics.gaps.length || briefingDiagnostics.tensions.length || briefingDiagnostics.recommendations.length) {
       edroPayload.briefing_diagnostics = briefingDiagnostics;

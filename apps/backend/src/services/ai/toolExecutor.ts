@@ -56,6 +56,7 @@ import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFa
 import { analyzeClientMemoryGovernance, applyClientMemoryGovernanceAction } from '../clientMemoryGovernanceService';
 import { buildClientState } from '../jarvisDecisionEngine';
 import { buildBriefingDiagnostics } from '../briefingDiagnosticService';
+import { buildReporteiSemanticSummary } from '../reporteiSemanticService';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -147,6 +148,7 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'get_client_memory_governance',
     'get_client_state',
     'get_context_packet',
+    'get_client_reportei_summary',
     'get_briefing_diagnostics',
     'get_intelligence_health',
     'search_client_content',
@@ -557,6 +559,7 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   record_client_memory_fact: toolRecordClientMemoryFact,
   apply_client_memory_governance: toolApplyClientMemoryGovernance,
   get_context_packet: toolGetContextPacket,
+  get_client_reportei_summary: toolGetClientReporteiSummary,
   get_briefing_diagnostics: toolGetBriefingDiagnostics,
   get_intelligence_health: toolGetIntelligenceHealth,
   search_client_content: toolSearchClientContent,
@@ -1847,7 +1850,7 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
   const briefing = briefingId ? await getBriefingById(briefingId, ctx.tenantId) : null;
   const briefingPayload = (briefing?.payload || {}) as Record<string, any>;
 
-  const [clientState, livingMemory, memoryGovernance] = await Promise.all([
+  const [clientState, livingMemory, memoryGovernance, reporteiSummary] = await Promise.all([
     buildClientState(ctx.tenantId, ctx.clientId),
     buildClientLivingMemory({
       tenantId: ctx.tenantId,
@@ -1869,6 +1872,11 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
       daysBack: 365,
       limit: 80,
     }),
+    buildReporteiSemanticSummary({
+      tenantId: ctx.tenantId,
+      clientId: ctx.clientId,
+      timeWindow: '30d',
+    }).catch(() => null),
   ]);
 
   const diagnostics = briefing
@@ -1883,6 +1891,7 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
         },
         livingMemory,
         memoryGovernance,
+        reporteiSummary,
       })
     : null;
 
@@ -1897,6 +1906,8 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
     memoryGovernance.summary.stale_facts ? `- Fatos envelhecidos: ${memoryGovernance.summary.stale_facts}` : null,
     memoryGovernance.summary.active_conflicts ? `- Conflitos internos na memória: ${memoryGovernance.summary.active_conflicts}` : null,
     memoryGovernance.summary.governance_pressure !== 'low' ? `- Pressão de governança: ${memoryGovernance.summary.governance_pressure}` : null,
+    reporteiSummary?.integrations ? `- Integrações Reportei com raw: ${reporteiSummary.integrations}` : null,
+    reporteiSummary?.family_summary?.length ? `- Famílias quantitativas disponíveis: ${reporteiSummary.family_summary.map((item) => item.family).join(', ')}` : null,
     diagnostics?.severity && diagnostics.severity !== 'none' ? `- Severidade de conflito: ${diagnostics.severity}` : null,
     diagnostics?.requires_confirmation ? '- Gate ativo: confirmação explícita recomendada antes de criar' : null,
     diagnostics?.gaps?.length ? `- Lacunas de briefing: ${diagnostics.gaps.join(' | ')}` : null,
@@ -1914,8 +1925,28 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
         pending_actions: livingMemory.pendingActions,
       },
       memory_governance: memoryGovernance,
+      reportei_summary: reporteiSummary,
       briefing_diagnostics: diagnostics,
       packet_summary: packetSummary,
+    },
+  };
+}
+
+async function toolGetClientReporteiSummary(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const timeWindow = contextualString(args.time_window) || '30d';
+  const platform = contextualString(args.platform);
+  const summary = await buildReporteiSemanticSummary({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    timeWindow,
+    platform,
+  });
+
+  return {
+    success: true,
+    data: summary,
+    metadata: {
+      row_count: summary.top_metrics.length,
     },
   };
 }
@@ -1978,6 +2009,14 @@ async function toolGetBriefingDiagnostics(args: any, ctx: ToolContext): Promise<
           clientId: selectedClientId,
           daysBack: 365,
           limit: 80,
+        }).catch(() => null)
+      : null,
+    reporteiSummary: selectedClientId
+      ? await buildReporteiSemanticSummary({
+          tenantId: ctx.tenantId,
+          clientId: selectedClientId,
+          timeWindow: '30d',
+          platform: payload.platform ?? payload.plataforma ?? null,
         }).catch(() => null)
       : null,
   });
