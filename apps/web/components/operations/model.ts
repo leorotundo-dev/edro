@@ -189,6 +189,11 @@ export function formatSourceLabel(value?: string | null) {
   return SOURCE_LABELS[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+/** Strip Trello date prefix (DDMMYY_ or DDMMYYYY_) from job titles stored before backend fix */
+export function cleanJobTitle(title: string): string {
+  return title.replace(/^\d{6,8}_/, '').trim();
+}
+
 export function formatSkillLabel(value?: string | null) {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized) return 'Especialidade indefinida';

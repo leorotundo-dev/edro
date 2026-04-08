@@ -286,6 +286,18 @@ export async function syncTrelloBoard(
     const cardIdMap: Record<string, string> = {};
     let cardsSync = 0;
     for (const card of cards) {
+      // Parse date prefix from Trello naming convention: DDMMYY_ or DDMMYYYY_
+      const titleMatch = card.name.match(/^(\d{2})(\d{2})(\d{2,4})_([\s\S]+)$/);
+      if (titleMatch) {
+        const [, dd, mm, yy, rest] = titleMatch;
+        const year = yy.length === 2 ? `20${yy}` : yy;
+        const d = parseInt(dd, 10), m = parseInt(mm, 10), y = parseInt(year, 10);
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 2020 && y <= 2035) {
+          const parsedDate = `${year}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+          if (!card.due) card.due = parsedDate + 'T00:00:00.000Z';
+          card.name = rest.trim();
+        }
+      }
       const edroListId = listIdMap[card.idList];
       if (!edroListId) {
         console.warn(`[trelloSync] Card "${card.name}" (${card.id}) belongs to unknown list ${card.idList} — skipped`);
