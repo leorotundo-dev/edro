@@ -1996,6 +1996,14 @@ export default async function edroRoutes(app: FastifyInstance) {
             evidence_by_source: {},
           },
         };
+    const memoryGovernance = selectedClientId
+      ? await analyzeClientMemoryGovernance({
+          tenantId,
+          clientId: selectedClientId,
+          daysBack: 365,
+          limit: 80,
+        }).catch(() => null)
+      : null;
     const briefingDiagnostics = buildBriefingDiagnostics({
       briefing: {
         title: briefing.title,
@@ -2006,14 +2014,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         payload: briefingPayload,
       },
       livingMemory,
-      memoryGovernance: selectedClientId
-        ? await analyzeClientMemoryGovernance({
-            tenantId,
-            clientId: selectedClientId,
-            daysBack: 365,
-            limit: 80,
-          }).catch(() => null)
-        : null,
+      memoryGovernance,
     });
     const performanceHint = selectedPlatform
       ? await fetchPerformanceHint(tenantId, selectedClientId, selectedPlatform)
@@ -2543,6 +2544,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (briefingDiagnostics.gaps.length || briefingDiagnostics.tensions.length || briefingDiagnostics.recommendations.length) {
       edroPayload.briefing_diagnostics = briefingDiagnostics;
     }
+    if (memoryGovernance && (memoryGovernance.summary.governance_pressure !== 'low' || memoryGovernance.summary.stale_facts || memoryGovernance.summary.active_conflicts)) {
+      edroPayload.memory_governance = memoryGovernance;
+    }
     if (cognitiveLoad) {
       edroPayload.cognitive_load = cognitiveLoad;
     }
@@ -2661,6 +2665,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         trafficTask,
         trafficNotifications,
         briefingDiagnostics,
+        memoryGovernance,
       },
     });
 
