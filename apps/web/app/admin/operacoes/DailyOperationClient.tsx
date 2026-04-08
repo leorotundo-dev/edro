@@ -302,7 +302,7 @@ export default function DailyOperationClient() {
   // Stats
   const activeJobs        = useMemo(() => jobs.filter((j) => j.status !== 'archived'), [jobs]);
   const pendingApproval   = useMemo(() => jobs.filter((j) => j.status === 'awaiting_approval').length, [jobs]);
-  const peopleInvolved    = useMemo(() => new Set(jobs.map((j) => j.owner_id).filter(Boolean)).size, [jobs]);
+  const peopleInvolved    = useMemo(() => new Set(jobs.map((j) => j.owner_id || j.owner_email || j.owner_name).filter(Boolean)).size, [jobs]);
   const urgentCount       = useMemo(() => jobs.filter((j) => j.is_urgent || j.priority_band === 'p0' || getRisk(j).level === 'critical').length, [jobs]);
 
   // Filtered + sorted
