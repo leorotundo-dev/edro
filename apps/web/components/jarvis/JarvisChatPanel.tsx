@@ -13,7 +13,7 @@ import Tooltip from '@mui/material/Tooltip';
 import { IconSend, IconBrain, IconUser, IconPaperclip, IconX, IconFile } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiPost, apiGet } from '@/lib/api';
-import ArtifactCard, { Artifact } from './ArtifactCard';
+import ArtifactCard, { Artifact, type JarvisArtifactAction, type JarvisClientAction } from './ArtifactCard';
 import { collectPendingBackgroundJobIds, mergeBackgroundArtifactUpdate } from './backgroundArtifacts';
 import JarvisResponseTrace, { type JarvisObservability } from './JarvisResponseTrace';
 
@@ -313,7 +313,12 @@ export default function JarvisChatPanel() {
     setAttachedFiles(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
-  const sendMessage = useCallback(async (text?: string, clientIdOverride?: string) => {
+  const sendMessage = useCallback(async (
+    text?: string,
+    clientIdOverride?: string,
+    clientAction?: JarvisClientAction | null,
+    pageDataOverride?: Record<string, unknown> | null,
+  ) => {
     const msg = (text ?? input).trim();
     const contextualClientId = typeof pageData?.clientId === 'string' ? pageData.clientId : null;
     const cid = clientIdOverride ?? contextualClientId ?? clientIdRef.current ?? null;
@@ -353,8 +358,9 @@ export default function JarvisChatPanel() {
           conversationId,
           context_page: pathname,
           studio_context: studioContext,
-          page_data: pageData ?? undefined,
+          page_data: pageDataOverride ?? pageData ?? undefined,
           inline_attachments: filesToSend.length ? filesToSend.map(f => ({ name: f.name, text: f.text })) : undefined,
+          client_action: clientAction ?? undefined,
         }
       );
 
@@ -378,7 +384,7 @@ export default function JarvisChatPanel() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, conversationId, pathname, setConversationId, isOpen, bump, pageData, setClientId]);
+  }, [input, loading, conversationId, pathname, setConversationId, isOpen, bump, pageData, setClientId, attachedFiles]);
 
   // Keep a ref to always call the latest sendMessage from event handlers
   const sendMessageRef = useRef(sendMessage);
@@ -408,6 +414,10 @@ export default function JarvisChatPanel() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
+
+  const handleArtifactAction = useCallback((action: JarvisArtifactAction) => {
+    void sendMessage(action.message, clientIdRef.current ?? undefined, action.clientAction, action.pageData ?? undefined);
+  }, [sendMessage]);
 
   const noClient = !clientId;
   const quickActions = getQuickActions(pathname ?? '', !noClient);
@@ -474,7 +484,7 @@ export default function JarvisChatPanel() {
               </Box>
               {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
               {msg.artifacts?.map((artifact, ai) => (
-                <ArtifactCard key={ai} artifact={artifact} clientId={clientId} />
+                <ArtifactCard key={ai} artifact={artifact} clientId={clientId} onRunClientAction={handleArtifactAction} />
               ))}
             </Box>
           </Box>
