@@ -200,6 +200,10 @@ function emptyBriefingDiagnosticsPreflight() {
       gaps: [] as string[],
       tensions: [] as string[],
       recommendations: [] as string[],
+      conflicts: [] as Array<{ type: string; severity: string; message: string }>,
+      severity: 'none' as const,
+      requires_confirmation: false,
+      recommended_resolution: null as string | null,
       block: '',
     },
   };
@@ -210,7 +214,9 @@ function buildBriefingDiagnosticsPreflightContext(preflight: ReturnType<typeof e
   return [
     'DIAGNOSTICO DE BRIEFING PREFLIGHT:',
     preflight.diagnostics.block,
-    'INSTRUÇÃO: trate essas lacunas e tensões como restrições reais. Se o briefing estiver fraco, compense usando memória viva e estado do cliente antes de concluir.',
+    preflight.diagnostics.requires_confirmation
+      ? 'INSTRUÇÃO: conflito forte detectado. Não siga automaticamente sem confirmação explícita do usuário.'
+      : 'INSTRUÇÃO: trate essas lacunas e tensões como restrições reais. Se o briefing estiver fraco, compense usando memória viva e estado do cliente antes de concluir.',
   ].join('\n');
 }
 
@@ -318,6 +324,7 @@ async function runCreativeExecutionCapability(params: {
   tenantId: string;
   userId?: string | null;
   userRole?: string | null;
+  explicitConfirmation?: boolean;
   message: string;
   bodyClientId?: string | null;
   pageData?: Record<string, unknown> | null;
@@ -338,6 +345,58 @@ async function runCreativeExecutionCapability(params: {
   const { openCreativeSession, updateCreativeSessionMetadata, addCreativeVersion, addCreativeAsset } = creativeSessionModule;
 
   const skipArte = shouldSkipArte(params.message);
+  const briefing = await getBriefingById(target.briefingId, params.tenantId).catch(() => null);
+  const briefingPayload = (briefing?.payload || {}) as Record<string, any>;
+  const livingMemoryPreflight = target.clientId
+    ? await buildClientLivingMemory({
+        tenantId: params.tenantId,
+        clientId: target.clientId,
+        briefing: {
+          title: briefing?.title ?? '',
+          objective: briefingPayload.objective ?? briefingPayload.objetivo ?? '',
+          context: briefingPayload.context ?? briefingPayload.notes ?? briefingPayload.additional_notes ?? null,
+          payload: briefingPayload,
+        },
+        maxEvidence: 5,
+        maxActions: 4,
+      }).catch(() => null)
+    : null;
+  const briefingDiagnostics = briefing && livingMemoryPreflight
+    ? buildBriefingDiagnostics({
+        briefing: {
+          title: briefing.title,
+          objective: briefingPayload.objective ?? briefingPayload.objetivo ?? '',
+          context: briefingPayload.context ?? briefingPayload.notes ?? briefingPayload.additional_notes ?? null,
+          platform: briefingPayload.platform ?? briefingPayload.plataforma ?? null,
+          format: briefingPayload.format ?? briefingPayload.formato ?? briefingPayload.creative_format ?? null,
+          payload: briefingPayload,
+        },
+        livingMemory: livingMemoryPreflight,
+      })
+    : null;
+
+  if (briefingDiagnostics?.requires_confirmation && !params.explicitConfirmation) {
+    return {
+      response: [
+        'Encontrei conflito forte entre o briefing atual e a memória viva do cliente.',
+        'Não executei a criação automaticamente para evitar gerar uma peça desalinhada.',
+        briefingDiagnostics.recommended_resolution || 'Revise o briefing e confirme explicitamente se devo seguir mesmo assim.',
+      ].join('\n'),
+      artifacts: [
+        {
+          type: 'creative_conflict_gate',
+          message: target.jobTitle || 'Conflito detectado antes da execução criativa',
+          briefing_id: target.briefingId,
+          job_id: target.jobId,
+          diagnostics: briefingDiagnostics,
+          requires_confirmation: true,
+        },
+      ],
+      provider: 'studio_executor',
+      model: 'jarvis_conflict_gate',
+    };
+  }
+
   const creativeContext = target.jobId
     ? await openCreativeSession(params.tenantId, target.jobId, params.userId ?? null, { briefing_id: target.briefingId }).catch(() => null)
     : null;
@@ -435,7 +494,13 @@ async function runCreativeExecutionCapability(params: {
   const summaryLines = [
     `Resolvi a direção criativa de ${target.jobTitle ? `"${target.jobTitle}"` : 'esta demanda'} e já deixei o resultado salvo no Studio.`,
     `Conceito escolhido: ${result.conceito.chosen.headline_concept}.`,
-    result.briefing_diagnostics ? 'Também detectei e compensei lacunas do briefing com base no contexto vivo do cliente.' : null,
+    result.briefing_diagnostics?.requires_confirmation
+      ? 'Havia conflito forte no briefing, mas segui porque houve confirmação explícita.'
+      : result.briefing_diagnostics?.severity && result.briefing_diagnostics.severity !== 'none'
+        ? 'Também detectei e compensei tensões do briefing com base no contexto vivo do cliente.'
+        : result.briefing_diagnostics
+          ? 'Também detectei e compensei lacunas do briefing com base no contexto vivo do cliente.'
+          : null,
     bestVariant?.title ? `Copy principal: ${bestVariant.title}.` : null,
     result.arte?.imageUrl
       ? 'A arte inicial também foi gerada e vinculada à sessão criativa.'
@@ -614,6 +679,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             tenantId,
             userId,
             userRole,
+            explicitConfirmation,
             message: body.message,
             bodyClientId: clientId,
             pageData: body.page_data ?? undefined,
@@ -818,6 +884,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           briefingDiagnosticsPreflight.diagnostics.gaps.length
           || briefingDiagnosticsPreflight.diagnostics.tensions.length
           || briefingDiagnosticsPreflight.diagnostics.recommendations.length
+          || briefingDiagnosticsPreflight.diagnostics.conflicts.length
         ) {
           artifacts.unshift({
             type: 'briefing_diagnostics_preflight',

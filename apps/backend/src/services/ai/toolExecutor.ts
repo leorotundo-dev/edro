@@ -1812,6 +1812,8 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
     livingMemory.snapshot.decision_signals ? `- Decisões recentes: ${livingMemory.snapshot.decision_signals}` : null,
     livingMemory.snapshot.objection_signals ? `- Objeções recentes: ${livingMemory.snapshot.objection_signals}` : null,
     `- Compromissos pendentes: ${livingMemory.snapshot.pending_commitments}`,
+    diagnostics?.severity && diagnostics.severity !== 'none' ? `- Severidade de conflito: ${diagnostics.severity}` : null,
+    diagnostics?.requires_confirmation ? '- Gate ativo: confirmação explícita recomendada antes de criar' : null,
     diagnostics?.gaps?.length ? `- Lacunas de briefing: ${diagnostics.gaps.join(' | ')}` : null,
     diagnostics?.tensions?.length ? `- Tensões de briefing: ${diagnostics.tensions.join(' | ')}` : null,
   ].filter(Boolean).join('\n');

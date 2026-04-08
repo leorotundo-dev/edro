@@ -295,7 +295,11 @@ export async function assembleCreativeContext(params: {
         ?? (Array.isArray(briefingRow.payload?.channels) ? briefingRow.payload.channels[0] : null)
         ?? briefingRow.payload?.channels ?? null,
       formato: briefingRow.payload?.format ?? briefingRow.payload?.formato ?? briefingRow.payload?.creative_format ?? null,
-      payload: briefingRow.payload ?? {},
+      payload: {
+        ...(briefingRow.payload ?? {}),
+        briefing_diagnostics: briefingDiagnostics.block || undefined,
+        briefing_diagnostics_structured: briefingDiagnostics,
+      },
     },
   };
 }

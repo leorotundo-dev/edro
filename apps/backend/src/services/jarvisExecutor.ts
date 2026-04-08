@@ -23,6 +23,7 @@ import {
   type CreativeContextObject,
   type VisualBrief,
 } from './creativeContextService';
+import type { BriefingDiagnostics } from './briefingDiagnosticService';
 import { runAgentConceito, type AgentConceitoResult, type CreativeConcept } from './ai/agentConceito';
 import { runAgentRedator, type AgentRedatorResult } from './ai/agentRedator';
 import { runAgentDiretorArte, type AgentDiretorArteResult } from './ai/agentDiretorArte';
@@ -46,7 +47,7 @@ export type JarvisExecutorResult = {
   visual_brief: VisualBrief;
   copy: AgentRedatorResult;
   arte: AgentDiretorArteResult | null;
-  briefing_diagnostics: string | null;
+  briefing_diagnostics: BriefingDiagnostics | null;
   duration_ms: number;
   sources_used: string[];
 };
@@ -147,7 +148,7 @@ CONCEITO CRIATIVO APROVADO:
     visual_brief,
     copy,
     arte,
-    briefing_diagnostics: cco.memoria.diagnosticoBriefing ?? null,
+    briefing_diagnostics: (cco.briefing.payload?.briefing_diagnostics_structured as BriefingDiagnostics | undefined) ?? null,
     duration_ms: Date.now() - t0,
     sources_used,
   };
