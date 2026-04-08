@@ -397,7 +397,7 @@ export default function DashboardClient() {
             icon={<IconTrendingUp size={28} />}
             color="#FFAE1F"
             light="#FEF5E5"
-            href="/admin/operacoes"
+            href="/admin/operacoes?filter=in_progress"
           />
           <StatCard
             label="Aguardando aprovação"
