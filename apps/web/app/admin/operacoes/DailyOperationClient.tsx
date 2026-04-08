@@ -32,7 +32,7 @@ import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import JobDetailClient from './jobs/[id]/JobDetailClient';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
-import { getRisk, type OperationsJob } from '@/components/operations/model';
+import { getRisk, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
 import { sortByOperationalPriority } from '@/components/operations/derived';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
@@ -104,6 +104,21 @@ function barColor(job: OperationsJob): string {
 
 function initials(name?: string | null) {
   return (name || '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+const STAGE_COLORS: Record<string, string> = {
+  intake: '#A0AEC0', planned: '#5D87FF', ready: '#5D87FF',
+  allocated: '#FFAE1F', in_progress: '#E85219', blocked: '#FA896B',
+  in_review: '#7B61FF', awaiting_approval: '#FFAE1F',
+  approved: '#13DEB9', scheduled: '#13DEB9', published: '#13DEB9',
+};
+
+function stageColor(status: string): string {
+  return STAGE_COLORS[status] || '#A0AEC0';
+}
+
+function stageLabel(status: string): string {
+  return STAGE_LABELS[status] || status;
 }
 
 // ── StatNumber ────────────────────────────────────────────────────────────────
@@ -243,20 +258,33 @@ function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j
         />
 
         {/* Footer */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Stack direction="row" spacing={0.75} alignItems="center">
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
+          <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
             <Avatar
               src={job.owner_avatar_url ?? undefined}
-              sx={{ width: 20, height: 20, fontSize: '0.5rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF' }}
+              sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
             >
               {initials(job.owner_name)}
             </Avatar>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', fontWeight: 500 }}>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
               {job.owner_name?.split(' ')[0] ?? 'Sem dono'}
             </Typography>
           </Stack>
+          <Chip
+            size="small"
+            label={stageLabel(job.status)}
+            sx={{
+              height: 16,
+              fontSize: '0.56rem',
+              fontWeight: 800,
+              flexShrink: 0,
+              bgcolor: alpha(stageColor(job.status), 0.12),
+              color: stageColor(job.status),
+              '& .MuiChip-label': { px: 0.6 },
+            }}
+          />
           {job.deadline_at && (
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', flexShrink: 0 }}>
               {fmtDate(job.deadline_at)}
             </Typography>
           )}
