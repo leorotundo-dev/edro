@@ -1,4 +1,7 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
+
+/** Authenticated request — user payload injected by authGuard */
+type TR = FastifyRequest & { user?: { tenant_id: string; sub?: string; id?: string } };
 import { z } from 'zod';
 import { authGuard, requirePerm } from '../auth/rbac';
 import {
@@ -35,7 +38,7 @@ function currentYearCardClause(alias: string) {
 export default async function trelloRoutes(app: FastifyInstance) {
 
   // POST /trello/connect — salva credenciais e valida
-  app.post('/trello/connect', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/connect', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const body = z.object({
       api_key: z.string().min(10),
       api_token: z.string().min(10),
@@ -53,7 +56,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/connector — retorna status do conector
-  app.get('/trello/connector', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.get('/trello/connector', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const res = await query<{ member_id: string; is_active: boolean; last_synced_at: string }>(
       `SELECT member_id, is_active, last_synced_at FROM trello_connectors WHERE tenant_id = $1`,
@@ -64,14 +67,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // DELETE /trello/connector — desconecta
-  app.delete('/trello/connector', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.delete('/trello/connector', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     await query(`UPDATE trello_connectors SET is_active = false WHERE tenant_id = $1`, [tenantId]);
     return reply.send({ ok: true });
   });
 
   // GET /trello/boards — lista boards disponíveis no Trello (para mapear)
-  app.get('/trello/boards', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.get('/trello/boards', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     try {
       const boards = await listTrelloBoards(tenantId);
@@ -82,7 +85,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/boards/:trelloBoardId/sync — importa (ou re-sincroniza) um board
-  app.post('/trello/boards/:trelloBoardId/sync', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/boards/:trelloBoardId/sync', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const { trelloBoardId } = request.params as { trelloBoardId: string };
     const { client_id } = request.body as { client_id?: string };
     const tenantId = request.user?.tenant_id as string;
@@ -96,7 +99,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/sync-all — re-sincroniza todos os boards mapeados do tenant
-  app.post('/trello/sync-all', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/sync-all', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     try {
       void syncAllTrelloBoardsForTenant(tenantId); // fire and forget — pode demorar
@@ -107,9 +110,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/sync-log — últimas sincronizações
-  app.get('/trello/sync-log', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.get('/trello/sync-log', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
-    const res = await query<any>(
+    const res = await query<Record<string, any>>(
       `SELECT l.id, l.trello_board_id, l.status, l.cards_synced, l.actions_synced,
               l.error_message, l.started_at, l.finished_at,
               b.name AS board_name
@@ -124,11 +127,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/project-boards — boards já importados no Edro
-  app.get('/trello/project-boards', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/project-boards', { preHandler: authGuard }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const { client_id } = request.query as { client_id?: string };
 
-    const fetchBoards = async (linkedClientId?: string | null) => query<any>(
+    const fetchBoards = async (linkedClientId?: string | null) => query<Record<string, any>>(
       `SELECT b.id, b.name, b.description, b.color, b.client_id, b.trello_board_id, b.last_synced_at,
               b.is_archived, b.created_at,
               COUNT(c.id)::int AS card_count,
@@ -209,7 +212,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // PATCH /trello/project-boards/:boardId — vincula/desvincula um board a um cliente
-  app.patch('/trello/project-boards/:boardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.patch('/trello/project-boards/:boardId', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { boardId } = request.params as { boardId: string };
     const tenantId = request.user?.tenant_id as string;
     const { client_id } = request.body as { client_id?: string | null };
@@ -224,25 +227,25 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/project-boards/:boardId — board completo com listas + cards
-  app.get('/trello/project-boards/:boardId', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/project-boards/:boardId', { preHandler: authGuard }, async (request: TR, reply) => {
     const { boardId } = request.params as { boardId: string };
     const tenantId = request.user?.tenant_id as string;
 
     // Board
-    const boardRes = await query<any>(
+    const boardRes = await query<Record<string, any>>(
       `SELECT * FROM project_boards WHERE id = $1 AND tenant_id = $2`,
       [boardId, tenantId],
     );
     if (!boardRes.rows.length) return reply.status(404).send({ error: 'Board não encontrado.' });
 
     // Lists
-    const listsRes = await query<any>(
+    const listsRes = await query<Record<string, any>>(
       `SELECT * FROM project_lists WHERE board_id = $1 ORDER BY position ASC`,
       [boardId],
     );
 
     // Cards with members
-    const cardsRes = await query<any>(
+    const cardsRes = await query<Record<string, any>>(
       `SELECT c.*,
               COALESCE(
                 json_agg(
@@ -280,20 +283,20 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/project-boards/:boardId/cards/:cardId — card com checklists + comentários
-  app.get('/trello/project-boards/:boardId/cards/:cardId', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/project-boards/:boardId/cards/:cardId', { preHandler: authGuard }, async (request: TR, reply) => {
     const { cardId } = request.params as { boardId: string; cardId: string };
     const tenantId = request.user?.tenant_id as string;
 
-    const cardRes = await query<any>(
+    const cardRes = await query<Record<string, any>>(
       `SELECT * FROM project_cards WHERE id = $1 AND tenant_id = $2`,
       [cardId, tenantId],
     );
     if (!cardRes.rows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
 
     const [membersRes, checklistsRes, commentsRes] = await Promise.all([
-      query<any>(`SELECT * FROM project_card_members WHERE card_id = $1`, [cardId]),
-      query<any>(`SELECT * FROM project_card_checklists WHERE card_id = $1 ORDER BY created_at ASC`, [cardId]),
-      query<any>(`SELECT * FROM project_card_comments WHERE card_id = $1 ORDER BY commented_at DESC LIMIT 100`, [cardId]),
+      query<Record<string, any>>(`SELECT * FROM project_card_members WHERE card_id = $1`, [cardId]),
+      query<Record<string, any>>(`SELECT * FROM project_card_checklists WHERE card_id = $1 ORDER BY created_at ASC`, [cardId]),
+      query<Record<string, any>>(`SELECT * FROM project_card_comments WHERE card_id = $1 ORDER BY commented_at DESC LIMIT 100`, [cardId]),
     ]);
 
     return reply.send({
@@ -307,7 +310,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // PATCH /trello/project-boards/:boardId/cards/:cardId — atualiza card + sync Trello
-  app.patch('/trello/project-boards/:boardId/cards/:cardId', { preHandler: authGuard }, async (request: any, reply) => {
+  app.patch('/trello/project-boards/:boardId/cards/:cardId', { preHandler: authGuard }, async (request: TR, reply) => {
     const { cardId } = request.params as { boardId: string; cardId: string };
     const tenantId = request.user?.tenant_id as string;
 
@@ -327,7 +330,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     }).parse(request.body);
 
     const sets: string[] = [];
-    const vals: any[] = [];
+    const vals: unknown[] = [];
     let i = 1;
 
     // Fields that map directly to columns
@@ -335,7 +338,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       'priority', 'estimated_hours', 'parent_card_id', 'position', 'labels', 'is_archived'] as const;
 
     for (const key of directFields) {
-      const val = (body as any)[key];
+      const val = (body as Record<string, unknown>)[key];
       if (val !== undefined) {
         sets.push(`${key} = $${i++}`);
         vals.push(key === 'labels' ? JSON.stringify(val) : val);
@@ -414,7 +417,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/project-boards/:boardId/cards — cria novo card (Edro + Trello)
-  app.post('/trello/project-boards/:boardId/cards', { preHandler: authGuard }, async (request: any, reply) => {
+  app.post('/trello/project-boards/:boardId/cards', { preHandler: authGuard }, async (request: TR, reply) => {
     const { boardId } = request.params as { boardId: string };
     const tenantId = request.user?.tenant_id as string;
 
@@ -479,7 +482,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   // ── Analytics ──────────────────────────────────────────────────────────────
 
   // GET /trello/project-boards/:boardId/insights — full analytics for a board
-  app.get('/trello/project-boards/:boardId/insights', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/project-boards/:boardId/insights', { preHandler: authGuard }, async (request: TR, reply) => {
     const { boardId } = request.params as { boardId: string };
     const tenantId = request.user?.tenant_id as string;
 
@@ -490,7 +493,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/project-boards/:boardId/analyze — trigger analysis on-demand
-  app.post('/trello/project-boards/:boardId/analyze', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/project-boards/:boardId/analyze', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const { boardId } = request.params as { boardId: string };
     const tenantId = request.user?.tenant_id as string;
 
@@ -503,17 +506,17 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/analyze-all — re-analyze all boards (admin trigger)
-  app.post('/trello/analyze-all', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/analyze-all', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     void analyzeAllBoardsForTenant(tenantId);
     return reply.send({ ok: true, message: 'Análise iniciada para todos os boards.' });
   });
 
   // GET /trello/insights/overview — cross-board summary for all clients
-  app.get('/trello/insights/overview', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.get('/trello/insights/overview', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
-    const res = await query<any>(
+    const res = await query<Record<string, any>>(
       `SELECT
          b.id AS board_id, b.name AS board_name, b.client_id,
          ba.total_cards, ba.cards_done, ba.cards_in_progress,
@@ -557,7 +560,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   // ── Production Calendar overlay ────────────────────────────────────────────
 
   // GET /trello/calendar — all cards with due_date in range, for the calendar overlay
-  app.get('/trello/calendar', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/calendar', { preHandler: authGuard }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const { month, start, end } = request.query as { month?: string; start?: string; end?: string };
 
@@ -580,7 +583,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Provide ?month=YYYY-MM or ?start=&end=' });
     }
 
-    const res = await query<any>(
+    const res = await query<Record<string, any>>(
       `SELECT
          c.id, c.title, c.due_date::text, c.due_complete, c.labels, c.trello_url,
          c.is_archived,
@@ -763,7 +766,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   }
 
   // GET /trello/health — sync health per board + unmapped lists
-  app.get('/trello/health', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.get('/trello/health', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
     const [boardsRes, listsRes, membersRes] = await Promise.all([
@@ -843,7 +846,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/list-status-map/:boardId — all lists with current effective status
-  app.get('/trello/list-status-map/:boardId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.get('/trello/list-status-map/:boardId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const { boardId } = request.params as { boardId: string };
 
@@ -870,7 +873,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/list-status-map/:boardId — save explicit status overrides for lists
-  app.post('/trello/list-status-map/:boardId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/list-status-map/:boardId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const { boardId } = request.params as { boardId: string };
     const { mappings } = request.body as { mappings: Array<{ list_id: string; ops_status: string | null }> };
@@ -894,10 +897,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/ops-feed — all active cards mapped to OperationsJob format
-  app.get('/trello/ops-feed', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/ops-feed', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
-    const activeOnly = ['1', 'true', 'yes'].includes(String((request.query as any)?.active ?? ''));
-    const clientIdFilter: string | null = (request.query as any)?.client_id ?? null;
+    const q = request.query as { active?: string; client_id?: string };
+    const activeOnly = ['1', 'true', 'yes'].includes(String(q.active ?? ''));
+    const clientIdFilter: string | null = q.client_id ?? null;
 
     // Load explicit list-status overrides for this tenant
     const { rows: overrideRows } = await query<{ list_id: string; ops_status: string }>(
@@ -1097,7 +1101,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/ops-cards — create a new operational demand directly on the Trello-backed flow
-  app.post('/trello/ops-cards', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.post('/trello/ops-cards', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const body = z.object({
       client_id: z.string().uuid().nullable().optional(),
@@ -1286,7 +1290,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/ops-cards/:cardId/status — move card to best matching list
-  app.post('/trello/ops-cards/:cardId/status', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.post('/trello/ops-cards/:cardId/status', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const { status } = request.body as { status: string };
     const tenantId = request.user?.tenant_id as string;
@@ -1475,7 +1479,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       .filter(Boolean) as Array<{ user_id: string; name: string; email: string; trello_member_id: string | null }>;
   }
 
-  app.get('/trello/ops-cards/:cardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/ops-cards/:cardId', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const tenantId = request.user?.tenant_id as string;
 
@@ -1514,7 +1518,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          ORDER BY occurred_at DESC
          LIMIT 100`,
         [cardId],
-      ).catch(() => ({ rows: [] as any[] })),
+      ).catch(() => ({ rows: [] })),
       query<{ body: string; author_name: string | null; commented_at: string }>(
         `SELECT body, author_name, commented_at
          FROM project_card_comments
@@ -1522,14 +1526,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
          ORDER BY commented_at DESC
          LIMIT 20`,
         [cardId],
-      ).catch(() => ({ rows: [] as any[] })),
+      ).catch(() => ({ rows: [] })),
       query<{ id: string; name: string; items: Array<{ text: string; checked: boolean }> }>(
         `SELECT id, name, items
          FROM project_card_checklists
          WHERE card_id = $1
          ORDER BY created_at ASC`,
         [cardId],
-      ).catch(() => ({ rows: [] as any[] })),
+      ).catch(() => ({ rows: [] })),
       getCardAssignees(cardId, tenantId).catch(() => []),
     ]);
 
@@ -1701,7 +1705,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     });
   });
 
-  app.patch('/trello/ops-cards/:cardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.patch('/trello/ops-cards/:cardId', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const tenantId = request.user?.tenant_id as string;
     const body = z.object({
@@ -1736,7 +1740,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     if (Object.keys(patchPayload).length) {
       const reqBody = { ...patchPayload };
       const sets: string[] = [];
-      const vals: any[] = [];
+      const vals: unknown[] = [];
       let i = 1;
       for (const [key, val] of Object.entries(reqBody)) {
         sets.push(`${key} = $${i++}`);
@@ -1832,7 +1836,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/ops-planner — workload per Trello member for the Planner tab
-  app.get('/trello/ops-planner', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/ops-planner', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
     // One row per (card × member); cards without members appear once with null owner fields
@@ -1936,7 +1940,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/ops-calendar — cards grouped by due_date for the Agenda tab
-  app.get('/trello/ops-calendar', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/ops-calendar', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
     const windowStart = new Date();
@@ -1986,7 +1990,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/ops-suggest-owner/:cardId — ranked list of best people for this card
-  app.get('/trello/ops-suggest-owner/:cardId', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/ops-suggest-owner/:cardId', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const tenantId = request.user?.tenant_id as string;
 
@@ -2112,7 +2116,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/ops-cards/:cardId/comments — post an internal comment
-  app.post('/trello/ops-cards/:cardId/comments', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.post('/trello/ops-cards/:cardId/comments', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const tenantId = request.user?.tenant_id as string;
     const userId = (request.user?.sub || request.user?.id || null) as string | null;
@@ -2145,7 +2149,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/ops-cards/:cardId/assign — assign member + sync to Trello
-  app.post('/trello/ops-cards/:cardId/assign', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.post('/trello/ops-cards/:cardId/assign', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const { email } = request.body as { email: string };
     const tenantId = request.user?.tenant_id as string;
@@ -2200,7 +2204,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/ops-sla — SLA metrics derived from due_date + due_complete
-  app.get('/trello/ops-sla', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/ops-sla', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const { days: daysParam = '90' } = request.query as { days?: string };
     const periodDays = Math.max(1, Math.min(365, parseInt(daysParam, 10) || 90));
@@ -2360,7 +2364,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/ops-team-scores — production score per member for the Equipe grid
-  app.get('/trello/ops-team-scores', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/ops-team-scores', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
     // All distinct members linked to cards of this tenant
@@ -2519,9 +2523,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // ── Collaborator profile by trello_member_id ───────────────────────────────
-  app.get('/trello/member-profile/:trelloId', { preHandler: [authGuard] }, async (request: any, reply) => {
+  app.get('/trello/member-profile/:trelloId', { preHandler: [authGuard] }, async (request: TR, reply) => {
     const { trelloId } = request.params as { trelloId: string };
-    const tenantId = (request as any).user?.tenant_id;
+    const tenantId = request.user?.tenant_id;
 
     // Member info
     const memberRes = await query<{
@@ -2642,7 +2646,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   // ── Milestones ─────────────────────────────────────────────────────────────
 
   // GET /trello/milestones?board_id=&from=&to=
-  app.get('/trello/milestones', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/milestones', { preHandler: authGuard }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const q = z.object({
       board_id: z.string().uuid().optional(),
@@ -2651,14 +2655,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
     }).parse(request.query);
 
     const conditions: string[] = ['m.tenant_id = $1'];
-    const vals: any[] = [tenantId];
+    const vals: unknown[] = [tenantId];
     let idx = 2;
 
     if (q.board_id) { conditions.push(`m.board_id = $${idx++}`); vals.push(q.board_id); }
     if (q.from)     { conditions.push(`m.date >= $${idx++}`);    vals.push(q.from); }
     if (q.to)       { conditions.push(`m.date <= $${idx++}`);    vals.push(q.to); }
 
-    const { rows } = await query<any>(
+    const { rows } = await query<Record<string, any>>(
       `SELECT m.*, pb.name as board_name, pb.client_id
        FROM project_milestones m
        JOIN project_boards pb ON pb.id = m.board_id
@@ -2670,7 +2674,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // POST /trello/milestones
-  app.post('/trello/milestones', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/milestones', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const body = z.object({
       board_id: z.string().uuid(),
@@ -2689,7 +2693,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // PATCH /trello/milestones/:id
-  app.patch('/trello/milestones/:id', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.patch('/trello/milestones/:id', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const { id } = request.params as { id: string };
     const tenantId = request.user?.tenant_id as string;
     const body = z.object({
@@ -2700,7 +2704,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     }).parse(request.body);
 
     const sets: string[] = [];
-    const vals: any[] = [];
+    const vals: unknown[] = [];
     let i = 1;
     for (const [key, val] of Object.entries(body)) {
       if (val !== undefined) { sets.push(`${key} = $${i++}`); vals.push(val); }
@@ -2716,7 +2720,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // DELETE /trello/milestones/:id
-  app.delete('/trello/milestones/:id', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.delete('/trello/milestones/:id', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const { id } = request.params as { id: string };
     const tenantId = request.user?.tenant_id as string;
     await query(`DELETE FROM project_milestones WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
@@ -2726,7 +2730,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   // ── Card dependencies ──────────────────────────────────────────────────────
 
   // POST /trello/cards/:cardId/dependencies — add a dependency
-  app.post('/trello/cards/:cardId/dependencies', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.post('/trello/cards/:cardId/dependencies', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const tenantId = request.user?.tenant_id as string;
     const body = z.object({ depends_on_id: z.string().uuid() }).parse(request.body);
@@ -2743,7 +2747,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // DELETE /trello/cards/:cardId/dependencies/:dependsOnId
-  app.delete('/trello/cards/:cardId/dependencies/:dependsOnId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+  app.delete('/trello/cards/:cardId/dependencies/:dependsOnId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const { cardId, dependsOnId } = request.params as { cardId: string; dependsOnId: string };
     const tenantId = request.user?.tenant_id as string;
     await query(
@@ -2754,10 +2758,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
   });
 
   // GET /trello/cards/:cardId/dependencies
-  app.get('/trello/cards/:cardId/dependencies', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/cards/:cardId/dependencies', { preHandler: authGuard }, async (request: TR, reply) => {
     const { cardId } = request.params as { cardId: string };
     const tenantId = request.user?.tenant_id as string;
-    const { rows } = await query<any>(
+    const { rows } = await query<Record<string, any>>(
       `SELECT d.depends_on_id, pc.title, pc.due_date, pc.due_complete, pc.start_date, pc.priority
        FROM project_card_dependencies d
        JOIN project_cards pc ON pc.id = d.depends_on_id
@@ -2771,7 +2775,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   // ── Gantt ──────────────────────────────────────────────────────────────────
 
   // GET /trello/gantt?from=YYYY-MM-DD&to=YYYY-MM-DD&group_by=client|collaborator|none
-  app.get('/trello/gantt', { preHandler: authGuard }, async (request: any, reply) => {
+  app.get('/trello/gantt', { preHandler: authGuard }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     const q = z.object({
       from: z.string().optional(),
@@ -2790,11 +2794,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
       `(pc.start_date <= $3 OR pc.start_date IS NULL)`,
       `(pc.due_date >= $2 OR pc.due_date IS NULL)`,
     ];
-    const cardVals: any[] = [tenantId, from, to];
+    const cardVals: unknown[] = [tenantId, from, to];
     let ci = 4;
     if (q.board_id) { cardConditions.push(`pc.board_id = $${ci++}`); cardVals.push(q.board_id); }
 
-    const { rows: cards } = await query<any>(
+    const { rows: cards } = await query<Record<string, any>>(
       `SELECT
          pc.id, pc.title, pc.description,
          pc.start_date::text, pc.due_date::text, pc.completed_at,
@@ -2828,7 +2832,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     );
 
     // Milestones in range
-    const { rows: milestones } = await query<any>(
+    const { rows: milestones } = await query<Record<string, any>>(
       `SELECT m.id, m.title, m.date::text, m.color, m.is_done,
               m.board_id, pb.name as board_name, pb.client_id, cl.name as client_name
        FROM project_milestones m
@@ -2844,7 +2848,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const cardIds = cards.map((c: any) => c.id);
     let dependencies: any[] = [];
     if (cardIds.length > 0) {
-      const { rows: deps } = await query<any>(
+      const { rows: deps } = await query<Record<string, any>>(
         `SELECT card_id, depends_on_id
          FROM project_card_dependencies
          WHERE tenant_id = $1

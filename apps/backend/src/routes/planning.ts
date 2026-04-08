@@ -642,7 +642,7 @@ export default async function planningRoutes(app: FastifyInstance) {
         ]),
         new Promise<[string, string, string]>((resolve) => setTimeout(() => resolve(['', '', '']), 3000)),
       ]);
-    } catch { /* ignore */ }
+    } catch (err: any) { console.warn('[planning] context load failed:', err?.message); }
 
     // ── 1b. Load attachment content from library items ──────────────
     let attachmentContext = '';
@@ -889,7 +889,7 @@ export default async function planningRoutes(app: FastifyInstance) {
                     return `[${d.platform || ''}] ${date}: ${(d.content_excerpt || d.content_text || '').slice(0, 120)}`;
                   });
               }
-            } catch { /* ignore */ }
+            } catch (err: any) { console.warn('[planning] recent posts fetch failed:', err?.message); }
             const copyResult = await generateCopy({
               prompt: buildPlanningCopyPrompt({
                 clientName: client?.name || 'Cliente',
