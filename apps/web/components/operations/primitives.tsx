@@ -2009,6 +2009,27 @@ function opsChecklistPct(job: OperationsJob): number | null {
   return Math.round((items.filter((i) => i.checked).length / items.length) * 100);
 }
 
+function formatJobTypeLabel(t?: string | null): string {
+  const labels: Record<string, string> = {
+    briefing: 'Briefing', copy: 'Copy', design_static: 'Design',
+    design_carousel: 'Carrossel', video_edit: 'Vídeo', video: 'Vídeo',
+    stories: 'Stories', reels: 'Reels', campaign: 'Campanha',
+    meeting: 'Reunião', approval: 'Aprovação', publication: 'Publicação',
+    urgent_request: 'Urgente',
+  };
+  return labels[t || ''] || String(t || 'Job').replace(/_/g, ' ');
+}
+
+const JOB_TYPE_ICONS_LG: Record<string, React.ReactNode> = {
+  briefing: <IconFileText size={36} />, copy: <IconPencil size={36} />,
+  design_static: <IconBrush size={36} />, design_carousel: <IconPhoto size={36} />,
+  video_edit: <IconVideo size={36} />, video: <IconVideo size={36} />,
+  stories: <IconCamera size={36} />, reels: <IconCamera size={36} />,
+  campaign: <IconRocket size={36} />, meeting: <IconCalendarDue size={36} />,
+  approval: <IconCheck size={36} />, publication: <IconSend size={36} />,
+  urgent_request: <IconFlag size={36} />,
+};
+
 export function OpsCard({
   job,
   selected,
@@ -2031,215 +2052,285 @@ export function OpsCard({
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
-  const accentColor = job.client_brand_color || null;
+  const accentColor = job.client_brand_color || OPS_ACCENT;
   const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
   const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
   const nextStatus = getNextStatus(job);
   const nextAction = getNextAction(job);
   const pct = opsChecklistPct(job);
 
+  const typeVis = JOB_TYPE_VISUALS[job.job_type] || { icon: <IconBriefcase size={14} />, color: '#A0AEC0' };
+  const coverImageUrl: string | null = (job.metadata?.cover_image_url as string | null) ?? null;
+  const extraAssignees = (job.assignees || []).filter((a) => a.user_id !== job.owner_id).slice(0, 2);
+
+  // Aging badge
+  const agingDays = (() => {
+    if (!job.updated_at) return null;
+    const ACTIVE = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review'];
+    if (!ACTIVE.includes(job.status)) return null;
+    const d = Math.floor((Date.now() - new Date(job.updated_at).getTime()) / 86400000);
+    return d >= 3 ? d : null;
+  })();
+
   return (
     <>
       <Box
         onClick={onClick}
         sx={{
-          borderRadius: accentColor ? '0 10px 10px 0' : 2.5,
-          bgcolor: selected
-            ? alpha(theme.palette.primary.main, dark ? 0.1 : 0.06)
-            : opsCardBg(job, dark),
-          borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
-          outline: selected ? `1.5px solid ${alpha(theme.palette.primary.main, 0.35)}` : undefined,
-          boxShadow: dark ? '0 1px 4px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+          borderRadius: 2.5,
+          bgcolor: dark ? alpha('#fff', 0.03) : '#fff',
+          border: isUrgent
+            ? `1.5px solid ${alpha('#FA896B', 0.55)}`
+            : selected
+              ? `1.5px solid ${alpha(theme.palette.primary.main, 0.5)}`
+              : `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.08)}`,
+          boxShadow: isUrgent
+            ? `0 0 0 3px ${alpha('#FA896B', 0.12)}, 0 2px 8px rgba(0,0,0,0.08)`
+            : dark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
           display: 'flex',
           flexDirection: 'column',
           cursor: onClick ? 'pointer' : 'default',
+          overflow: 'hidden',
           transition: 'box-shadow 0.15s, transform 0.15s',
           '&:hover': {
-            boxShadow: dark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 4px 20px rgba(0,0,0,0.1)',
-            transform: 'translateY(-1px)',
-            '& .ops-card-open': { opacity: 0.5 },
-            '& .ops-card-advance': { opacity: 1 },
+            boxShadow: dark ? '0 8px 28px rgba(0,0,0,0.45)' : '0 8px 28px rgba(0,0,0,0.13)',
+            transform: 'translateY(-2px)',
+            '& .ops-card-actions': { opacity: 1 },
           },
+          ...(isUrgent && {
+            animation: 'urgent-pulse 2.5s ease-in-out infinite',
+            '@keyframes urgent-pulse': {
+              '0%,100%': { boxShadow: `0 0 0 3px ${alpha('#FA896B', 0.12)}, 0 2px 8px rgba(0,0,0,0.08)` },
+              '50%': { boxShadow: `0 0 0 5px ${alpha('#FA896B', 0.22)}, 0 4px 16px rgba(250,137,107,0.18)` },
+            },
+          }),
         }}
       >
-        <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
-
-          {/* Header: client + source badge + open button */}
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
+        {/* ── Cover area ─────────────────────────────────────── */}
+        <Box
+          sx={{
+            height: coverImageUrl ? 130 : 76,
+            overflow: 'hidden',
+            position: 'relative',
+            flexShrink: 0,
+            bgcolor: alpha(accentColor, dark ? 0.14 : 0.09),
+          }}
+        >
+          {coverImageUrl ? (
+            <Box
+              component="img"
+              src={coverImageUrl}
+              alt=""
+              sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
               {job.client_logo_url ? (
                 <Avatar
                   src={job.client_logo_url}
                   alt={job.client_name || ''}
                   variant="rounded"
-                  sx={{ width: 14, height: 14, flexShrink: 0, '& img': { objectFit: 'contain' } }}
+                  sx={{ width: 48, height: 48, bgcolor: 'transparent', border: `1.5px solid ${alpha(accentColor, 0.25)}`, '& img': { objectFit: 'contain' } }}
                 />
               ) : null}
-              <Typography
-                variant="caption"
-                noWrap
-                sx={{
-                  fontSize: '0.6rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: accentColor ? alpha(accentColor, dark ? 0.8 : 0.7) : 'text.disabled',
-                }}
-              >
-                {job.client_name || 'Sem cliente'}
-              </Typography>
-            </Stack>
-            <Stack direction="row" spacing={0.25} alignItems="center">
-              {isUrgent && (
-                <Box sx={{ color: '#F9A825', display: 'flex', lineHeight: 1 }}>
-                  <IconAlertTriangle size={11} />
-                </Box>
-              )}
-              <Chip
-                size="small"
-                label={formatSourceLabel(job.source)}
-                sx={{ height: 18, fontSize: '0.58rem', fontWeight: 700, flexShrink: 0 }}
-              />
-              {onOpen && (
-                <IconButton
-                  className="ops-card-open"
-                  size="small"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
-                  sx={{ p: 0.25, opacity: 0, transition: 'opacity 0.15s', '&:hover': { opacity: '1 !important' } }}
-                >
-                  <IconDots size={13} />
-                </IconButton>
-              )}
-            </Stack>
+              <Box sx={{ color: alpha(accentColor, 0.35), display: 'flex' }}>
+                {JOB_TYPE_ICONS_LG[job.job_type] ?? <IconBriefcase size={36} />}
+              </Box>
+            </Box>
+          )}
+
+          {/* Urgent overlay badge */}
+          {isUrgent && (
+            <Box sx={{
+              position: 'absolute', top: 8, right: 8,
+              bgcolor: '#FA896B', color: '#fff', borderRadius: 1,
+              px: 0.75, py: 0.25, fontSize: '0.58rem', fontWeight: 900,
+              display: 'flex', alignItems: 'center', gap: 0.35,
+              boxShadow: '0 2px 6px rgba(250,137,107,0.45)',
+            }}>
+              <IconAlertTriangle size={10} />
+              URGENTE
+            </Box>
+          )}
+
+          {/* Options button */}
+          {onOpen && (
+            <IconButton
+              className="ops-card-actions"
+              size="small"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
+              sx={{
+                position: 'absolute', top: 6, left: 6,
+                opacity: 0, transition: 'opacity 0.15s',
+                bgcolor: alpha('#000', 0.5), color: '#fff', p: 0.3, borderRadius: 1,
+                '&:hover': { bgcolor: alpha('#000', 0.7), opacity: '1 !important' },
+              }}
+            >
+              <IconDots size={13} />
+            </IconButton>
+          )}
+
+          {/* Client name strip at bottom of cover */}
+          <Box sx={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            background: coverImageUrl
+              ? 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)'
+              : 'transparent',
+            px: 1.25, pb: 0.6, pt: 1,
+            display: 'flex', alignItems: 'center', gap: 0.5,
+          }}>
+            <Typography variant="caption" noWrap sx={{
+              fontSize: '0.6rem', fontWeight: 800,
+              textTransform: 'uppercase', letterSpacing: '0.08em',
+              color: coverImageUrl ? '#fff' : alpha(accentColor, dark ? 0.75 : 0.65),
+            }}>
+              {job.client_name || 'Sem cliente'}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* ── Card body ──────────────────────────────────────── */}
+        <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+
+          {/* Job type chip + status chip */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
+            <Chip
+              size="small"
+              label={formatJobTypeLabel(job.job_type)}
+              sx={{
+                height: 22, fontSize: '0.68rem', fontWeight: 800,
+                bgcolor: alpha(typeVis.color, dark ? 0.18 : 0.1),
+                color: typeVis.color,
+                border: `1px solid ${alpha(typeVis.color, 0.28)}`,
+                '& .MuiChip-label': { px: 0.85 },
+              }}
+            />
+            <Chip
+              size="small"
+              label={vis.label}
+              sx={{
+                height: 18, fontSize: '0.58rem', fontWeight: 800,
+                bgcolor: alpha(vis.color, 0.1), color: vis.color,
+                '& .MuiChip-label': { px: 0.6 },
+              }}
+            />
           </Stack>
 
           {/* Title */}
           <Typography
             variant="body2"
-            fontWeight={600}
+            fontWeight={700}
             sx={{
-              fontSize: '0.82rem',
-              lineHeight: 1.4,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              flex: showDescription ? undefined : 1,
-              color: 'text.primary',
+              fontSize: '0.88rem', lineHeight: 1.4,
+              display: '-webkit-box', WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical', overflow: 'hidden',
             }}
           >
             {job.title}
           </Typography>
 
-          {/* Description — kanban only */}
-          {showDescription && (
+          {/* Description */}
+          {showDescription && (job.summary || job.required_skill) && (
             <Typography
               variant="body2"
               color="text.secondary"
               sx={{
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                flex: 1,
-                fontSize: '0.8rem',
+                display: '-webkit-box', WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                fontSize: '0.78rem', flex: 1,
               }}
             >
               {job.summary || formatSkillLabel(job.required_skill)}
             </Typography>
           )}
 
-          {/* Progress bar */}
+          {/* Progress */}
           {pct !== null && (
-            <LinearProgress
-              variant="determinate"
-              value={pct}
-              sx={{
-                height: 2,
-                borderRadius: 1,
-                bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
-                '& .MuiLinearProgress-bar': { bgcolor: opsBarColor(job), borderRadius: 1 },
-              }}
-            />
+            <Stack spacing={0.4}>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>Progresso</Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.62rem', fontWeight: 800, color: opsBarColor(job) }}>{pct}%</Typography>
+              </Stack>
+              <LinearProgress
+                variant="determinate"
+                value={pct}
+                sx={{
+                  height: 4, borderRadius: 2,
+                  bgcolor: dark ? alpha('#fff', 0.07) : alpha('#000', 0.06),
+                  '& .MuiLinearProgress-bar': { bgcolor: opsBarColor(job), borderRadius: 2 },
+                }}
+              />
+            </Stack>
           )}
 
-          {/* Footer: owner | stage chip | deadline */}
-          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
-            <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
-              {job.owner_name ? (
-                <>
-                  <Avatar
-                    src={job.owner_avatar_url ?? undefined}
-                    sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
-                  >
-                    {initials(job.owner_name)}
-                  </Avatar>
-                  <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
-                    {job.owner_name.split(' ')[0]}
-                  </Typography>
-                </>
-              ) : onAssign && owners?.length ? (
+          {/* Footer: avatar stack + deadline */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 0.25 }}>
+            {/* Avatar stack: client + owner + extras */}
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <Stack direction="row" sx={{ '& > *': { ml: '-6px !important', '&:first-child': { ml: '0 !important' } } }}>
+                {job.owner_name ? (
+                  <Tooltip title={job.owner_name} arrow placement="top">
+                    <Avatar
+                      src={job.owner_avatar_url ?? undefined}
+                      sx={{ width: 26, height: 26, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.18), color: '#5D87FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}`, zIndex: 2 }}
+                    >
+                      {initials(job.owner_name)}
+                    </Avatar>
+                  </Tooltip>
+                ) : null}
+                {extraAssignees.map((a, i) => (
+                  <Tooltip key={a.user_id} title={a.name} arrow placement="top">
+                    <Avatar
+                      src={a.avatar_url ?? undefined}
+                      sx={{ width: 26, height: 26, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#7B61FF', 0.18), color: '#7B61FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}`, zIndex: 1 - i }}
+                    >
+                      {initials(a.name)}
+                    </Avatar>
+                  </Tooltip>
+                ))}
+              </Stack>
+              {!job.owner_name && onAssign && owners?.length ? (
                 <Box onClick={(e) => e.stopPropagation()}>
                   <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
                 </Box>
-              ) : (
+              ) : !job.owner_name ? (
                 <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>
                   Sem dono
                 </Typography>
+              ) : null}
+              {agingDays !== null && (
+                <Tooltip title={`${agingDays} dias sem movimentação`} arrow placement="top">
+                  <Typography variant="caption" sx={{ fontSize: '0.58rem', fontWeight: 900, color: agingDays >= 7 ? '#FA896B' : '#FFAE1F', letterSpacing: '0.04em' }}>
+                    {agingDays}d
+                  </Typography>
+                </Tooltip>
               )}
             </Stack>
-            <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
-              {/* Aging badge — days stuck in active stage */}
-              {(() => {
-                if (!job.updated_at) return null;
-                const ACTIVE = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review'];
-                if (!ACTIVE.includes(job.status)) return null;
-                const days = Math.floor((Date.now() - new Date(job.updated_at).getTime()) / 86400000);
-                if (days < 3) return null;
-                return (
-                  <Tooltip title={`${days} dias sem movimentação`} arrow placement="top">
-                    <Typography variant="caption" sx={{
-                      fontSize: '0.56rem', fontWeight: 900, flexShrink: 0,
-                      color: days >= 7 ? '#FA896B' : '#FFAE1F', letterSpacing: '0.04em',
-                    }}>
-                      {days}d
-                    </Typography>
-                  </Tooltip>
-                );
-              })()}
-              <Chip
-                size="small"
-                label={vis.label}
-                sx={{
-                  height: 16,
-                  fontSize: '0.56rem',
-                  fontWeight: 800,
-                  bgcolor: alpha(vis.color, 0.12),
-                  color: vis.color,
-                  '& .MuiChip-label': { px: 0.6 },
-                }}
-              />
-              {job.deadline_at && (
+
+            {/* Deadline — big + countdown */}
+            {job.deadline_at ? (
+              <Stack alignItems="flex-end" spacing={0.1} sx={{ flexShrink: 0 }}>
                 <DeadlineCountdown deadline={job.deadline_at} compact />
-              )}
-            </Stack>
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', lineHeight: 1 }}>
+                  {new Date(job.deadline_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                </Typography>
+              </Stack>
+            ) : (
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>Sem prazo</Typography>
+            )}
           </Stack>
 
-          {/* Advance button — visible on hover */}
+          {/* Advance button — hover only */}
           {nextStatus && onAdvance ? (
             <Button
-              className="ops-card-advance"
+              className="ops-card-actions"
               variant="text"
               size="small"
               endIcon={<IconArrowRight size={14} />}
               onClick={(e) => { e.stopPropagation(); setConfirmAnchor(e.currentTarget); }}
               sx={{
-                alignSelf: 'flex-start',
-                px: 0,
-                minWidth: 0,
-                fontWeight: 700,
-                color: vis.color,
-                opacity: 0,
+                alignSelf: 'flex-start', px: 0, minWidth: 0,
+                fontWeight: 700, color: vis.color, opacity: 0,
                 transition: 'opacity 0.15s',
                 '&:hover': { bgcolor: 'transparent', opacity: '1 !important' },
               }}
@@ -2259,28 +2350,15 @@ export function OpsCard({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { p: 1.5, borderRadius: 2, width: 200 } } }}
       >
-        <Typography variant="caption" fontWeight={700} display="block" mb={0.5}>
-          Mover para
-        </Typography>
-        <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
-          {nextAction.label}
-        </Typography>
+        <Typography variant="caption" fontWeight={700} display="block" mb={0.5}>Mover para</Typography>
+        <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>{nextAction.label}</Typography>
         <Box sx={{ display: 'flex', gap: 0.75 }}>
-          <Button
-            size="small"
-            variant="contained"
-            disableElevation
-            sx={{ flex: 1, fontSize: '0.7rem', py: 0.4 }}
-            onClick={() => { setConfirmAnchor(null); if (nextStatus && onAdvance) onAdvance(job.id, nextStatus); }}
-          >
+          <Button size="small" variant="contained" disableElevation sx={{ flex: 1, fontSize: '0.7rem', py: 0.4 }}
+            onClick={() => { setConfirmAnchor(null); if (nextStatus && onAdvance) onAdvance(job.id, nextStatus); }}>
             Confirmar
           </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            sx={{ flex: 1, fontSize: '0.7rem', py: 0.4 }}
-            onClick={() => setConfirmAnchor(null)}
-          >
+          <Button size="small" variant="outlined" sx={{ flex: 1, fontSize: '0.7rem', py: 0.4 }}
+            onClick={() => setConfirmAnchor(null)}>
             Cancelar
           </Button>
         </Box>
