@@ -212,6 +212,82 @@ function parseMetricsObj(raw: any): Record<string, any> {
   return obj;
 }
 
+function requestKeyBatchMeta(requestKey: string) {
+  const match = /:batch:(\d+):(\d+)$/.exec(requestKey || '');
+  if (!match) return null;
+  return {
+    index: Number(match[1]),
+    total: Number(match[2]),
+  };
+}
+
+async function loadRawMetricsSnapshot(
+  tenantId: string,
+  clientId: string,
+  slug: string,
+  window: string,
+): Promise<{ integrationId: number; metricsObj: Record<string, any> } | null> {
+  const { start, end } = windowToDates(window);
+  const { rows } = await query<{
+    reportei_integration_id: number;
+    request_key: string;
+    response_payload: any;
+    synced_at: string;
+  }>(
+    `WITH ranked AS (
+       SELECT reportei_integration_id, request_key, response_payload, synced_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY reportei_integration_id, request_key
+                ORDER BY synced_at DESC
+              ) AS rn
+         FROM reportei_metric_raw_payloads
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND integration_slug = $3
+          AND time_window = $4
+          AND period_start = $5
+          AND period_end = $6
+     )
+     SELECT reportei_integration_id, request_key, response_payload, synced_at
+       FROM ranked
+      WHERE rn = 1
+      ORDER BY synced_at DESC, request_key ASC`,
+    [tenantId, clientId, slug, window, start, end],
+  );
+
+  if (!rows.length) return null;
+
+  const rowsByIntegration = new Map<number, typeof rows>();
+  for (const row of rows) {
+    const items = rowsByIntegration.get(row.reportei_integration_id) ?? [];
+    items.push(row);
+    rowsByIntegration.set(row.reportei_integration_id, items);
+  }
+
+  for (const [integrationId, integrationRows] of rowsByIntegration.entries()) {
+    const batchMeta = integrationRows
+      .map((row) => requestKeyBatchMeta(row.request_key))
+      .filter((item): item is NonNullable<typeof item> => !!item);
+
+    if (batchMeta.length) {
+      const expectedTotal = Math.max(...batchMeta.map((item) => item.total));
+      const actualBatches = new Set(batchMeta.map((item) => item.index)).size;
+      if (expectedTotal > actualBatches) continue;
+    }
+
+    const metricsObj = integrationRows.reduce<Record<string, any>>((acc, row) => {
+      Object.assign(acc, parseMetricsObj(row.response_payload));
+      return acc;
+    }, {});
+
+    if (Object.keys(metricsObj).length > 0) {
+      return { integrationId, metricsObj };
+    }
+  }
+
+  return null;
+}
+
 async function fetchMetrics(
   rc: ReporteiClient,
   overrides: { token: string; baseUrl?: string },
@@ -242,10 +318,10 @@ async function syncClientMetrics(
   tenantId: string,
   token: string,
   clientName?: string
-): Promise<{ snapshots: number; errors: string[] }> {
+): Promise<{ snapshots: number; rawSnapshots: number; apiSnapshots: number; errors: string[] }> {
   const connector = await getReporteiConnector(tenantId, clientId);
   const hasAnyId = connector?.integrationId || (connector?.platforms && Object.keys(connector.platforms).length > 0);
-  if (!connector || !hasAnyId) return { snapshots: 0, errors: ['no_integration_id'] };
+  if (!connector || !hasAnyId) return { snapshots: 0, rawSnapshots: 0, apiSnapshots: 0, errors: ['no_integration_id'] };
 
   const rc = new ReporteiClient();
   const overrides = { token, baseUrl: connector.baseUrl };
@@ -264,6 +340,8 @@ async function syncClientMetrics(
   }
 
   let snapshots = 0;
+  let rawSnapshots = 0;
+  let apiSnapshots = 0;
   const errors: string[] = [];
   // Cache refreshed IDs per platform so we only call Reportei once per platform
   const refreshedIds: Record<string, number> = {};
@@ -276,7 +354,18 @@ async function syncClientMetrics(
       const { start, end } = windowToDates(window);
       let activeId = refreshedIds[platform] ?? origId;
       try {
-        let metricsObj = await fetchMetrics(rc, overrides, activeId, metricDefs, window);
+        let metricsObj: Record<string, any> | null = null;
+        let snapshotIntegrationId = activeId;
+        let usedRawSource = false;
+
+        const rawSnapshot = await loadRawMetricsSnapshot(tenantId, clientId, slug, window).catch(() => null);
+        if (rawSnapshot) {
+          metricsObj = rawSnapshot.metricsObj;
+          snapshotIntegrationId = rawSnapshot.integrationId;
+          usedRawSource = true;
+        } else {
+          metricsObj = await fetchMetrics(rc, overrides, activeId, metricDefs, window);
+        }
 
         if (!metricsObj && clientName && !refreshedIds[platform]) {
           // Empty result — try to find fresh ID
@@ -285,6 +374,8 @@ async function syncClientMetrics(
             refreshedIds[platform] = newId;
             activeId = newId;
             metricsObj = await fetchMetrics(rc, overrides, activeId, metricDefs, window);
+            snapshotIntegrationId = newId;
+            usedRawSource = false;
           }
         }
 
@@ -296,7 +387,7 @@ async function syncClientMetrics(
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
            ON CONFLICT (client_id, integration_id, platform, time_window, period_start)
            DO UPDATE SET metrics=$8::jsonb, synced_at=now()`,
-          [tenantId, clientId, activeId, platform, window, start, end, JSON.stringify(metricsObj)]
+          [tenantId, clientId, snapshotIntegrationId, platform, window, start, end, JSON.stringify(metricsObj)]
         );
 
         await query(
@@ -312,6 +403,8 @@ async function syncClientMetrics(
         ).catch(() => {});
 
         snapshots++;
+        if (usedRawSource) rawSnapshots++;
+        else apiSnapshots++;
       } catch (e: any) {
         const msg: string = e.message ?? '';
         // If expired error and we haven't refreshed yet, auto-heal
@@ -326,13 +419,14 @@ async function syncClientMetrics(
               if (metricsObj) {
                 await query(
                   `INSERT INTO reportei_metric_snapshots
-                     (tenant_id, client_id, integration_id, platform, time_window, period_start, period_end, metrics)
+                   (tenant_id, client_id, integration_id, platform, time_window, period_start, period_end, metrics)
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
                    ON CONFLICT (client_id, integration_id, platform, time_window, period_start)
                    DO UPDATE SET metrics=$8::jsonb, synced_at=now()`,
                   [tenantId, clientId, newId, platform, window, start, end, JSON.stringify(metricsObj)]
                 );
                 snapshots++;
+                apiSnapshots++;
                 await sleep(5000);
                 continue;
               }
@@ -345,7 +439,7 @@ async function syncClientMetrics(
     }
   }
 
-  return { snapshots, errors };
+  return { snapshots, rawSnapshots, apiSnapshots, errors };
 }
 
 async function updateConnectorStatus(tenantId: string, clientId: string, ok: boolean, error: string | null) {
@@ -392,7 +486,10 @@ export async function runReporteiSyncWorkerOnce() {
     for (const client of clients) {
       try {
         const result = await syncClientMetrics(client.id, client.tenant_id, token, client.name);
-        console.log(`[reporteiSync] ${client.name}: ${result.snapshots} snapshots${result.errors.length ? ` | errors: ${result.errors.join(', ')}` : ''}`);
+        console.log(
+          `[reporteiSync] ${client.name}: ${result.snapshots} snapshots (raw=${result.rawSnapshots}, api=${result.apiSnapshots})` +
+          `${result.errors.length ? ` | errors: ${result.errors.join(', ')}` : ''}`,
+        );
         await updateConnectorStatus(client.tenant_id, client.id, result.snapshots > 0, result.errors.join('; ') || null);
       } catch (e: any) {
         console.error(`[reporteiSync] ${client.name} failed:`, e.message);
