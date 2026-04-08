@@ -4,14 +4,14 @@ import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
 import { generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v4';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v5';
 
 const EDRO_AVATAR_BASE_PROMPT = `
 create a single stylized 3D avatar character from the reference photo, shown alone in a complete bust portrait from the upper chest upward on a plain very light gray background. keep a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never staring straight into the camera.
 
 identity fidelity is the highest priority. preserve the real person's facial proportions, face width, jawline, chin, cheek volume, eye spacing, eye size, eyebrow shape, nose width and bridge, mouth shape, hairline, beard or mustache if present, skin tone, age range, and overall gender presentation exactly as seen in the reference. the goal is immediate recognition by someone who knows the person. do not beautify, idealize, feminize, masculinize, or replace the face with a generic attractive cartoon face.
 
-translate the person into the same restrained, slightly weird, simplified stylized 3D avatar language already established, but only after preserving who they are. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. keep the head slightly stylized and slightly top-heavy, but never baby-like, never chibi, never toy-like, never glamorous, and never like a different person.
+translate the person into a restrained, slightly weird, simplified stylized 3D avatar language with subtle Pixar toy-inspired appeal, but only after preserving who they are. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. allow a gentle Pixar toy feeling in the sculpted forms and readable silhouette, but never baby-like, never chibi, never like a different person, and never a generic commercial mascot.
 
 faithfully translate the real hairstyle, hair volume, hair texture, and facial hair. if the subject has short hair, keep it short; if they have longer hair, keep it longer. if they have a beard, keep the beard. if they are clean-shaven, keep them clean-shaven. preserve clothing, neckline, shoulders, and any visible accessories from the photo in the same simplified 3D language without inventing wardrobe changes.
 
@@ -21,7 +21,7 @@ keep the portrait soft, matte, and clean with gentle studio lighting, no environ
 `.trim();
 
 const EDRO_AVATAR_NEGATIVE_PROMPT = `
-generic face, different person, identity drift, face swap, gender swap, younger face, older face, beauty filter face, handsome toy face, cute mascot face, tiny nose replacement, oversized eyes, glam face, doll face, front-facing portrait, symmetrical face, round baby head, chibi, funko style, vinyl toy style, premium designer toy, disney style, pixar style, sparkly eyes, glossy materials, fashion photography, missing arms, incomplete bust, shoulderless torso, cropped arm silhouette, detailed background, text, watermark, multiple characters, props
+generic face, different person, identity drift, face swap, gender swap, younger face, older face, beauty filter face, handsome toy face, cute mascot face, tiny nose replacement, oversized eyes, glam face, doll face, front-facing portrait, symmetrical face, round baby head, chibi, funko style, vinyl toy style, sparkly eyes, glossy materials, fashion photography, missing arms, incomplete bust, shoulderless torso, cropped arm silhouette, detailed background, text, watermark, multiple characters, props
 `.trim();
 
 function buildAvatarPrompt(customPrompt?: string) {
