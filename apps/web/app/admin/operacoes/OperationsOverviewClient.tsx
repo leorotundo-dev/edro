@@ -697,6 +697,7 @@ export default function OperationsOverviewClient() {
                               <OpsCard
                                 key={job.id}
                                 job={job}
+                                showDescription
                                 onClick={() => openCommands(job)}
                                 onAdvance={(jobId, nextStatus) => changeStatus(jobId, nextStatus).catch(() => {})}
                                 onAssign={(jobId, ownerId) => updateJob(jobId, { owner_id: ownerId }).catch(() => {})}
