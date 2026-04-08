@@ -53,6 +53,7 @@ import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
 import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFactsService';
+import { analyzeClientMemoryGovernance, applyClientMemoryGovernanceAction } from '../clientMemoryGovernanceService';
 import { buildClientState } from '../jarvisDecisionEngine';
 import { buildBriefingDiagnostics } from '../briefingDiagnosticService';
 import crypto from 'crypto';
@@ -143,6 +144,7 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'get_client_profile',
     'get_client_living_memory',
     'get_client_memory_facts',
+    'get_client_memory_governance',
     'get_client_state',
     'get_context_packet',
     'get_briefing_diagnostics',
@@ -184,6 +186,7 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'create_briefing_from_clipping',
     'create_post_pipeline',
     'record_client_memory_fact',
+    'apply_client_memory_governance',
     'fill_job_briefing',
     'submit_job_briefing',
     'regenerate_creative_draft',
@@ -549,8 +552,10 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   get_client_profile: toolGetClientProfile,
   get_client_living_memory: toolGetClientLivingMemory,
   get_client_memory_facts: toolGetClientMemoryFacts,
+  get_client_memory_governance: toolGetClientMemoryGovernance,
   get_client_state: toolGetClientState,
   record_client_memory_fact: toolRecordClientMemoryFact,
+  apply_client_memory_governance: toolApplyClientMemoryGovernance,
   get_context_packet: toolGetContextPacket,
   get_briefing_diagnostics: toolGetBriefingDiagnostics,
   get_intelligence_health: toolGetIntelligenceHealth,
@@ -1725,6 +1730,23 @@ async function toolGetClientMemoryFacts(args: any, ctx: ToolContext): Promise<To
   };
 }
 
+async function toolGetClientMemoryGovernance(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const governance = await analyzeClientMemoryGovernance({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    daysBack: Math.min(args.days_back ?? 365, 365),
+    limit: Math.min(args.limit ?? 80, 100),
+  });
+
+  return {
+    success: true,
+    data: governance,
+    metadata: {
+      row_count: governance.suggestions.length,
+    },
+  };
+}
+
 async function toolRecordClientMemoryFact(args: any, ctx: ToolContext): Promise<ToolResult> {
   const factType = String(args.fact_type || '').trim();
   if (!['directive', 'evidence', 'commitment'].includes(factType)) {
@@ -1755,6 +1777,59 @@ async function toolRecordClientMemoryFact(args: any, ctx: ToolContext): Promise<
     data: {
       recorded,
       message: 'Fato registrado na memória viva do cliente.',
+    },
+  };
+}
+
+async function toolApplyClientMemoryGovernance(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const action = String(args.action || '').trim();
+  if (!['archive', 'replace'].includes(action)) {
+    return { success: false, error: 'action inválida. Use archive ou replace.' };
+  }
+  const targetFingerprint = String(args.target_fingerprint || '').trim();
+  if (!targetFingerprint) {
+    return { success: false, error: 'target_fingerprint é obrigatório.' };
+  }
+  if (
+    action === 'replace'
+    && !contextualString(args.replacement_fingerprint)
+    && !(args.fact_type && args.title && args.fact_text)
+  ) {
+    return { success: false, error: 'replace exige replacement_fingerprint ou um novo fato completo (fact_type, title, fact_text).' };
+  }
+  if (String(args.fact_type || '').trim() === 'directive' && !['boost', 'avoid'].includes(String(args.directive_type || ''))) {
+    return { success: false, error: 'directive_type é obrigatório quando o replacement criado na hora for do tipo directive.' };
+  }
+
+  const result = await applyClientMemoryGovernanceAction({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    action: action as 'archive' | 'replace',
+    targetFingerprint,
+    replacementFingerprint: contextualString(args.replacement_fingerprint),
+    replacementFact: action === 'replace' && !contextualString(args.replacement_fingerprint) && args.fact_type && args.title && args.fact_text
+      ? {
+          factType: String(args.fact_type || '').trim() as 'directive' | 'evidence' | 'commitment',
+          title: String(args.title || '').trim(),
+          factText: String(args.fact_text || '').trim(),
+          summary: contextualString(args.summary),
+          directiveType: contextualString(args.directive_type) as 'boost' | 'avoid' | null,
+          relatedAt: contextualString(args.related_at),
+          deadline: contextualString(args.deadline),
+          priority: contextualString(args.priority),
+        }
+      : null,
+    reason: contextualString(args.reason),
+    confirmedBy: ctx.userEmail || ctx.userId || null,
+  });
+
+  return {
+    success: true,
+    data: {
+      result,
+      message: action === 'archive'
+        ? 'Fato arquivado por governança da memória viva.'
+        : 'Fato antigo substituído por governança da memória viva.',
     },
   };
 }

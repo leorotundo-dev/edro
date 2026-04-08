@@ -31,6 +31,7 @@ type SyncCommitmentInput = {
 export type ClientMemoryFactRow = {
   fact_type: 'directive' | 'evidence' | 'commitment';
   status: 'active' | 'inactive' | 'resolved' | 'archived';
+  fingerprint?: string;
   source_type: string | null;
   source_id: string | null;
   title: string;
@@ -40,6 +41,7 @@ export type ClientMemoryFactRow = {
   deadline: string | null;
   priority: string | null;
   confidence_score: number;
+  updated_at?: string | null;
   metadata: Record<string, any>;
 };
 
@@ -268,6 +270,7 @@ export async function listClientMemoryFacts(params: {
     const { rows } = await query<ClientMemoryFactRow>(
       `SELECT fact_type,
               status,
+              fingerprint,
               source_type,
               source_id,
               title,
@@ -277,6 +280,7 @@ export async function listClientMemoryFacts(params: {
               deadline::text,
               priority,
               confidence_score::float,
+              updated_at::text,
               metadata
          FROM client_memory_facts
         WHERE tenant_id = $1
@@ -302,6 +306,116 @@ export async function listClientMemoryFacts(params: {
       ],
     );
     return rows;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function getClientMemoryFactByFingerprint(params: {
+  tenantId: string;
+  clientId: string;
+  fingerprint: string;
+}) {
+  try {
+    const { rows } = await query<ClientMemoryFactRow>(
+      `SELECT fact_type,
+              status,
+              fingerprint,
+              source_type,
+              source_id,
+              title,
+              summary,
+              fact_text,
+              related_at::text,
+              deadline::text,
+              priority,
+              confidence_score::float,
+              updated_at::text,
+              metadata
+         FROM client_memory_facts
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND fingerprint = $3
+        LIMIT 1`,
+      [params.tenantId, params.clientId, params.fingerprint],
+    );
+    return rows[0] || null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function updateClientMemoryFactStatus(params: {
+  tenantId: string;
+  clientId: string;
+  fingerprint: string;
+  nextStatus: ClientMemoryFactRow['status'];
+  sourceNote?: string | null;
+  confirmedBy?: string | null;
+  supersededByFingerprint?: string | null;
+}) {
+  try {
+    const metadataPatch = {
+      governance_last_action: params.nextStatus,
+      governance_source_note: params.sourceNote || null,
+      governance_confirmed_by: params.confirmedBy || null,
+      superseded_by_fingerprint: params.supersededByFingerprint || null,
+      governance_updated_at: new Date().toISOString(),
+    };
+
+    const { rows } = await query<ClientMemoryFactRow>(
+      `UPDATE client_memory_facts
+          SET status = $4,
+              metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
+              updated_at = now()
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND fingerprint = $3
+      RETURNING fact_type,
+                status,
+                fingerprint,
+                source_type,
+                source_id,
+                title,
+                summary,
+                fact_text,
+                related_at::text,
+                deadline::text,
+                priority,
+                confidence_score::float,
+                updated_at::text,
+                metadata`,
+      [
+        params.tenantId,
+        params.clientId,
+        params.fingerprint,
+        params.nextStatus,
+        JSON.stringify(metadataPatch),
+      ],
+    );
+
+    const updated = rows[0] || null;
+    if (!updated) return null;
+
+    if (updated.fact_type === 'directive' && ['inactive', 'archived'].includes(params.nextStatus)) {
+      await query(
+        `DELETE FROM client_directives
+          WHERE tenant_id = $1
+            AND client_id = $2
+            AND directive = $3
+            AND ($4::text IS NULL OR directive_type = $4)`,
+        [
+          params.tenantId,
+          params.clientId,
+          updated.title,
+          updated.metadata?.directive_type || null,
+        ],
+      ).catch(() => {});
+    }
+
+    return updated;
   } catch (error) {
     if (isMissingTableError(error)) return null;
     throw error;

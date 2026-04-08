@@ -89,12 +89,13 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
     case 'delete_briefing':
     case 'archive_briefing':
     case 'archive_clipping_item':
+    case 'apply_client_memory_governance':
     case 'reject_pauta':
       return {
         toolName,
         level: 'confirm',
         category: 'destructive',
-        reason: 'Remove, arquiva ou rejeita algo no workflow e exige confirmação explícita.',
+        reason: 'Arquiva, substitui ou rejeita algo persistido e exige confirmação explícita.',
       };
     case 'publish_studio_post':
       return {
