@@ -268,7 +268,7 @@ function clientAccent(job: Partial<OperationsJob>) {
 }
 
 // ── STATUS DOT — colored circle with icon, replaces text chips ───────────
-const STATUS_VISUALS: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
+export const STATUS_VISUALS: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   intake:             { color: '#A0AEC0', icon: <IconInbox size={11} />,          label: 'Entrada' },
   planned:            { color: '#5D87FF', icon: <IconLayoutList size={11} />,     label: 'Classificado' },
   ready:              { color: '#5D87FF', icon: <IconCheck size={11} />,          label: 'Pronto' },

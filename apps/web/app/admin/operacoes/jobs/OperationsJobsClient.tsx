@@ -59,6 +59,7 @@ import {
   PersonThumb,
   PipelineBoard,
   SourceThumb,
+  STATUS_VISUALS,
 } from '@/components/operations/primitives';
 import Avatar from '@mui/material/Avatar';
 import {
@@ -79,7 +80,6 @@ import {
   getRisk,
   groupBy,
   matchesOperationalFocus,
-  STAGE_LABELS,
   type OperationalFocusKey,
   type OperationsJob,
   type OperationsOwner,
@@ -89,13 +89,7 @@ import { OPS_COPY } from '@/components/operations/copy';
 
 const STAGE_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'blocked'];
 
-const STAGE_COLORS: Record<string, string> = {
-  intake: '#A0AEC0', planned: '#5D87FF', ready: '#5D87FF',
-  allocated: '#FFAE1F', in_progress: '#E85219', blocked: '#FA896B',
-  in_review: '#7B61FF', awaiting_approval: '#FFAE1F',
-  approved: '#13DEB9', scheduled: '#13DEB9', published: '#13DEB9', done: '#13DEB9',
-};
-function stageColor(status: string) { return STAGE_COLORS[status] || '#A0AEC0'; }
+function stageColor(status: string) { return (STATUS_VISUALS[status] || STATUS_VISUALS.intake).color; }
 
 const BUCKETS = [
   { key: 'entrou', label: 'Entrou', icon: <IconInbox size={16} />, color: 'info' as const, stages: ['intake', 'planned', 'ready'] },
@@ -866,7 +860,7 @@ export default function OperationsJobsClient() {
                       <Grid size={{ xs: 6, md: 3 }}>
                         <TextField select fullWidth size="small" label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                           <MenuItem value="">Todos</MenuItem>
-                          {STAGE_ORDER.map((s) => <MenuItem key={s} value={s}>{STAGE_LABELS[s] || s}</MenuItem>)}
+                          {STAGE_ORDER.map((s) => <MenuItem key={s} value={s}>{(STATUS_VISUALS[s] || STATUS_VISUALS.intake).label}</MenuItem>)}
                         </TextField>
                       </Grid>
                       <Grid size={{ xs: 6, md: 3 }}>
@@ -1131,7 +1125,7 @@ export default function OperationsJobsClient() {
 
                           <Chip
                             size="small"
-                            label={STAGE_LABELS[job.status] || job.status}
+                            label={(STATUS_VISUALS[job.status] || STATUS_VISUALS.intake).label}
                             sx={{
                               justifySelf: 'start',
                               height: 22,
