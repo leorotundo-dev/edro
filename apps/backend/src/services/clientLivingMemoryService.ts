@@ -85,6 +85,16 @@ function normalizeHaystack(value: string) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function uniqueBy<T>(items: T[], getKey: (item: T) => string) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function scoreEvidence(tokens: string[], haystack: string, occurredAt: string | null) {
   if (!haystack.trim()) return 0;
   const normalized = normalizeHaystack(haystack);
@@ -206,16 +216,19 @@ function buildMemoryFromFacts(params: {
   maxEvidence: number;
   maxActions: number;
 }) {
-  const directives = params.facts
-    .filter((item) => item.fact_type === 'directive')
-    .map((item): LivingMemoryDirective => ({
-      directive_type: item.metadata?.directive_type === 'avoid' ? 'avoid' : 'boost',
-      directive: item.title,
-      source: String(item.metadata?.source || item.source_type || 'memory_fact'),
-      source_id: item.source_id || null,
-      created_at: item.related_at || null,
-    }))
-    .slice(0, params.maxDirectives);
+  const directives = uniqueBy(
+    params.facts
+      .filter((item) => item.fact_type === 'directive')
+      .map((item): LivingMemoryDirective => ({
+        directive_type: item.metadata?.directive_type === 'avoid' ? 'avoid' : 'boost',
+        directive: item.title,
+        source: String(item.metadata?.source || item.source_type || 'memory_fact'),
+        source_id: item.source_id || null,
+        created_at: item.related_at || null,
+      }))
+      .filter((item) => item.directive),
+    (candidate) => `${candidate.directive_type}:${normalizeHaystack(candidate.directive)}`,
+  ).slice(0, params.maxDirectives);
 
   const evidence = params.facts
     .filter((item) => item.fact_type === 'evidence')
@@ -237,18 +250,21 @@ function buildMemoryFromFacts(params: {
     })
     .filter((item, index) => index < params.maxEvidence && (params.tokens.length === 0 || item.score > 0));
 
-  const pendingActions = params.facts
-    .filter((item) => item.fact_type === 'commitment')
-    .map((item): LivingMemoryAction => ({
-      action_id: item.source_id || null,
-      title: item.title,
-      description: item.summary || null,
-      responsible: item.metadata?.responsible || null,
-      deadline: item.deadline || null,
-      priority: item.priority || null,
-      meeting_title: item.metadata?.meeting_title || null,
-    }))
-    .slice(0, params.maxActions);
+  const pendingActions = uniqueBy(
+    params.facts
+      .filter((item) => item.fact_type === 'commitment')
+      .map((item): LivingMemoryAction => ({
+        action_id: item.source_id || null,
+        title: item.title,
+        description: item.summary || null,
+        responsible: item.metadata?.responsible || null,
+        deadline: item.deadline || null,
+        priority: item.priority || null,
+        meeting_title: item.metadata?.meeting_title || null,
+      }))
+      .filter((item) => item.title),
+    (candidate) => `${normalizeHaystack(candidate.title)}|${candidate.deadline || ''}`,
+  ).slice(0, params.maxActions);
 
   return {
     directives,
