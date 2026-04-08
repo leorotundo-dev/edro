@@ -39,10 +39,11 @@ import { apiPost } from '@/lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type FilterKey = 'all' | 'urgent' | 'awaiting' | 'in_progress' | 'unassigned';
+type FilterKey = 'all' | 'focus' | 'urgent' | 'awaiting' | 'in_progress' | 'unassigned';
 
-const FILTERS: { key: FilterKey; label: string }[] = [
+const FILTERS: { key: FilterKey; label: string; hot?: boolean }[] = [
   { key: 'all',         label: 'Todos' },
+  { key: 'focus',       label: 'Precisa de ação', hot: true },
   { key: 'urgent',      label: 'Urgentes' },
   { key: 'in_progress', label: 'Em execução' },
   { key: 'awaiting',    label: 'Aprovação' },
@@ -51,8 +52,25 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function isDueImminently(isoDate: string | null | undefined): boolean {
+  if (!isoDate) return false;
+  const datePart = String(isoDate).split(/[T ]/)[0];
+  const due = new Date(datePart + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diffMs = due.getTime() - today.getTime();
+  return diffMs <= 2 * 24 * 60 * 60 * 1000; // ≤ 2 days (includes overdue)
+}
+
 function filterJobs(jobs: OperationsJob[], filter: FilterKey): OperationsJob[] {
   switch (filter) {
+    case 'focus':
+      return jobs.filter((j) =>
+        j.is_urgent ||
+        j.priority_band === 'p0' ||
+        getRisk(j).level === 'critical' ||
+        ['awaiting_approval', 'in_review'].includes(j.status) ||
+        (isDueImminently(j.deadline_at) && !['awaiting_approval', 'approved', 'scheduled', 'published', 'done'].includes(j.status))
+      );
     case 'urgent':
       return jobs.filter((j) => j.is_urgent || j.priority_band === 'p0' || getRisk(j).level === 'critical');
     case 'in_progress':
@@ -373,6 +391,7 @@ export default function DailyOperationClient() {
   // Filter chip counts
   const counts: Record<FilterKey, number> = useMemo(() => ({
     all:         activeJobs.length,
+    focus:       filterJobs(activeJobs, 'focus').length,
     urgent:      urgentCount,
     in_progress: activeJobs.filter((j) => ['allocated', 'in_progress'].includes(j.status)).length,
     awaiting:    activeJobs.filter((j) => ['awaiting_approval', 'in_review'].includes(j.status)).length,
@@ -461,33 +480,49 @@ export default function DailyOperationClient() {
 
       {/* ── Filter chips ── */}
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 3 }}>
-        {FILTERS.map((f) => (
-          <Chip
-            key={f.key}
-            label={`${f.label} ${counts[f.key]}`}
-            onClick={() => setFilter(f.key)}
-            variant={filter === f.key ? 'filled' : 'outlined'}
-            sx={(theme) => ({
-              fontWeight: 700,
-              fontSize: '0.72rem',
-              height: 28,
-              borderRadius: '14px',
-              cursor: 'pointer',
-              bgcolor: filter === f.key
-                ? theme.palette.mode === 'dark' ? '#fff' : '#111'
-                : 'transparent',
-              color: filter === f.key
-                ? theme.palette.mode === 'dark' ? '#111' : '#fff'
-                : 'text.secondary',
-              borderColor: filter === f.key ? 'transparent' : 'divider',
-              '&:hover': {
-                bgcolor: filter === f.key
-                  ? theme.palette.mode === 'dark' ? '#e0e0e0' : '#333'
-                  : alpha(theme.palette.text.primary, 0.06),
-              },
-            })}
-          />
-        ))}
+        {FILTERS.map((f) => {
+          const isSelected = filter === f.key;
+          const isFocus = f.key === 'focus';
+          const focusColor = '#E85219';
+          return (
+            <Chip
+              key={f.key}
+              label={`${f.label} ${counts[f.key]}`}
+              onClick={() => setFilter(f.key)}
+              variant={isSelected ? 'filled' : 'outlined'}
+              sx={(theme) => {
+                const dark = theme.palette.mode === 'dark';
+                if (isFocus) return {
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  height: 28,
+                  borderRadius: '14px',
+                  cursor: 'pointer',
+                  bgcolor: isSelected ? focusColor : alpha(focusColor, 0.08),
+                  color: isSelected ? '#fff' : focusColor,
+                  borderColor: isSelected ? 'transparent' : alpha(focusColor, 0.35),
+                  border: `1px solid`,
+                  '&:hover': { bgcolor: isSelected ? alpha(focusColor, 0.85) : alpha(focusColor, 0.14) },
+                };
+                return {
+                  fontWeight: 700,
+                  fontSize: '0.72rem',
+                  height: 28,
+                  borderRadius: '14px',
+                  cursor: 'pointer',
+                  bgcolor: isSelected ? (dark ? '#fff' : '#111') : 'transparent',
+                  color: isSelected ? (dark ? '#111' : '#fff') : 'text.secondary',
+                  borderColor: isSelected ? 'transparent' : 'divider',
+                  '&:hover': {
+                    bgcolor: isSelected
+                      ? (dark ? '#e0e0e0' : '#333')
+                      : alpha(theme.palette.text.primary, 0.06),
+                  },
+                };
+              }}
+            />
+          );
+        })}
       </Stack>
 
       {/* ── Card grid ── */}
