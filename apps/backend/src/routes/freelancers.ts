@@ -1409,13 +1409,25 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const { mode } = (request.query ?? {}) as { mode?: string };
     const useDirect = mode === 'direct' || !isFalConfigured();
 
-    const file = await request.file();
-    if (!file) {
+    // Read all multipart parts to get both the file and optional prompt field
+    let uploadedFile: { filename: string; mimetype: string; buffer: Buffer } | null = null;
+    let customPrompt: string | undefined;
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        const chunks: Buffer[] = [];
+        for await (const chunk of part.file) chunks.push(chunk);
+        uploadedFile = { filename: part.filename ?? 'avatar', mimetype: part.mimetype, buffer: Buffer.concat(chunks) };
+      } else if (part.type === 'field' && part.fieldname === 'prompt') {
+        customPrompt = String(part.value).trim() || undefined;
+      }
+    }
+
+    if (!uploadedFile) {
       return reply.status(400).send({ error: 'Envie uma foto em JPG, PNG ou WebP.' });
     }
 
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.mimetype)) {
+    if (!allowed.includes(uploadedFile.mimetype)) {
       return reply.status(400).send({ error: 'Formato não suportado. Use JPG, PNG ou WebP.' });
     }
 
@@ -1451,14 +1463,14 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       existingPersonId: snapshot.person_id ?? null,
     });
 
-    const buffer = await file.toBuffer();
     const avatarParams = {
       tenantId,
       freelancerId: snapshot.id,
       personId,
-      sourceBuffer: buffer,
-      sourceFilename: file.filename,
-      sourceMimeType: file.mimetype,
+      sourceBuffer: uploadedFile.buffer,
+      sourceFilename: uploadedFile.filename,
+      sourceMimeType: uploadedFile.mimetype,
+      customPrompt,
     };
     const result = useDirect
       ? await saveDirectAvatarForFreelancer(avatarParams)

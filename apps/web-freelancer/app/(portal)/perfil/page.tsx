@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import clsx from 'clsx';
 import ArsenalPicker, { type SelectedSkill } from '@/components/ArsenalPicker';
+import AvatarGeneratorModal from '@/components/AvatarGeneratorModal';
 import { apiGet, apiPatch, apiPostFormData, swrFetcher } from '@/lib/api';
 import { describeCnpjLookupSource, formatLookupTimestamp, isValidCnpj, normalizeDigits, type CnpjLookupResponse } from '@/lib/cnpj';
 
@@ -115,6 +116,7 @@ export default function PerfilPage() {
   const [cnpjLookupResult, setCnpjLookupResult] = useState<CnpjLookupResponse | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState('');
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -261,7 +263,14 @@ export default function PerfilPage() {
     }
   }
 
-  const generateAvatar = () => submitAvatar('ai');
+  const generateAvatar = () => {
+    const file = avatarFile ?? avatarInputRef.current?.files?.[0] ?? null;
+    if (!file) {
+      setError((prev) => ({ ...prev, avatar: 'Selecione uma foto antes de continuar.' }));
+      return;
+    }
+    setShowAvatarModal(true);
+  };
 
   if (!profile) {
     return <div className="portal-empty"><p className="portal-card-title">Carregando perfil</p></div>;
@@ -447,6 +456,18 @@ export default function PerfilPage() {
         </div>
         {error.profile && <p style={{ marginTop: 12, fontSize: 12, color: '#FA896B' }}>{error.profile}</p>}
       </section>
+
+      {showAvatarModal && (avatarFile ?? avatarInputRef.current?.files?.[0]) && (
+        <AvatarGeneratorModal
+          file={(avatarFile ?? avatarInputRef.current!.files![0])!}
+          onAccept={(newUrl) => {
+            setShowAvatarModal(false);
+            setAvatarPreview(newUrl);
+            mutate();
+          }}
+          onClose={() => setShowAvatarModal(false)}
+        />
+      )}
     </div>
   );
 }

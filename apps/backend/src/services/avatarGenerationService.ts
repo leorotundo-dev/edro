@@ -126,10 +126,13 @@ export async function generateEdroAvatarForFreelancer(params: {
   sourceBuffer: Buffer;
   sourceFilename: string;
   sourceMimeType: string;
+  customPrompt?: string;
 }) {
   if (!isFalConfigured()) {
     throw new Error('FAL_API_KEY não configurada');
   }
+
+  const activePrompt = params.customPrompt?.trim() || EDRO_AVATAR_PROMPT;
 
   const sourceExt = path.extname(params.sourceFilename).replace('.', '') || fileExtFromMime(params.sourceMimeType);
   const sourceKey = buildKey(params.tenantId, 'avatars-source', `${params.personId}.${sourceExt}`);
@@ -150,17 +153,13 @@ export async function generateEdroAvatarForFreelancer(params: {
     // Base64 data URL works as IP-Adapter reference when no public S3 URL is available
     const imageRef = sourcePublicUrl ?? `data:${params.sourceMimeType};base64,${params.sourceBuffer.toString('base64')}`;
 
-    // Strategy 1 — flux-pro/v1.1 with IP-Adapter
-    // IP-Adapter extracts the face/identity from the reference photo and preserves it
-    // while the text prompt drives the style (3D avatar, orange cap, etc.)
-    // referenceImageStrength 0.38: 38% identity weight, 62% style weight — good balance
     let provider = 'fal-ai/flux-pro/v1.1';
     let result: Awaited<ReturnType<typeof generateImageWithFal>>;
 
     try {
       result = await generateImageWithFal({
         model: 'flux-pro',
-        prompt: EDRO_AVATAR_PROMPT,
+        prompt: activePrompt,
         negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
         aspectRatio: '1:1',
         numImages: 1,
@@ -173,7 +172,7 @@ export async function generateEdroAvatarForFreelancer(params: {
       provider = 'fal-ai/flux-dev/image-to-image';
       result = await generateImg2ImgWithFal({
         imageUrl: sourcePublicUrl,
-        prompt: EDRO_AVATAR_PROMPT,
+        prompt: activePrompt,
         strength: 0.72,
         aspectRatio: '1:1',
         numImages: 1,
