@@ -1,17 +1,23 @@
 import path from 'path';
+import { readFile } from 'node:fs/promises';
 import { query } from '../db';
 import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
-import { generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, isFalConfigured } from './ai/falAiService';
+import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v5';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v6';
+
+const AVATAR_STYLE_REFERENCE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-reference.png');
+let avatarStyleReferenceDataUrlPromise: Promise<string> | null = null;
 
 const EDRO_AVATAR_BASE_PROMPT = `
 create a single stylized 3D avatar character from the reference photo, shown alone in a complete bust portrait from the upper chest upward on a plain very light gray background. keep a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never staring straight into the camera.
 
 identity fidelity is the highest priority. preserve the real person's facial proportions, face width, jawline, chin, cheek volume, eye spacing, eye size, eyebrow shape, nose width and bridge, mouth shape, hairline, beard or mustache if present, skin tone, age range, and overall gender presentation exactly as seen in the reference. the goal is immediate recognition by someone who knows the person. do not beautify, idealize, feminize, masculinize, or replace the face with a generic attractive cartoon face.
 
-translate the person into a restrained, slightly weird, simplified stylized 3D avatar language with subtle Pixar toy-inspired appeal, but only after preserving who they are. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. allow a gentle Pixar toy feeling in the sculpted forms and readable silhouette, but never baby-like, never chibi, never like a different person, and never a generic commercial mascot.
+the first input image is the person's real photo and must control identity. the second input image is the approved edro style reference and must control the visual family. render the final avatar as if it belongs to the exact same cast, world, and product line as the approved style reference: same simplified head and facial construction, same big readable eyes, same ear scale, same matte toy-like materials, same clean soft shading, same playful friendly energy, same polished 3d mascot finish. the result must feel like a new member of that same turma, not a new unrelated style.
+
+translate the person into that exact approved style family only after preserving who they are. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. allow a gentle Pixar toy feeling in the sculpted forms and readable silhouette, but never baby-like, never chibi, never like a different person, and never a generic commercial mascot.
 
 faithfully translate the real hairstyle, hair volume, hair texture, and facial hair. if the subject has short hair, keep it short; if they have longer hair, keep it longer. if they have a beard, keep the beard. if they are clean-shaven, keep them clean-shaven. preserve clothing, neckline, shoulders, and any visible accessories from the photo in the same simplified 3D language without inventing wardrobe changes.
 
@@ -28,6 +34,13 @@ function buildAvatarPrompt(customPrompt?: string) {
   const extra = customPrompt?.trim();
   if (!extra || extra === EDRO_AVATAR_BASE_PROMPT) return EDRO_AVATAR_BASE_PROMPT;
   return `${EDRO_AVATAR_BASE_PROMPT}\n\nadditional requested adjustments:\n${extra}`.trim();
+}
+
+async function getAvatarStyleReferenceDataUrl() {
+  if (!avatarStyleReferenceDataUrlPromise) {
+    avatarStyleReferenceDataUrlPromise = readFile(AVATAR_STYLE_REFERENCE_PATH).then((buffer) => `data:image/png;base64,${buffer.toString('base64')}`);
+  }
+  return avatarStyleReferenceDataUrlPromise;
 }
 
 function buildStoragePublicUrl(key: string): string | null {
@@ -137,41 +150,50 @@ export async function generateEdroAvatarForFreelancer(params: {
     const sourcePublicUrl = buildStoragePublicUrl(sourceKey);
     // Base64 data URL works as IP-Adapter reference when no public S3 URL is available
     const imageRef = sourcePublicUrl ?? `data:${params.sourceMimeType};base64,${params.sourceBuffer.toString('base64')}`;
+    const styleRef = await getAvatarStyleReferenceDataUrl();
 
-    let provider = 'fal-ai/instant-character';
+    let provider = 'fal-ai/gemini-flash-edit/multi';
     let result: Awaited<ReturnType<typeof generateImageWithFal>>;
 
     try {
-      result = await generateInstantCharacterWithFal({
+      result = await generateGeminiFlashEditMultiWithFal({
         prompt: activePrompt,
-        imageUrl: imageRef,
-        negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
-        aspectRatio: '1:1',
-        numImages: 1,
-        scale: 1.12,
+        imageUrls: [imageRef, styleRef],
       });
     } catch (primaryErr: any) {
       try {
-        // Strategy 2 — true img2img preserves face geometry better than weak text reference.
-        provider = 'fal-ai/flux-dev/image-to-image';
-        result = await generateImg2ImgWithFal({
+        provider = 'fal-ai/instant-character';
+        result = await generateInstantCharacterWithFal({
+          prompt: activePrompt,
           imageUrl: imageRef,
-          prompt: activePrompt,
-          strength: 0.9,
-          aspectRatio: '1:1',
-          numImages: 1,
-        });
-      } catch {
-        provider = 'fal-ai/flux-pro/v1.1';
-        result = await generateImageWithFal({
-          model: 'flux-pro',
-          prompt: activePrompt,
           negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
           aspectRatio: '1:1',
           numImages: 1,
-          referenceImageUrl: imageRef,
-          referenceImageStrength: 0.62,
+          scale: 1.12,
         });
+      } catch {
+        try {
+          // Strategy 3 — true img2img preserves face geometry better than weak text reference.
+          provider = 'fal-ai/flux-dev/image-to-image';
+          result = await generateImg2ImgWithFal({
+            imageUrl: imageRef,
+            prompt: activePrompt,
+            strength: 0.9,
+            aspectRatio: '1:1',
+            numImages: 1,
+          });
+        } catch {
+          provider = 'fal-ai/flux-pro/v1.1';
+          result = await generateImageWithFal({
+            model: 'flux-pro',
+            prompt: activePrompt,
+            negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
+            aspectRatio: '1:1',
+            numImages: 1,
+            referenceImageUrl: imageRef,
+            referenceImageStrength: 0.62,
+          });
+        }
       }
     }
 
