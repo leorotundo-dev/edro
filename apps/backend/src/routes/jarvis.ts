@@ -22,7 +22,11 @@ import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
 import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
-import { analyzeClientMemoryGovernance, type ClientMemoryGovernanceAnalysis } from '../services/clientMemoryGovernanceService';
+import {
+  analyzeClientMemoryGovernance,
+  applyClientMemoryGovernanceAction,
+  type ClientMemoryGovernanceAnalysis,
+} from '../services/clientMemoryGovernanceService';
 import { buildClientState } from '../services/jarvisDecisionEngine';
 import { getJobById } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
@@ -48,6 +52,22 @@ type CreativeExecutionTarget = {
   creativeSessionId: string | null;
 };
 
+type InlineGovernanceAction = {
+  action: 'archive' | 'replace';
+  target_fingerprint: string;
+  replacement_fingerprint?: string | null;
+  reason?: string | null;
+};
+
+type AppliedGovernanceAction = {
+  action: 'archive' | 'replace';
+  target_fingerprint: string;
+  target_title: string;
+  replacement_fingerprint?: string | null;
+  replacement_title?: string | null;
+  reason?: string | null;
+};
+
 const jarvisChatSchema = z.object({
   message: z.string().min(1),
   clientId: z.string().trim().min(1).optional().nullable(),
@@ -60,6 +80,19 @@ const jarvisChatSchema = z.object({
     name: z.string(),
     text: z.string(),
   })).optional(),
+  client_action: z.object({
+    type: z.enum([
+      'apply_memory_governance',
+      'apply_memory_governance_and_retry_creative',
+      'retry_creative_with_confirmation',
+    ]),
+    actions: z.array(z.object({
+      action: z.enum(['archive', 'replace']),
+      target_fingerprint: z.string().trim().min(1),
+      replacement_fingerprint: z.string().trim().optional().nullable(),
+      reason: z.string().trim().optional().nullable(),
+    })).optional().default([]),
+  }).optional().nullable(),
 });
 
 function buildPageDataContext(pageData?: Record<string, unknown> | null) {
@@ -256,6 +289,28 @@ function buildMemoryGovernancePreflightContext(preflight: ClientMemoryGovernance
   return lines.join('\n');
 }
 
+function buildKeyFactsUsedPreview(livingMemory: Awaited<ReturnType<typeof buildClientLivingMemory>> | null) {
+  if (!livingMemory) return [] as Array<{ kind: string; title: string; source_type: string | null }>;
+
+  return [
+    ...livingMemory.directives.slice(0, 3).map((item) => ({
+      kind: 'directive',
+      title: item.directive,
+      source_type: item.source || null,
+    })),
+    ...livingMemory.evidence.slice(0, 2).map((item) => ({
+      kind: item.source_type || 'evidence',
+      title: item.title || item.excerpt,
+      source_type: item.source_type || null,
+    })),
+    ...livingMemory.pendingActions.slice(0, 1).map((item) => ({
+      kind: 'commitment',
+      title: item.title,
+      source_type: 'meeting_action',
+    })),
+  ].slice(0, 5);
+}
+
 async function resolveCreativeExecutionTarget(params: {
   tenantId: string;
   bodyClientId?: string | null;
@@ -364,6 +419,7 @@ async function runCreativeExecutionCapability(params: {
   message: string;
   bodyClientId?: string | null;
   pageData?: Record<string, unknown> | null;
+  appliedGovernanceActions?: AppliedGovernanceAction[];
 }) {
   if (!can(normalizeRole(params.userRole), 'clients:write')) return null;
 
@@ -438,6 +494,8 @@ async function runCreativeExecutionCapability(params: {
           briefing_id: target.briefingId,
           job_id: target.jobId,
           memory_governance: memoryGovernancePreflight,
+          key_facts_used: buildKeyFactsUsedPreview(livingMemoryPreflight),
+          suggested_actions: memoryGovernancePreflight.suggestions.slice(0, 4),
           requires_confirmation: true,
         },
       ],
@@ -565,6 +623,9 @@ async function runCreativeExecutionCapability(params: {
   const summaryLines = [
     `Resolvi a direção criativa de ${target.jobTitle ? `"${target.jobTitle}"` : 'esta demanda'} e já deixei o resultado salvo no Studio.`,
     `Conceito escolhido: ${result.conceito.chosen.headline_concept}.`,
+    params.appliedGovernanceActions?.length
+      ? `Antes de criar, apliquei ${params.appliedGovernanceActions.length} ação(ões) de governança na memória viva para reduzir contaminação de contexto.`
+      : null,
     memoryGovernancePreflight?.summary.governance_pressure === 'high'
       ? 'A criação saiu com pressão alta de governança na memória viva; vale revisar e limpar fatos antigos ou conflitantes na sequência.'
       : memoryGovernancePreflight?.summary.governance_pressure === 'medium'
@@ -598,6 +659,8 @@ async function runCreativeExecutionCapability(params: {
         copy_title: bestVariant?.title ?? null,
         image_url: result.arte?.imageUrl ?? null,
         has_arte: Boolean(result.arte?.imageUrl),
+        key_facts_used: buildKeyFactsUsedPreview(livingMemoryPreflight),
+        applied_governance_actions: params.appliedGovernanceActions || [],
         briefing_diagnostics: result.briefing_diagnostics,
         memory_governance: memoryGovernancePreflight,
         duration_ms: result.duration_ms,
@@ -645,6 +708,132 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       return reply.status(400).send({
         success: false,
         error: 'Selecione um cliente para perguntas de estratégia, memória ou criação.',
+      });
+    }
+
+    if (decision.route === 'planning' && clientId && body.client_action) {
+      const actionType = body.client_action.type;
+      const normalizedActions = (body.client_action.actions || []).slice(0, 4) as InlineGovernanceAction[];
+      const appliedGovernanceActions: AppliedGovernanceAction[] = [];
+      const inlineArtifacts: Array<Record<string, any>> = [];
+
+      if ((actionType === 'apply_memory_governance' || actionType === 'apply_memory_governance_and_retry_creative') && !normalizedActions.length) {
+        return reply.status(400).send({ success: false, error: 'A ação inline de governança exige pelo menos uma sugestão selecionada.' });
+      }
+
+      if (actionType === 'apply_memory_governance' || actionType === 'apply_memory_governance_and_retry_creative') {
+        for (const item of normalizedActions) {
+          const governanceResult = await applyClientMemoryGovernanceAction({
+            tenantId,
+            clientId,
+            action: item.action,
+            targetFingerprint: item.target_fingerprint,
+            replacementFingerprint: item.replacement_fingerprint || null,
+            reason: item.reason || 'ação inline de governança confirmada pelo usuário',
+            confirmedBy: userEmail || userId || null,
+          });
+
+          appliedGovernanceActions.push({
+            action: item.action,
+            target_fingerprint: item.target_fingerprint,
+            target_title: governanceResult.target?.title || item.target_fingerprint,
+            replacement_fingerprint: governanceResult.replacement?.fingerprint || item.replacement_fingerprint || null,
+            replacement_title: governanceResult.replacement?.title || null,
+            reason: item.reason || null,
+          });
+        }
+
+        inlineArtifacts.push({
+          type: 'memory_governance_applied',
+          message: `${appliedGovernanceActions.length} ação(ões) de governança aplicada(s) na memória viva.`,
+          applied_actions: appliedGovernanceActions,
+        });
+      }
+
+      let responseText = appliedGovernanceActions.length
+        ? `Apliquei ${appliedGovernanceActions.length} ação(ões) de governança na memória viva deste cliente.`
+        : 'Recebi sua confirmação para seguir com a criação mesmo com a governança atual da memória.';
+      let resultProvider = 'jarvis_inline_action';
+      let resultModel = 'jarvis_memory_governance_inline';
+      let loadedMemoryBlocks = ['Ação inline de governança'];
+
+      if (actionType === 'apply_memory_governance_and_retry_creative' || actionType === 'retry_creative_with_confirmation') {
+        const creativeResult = await runCreativeExecutionCapability({
+          tenantId,
+          userId,
+          userRole,
+          explicitConfirmation: actionType === 'retry_creative_with_confirmation',
+          message: body.message,
+          bodyClientId: clientId,
+          pageData: body.page_data ?? undefined,
+          appliedGovernanceActions,
+        });
+
+        if (!creativeResult) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Não encontrei contexto criativo suficiente para reexecutar a criação a partir desta ação inline.',
+          });
+        }
+
+        responseText = [responseText, creativeResult.response].filter(Boolean).join('\n\n');
+        inlineArtifacts.push(...creativeResult.artifacts);
+        resultProvider = creativeResult.provider;
+        resultModel = creativeResult.model;
+        loadedMemoryBlocks = [
+          ...loadedMemoryBlocks,
+          ...(appliedGovernanceActions.length ? ['Memória viva limpa antes da reexecução'] : []),
+          ...(actionType === 'retry_creative_with_confirmation' ? ['Confirmação explícita de criação'] : []),
+        ];
+      }
+
+      const durationMs = Date.now() - startMs;
+      const observability = buildJarvisObservability(decision, {
+        durationMs,
+        toolsUsed: 0,
+        provider: resultProvider,
+        model: resultModel,
+        loadedMemoryBlocks,
+      });
+      const savedConversationId = await saveUnifiedConversation({
+        route: decision.route,
+        tenantId,
+        edroClientId,
+        userId,
+        conversationId: effectiveConversationId,
+        message: body.message,
+        assistantContent: responseText,
+        provider: resultProvider,
+        observability,
+        artifacts: inlineArtifacts,
+      }).catch(() => effectiveConversationId);
+
+      request.log?.info({
+        event: 'jarvis_inline_client_action_completed',
+        clientId,
+        conversationId: savedConversationId,
+        actionType,
+        actionsApplied: appliedGovernanceActions.length,
+        artifactsCount: inlineArtifacts.length,
+        ...observability,
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          response: responseText,
+          provider: resultProvider,
+          model: resultModel,
+          conversationId: savedConversationId,
+          artifacts: inlineArtifacts,
+          intent: decision.intent,
+          route: decision.route,
+          primaryMemory: decision.primaryMemory,
+          secondaryMemories: decision.secondaryMemories,
+          retrievalBudget: decision.retrievalBudget,
+          durationMs,
+          observability,
+        },
       });
     }
 

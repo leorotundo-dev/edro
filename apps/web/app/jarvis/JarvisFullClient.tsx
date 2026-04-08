@@ -24,7 +24,7 @@ import {
 } from '@tabler/icons-react';
 import { useJarvis } from '@/contexts/JarvisContext';
 import { apiPost, apiGet } from '@/lib/api';
-import ArtifactCard, { Artifact } from '@/components/jarvis/ArtifactCard';
+import ArtifactCard, { Artifact, type JarvisArtifactAction, type JarvisClientAction } from '@/components/jarvis/ArtifactCard';
 import { collectPendingBackgroundJobIds, mergeBackgroundArtifactUpdate } from '@/components/jarvis/backgroundArtifacts';
 import JarvisResponseTrace, { type JarvisObservability } from '@/components/jarvis/JarvisResponseTrace';
 import ConversationList from '@/components/jarvis/ConversationList';
@@ -228,7 +228,11 @@ export default function JarvisFullClient() {
     setAttachedFiles(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
-  const sendMessage = useCallback(async (text?: string) => {
+  const sendMessage = useCallback(async (
+    text?: string,
+    clientAction?: JarvisClientAction | null,
+    pageDataOverride?: Record<string, unknown> | null,
+  ) => {
     const msg = (text ?? input).trim();
     const cid = clientIdRef.current;
     if (!msg || loading || !cid) return;
@@ -249,7 +253,9 @@ export default function JarvisFullClient() {
           message: msg,
           conversationId,
           context_page: '/jarvis',
+          page_data: pageDataOverride ?? undefined,
           inline_attachments: filesToSend.length ? filesToSend.map(f => ({ name: f.name, text: f.text })) : undefined,
+          client_action: clientAction ?? undefined,
         },
       );
       const data = res?.data;
@@ -269,6 +275,10 @@ export default function JarvisFullClient() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
+
+  const handleArtifactAction = useCallback((action: JarvisArtifactAction) => {
+    void sendMessage(action.message, action.clientAction, action.pageData ?? undefined);
+  }, [sendMessage]);
 
   const handleNewConversation = () => { setConversationId(null); setMessages([]); setShowHistory(false); };
   const handleSelectConversation = (conv: { id: string }) => { setConversationId(conv.id); setShowHistory(false); };
@@ -529,7 +539,7 @@ export default function JarvisFullClient() {
                   </Paper>
                   {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
                   {msg.artifacts?.map((artifact, ai) => (
-                    <ArtifactCard key={ai} artifact={artifact} clientId={clientId} />
+                    <ArtifactCard key={ai} artifact={artifact} clientId={clientId} onRunClientAction={handleArtifactAction} />
                   ))}
                 </Box>
               </Box>
