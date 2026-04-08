@@ -1438,7 +1438,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     return reply.send({
       ok: true,
-      avatar_url: result.avatarUrl,
+      avatar_url: `/api/proxy/freelancers/portal/me/avatar?t=${Date.now()}`,
       avatar_generation_status: 'ready',
       avatar_prompt_version: result.promptVersion,
       avatar_provider: result.provider,
