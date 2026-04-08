@@ -317,6 +317,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
       list_id: z.string().uuid().optional(),
       due_date: z.string().nullable().optional(),
       due_complete: z.boolean().optional(),
+      start_date: z.string().nullable().optional(),
+      priority: z.enum(['urgent', 'high', 'normal', 'low']).optional(),
+      estimated_hours: z.number().positive().nullable().optional(),
+      parent_card_id: z.string().uuid().nullable().optional(),
       position: z.number().optional(),
       labels: z.array(z.object({ color: z.string(), name: z.string() })).optional(),
       is_archived: z.boolean().optional(),
@@ -326,11 +330,23 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const vals: any[] = [];
     let i = 1;
 
-    for (const [key, val] of Object.entries(body)) {
+    // Fields that map directly to columns
+    const directFields = ['title', 'description', 'list_id', 'due_date', 'due_complete', 'start_date',
+      'priority', 'estimated_hours', 'parent_card_id', 'position', 'labels', 'is_archived'] as const;
+
+    for (const key of directFields) {
+      const val = (body as any)[key];
       if (val !== undefined) {
         sets.push(`${key} = $${i++}`);
         vals.push(key === 'labels' ? JSON.stringify(val) : val);
       }
+    }
+
+    // Auto-set completed_at when marking done
+    if (body.due_complete === true) {
+      sets.push(`completed_at = COALESCE(completed_at, now())`);
+    } else if (body.due_complete === false) {
+      sets.push(`completed_at = NULL`);
     }
 
     if (sets.length) {
@@ -451,8 +467,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     // Insert locally
     const { rows: inserted } = await query<{ id: string }>(
-      `INSERT INTO project_cards (board_id, list_id, tenant_id, title, position, due_date, trello_card_id, trello_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO project_cards (board_id, list_id, tenant_id, title, position, due_date, start_date, trello_card_id, trello_url)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW()::date, $7, $8)
        RETURNING id`,
       [boardId, body.list_id, tenantId, body.title, position, body.due_date ?? null, trelloCardId, trelloUrl]
     );
@@ -1153,9 +1169,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     const insertRes = await query<{ id: string }>(
       `INSERT INTO project_cards (
-        board_id, list_id, tenant_id, title, description, position, due_date, labels, trello_card_id, trello_url
+        board_id, list_id, tenant_id, title, description, position, due_date, start_date, labels, trello_card_id, trello_url
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()::date, $8, $9, $10)
       RETURNING id`,
       [
         board.id,
@@ -2590,6 +2606,240 @@ export default async function trelloRoutes(app: FastifyInstance) {
         sla_rate: slaRate,
         total_done_60d: totalDone,
       },
+    });
+  });
+
+  // ── Milestones ─────────────────────────────────────────────────────────────
+
+  // GET /trello/milestones?board_id=&from=&to=
+  app.get('/trello/milestones', { preHandler: authGuard }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const q = z.object({
+      board_id: z.string().uuid().optional(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }).parse(request.query);
+
+    const conditions: string[] = ['m.tenant_id = $1'];
+    const vals: any[] = [tenantId];
+    let idx = 2;
+
+    if (q.board_id) { conditions.push(`m.board_id = $${idx++}`); vals.push(q.board_id); }
+    if (q.from)     { conditions.push(`m.date >= $${idx++}`);    vals.push(q.from); }
+    if (q.to)       { conditions.push(`m.date <= $${idx++}`);    vals.push(q.to); }
+
+    const { rows } = await query<any>(
+      `SELECT m.*, pb.name as board_name, pb.client_id
+       FROM project_milestones m
+       JOIN project_boards pb ON pb.id = m.board_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY m.date ASC`,
+      vals,
+    );
+    return reply.send({ milestones: rows });
+  });
+
+  // POST /trello/milestones
+  app.post('/trello/milestones', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      board_id: z.string().uuid(),
+      title: z.string().min(1),
+      date: z.string(),
+      color: z.string().optional(),
+    }).parse(request.body);
+
+    const { rows } = await query<{ id: string }>(
+      `INSERT INTO project_milestones (board_id, tenant_id, title, date, color)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [body.board_id, tenantId, body.title, body.date, body.color ?? '#5D87FF'],
+    );
+    return reply.status(201).send({ ok: true, id: rows[0].id });
+  });
+
+  // PATCH /trello/milestones/:id
+  app.patch('/trello/milestones/:id', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const { id } = request.params as { id: string };
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      title: z.string().min(1).optional(),
+      date: z.string().optional(),
+      color: z.string().optional(),
+      is_done: z.boolean().optional(),
+    }).parse(request.body);
+
+    const sets: string[] = [];
+    const vals: any[] = [];
+    let i = 1;
+    for (const [key, val] of Object.entries(body)) {
+      if (val !== undefined) { sets.push(`${key} = $${i++}`); vals.push(val); }
+    }
+    if (!sets.length) return reply.send({ ok: true });
+    sets.push(`updated_at = now()`);
+    vals.push(id, tenantId);
+    await query(
+      `UPDATE project_milestones SET ${sets.join(', ')} WHERE id = $${i} AND tenant_id = $${i + 1}`,
+      vals,
+    );
+    return reply.send({ ok: true });
+  });
+
+  // DELETE /trello/milestones/:id
+  app.delete('/trello/milestones/:id', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const { id } = request.params as { id: string };
+    const tenantId = request.user?.tenant_id as string;
+    await query(`DELETE FROM project_milestones WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+    return reply.send({ ok: true });
+  });
+
+  // ── Card dependencies ──────────────────────────────────────────────────────
+
+  // POST /trello/cards/:cardId/dependencies — add a dependency
+  app.post('/trello/cards/:cardId/dependencies', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({ depends_on_id: z.string().uuid() }).parse(request.body);
+
+    if (body.depends_on_id === cardId) return reply.status(400).send({ error: 'Um card não pode depender de si mesmo.' });
+
+    await query(
+      `INSERT INTO project_card_dependencies (card_id, depends_on_id, tenant_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [cardId, body.depends_on_id, tenantId],
+    );
+    return reply.status(201).send({ ok: true });
+  });
+
+  // DELETE /trello/cards/:cardId/dependencies/:dependsOnId
+  app.delete('/trello/cards/:cardId/dependencies/:dependsOnId', { preHandler: [authGuard, requirePerm('admin')] }, async (request: any, reply) => {
+    const { cardId, dependsOnId } = request.params as { cardId: string; dependsOnId: string };
+    const tenantId = request.user?.tenant_id as string;
+    await query(
+      `DELETE FROM project_card_dependencies WHERE card_id = $1 AND depends_on_id = $2 AND tenant_id = $3`,
+      [cardId, dependsOnId, tenantId],
+    );
+    return reply.send({ ok: true });
+  });
+
+  // GET /trello/cards/:cardId/dependencies
+  app.get('/trello/cards/:cardId/dependencies', { preHandler: authGuard }, async (request: any, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const { rows } = await query<any>(
+      `SELECT d.depends_on_id, pc.title, pc.due_date, pc.due_complete, pc.start_date, pc.priority
+       FROM project_card_dependencies d
+       JOIN project_cards pc ON pc.id = d.depends_on_id
+       WHERE d.card_id = $1 AND d.tenant_id = $2
+       ORDER BY pc.start_date ASC`,
+      [cardId, tenantId],
+    );
+    return reply.send({ dependencies: rows });
+  });
+
+  // ── Gantt ──────────────────────────────────────────────────────────────────
+
+  // GET /trello/gantt?from=YYYY-MM-DD&to=YYYY-MM-DD&group_by=client|collaborator|none
+  app.get('/trello/gantt', { preHandler: authGuard }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const q = z.object({
+      from: z.string().optional(),
+      to: z.string().optional(),
+      group_by: z.enum(['client', 'collaborator', 'none']).optional().default('none'),
+      board_id: z.string().uuid().optional(),
+    }).parse(request.query);
+
+    // Default window: today -30d → +90d
+    const from = q.from ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    const to   = q.to   ?? new Date(Date.now() + 90 * 86400_000).toISOString().slice(0, 10);
+
+    const cardConditions: string[] = [
+      'pc.tenant_id = $1',
+      'pc.is_archived = false',
+      `(pc.start_date <= $3 OR pc.start_date IS NULL)`,
+      `(pc.due_date >= $2 OR pc.due_date IS NULL)`,
+    ];
+    const cardVals: any[] = [tenantId, from, to];
+    let ci = 4;
+    if (q.board_id) { cardConditions.push(`pc.board_id = $${ci++}`); cardVals.push(q.board_id); }
+
+    const { rows: cards } = await query<any>(
+      `SELECT
+         pc.id, pc.title, pc.description,
+         pc.start_date::text, pc.due_date::text, pc.completed_at,
+         pc.due_complete, pc.priority, pc.estimated_hours,
+         pc.labels, pc.parent_card_id,
+         pc.board_id, pb.name as board_name,
+         pb.client_id, cl.name as client_name,
+         (SELECT pcm.display_name
+            FROM project_card_members pcm
+           WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_name,
+         (SELECT pcm.email
+            FROM project_card_members pcm
+           WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_email,
+         (SELECT fp.id
+            FROM project_card_members pcm
+            JOIN freelancer_profiles fp ON fp.user_id = (
+              SELECT eu.id FROM edro_users eu WHERE LOWER(eu.email) = LOWER(pcm.email) LIMIT 1
+            )
+           WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_fp_id,
+         (SELECT fp.avatar_url
+            FROM project_card_members pcm
+            JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+            JOIN freelancer_profiles fp ON fp.user_id = eu.id
+           WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_avatar_url
+       FROM project_cards pc
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE ${cardConditions.join(' AND ')}
+       ORDER BY COALESCE(pc.start_date, pc.created_at::date) ASC`,
+      cardVals,
+    );
+
+    // Milestones in range
+    const { rows: milestones } = await query<any>(
+      `SELECT m.id, m.title, m.date::text, m.color, m.is_done,
+              m.board_id, pb.name as board_name, pb.client_id, cl.name as client_name
+       FROM project_milestones m
+       JOIN project_boards pb ON pb.id = m.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE m.tenant_id = $1 AND m.date BETWEEN $2 AND $3
+         ${q.board_id ? `AND m.board_id = $4` : ''}
+       ORDER BY m.date ASC`,
+      q.board_id ? [tenantId, from, to, q.board_id] : [tenantId, from, to],
+    );
+
+    // Dependencies for the cards in view
+    const cardIds = cards.map((c: any) => c.id);
+    let dependencies: any[] = [];
+    if (cardIds.length > 0) {
+      const { rows: deps } = await query<any>(
+        `SELECT card_id, depends_on_id
+         FROM project_card_dependencies
+         WHERE tenant_id = $1
+           AND card_id = ANY($2::uuid[])
+           AND depends_on_id = ANY($2::uuid[])`,
+        [tenantId, cardIds],
+      );
+      dependencies = deps;
+    }
+
+    // Normalize: proxy avatar through backend
+    const normalizedCards = cards.map((c: any) => ({
+      ...c,
+      owner_avatar_url: c.owner_avatar_url && c.owner_fp_id
+        ? `/api/proxy/freelancers/${c.owner_fp_id}/avatar`
+        : c.owner_avatar_url ?? null,
+    }));
+
+    return reply.send({
+      from,
+      to,
+      group_by: q.group_by,
+      cards: normalizedCards,
+      milestones,
+      dependencies,
     });
   });
 }

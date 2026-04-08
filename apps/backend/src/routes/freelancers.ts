@@ -479,17 +479,10 @@ function buildFreelancerOnboardingState(profile: Record<string, any>) {
 
   const hasGeneratedAvatar = Boolean(
     hasValue(profile.avatar_generated_key)
-    || (
-      profile.avatar_generation_status === 'ready'
-      && (
-        hasValue(profile.person_avatar_url)
-        || hasValue(profile.avatar_url)
-      )
-    ),
+    || (profile.avatar_generation_status === 'ready' && hasValue(profile.avatar_url)),
   );
   const hasLegacyAvatar = Boolean(
     hasValue(profile.avatar_url)
-    && !hasValue(profile.person_avatar_url)
     && !hasValue(profile.avatar_generated_key)
     && !hasValue(profile.avatar_source_key),
   );
@@ -1311,20 +1304,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     const res = await pool.query(
       `SELECT fp.*, eu.email,
-              p.avatar_url AS person_avatar_url,
-              fp.avatar_url AS freelancer_avatar_url,
-              COALESCE(p.avatar_url, fp.avatar_url) AS avatar_url,
-              p.avatar_generated_key,
-              p.avatar_source_key,
-              p.avatar_generation_status,
-              p.avatar_generated_at,
-              p.avatar_prompt_version,
-              p.avatar_provider,
-              p.avatar_error,
               (SELECT json_agg(at2) FROM active_timers at2 WHERE at2.freelancer_id = fp.id) as active_timers
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
-       LEFT JOIN people p ON p.id = fp.person_id
        WHERE fp.user_id = $1`,
       [userId],
     );
@@ -1342,11 +1324,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
     const res = await pool.query(
-      `SELECT p.avatar_generated_key
-         FROM freelancer_profiles fp
-         LEFT JOIN people p ON p.id = fp.person_id
-        WHERE fp.user_id = $1
-        LIMIT 1`,
+      `SELECT avatar_generated_key FROM freelancer_profiles WHERE user_id = $1 LIMIT 1`,
       [userId],
     );
 
@@ -1371,17 +1349,12 @@ export default async function freelancersRoutes(app: FastifyInstance) {
   app.get('/freelancers/:id/avatar', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const { id } = request.params as { id: string };
     const res = await pool.query(
-      `SELECT COALESCE(p.avatar_generated_key, fp.avatar_url) AS key,
-              p.avatar_generated_key
-         FROM freelancer_profiles fp
-         LEFT JOIN people p ON p.id = fp.person_id
-        WHERE fp.id = $1
-        LIMIT 1`,
+      `SELECT avatar_generated_key, avatar_url FROM freelancer_profiles WHERE id = $1 LIMIT 1`,
       [id],
     );
     const row = res.rows[0];
     const generatedKey = row?.avatar_generated_key ?? null;
-    const fallback = row?.key ?? null;
+    const fallback = row?.avatar_url ?? null;
 
     if (generatedKey) {
       try {
@@ -1451,22 +1424,9 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Freelancer profile not found' });
     }
 
-    const personId = await syncFreelancerPerson({
-      freelancerId: snapshot.id,
-      tenantId,
-      displayName: snapshot.display_name,
-      userId: snapshot.user_id,
-      email: snapshot.email,
-      emailPersonal: snapshot.email_personal,
-      phone: snapshot.phone,
-      whatsappJid: snapshot.whatsapp_jid,
-      existingPersonId: snapshot.person_id ?? null,
-    });
-
     const avatarParams = {
       tenantId,
       freelancerId: snapshot.id,
-      personId,
       sourceBuffer: uploadedFile.buffer,
       sourceFilename: uploadedFile.filename,
       sourceMimeType: uploadedFile.mimetype,
@@ -1482,7 +1442,6 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       avatar_generation_status: 'ready',
       avatar_prompt_version: result.promptVersion,
       avatar_provider: result.provider,
-      person_id: personId,
     });
   });
 
@@ -2805,12 +2764,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               fp.contract_signed_at,
               fp.contract_pdf_url,
               fp.avatar_url,
-              p.avatar_url AS person_avatar_url,
-              p.avatar_generated_key,
-              p.avatar_source_key,
-              p.avatar_generation_status
+              fp.avatar_generated_key,
+              fp.avatar_source_key,
+              fp.avatar_generation_status
          FROM freelancer_profiles fp
-         LEFT JOIN people p ON p.id = fp.person_id
         WHERE fp.user_id = $1`,
       [userId],
     );
@@ -2825,7 +2782,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       has_pix: !!profile.pix_key,
       has_skills: !onboardingState.missing_fields.some((field) => field.field === 'skills'),
       has_avatar: !onboardingState.missing_fields.some((field) => field.field === 'avatar'),
-      avatar_url: profile.person_avatar_url ?? profile.avatar_url ?? null,
+      avatar_url: profile.avatar_url ?? null,
       razao_social: profile.razao_social ?? null,
       sla_score: parseFloat(profile.sla_score) || 100,
       contract_status: profile.contract_status ?? 'none',
@@ -3721,12 +3678,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               fp.onboarding_complete, fp.contract_status,
               fp.terms_accepted_at,
               fp.avatar_url,
-              p.avatar_url AS person_avatar_url,
-              p.avatar_generated_key,
-              p.avatar_source_key,
-              p.avatar_generation_status
+              fp.avatar_generated_key,
+              fp.avatar_source_key,
+              fp.avatar_generation_status
          FROM freelancer_profiles fp
-         LEFT JOIN people p ON p.id = fp.person_id
         WHERE fp.user_id = $1`,
       [userId],
     );
