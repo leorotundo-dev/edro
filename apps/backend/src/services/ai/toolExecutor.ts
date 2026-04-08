@@ -1847,7 +1847,7 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
   const briefing = briefingId ? await getBriefingById(briefingId, ctx.tenantId) : null;
   const briefingPayload = (briefing?.payload || {}) as Record<string, any>;
 
-  const [clientState, livingMemory] = await Promise.all([
+  const [clientState, livingMemory, memoryGovernance] = await Promise.all([
     buildClientState(ctx.tenantId, ctx.clientId),
     buildClientLivingMemory({
       tenantId: ctx.tenantId,
@@ -1862,6 +1862,12 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
         : null,
       maxEvidence: 5,
       maxActions: 4,
+    }),
+    analyzeClientMemoryGovernance({
+      tenantId: ctx.tenantId,
+      clientId: ctx.clientId,
+      daysBack: 365,
+      limit: 80,
     }),
   ]);
 
@@ -1887,6 +1893,9 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
     livingMemory.snapshot.decision_signals ? `- Decisões recentes: ${livingMemory.snapshot.decision_signals}` : null,
     livingMemory.snapshot.objection_signals ? `- Objeções recentes: ${livingMemory.snapshot.objection_signals}` : null,
     `- Compromissos pendentes: ${livingMemory.snapshot.pending_commitments}`,
+    memoryGovernance.summary.stale_facts ? `- Fatos envelhecidos: ${memoryGovernance.summary.stale_facts}` : null,
+    memoryGovernance.summary.active_conflicts ? `- Conflitos internos na memória: ${memoryGovernance.summary.active_conflicts}` : null,
+    memoryGovernance.summary.governance_pressure !== 'low' ? `- Pressão de governança: ${memoryGovernance.summary.governance_pressure}` : null,
     diagnostics?.severity && diagnostics.severity !== 'none' ? `- Severidade de conflito: ${diagnostics.severity}` : null,
     diagnostics?.requires_confirmation ? '- Gate ativo: confirmação explícita recomendada antes de criar' : null,
     diagnostics?.gaps?.length ? `- Lacunas de briefing: ${diagnostics.gaps.join(' | ')}` : null,
@@ -1903,6 +1912,7 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
         evidence: livingMemory.evidence,
         pending_actions: livingMemory.pendingActions,
       },
+      memory_governance: memoryGovernance,
       briefing_diagnostics: diagnostics,
       packet_summary: packetSummary,
     },

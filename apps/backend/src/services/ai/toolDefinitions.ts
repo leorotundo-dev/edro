@@ -422,7 +422,7 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'get_client_memory_governance',
-    description: 'Analisa a memória viva persistida do cliente e sugere ações de governança como archive ou replace para fatos velhos, duplicados ou conflitantes. Use quando precisar limpar, atualizar ou revisar a verdade ativa do cliente.',
+    description: 'Analisa a memória viva persistida do cliente e sugere ações de governança como archive ou replace para fatos velhos, duplicados ou conflitantes. Também aponta envelhecimento e conflitos internos da memória. Use quando precisar limpar, atualizar ou revisar a verdade ativa do cliente.',
     parameters: {
       days_back: { type: 'number', description: 'Janela máxima de análise em dias (padrão 365, máximo 365)' },
       limit: { type: 'number', description: 'Máximo de fatos ativos inspecionados (padrão 80, máximo 100)' },

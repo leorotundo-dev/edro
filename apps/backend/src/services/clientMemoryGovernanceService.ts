@@ -29,6 +29,21 @@ export type ClientMemoryGovernanceSuggestion = {
   } | null;
 };
 
+export type ClientMemoryGovernanceConflict = {
+  severity: 'medium' | 'high';
+  reason: string;
+  primary: {
+    fingerprint: string;
+    fact_type: ClientMemoryFactRow['fact_type'];
+    title: string;
+  };
+  conflicting: {
+    fingerprint: string;
+    fact_type: ClientMemoryFactRow['fact_type'];
+    title: string;
+  };
+};
+
 function normalize(value: string) {
   return String(value || '')
     .toLowerCase()
@@ -65,6 +80,12 @@ function overlapRatio(a: string, b: string) {
 
 function directiveTypeOf(fact: ClientMemoryFactRow) {
   return fact.metadata?.directive_type === 'avoid' ? 'avoid' : fact.fact_type === 'directive' ? 'boost' : null;
+}
+
+function agingBand(ageDays: number) {
+  if (ageDays <= 30) return 'fresh';
+  if (ageDays <= 120) return 'aging';
+  return 'stale';
 }
 
 function buildSuggestionFromFact(params: {
@@ -122,13 +143,21 @@ export async function analyzeClientMemoryGovernance(params: {
         archive_candidates: 0,
         replace_candidates: 0,
         high_severity: 0,
+        stale_facts: 0,
+        stale_directives: 0,
+        stale_commitments: 0,
+        active_conflicts: 0,
+        governance_pressure: 'low',
       },
       suggestions: [] as ClientMemoryGovernanceSuggestion[],
+      conflicts: [] as ClientMemoryGovernanceConflict[],
     };
   }
 
   const suggestions = new Map<string, ClientMemoryGovernanceSuggestion>();
+  const conflicts = new Map<string, ClientMemoryGovernanceConflict>();
   const factsByRecency = [...facts].sort((a, b) => ageDaysFromFact(a) - ageDaysFromFact(b));
+  const staleFacts = facts.filter((fact) => agingBand(ageDaysFromFact(fact)) === 'stale');
 
   for (const fact of factsByRecency) {
     const fingerprint = String(fact.fingerprint || '');
@@ -215,6 +244,22 @@ export async function analyzeClientMemoryGovernance(params: {
         continue;
       }
 
+      const conflictKey = [newerFingerprint, olderFingerprint].sort().join('::');
+      conflicts.set(conflictKey, {
+        severity: 'high',
+        reason: 'Duas diretivas semanticamente equivalentes apontam em direções opostas dentro da memória viva.',
+        primary: {
+          fingerprint: newerFingerprint,
+          fact_type: newer.fact_type,
+          title: newer.title,
+        },
+        conflicting: {
+          fingerprint: olderFingerprint,
+          fact_type: older.fact_type,
+          title: older.title,
+        },
+      });
+
       suggestions.set(
         olderFingerprint,
         buildSuggestionFromFact({
@@ -229,6 +274,45 @@ export async function analyzeClientMemoryGovernance(params: {
     }
   }
 
+  const commitments = factsByRecency.filter((fact) => fact.fact_type === 'commitment');
+  for (let index = 0; index < commitments.length; index += 1) {
+    const primary = commitments[index];
+    const primaryFingerprint = String(primary.fingerprint || '');
+    if (!primaryFingerprint) continue;
+    for (let inner = index + 1; inner < commitments.length; inner += 1) {
+      const conflicting = commitments[inner];
+      const conflictingFingerprint = String(conflicting.fingerprint || '');
+      if (!conflictingFingerprint) continue;
+
+      const overlap = overlapRatio(primary.title, conflicting.title) || overlapRatio(primary.fact_text, conflicting.fact_text);
+      if (overlap < 0.65) continue;
+      if (!primary.deadline || !conflicting.deadline || primary.deadline === conflicting.deadline) continue;
+
+      const primaryDeadline = new Date(primary.deadline).getTime();
+      const conflictingDeadline = new Date(conflicting.deadline).getTime();
+      if (Number.isNaN(primaryDeadline) || Number.isNaN(conflictingDeadline)) continue;
+
+      const deltaDays = Math.abs(primaryDeadline - conflictingDeadline) / 86400000;
+      if (deltaDays < 7) continue;
+
+      const conflictKey = [primaryFingerprint, conflictingFingerprint].sort().join('::');
+      conflicts.set(conflictKey, {
+        severity: deltaDays >= 21 ? 'high' : 'medium',
+        reason: `Dois compromissos ativos parecem falar da mesma entrega, mas com prazos divergentes (${primary.deadline} vs ${conflicting.deadline}).`,
+        primary: {
+          fingerprint: primaryFingerprint,
+          fact_type: primary.fact_type,
+          title: primary.title,
+        },
+        conflicting: {
+          fingerprint: conflictingFingerprint,
+          fact_type: conflicting.fact_type,
+          title: conflicting.title,
+        },
+      });
+    }
+  }
+
   const ordered = Array.from(suggestions.values())
     .sort((a, b) => {
       const severityWeight = { high: 3, medium: 2, low: 1 };
@@ -239,14 +323,32 @@ export async function analyzeClientMemoryGovernance(params: {
     })
     .slice(0, 12);
 
+  const orderedConflicts = Array.from(conflicts.values())
+    .sort((a, b) => (a.severity === 'high' ? 1 : 0) === (b.severity === 'high' ? 1 : 0) ? 0 : a.severity === 'high' ? -1 : 1)
+    .slice(0, 8);
+
+  const staleDirectives = staleFacts.filter((fact) => fact.fact_type === 'directive').length;
+  const staleCommitments = staleFacts.filter((fact) => fact.fact_type === 'commitment').length;
+  const highSeverityCount = ordered.filter((item) => item.severity === 'high').length + orderedConflicts.filter((item) => item.severity === 'high').length;
+  const governancePressure =
+    highSeverityCount >= 2 || orderedConflicts.length >= 2 ? 'high'
+    : ordered.length >= 3 || orderedConflicts.length >= 1 ? 'medium'
+    : 'low';
+
   return {
     summary: {
       active_facts: facts.length,
       archive_candidates: ordered.filter((item) => item.action === 'archive').length,
       replace_candidates: ordered.filter((item) => item.action === 'replace').length,
-      high_severity: ordered.filter((item) => item.severity === 'high').length,
+      high_severity: highSeverityCount,
+      stale_facts: staleFacts.length,
+      stale_directives: staleDirectives,
+      stale_commitments: staleCommitments,
+      active_conflicts: orderedConflicts.length,
+      governance_pressure: governancePressure,
     },
     suggestions: ordered,
+    conflicts: orderedConflicts,
   };
 }
 

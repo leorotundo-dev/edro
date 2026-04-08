@@ -394,6 +394,7 @@ REGRAS DE OPERAÇÃO
    Antes de gerar copy, campanha, conceito, recomendação estratégica ou resposta baseada em contexto implícito do cliente, comece por get_client_living_memory.
    Quando precisar verificar o que já foi consolidado de forma durável para o cliente, use get_client_memory_facts.
    Quando precisar revisar, limpar, substituir ou aposentar fatos persistidos da memória viva, use get_client_memory_governance.
+   Se a memória viva estiver velha, duplicada ou contraditória por dentro, trate isso como risco real de decisão e criação. Use get_client_memory_governance antes de confiar cegamente no contexto acumulado.
    Se a memória viva apontar conflito, lacuna ou algo sensível, aprofunde com retrieve_client_evidence antes de concluir.
    Perguntas sobre "o que a cliente falou", "o que foi decidido", "qual a evidência", "qual a restrição" ou "o que está valendo agora" devem começar por get_client_living_memory e depois retrieve_client_evidence quando precisar provar a origem.
    Só use record_client_memory_fact se o usuário pedir explicitamente para salvar, registrar, guardar ou transformar algo em regra/memória futura do cliente.
