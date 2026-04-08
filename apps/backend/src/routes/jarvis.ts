@@ -22,7 +22,7 @@ import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
 import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
-import { analyzeClientMemoryGovernance } from '../services/clientMemoryGovernanceService';
+import { analyzeClientMemoryGovernance, type ClientMemoryGovernanceAnalysis } from '../services/clientMemoryGovernanceService';
 import { buildClientState } from '../services/jarvisDecisionEngine';
 import { getJobById } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
@@ -221,6 +221,41 @@ function buildBriefingDiagnosticsPreflightContext(preflight: ReturnType<typeof e
   ].join('\n');
 }
 
+function emptyMemoryGovernancePreflight(): ClientMemoryGovernanceAnalysis {
+  return {
+    summary: {
+      active_facts: 0,
+      archive_candidates: 0,
+      replace_candidates: 0,
+      high_severity: 0,
+      stale_facts: 0,
+      stale_directives: 0,
+      stale_commitments: 0,
+      active_conflicts: 0,
+      governance_pressure: 'low',
+    },
+    suggestions: [],
+    conflicts: [],
+  };
+}
+
+function buildMemoryGovernancePreflightContext(preflight: ClientMemoryGovernanceAnalysis) {
+  if (preflight.summary.governance_pressure === 'low' && !preflight.summary.active_conflicts && !preflight.summary.stale_facts) return '';
+  const lines = [
+    'GOVERNANÇA DA MEMÓRIA PREFLIGHT:',
+    `- Pressão: ${preflight.summary.governance_pressure}`,
+    `- Fatos envelhecidos: ${preflight.summary.stale_facts}`,
+    `- Conflitos internos: ${preflight.summary.active_conflicts}`,
+  ];
+  if (preflight.suggestions.length) {
+    lines.push(`- Sugestões de limpeza: ${preflight.suggestions.slice(0, 2).map((item) => `${item.action} ${item.target?.title}`).join(' | ')}`);
+  }
+  if (preflight.summary.governance_pressure === 'high') {
+    lines.push('INSTRUÇÃO: a memória viva está sob pressão alta. Não confie cegamente no contexto acumulado; proponha limpeza/substituição antes de criar se isso puder contaminar a resposta.');
+  }
+  return lines.join('\n');
+}
+
 async function resolveCreativeExecutionTarget(params: {
   tenantId: string;
   bodyClientId?: string | null;
@@ -385,6 +420,32 @@ async function runCreativeExecutionCapability(params: {
       })
     : null;
 
+  if (
+    memoryGovernancePreflight?.summary.governance_pressure === 'high'
+    && memoryGovernancePreflight.suggestions.length > 0
+    && !params.explicitConfirmation
+  ) {
+    return {
+      response: [
+        'A memória viva deste cliente está sob pressão alta de governança.',
+        'Não executei a criação automaticamente porque há fatos envelhecidos ou conflitantes que podem contaminar a peça.',
+        'Posso seguir mesmo assim com sua confirmação explícita, ou primeiro limpar/substituir os fatos sugeridos.',
+      ].join('\n'),
+      artifacts: [
+        {
+          type: 'memory_governance_gate',
+          message: target.jobTitle || 'Governança da memória bloqueou a criação automática',
+          briefing_id: target.briefingId,
+          job_id: target.jobId,
+          memory_governance: memoryGovernancePreflight,
+          requires_confirmation: true,
+        },
+      ],
+      provider: 'studio_executor',
+      model: 'jarvis_memory_governance_gate',
+    };
+  }
+
   if (briefingDiagnostics?.requires_confirmation && !params.explicitConfirmation) {
     return {
       response: [
@@ -504,6 +565,11 @@ async function runCreativeExecutionCapability(params: {
   const summaryLines = [
     `Resolvi a direção criativa de ${target.jobTitle ? `"${target.jobTitle}"` : 'esta demanda'} e já deixei o resultado salvo no Studio.`,
     `Conceito escolhido: ${result.conceito.chosen.headline_concept}.`,
+    memoryGovernancePreflight?.summary.governance_pressure === 'high'
+      ? 'A criação saiu com pressão alta de governança na memória viva; vale revisar e limpar fatos antigos ou conflitantes na sequência.'
+      : memoryGovernancePreflight?.summary.governance_pressure === 'medium'
+        ? 'A memória viva tem alguns fatos envelhecidos ou conflitantes; usei o contexto com cautela.'
+        : null,
     result.briefing_diagnostics?.requires_confirmation
       ? 'Havia conflito forte no briefing, mas segui porque houve confirmação explícita.'
       : result.briefing_diagnostics?.severity && result.briefing_diagnostics.severity !== 'none'
@@ -533,6 +599,7 @@ async function runCreativeExecutionCapability(params: {
         image_url: result.arte?.imageUrl ?? null,
         has_arte: Boolean(result.arte?.imageUrl),
         briefing_diagnostics: result.briefing_diagnostics,
+        memory_governance: memoryGovernancePreflight,
         duration_ms: result.duration_ms,
       },
     ],
@@ -828,6 +895,14 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             ), 2500)),
           ]),
         ]);
+        const memoryGovernancePreflight = clientId
+          ? await analyzeClientMemoryGovernance({
+              tenantId,
+              clientId,
+              daysBack: 365,
+              limit: 80,
+            }).catch(() => emptyMemoryGovernancePreflight())
+          : emptyMemoryGovernancePreflight();
 
         const toolCtx: ToolContext = {
           tenantId,
@@ -855,8 +930,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           ? `\n\nMEMÓRIA VIVA PREFLIGHT PARA ESTA PERGUNTA:\n${livingMemoryPreflight.block}\nINSTRUÇÃO: trate este preflight como contexto mais atual e prioritário do cliente antes de responder, recomendar ou criar.`
           : '';
         const briefingDiagnosticsPreflightContext = buildBriefingDiagnosticsPreflightContext(briefingDiagnosticsPreflight);
+        const memoryGovernancePreflightContext = buildMemoryGovernancePreflightContext(memoryGovernancePreflight);
         const clientStatePreflightContext = `\n\n${buildClientStatePreflightContext(clientStatePreflight)}\nINSTRUÇÃO: trate este snapshot como retrato atual do cliente e use-o para calibrar prioridade, risco, oportunidade e timing da resposta.`;
-        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}`;
+        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${memoryGovernancePreflightContext ? `\n\n${memoryGovernancePreflightContext}` : ''}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}`;
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
@@ -883,6 +959,16 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         artifacts = (loopResult.toolResults ?? [])
           .filter((result) => result.success && result.data)
           .map((result) => ({ type: result.toolName, ...result.data }));
+        if (
+          memoryGovernancePreflight.summary.governance_pressure !== 'low'
+          || memoryGovernancePreflight.summary.active_conflicts
+          || memoryGovernancePreflight.summary.stale_facts
+        ) {
+          artifacts.unshift({
+            type: 'memory_governance_preflight',
+            memory_governance: memoryGovernancePreflight,
+          });
+        }
         if (
           livingMemoryPreflight.snapshot.active_directives
           || livingMemoryPreflight.snapshot.evidence_signals
@@ -926,6 +1012,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             ...(clientContext.trim() ? ['Memória do cliente'] : []),
             'Estado do cliente preflight',
             ...(livingMemoryPreflight.block ? ['Memória viva preflight'] : []),
+            ...((memoryGovernancePreflight.summary.governance_pressure !== 'low' || memoryGovernancePreflight.summary.active_conflicts || memoryGovernancePreflight.summary.stale_facts) ? ['Governança da memória preflight'] : []),
             ...(briefingDiagnosticsPreflight.diagnostics.block ? ['Diagnóstico de briefing preflight'] : []),
             ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
             ...memoryBlocks.map((block) => block.label),
