@@ -274,7 +274,7 @@ export default async function metaOAuthRoutes(app: FastifyInstance) {
 
     sessions.delete(sessionId);
 
-    console.log(`[metaOAuth] Saved meta connector for client=${clientId} page="${page.name}"`);
+    console.info(`[metaOAuth] Saved meta connector for client=${clientId} page="${page.name}"`);
     return reply.send({ ok: true, page_name: page.name });
   });
 }

@@ -10,10 +10,11 @@ import {
   type OperationsJob,
   type OperationsOwner,
 } from '@/components/operations/model';
-import { ClientThumb, StatusDot, DeadlineCountdown } from '@/components/operations/primitives';
+import { OpsCard } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 
+import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -84,6 +85,11 @@ function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Returns the date key for a job's deadline.
+ * Jobs with a due date → appear in that day's column.
+ * Jobs without → go to the backlog below to be allocated.
+ */
 function jobDateKey(job: OperationsJob): string | null {
   const alloc = job.metadata?.allocation as { planned_date?: string } | undefined;
   const dateStr = alloc?.planned_date || job.deadline_at;
@@ -181,117 +187,6 @@ function channelIcon(channel?: string | null) {
   return null;
 }
 
-/* ─── JOB CARD (minimal, inspired by Monday/ClickUp) ─── */
-
-function JobCard({
-  job,
-  owners,
-  selected,
-  onClick,
-  onDragStart,
-}: {
-  job: OperationsJob;
-  owners: OperationsOwner[];
-  selected?: boolean;
-  onClick: () => void;
-  onDragStart?: (e: React.DragEvent) => void;
-}) {
-  const theme = useTheme();
-  const dark = theme.palette.mode === 'dark';
-  const color = ownerColor(job.owner_id, owners);
-  const risk = getRisk(job);
-  const ownerFirstName = job.owner_name?.split(' ')[0] || 'Sem dono';
-  const hours = job.estimated_minutes ? `${Math.round(job.estimated_minutes / 60)}h` : '';
-  const chIcon = channelIcon(job.channel);
-
-  return (
-    <Tooltip
-      arrow
-      enterDelay={400}
-      title={
-        <Box sx={{ p: 0.5 }}>
-          <Typography variant="body2" fontWeight={800}>{job.title}</Typography>
-          <Typography variant="caption" display="block">Cliente: {job.client_name || '—'}</Typography>
-          <Typography variant="caption" display="block">Tipo: {job.job_type}</Typography>
-          <Typography variant="caption" display="block">Canal: {job.channel || '—'}</Typography>
-          <Typography variant="caption" display="block">Status: {job.status}</Typography>
-          <Typography variant="caption" display="block">Risco: {risk.label}</Typography>
-          {job.deadline_at && (
-            <Typography variant="caption" display="block">
-              Prazo: {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(job.deadline_at))}
-            </Typography>
-          )}
-        </Box>
-      }
-    >
-      <Box
-        draggable
-        onDragStart={onDragStart}
-        onClick={onClick}
-        sx={{
-          px: 1,
-          py: 0.75,
-          borderRadius: 2,
-          cursor: 'grab',
-          bgcolor: selected
-            ? alpha(color, dark ? 0.16 : 0.08)
-            : dark ? alpha(theme.palette.common.white, 0.025) : '#fff',
-          border: selected
-            ? `1.5px solid ${alpha(color, 0.4)}`
-            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
-          transition: 'all 150ms ease',
-          '&:hover': {
-            bgcolor: selected
-              ? alpha(color, dark ? 0.2 : 0.1)
-              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
-          },
-          '&:active': { cursor: 'grabbing' },
-        }}
-      >
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          <StatusDot status={job.status} size={16} />
-          <ClientThumb
-            name={job.client_name}
-            logoUrl={job.client_logo_url}
-            accent={job.client_brand_color || color}
-            size={20}
-          />
-          <Typography
-            variant="caption"
-            sx={{
-              fontWeight: 700,
-              flex: 1,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              lineHeight: 1.3,
-            }}
-          >
-            {job.title}
-          </Typography>
-          {chIcon && (
-            <Box sx={{ flexShrink: 0, color: alpha(theme.palette.text.primary, 0.45), display: 'flex' }}>
-              {chIcon}
-            </Box>
-          )}
-        </Stack>
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, pl: 2.5 }}>
-          <Typography variant="caption" sx={(t) => ({ color: alpha(t.palette.text.primary, 0.55), fontWeight: 600, fontSize: '0.68rem' })}>
-            {ownerFirstName}
-          </Typography>
-          {hours && (
-            <Typography variant="caption" sx={(t) => ({ color: alpha(t.palette.text.primary, 0.4), fontSize: '0.65rem' })}>
-              {hours}
-            </Typography>
-          )}
-          <Box sx={{ flex: 1 }} />
-          <DeadlineCountdown deadline={job.deadline_at} compact />
-        </Stack>
-      </Box>
-    </Tooltip>
-  );
-}
-
 /* ─── DAY COLUMN ─── */
 
 function DayColumnView({
@@ -303,6 +198,8 @@ function DayColumnView({
   onDragStart,
   onDrop,
   onDragOver,
+  onAssign,
+  onAdvance,
 }: {
   col: DayColumn;
   owners: OperationsOwner[];
@@ -312,6 +209,8 @@ function DayColumnView({
   onDragStart: (jobId: string, e: React.DragEvent) => void;
   onDrop: (dayKey: string) => void;
   onDragOver: (e: React.DragEvent) => void;
+  onAssign: (jobId: string, ownerId: string) => void;
+  onAdvance: (jobId: string, nextStatus: string) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -388,16 +287,18 @@ function DayColumnView({
       </Box>
 
       {/* Job cards */}
-      <Box sx={{ flex: 1, p: 0.75, display: 'flex', flexDirection: 'column', gap: 0.5, minHeight: 120, overflowY: 'auto' }}>
+      <Box sx={{ flex: 1, p: 0.75, display: 'flex', flexDirection: 'column', gap: 0.75, minHeight: 120, overflowY: 'auto' }}>
         {col.jobs.sort(sortByOperationalPriority).map((job) => (
-          <JobCard
-            key={job.id}
-            job={job}
-            owners={owners}
-            selected={selectedJobId === job.id}
-            onClick={() => onSelectJob(job.id)}
-            onDragStart={(e) => onDragStart(job.id, e)}
-          />
+          <Box key={job.id} draggable onDragStart={(e) => onDragStart(job.id, e)}>
+            <OpsCard
+              job={job}
+              selected={selectedJobId === job.id}
+              onClick={() => onSelectJob(job.id)}
+              owners={owners}
+              onAssign={onAssign}
+              onAdvance={onAdvance}
+            />
+          </Box>
         ))}
         {!col.jobs.length && (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
@@ -417,12 +318,16 @@ function BacklogRow({
   selectedJobId,
   onSelectJob,
   onDragStart,
+  onAssign,
+  onAdvance,
 }: {
   jobs: OperationsJob[];
   owners: OperationsOwner[];
   selectedJobId: string | null;
   onSelectJob: (id: string) => void;
   onDragStart: (jobId: string, e: React.DragEvent) => void;
+  onAssign: (jobId: string, ownerId: string) => void;
+  onAdvance: (jobId: string, nextStatus: string) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -447,13 +352,14 @@ function BacklogRow({
       </Stack>
       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         {jobs.sort(sortByOperationalPriority).map((job) => (
-          <Box key={job.id} sx={{ width: { xs: '100%', sm: '48%', md: '23%', lg: '18%' } }}>
-            <JobCard
+          <Box key={job.id} draggable onDragStart={(e) => onDragStart(job.id, e)} sx={{ width: { xs: '100%', sm: '48%', md: '23%', lg: '18%' } }}>
+            <OpsCard
               job={job}
-              owners={owners}
               selected={selectedJobId === job.id}
               onClick={() => onSelectJob(job.id)}
-              onDragStart={(e) => onDragStart(job.id, e)}
+              owners={owners}
+              onAssign={onAssign}
+              onAdvance={onAdvance}
             />
           </Box>
         ))}
@@ -803,7 +709,7 @@ export default function WeekCalendarClient() {
   const dark = theme.palette.mode === 'dark';
 
   const ops = useOperationsData('?active=true');
-  const { jobs, lookups, loading, refresh } = ops;
+  const { jobs, lookups, loading, error, refresh } = ops;
   const owners = lookups.owners;
 
   // Week navigation
@@ -866,6 +772,14 @@ export default function WeekCalendarClient() {
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
   }, []);
+
+  const handleAssign = useCallback(async (jobId: string, ownerId: string) => {
+    await ops.updateJob(jobId, { owner_id: ownerId });
+  }, [ops]);
+
+  const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
+    await ops.changeStatus(jobId, nextStatus);
+  }, [ops]);
 
   // Filter active (non-closed) jobs
   const activeJobs = useMemo(() => {
@@ -983,6 +897,7 @@ export default function WeekCalendarClient() {
 
   return (
     <OperationsShell section="semana" summary={summary}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {loading ? (
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={48} />
@@ -1107,6 +1022,8 @@ export default function WeekCalendarClient() {
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
+                  onAssign={handleAssign}
+                  onAdvance={handleAdvance}
                 />
               ))}
             </Box>
@@ -1150,6 +1067,8 @@ export default function WeekCalendarClient() {
               selectedJobId={selectedJobId}
               onSelectJob={handleSelectJob}
               onDragStart={handleDragStart}
+              onAssign={handleAssign}
+              onAdvance={handleAdvance}
             />
           </Box>
         </Stack>

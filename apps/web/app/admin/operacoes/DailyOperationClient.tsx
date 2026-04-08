@@ -22,9 +22,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
-  IconAlertTriangle,
   IconCalendarWeek,
-  IconDots,
   IconLayoutGrid,
   IconList,
   IconPlus,
@@ -36,7 +34,7 @@ import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import JobDetailClient from './jobs/[id]/JobDetailClient';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 import { getRisk, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
-import { InlineOwnerAssign } from '@/components/operations/primitives';
+import { OpsCard } from '@/components/operations/primitives';
 import { sortByOperationalPriority } from '@/components/operations/derived';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
@@ -88,12 +86,6 @@ function filterJobs(jobs: OperationsJob[], filter: FilterKey): OperationsJob[] {
   }
 }
 
-function checklistPct(job: OperationsJob): number | null {
-  const items = job.checklists?.flatMap((c) => c.items) ?? [];
-  if (!items.length) return null;
-  return Math.round((items.filter((i) => i.checked).length / items.length) * 100);
-}
-
 // ── Week helpers ─────────────────────────────────────────────────────────────
 
 function startOfWeek(date: Date): Date {
@@ -117,55 +109,6 @@ function jobDayKey(job: OperationsJob): string | null {
   const part = String(job.deadline_at).split(/[T ]/)[0];
   const d = new Date(part + 'T00:00:00');
   return isNaN(d.getTime()) ? null : wDateKey(d);
-}
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '';
-  // Handle "YYYY-MM-DD", "YYYY-MM-DDT...", "YYYY-MM-DD HH:MM:SS" formats
-  const datePart = String(iso).split(/[T ]/)[0];
-  const [year, month, day] = datePart.split('-').map(Number);
-  if (!year || !month || !day) return '';
-  return `${day}.${String(month).padStart(2, '0')}.${String(year).slice(2)}`;
-}
-
-function cardBg(job: OperationsJob, dark: boolean): string {
-  const risk = getRisk(job).level;
-  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical')
-    return dark ? alpha('#F9A825', 0.07) : alpha('#F9A825', 0.05);
-  if (job.status === 'awaiting_approval')
-    return dark ? alpha('#7C3AED', 0.07) : alpha('#7C3AED', 0.04);
-  if (job.status === 'blocked')
-    return dark ? alpha('#FA896B', 0.07) : alpha('#FA896B', 0.04);
-  return dark ? alpha('#fff', 0.03) : '#fff';
-}
-
-function barColor(job: OperationsJob): string {
-  const risk = getRisk(job).level;
-  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical') return '#F9A825';
-  if (job.status === 'blocked') return '#FA896B';
-  if (job.status === 'awaiting_approval') return '#7C3AED';
-  if (job.status === 'in_review') return '#5D87FF';
-  if (job.status === 'in_progress' || job.status === 'allocated') return '#13DEB9';
-  return '#5D87FF';
-}
-
-function initials(name?: string | null) {
-  return (name || '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
-}
-
-const STAGE_COLORS: Record<string, string> = {
-  intake: '#A0AEC0', planned: '#5D87FF', ready: '#5D87FF',
-  allocated: '#FFAE1F', in_progress: '#E85219', blocked: '#FA896B',
-  in_review: '#7B61FF', awaiting_approval: '#FFAE1F',
-  approved: '#13DEB9', scheduled: '#13DEB9', published: '#13DEB9',
-};
-
-function stageColor(status: string): string {
-  return STAGE_COLORS[status] || '#A0AEC0';
-}
-
-function stageLabel(status: string): string {
-  return STAGE_LABELS[status] || status;
 }
 
 // ── StatNumber ────────────────────────────────────────────────────────────────
@@ -199,163 +142,6 @@ function StatNumber({ value, label, color, onClick }: { value: number; label: st
         {label}
       </Typography>
     </Stack>
-  );
-}
-
-// ── DailyOpCard ───────────────────────────────────────────────────────────────
-
-function DailyOpCard({ job, onOpen, onDetail, onAssign, owners }: {
-  job: OperationsJob;
-  onOpen: (j: OperationsJob) => void;
-  onDetail: (j: OperationsJob) => void;
-  onAssign?: (jobId: string, ownerId: string) => void;
-  owners?: OperationsOwner[];
-}) {
-  const theme = useTheme();
-  const dark = theme.palette.mode === 'dark';
-  const pct = checklistPct(job);
-  const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
-  const bg = cardBg(job, dark);
-  const bar = barColor(job);
-  const accentColor = job.client_brand_color || null;
-
-  return (
-    <Box
-      onClick={() => onDetail(job)}
-      sx={{
-        borderRadius: accentColor ? '0 10px 10px 0' : 2.5,
-        bgcolor: bg,
-        boxShadow: dark ? '0 1px 4px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
-        borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
-        display: 'flex',
-        flexDirection: 'column',
-        cursor: 'pointer',
-        transition: 'box-shadow 0.15s, transform 0.15s',
-        '&:hover': {
-          boxShadow: dark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 4px 20px rgba(0,0,0,0.1)',
-          transform: 'translateY(-1px)',
-        },
-      }}
-    >
-      <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
-        {/* Client + menu */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0, maxWidth: '75%' }}>
-            {job.client_logo_url ? (
-              <Avatar
-                src={job.client_logo_url}
-                alt={job.client_name || ''}
-                variant="rounded"
-                sx={{ width: 14, height: 14, flexShrink: 0, '& img': { objectFit: 'contain' } }}
-              />
-            ) : null}
-            <Typography
-              variant="caption"
-              noWrap
-              sx={{
-                fontSize: '0.6rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                color: accentColor ? alpha(accentColor, dark ? 0.8 : 0.7) : 'text.disabled',
-              }}
-            >
-              {job.client_name || 'Sem cliente'}
-            </Typography>
-          </Stack>
-          <Stack direction="row" spacing={0.25} alignItems="center">
-            {isUrgent && (
-              <Box sx={{ color: '#F9A825', display: 'flex', lineHeight: 1 }}>
-                <IconAlertTriangle size={11} />
-              </Box>
-            )}
-            <IconButton
-              component="span"
-              size="small"
-              onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
-              sx={{ p: 0.25, opacity: 0, '.MuiBox-root:hover &': { opacity: 0.5 }, '&:hover': { opacity: '1 !important' } }}
-            >
-              <IconDots size={13} />
-            </IconButton>
-          </Stack>
-        </Stack>
-
-        {/* Title */}
-        <Typography
-          variant="body2"
-          fontWeight={600}
-          sx={{
-            fontSize: '0.82rem',
-            lineHeight: 1.4,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            flex: 1,
-            color: 'text.primary',
-          }}
-        >
-          {job.title}
-        </Typography>
-
-        {/* Progress bar */}
-        <LinearProgress
-          variant="determinate"
-          value={pct ?? 0}
-          sx={{
-            height: 2,
-            borderRadius: 1,
-            bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
-            '& .MuiLinearProgress-bar': { bgcolor: bar, borderRadius: 1 },
-          }}
-        />
-
-        {/* Footer */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
-          <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
-            {job.owner_name ? (
-              <>
-                <Avatar
-                  src={job.owner_avatar_url ?? undefined}
-                  sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
-                >
-                  {initials(job.owner_name)}
-                </Avatar>
-                <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
-                  {job.owner_name.split(' ')[0]}
-                </Typography>
-              </>
-            ) : onAssign && owners?.length ? (
-              <Box onClick={(e) => e.stopPropagation()}>
-                <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
-              </Box>
-            ) : (
-              <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>
-                Sem dono
-              </Typography>
-            )}
-          </Stack>
-          <Chip
-            size="small"
-            label={stageLabel(job.status)}
-            sx={{
-              height: 16,
-              fontSize: '0.56rem',
-              fontWeight: 800,
-              flexShrink: 0,
-              bgcolor: alpha(stageColor(job.status), 0.12),
-              color: stageColor(job.status),
-              '& .MuiChip-label': { px: 0.6 },
-            }}
-          />
-          {job.deadline_at && (
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', flexShrink: 0 }}>
-              {fmtDate(job.deadline_at)}
-            </Typography>
-          )}
-        </Stack>
-      </Box>
-    </Box>
   );
 }
 
@@ -407,6 +193,10 @@ export default function DailyOperationClient() {
   const assignOwner = useCallback(async (jobId: string, ownerId: string) => {
     await updateJob(jobId, { owner_id: ownerId });
   }, [updateJob]);
+
+  const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
+    await changeStatus(jobId, nextStatus);
+  }, [changeStatus]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -795,7 +585,7 @@ export default function DailyOperationClient() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.22, delay: Math.min(i * 0.02, 0.4), ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} onAssign={assignOwner} owners={lookups.owners} />
+                      <OpsCard job={job} onOpen={openCommands} onClick={() => openDetail(job)} onAssign={assignOwner} owners={lookups.owners} onAdvance={handleAdvance} />
                     </motion.div>
                   </Grid>
                 ))}
@@ -820,7 +610,7 @@ export default function DailyOperationClient() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.28, delay: Math.min(i * 0.025, 0.6), ease: [0.16, 1, 0.3, 1] }}
                   >
-                    <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} onAssign={assignOwner} owners={lookups.owners} />
+                    <OpsCard job={job} onOpen={openCommands} onClick={() => openDetail(job)} onAssign={assignOwner} owners={lookups.owners} onAdvance={handleAdvance} />
                   </motion.div>
                 </Grid>
               ))}

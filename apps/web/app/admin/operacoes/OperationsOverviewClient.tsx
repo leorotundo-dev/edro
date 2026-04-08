@@ -25,6 +25,7 @@ import { useJarvisPage } from '@/hooks/useJarvisPage';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
+  OpsCard,
   OpsPanel,
 } from '@/components/operations/primitives';
 import {
@@ -693,98 +694,14 @@ export default function OperationsOverviewClient() {
                         {column.items.length ? (
                           <>
                             {column.items.slice(0, 3).map((job) => (
-                              <Box
+                              <OpsCard
                                 key={job.id}
+                                job={job}
                                 onClick={() => openCommands(job)}
-                                sx={(theme) => ({
-                                  p: 1.35,
-                                  borderRadius: 2,
-                                  border: `1px solid ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.08 : 0.08)}`,
-                                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.92) : '#fff',
-                                  cursor: 'pointer',
-                                  transition: 'all 140ms ease',
-                                  '&:hover': {
-                                    transform: 'translateY(-2px)',
-                                    boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.26 : 0.08)}`,
-                                    borderColor: alpha(column.color, 0.24),
-                                  },
-                                })}
-                              >
-                                <Stack spacing={1}>
-                                  <Box sx={{ minWidth: 0 }}>
-                                    <Stack direction="row" spacing={0.6} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.35 }}>
-                                      <Typography variant="caption" sx={{ fontSize: '0.68rem', fontWeight: 800, color: 'text.secondary' }}>
-                                        {job.client_name || 'Sem cliente'}
-                                      </Typography>
-                                      {!job.owner_name ? (
-                                        <Chip
-                                          size="small"
-                                          clickable
-                                          label="Sem dono"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            openCommands(job);
-                                          }}
-                                          sx={{
-                                            height: 20,
-                                            fontSize: '0.62rem',
-                                            fontWeight: 800,
-                                            bgcolor: alpha('#FFAE1F', 0.12),
-                                            color: '#d97706',
-                                            border: `1px solid ${alpha('#FFAE1F', 0.3)}`,
-                                            '& .MuiChip-label': { px: 0.7 },
-                                          }}
-                                        />
-                                      ) : null}
-                                    </Stack>
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight={700}
-                                      sx={{
-                                        fontSize: '0.97rem',
-                                        lineHeight: 1.35,
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                      }}
-                                    >
-                                      {job.title}
-                                    </Typography>
-                                  </Box>
-                                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap alignItems="center">
-                                    <Chip
-                                      size="small"
-                                      clickable
-                                      avatar={job.owner_avatar_url ? <Avatar src={job.owner_avatar_url} /> : undefined}
-                                      label={job.owner_name || 'Sem responsável'}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        openCommands(job);
-                                      }}
-                                      sx={{
-                                        height: 22,
-                                        fontSize: '0.66rem',
-                                        fontWeight: 700,
-                                        bgcolor: alpha(column.color, 0.08),
-                                        color: 'text.primary',
-                                        cursor: 'pointer',
-                                      }}
-                                    />
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{ minWidth: 0, px: 1.1, py: 0.3, fontSize: '0.68rem', fontWeight: 700 }}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        openCommands(job);
-                                      }}
-                                    >
-                                      Abrir demanda
-                                    </Button>
-                                  </Stack>
-                                </Stack>
-                              </Box>
+                                onAdvance={(jobId, nextStatus) => changeStatus(jobId, nextStatus).catch(() => {})}
+                                onAssign={(jobId, ownerId) => updateJob(jobId, { owner_id: ownerId }).catch(() => {})}
+                                owners={lookups.owners}
+                              />
                             ))}
                             {column.items.length > 3 ? (
                               <Button

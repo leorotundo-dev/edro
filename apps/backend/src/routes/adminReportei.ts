@@ -112,7 +112,7 @@ export default async function adminReporteiRoutes(app: FastifyInstance) {
           ]);
           reporteiProjects = pRes?.data ?? [];
           reporteiIntegrations = iRes?.data ?? [];
-        } catch { /* ignore */ }
+        } catch (err: any) { console.warn('[adminReportei] Reportei fetch failed:', err?.message); }
       }
 
       const rows = clients.map((c: any) => {

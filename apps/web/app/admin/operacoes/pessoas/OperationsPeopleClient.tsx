@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -16,9 +17,9 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import { IconArrowUpRight, IconExternalLink, IconUserOff, IconUsers } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
-import { InlineOwnerAssign } from '@/components/operations/primitives';
+import { OpsCard } from '@/components/operations/primitives';
 import { apiGet, apiPatch } from '@/lib/api';
-import { STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
+import { type OperationsJob, type OperationsOwner } from '@/components/operations/model';
 
 type PlannerOwner = {
   owner: {
@@ -58,16 +59,10 @@ function ownerState(usage: number) {
   return { label: 'Controlado', color: '#13DEB9' };
 }
 
-const STAGE_COLORS: Record<string, string> = {
-  intake: '#A0AEC0', planned: '#5D87FF', ready: '#5D87FF',
-  allocated: '#FFAE1F', in_progress: '#E85219', blocked: '#FA896B',
-  in_review: '#7B61FF', awaiting_approval: '#FFAE1F',
-  approved: '#13DEB9', scheduled: '#13DEB9', published: '#13DEB9',
-};
-
 export default function OperationsPeopleClient() {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [plannerData, setPlannerData] = useState<PlannerData>({ owners: [], unassigned_jobs: [] });
@@ -118,16 +113,27 @@ export default function OperationsPeopleClient() {
     [plannerData.owners],
   );
 
+  const reloadPlanner = useCallback(async () => {
+    const response = await apiGet<{ data?: PlannerData }>('/trello/ops-planner');
+    if (response?.data) {
+      setPlannerData(response.data);
+      setSelectedOwnerId((current) => current || response.data!.owners[0]?.owner.id || null);
+    }
+  }, []);
+
   const assignOwner = useCallback(async (jobId: string, ownerId: string) => {
     try {
       await apiPatch(`/trello/ops-cards/${jobId}`, { owner_id: ownerId });
-      const response = await apiGet<{ data?: PlannerData }>('/trello/ops-planner');
-      if (response?.data) {
-        setPlannerData(response.data);
-        setSelectedOwnerId((current) => current || response.data!.owners[0]?.owner.id || null);
-      }
+      await reloadPlanner();
     } catch { /* ignore */ }
-  }, []);
+  }, [reloadPlanner]);
+
+  const advanceJob = useCallback(async (jobId: string, nextStatus: string) => {
+    try {
+      await apiPatch(`/trello/ops-cards/${jobId}`, { status: nextStatus });
+      await reloadPlanner();
+    } catch { /* ignore */ }
+  }, [reloadPlanner]);
 
   return (
     <OperationsShell
@@ -369,49 +375,14 @@ export default function OperationsPeopleClient() {
                     <Stack spacing={1.2}>
                       {selectedOwner?.jobs.length ? (
                         selectedOwner.jobs.map((job) => (
-                          <Paper
+                          <OpsCard
                             key={job.id}
-                            elevation={0}
-                            sx={{
-                              borderRadius: 2,
-                              px: 1.5,
-                              py: 1.35,
-                              border: `1px solid ${alpha(theme.palette.text.primary, dark ? 0.08 : 0.06)}`,
-                              bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.012),
-                            }}
-                          >
-                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} justifyContent="space-between">
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800 }}>
-                                  {job.client_name || 'Sem cliente'}
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 800, mt: 0.3 }}>
-                                  {job.title}
-                                </Typography>
-                              </Box>
-                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
-                                <Chip
-                                  size="small"
-                                  label={STAGE_LABELS[job.status] || job.status || 'Sem status'}
-                                  sx={{
-                                    bgcolor: alpha(STAGE_COLORS[job.status] || '#A0AEC0', 0.12),
-                                    color: STAGE_COLORS[job.status] || '#A0AEC0',
-                                    fontWeight: 700,
-                                    border: 'none',
-                                  }}
-                                />
-                                {job.deadline_at ? <Chip size="small" label={new Date(job.deadline_at).toLocaleDateString('pt-BR')} variant="outlined" /> : null}
-                                <Button
-                                  component={Link}
-                                  href={`/admin/operacoes/jobs?highlight=${encodeURIComponent(job.id)}`}
-                                  size="small"
-                                  variant="text"
-                                >
-                                  Abrir demanda
-                                </Button>
-                              </Stack>
-                            </Stack>
-                          </Paper>
+                            job={job}
+                            onClick={() => router.push(`/admin/operacoes/jobs?highlight=${encodeURIComponent(job.id)}`)}
+                            onAssign={assignOwner}
+                            onAdvance={advanceJob}
+                            owners={ownersList}
+                          />
                         ))
                       ) : (
                         <Typography variant="body2" color="text.secondary">
@@ -449,36 +420,14 @@ export default function OperationsPeopleClient() {
                     {plannerData.unassigned_jobs.length ? (
                       <>
                         {plannerData.unassigned_jobs.slice(0, 8).map((job) => (
-                          <Paper
+                          <OpsCard
                             key={job.id}
-                            elevation={0}
-                            sx={{
-                              borderRadius: 2,
-                              px: 1.4,
-                              py: 1.2,
-                              border: `1px solid ${alpha('#FFAE1F', 0.24)}`,
-                              bgcolor: dark ? alpha('#FFAE1F', 0.08) : alpha('#FFAE1F', 0.05),
-                            }}
-                          >
-                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                                  {job.title}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
-                                  {job.client_name || 'Sem cliente'}
-                                </Typography>
-                              </Box>
-                              {ownersList.length > 0 && (
-                                <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0 }}>
-                                  <InlineOwnerAssign
-                                    owners={ownersList}
-                                    onAssign={(ownerId) => assignOwner(job.id, ownerId)}
-                                  />
-                                </Box>
-                              )}
-                            </Stack>
-                          </Paper>
+                            job={job}
+                            onClick={() => router.push(`/admin/operacoes/jobs?highlight=${encodeURIComponent(job.id)}`)}
+                            onAssign={assignOwner}
+                            onAdvance={advanceJob}
+                            owners={ownersList}
+                          />
                         ))}
                         <Button component={Link} href="/admin/operacoes/jobs?unassigned=true" variant="outlined" size="small">
                           Resolver na pauta geral

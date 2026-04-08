@@ -34,7 +34,7 @@ async function ensureLibraryTables() {
     await dropBadForeignKeys();
     libraryTablesChecked = true;
   } catch {
-    console.log('[library] Tabela library_items não encontrada, criando...');
+    console.info('[library] Tabela library_items não encontrada, criando...');
     await query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     await query(`
       CREATE TABLE IF NOT EXISTS library_items (
@@ -118,7 +118,7 @@ async function ensureLibraryTables() {
       )
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_job_queue_status_time ON job_queue(status, scheduled_for)`);
-    console.log('[library] Tabelas criadas com sucesso!');
+    console.info('[library] Tabelas criadas com sucesso!');
     libraryTablesChecked = true;
   }
 }
@@ -278,10 +278,10 @@ export default async function libraryRoutes(app: FastifyInstance) {
       }
       if (!data) return reply.code(400).send({ error: 'missing_file' });
 
-      console.log(`[library] Upload recebido: ${data.filename} (${data.mimetype})`);
+      console.info(`[library] Upload recebido: ${data.filename} (${data.mimetype})`);
 
       const buffer = await data.toBuffer();
-      console.log(`[library] Buffer: ${buffer.length} bytes`);
+      console.info(`[library] Buffer: ${buffer.length} bytes`);
 
       // Accept category and subcategory from query params
       const qCategory = (request.query as any)?.category as string | undefined;
@@ -291,7 +291,7 @@ export default async function libraryRoutes(app: FastifyInstance) {
       const key = buildKey((request.user as any).tenant_id, request.params.clientId, data.filename);
 
       await saveFile(buffer, key);
-      console.log(`[library] Arquivo salvo: ${key}`);
+      console.info(`[library] Arquivo salvo: ${key}`);
 
       const item = await createLibraryItem({
         tenant_id: (request.user as any).tenant_id,
@@ -307,7 +307,7 @@ export default async function libraryRoutes(app: FastifyInstance) {
         file_size_bytes: buffer.length,
         created_by: (request.user as any).email,
       });
-      console.log(`[library] Item criado: ${item.id}`);
+      console.info(`[library] Item criado: ${item.id}`);
 
       try {
         await audit({

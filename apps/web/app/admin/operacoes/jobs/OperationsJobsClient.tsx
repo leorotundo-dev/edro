@@ -53,12 +53,15 @@ import {
   ClientThumb,
   EmptyOperationState,
   EntityLinkCard,
+  InlineOwnerAssign,
   OpsJobRow,
   OpsPanel,
   PersonThumb,
   PipelineBoard,
   SourceThumb,
+  STATUS_VISUALS,
 } from '@/components/operations/primitives';
+import Avatar from '@mui/material/Avatar';
 import {
   criticalAlerts,
   groupJobsByClient,
@@ -77,7 +80,6 @@ import {
   getRisk,
   groupBy,
   matchesOperationalFocus,
-  STAGE_LABELS,
   type OperationalFocusKey,
   type OperationsJob,
   type OperationsOwner,
@@ -86,6 +88,8 @@ import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
 const STAGE_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'blocked'];
+
+function stageColor(status: string) { return (STATUS_VISUALS[status] || STATUS_VISUALS.intake).color; }
 
 const BUCKETS = [
   { key: 'entrou', label: 'Entrou', icon: <IconInbox size={16} />, color: 'info' as const, stages: ['intake', 'planned', 'ready'] },
@@ -856,7 +860,7 @@ export default function OperationsJobsClient() {
                       <Grid size={{ xs: 6, md: 3 }}>
                         <TextField select fullWidth size="small" label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                           <MenuItem value="">Todos</MenuItem>
-                          {STAGE_ORDER.map((s) => <MenuItem key={s} value={s}>{STAGE_LABELS[s] || s}</MenuItem>)}
+                          {STAGE_ORDER.map((s) => <MenuItem key={s} value={s}>{(STATUS_VISUALS[s] || STATUS_VISUALS.intake).label}</MenuItem>)}
                         </TextField>
                       </Grid>
                       <Grid size={{ xs: 6, md: 3 }}>
@@ -978,6 +982,8 @@ export default function OperationsJobsClient() {
                     selectedJob={selectedJob}
                     onSelectJob={openJobDetail}
                     onAdvance={handleAdvance}
+                    onAssign={handleAssign}
+                    owners={lookups.owners}
                     onShowAll={() => {
                       setViewMode('list');
                       setGroupMode('status');
@@ -1119,14 +1125,15 @@ export default function OperationsJobsClient() {
 
                           <Chip
                             size="small"
-                            label={STAGE_LABELS[job.status] || job.status}
+                            label={(STATUS_VISUALS[job.status] || STATUS_VISUALS.intake).label}
                             sx={{
                               justifySelf: 'start',
                               height: 22,
                               fontSize: '0.64rem',
                               fontWeight: 800,
-                              bgcolor: alpha(theme.palette.primary.main, 0.1),
-                              color: 'primary.main',
+                              bgcolor: alpha(stageColor(job.status), 0.12),
+                              color: stageColor(job.status),
+                              border: 'none',
                             }}
                           />
 
@@ -1135,10 +1142,18 @@ export default function OperationsJobsClient() {
                           </Typography>
 
                           <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
-                            {job.owner_name ? <PersonThumb name={job.owner_name} src={job.owner_avatar_url} accent="#5D87FF" size={22} /> : <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: alpha(theme.palette.warning.main, 0.14) }} />}
-                            <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {job.owner_name || 'Sem responsável'}
-                            </Typography>
+                            {job.owner_name ? (
+                              <>
+                                <PersonThumb name={job.owner_name} src={job.owner_avatar_url} accent="#5D87FF" size={22} />
+                                <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {job.owner_name.split(' ')[0]}
+                                </Typography>
+                              </>
+                            ) : (
+                              <Box onClick={(e) => e.stopPropagation()}>
+                                <InlineOwnerAssign owners={lookups.owners} onAssign={(ownerId) => handleAssign(job.id, ownerId)} />
+                              </Box>
+                            )}
                           </Stack>
 
                           <Chip
@@ -1390,6 +1405,22 @@ function GenericGroup({
   const [expanded, setExpanded] = useState(true);
   const accent = section.color || theme.palette.primary.main;
 
+  // Client logo from first job with a logo
+  const logoUrl = section.jobs.find((j) => j.client_logo_url)?.client_logo_url || null;
+
+  // Mini status summary: group by bucket
+  const bucketCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const job of section.jobs) {
+      const bucket = BUCKETS.find((b) => (b.stages as readonly string[]).includes(job.status));
+      if (bucket) counts[bucket.key] = (counts[bucket.key] ?? 0) + 1;
+    }
+    return counts;
+  }, [section.jobs]);
+
+  // Unassigned count in section
+  const unassignedInSection = section.jobs.filter((j) => !j.owner_id && !j.owner_name).length;
+
   return (
     <Box sx={{
       borderRadius: 2,
@@ -1408,20 +1439,59 @@ function GenericGroup({
           '&:hover': { bgcolor: alpha(accent, dark ? 0.1 : 0.07) },
         }}
       >
-        <Box sx={{
-          width: 6, height: 20, borderRadius: 1,
-          bgcolor: accent,
-          flexShrink: 0,
-        }} />
-        <Typography variant="body2" fontWeight={800}>{section.label}</Typography>
+        {/* Left accent bar */}
+        <Box sx={{ width: 4, height: 28, borderRadius: 1, bgcolor: accent, flexShrink: 0 }} />
+
+        {/* Client logo / avatar */}
+        <Avatar
+          src={logoUrl || undefined}
+          variant="rounded"
+          sx={{
+            width: 26, height: 26,
+            fontSize: '0.6rem', fontWeight: 900,
+            bgcolor: alpha(accent, 0.18),
+            color: accent,
+            border: `1px solid ${alpha(accent, 0.25)}`,
+            flexShrink: 0,
+          }}
+        >
+          {section.label.charAt(0).toUpperCase()}
+        </Avatar>
+
+        <Typography variant="body2" fontWeight={900} noWrap sx={{ flex: 1, minWidth: 0 }}>
+          {section.label}
+        </Typography>
+
+        {/* Mini bucket summary */}
+        <Stack direction="row" spacing={0.6} alignItems="center" sx={{ flexShrink: 0, mr: 0.5 }}>
+          {BUCKETS.filter((b) => bucketCounts[b.key]).map((b) => {
+            const bColor = b.color !== 'default' ? theme.palette[b.color].main : alpha(theme.palette.text.primary, 0.4);
+            return (
+              <Stack key={b.key} direction="row" spacing={0.25} alignItems="center">
+                <Box sx={{ color: bColor, display: 'flex' }}>{b.icon}</Box>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: bColor, fontSize: '0.68rem' }}>
+                  {bucketCounts[b.key]}
+                </Typography>
+              </Stack>
+            );
+          })}
+          {unassignedInSection > 0 && (
+            <Chip
+              size="small"
+              label={`${unassignedInSection} sem dono`}
+              sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha('#FFAE1F', 0.12), color: '#d97706', border: 'none' }}
+            />
+          )}
+        </Stack>
+
         <Box sx={{
           px: 0.75, py: 0.15, borderRadius: 1.5,
           bgcolor: alpha(accent, 0.12), color: accent,
           fontSize: '0.82rem', fontWeight: 900, minWidth: 22, textAlign: 'center',
+          flexShrink: 0,
         }}>
           {section.count}
         </Box>
-        <Box sx={{ flex: 1 }} />
         {expanded ? <IconChevronUp size={16} style={{ opacity: 0.4 }} /> : <IconChevronDown size={16} style={{ opacity: 0.4 }} />}
       </Box>
 
