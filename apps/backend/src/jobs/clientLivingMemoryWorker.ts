@@ -29,7 +29,7 @@ export async function runClientLivingMemoryWorkerOnce(): Promise<void> {
   try {
     const { rows } = await query<{ tenant_id: string; client_id: string }>(
       `WITH recent_clients AS (
-         SELECT tenant_id, client_id, MAX(created_at) AS touched_at
+         SELECT tenant_id::text AS tenant_id, client_id::text AS client_id, MAX(created_at) AS touched_at
            FROM client_documents
           WHERE source_type = ANY($1::text[])
             AND created_at > NOW() - INTERVAL '24 hours'
@@ -37,21 +37,21 @@ export async function runClientLivingMemoryWorkerOnce(): Promise<void> {
 
          UNION ALL
 
-         SELECT tenant_id, client_id, MAX(created_at) AS touched_at
+         SELECT tenant_id::text AS tenant_id, client_id::text AS client_id, MAX(created_at) AS touched_at
            FROM meeting_actions
           WHERE created_at > NOW() - INTERVAL '14 days'
           GROUP BY tenant_id, client_id
 
          UNION ALL
 
-         SELECT tenant_id, client_id, MAX(created_at) AS touched_at
+         SELECT tenant_id::text AS tenant_id, client_id::text AS client_id, MAX(created_at) AS touched_at
            FROM client_directives
           WHERE created_at > NOW() - INTERVAL '30 days'
           GROUP BY tenant_id, client_id
 
          UNION ALL
 
-         SELECT tenant_id, client_id, MAX(created_at) AS touched_at
+         SELECT tenant_id::text AS tenant_id, client_id::text AS client_id, MAX(created_at) AS touched_at
            FROM whatsapp_message_insights
           WHERE created_at > NOW() - INTERVAL '30 days'
             AND COALESCE(confirmation_status, 'pending') IN ('confirmed', 'corrected')
