@@ -62,11 +62,21 @@ function isReporteiRateLimitError(error: any): boolean {
 
 async function collectPaged<T>(
   fetchPage: (page: number) => Promise<any>,
+  options?: {
+    onError?: (error: unknown, page: number, items: T[]) => 'stop' | void;
+  },
 ): Promise<T[]> {
   const items: T[] = [];
   let page = 1;
   while (true) {
-    const response = await fetchPage(page);
+    let response: any;
+    try {
+      response = await fetchPage(page);
+    } catch (error) {
+      const action = options?.onError?.(error, page, items);
+      if (action === 'stop') break;
+      throw error;
+    }
     const pageItems: T[] = response?.data ?? [];
     items.push(...pageItems);
 
@@ -214,9 +224,16 @@ export async function refreshReporteiInventory(
 
     const slugs = [...new Set(integrations.map((item) => item.slug).filter(Boolean))];
     let metricCount = 0;
+    const warnings: string[] = [];
+    const stopOnRateLimit = (label: string) => (error: unknown, page: number) => {
+      if (!isReporteiRateLimitError(error)) return;
+      warnings.push(`${label}: stopped at page ${page} due to rate limit`);
+      return 'stop' as const;
+    };
     for (const slug of slugs) {
       const metrics = await collectPaged<any>((page) =>
         client.getAvailableMetrics(slug, { page, per_page: DEFAULT_PER_PAGE }, overrides),
+        { onError: stopOnRateLimit(`metrics:${slug}`) },
       );
       metricCount += metrics.length;
       await upsertMetricCatalog(tenantId, slug, metrics);
@@ -226,21 +243,35 @@ export async function refreshReporteiInventory(
     if (options?.includeResources) {
       const templates = await collectPaged<any>((page) =>
         client.getTemplates({ page, per_page: DEFAULT_PER_PAGE }, overrides),
+        { onError: stopOnRateLimit('templates') },
       );
       const reports = await collectPaged<any>((page) =>
         client.getReports({ page, per_page: DEFAULT_PER_PAGE }, overrides),
+        { onError: stopOnRateLimit('reports') },
       );
       const dashboards = await collectPaged<any>((page) =>
         client.getDashboards({ page, per_page: DEFAULT_PER_PAGE }, overrides),
+        { onError: stopOnRateLimit('dashboards') },
       );
       const webhooks = await collectPaged<any>((page) =>
         client.getWebhooks({ page, per_page: DEFAULT_PER_PAGE }, overrides),
+        { onError: stopOnRateLimit('webhooks') },
       );
       const timelineEvents = await collectPaged<any>((page) =>
         client.getTimelineEvents({ page, per_page: DEFAULT_PER_PAGE }, overrides),
+        { onError: stopOnRateLimit('timeline_events') },
       );
-      const webhookEventsResponse = await client.getWebhookEvents(overrides);
-      const webhookEvents: any[] = webhookEventsResponse?.events ?? [];
+      let webhookEvents: any[] = [];
+      try {
+        const webhookEventsResponse = await client.getWebhookEvents(overrides);
+        webhookEvents = webhookEventsResponse?.events ?? [];
+      } catch (error) {
+        if (isReporteiRateLimitError(error)) {
+          warnings.push('webhook_events: skipped due to rate limit');
+        } else {
+          throw error;
+        }
+      }
 
       await syncResourceCollection(tenantId, 'template', templates, (item) => String(item.id));
       await syncResourceCollection(tenantId, 'report', reports, (item) => String(item.id));
@@ -272,6 +303,7 @@ export async function refreshReporteiInventory(
       slugs: slugs.length,
       metrics: metricCount,
       resources: resourceCounts,
+      warnings,
     };
     await finishReporteiSyncRun(runId, 'success', result);
     return result;
