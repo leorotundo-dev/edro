@@ -23,12 +23,15 @@ import Popover from '@mui/material/Popover';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
 import type { Theme } from '@mui/material/styles';
-import { alpha } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import {
+  IconAlertTriangle,
   IconArrowRight,
   IconBriefcase,
+  IconDots,
   IconCalendar,
   IconCalendarEvent,
   IconCalendarTime,
@@ -1968,10 +1971,6 @@ export function OperationsContextRail({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   PIPELINE BOARD — Kanban-style columns for job lifecycle
-   ═══════════════════════════════════════════════════════════════════ */
-
 const PIPELINE_COLUMNS = [
   { key: 'entrada', label: 'Entrada', stages: ['intake', 'planned', 'ready'], color: '#5D87FF' },
   { key: 'producao', label: 'Produção', stages: ['allocated', 'in_progress', 'in_review'], color: '#E85219' },
@@ -1981,96 +1980,161 @@ const PIPELINE_COLUMNS = [
 
 const MAX_PIPELINE_CARDS = 4;
 
-export function PipelineCard({
+/* ═══════════════════════════════════════════════════════════════════
+   OpsCard — canonical card shared by ALL ops views
+   ═══════════════════════════════════════════════════════════════════ */
+
+function opsCardBg(job: OperationsJob, dark: boolean): string {
+  const risk = getRisk(job).level;
+  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical')
+    return dark ? alpha('#F9A825', 0.07) : alpha('#F9A825', 0.05);
+  if (job.status === 'awaiting_approval')
+    return dark ? alpha('#7C3AED', 0.07) : alpha('#7C3AED', 0.04);
+  if (job.status === 'blocked')
+    return dark ? alpha('#FA896B', 0.07) : alpha('#FA896B', 0.04);
+  return dark ? alpha('#fff', 0.03) : '#fff';
+}
+
+function opsBarColor(job: OperationsJob): string {
+  const risk = getRisk(job).level;
+  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical') return '#F9A825';
+  if (job.status === 'blocked') return '#FA896B';
+  if (job.status === 'awaiting_approval') return '#7C3AED';
+  if (job.status === 'in_review') return '#5D87FF';
+  if (job.status === 'in_progress' || job.status === 'allocated') return '#13DEB9';
+  return '#5D87FF';
+}
+
+function opsChecklistPct(job: OperationsJob): number | null {
+  const items = job.checklists?.flatMap((c) => c.items) ?? [];
+  if (!items.length) return null;
+  return Math.round((items.filter((i) => i.checked).length / items.length) * 100);
+}
+
+export function OpsCard({
   job,
   selected,
   onClick,
+  onOpen,
   onAdvance,
+  onAssign,
+  owners,
+  showDescription = false,
 }: {
   job: OperationsJob;
   selected?: boolean;
   onClick?: () => void;
+  onOpen?: (job: OperationsJob) => void;
   onAdvance?: (jobId: string, nextStatus: string) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: OperationsOwner[];
+  showDescription?: boolean;
 }) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
+  const accentColor = job.client_brand_color || null;
+  const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
   const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
   const nextStatus = getNextStatus(job);
   const nextAction = getNextAction(job);
-  const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
-  const accentColor = job.client_brand_color || null;
+  const pct = opsChecklistPct(job);
 
   return (
     <>
-      <Card
-        variant="outlined"
+      <Box
         onClick={onClick}
-        sx={(theme) => {
-          const dark = theme.palette.mode === 'dark';
-          return {
-            borderRadius: accentColor ? '0 10px 10px 0' : 2.5,
-            borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
-            cursor: onClick ? 'pointer' : 'default',
-            border: selected
-              ? `1.5px solid ${alpha(theme.palette.primary.main, 0.35)}`
-              : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
-            bgcolor: dark ? alpha(theme.palette.background.paper, 0.94) : '#fff',
-            transition: 'all 120ms ease',
-            boxShadow: `0 2px 10px ${alpha(theme.palette.common.black, dark ? 0.18 : 0.04)}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, dark ? 0.26 : 0.08)}`,
-              '& .pipeline-advance': { opacity: 1 },
-            },
-          };
+        sx={{
+          borderRadius: accentColor ? '0 10px 10px 0' : 2.5,
+          bgcolor: selected
+            ? alpha(theme.palette.primary.main, dark ? 0.1 : 0.06)
+            : opsCardBg(job, dark),
+          borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
+          outline: selected ? `1.5px solid ${alpha(theme.palette.primary.main, 0.35)}` : undefined,
+          boxShadow: dark ? '0 1px 4px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+          display: 'flex',
+          flexDirection: 'column',
+          cursor: onClick ? 'pointer' : 'default',
+          transition: 'box-shadow 0.15s, transform 0.15s',
+          '&:hover': {
+            boxShadow: dark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 4px 20px rgba(0,0,0,0.1)',
+            transform: 'translateY(-1px)',
+            '& .ops-card-open': { opacity: 0.5 },
+            '& .ops-card-advance': { opacity: 1 },
+          },
         }}
       >
-        <CardContent sx={{ p: '14px !important' }}>
-          <Stack spacing={1.2}>
-            <Stack direction="row" spacing={0.7} alignItems="center" justifyContent="space-between">
-              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
-                {job.client_logo_url ? (
-                  <Avatar
-                    src={job.client_logo_url}
-                    alt={job.client_name || ''}
-                    variant="rounded"
-                    sx={{ width: 14, height: 14, flexShrink: 0, '& img': { objectFit: 'contain' } }}
-                  />
-                ) : null}
-                <Typography
-                  variant="caption"
-                  noWrap
-                  sx={{
-                    fontSize: '0.62rem',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    color: accentColor ? alpha(accentColor, 0.8) : 'text.disabled',
-                  }}
-                >
-                  {job.client_name || 'Sem cliente'}
-                </Typography>
-              </Stack>
+        <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
+
+          {/* Header: client + source badge + open button */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
+              {job.client_logo_url ? (
+                <Avatar
+                  src={job.client_logo_url}
+                  alt={job.client_name || ''}
+                  variant="rounded"
+                  sx={{ width: 14, height: 14, flexShrink: 0, '& img': { objectFit: 'contain' } }}
+                />
+              ) : null}
+              <Typography
+                variant="caption"
+                noWrap
+                sx={{
+                  fontSize: '0.6rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: accentColor ? alpha(accentColor, dark ? 0.8 : 0.7) : 'text.disabled',
+                }}
+              >
+                {job.client_name || 'Sem cliente'}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={0.25} alignItems="center">
+              {isUrgent && (
+                <Box sx={{ color: '#F9A825', display: 'flex', lineHeight: 1 }}>
+                  <IconAlertTriangle size={11} />
+                </Box>
+              )}
               <Chip
                 size="small"
                 label={formatSourceLabel(job.source)}
-                sx={{ height: 20, fontSize: '0.62rem', fontWeight: 700, flexShrink: 0 }}
+                sx={{ height: 18, fontSize: '0.58rem', fontWeight: 700, flexShrink: 0 }}
               />
+              {onOpen && (
+                <IconButton
+                  className="ops-card-open"
+                  size="small"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
+                  sx={{ p: 0.25, opacity: 0, transition: 'opacity 0.15s', '&:hover': { opacity: '1 !important' } }}
+                >
+                  <IconDots size={13} />
+                </IconButton>
+              )}
             </Stack>
+          </Stack>
 
-            <Typography
-              variant="body1"
-              fontWeight={700}
-              sx={{
-                lineHeight: 1.35,
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                minHeight: '2.7em',
-              }}
-            >
-              {job.title}
-            </Typography>
+          {/* Title */}
+          <Typography
+            variant="body2"
+            fontWeight={600}
+            sx={{
+              fontSize: '0.82rem',
+              lineHeight: 1.4,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              flex: showDescription ? undefined : 1,
+              color: 'text.primary',
+            }}
+          >
+            {job.title}
+          </Typography>
 
+          {/* Description — kanban only */}
+          {showDescription && (
             <Typography
               variant="body2"
               color="text.secondary"
@@ -2079,83 +2143,98 @@ export function PipelineCard({
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                minHeight: '2.5em',
+                flex: 1,
+                fontSize: '0.8rem',
               }}
             >
               {job.summary || formatSkillLabel(job.required_skill)}
             </Typography>
+          )}
 
-            <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Chip
-                size="small"
-                icon={<IconCalendar size={11} />}
-                label={formatDateTime(job.deadline_at)}
-                sx={{
-                  height: 24,
-                  fontSize: '0.64rem',
-                  '& .MuiChip-label': { px: 0.75 },
-                  '& .MuiChip-icon': { ml: 0.45, mr: -0.1 },
-                }}
-              />
+          {/* Progress bar */}
+          {pct !== null && (
+            <LinearProgress
+              variant="determinate"
+              value={pct}
+              sx={{
+                height: 2,
+                borderRadius: 1,
+                bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                '& .MuiLinearProgress-bar': { bgcolor: opsBarColor(job), borderRadius: 1 },
+              }}
+            />
+          )}
+
+          {/* Footer: owner | stage chip | deadline */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
+            <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
               {job.owner_name ? (
-                <Tooltip title={job.owner_name} arrow>
+                <>
                   <Avatar
                     src={job.owner_avatar_url ?? undefined}
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      fontSize: '0.55rem',
-                      fontWeight: 900,
-                      bgcolor: alpha('#5D87FF', 0.14),
-                      color: '#5D87FF',
-                      flexShrink: 0,
-                    }}
+                    sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
                   >
                     {initials(job.owner_name)}
                   </Avatar>
-                </Tooltip>
+                  <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
+                    {job.owner_name.split(' ')[0]}
+                  </Typography>
+                </>
+              ) : onAssign && owners?.length ? (
+                <Box onClick={(e) => e.stopPropagation()}>
+                  <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
+                </Box>
               ) : (
-                <Chip
-                  size="small"
-                  label="Sem dono"
-                  sx={{
-                    height: 22,
-                    fontSize: '0.64rem',
-                    fontWeight: 700,
-                    bgcolor: alpha('#FFAE1F', 0.12),
-                    color: '#d97706',
-                  }}
-                />
+                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>
+                  Sem dono
+                </Typography>
               )}
             </Stack>
-
-            {nextStatus && onAdvance ? (
-              <Button
-                className="pipeline-advance"
-                variant="text"
+            <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
+              <Chip
                 size="small"
-                endIcon={<IconArrowRight size={14} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmAnchor(e.currentTarget);
-                }}
+                label={vis.label}
                 sx={{
-                  alignSelf: 'flex-start',
-                  px: 0,
-                  minWidth: 0,
-                  fontWeight: 700,
+                  height: 16,
+                  fontSize: '0.56rem',
+                  fontWeight: 800,
+                  bgcolor: alpha(vis.color, 0.12),
                   color: vis.color,
-                  opacity: 0.9,
-                  '&:hover': { bgcolor: 'transparent', opacity: 1 },
+                  '& .MuiChip-label': { px: 0.6 },
                 }}
-              >
-                {nextAction.label}
-              </Button>
-            ) : null}
+              />
+              {job.deadline_at && (
+                <DeadlineCountdown deadline={job.deadline_at} compact />
+              )}
+            </Stack>
           </Stack>
-        </CardContent>
-      </Card>
 
+          {/* Advance button — visible on hover */}
+          {nextStatus && onAdvance ? (
+            <Button
+              className="ops-card-advance"
+              variant="text"
+              size="small"
+              endIcon={<IconArrowRight size={14} />}
+              onClick={(e) => { e.stopPropagation(); setConfirmAnchor(e.currentTarget); }}
+              sx={{
+                alignSelf: 'flex-start',
+                px: 0,
+                minWidth: 0,
+                fontWeight: 700,
+                color: vis.color,
+                opacity: 0,
+                transition: 'opacity 0.15s',
+                '&:hover': { bgcolor: 'transparent', opacity: '1 !important' },
+              }}
+            >
+              {nextAction.label}
+            </Button>
+          ) : null}
+        </Box>
+      </Box>
+
+      {/* Advance confirmation popover */}
       <Popover
         open={Boolean(confirmAnchor)}
         anchorEl={confirmAnchor}
@@ -2176,10 +2255,7 @@ export function PipelineCard({
             variant="contained"
             disableElevation
             sx={{ flex: 1, fontSize: '0.7rem', py: 0.4 }}
-            onClick={() => {
-              setConfirmAnchor(null);
-              if (nextStatus && onAdvance) onAdvance(job.id, nextStatus);
-            }}
+            onClick={() => { setConfirmAnchor(null); if (nextStatus && onAdvance) onAdvance(job.id, nextStatus); }}
           >
             Confirmar
           </Button>
@@ -2195,6 +2271,25 @@ export function PipelineCard({
       </Popover>
     </>
   );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PIPELINE BOARD — Kanban-style columns for job lifecycle
+   (PipelineCard is now a thin wrapper around OpsCard)
+   ═══════════════════════════════════════════════════════════════════ */
+
+export function PipelineCard({
+  job,
+  selected,
+  onClick,
+  onAdvance,
+}: {
+  job: OperationsJob;
+  selected?: boolean;
+  onClick?: () => void;
+  onAdvance?: (jobId: string, nextStatus: string) => void;
+}) {
+  return <OpsCard job={job} selected={selected} onClick={onClick} onAdvance={onAdvance} showDescription />;
 }
 
 export function PipelineColumn({
