@@ -19,6 +19,7 @@ import {
 } from '../services/jarvisContextService';
 import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
+import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
 import { getJobById } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import {
@@ -575,13 +576,68 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           }
         }
 
-        const [clientContext, psychContext, perfContext] = await Promise.race([
+        const [clientContext, psychContext, perfContext, livingMemoryPreflight] = await Promise.race([
           Promise.all([
             buildClientContext(tenantId, clientId!),
             loadPsychContext(tenantId, clientId!),
             loadPerformanceContext(clientId!),
+            buildClientLivingMemory({
+              tenantId,
+              clientId: clientId!,
+              briefing: {
+                title: body.message,
+                objective: body.message,
+                context: [body.context_page, body.studio_context].filter(Boolean).join('\n'),
+                payload: body.page_data ? { page_data: body.page_data } : null,
+              },
+              daysBack: 60,
+              maxDirectives: 8,
+              maxEvidence: 5,
+              maxActions: 4,
+            }).catch(() => ({
+              block: '',
+              directives: [],
+              evidence: [],
+              pendingActions: [],
+              snapshot: {
+                active_directives: 0,
+                evidence_signals: 0,
+                fresh_signals_7d: 0,
+                pending_commitments: 0,
+                evidence_by_source: {},
+              },
+            })),
           ]),
-          new Promise<[string, string, string]>((resolve) => setTimeout(() => resolve(['', '', '']), 3000)),
+          new Promise<[string, string, string, {
+            block: string;
+            directives: Array<any>;
+            evidence: Array<any>;
+            pendingActions: Array<any>;
+            snapshot: {
+              active_directives: number;
+              evidence_signals: number;
+              fresh_signals_7d: number;
+              pending_commitments: number;
+              evidence_by_source: Record<string, number>;
+            };
+          }]>((resolve) => setTimeout(() => resolve([
+            '',
+            '',
+            '',
+            {
+              block: '',
+              directives: [],
+              evidence: [],
+              pendingActions: [],
+              snapshot: {
+                active_directives: 0,
+                evidence_signals: 0,
+                fresh_signals_7d: 0,
+                pending_commitments: 0,
+                evidence_by_source: {},
+              },
+            },
+          ]), 3000)),
         ]);
 
         const toolCtx: ToolContext = {
@@ -606,10 +662,14 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           maxBlocks: decision.retrievalBudget.contextBlocks,
         });
         const memoryFabric = formatJarvisMemoryBlocks(memoryBlocks);
+        const livingMemoryPreflightContext = livingMemoryPreflight.block
+          ? `\n\nMEMÓRIA VIVA PREFLIGHT PARA ESTA PERGUNTA:\n${livingMemoryPreflight.block}\nINSTRUÇÃO: trate este preflight como contexto mais atual e prioritário do cliente antes de responder, recomendar ou criar.`
+          : '';
+        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${livingMemoryPreflightContext}`;
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
-            systemPrompt: buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric),
+            systemPrompt: planningSystemPrompt,
             tools: getAllToolDefinitions(),
             provider: resolvedProvider,
             toolContext: {
@@ -632,6 +692,19 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         artifacts = (loopResult.toolResults ?? [])
           .filter((result) => result.success && result.data)
           .map((result) => ({ type: result.toolName, ...result.data }));
+        if (
+          livingMemoryPreflight.snapshot.active_directives
+          || livingMemoryPreflight.snapshot.evidence_signals
+          || livingMemoryPreflight.snapshot.pending_commitments
+        ) {
+          artifacts.unshift({
+            type: 'living_memory_preflight',
+            summary: livingMemoryPreflight.snapshot,
+            directives: livingMemoryPreflight.directives,
+            evidence: livingMemoryPreflight.evidence,
+            pending_actions: livingMemoryPreflight.pendingActions,
+          });
+        }
 
         const durationMs = Date.now() - startMs;
         const observability = buildJarvisObservability(decision, {
@@ -641,6 +714,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           model: resultModel,
           loadedMemoryBlocks: [
             ...(clientContext.trim() ? ['Memória do cliente'] : []),
+            ...(livingMemoryPreflight.block ? ['Memória viva preflight'] : []),
             ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
             ...memoryBlocks.map((block) => block.label),
           ],

@@ -85,6 +85,7 @@ import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../services/cognitiveLoadService';
 import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../services/decisionStackService';
 import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
+import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
 import { audit } from '../audit/audit';
 import {
   buildArtDirectionFeedbackMetadata,
@@ -1955,6 +1956,20 @@ export default async function edroRoutes(app: FastifyInstance) {
     const payloadPersonaId = briefingPayload.persona_id ?? null;
     const payloadMomento   = briefingPayload.momento_consciencia ?? null;
     const payloadAmd       = briefingPayload.amd ?? null;
+    const livingMemory = selectedClientId && tenantId
+      ? await buildClientLivingMemory({
+          tenantId,
+          clientId: selectedClientId,
+          briefing: {
+            title: briefing.title,
+            objective: (briefing.payload as any)?.objective ?? (briefing.payload as any)?.objetivo ?? '',
+            context: (briefing.payload as any)?.context ?? (briefing.payload as any)?.notes ?? (briefing.payload as any)?.additional_notes ?? null,
+            payload: briefingPayload,
+          },
+          maxEvidence: 5,
+          maxActions: 4,
+        }).catch(() => ({ block: '', directives: [], evidence: [], pendingActions: [] }))
+      : { block: '', directives: [], evidence: [], pendingActions: [] };
     const performanceHint = selectedPlatform
       ? await fetchPerformanceHint(tenantId, selectedClientId, selectedPlatform)
       : null;
@@ -1997,6 +2012,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     let model = body.model ?? process.env.OPENAI_MODEL ?? null;
     let payload: Record<string, any> | null = null;
     let knowledgeBlock = '';
+    let livingMemoryBlock = '';
     let platformBlock = '';
     let preferenceBlock = '';
     let learnedBlock = '';
@@ -2027,6 +2043,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         };
         const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
         knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
+        livingMemoryBlock = livingMemory.block ? `\n\n${livingMemory.block}` : '';
         const usageCtx = tenantId ? { tenant_id: tenantId, feature: 'copy_studio' } : undefined;
 
         // Regras criativas nativas da plataforma selecionada
@@ -2295,6 +2312,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
         const enrichedKnowledgeBlock = [
           knowledgeBlock,
+          livingMemoryBlock,
           brandVoiceBlock,
           behaviorProfileBlock,
           learningRulesBlock,
@@ -2311,7 +2329,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           webResearchBlock,
         ].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
+        const enrichedPrompt = `${prompt}${livingMemoryBlock}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
 
         let result;
         if (pipeline === 'adversarial') {
@@ -2610,7 +2628,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           briefing.title,
           (briefing.payload as any)?.objetivo || (briefing.payload as any)?.objective || '',
         ].filter(Boolean).join(' — ');
-        const brandCtx    = knowledgeBlock || '';
+        const brandCtx    = [knowledgeBlock, livingMemoryBlock].filter(Boolean).join('\n');
         const platformCtx = platformBlock  || '';
         const personaCtx  = [personaBlock, amdBlock, behaviorIntentBlock].filter(Boolean).join('\n');
         const historyCtx  = [preferenceBlock, learnedBlock].filter(Boolean).join('\n');

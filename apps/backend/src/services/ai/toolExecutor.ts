@@ -51,6 +51,8 @@ import { buildJarvisBackgroundArtifact } from '../jarvisBackgroundJobService';
 import { sendEmail } from '../emailService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
+import { buildClientLivingMemory } from '../clientLivingMemoryService';
+import { buildClientState } from '../jarvisDecisionEngine';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -137,6 +139,8 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'get_campaign',
     'list_opportunities',
     'get_client_profile',
+    'get_client_living_memory',
+    'get_client_state',
     'get_intelligence_health',
     'search_client_content',
     'list_client_sources',
@@ -537,6 +541,8 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   list_opportunities: toolListOpportunities,
   action_opportunity: toolActionOpportunity,
   get_client_profile: toolGetClientProfile,
+  get_client_living_memory: toolGetClientLivingMemory,
+  get_client_state: toolGetClientState,
   get_intelligence_health: toolGetIntelligenceHealth,
   search_client_content: toolSearchClientContent,
   list_client_sources: toolListClientSources,
@@ -1597,6 +1603,14 @@ async function toolGetClientProfile(args: any, ctx: ToolContext): Promise<ToolRe
 
   const profile = client.profile || {};
   const knowledge = profile.knowledge_base || {};
+  const livingMemory = await buildClientLivingMemory({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    daysBack: 45,
+    maxDirectives: 6,
+    maxEvidence: 3,
+    maxActions: 3,
+  }).catch(() => null);
 
   return {
     success: true,
@@ -1617,7 +1631,61 @@ async function toolGetClientProfile(args: any, ctx: ToolContext): Promise<ToolRe
         tone_of_voice: knowledge.tone_of_voice,
         competitors: knowledge.competitors,
       },
+      living_memory_summary: livingMemory?.snapshot || {
+        active_directives: 0,
+        evidence_signals: 0,
+        fresh_signals_7d: 0,
+        pending_commitments: 0,
+        evidence_by_source: {},
+      },
+      active_directives: livingMemory?.directives || [],
     },
+  };
+}
+
+async function toolGetClientLivingMemory(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const question = String(args.question || '').trim();
+  const daysBack = Math.min(args.days_back ?? 60, 120);
+  const limitEvidence = Math.min(args.limit_evidence ?? 6, 10);
+  const limitActions = Math.min(args.limit_actions ?? 4, 8);
+
+  const livingMemory = await buildClientLivingMemory({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    briefing: question
+      ? {
+        title: question,
+        objective: question,
+        context: question,
+        payload: { notes: question },
+      }
+      : null,
+    daysBack,
+    maxDirectives: 8,
+    maxEvidence: limitEvidence,
+    maxActions: limitActions,
+  });
+
+  return {
+    success: true,
+    data: {
+      summary: livingMemory.snapshot,
+      directives: livingMemory.directives,
+      evidence: livingMemory.evidence,
+      pending_actions: livingMemory.pendingActions,
+      memory_block: livingMemory.block,
+    },
+    metadata: {
+      row_count: livingMemory.directives.length + livingMemory.evidence.length + livingMemory.pendingActions.length,
+    },
+  };
+}
+
+async function toolGetClientState(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const state = await buildClientState(ctx.tenantId, ctx.clientId);
+  return {
+    success: true,
+    data: state,
   };
 }
 

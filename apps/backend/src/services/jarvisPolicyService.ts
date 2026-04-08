@@ -256,7 +256,8 @@ export function detectJarvisIntent(message: string, contextPage?: string | null,
   ];
   const clientMemorySignals = [
     'reunião', 'reuniao', 'meeting', 'whatsapp', 'cliente falou', 'cliente disse', 'aprovação',
-    'aprovacao', 'feedback', 'insight', 'memória', 'memoria',
+    'aprovacao', 'feedback', 'insight', 'memória', 'memoria', 'diretiva', 'diretriz',
+    'restrição', 'restricao', 'promessa', 'compromisso',
   ];
   const creativeSignals = [
     'cria um post', 'criar um post', 'gera um post', 'briefing', 'copy', 'campanha',
