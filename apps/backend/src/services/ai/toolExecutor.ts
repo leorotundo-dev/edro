@@ -1809,6 +1809,8 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
     `- Alertas abertos: ${clientState.open_alerts}`,
     `- Diretivas ativas: ${livingMemory.snapshot.active_directives}`,
     `- Sinais vivos 7d: ${livingMemory.snapshot.fresh_signals_7d}`,
+    livingMemory.snapshot.decision_signals ? `- Decisões recentes: ${livingMemory.snapshot.decision_signals}` : null,
+    livingMemory.snapshot.objection_signals ? `- Objeções recentes: ${livingMemory.snapshot.objection_signals}` : null,
     `- Compromissos pendentes: ${livingMemory.snapshot.pending_commitments}`,
     diagnostics?.gaps?.length ? `- Lacunas de briefing: ${diagnostics.gaps.join(' | ')}` : null,
     diagnostics?.tensions?.length ? `- Tensões de briefing: ${diagnostics.tensions.join(' | ')}` : null,

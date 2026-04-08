@@ -109,6 +109,45 @@ function detectDirectiveCandidate(line: string) {
   return null;
 }
 
+function detectDecisionCandidate(line: string) {
+  const normalized = normalize(line);
+  const patterns = [
+    /\bficou decidido\b/,
+    /\bdecidimos\b/,
+    /\bdefinimos\b/,
+    /\balinhado\b/,
+    /\baprovado\b/,
+    /\bseguiremos\b/,
+    /\bvamos seguir\b/,
+    /\bok seguir\b/,
+    /\bdecisao\b/,
+    /\bdecisão\b/,
+  ];
+  if (!patterns.some((pattern) => pattern.test(normalized))) return null;
+  return { confidence: 0.82 };
+}
+
+function detectObjectionCandidate(line: string) {
+  const normalized = normalize(line);
+  const patterns = [
+    /\bpreocupacao\b/,
+    /\bpreocupação\b/,
+    /\breceio\b/,
+    /\bobje[cç][aã]o\b/,
+    /\bnao faz sentido\b/,
+    /\bnão faz sentido\b/,
+    /\bnao gostamos\b/,
+    /\bnão gostamos\b/,
+    /\bnao queremos\b/,
+    /\bnão queremos\b/,
+    /\brisco\b/,
+    /\bdificuldade\b/,
+    /\bproblema\b/,
+  ];
+  if (!patterns.some((pattern) => pattern.test(normalized))) return null;
+  return { confidence: 0.78 };
+}
+
 function detectEmailCommitmentCandidate(line: string) {
   const normalized = normalize(line);
   const hasDate = Boolean(parseDateCandidate(line));
@@ -244,6 +283,8 @@ export async function materializeCanonicalClientMemoryFacts(params: {
 
     let directivesPromotedForDoc = 0;
     let commitmentPromotedForDoc = false;
+    let decisionPromotedForDoc = false;
+    let objectionPromotedForDoc = false;
 
     for (const [index, line] of lines.entries()) {
       if (directivesPromotedForDoc < 2) {
@@ -270,6 +311,62 @@ export async function materializeCanonicalClientMemoryFacts(params: {
           if (result) {
             promoted += 1;
             directivesPromotedForDoc += 1;
+          }
+        }
+      }
+
+      if (!decisionPromotedForDoc) {
+        const decision = detectDecisionCandidate(line);
+        if (decision) {
+          const sourceLabel = doc.source_type === 'gmail_message' ? 'email' : 'reuniao';
+          const result = await upsertCanonicalClientMemoryFact({
+            tenantId: params.tenantId,
+            clientId: params.clientId,
+            factType: 'evidence',
+            sourceType: `${sourceLabel}_decision`,
+            sourceId: `${doc.id}:decision:${index}`,
+            title: `Decisão registrada: ${shortText(line, 80)}`,
+            factText: line,
+            summary: shortText(`${doc.title || 'Sem titulo'} | ${line}`, 180),
+            relatedAt: doc.created_at,
+            confidenceScore: decision.confidence,
+            metadata: {
+              source_document_type: doc.source_type,
+              source_document_title: doc.title,
+              semantic_type: 'decision',
+            },
+          });
+          if (result) {
+            promoted += 1;
+            decisionPromotedForDoc = true;
+          }
+        }
+      }
+
+      if (!objectionPromotedForDoc) {
+        const objection = detectObjectionCandidate(line);
+        if (objection) {
+          const sourceLabel = doc.source_type === 'gmail_message' ? 'email' : 'reuniao';
+          const result = await upsertCanonicalClientMemoryFact({
+            tenantId: params.tenantId,
+            clientId: params.clientId,
+            factType: 'evidence',
+            sourceType: `${sourceLabel}_objection`,
+            sourceId: `${doc.id}:objection:${index}`,
+            title: `Objeção/contexto sensível: ${shortText(line, 80)}`,
+            factText: line,
+            summary: shortText(`${doc.title || 'Sem titulo'} | ${line}`, 180),
+            relatedAt: doc.created_at,
+            confidenceScore: objection.confidence,
+            metadata: {
+              source_document_type: doc.source_type,
+              source_document_title: doc.title,
+              semantic_type: 'objection',
+            },
+          });
+          if (result) {
+            promoted += 1;
+            objectionPromotedForDoc = true;
           }
         }
       }

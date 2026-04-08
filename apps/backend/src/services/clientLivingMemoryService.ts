@@ -17,6 +17,11 @@ const SOURCE_LABELS: Record<string, string> = {
   whatsapp_digest: 'Digest de WhatsApp',
   meeting: 'Reuniao',
   meeting_chat: 'Chat de reuniao',
+  email_decision: 'Decisao por email',
+  email_objection: 'Objecao por email',
+  reuniao_decision: 'Decisao em reuniao',
+  reuniao_objection: 'Objecao em reuniao',
+  gmail_commitment: 'Compromisso por email',
 };
 
 const STOPWORDS = new Set([
@@ -40,6 +45,7 @@ type LivingMemoryEvidence = {
   excerpt: string;
   occurred_at: string | null;
   score: number;
+  semantic_type?: 'decision' | 'objection' | 'context';
 };
 
 type LivingMemoryAction = {
@@ -63,6 +69,8 @@ export type ClientLivingMemory = {
     fresh_signals_7d: number;
     pending_commitments: number;
     evidence_by_source: Record<string, number>;
+    decision_signals?: number;
+    objection_signals?: number;
   };
 };
 
@@ -151,6 +159,9 @@ function buildMemoryBlock(input: {
   pendingActions: LivingMemoryAction[];
 }) {
   const parts: string[] = [];
+  const decisions = input.evidence.filter((item) => item.semantic_type === 'decision');
+  const objections = input.evidence.filter((item) => item.semantic_type === 'objection');
+  const contextualEvidence = input.evidence.filter((item) => item.semantic_type !== 'decision' && item.semantic_type !== 'objection');
 
   if (input.directives.length) {
     const boost = input.directives.filter((item) => item.directive_type === 'boost').map((item) => item.directive);
@@ -160,10 +171,30 @@ function buildMemoryBlock(input: {
     if (avoid.length) parts.push(`- Evitar: ${avoid.join(' | ')}`);
   }
 
-  if (input.evidence.length) {
+  if (decisions.length) {
+    if (!parts.length) parts.push('MEMORIA VIVA DO CLIENTE:');
+    parts.push('Decisoes recentes do cliente:');
+    decisions.forEach((item) => {
+      const label = SOURCE_LABELS[item.source_type] || item.source_type;
+      const when = item.occurred_at ? new Date(item.occurred_at).toLocaleDateString('pt-BR') : 'sem data';
+      parts.push(`- [${label}] ${when} | ${item.excerpt}`);
+    });
+  }
+
+  if (objections.length) {
+    if (!parts.length) parts.push('MEMORIA VIVA DO CLIENTE:');
+    parts.push('Objeções e sensibilidades recentes:');
+    objections.forEach((item) => {
+      const label = SOURCE_LABELS[item.source_type] || item.source_type;
+      const when = item.occurred_at ? new Date(item.occurred_at).toLocaleDateString('pt-BR') : 'sem data';
+      parts.push(`- [${label}] ${when} | ${item.excerpt}`);
+    });
+  }
+
+  if (contextualEvidence.length) {
     if (!parts.length) parts.push('MEMORIA VIVA DO CLIENTE:');
     parts.push('Evidencias relacionadas a este briefing:');
-    input.evidence.forEach((item) => {
+    contextualEvidence.forEach((item) => {
       const label = SOURCE_LABELS[item.source_type] || item.source_type;
       const when = item.occurred_at ? new Date(item.occurred_at).toLocaleDateString('pt-BR') : 'sem data';
       parts.push(`- [${label}] ${when} | ${item.title || 'Sem titulo'} | ${item.excerpt}`);
@@ -206,6 +237,8 @@ function buildSnapshot(input: {
     fresh_signals_7d: freshSignals7d,
     pending_commitments: input.pendingActions.length,
     evidence_by_source: evidenceBySource,
+    decision_signals: input.evidence.filter((item) => item.semantic_type === 'decision').length,
+    objection_signals: input.evidence.filter((item) => item.semantic_type === 'objection').length,
   };
 }
 
@@ -241,6 +274,11 @@ function buildMemoryFromFacts(params: {
         excerpt: shortText(item.summary || item.fact_text || '', 220),
         occurred_at: item.related_at || null,
         score,
+        semantic_type: item.metadata?.semantic_type === 'decision'
+          ? 'decision'
+          : item.metadata?.semantic_type === 'objection'
+            ? 'objection'
+            : 'context',
       };
     })
     .filter((item) => item.excerpt)

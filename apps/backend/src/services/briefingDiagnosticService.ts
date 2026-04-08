@@ -101,11 +101,19 @@ export function buildBriefingDiagnostics(params: {
   }
 
   const directiveConflicts = findDirectiveConflicts(briefingText, livingMemory);
+  const decisionSignals = livingMemory.evidence.filter((item) => item.semantic_type === 'decision');
+  const objectionSignals = livingMemory.evidence.filter((item) => item.semantic_type === 'objection');
   if (directiveConflicts.length > 0) {
     tensions.push(`O texto do briefing encosta em diretivas de evitar do cliente: ${directiveConflicts.join(' | ')}`);
   }
   if (!hasDateSignal(briefingText) && livingMemory.evidence.some((item) => item.score >= 2.5)) {
     tensions.push('Ha evidencias recentes relevantes na memoria viva que nao aparecem explicitamente no briefing.');
+  }
+  if (decisionSignals.length > 0 && briefingText.replace(/\s+/g, ' ').trim().length < 220) {
+    tensions.push('Ha decisoes recentes do cliente registradas na memoria viva que o briefing nao explicita com clareza.');
+  }
+  if (objectionSignals.length > 0 && !/obje[cç][aã]o|restri[cç][aã]o|cuidado|evitar|nao|não/.test(normalizedText)) {
+    tensions.push('Ha objeções ou sensibilidades recentes do cliente que nao aparecem explicitamente no briefing.');
   }
 
   if (livingMemory.pendingActions.length > 0) {
@@ -116,6 +124,12 @@ export function buildBriefingDiagnostics(params: {
   }
   if (livingMemory.evidence.length > 0) {
     recommendations.push('Usar as evidencias recentes para interpretar contexto implicito, tom e timing da mensagem.');
+  }
+  if (decisionSignals.length > 0) {
+    recommendations.push('Tratar as decisões recentes do cliente como contexto válido, mesmo quando o briefing não as repetir literalmente.');
+  }
+  if (objectionSignals.length > 0) {
+    recommendations.push('Evitar conflito com objeções e sensibilidades já expressas pelo cliente em conversas recentes.');
   }
 
   const lines: string[] = [];
