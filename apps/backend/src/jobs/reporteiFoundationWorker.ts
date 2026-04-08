@@ -82,7 +82,7 @@ export async function runReporteiFoundationWorkerOnce() {
       }
 
       console.log(
-        `[reporteiFoundation] tenant=${tenant.tenant_id} inventory_projects=${inventory.projects} integrations=${inventory.integrations} metrics=${inventory.metrics} payloads=${payloads} failures=${failures} throttled_clients=${throttledClients}`,
+        `[reporteiFoundation] tenant=${tenant.tenant_id} inventory_projects=${inventory.projects} integrations=${inventory.integrations} metrics=${inventory.metrics} payloads=${payloads} failures=${failures} throttled_clients=${throttledClients} inventory_warnings=${Array.isArray((inventory as any).warnings) ? (inventory as any).warnings.length : 0}`,
       );
       syncTenantLearningRules(tenant.tenant_id)
         .then((result) => {
