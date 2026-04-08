@@ -36,9 +36,9 @@ function fileExtFromMime(mimeType: string) {
   return 'jpg';
 }
 
-async function updatePersonAvatarState(params: {
-  personId: string;
-  tenantId: string;
+// Writes all avatar state directly to freelancer_profiles — single source of truth.
+async function updateFreelancerAvatarState(params: {
+  freelancerId: string;
   avatarSourceKey?: string | null;
   avatarGeneratedKey?: string | null;
   avatarUrl?: string | null;
@@ -48,21 +48,19 @@ async function updatePersonAvatarState(params: {
   error?: string | null;
 }) {
   await query(
-    `UPDATE people
-        SET avatar_source_key = COALESCE($3, avatar_source_key),
-            avatar_generated_key = $4,
-            avatar_url = $5,
-            avatar_generation_status = $6,
-            avatar_provider = $7,
-            avatar_prompt_version = $8,
-            avatar_generated_at = CASE WHEN $6 = 'ready' THEN now() ELSE avatar_generated_at END,
-            avatar_error = $9,
-            updated_at = now()
-      WHERE id = $1
-        AND tenant_id = $2`,
+    `UPDATE freelancer_profiles
+        SET avatar_source_key        = COALESCE($2, avatar_source_key),
+            avatar_generated_key     = $3,
+            avatar_url               = $4,
+            avatar_generation_status = $5,
+            avatar_provider          = $6,
+            avatar_prompt_version    = $7,
+            avatar_generated_at      = CASE WHEN $5 = 'ready' THEN now() ELSE avatar_generated_at END,
+            avatar_error             = $8,
+            updated_at               = now()
+      WHERE id = $1`,
     [
-      params.personId,
-      params.tenantId,
+      params.freelancerId,
       params.avatarSourceKey ?? null,
       params.avatarGeneratedKey ?? null,
       params.avatarUrl ?? null,
@@ -74,37 +72,22 @@ async function updatePersonAvatarState(params: {
   );
 }
 
-async function mirrorFreelancerAvatar(params: {
-  freelancerId: string;
-  avatarUrl: string;
-}) {
-  await query(
-    `UPDATE freelancer_profiles
-        SET avatar_url = $2,
-            updated_at = now()
-      WHERE id = $1`,
-    [params.freelancerId, params.avatarUrl],
-  );
-}
-
 /** Save an uploaded image directly as the avatar, with no AI generation. */
 export async function saveDirectAvatarForFreelancer(params: {
   tenantId: string;
   freelancerId: string;
-  personId: string;
   sourceBuffer: Buffer;
   sourceFilename: string;
   sourceMimeType: string;
 }) {
   const sourceExt = path.extname(params.sourceFilename).replace('.', '') || fileExtFromMime(params.sourceMimeType);
-  const key = buildKey(params.tenantId, 'avatars-generated', `${params.personId}.${sourceExt}`);
+  const key = buildKey(params.tenantId, 'avatars-generated', `${params.freelancerId}.${sourceExt}`);
   await saveFile(params.sourceBuffer, key);
 
   const avatarUrl = buildStoragePublicUrl(key) ?? key;
 
-  await updatePersonAvatarState({
-    personId: params.personId,
-    tenantId: params.tenantId,
+  await updateFreelancerAvatarState({
+    freelancerId: params.freelancerId,
     avatarSourceKey: key,
     avatarGeneratedKey: key,
     avatarUrl,
@@ -114,15 +97,12 @@ export async function saveDirectAvatarForFreelancer(params: {
     error: null,
   });
 
-  await mirrorFreelancerAvatar({ freelancerId: params.freelancerId, avatarUrl });
-
   return { avatarUrl, sourceKey: key, generatedKey: key, promptVersion: null, provider: 'direct-upload' };
 }
 
 export async function generateEdroAvatarForFreelancer(params: {
   tenantId: string;
   freelancerId: string;
-  personId: string;
   sourceBuffer: Buffer;
   sourceFilename: string;
   sourceMimeType: string;
@@ -135,12 +115,11 @@ export async function generateEdroAvatarForFreelancer(params: {
   const activePrompt = params.customPrompt?.trim() || EDRO_AVATAR_PROMPT;
 
   const sourceExt = path.extname(params.sourceFilename).replace('.', '') || fileExtFromMime(params.sourceMimeType);
-  const sourceKey = buildKey(params.tenantId, 'avatars-source', `${params.personId}.${sourceExt}`);
+  const sourceKey = buildKey(params.tenantId, 'avatars-source', `${params.freelancerId}.${sourceExt}`);
   await saveFile(params.sourceBuffer, sourceKey);
 
-  await updatePersonAvatarState({
-    personId: params.personId,
-    tenantId: params.tenantId,
+  await updateFreelancerAvatarState({
+    freelancerId: params.freelancerId,
     avatarSourceKey: sourceKey,
     status: 'pending',
     provider: 'fal-ai/flux-pro/v1.1',
@@ -188,18 +167,16 @@ export async function generateEdroAvatarForFreelancer(params: {
         throw new Error(`Falha ao baixar avatar gerado (${generatedResponse.status})`);
       }
       const generatedBuffer = Buffer.from(await generatedResponse.arrayBuffer());
-      avatarGeneratedKey = buildKey(params.tenantId, 'avatars-generated', `${params.personId}.jpg`);
+      avatarGeneratedKey = buildKey(params.tenantId, 'avatars-generated', `${params.freelancerId}.jpg`);
       await saveFile(generatedBuffer, avatarGeneratedKey);
       avatarUrl = buildStoragePublicUrl(avatarGeneratedKey) ?? result.imageUrl;
     } catch {
-      // Keep the provider URL as a compatible fallback when storage mirroring fails.
       avatarGeneratedKey = null;
       avatarUrl = result.imageUrl;
     }
 
-    await updatePersonAvatarState({
-      personId: params.personId,
-      tenantId: params.tenantId,
+    await updateFreelancerAvatarState({
+      freelancerId: params.freelancerId,
       avatarSourceKey: sourceKey,
       avatarGeneratedKey,
       avatarUrl,
@@ -207,11 +184,6 @@ export async function generateEdroAvatarForFreelancer(params: {
       provider,
       promptVersion: EDRO_AVATAR_PROMPT_VERSION,
       error: null,
-    });
-
-    await mirrorFreelancerAvatar({
-      freelancerId: params.freelancerId,
-      avatarUrl,
     });
 
     return {
@@ -222,9 +194,8 @@ export async function generateEdroAvatarForFreelancer(params: {
       provider,
     };
   } catch (error: any) {
-    await updatePersonAvatarState({
-      personId: params.personId,
-      tenantId: params.tenantId,
+    await updateFreelancerAvatarState({
+      freelancerId: params.freelancerId,
       avatarSourceKey: sourceKey,
       status: 'failed',
       provider: 'fal-ai:flux-dev-image-to-image',
