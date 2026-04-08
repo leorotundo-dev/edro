@@ -36,6 +36,30 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+function normalizeReporteiName(value?: string | null): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function numericCandidates(...values: Array<string | number | null | undefined>): number[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    ),
+  );
+}
+
+function isReporteiRateLimitError(error: any): boolean {
+  const message = String(error?.message || error || '');
+  return message.includes('→ 429') || /rate limit exceeded/i.test(message);
+}
+
 async function collectPaged<T>(
   fetchPage: (page: number) => Promise<any>,
 ): Promise<T[]> {
@@ -262,24 +286,72 @@ async function resolveProjectContext(tenantId: string, projectId?: number | null
   if (!clientId) throw new Error('project_id or client_id is required');
 
   const connector = await getReporteiConnector(tenantId, clientId);
-  if (connector?.projectId) return { projectId: Number(connector.projectId), clientId };
+  const { rows: clientRows } = await query<{ reportei_account_id: string | null; name: string | null }>(
+    `SELECT reportei_account_id, name
+       FROM clients
+      WHERE tenant_id=$1 AND id=$2
+      LIMIT 1`,
+    [tenantId, clientId],
+  );
+  const clientAccountId = clientRows[0]?.reportei_account_id ?? null;
+  const clientName = clientRows[0]?.name ?? null;
+
+  const explicitProjectCandidates = numericCandidates(
+    connector?.projectId,
+    connector?.accountId,
+    clientAccountId,
+  );
+  if (explicitProjectCandidates.length) {
+    const { rows } = await query<{ reportei_project_id: number }>(
+      `SELECT reportei_project_id
+         FROM reportei_projects
+        WHERE tenant_id=$1
+          AND reportei_project_id = ANY($2::bigint[])
+        ORDER BY reportei_project_id ASC
+        LIMIT 1`,
+      [tenantId, explicitProjectCandidates],
+    );
+    if (rows[0]?.reportei_project_id) {
+      return { projectId: Number(rows[0].reportei_project_id), clientId };
+    }
+  }
 
   const ids = Object.values(connector?.platforms ?? {}).map((value) => Number(value)).filter(Boolean);
   const fallbackId = connector?.integrationId ? Number(connector.integrationId) : null;
   if (fallbackId) ids.push(fallbackId);
-  if (!ids.length) throw new Error('client has no Reportei connector context');
+  if (ids.length) {
+    const { rows } = await query<{ reportei_project_id: number }>(
+      `SELECT reportei_project_id
+         FROM reportei_integrations
+        WHERE tenant_id=$1
+          AND reportei_integration_id = ANY($2::bigint[])
+          AND reportei_project_id IS NOT NULL
+        LIMIT 1`,
+      [tenantId, ids],
+    );
+    if (rows[0]?.reportei_project_id) {
+      return { projectId: Number(rows[0].reportei_project_id), clientId };
+    }
+  }
 
-  const { rows } = await query<{ reportei_project_id: number }>(
-    `SELECT reportei_project_id
-       FROM reportei_integrations
-      WHERE tenant_id=$1
-        AND reportei_integration_id = ANY($2::bigint[])
-        AND reportei_project_id IS NOT NULL
-      LIMIT 1`,
-    [tenantId, ids],
-  );
-  if (!rows[0]?.reportei_project_id) throw new Error('project_id not found in inventory for client');
-  return { projectId: Number(rows[0].reportei_project_id), clientId };
+  const normalizedClientName = normalizeReporteiName(clientName);
+  if (normalizedClientName) {
+    const { rows } = await query<{ reportei_project_id: number; name: string }>(
+      `SELECT reportei_project_id, name
+         FROM reportei_projects
+        WHERE tenant_id=$1`,
+      [tenantId],
+    );
+    const exact = rows.find((row) => normalizeReporteiName(row.name) === normalizedClientName);
+    if (exact?.reportei_project_id) {
+      return { projectId: Number(exact.reportei_project_id), clientId };
+    }
+  }
+
+  if (!ids.length && !explicitProjectCandidates.length) {
+    throw new Error('client has no Reportei connector context');
+  }
+  throw new Error('project_id not found in inventory for client');
 }
 
 function toMetricRequest(row: {
@@ -342,6 +414,9 @@ export async function ingestReporteiRawMetrics(
 
     let storedPayloads = 0;
     let integrationCount = 0;
+    let throttled = false;
+    let throttleError: string | null = null;
+    outer:
     for (const integration of integrations) {
       const { rows: catalogRows } = await query<{
         metric_id: string;
@@ -373,7 +448,17 @@ export async function ingestReporteiRawMetrics(
             comparison_end: comparisonEnd,
             metrics,
           };
-          const responsePayload = await client.getMetricsData(requestPayload, overrides);
+          let responsePayload: any;
+          try {
+            responsePayload = await client.getMetricsData(requestPayload, overrides);
+          } catch (error: any) {
+            if (isReporteiRateLimitError(error)) {
+              throttled = true;
+              throttleError = error?.message ?? 'reportei_rate_limited';
+              break outer;
+            }
+            throw error;
+          }
           const requestKey = `${window}:${start}:${end}:batch:${index + 1}:${batches.length}`;
 
           await upsertReporteiMetricRawPayload({
@@ -404,6 +489,8 @@ export async function ingestReporteiRawMetrics(
       payloads: storedPayloads,
       windows: options.windows,
       metrics_per_request: options.metricsPerRequest,
+      throttled,
+      throttle_error: throttleError,
     };
     await finishReporteiSyncRun(runId, 'success', result);
     return result;

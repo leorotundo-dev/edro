@@ -33,6 +33,7 @@ export async function runReporteiFoundationWorkerOnce() {
     const windows = getWindows();
     const metricsPerRequest = Number(process.env.REPORTEI_FOUNDATION_METRICS_PER_REQUEST || 40);
     const clientPauseMs = Number(process.env.REPORTEI_FOUNDATION_CLIENT_PAUSE_MS || 5000);
+    const throttlePauseMs = Number(process.env.REPORTEI_FOUNDATION_THROTTLE_PAUSE_MS || 60000);
 
     const { rows: tenants } = await query<{ tenant_id: string }>(
       `SELECT DISTINCT c.tenant_id
@@ -55,6 +56,7 @@ export async function runReporteiFoundationWorkerOnce() {
 
       let payloads = 0;
       let failures = 0;
+      let throttledClients = 0;
       for (const client of clients) {
         try {
           const result = await ingestReporteiRawMetrics(tenant.tenant_id, token, {
@@ -64,8 +66,11 @@ export async function runReporteiFoundationWorkerOnce() {
           });
           payloads += result.payloads;
           console.log(
-            `[reporteiFoundation] tenant=${tenant.tenant_id} client=${client.name} payloads=${result.payloads} integrations=${result.integrations}`,
+            `[reporteiFoundation] tenant=${tenant.tenant_id} client=${client.name} payloads=${result.payloads} integrations=${result.integrations}${result.throttled ? ' throttled=true' : ''}`,
           );
+          if (result.throttled) {
+            throttledClients += 1;
+          }
         } catch (error: any) {
           failures += 1;
           console.error(
@@ -73,11 +78,11 @@ export async function runReporteiFoundationWorkerOnce() {
             error?.message || error,
           );
         }
-        await sleep(clientPauseMs);
+        await sleep(throttledClients > 0 ? Math.max(clientPauseMs, throttlePauseMs) : clientPauseMs);
       }
 
       console.log(
-        `[reporteiFoundation] tenant=${tenant.tenant_id} inventory_projects=${inventory.projects} integrations=${inventory.integrations} metrics=${inventory.metrics} payloads=${payloads} failures=${failures}`,
+        `[reporteiFoundation] tenant=${tenant.tenant_id} inventory_projects=${inventory.projects} integrations=${inventory.integrations} metrics=${inventory.metrics} payloads=${payloads} failures=${failures} throttled_clients=${throttledClients}`,
       );
       syncTenantLearningRules(tenant.tenant_id)
         .then((result) => {

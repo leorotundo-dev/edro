@@ -6,6 +6,8 @@ export type ReporteiConnectorConfig = {
   baseUrl?: string;
   /** Reportei integration ID (numeric or UUID) — used in POST /metrics/get-data */
   integrationId?: string;
+  /** Legacy Reportei account/company ID — often matches project ID in seeded connectors */
+  accountId?: string;
   /** Reportei project ID — optional, for listing integrations */
   projectId?: string;
   /**
@@ -42,6 +44,20 @@ function pickProjectId(payload?: Record<string, any>, secrets?: Record<string, a
     payload?.reportei_project_id ||
     secrets?.project_id ||
     secrets?.reportei_project_id ||
+    null
+  );
+}
+
+function pickAccountId(payload?: Record<string, any>, secrets?: Record<string, any>): string | null {
+  return (
+    payload?.reportei_account_id ||
+    payload?.account_id ||
+    payload?.id ||
+    payload?.reportei_company_id ||
+    secrets?.reportei_account_id ||
+    secrets?.account_id ||
+    secrets?.id ||
+    secrets?.reportei_company_id ||
     null
   );
 }
@@ -96,6 +112,7 @@ export async function getReporteiConnector(
   }
 
   const integrationId = pickIntegrationId(payload, secrets);
+  const accountId = pickAccountId(payload, secrets);
   const projectId = pickProjectId(payload, secrets);
   const baseUrl = pickBaseUrl(payload, secrets);
   const token = pickToken(payload, secrets);
@@ -108,6 +125,7 @@ export async function getReporteiConnector(
 
   return {
     integrationId: integrationId ? String(integrationId) : undefined,
+    accountId: accountId ? String(accountId) : undefined,
     projectId: projectId ? String(projectId) : undefined,
     baseUrl: baseUrl ? String(baseUrl) : undefined,
     token: token ? String(token) : undefined,
