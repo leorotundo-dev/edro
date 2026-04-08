@@ -3,6 +3,7 @@ import { getClientById } from '../repos/clientsRepo';
 import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { loadBehaviorProfiles } from './behaviorClusteringService';
 import { loadLearningRules } from './learningEngine';
+import { buildClientLivingMemory } from './clientLivingMemoryService';
 
 /**
  * Resolve clients.id (TEXT like "banco-bbc-digital") → edro_clients.id (UUID).
@@ -39,10 +40,12 @@ export async function buildClientContext(tenantId: string, clientId: string): Pr
   if (knowledge.pillars?.length) parts.push(`Content Pillars: ${knowledge.pillars.join(', ')}`);
 
   try {
-    const [docs, insight] = await Promise.all([
+    const [docs, insight, livingMemory] = await Promise.all([
       listClientDocuments({ tenantId, clientId, limit: 15 }),
       getLatestClientInsight({ tenantId, clientId }),
+      buildClientLivingMemory({ tenantId, clientId, maxEvidence: 5, maxActions: 4 }).catch(() => ({ block: '', directives: [], evidence: [], pendingActions: [] })),
     ]);
+    const memorySourceTypes = new Set(['gmail_message', 'whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat']);
 
     if (insight?.summary) {
       const s = insight.summary;
@@ -52,9 +55,13 @@ export async function buildClientContext(tenantId: string, clientId: string): Pr
       if (s.industry) parts.push(`Industria: ${s.industry}`);
     }
 
+    if (livingMemory.block) {
+      parts.push(`\n${livingMemory.block}`);
+    }
+
     if (docs.length > 0) {
       const socialPosts = docs.filter((d) => d.source_type === 'social').slice(0, 8);
-      const webPages = docs.filter((d) => d.source_type !== 'social').slice(0, 5);
+      const webPages = docs.filter((d) => d.source_type !== 'social' && !memorySourceTypes.has(String(d.source_type || ''))).slice(0, 5);
 
       if (socialPosts.length > 0) {
         parts.push(`\nCONTEUDO RECENTE DO CLIENTE (${socialPosts.length} posts):`);

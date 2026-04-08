@@ -115,6 +115,11 @@ async function plugin2Strategist(
   params: AgentRedatorParams,
   bv: BrandVoiceContext,
 ): Promise<HookStrategy> {
+  const livingMemoryBlock = String(
+    params.briefing?.payload?.living_memory_context
+      ?? params.clientProfile?.__livingMemoryBlock
+      ?? '',
+  ).trim();
   const amdDescriptions: Record<string, string> = {
     compartilhar:   'viralizar via compartilhamento (identidade, dark social)',
     salvar:         'gerar saves (conteúdo de valor, listas, frameworks)',
@@ -144,6 +149,7 @@ CONTEXTO:
 - Plataforma: ${params.platform ?? 'não definida'}
 - Briefing: ${params.briefing?.title ?? 'não informado'}
 - Objetivo do briefing: ${params.briefing?.payload?.objective ?? 'não informado'}
+${livingMemoryBlock ? `\nMEMÓRIA VIVA DO CLIENTE (respeite decisões, promessas e restrições):\n${livingMemoryBlock.slice(0, 1200)}` : ''}
 
 Retorne SOMENTE este JSON (sem markdown):
 {
@@ -176,6 +182,11 @@ async function plugin3Generator(
   appeal: 'dor' | 'logica' | 'prova_social',
   rejectionFeedback?: string,
 ): Promise<Omit<CopyVariant, 'audit' | 'flagged'>> {
+  const livingMemoryBlock = String(
+    params.briefing?.payload?.living_memory_context
+      ?? params.clientProfile?.__livingMemoryBlock
+      ?? '',
+  ).trim();
   const appealInstructions: Record<string, string> = {
     dor:         'Foque na DOR específica da persona. Nomeie o problema com precisão antes de apresentar a solução. Use linguagem visceral e empática.',
     logica:      'Foque em DADOS e LÓGICA. Use números, percentuais, comparações e argumentos racionais. Convença pelo raciocínio.',
@@ -225,6 +236,7 @@ CONTEXTO:
 - Plataforma: ${params.platform ?? 'Instagram'} (limite: ${charLimits[platform] ?? 'adapte ao contexto'})
 - Formato: ${params.format ?? 'Post'}
 - AMD: ${params.amd ?? 'engajamento'}
+${livingMemoryBlock ? `\nMEMÓRIA VIVA DO CLIENTE (obrigatório respeitar):\n${livingMemoryBlock.slice(0, 1400)}` : ''}
 ${rejectionFeedback ? `\nFEEDBACK DO AUDITOR (CORRIJA ESTES PONTOS):\n${rejectionFeedback}` : ''}
 
 Retorne SOMENTE este JSON (sem markdown):

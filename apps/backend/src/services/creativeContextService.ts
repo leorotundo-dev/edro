@@ -18,6 +18,7 @@
 
 import { query } from '../db';
 import { generateCompletion } from './ai/claudeService';
+import { buildClientLivingMemory } from './clientLivingMemoryService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ export type CreativeContextObject = {
   cultura: string | null;                 // trends + clipping + calendar
   memoria: {
     copiesAnteriores: string[];           // anti-repetição: últimas 5 copies
+    contextoVivo: string | null;
   };
   visual: {
     artDirectionContext: string;
@@ -185,6 +187,20 @@ export async function assembleCreativeContext(params: {
   const artDirRow = artDirRes.status === 'fulfilled' ? artDirRes.value.rows[0] : null;
 
   const kb = clientRow?.knowledge_base ?? {};
+  const livingMemory = resolvedClientId
+    ? await buildClientLivingMemory({
+        tenantId,
+        clientId: resolvedClientId,
+        briefing: {
+          title: briefingRow.title ?? briefingRow.payload?.title ?? '',
+          objective: briefingRow.payload?.objective ?? briefingRow.payload?.objetivo ?? '',
+          context: briefingRow.payload?.context ?? briefingRow.payload?.notes ?? briefingRow.payload?.additional_notes ?? null,
+          payload: briefingRow.payload ?? {},
+        },
+        maxEvidence: 4,
+        maxActions: 3,
+      }).catch(() => ({ block: '', directives: [], evidence: [], pendingActions: [] }))
+    : { block: '', directives: [], evidence: [], pendingActions: [] };
 
   // Build cultural context block
   let cultura: string | null = null;
@@ -223,6 +239,7 @@ export async function assembleCreativeContext(params: {
     cultura,
     memoria: {
       copiesAnteriores: copiesRows.map((r) => r.copy_text).filter(Boolean),
+      contextoVivo: livingMemory.block || null,
     },
     visual: {
       artDirectionContext: artDirRow?.style_notes ?? '',
@@ -305,7 +322,7 @@ export function toConceitoParams(cco: CreativeContextObject) {
     briefing: {
       title: cco.briefing.titulo,
       objective: cco.briefing.objetivo,
-      context: cco.briefing.contexto ?? undefined,
+      context: [cco.briefing.contexto, cco.memoria.contextoVivo].filter(Boolean).join('\n\n') || undefined,
     },
     clientProfile: cco.cliente.raw,
     platform: cco.briefing.plataforma ?? undefined,
@@ -320,11 +337,15 @@ export function toRedatorParams(cco: CreativeContextObject, conceptBlock?: strin
   const base = {
     briefing: {
       title: cco.briefing.titulo,
-      payload: cco.briefing.payload,
+      payload: {
+        ...cco.briefing.payload,
+        living_memory_context: cco.memoria.contextoVivo ?? undefined,
+      },
     },
     clientProfile: {
       ...cco.cliente.raw,
       amd: cco.comportamento.amd,
+      __livingMemoryBlock: cco.memoria.contextoVivo ?? undefined,
     },
     trigger: cco.comportamento.triggers[0] ?? null,
     amd: cco.comportamento.amd,

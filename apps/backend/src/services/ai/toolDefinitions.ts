@@ -398,6 +398,25 @@ export const TOOLS: ToolDefinition[] = [
     category: 'read',
   },
   {
+    name: 'get_client_living_memory',
+    description: 'Retorna a memória viva do cliente com diretivas ativas, evidências recentes relacionadas e compromissos pendentes. Use antes de gerar copy, campanha ou responder quando o briefing estiver fraco ou houver risco de contexto implícito fora do briefing.',
+    parameters: {
+      question: { type: 'string', description: 'Pergunta, assunto ou briefing resumido para ranquear as evidências mais relevantes' },
+      days_back: { type: 'number', description: 'Janela de dias a investigar (padrão 60, máximo 120)' },
+      limit_evidence: { type: 'number', description: 'Máximo de evidências relacionadas (padrão 6, máximo 10)' },
+      limit_actions: { type: 'number', description: 'Máximo de compromissos pendentes (padrão 4, máximo 8)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_client_state',
+    description: 'Retorna um snapshot unificado do cliente agora: saúde operacional, sinais, estado vivo e preview da memória viva. Use para perguntas como "como esse cliente está hoje?", "qual o contexto atual?" ou antes de tomar decisão estratégica mais ampla.',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
+  {
     name: 'retrieve_client_evidence',
     description: 'Recupera evidências concretas sobre o cliente a partir de reuniões, chat de reunião, emails, WhatsApp, digests e documentos do cliente. Use para perguntas como "o que a cliente falou", "o que foi decidido", "quais evidências sustentam isso".',
     parameters: {

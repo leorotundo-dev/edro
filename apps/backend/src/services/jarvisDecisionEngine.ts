@@ -19,6 +19,7 @@
  */
 
 import { query } from '../db';
+import { buildClientLivingMemory } from './clientLivingMemoryService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -69,9 +70,29 @@ export type JarvisClientState = {
     competitors: { active_in_48h: number };
     social:      { mentions_24h: number };
     jobs:        { without_briefing: number; da_stale: number };
+    living_memory: {
+      active_directives: number;
+      evidence_signals_30d: number;
+      fresh_signals_7d: number;
+      pending_commitments: number;
+    };
   };
   open_alerts: number;
   pending_decisions: JarvisDecision[];
+  living_memory_preview: {
+    directives: string[];
+    evidence: Array<{
+      source_type: string;
+      title: string | null;
+      excerpt: string;
+      occurred_at: string | null;
+    }>;
+    pending_commitments: Array<{
+      title: string;
+      responsible: string | null;
+      deadline: string | null;
+    }>;
+  };
 };
 
 // ── Event Classifier ──────────────────────────────────────────────────────────
@@ -171,7 +192,7 @@ export async function buildClientState(
   tenantId: string,
   clientId: string,
 ): Promise<JarvisClientState> {
-  const [trello, meetings, whatsapp, calendar, financial, learning, competitors, jobs] =
+  const [trello, meetings, whatsapp, calendar, financial, learning, competitors, jobs, livingMemory] =
     await Promise.allSettled([
 
       // Trello
@@ -266,6 +287,14 @@ export async function buildClientState(
          WHERE j.client_id = $1 AND j.tenant_id = $2`,
         [clientId, tenantId],
       ),
+      buildClientLivingMemory({
+        tenantId,
+        clientId,
+        daysBack: 30,
+        maxDirectives: 6,
+        maxEvidence: 6,
+        maxActions: 4,
+      }),
     ]);
 
   const getInt = (r: PromiseSettledResult<{ rows: any[] }>, field: string, fallback = 0): number => {
@@ -286,6 +315,34 @@ export async function buildClientState(
   const meetingRow = meetings.status === 'fulfilled' ? meetings.value.rows[0] : null;
   const waRow = whatsapp.status === 'fulfilled' ? whatsapp.value.rows[0] : null;
   const financialRow = financial.status === 'fulfilled' ? financial.value.rows[0] : null;
+  const livingMemorySnapshot = livingMemory.status === 'fulfilled'
+    ? livingMemory.value.snapshot
+    : {
+      active_directives: 0,
+      evidence_signals: 0,
+      fresh_signals_7d: 0,
+      pending_commitments: 0,
+    };
+  const livingMemoryPreview = livingMemory.status === 'fulfilled'
+    ? {
+      directives: livingMemory.value.directives.map((item) => item.directive),
+      evidence: livingMemory.value.evidence.map((item) => ({
+        source_type: item.source_type,
+        title: item.title,
+        excerpt: item.excerpt,
+        occurred_at: item.occurred_at,
+      })),
+      pending_commitments: livingMemory.value.pendingActions.map((item) => ({
+        title: item.title,
+        responsible: item.responsible,
+        deadline: item.deadline,
+      })),
+    }
+    : {
+      directives: [],
+      evidence: [],
+      pending_commitments: [],
+    };
 
   return {
     client_id: clientId,
@@ -322,9 +379,16 @@ export async function buildClientState(
         without_briefing: getInt(jobs, 'no_briefing'),
         da_stale: getInt(jobs, 'da_stale'),
       },
+      living_memory: {
+        active_directives: livingMemorySnapshot.active_directives,
+        evidence_signals_30d: livingMemorySnapshot.evidence_signals,
+        fresh_signals_7d: livingMemorySnapshot.fresh_signals_7d,
+        pending_commitments: livingMemorySnapshot.pending_commitments,
+      },
     },
     open_alerts: openAlerts,
     pending_decisions: [],
+    living_memory_preview: livingMemoryPreview,
   };
 }
 
