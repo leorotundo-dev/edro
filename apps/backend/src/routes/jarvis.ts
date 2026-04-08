@@ -311,6 +311,33 @@ function buildKeyFactsUsedPreview(livingMemory: Awaited<ReturnType<typeof buildC
   ].slice(0, 5);
 }
 
+function buildBriefingCompensationsPreview(
+  diagnostics: {
+    gaps?: string[];
+    tensions?: string[];
+    recommendations?: string[];
+  } | null | undefined,
+) {
+  if (!diagnostics) return [] as string[];
+  return [
+    ...(Array.isArray(diagnostics.gaps) ? diagnostics.gaps.slice(0, 2).map((item) => `Lacuna compensada: ${item}`) : []),
+    ...(Array.isArray(diagnostics.tensions) ? diagnostics.tensions.slice(0, 2).map((item) => `Tensão mitigada: ${item}`) : []),
+    ...(Array.isArray(diagnostics.recommendations) ? diagnostics.recommendations.slice(0, 2).map((item) => `Ajuste aplicado: ${item}`) : []),
+  ].slice(0, 4);
+}
+
+function buildIgnoredMemoryFactsPreview(governance: ClientMemoryGovernanceAnalysis | null | undefined) {
+  if (!governance) return [] as string[];
+  return (governance.suggestions || [])
+    .slice(0, 4)
+    .map((item) => {
+      const target = item.target?.title || 'fato sem título';
+      return item.action === 'replace'
+        ? `Fato antigo atenuado: ${target}${item.replacement?.title ? ` → preferir ${item.replacement.title}` : ''}`
+        : `Fato velho atenuado: ${target}`;
+    });
+}
+
 async function resolveCreativeExecutionTarget(params: {
   tenantId: string;
   bodyClientId?: string | null;
@@ -495,6 +522,7 @@ async function runCreativeExecutionCapability(params: {
           job_id: target.jobId,
           memory_governance: memoryGovernancePreflight,
           key_facts_used: buildKeyFactsUsedPreview(livingMemoryPreflight),
+          ignored_memory_facts: buildIgnoredMemoryFactsPreview(memoryGovernancePreflight),
           suggested_actions: memoryGovernancePreflight.suggestions.slice(0, 4),
           requires_confirmation: true,
         },
@@ -626,6 +654,15 @@ async function runCreativeExecutionCapability(params: {
     params.appliedGovernanceActions?.length
       ? `Antes de criar, apliquei ${params.appliedGovernanceActions.length} ação(ões) de governança na memória viva para reduzir contaminação de contexto.`
       : null,
+    buildKeyFactsUsedPreview(livingMemoryPreflight).length
+      ? `Baseei a resposta em ${buildKeyFactsUsedPreview(livingMemoryPreflight).length} fato(s)-chave da memória viva do cliente.`
+      : null,
+    buildBriefingCompensationsPreview(result.briefing_diagnostics).length
+      ? `Compensei ${buildBriefingCompensationsPreview(result.briefing_diagnostics).length} lacuna(s)/tensão(ões) do briefing durante a criação.`
+      : null,
+    buildIgnoredMemoryFactsPreview(memoryGovernancePreflight).length
+      ? `Atenuei ${buildIgnoredMemoryFactsPreview(memoryGovernancePreflight).length} fato(s) velhos ou conflitantes para não contaminar a saída.`
+      : null,
     memoryGovernancePreflight?.summary.governance_pressure === 'high'
       ? 'A criação saiu com pressão alta de governança na memória viva; vale revisar e limpar fatos antigos ou conflitantes na sequência.'
       : memoryGovernancePreflight?.summary.governance_pressure === 'medium'
@@ -660,6 +697,8 @@ async function runCreativeExecutionCapability(params: {
         image_url: result.arte?.imageUrl ?? null,
         has_arte: Boolean(result.arte?.imageUrl),
         key_facts_used: buildKeyFactsUsedPreview(livingMemoryPreflight),
+        briefing_compensations: buildBriefingCompensationsPreview(result.briefing_diagnostics),
+        ignored_memory_facts: buildIgnoredMemoryFactsPreview(memoryGovernancePreflight),
         applied_governance_actions: params.appliedGovernanceActions || [],
         briefing_diagnostics: result.briefing_diagnostics,
         memory_governance: memoryGovernancePreflight,
