@@ -34,6 +34,16 @@ function normName(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 }
 
+function numericCandidates(...values: Array<string | number | null | undefined>): number[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    ),
+  );
+}
+
 /**
  * Fetch real metric definitions from Reportei for a given platform slug.
  * Results are cached per slug for the lifetime of this worker run.
@@ -160,6 +170,89 @@ async function tryRefreshPlatformId(
     console.log(`[reporteiSync] ${clientName} ${slug}: auto-refresh failed: ${e.message}`);
     return null;
   }
+}
+
+async function resolveInventoryProjectId(
+  tenantId: string,
+  clientId: string,
+  clientName: string | undefined,
+  connector: Awaited<ReturnType<typeof getReporteiConnector>>,
+): Promise<number | null> {
+  const { rows: clientRows } = await query<{ reportei_account_id: string | null; name: string | null }>(
+    `SELECT reportei_account_id, name
+       FROM clients
+      WHERE tenant_id=$1 AND id=$2
+      LIMIT 1`,
+    [tenantId, clientId],
+  );
+
+  const explicitProjectCandidates = numericCandidates(
+    connector?.projectId,
+    connector?.accountId,
+    clientRows[0]?.reportei_account_id ?? null,
+  );
+  if (explicitProjectCandidates.length) {
+    const { rows } = await query<{ reportei_project_id: number }>(
+      `SELECT reportei_project_id
+         FROM reportei_projects
+        WHERE tenant_id=$1
+          AND reportei_project_id = ANY($2::bigint[])
+        ORDER BY reportei_project_id ASC
+        LIMIT 1`,
+      [tenantId, explicitProjectCandidates],
+    );
+    if (rows[0]?.reportei_project_id) return Number(rows[0].reportei_project_id);
+  }
+
+  const integrationCandidates = numericCandidates(
+    connector?.integrationId,
+    ...Object.values(connector?.platforms ?? {}),
+  );
+  if (integrationCandidates.length) {
+    const { rows } = await query<{ reportei_project_id: number }>(
+      `SELECT reportei_project_id
+         FROM reportei_integrations
+        WHERE tenant_id=$1
+          AND reportei_integration_id = ANY($2::bigint[])
+          AND reportei_project_id IS NOT NULL
+        LIMIT 1`,
+      [tenantId, integrationCandidates],
+    );
+    if (rows[0]?.reportei_project_id) return Number(rows[0].reportei_project_id);
+  }
+
+  const normalizedClientName = normName(clientRows[0]?.name || clientName || '');
+  if (!normalizedClientName) return null;
+
+  const { rows } = await query<{ reportei_project_id: number; name: string | null }>(
+    `SELECT reportei_project_id, name
+       FROM reportei_projects
+      WHERE tenant_id=$1`,
+    [tenantId],
+  );
+  const match = rows.find((row) => normName(row.name || '') === normalizedClientName);
+  return match?.reportei_project_id ? Number(match.reportei_project_id) : null;
+}
+
+async function loadInventoryPlatformIds(
+  tenantId: string,
+  projectId: number | null,
+): Promise<Record<string, number>> {
+  if (!projectId) return {};
+  const { rows } = await query<{ slug: string | null; reportei_integration_id: number }>(
+    `SELECT slug, reportei_integration_id
+       FROM reportei_integrations
+      WHERE tenant_id=$1
+        AND reportei_project_id=$2
+        AND slug IS NOT NULL
+        AND COALESCE(status, 'active') = 'active'`,
+    [tenantId, projectId],
+  );
+
+  return rows.reduce<Record<string, number>>((acc, row) => {
+    if (row.slug) acc[row.slug] = Number(row.reportei_integration_id);
+    return acc;
+  }, {});
 }
 
 let running = false;
@@ -358,18 +451,29 @@ async function syncClientMetrics(
 
   const rc = new ReporteiClient();
   const overrides = { token, baseUrl: connector.baseUrl };
+  const inventoryProjectId = await resolveInventoryProjectId(tenantId, clientId, clientName, connector).catch(() => null);
+  const inventoryPlatforms = await loadInventoryPlatformIds(tenantId, inventoryProjectId).catch(() => ({} as Record<string, number>));
 
   const toSync: Array<{ integrationId: number; platform: string; slug: string }> = [];
-  if (connector.platforms && Object.keys(connector.platforms).length > 0) {
-    for (const [slug, id] of Object.entries(connector.platforms)) {
+  const slugsToSync = new Set<string>([
+    ...Object.keys(inventoryPlatforms),
+    ...Object.keys(connector.platforms ?? {}),
+  ]);
+  if (slugsToSync.size > 0) {
+    for (const slug of slugsToSync) {
+      const id = inventoryPlatforms[slug] ?? connector.platforms?.[slug];
       const platform = SLUG_TO_PLATFORM[slug];
-      if (platform && PLATFORM_METRICS[platform]?.length) {
+      if (id && platform && PLATFORM_METRICS[platform]?.length) {
         toSync.push({ integrationId: Number(id), platform, slug });
       }
     }
   }
-  if (toSync.length === 0 && connector.integrationId) {
-    toSync.push({ integrationId: Number(connector.integrationId), platform: 'Instagram', slug: 'instagram_business' });
+  if (toSync.length === 0 && (inventoryPlatforms.instagram_business || connector.integrationId)) {
+    toSync.push({
+      integrationId: Number(inventoryPlatforms.instagram_business ?? connector.integrationId),
+      platform: 'Instagram',
+      slug: 'instagram_business',
+    });
   }
 
   let snapshots = 0;
