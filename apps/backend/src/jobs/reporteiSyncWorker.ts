@@ -42,6 +42,7 @@ function normName(s: string): string {
 async function resolveMetricDefs(
   rc: ReporteiClient,
   overrides: { token: string; baseUrl?: string },
+  tenantId: string,
   slug: string,
   platform: string
 ): Promise<ReporteiMetricRequest[]> {
@@ -49,6 +50,38 @@ async function resolveMetricDefs(
 
   const hardcoded = PLATFORM_METRICS[platform] ?? [];
   const desiredKeys = hardcoded.map(m => m.id); // reference_keys from our preset
+
+  try {
+    const { rows } = await query<{
+      metric_id: string;
+      reference_key: string | null;
+      component: string | null;
+      metric_keys: any;
+    }>(
+      `SELECT metric_id, reference_key, component, metric_keys
+         FROM reportei_metric_catalog
+        WHERE tenant_id = $1
+          AND integration_slug = $2
+          AND ($3::text[] IS NULL OR reference_key = ANY($3::text[]))
+        ORDER BY COALESCE(reference_key, metric_id) ASC`,
+      [tenantId, slug, desiredKeys.length ? desiredKeys : null],
+    );
+
+    const catalogDefs = rows.map((row) => ({
+      id: row.metric_id,
+      reference_key: row.reference_key ?? undefined,
+      metrics: Array.isArray(row.metric_keys) && row.metric_keys.length ? row.metric_keys : ['value'],
+      component: (row.component as ReporteiMetricRequest['component']) ?? 'number_v1',
+    }));
+
+    if (catalogDefs.length > 0) {
+      console.log(`[reporteiSync] ${platform}: using ${catalogDefs.length} metric defs from local catalog`);
+      metricDefsCache.set(slug, catalogDefs);
+      return catalogDefs;
+    }
+  } catch (e: any) {
+    console.log(`[reporteiSync] ${platform}: could not load metric defs from catalog (${e.message}), trying API`);
+  }
 
   try {
     const live = await rc.fetchMetricDefs(slug, desiredKeys, overrides);
@@ -347,7 +380,7 @@ async function syncClientMetrics(
   const refreshedIds: Record<string, number> = {};
 
   for (const { integrationId: origId, platform, slug } of toSync) {
-    const metricDefs = await resolveMetricDefs(rc, overrides, slug, platform);
+    const metricDefs = await resolveMetricDefs(rc, overrides, tenantId, slug, platform);
     if (!metricDefs?.length) continue;
 
     for (const window of WINDOWS) {
