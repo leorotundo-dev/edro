@@ -15,12 +15,15 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconAlertTriangle,
+  IconCalendarWeek,
   IconDots,
   IconLayoutGrid,
   IconList,
@@ -32,7 +35,8 @@ import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import JobDetailClient from './jobs/[id]/JobDetailClient';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
-import { getRisk, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
+import { getRisk, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
+import { InlineOwnerAssign } from '@/components/operations/primitives';
 import { sortByOperationalPriority } from '@/components/operations/derived';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
@@ -88,6 +92,31 @@ function checklistPct(job: OperationsJob): number | null {
   const items = job.checklists?.flatMap((c) => c.items) ?? [];
   if (!items.length) return null;
   return Math.round((items.filter((i) => i.checked).length / items.length) * 100);
+}
+
+// ── Week helpers ─────────────────────────────────────────────────────────────
+
+function startOfWeek(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date: Date, n: number): Date {
+  const d = new Date(date); d.setDate(d.getDate() + n); return d;
+}
+
+function wDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function jobDayKey(job: OperationsJob): string | null {
+  if (!job.deadline_at) return null;
+  const part = String(job.deadline_at).split(/[T ]/)[0];
+  const d = new Date(part + 'T00:00:00');
+  return isNaN(d.getTime()) ? null : wDateKey(d);
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -175,7 +204,13 @@ function StatNumber({ value, label, color, onClick }: { value: number; label: st
 
 // ── DailyOpCard ───────────────────────────────────────────────────────────────
 
-function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j: OperationsJob) => void; onDetail: (j: OperationsJob) => void }) {
+function DailyOpCard({ job, onOpen, onDetail, onAssign, owners }: {
+  job: OperationsJob;
+  onOpen: (j: OperationsJob) => void;
+  onDetail: (j: OperationsJob) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: OperationsOwner[];
+}) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const pct = checklistPct(job);
@@ -278,15 +313,27 @@ function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j
         {/* Footer */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
           <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
-            <Avatar
-              src={job.owner_avatar_url ?? undefined}
-              sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
-            >
-              {initials(job.owner_name)}
-            </Avatar>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
-              {job.owner_name?.split(' ')[0] ?? 'Sem dono'}
-            </Typography>
+            {job.owner_name ? (
+              <>
+                <Avatar
+                  src={job.owner_avatar_url ?? undefined}
+                  sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
+                >
+                  {initials(job.owner_name)}
+                </Avatar>
+                <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
+                  {job.owner_name.split(' ')[0]}
+                </Typography>
+              </>
+            ) : onAssign && owners?.length ? (
+              <Box onClick={(e) => e.stopPropagation()}>
+                <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
+              </Box>
+            ) : (
+              <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>
+                Sem dono
+              </Typography>
+            )}
           </Stack>
           <Chip
             size="small"
@@ -322,6 +369,9 @@ export default function DailyOperationClient() {
     const p = searchParams.get('filter') as FilterKey | null;
     return p && ['urgent', 'in_progress', 'awaiting', 'unassigned'].includes(p) ? p : 'all';
   });
+  const [filterDay, setFilterDay] = useState<string | null>(null);
+  const [filterClientId, setFilterClientId] = useState<string>('all');
+  const [filterOwnerId, setFilterOwnerId] = useState<string>('all');
   const [groupByClient, setGroupByClient] = useState(false);
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [drawerOpen, setDrawerOpen]   = useState(false);
@@ -354,6 +404,10 @@ export default function DailyOperationClient() {
     setDrawerOpen(true);
   }, []);
 
+  const assignOwner = useCallback(async (jobId: string, ownerId: string) => {
+    await updateJob(jobId, { owner_id: ownerId });
+  }, [updateJob]);
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -370,11 +424,66 @@ export default function DailyOperationClient() {
   const peopleInvolved    = useMemo(() => new Set(jobs.map((j) => j.owner_id || j.owner_email || j.owner_name).filter(Boolean)).size, [jobs]);
   const urgentCount       = useMemo(() => jobs.filter((j) => j.is_urgent || j.priority_band === 'p0' || getRisk(j).level === 'critical').length, [jobs]);
 
-  // Filtered + sorted
-  const displayed = useMemo(
-    () => filterJobs(activeJobs, filter).sort(sortByOperationalPriority),
-    [activeJobs, filter],
+  // Week strip data
+  const weekDays = useMemo(() => {
+    const monday = startOfWeek(new Date());
+    const todayKey = wDateKey(new Date());
+    return Array.from({ length: 5 }, (_, i) => {
+      const d = addDays(monday, i);
+      const key = wDateKey(d);
+      return {
+        date: d,
+        key,
+        short: new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(d).replace('.', '').toUpperCase(),
+        dayNum: d.getDate(),
+        today: key === todayKey,
+      };
+    });
+  }, []);
+
+  const jobsPerDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of weekDays) map.set(d.key, 0);
+    for (const job of activeJobs) {
+      const dk = jobDayKey(job);
+      if (dk && map.has(dk)) map.set(dk, (map.get(dk) ?? 0) + 1);
+    }
+    return map;
+  }, [weekDays, activeJobs]);
+
+  const maxDayJobs = useMemo(
+    () => Math.max(1, ...weekDays.map((d) => jobsPerDay.get(d.key) ?? 0)),
+    [weekDays, jobsPerDay],
   );
+
+  // Client and owner lists for dropdowns
+  const activeClientsList = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const job of activeJobs) if (job.client_id && job.client_name) map.set(job.client_id, job.client_name);
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [activeJobs]);
+
+  const activeOwnersList = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const job of activeJobs) {
+      const key = job.owner_id || job.owner_email || job.owner_name;
+      if (key && job.owner_name) map.set(key, job.owner_name);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [activeJobs]);
+
+  // Filtered + sorted (with day, client, owner drill-downs)
+  const displayed = useMemo(() => {
+    let result = filterJobs(activeJobs, filter);
+    if (filterDay) result = result.filter((j) => jobDayKey(j) === filterDay);
+    if (filterClientId !== 'all') result = result.filter((j) => j.client_id === filterClientId);
+    if (filterOwnerId !== 'all') {
+      result = filterOwnerId === '__none__'
+        ? result.filter((j) => !j.owner_id && !j.owner_name)
+        : result.filter((j) => j.owner_id === filterOwnerId || j.owner_email === filterOwnerId || j.owner_name === filterOwnerId);
+    }
+    return result.sort(sortByOperationalPriority);
+  }, [activeJobs, filter, filterDay, filterClientId, filterOwnerId]);
 
   // Grouped by client (for group mode)
   const groupedByClient = useMemo(() => {
@@ -478,8 +587,86 @@ export default function DailyOperationClient() {
         </Stack>
       </Stack>
 
-      {/* ── Filter chips ── */}
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 3 }}>
+      {/* ── Week strip ── */}
+      <Box sx={{ mb: 2.5 }}>
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
+          <IconCalendarWeek size={14} style={{ opacity: 0.5 }} />
+          <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary', fontSize: '0.65rem' }}>
+            Semana
+          </Typography>
+          {filterDay && (
+            <Chip
+              size="small"
+              label="Limpar dia"
+              onClick={() => setFilterDay(null)}
+              sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer' }}
+            />
+          )}
+        </Stack>
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+          {weekDays.map((day) => {
+            const count = jobsPerDay.get(day.key) ?? 0;
+            const pct = Math.round((count / maxDayJobs) * 100);
+            const isSelected = filterDay === day.key;
+            const barCol = day.today ? '#5D87FF' : count > 0 ? '#13DEB9' : '#A0AEC0';
+            return (
+              <Box
+                key={day.key}
+                onClick={() => setFilterDay(isSelected ? null : day.key)}
+                sx={(t) => ({
+                  minWidth: 68,
+                  px: 1.25,
+                  pt: 0.9,
+                  pb: 0.75,
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: `1.5px solid`,
+                  borderColor: isSelected
+                    ? (day.today ? '#5D87FF' : alpha(t.palette.text.primary, 0.35))
+                    : day.today
+                      ? alpha('#5D87FF', 0.3)
+                      : alpha(t.palette.divider, 0.7),
+                  bgcolor: isSelected
+                    ? (day.today ? alpha('#5D87FF', 0.1) : alpha(t.palette.text.primary, 0.05))
+                    : day.today
+                      ? alpha('#5D87FF', 0.04)
+                      : t.palette.mode === 'dark' ? alpha('#fff', 0.02) : '#fff',
+                  transition: 'all 150ms ease',
+                  '&:hover': {
+                    borderColor: day.today ? '#5D87FF' : alpha(t.palette.text.primary, 0.3),
+                    bgcolor: day.today ? alpha('#5D87FF', 0.08) : alpha(t.palette.text.primary, 0.04),
+                  },
+                })}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: 900, fontSize: '0.62rem', color: day.today ? '#5D87FF' : 'text.secondary', display: 'block', lineHeight: 1, mb: 0.3 }}
+                >
+                  {day.short}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: 900, fontSize: '0.95rem', lineHeight: 1, display: 'block', color: day.today ? '#5D87FF' : 'text.primary' }}
+                >
+                  {day.dayNum}
+                </Typography>
+                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.6 }}>
+                  <Box sx={{ flex: 1, height: 3, borderRadius: 1, bgcolor: alpha(barCol, 0.15) }}>
+                    <Box sx={{ height: 3, borderRadius: 1, width: `${pct}%`, bgcolor: barCol, transition: 'width 300ms ease' }} />
+                  </Box>
+                  <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 800, color: count > 0 ? barCol : 'text.disabled', lineHeight: 1, minWidth: 14, textAlign: 'right' }}>
+                    {count || '—'}
+                  </Typography>
+                </Stack>
+              </Box>
+            );
+          })}
+        </Stack>
+      </Box>
+
+      {/* ── Filter chips + extra dropdowns ── */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mb: 3 }}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap flex={1}>
         {FILTERS.map((f) => {
           const isSelected = filter === f.key;
           const isFocus = f.key === 'focus';
@@ -523,6 +710,36 @@ export default function DailyOperationClient() {
             />
           );
         })}
+        </Stack>
+
+        {/* Client + owner dropdowns */}
+        <Stack direction="row" spacing={1} flexShrink={0}>
+          <Select
+            size="small"
+            value={filterClientId}
+            onChange={(e) => setFilterClientId(e.target.value)}
+            displayEmpty
+            sx={{ height: 28, fontSize: '0.72rem', fontWeight: 700, minWidth: 130, '& .MuiSelect-select': { py: 0 } }}
+          >
+            <MenuItem value="all">Todos clientes</MenuItem>
+            {activeClientsList.map(([id, name]) => (
+              <MenuItem key={id} value={id}>{name}</MenuItem>
+            ))}
+          </Select>
+          <Select
+            size="small"
+            value={filterOwnerId}
+            onChange={(e) => setFilterOwnerId(e.target.value)}
+            displayEmpty
+            sx={{ height: 28, fontSize: '0.72rem', fontWeight: 700, minWidth: 120, '& .MuiSelect-select': { py: 0 } }}
+          >
+            <MenuItem value="all">Todos criativos</MenuItem>
+            <MenuItem value="__none__">Sem dono</MenuItem>
+            {activeOwnersList.map(([key, name]) => (
+              <MenuItem key={key} value={key}>{name.split(' ')[0]}</MenuItem>
+            ))}
+          </Select>
+        </Stack>
       </Stack>
 
       {/* ── Card grid ── */}
@@ -578,7 +795,7 @@ export default function DailyOperationClient() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.22, delay: Math.min(i * 0.02, 0.4), ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
+                      <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} onAssign={assignOwner} owners={lookups.owners} />
                     </motion.div>
                   </Grid>
                 ))}
@@ -603,7 +820,7 @@ export default function DailyOperationClient() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.28, delay: Math.min(i * 0.025, 0.6), ease: [0.16, 1, 0.3, 1] }}
                   >
-                    <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
+                    <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} onAssign={assignOwner} owners={lookups.owners} />
                   </motion.div>
                 </Grid>
               ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -16,8 +16,9 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import { IconArrowUpRight, IconExternalLink, IconUserOff, IconUsers } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
-import { apiGet } from '@/lib/api';
-import type { OperationsJob } from '@/components/operations/model';
+import { InlineOwnerAssign } from '@/components/operations/primitives';
+import { apiGet, apiPatch } from '@/lib/api';
+import { STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
 
 type PlannerOwner = {
   owner: {
@@ -56,6 +57,13 @@ function ownerState(usage: number) {
   if (usage >= 0.85) return { label: 'Atenção', color: '#FFAE1F' };
   return { label: 'Controlado', color: '#13DEB9' };
 }
+
+const STAGE_COLORS: Record<string, string> = {
+  intake: '#A0AEC0', planned: '#5D87FF', ready: '#5D87FF',
+  allocated: '#FFAE1F', in_progress: '#E85219', blocked: '#FA896B',
+  in_review: '#7B61FF', awaiting_approval: '#FFAE1F',
+  approved: '#13DEB9', scheduled: '#13DEB9', published: '#13DEB9',
+};
 
 export default function OperationsPeopleClient() {
   const theme = useTheme();
@@ -96,6 +104,30 @@ export default function OperationsPeopleClient() {
 
   const overloadedOwners = plannerData.owners.filter((owner) => owner.usage >= 1).length;
   const ownersWithSlack = plannerData.owners.filter((owner) => owner.usage < 0.55).length;
+
+  const ownersList = useMemo<OperationsOwner[]>(
+    () => plannerData.owners.map(({ owner: o }) => ({
+      id: o.id,
+      name: o.name,
+      email: o.email ?? '',
+      role: o.role ?? 'staff',
+      specialty: o.specialty,
+      person_type: o.person_type,
+      freelancer_profile_id: o.freelancer_profile_id,
+    })),
+    [plannerData.owners],
+  );
+
+  const assignOwner = useCallback(async (jobId: string, ownerId: string) => {
+    try {
+      await apiPatch(`/trello/ops-cards/${jobId}`, { owner_id: ownerId });
+      const response = await apiGet<{ data?: PlannerData }>('/trello/ops-planner');
+      if (response?.data) {
+        setPlannerData(response.data);
+        setSelectedOwnerId((current) => current || response.data!.owners[0]?.owner.id || null);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   return (
     <OperationsShell
@@ -358,7 +390,16 @@ export default function OperationsPeopleClient() {
                                 </Typography>
                               </Box>
                               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
-                                <Chip size="small" label={job.status || 'Sem status'} />
+                                <Chip
+                                  size="small"
+                                  label={STAGE_LABELS[job.status] || job.status || 'Sem status'}
+                                  sx={{
+                                    bgcolor: alpha(STAGE_COLORS[job.status] || '#A0AEC0', 0.12),
+                                    color: STAGE_COLORS[job.status] || '#A0AEC0',
+                                    fontWeight: 700,
+                                    border: 'none',
+                                  }}
+                                />
                                 {job.deadline_at ? <Chip size="small" label={new Date(job.deadline_at).toLocaleDateString('pt-BR')} variant="outlined" /> : null}
                                 <Button
                                   component={Link}
@@ -419,12 +460,24 @@ export default function OperationsPeopleClient() {
                               bgcolor: dark ? alpha('#FFAE1F', 0.08) : alpha('#FFAE1F', 0.05),
                             }}
                           >
-                            <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                              {job.title}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
-                              {job.client_name || 'Sem cliente'}
-                            </Typography>
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                  {job.title}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
+                                  {job.client_name || 'Sem cliente'}
+                                </Typography>
+                              </Box>
+                              {ownersList.length > 0 && (
+                                <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0 }}>
+                                  <InlineOwnerAssign
+                                    owners={ownersList}
+                                    onAssign={(ownerId) => assignOwner(job.id, ownerId)}
+                                  />
+                                </Box>
+                              )}
+                            </Stack>
                           </Paper>
                         ))}
                         <Button component={Link} href="/admin/operacoes/jobs?unassigned=true" variant="outlined" size="small">

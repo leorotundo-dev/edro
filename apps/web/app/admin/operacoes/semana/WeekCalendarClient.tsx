@@ -14,6 +14,7 @@ import { ClientThumb, StatusDot, DeadlineCountdown } from '@/components/operatio
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -37,8 +38,11 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconDeviceDesktop,
+  IconLayoutList,
   IconMail,
   IconRefresh,
+  IconUsers,
+  IconUserOff,
 } from '@tabler/icons-react';
 
 /* ─── helpers ─── */
@@ -499,7 +503,300 @@ function PublicationsRow({ jobs }: { jobs: OperationsJob[] }) {
   );
 }
 
+/* ─── DISTRIBUTION VIEW ─── */
+
+const OWNER_ALLOCABLE = (owner: OperationsOwner) =>
+  owner.person_type === 'freelancer' ? 16 * 60 : owner.role === 'admin' || owner.role === 'manager' ? 22 * 60 : 28 * 60;
+
+function DistributionCell({
+  jobs,
+  owners,
+  dayKey,
+  ownerId,
+  today,
+  selectedJobId,
+  onSelectJob,
+  onDragStart,
+  onDrop,
+}: {
+  jobs: OperationsJob[];
+  owners: OperationsOwner[];
+  dayKey: string;
+  ownerId: string | null;
+  today: boolean;
+  selectedJobId: string | null;
+  onSelectJob: (id: string) => void;
+  onDragStart: (jobId: string, e: React.DragEvent) => void;
+  onDrop: (dayKey: string, ownerId: string | null) => void;
+}) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  const [dragOver, setDragOver] = useState(false);
+
+  return (
+    <Box
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={() => { setDragOver(false); onDrop(dayKey, ownerId); }}
+      sx={{
+        minHeight: 64,
+        p: 0.5,
+        borderLeft: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+        bgcolor: dragOver
+          ? alpha(theme.palette.primary.main, dark ? 0.1 : 0.06)
+          : today
+            ? alpha(theme.palette.primary.main, dark ? 0.03 : 0.015)
+            : 'transparent',
+        transition: 'background-color 150ms ease',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.4,
+      }}
+    >
+      {jobs.sort(sortByOperationalPriority).map((job) => {
+        const color = ownerColor(job.owner_id, owners);
+        const selected = selectedJobId === job.id;
+        return (
+          <Tooltip
+            key={job.id}
+            arrow
+            enterDelay={400}
+            title={
+              <Box sx={{ p: 0.5 }}>
+                <Typography variant="body2" fontWeight={800}>{job.title}</Typography>
+                <Typography variant="caption" display="block">{job.client_name || '—'} · {job.status}</Typography>
+              </Box>
+            }
+          >
+            <Box
+              draggable
+              onDragStart={(e) => onDragStart(job.id, e)}
+              onClick={() => onSelectJob(job.id)}
+              sx={{
+                px: 0.75,
+                py: 0.4,
+                borderRadius: 1,
+                borderLeft: `3px solid ${color}`,
+                bgcolor: selected
+                  ? alpha(color, dark ? 0.2 : 0.1)
+                  : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.03),
+                cursor: 'grab',
+                overflow: 'hidden',
+                '&:active': { cursor: 'grabbing' },
+                '&:hover': { bgcolor: alpha(color, dark ? 0.14 : 0.08) },
+                transition: 'background-color 120ms ease',
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.68rem',
+                  display: 'block',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1.4,
+                }}
+              >
+                {job.title}
+              </Typography>
+            </Box>
+          </Tooltip>
+        );
+      })}
+    </Box>
+  );
+}
+
+function DistributionView({
+  owners,
+  columns,
+  activeJobs,
+  selectedJobId,
+  onSelectJob,
+  onDragStart,
+  onDistributionDrop,
+}: {
+  owners: OperationsOwner[];
+  columns: DayColumn[];
+  activeJobs: OperationsJob[];
+  selectedJobId: string | null;
+  onSelectJob: (id: string) => void;
+  onDragStart: (jobId: string, e: React.DragEvent) => void;
+  onDistributionDrop: (dayKey: string, ownerId: string | null) => void;
+}) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+
+  // Build cell maps: ownerId → dayKey → jobs
+  const ownerJobMap = useMemo(() => {
+    const map = new Map<string, Map<string, OperationsJob[]>>();
+    // null key = unassigned
+    for (const owner of [...owners, { id: null } as any]) {
+      const dayMap = new Map<string, OperationsJob[]>();
+      for (const col of columns) dayMap.set(col.key, []);
+      map.set(owner.id ?? '__none__', dayMap);
+    }
+    for (const job of activeJobs) {
+      const oid = job.owner_id ?? '__none__';
+      const dk = jobDateKey(job);
+      const dayMap = map.get(oid);
+      if (!dayMap) continue;
+      const bucket = dk ? (dayMap.get(dk) ?? null) : null;
+      if (bucket) bucket.push(job);
+    }
+    return map;
+  }, [owners, columns, activeJobs]);
+
+  const headerBg = dark ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.common.black, 0.025);
+  const borderColor = alpha(theme.palette.divider, dark ? 0.5 : 0.7);
+  const gridCols = `180px repeat(${columns.length}, minmax(0, 1fr))`;
+
+  const renderOwnerRow = (ownerId: string | null, ownerObj: OperationsOwner | null) => {
+    const mapKey = ownerId ?? '__none__';
+    const dayMap = ownerJobMap.get(mapKey);
+    if (!dayMap) return null;
+    const allJobs = Array.from(dayMap.values()).flat();
+    const totalMins = allJobs.reduce((s, j) => s + (j.estimated_minutes || 0), 0);
+    const allocable = ownerObj ? OWNER_ALLOCABLE(ownerObj) : 40 * 60;
+    const usage = allocable > 0 ? Math.min(totalMins / allocable, 1.4) : 0;
+    const usageColor = usage > 1 ? '#FA896B' : usage > 0.8 ? '#FFAE1F' : '#13DEB9';
+    const name = ownerObj?.name || 'Sem dono';
+    const firstName = name.split(' ')[0];
+
+    return (
+      <Box
+        key={mapKey}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: gridCols,
+          borderBottom: `1px solid ${borderColor}`,
+          minHeight: 56,
+          '&:last-child': { borderBottom: 'none' },
+        }}
+      >
+        {/* Owner label */}
+        <Box
+          sx={{
+            px: 1.25,
+            py: 0.75,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: 0.6,
+            borderRight: `1px solid ${borderColor}`,
+            bgcolor: headerBg,
+            minWidth: 0,
+          }}
+        >
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            {ownerObj ? (
+              <Avatar
+                sx={{ width: 24, height: 24, fontSize: '0.65rem', bgcolor: ownerColor(ownerId, owners), flexShrink: 0 }}
+              >
+                {firstName.charAt(0).toUpperCase()}
+              </Avatar>
+            ) : (
+              <Box sx={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                <IconUserOff size={14} />
+              </Box>
+            )}
+            <Stack sx={{ minWidth: 0 }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.72rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {firstName}
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: '0.62rem', color: alpha(theme.palette.text.primary, 0.5), lineHeight: 1 }}>
+                {allJobs.length} jobs
+              </Typography>
+            </Stack>
+          </Stack>
+          <Box sx={{ width: '100%', height: 3, borderRadius: 1, bgcolor: alpha(usageColor, 0.18) }}>
+            <Box sx={{ height: 3, borderRadius: 1, width: `${Math.min(100, Math.round(usage * 100))}%`, bgcolor: usageColor }} />
+          </Box>
+        </Box>
+
+        {/* Day cells */}
+        {columns.map((col) => (
+          <DistributionCell
+            key={col.key}
+            jobs={dayMap.get(col.key) ?? []}
+            owners={owners}
+            dayKey={col.key}
+            ownerId={ownerId}
+            today={col.today}
+            selectedJobId={selectedJobId}
+            onSelectJob={onSelectJob}
+            onDragStart={onDragStart}
+            onDrop={onDistributionDrop}
+          />
+        ))}
+      </Box>
+    );
+  };
+
+  const hasUnassigned = (ownerJobMap.get('__none__') ? Array.from(ownerJobMap.get('__none__')!.values()).flat() : []).length > 0;
+
+  return (
+    <Box
+      sx={{
+        border: `1px solid ${borderColor}`,
+        borderRadius: 2,
+        overflow: 'hidden',
+        bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
+      }}
+    >
+      {/* Header row */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: gridCols,
+          borderBottom: `2px solid ${borderColor}`,
+          bgcolor: headerBg,
+        }}
+      >
+        <Box sx={{ px: 1.25, py: 0.75, borderRight: `1px solid ${borderColor}` }}>
+          <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.65rem', color: 'text.secondary' }}>
+            Pessoa
+          </Typography>
+        </Box>
+        {columns.map((col) => (
+          <Box
+            key={col.key}
+            sx={{
+              px: 1,
+              py: 0.75,
+              borderLeft: `1px solid ${borderColor}`,
+              bgcolor: col.today ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04) : undefined,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: col.today ? 900 : 700,
+                textTransform: 'capitalize',
+                color: col.today ? theme.palette.primary.main : undefined,
+                fontSize: '0.72rem',
+              }}
+            >
+              {col.label}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+
+      {/* Owner rows */}
+      {owners.map((owner) => renderOwnerRow(owner.id, owner))}
+
+      {/* Unassigned row */}
+      {hasUnassigned && renderOwnerRow(null, null)}
+    </Box>
+  );
+}
+
 /* ─── MAIN COMPONENT ─── */
+
+type ViewMode = 'calendar' | 'distribution';
 
 export default function WeekCalendarClient() {
   const theme = useTheme();
@@ -514,6 +811,9 @@ export default function WeekCalendarClient() {
   const goToday = () => setWeekStart(startOfWeek(new Date()));
   const goPrev = () => setWeekStart((prev) => addDays(prev, -7));
   const goNext = () => setWeekStart((prev) => addDays(prev, 7));
+
+  // View mode
+  const [viewMode, setViewMode] = useState<ViewMode>('calendar');
 
   // Filters
   const [filterOwner, setFilterOwner] = useState<string>('all');
@@ -546,6 +846,20 @@ export default function WeekCalendarClient() {
       await ops.updateJob(jobId, { deadline_at: `${dayKey}T18:00:00.000Z` });
     } catch {
       // silently fail — user sees no change
+    }
+  }, [ops]);
+
+  const handleDistributionDrop = useCallback(async (dayKey: string, ownerId: string | null) => {
+    const jobId = dragJobIdRef.current;
+    if (!jobId) return;
+    dragJobIdRef.current = null;
+
+    const payload: Record<string, any> = { deadline_at: `${dayKey}T18:00:00.000Z` };
+    if (ownerId) payload.owner_id = ownerId;
+    try {
+      await ops.updateJob(jobId, payload);
+    } catch {
+      // silently fail
     }
   }, [ops]);
 
@@ -698,8 +1012,46 @@ export default function WeekCalendarClient() {
                 <Button size="small" onClick={goToday} sx={{ fontWeight: 700, minWidth: 0 }}>Hoje</Button>
               </Stack>
 
-              {/* Filters */}
+              {/* Filters + view toggle */}
               <Stack direction="row" spacing={1} alignItems="center">
+                {/* View toggle */}
+                <Box
+                  sx={(t) => ({
+                    display: 'flex',
+                    borderRadius: 1.5,
+                    overflow: 'hidden',
+                    border: `1px solid ${alpha(t.palette.divider, 0.5)}`,
+                  })}
+                >
+                  {([
+                    { mode: 'calendar' as ViewMode, icon: <IconCalendarWeek size={15} />, label: 'Por dia' },
+                    { mode: 'distribution' as ViewMode, icon: <IconUsers size={15} />, label: 'Por pessoa' },
+                  ] as const).map(({ mode, icon, label }) => (
+                    <Tooltip key={mode} title={label}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setViewMode(mode)}
+                        sx={(t) => ({
+                          borderRadius: 0,
+                          px: 1,
+                          py: 0.5,
+                          bgcolor: viewMode === mode
+                            ? t.palette.primary.main
+                            : 'transparent',
+                          color: viewMode === mode ? '#fff' : alpha(t.palette.text.primary, 0.55),
+                          '&:hover': {
+                            bgcolor: viewMode === mode
+                              ? t.palette.primary.dark
+                              : alpha(t.palette.text.primary, 0.06),
+                          },
+                        })}
+                      >
+                        {icon}
+                      </IconButton>
+                    </Tooltip>
+                  ))}
+                </Box>
+
                 <Select
                   size="small"
                   value={filterOwner}
@@ -733,30 +1085,44 @@ export default function WeekCalendarClient() {
             </Stack>
           </Box>
 
-          {/* ─── Week Grid ─── */}
-          <Box
-            sx={{
-              display: 'flex',
-              border: `1px solid ${theme.palette.divider}`,
-              borderTop: 'none',
-              minHeight: 360,
-              bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
-            }}
-          >
-            {columns.map((col) => (
-              <DayColumnView
-                key={col.key}
-                col={col}
+          {/* ─── Week Grid / Distribution ─── */}
+          {viewMode === 'calendar' ? (
+            <Box
+              sx={{
+                display: 'flex',
+                border: `1px solid ${theme.palette.divider}`,
+                borderTop: 'none',
+                minHeight: 360,
+                bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
+              }}
+            >
+              {columns.map((col) => (
+                <DayColumnView
+                  key={col.key}
+                  col={col}
+                  owners={owners}
+                  teamCapacityPerDay={teamCapacityPerDay}
+                  selectedJobId={selectedJobId}
+                  onSelectJob={handleSelectJob}
+                  onDragStart={handleDragStart}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                />
+              ))}
+            </Box>
+          ) : (
+            <Box sx={{ mt: '-1px' }}>
+              <DistributionView
                 owners={owners}
-                teamCapacityPerDay={teamCapacityPerDay}
+                columns={columns}
+                activeJobs={activeJobs}
                 selectedJobId={selectedJobId}
                 onSelectJob={handleSelectJob}
                 onDragStart={handleDragStart}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
+                onDistributionDrop={handleDistributionDrop}
               />
-            ))}
-          </Box>
+            </Box>
+          )}
 
           {/* ─── Publications ─── */}
           <Box
