@@ -812,7 +812,7 @@ export function OpsJobRow({
             <Stack direction="row" spacing={0.6} alignItems="center">
               <JobTypeIcon jobType={job.job_type} size={18} />
               <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
-                {cleanJobTitle(job.title)}
+                {cleanJobTitle(job.title, job.client_name)}
               </Typography>
             </Stack>
             <Stack direction="row" spacing={0.75} alignItems="center">
@@ -1453,7 +1453,7 @@ export function OperationCard({
               <JobTypeIcon jobType={job.job_type} size={24} />
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2 }}>
-                  {cleanJobTitle(job.title)}
+                  {cleanJobTitle(job.title, job.client_name)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'} · {formatSkillLabel(job.required_skill)}
@@ -1761,7 +1761,7 @@ export function OperationsContextRail({
                   <Stack direction="row" spacing={0.6} alignItems="center">
                     <JobTypeIcon jobType={job.job_type} size={20} />
                     <Typography variant="body1" fontWeight={900} sx={{ lineHeight: 1.1 }}>
-                      {cleanJobTitle(job.title)}
+                      {cleanJobTitle(job.title, job.client_name)}
                     </Typography>
                   </Stack>
                 </Box>
@@ -2164,7 +2164,7 @@ export function OpsCard({
               WebkitBoxOrient: 'vertical', overflow: 'hidden',
             }}
           >
-            {cleanJobTitle(job.title)}
+            {cleanJobTitle(job.title, job.client_name)}
           </Typography>
 
           {/* Descrição — só quando showDescription=true */}
@@ -2565,7 +2565,7 @@ export function AlertCard({
       </Avatar>
       <Stack spacing={0} sx={{ minWidth: 0, flex: 1 }}>
         <Typography variant="caption" fontWeight={700} noWrap sx={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
-          {cleanJobTitle(job.title)}
+          {cleanJobTitle(job.title, job.client_name)}
         </Typography>
         <Typography variant="caption" sx={{ fontSize: '0.58rem', color: riskColor, fontWeight: 800, lineHeight: 1 }}>
           {risk.label}
@@ -2708,7 +2708,7 @@ export function ActionStrip({
                         textOverflow: 'ellipsis',
                       }}
                     >
-                      {cleanJobTitle(job.title)}
+                      {cleanJobTitle(job.title, job.client_name)}
                     </Typography>
                   </Box>
                 );
