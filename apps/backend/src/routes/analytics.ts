@@ -10,7 +10,7 @@ import { ClaudeService } from '../services/ai/claudeService';
 import { logAiUsage, logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { getFallbackProvider, type CopyProvider } from '../services/ai/copyOrchestrator';
-import { buildReporteiSemanticSummary } from '../services/reporteiSemanticService';
+import { buildReporteiSemanticPreview, buildReporteiSemanticSummary } from '../services/reporteiSemanticService';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1541,6 +1541,12 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       timeWindow: win,
       platform,
     }).catch(() => null);
+    const semanticOverview = await buildReporteiSemanticPreview({
+      tenantId,
+      clientId,
+      timeWindow: win,
+      limit: 500,
+    }).catch(() => null);
 
     return reply.send({
       snapshot: snapshot?.metrics ?? null,
@@ -1552,6 +1558,7 @@ Use linguagem consultiva, seja específico para ${client.name} e o segmento ${cl
       days_since_sync: daysSinceSync,
       is_stale: isStale,
       semantic_summary: semanticSummary,
+      semantic_overview: semanticOverview,
       client_id: clientId,
       window: win,
       platform,
