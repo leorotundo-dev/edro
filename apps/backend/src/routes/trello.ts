@@ -916,25 +916,31 @@ export default async function trelloRoutes(app: FastifyInstance) {
       id: string; title: string; description: string | null;
       due_date: string | null; due_complete: boolean; labels: any;
       cover_color: string | null; trello_url: string | null; trello_card_id: string | null;
+      start_date: string | null; priority: string; estimated_hours: number | null;
       list_id: string; list_name: string;
       board_id: string; board_name: string;
       client_id: string | null; client_name: string | null;
       client_logo_url: string | null; client_brand_color: string | null;
       owner_name: string | null; owner_email: string | null; owner_user_id: string | null;
+      owner_fp_id: string | null; owner_avatar_url: string | null; owner_is_freelancer: boolean;
     }>(
       `SELECT
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
          pc.cover_color, pc.trello_url, pc.trello_card_id,
+         pc.start_date::text, pc.priority, pc.estimated_hours,
          pl.id as list_id, pl.name as list_name,
          pb.id as board_id, pb.name as board_name,
          pb.client_id,
          cl.name as client_name,
-         NULL::text as client_logo_url,
-         NULL::text as client_brand_color,
-         -- first assigned member
-         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_name,
-         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id LIMIT 1) as owner_email,
-         (SELECT eu.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) WHERE pcm.card_id = pc.id LIMIT 1) as owner_user_id
+         cl.profile->>'logo_url' as client_logo_url,
+         cl.profile->'brand_colors'->>0 as client_brand_color,
+         -- first assigned member (prefer matched edro user)
+         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_name,
+         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_email,
+         (SELECT eu.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_user_id,
+         (SELECT fp.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_fp_id,
+         (SELECT fp.avatar_url FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_avatar_url,
+         EXISTS(SELECT 1 FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id AND fp.person_type = 'freelancer' LIMIT 1) as owner_is_freelancer
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
@@ -987,6 +993,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
         channel: null,
         source: 'trello',
         status,
+        priority: c.priority ?? 'normal',
         priority_score: score,
         priority_band: band as 'p0' | 'p1' | 'p2' | 'p3' | 'p4',
         impact_level: 2,
@@ -995,8 +1002,13 @@ export default async function trelloRoutes(app: FastifyInstance) {
         owner_id: c.owner_user_id ?? null,
         owner_name: c.owner_name ?? null,
         owner_email: c.owner_email ?? null,
+        owner_avatar_url: c.owner_avatar_url && c.owner_fp_id
+          ? `/api/proxy/freelancers/${c.owner_fp_id}/avatar`
+          : null,
+        person_type: c.owner_is_freelancer ? 'freelancer' : (c.owner_user_id ? 'internal' : null),
+        start_date: c.start_date ?? null,
         deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
-        estimated_minutes: null,
+        estimated_minutes: c.estimated_hours ? Math.round(c.estimated_hours * 60) : null,
         actual_minutes: null,
         metadata: {
           trello_card_id: c.trello_card_id,
@@ -1857,7 +1869,13 @@ export default async function trelloRoutes(app: FastifyInstance) {
       [tenantId],
     );
 
-    const ownerMap = new Map<string, { name: string; email: string | null; user_id: string | null; avatar_url: string | null; jobs: Record<string, any>[] }>();
+    type OwnerEntry = {
+      name: string; email: string | null; user_id: string | null;
+      fp_id: string | null; avatar_url: string | null;
+      person_type: 'freelancer' | 'internal' | null;
+      jobs: Record<string, any>[];
+    };
+    const ownerMap = new Map<string, OwnerEntry>();
     const unassigned: Record<string, any>[] = [];
     const seenUnassigned = new Set<string>();
 
@@ -1876,33 +1894,40 @@ export default async function trelloRoutes(app: FastifyInstance) {
           name: row.owner_name as string,
           email: row.owner_email as string,
           user_id: row.owner_user_id as string | null,
+          fp_id: row.owner_fp_id as string | null,
           avatar_url: row.owner_avatar_url && row.owner_fp_id
             ? `/api/proxy/freelancers/${row.owner_fp_id}/avatar`
-            : ((row.owner_avatar_url as string | null) ?? null),
+            : null,
+          person_type: row.owner_fp_id
+            ? (row.owner_avatar_url ? 'freelancer' : 'internal') // fp exists = known user; use avatar as freelancer heuristic
+            : (row.owner_user_id ? 'internal' : null),
           jobs: [],
         });
       }
       ownerMap.get(key)!.jobs.push(job);
     }
 
-    const ALLOCABLE = 960; // 16h/week heuristic
+    const ALLOCABLE_FREELANCER = 16 * 60;  // 16h/week
+    const ALLOCABLE_INTERNAL   = 28 * 60;  // 28h/week
     const owners = Array.from(ownerMap.values()).map((m) => {
-      const committed = m.jobs.length * 120; // 2h per card heuristic
+      const isFreelancer = m.person_type === 'freelancer';
+      const allocable = isFreelancer ? ALLOCABLE_FREELANCER : ALLOCABLE_INTERNAL;
+      const committed = m.jobs.reduce((s, j) => s + (j.estimated_minutes ?? 120), 0);
       return {
         owner: {
           id: m.user_id ?? m.email ?? m.name,
           name: m.name,
           email: m.email,
           avatar_url: m.avatar_url,
-          role: 'staff',
+          role: isFreelancer ? 'freelancer' : 'staff',
           specialty: null,
-          person_type: 'freelancer' as const,
-          freelancer_profile_id: null,
+          person_type: m.person_type ?? 'internal',
+          freelancer_profile_id: m.fp_id,
         },
-        allocable_minutes: ALLOCABLE,
+        allocable_minutes: allocable,
         committed_minutes: committed,
         tentative_minutes: 0,
-        usage: Math.min(2, committed / ALLOCABLE),
+        usage: Math.min(2, committed / allocable),
         jobs: m.jobs,
       };
     });

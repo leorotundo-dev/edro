@@ -24,8 +24,11 @@ export type OperationsJob = {
   owner_name?: string | null;
   owner_email?: string | null;
   owner_avatar_url?: string | null;
+  person_type?: 'freelancer' | 'internal' | null;
   assignees?: Array<{ user_id: string; name: string; email: string; avatar_url?: string | null }>;
   external_link?: string | null;
+  start_date?: string | null;
+  priority?: 'urgent' | 'high' | 'normal' | 'low' | null;
   deadline_at?: string | null;
   estimated_minutes?: number | null;
   actual_minutes?: number | null;
