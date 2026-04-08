@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -10,9 +11,10 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
-import { IconArrowUpRight, IconUserOff, IconUsers } from '@tabler/icons-react';
+import { IconArrowUpRight, IconExternalLink, IconUserOff, IconUsers } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import { apiGet } from '@/lib/api';
 import type { OperationsJob } from '@/components/operations/model';
@@ -26,6 +28,7 @@ type PlannerOwner = {
     specialty?: string | null;
     person_type?: 'internal' | 'freelancer';
     freelancer_profile_id?: string | null;
+    avatar_url?: string | null;
   };
   allocable_minutes: number;
   committed_minutes: number;
@@ -183,14 +186,37 @@ export default function OperationsPeopleClient() {
                     >
                       <Stack spacing={1.2}>
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 900 }} noWrap>
-                              {row.owner.name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" noWrap>
-                              {row.owner.specialty || row.owner.role || 'Equipe'}
-                            </Typography>
-                          </Box>
+                          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0, flex: 1, mr: 1 }}>
+                            <Avatar
+                              src={row.owner.avatar_url || undefined}
+                              alt={row.owner.name}
+                              sx={{ width: 36, height: 36, fontSize: '0.85rem', flexShrink: 0 }}
+                            >
+                              {row.owner.name.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <Typography variant="subtitle2" sx={{ fontWeight: 900 }} noWrap>
+                                  {row.owner.name}
+                                </Typography>
+                                {row.owner.freelancer_profile_id ? (
+                                  <Tooltip title="Ver perfil">
+                                    <Box
+                                      component={Link}
+                                      href={`/admin/equipe/${row.owner.freelancer_profile_id}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      sx={{ display: 'inline-flex', color: 'text.disabled', '&:hover': { color: 'primary.main' } }}
+                                    >
+                                      <IconExternalLink size={12} />
+                                    </Box>
+                                  </Tooltip>
+                                ) : null}
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary" noWrap>
+                                {row.owner.specialty || row.owner.role || 'Equipe'}
+                              </Typography>
+                            </Box>
+                          </Stack>
                           <Chip
                             size="small"
                             label={state.label}
@@ -198,6 +224,7 @@ export default function OperationsPeopleClient() {
                               bgcolor: alpha(state.color, 0.14),
                               color: state.color,
                               fontWeight: 900,
+                              flexShrink: 0,
                             }}
                           />
                         </Stack>
@@ -259,27 +286,51 @@ export default function OperationsPeopleClient() {
                   }}
                 >
                   <Stack spacing={1.5} sx={{ p: 2 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
-                          {selectedOwner ? selectedOwner.owner.name : 'Selecione uma pessoa'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {selectedOwner
-                            ? 'A pauta atual dessa pessoa. Para redistribuir dias e encaixe, abra Semana.'
-                            : 'Escolha uma pessoa para ver a pauta.'}
-                        </Typography>
-                      </Box>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                        {selectedOwner ? (
+                          <Avatar
+                            src={selectedOwner.owner.avatar_url || undefined}
+                            alt={selectedOwner.owner.name}
+                            sx={{ width: 40, height: 40, flexShrink: 0 }}
+                          >
+                            {selectedOwner.owner.name.charAt(0).toUpperCase()}
+                          </Avatar>
+                        ) : null}
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
+                            {selectedOwner ? selectedOwner.owner.name : 'Selecione uma pessoa'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {selectedOwner
+                              ? 'A pauta atual dessa pessoa. Para redistribuir dias e encaixe, abra Semana.'
+                              : 'Escolha uma pessoa para ver a pauta.'}
+                          </Typography>
+                        </Box>
+                      </Stack>
                       {selectedOwner ? (
-                        <Button
-                          component={Link}
-                          href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(selectedOwner.owner.id)}`}
-                          variant="outlined"
-                          size="small"
-                          endIcon={<IconArrowUpRight size={14} />}
-                        >
-                          Abrir na fila
-                        </Button>
+                        <Stack direction="row" spacing={1} flexShrink={0}>
+                          {selectedOwner.owner.freelancer_profile_id ? (
+                            <Button
+                              component={Link}
+                              href={`/admin/equipe/${selectedOwner.owner.freelancer_profile_id}`}
+                              variant="text"
+                              size="small"
+                              endIcon={<IconExternalLink size={14} />}
+                            >
+                              Ver perfil
+                            </Button>
+                          ) : null}
+                          <Button
+                            component={Link}
+                            href={`/admin/operacoes/jobs?owner_id=${encodeURIComponent(selectedOwner.owner.id)}`}
+                            variant="outlined"
+                            size="small"
+                            endIcon={<IconArrowUpRight size={14} />}
+                          >
+                            Abrir na fila
+                          </Button>
+                        </Stack>
                       ) : null}
                     </Stack>
 
