@@ -120,6 +120,11 @@ async function plugin2Strategist(
       ?? params.clientProfile?.__livingMemoryBlock
       ?? '',
   ).trim();
+  const briefingDiagnostics = String(
+    params.briefing?.payload?.briefing_diagnostics
+      ?? params.clientProfile?.__briefingDiagnostics
+      ?? '',
+  ).trim();
   const amdDescriptions: Record<string, string> = {
     compartilhar:   'viralizar via compartilhamento (identidade, dark social)',
     salvar:         'gerar saves (conteúdo de valor, listas, frameworks)',
@@ -150,6 +155,7 @@ CONTEXTO:
 - Briefing: ${params.briefing?.title ?? 'não informado'}
 - Objetivo do briefing: ${params.briefing?.payload?.objective ?? 'não informado'}
 ${livingMemoryBlock ? `\nMEMÓRIA VIVA DO CLIENTE (respeite decisões, promessas e restrições):\n${livingMemoryBlock.slice(0, 1200)}` : ''}
+${briefingDiagnostics ? `\nDIAGNÓSTICO DO BRIEFING (compense lacunas e evite conflitos):\n${briefingDiagnostics.slice(0, 900)}` : ''}
 
 Retorne SOMENTE este JSON (sem markdown):
 {
@@ -185,6 +191,11 @@ async function plugin3Generator(
   const livingMemoryBlock = String(
     params.briefing?.payload?.living_memory_context
       ?? params.clientProfile?.__livingMemoryBlock
+      ?? '',
+  ).trim();
+  const briefingDiagnostics = String(
+    params.briefing?.payload?.briefing_diagnostics
+      ?? params.clientProfile?.__briefingDiagnostics
       ?? '',
   ).trim();
   const appealInstructions: Record<string, string> = {
@@ -237,6 +248,7 @@ CONTEXTO:
 - Formato: ${params.format ?? 'Post'}
 - AMD: ${params.amd ?? 'engajamento'}
 ${livingMemoryBlock ? `\nMEMÓRIA VIVA DO CLIENTE (obrigatório respeitar):\n${livingMemoryBlock.slice(0, 1400)}` : ''}
+${briefingDiagnostics ? `\nDIAGNÓSTICO DO BRIEFING (compense as lacunas abaixo antes de escrever):\n${briefingDiagnostics.slice(0, 1000)}` : ''}
 ${rejectionFeedback ? `\nFEEDBACK DO AUDITOR (CORRIJA ESTES PONTOS):\n${rejectionFeedback}` : ''}
 
 Retorne SOMENTE este JSON (sem markdown):

@@ -19,6 +19,7 @@
 import { query } from '../db';
 import { generateCompletion } from './ai/claudeService';
 import { buildClientLivingMemory } from './clientLivingMemoryService';
+import { buildBriefingDiagnostics } from './briefingDiagnosticService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ export type CreativeContextObject = {
   memoria: {
     copiesAnteriores: string[];           // anti-repetição: últimas 5 copies
     contextoVivo: string | null;
+    diagnosticoBriefing: string | null;
   };
   visual: {
     artDirectionContext: string;
@@ -199,8 +201,45 @@ export async function assembleCreativeContext(params: {
         },
         maxEvidence: 4,
         maxActions: 3,
-      }).catch(() => ({ block: '', directives: [], evidence: [], pendingActions: [] }))
-    : { block: '', directives: [], evidence: [], pendingActions: [] };
+      }).catch(() => ({
+        block: '',
+        directives: [],
+        evidence: [],
+        pendingActions: [],
+        snapshot: {
+          active_directives: 0,
+          evidence_signals: 0,
+          fresh_signals_7d: 0,
+          pending_commitments: 0,
+          evidence_by_source: {},
+        },
+      }))
+    : {
+        block: '',
+        directives: [],
+        evidence: [],
+        pendingActions: [],
+        snapshot: {
+          active_directives: 0,
+          evidence_signals: 0,
+          fresh_signals_7d: 0,
+          pending_commitments: 0,
+          evidence_by_source: {},
+        },
+      };
+  const briefingDiagnostics = buildBriefingDiagnostics({
+    briefing: {
+      title: briefingRow.title ?? briefingRow.payload?.title ?? '',
+      objective: briefingRow.payload?.objective ?? briefingRow.payload?.objetivo ?? '',
+      context: briefingRow.payload?.context ?? briefingRow.payload?.notes ?? briefingRow.payload?.additional_notes ?? null,
+      platform: briefingRow.payload?.platform ?? briefingRow.payload?.plataforma
+        ?? (Array.isArray(briefingRow.payload?.channels) ? briefingRow.payload.channels[0] : null)
+        ?? briefingRow.payload?.channels ?? null,
+      format: briefingRow.payload?.format ?? briefingRow.payload?.formato ?? briefingRow.payload?.creative_format ?? null,
+      payload: briefingRow.payload ?? {},
+    },
+    livingMemory,
+  });
 
   // Build cultural context block
   let cultura: string | null = null;
@@ -240,6 +279,7 @@ export async function assembleCreativeContext(params: {
     memoria: {
       copiesAnteriores: copiesRows.map((r) => r.copy_text).filter(Boolean),
       contextoVivo: livingMemory.block || null,
+      diagnosticoBriefing: briefingDiagnostics.block || null,
     },
     visual: {
       artDirectionContext: artDirRow?.style_notes ?? '',
@@ -322,7 +362,7 @@ export function toConceitoParams(cco: CreativeContextObject) {
     briefing: {
       title: cco.briefing.titulo,
       objective: cco.briefing.objetivo,
-      context: [cco.briefing.contexto, cco.memoria.contextoVivo].filter(Boolean).join('\n\n') || undefined,
+      context: [cco.briefing.contexto, cco.memoria.contextoVivo, cco.memoria.diagnosticoBriefing].filter(Boolean).join('\n\n') || undefined,
     },
     clientProfile: cco.cliente.raw,
     platform: cco.briefing.plataforma ?? undefined,
@@ -340,12 +380,14 @@ export function toRedatorParams(cco: CreativeContextObject, conceptBlock?: strin
       payload: {
         ...cco.briefing.payload,
         living_memory_context: cco.memoria.contextoVivo ?? undefined,
+        briefing_diagnostics: cco.memoria.diagnosticoBriefing ?? undefined,
       },
     },
     clientProfile: {
       ...cco.cliente.raw,
       amd: cco.comportamento.amd,
       __livingMemoryBlock: cco.memoria.contextoVivo ?? undefined,
+      __briefingDiagnostics: cco.memoria.diagnosticoBriefing ?? undefined,
     },
     trigger: cco.comportamento.triggers[0] ?? null,
     amd: cco.comportamento.amd,

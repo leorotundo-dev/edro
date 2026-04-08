@@ -50,6 +50,7 @@ import { runJarvisCreationWorkerOnce } from './jarvisCreationWorker';
 import { runFeedbackProcessorWorkerOnce } from './feedbackProcessorWorker';
 import { runLoraMonitorWorkerOnce } from './loraMonitorWorker';
 import { runBedelWorkerOnce } from './bedelWorker';
+import { runClientLivingMemoryWorkerOnce } from './clientLivingMemoryWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -187,6 +188,8 @@ export function startJobsRunner() {
   startWorkerLoop('competitorIntelligence', runCompetitorIntelligenceWorkerOnce, 18500, 300_000, 60_000);
   // Opportunity Detector — daily at 06h BRT, scans all sources for all clients
   startWorkerLoop('opportunityDetector', runOpportunityDetectorWorkerOnce, 19000, 600_000, 60_000);
+  // Client Living Memory — hourly refresh of typed facts for recently active clients
+  startWorkerLoop('clientLivingMemory', runClientLivingMemoryWorkerOnce, 19250, 120_000, 60_000);
   // Trello Sync — every 30min, keeps Edro boards in sync with Trello
   startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 300_000, 60_000);
   // Jarvis Alert Engine — 2x/day, cross-source alerts

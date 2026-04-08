@@ -7,6 +7,7 @@ import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrche
 import { runToolUseLoop } from '../services/ai/toolUseLoop';
 import { getAllToolDefinitions, getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
 import { executeOperationsTool, type OperationsToolContext, type ToolContext } from '../services/ai/toolExecutor';
+import { getBriefingById } from '../repositories/edroBriefingRepository';
 import {
   buildAgentSystemPrompt,
   mapProviderToCopy,
@@ -20,6 +21,8 @@ import {
 import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
+import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
+import { buildClientState } from '../services/jarvisDecisionEngine';
 import { getJobById } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import {
@@ -113,6 +116,102 @@ function shouldSkipArte(message: string) {
   const copyOnlySignals = ['copy', 'legenda', 'headline', 'cta', 'texto', 'roteiro'];
   if (artSignals.some((token) => haystack.includes(token))) return false;
   return copyOnlySignals.some((token) => haystack.includes(token));
+}
+
+function emptyLivingMemoryPreflight() {
+  return {
+    block: '',
+    directives: [],
+    evidence: [],
+    pendingActions: [],
+    snapshot: {
+      active_directives: 0,
+      evidence_signals: 0,
+      fresh_signals_7d: 0,
+      pending_commitments: 0,
+      evidence_by_source: {},
+    },
+  };
+}
+
+function emptyClientStatePreflight(tenantId: string, clientId: string | null) {
+  return {
+    client_id: clientId || '',
+    tenant_id: tenantId,
+    snapshot_at: new Date(),
+    awareness: {
+      trello: { active_jobs: 0, blocked: 0, stale: 0 },
+      meetings: { pending_decisions: 0, last_meeting_days_ago: null },
+      whatsapp: { days_without_client_response: null, pending_approval: false },
+      calendar: { upcoming_orphan_dates: 0 },
+      financial: { contract_renewal_days: null, invoices_overdue: 0 },
+      learning: { active_rules: 0, new_patterns_24h: 0 },
+      competitors: { active_in_48h: 0 },
+      social: { mentions_24h: 0 },
+      jobs: { without_briefing: 0, da_stale: 0 },
+      living_memory: {
+        active_directives: 0,
+        evidence_signals_30d: 0,
+        fresh_signals_7d: 0,
+        pending_commitments: 0,
+      },
+    },
+    open_alerts: 0,
+    pending_decisions: [],
+    living_memory_preview: {
+      directives: [],
+      evidence: [],
+      pending_commitments: [],
+    },
+  };
+}
+
+function buildClientStatePreflightContext(state: ReturnType<typeof emptyClientStatePreflight>) {
+  const parts = [
+    'ESTADO DO CLIENTE PREFLIGHT:',
+    `- Alertas abertos: ${state.open_alerts}`,
+    `- Jobs sem briefing: ${state.awareness.jobs.without_briefing}`,
+    `- Jobs DA stale: ${state.awareness.jobs.da_stale}`,
+    `- Pendências de reunião: ${state.awareness.meetings.pending_decisions}`,
+    `- WhatsApp sem resposta: ${state.awareness.whatsapp.days_without_client_response ?? 'sem dado'} dias`,
+    `- Faturas vencidas: ${state.awareness.financial.invoices_overdue}`,
+    `- Diretivas ativas: ${state.awareness.living_memory.active_directives}`,
+    `- Sinais vivos 7d: ${state.awareness.living_memory.fresh_signals_7d}`,
+    `- Compromissos pendentes: ${state.awareness.living_memory.pending_commitments}`,
+  ];
+  if (state.living_memory_preview.directives.length) {
+    parts.push(`- Diretivas principais: ${state.living_memory_preview.directives.slice(0, 3).join(' | ')}`);
+  }
+  if (state.living_memory_preview.evidence.length) {
+    const evidence = state.living_memory_preview.evidence
+      .slice(0, 2)
+      .map((item) => `${item.source_type}: ${item.title || item.excerpt}`)
+      .join(' | ');
+    parts.push(`- Evidências recentes: ${evidence}`);
+  }
+  return parts.join('\n');
+}
+
+function emptyBriefingDiagnosticsPreflight() {
+  return {
+    briefing_id: null as string | null,
+    title: '',
+    diagnostics: {
+      gaps: [] as string[],
+      tensions: [] as string[],
+      recommendations: [] as string[],
+      block: '',
+    },
+  };
+}
+
+function buildBriefingDiagnosticsPreflightContext(preflight: ReturnType<typeof emptyBriefingDiagnosticsPreflight>) {
+  if (!preflight.diagnostics.block) return '';
+  return [
+    'DIAGNOSTICO DE BRIEFING PREFLIGHT:',
+    preflight.diagnostics.block,
+    'INSTRUÇÃO: trate essas lacunas e tensões como restrições reais. Se o briefing estiver fraco, compense usando memória viva e estado do cliente antes de concluir.',
+  ].join('\n');
 }
 
 async function resolveCreativeExecutionTarget(params: {
@@ -336,6 +435,7 @@ async function runCreativeExecutionCapability(params: {
   const summaryLines = [
     `Resolvi a direção criativa de ${target.jobTitle ? `"${target.jobTitle}"` : 'esta demanda'} e já deixei o resultado salvo no Studio.`,
     `Conceito escolhido: ${result.conceito.chosen.headline_concept}.`,
+    result.briefing_diagnostics ? 'Também detectei e compensei lacunas do briefing com base no contexto vivo do cliente.' : null,
     bestVariant?.title ? `Copy principal: ${bestVariant.title}.` : null,
     result.arte?.imageUrl
       ? 'A arte inicial também foi gerada e vinculada à sessão criativa.'
@@ -357,6 +457,7 @@ async function runCreativeExecutionCapability(params: {
         copy_title: bestVariant?.title ?? null,
         image_url: result.arte?.imageUrl ?? null,
         has_arte: Boolean(result.arte?.imageUrl),
+        briefing_diagnostics: result.briefing_diagnostics,
         duration_ms: result.duration_ms,
       },
     ],
@@ -576,68 +677,74 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           }
         }
 
-        const [clientContext, psychContext, perfContext, livingMemoryPreflight] = await Promise.race([
-          Promise.all([
-            buildClientContext(tenantId, clientId!),
-            loadPsychContext(tenantId, clientId!),
-            loadPerformanceContext(clientId!),
-            buildClientLivingMemory({
-              tenantId,
-              clientId: clientId!,
-              briefing: {
-                title: body.message,
-                objective: body.message,
-                context: [body.context_page, body.studio_context].filter(Boolean).join('\n'),
-                payload: body.page_data ? { page_data: body.page_data } : null,
-              },
-              daysBack: 60,
-              maxDirectives: 8,
-              maxEvidence: 5,
-              maxActions: 4,
-            }).catch(() => ({
-              block: '',
-              directives: [],
-              evidence: [],
-              pendingActions: [],
-              snapshot: {
-                active_directives: 0,
-                evidence_signals: 0,
-                fresh_signals_7d: 0,
-                pending_commitments: 0,
-                evidence_by_source: {},
-              },
-            })),
+        const creativeTarget = await resolveCreativeExecutionTarget({
+          tenantId,
+          bodyClientId: clientId,
+          pageData: body.page_data ?? undefined,
+        }).catch(() => null);
+        const resolvedBriefingId = creativeTarget?.briefingId
+          || asUuid(readPageDataString(body.page_data, ['currentBriefingId', 'briefing_id', 'briefingId']));
+
+        const [[clientContext, psychContext, perfContext, livingMemoryPreflight], clientStatePreflight, briefingDiagnosticsPreflight] = await Promise.all([
+          Promise.race([
+            Promise.all([
+              buildClientContext(tenantId, clientId!),
+              loadPsychContext(tenantId, clientId!),
+              loadPerformanceContext(clientId!),
+              buildClientLivingMemory({
+                tenantId,
+                clientId: clientId!,
+                briefing: {
+                  title: body.message,
+                  objective: body.message,
+                  context: [body.context_page, body.studio_context].filter(Boolean).join('\n'),
+                  payload: body.page_data ? { page_data: body.page_data } : null,
+                },
+                daysBack: 60,
+                maxDirectives: 8,
+                maxEvidence: 5,
+                maxActions: 4,
+              }).catch(() => emptyLivingMemoryPreflight()),
+            ]),
+            new Promise<[string, string, string, ReturnType<typeof emptyLivingMemoryPreflight>]>((resolve) => setTimeout(() => resolve([
+              '',
+              '',
+              '',
+              emptyLivingMemoryPreflight(),
+            ]), 3000)),
           ]),
-          new Promise<[string, string, string, {
-            block: string;
-            directives: Array<any>;
-            evidence: Array<any>;
-            pendingActions: Array<any>;
-            snapshot: {
-              active_directives: number;
-              evidence_signals: number;
-              fresh_signals_7d: number;
-              pending_commitments: number;
-              evidence_by_source: Record<string, number>;
-            };
-          }]>((resolve) => setTimeout(() => resolve([
-            '',
-            '',
-            '',
-            {
-              block: '',
-              directives: [],
-              evidence: [],
-              pendingActions: [],
-              snapshot: {
-                active_directives: 0,
-                evidence_signals: 0,
-                fresh_signals_7d: 0,
-                pending_commitments: 0,
-                evidence_by_source: {},
-              },
-            },
-          ]), 3000)),
+          Promise.race([
+            buildClientState(tenantId, clientId!).catch(() => emptyClientStatePreflight(tenantId, clientId!)),
+            new Promise<ReturnType<typeof emptyClientStatePreflight>>((resolve) => setTimeout(() => resolve(
+              emptyClientStatePreflight(tenantId, clientId!),
+            ), 2500)),
+          ]),
+          Promise.race([
+            (async () => {
+              if (!resolvedBriefingId) return emptyBriefingDiagnosticsPreflight();
+              const briefing = await getBriefingById(resolvedBriefingId, tenantId);
+              if (!briefing) return emptyBriefingDiagnosticsPreflight();
+              const payload = (briefing.payload || {}) as Record<string, any>;
+              return {
+                briefing_id: briefing.id,
+                title: briefing.title,
+                diagnostics: buildBriefingDiagnostics({
+                  briefing: {
+                    title: briefing.title,
+                    objective: payload.objective ?? payload.objetivo ?? '',
+                    context: payload.context ?? payload.notes ?? payload.additional_notes ?? null,
+                    platform: payload.platform ?? payload.plataforma ?? null,
+                    format: payload.format ?? payload.formato ?? payload.creative_format ?? null,
+                    payload,
+                  },
+                  livingMemory: livingMemoryPreflight,
+                }),
+              };
+            })().catch(() => emptyBriefingDiagnosticsPreflight()),
+            new Promise<ReturnType<typeof emptyBriefingDiagnosticsPreflight>>((resolve) => setTimeout(() => resolve(
+              emptyBriefingDiagnosticsPreflight(),
+            ), 2500)),
+          ]),
         ]);
 
         const toolCtx: ToolContext = {
@@ -665,7 +772,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         const livingMemoryPreflightContext = livingMemoryPreflight.block
           ? `\n\nMEMÓRIA VIVA PREFLIGHT PARA ESTA PERGUNTA:\n${livingMemoryPreflight.block}\nINSTRUÇÃO: trate este preflight como contexto mais atual e prioritário do cliente antes de responder, recomendar ou criar.`
           : '';
-        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${livingMemoryPreflightContext}`;
+        const briefingDiagnosticsPreflightContext = buildBriefingDiagnosticsPreflightContext(briefingDiagnosticsPreflight);
+        const clientStatePreflightContext = `\n\n${buildClientStatePreflightContext(clientStatePreflight)}\nINSTRUÇÃO: trate este snapshot como retrato atual do cliente e use-o para calibrar prioridade, risco, oportunidade e timing da resposta.`;
+        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}`;
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
@@ -705,6 +814,24 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             pending_actions: livingMemoryPreflight.pendingActions,
           });
         }
+        if (
+          briefingDiagnosticsPreflight.diagnostics.gaps.length
+          || briefingDiagnosticsPreflight.diagnostics.tensions.length
+          || briefingDiagnosticsPreflight.diagnostics.recommendations.length
+        ) {
+          artifacts.unshift({
+            type: 'briefing_diagnostics_preflight',
+            briefing_id: briefingDiagnosticsPreflight.briefing_id,
+            title: briefingDiagnosticsPreflight.title,
+            diagnostics: briefingDiagnosticsPreflight.diagnostics,
+          });
+        }
+        artifacts.unshift({
+          type: 'client_state_preflight',
+          open_alerts: clientStatePreflight.open_alerts,
+          awareness: clientStatePreflight.awareness,
+          living_memory_preview: clientStatePreflight.living_memory_preview,
+        });
 
         const durationMs = Date.now() - startMs;
         const observability = buildJarvisObservability(decision, {
@@ -714,7 +841,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           model: resultModel,
           loadedMemoryBlocks: [
             ...(clientContext.trim() ? ['Memória do cliente'] : []),
+            'Estado do cliente preflight',
             ...(livingMemoryPreflight.block ? ['Memória viva preflight'] : []),
+            ...(briefingDiagnosticsPreflight.diagnostics.block ? ['Diagnóstico de briefing preflight'] : []),
             ...((psychContext.trim() || perfContext.trim()) ? ['Performance'] : []),
             ...memoryBlocks.map((block) => block.label),
           ],

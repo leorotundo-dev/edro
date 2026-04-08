@@ -46,6 +46,7 @@ export type JarvisExecutorResult = {
   visual_brief: VisualBrief;
   copy: AgentRedatorResult;
   arte: AgentDiretorArteResult | null;
+  briefing_diagnostics: string | null;
   duration_ms: number;
   sources_used: string[];
 };
@@ -74,6 +75,7 @@ export async function runJarvisExecutor(params: JarvisExecutorParams): Promise<J
   if (cco.comportamento.learningRules.length > 0) sources_used.push('learning');
   if (cco.cultura) sources_used.push('cultura');
   if (cco.memoria.copiesAnteriores.length > 0) sources_used.push('memoria');
+  if (cco.memoria.diagnosticoBriefing) sources_used.push('diagnostico_briefing');
 
   // ── Step 2: Generate Conceito (spine) ───────────────────────────────────
   emit('conceito_start', {});
@@ -145,6 +147,7 @@ CONCEITO CRIATIVO APROVADO:
     visual_brief,
     copy,
     arte,
+    briefing_diagnostics: cco.memoria.diagnosticoBriefing ?? null,
     duration_ms: Date.now() - t0,
     sources_used,
   };

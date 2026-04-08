@@ -52,7 +52,9 @@ import { sendEmail } from '../emailService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
+import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFactsService';
 import { buildClientState } from '../jarvisDecisionEngine';
+import { buildBriefingDiagnostics } from '../briefingDiagnosticService';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -140,7 +142,10 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'list_opportunities',
     'get_client_profile',
     'get_client_living_memory',
+    'get_client_memory_facts',
     'get_client_state',
+    'get_context_packet',
+    'get_briefing_diagnostics',
     'get_intelligence_health',
     'search_client_content',
     'list_client_sources',
@@ -178,6 +183,7 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'add_library_url',
     'create_briefing_from_clipping',
     'create_post_pipeline',
+    'record_client_memory_fact',
     'fill_job_briefing',
     'submit_job_briefing',
     'regenerate_creative_draft',
@@ -542,7 +548,11 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   action_opportunity: toolActionOpportunity,
   get_client_profile: toolGetClientProfile,
   get_client_living_memory: toolGetClientLivingMemory,
+  get_client_memory_facts: toolGetClientMemoryFacts,
   get_client_state: toolGetClientState,
+  record_client_memory_fact: toolRecordClientMemoryFact,
+  get_context_packet: toolGetContextPacket,
+  get_briefing_diagnostics: toolGetBriefingDiagnostics,
   get_intelligence_health: toolGetIntelligenceHealth,
   search_client_content: toolSearchClientContent,
   list_client_sources: toolListClientSources,
@@ -1681,11 +1691,207 @@ async function toolGetClientLivingMemory(args: any, ctx: ToolContext): Promise<T
   };
 }
 
+async function toolGetClientMemoryFacts(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const facts = await listClientMemoryFacts({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    daysBack: Math.min(args.days_back ?? 60, 120),
+    factTypes: Array.isArray(args.fact_types)
+      ? args.fact_types.filter((item: unknown) => ['directive', 'evidence', 'commitment'].includes(String(item)))
+      : undefined,
+    limit: Math.min(args.limit ?? 20, 50),
+  });
+
+  const grouped = {
+    directives: facts?.filter((item) => item.fact_type === 'directive') || [],
+    commitments: facts?.filter((item) => item.fact_type === 'commitment') || [],
+    evidence: facts?.filter((item) => item.fact_type === 'evidence') || [],
+  };
+
+  return {
+    success: true,
+    data: {
+      facts: facts || [],
+      grouped,
+      summary: {
+        directives: grouped.directives.length,
+        commitments: grouped.commitments.length,
+        evidence: grouped.evidence.length,
+      },
+    },
+    metadata: {
+      row_count: facts?.length || 0,
+    },
+  };
+}
+
+async function toolRecordClientMemoryFact(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const factType = String(args.fact_type || '').trim();
+  if (!['directive', 'evidence', 'commitment'].includes(factType)) {
+    return { success: false, error: 'fact_type inválido. Use directive, evidence ou commitment.' };
+  }
+  if (factType === 'directive' && !['boost', 'avoid'].includes(String(args.directive_type || ''))) {
+    return { success: false, error: 'directive_type é obrigatório para fact_type=directive.' };
+  }
+
+  const recorded = await recordClientMemoryFact({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    factType: factType as 'directive' | 'evidence' | 'commitment',
+    title: String(args.title || '').trim(),
+    factText: String(args.fact_text || '').trim(),
+    summary: contextualString(args.summary),
+    directiveType: contextualString(args.directive_type) as 'boost' | 'avoid' | null,
+    relatedAt: contextualString(args.related_at),
+    deadline: contextualString(args.deadline),
+    priority: contextualString(args.priority),
+    sourceType: 'jarvis_manual',
+    sourceNote: contextualString(args.source_note) || 'registrado pelo Jarvis a pedido explícito do usuário',
+    confirmedBy: ctx.userEmail || ctx.userId || null,
+  });
+
+  return {
+    success: true,
+    data: {
+      recorded,
+      message: 'Fato registrado na memória viva do cliente.',
+    },
+  };
+}
+
 async function toolGetClientState(args: any, ctx: ToolContext): Promise<ToolResult> {
   const state = await buildClientState(ctx.tenantId, ctx.clientId);
   return {
     success: true,
     data: state,
+  };
+}
+
+async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const briefingId = contextualString(args.briefing_id) || resolveContextBriefingId(args, ctx);
+  const briefing = briefingId ? await getBriefingById(briefingId, ctx.tenantId) : null;
+  const briefingPayload = (briefing?.payload || {}) as Record<string, any>;
+
+  const [clientState, livingMemory] = await Promise.all([
+    buildClientState(ctx.tenantId, ctx.clientId),
+    buildClientLivingMemory({
+      tenantId: ctx.tenantId,
+      clientId: ctx.clientId,
+      briefing: briefing
+        ? {
+          title: briefing.title,
+          objective: briefingPayload.objective ?? briefingPayload.objetivo ?? '',
+          context: briefingPayload.context ?? briefingPayload.notes ?? briefingPayload.additional_notes ?? null,
+          payload: briefingPayload,
+        }
+        : null,
+      maxEvidence: 5,
+      maxActions: 4,
+    }),
+  ]);
+
+  const diagnostics = briefing
+    ? buildBriefingDiagnostics({
+        briefing: {
+          title: briefing.title,
+          objective: briefingPayload.objective ?? briefingPayload.objetivo ?? '',
+          context: briefingPayload.context ?? briefingPayload.notes ?? briefingPayload.additional_notes ?? null,
+          platform: briefingPayload.platform ?? briefingPayload.plataforma ?? null,
+          format: briefingPayload.format ?? briefingPayload.formato ?? briefingPayload.creative_format ?? null,
+          payload: briefingPayload,
+        },
+        livingMemory,
+      })
+    : null;
+
+  const packetSummary = [
+    'CONTEXT PACKET:',
+    `- Alertas abertos: ${clientState.open_alerts}`,
+    `- Diretivas ativas: ${livingMemory.snapshot.active_directives}`,
+    `- Sinais vivos 7d: ${livingMemory.snapshot.fresh_signals_7d}`,
+    `- Compromissos pendentes: ${livingMemory.snapshot.pending_commitments}`,
+    diagnostics?.gaps?.length ? `- Lacunas de briefing: ${diagnostics.gaps.join(' | ')}` : null,
+    diagnostics?.tensions?.length ? `- Tensões de briefing: ${diagnostics.tensions.join(' | ')}` : null,
+  ].filter(Boolean).join('\n');
+
+  return {
+    success: true,
+    data: {
+      client_state: clientState,
+      living_memory: {
+        summary: livingMemory.snapshot,
+        directives: livingMemory.directives,
+        evidence: livingMemory.evidence,
+        pending_actions: livingMemory.pendingActions,
+      },
+      briefing_diagnostics: diagnostics,
+      packet_summary: packetSummary,
+    },
+  };
+}
+
+async function toolGetBriefingDiagnostics(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const briefingId = contextualString(args.briefing_id) || resolveContextBriefingId(args, ctx);
+  if (!briefingId) return { success: false, error: 'briefing_id é obrigatório no contexto atual.' };
+
+  const briefing = await getBriefingById(briefingId, ctx.tenantId);
+  if (!briefing) return { success: false, error: 'Briefing não encontrado.' };
+
+  const payload = (briefing.payload || {}) as Record<string, any>;
+  const selectedClientId =
+    ctx.clientId
+    || contextualString(args.client_id)
+    || contextualString((briefing as any).main_client_id)
+    || contextualString(payload.client_id)
+    || null;
+
+  const livingMemory = selectedClientId
+    ? await buildClientLivingMemory({
+        tenantId: ctx.tenantId,
+        clientId: selectedClientId,
+        briefing: {
+          title: briefing.title,
+          objective: payload.objective ?? payload.objetivo ?? '',
+          context: payload.context ?? payload.notes ?? payload.additional_notes ?? null,
+          payload,
+        },
+        maxEvidence: 5,
+        maxActions: 4,
+      })
+    : {
+        block: '',
+        directives: [],
+        evidence: [],
+        pendingActions: [],
+        snapshot: {
+          active_directives: 0,
+          evidence_signals: 0,
+          fresh_signals_7d: 0,
+          pending_commitments: 0,
+          evidence_by_source: {},
+        },
+      };
+
+  const diagnostics = buildBriefingDiagnostics({
+    briefing: {
+      title: briefing.title,
+      objective: payload.objective ?? payload.objetivo ?? '',
+      context: payload.context ?? payload.notes ?? payload.additional_notes ?? null,
+      platform: payload.platform ?? payload.plataforma ?? null,
+      format: payload.format ?? payload.formato ?? payload.creative_format ?? null,
+      payload,
+    },
+    livingMemory,
+  });
+
+  return {
+    success: true,
+    data: {
+      briefing_id: briefing.id,
+      title: briefing.title,
+      diagnostics,
+      living_memory_summary: livingMemory.snapshot,
+    },
   };
 }
 

@@ -1,4 +1,5 @@
 import { query } from '../db';
+import { listClientMemoryFacts, syncClientMemoryFacts, type ClientMemoryFactRow } from './clientMemoryFactsService';
 
 const MEMORY_SOURCE_TYPES = [
   'gmail_message',
@@ -28,11 +29,13 @@ type LivingMemoryDirective = {
   directive_type: 'boost' | 'avoid';
   directive: string;
   source: string;
+  source_id?: string | null;
   created_at: string | null;
 };
 
 type LivingMemoryEvidence = {
   source_type: string;
+  source_id?: string | null;
   title: string | null;
   excerpt: string;
   occurred_at: string | null;
@@ -40,6 +43,7 @@ type LivingMemoryEvidence = {
 };
 
 type LivingMemoryAction = {
+  action_id?: string | null;
   title: string;
   description: string | null;
   responsible: string | null;
@@ -131,6 +135,130 @@ function formatDeadline(value: string | null) {
   return date.toLocaleDateString('pt-BR');
 }
 
+function buildMemoryBlock(input: {
+  directives: LivingMemoryDirective[];
+  evidence: LivingMemoryEvidence[];
+  pendingActions: LivingMemoryAction[];
+}) {
+  const parts: string[] = [];
+
+  if (input.directives.length) {
+    const boost = input.directives.filter((item) => item.directive_type === 'boost').map((item) => item.directive);
+    const avoid = input.directives.filter((item) => item.directive_type === 'avoid').map((item) => item.directive);
+    parts.push('MEMORIA VIVA DO CLIENTE:');
+    if (boost.length) parts.push(`- Potencializar: ${boost.join(' | ')}`);
+    if (avoid.length) parts.push(`- Evitar: ${avoid.join(' | ')}`);
+  }
+
+  if (input.evidence.length) {
+    if (!parts.length) parts.push('MEMORIA VIVA DO CLIENTE:');
+    parts.push('Evidencias relacionadas a este briefing:');
+    input.evidence.forEach((item) => {
+      const label = SOURCE_LABELS[item.source_type] || item.source_type;
+      const when = item.occurred_at ? new Date(item.occurred_at).toLocaleDateString('pt-BR') : 'sem data';
+      parts.push(`- [${label}] ${when} | ${item.title || 'Sem titulo'} | ${item.excerpt}`);
+    });
+  }
+
+  if (input.pendingActions.length) {
+    if (!parts.length) parts.push('MEMORIA VIVA DO CLIENTE:');
+    parts.push('Compromissos e pendencias em aberto:');
+    input.pendingActions.forEach((item) => {
+      const owner = item.responsible || 'sem responsavel';
+      const deadline = formatDeadline(item.deadline);
+      const meeting = item.meeting_title ? ` | origem: ${item.meeting_title}` : '';
+      parts.push(`- ${item.title} | ${owner} | prazo ${deadline}${meeting}`);
+    });
+  }
+
+  return parts.join('\n');
+}
+
+function buildSnapshot(input: {
+  directives: LivingMemoryDirective[];
+  evidence: LivingMemoryEvidence[];
+  pendingActions: LivingMemoryAction[];
+}) {
+  const evidenceBySource = input.evidence.reduce<Record<string, number>>((acc, item) => {
+    acc[item.source_type] = (acc[item.source_type] || 0) + 1;
+    return acc;
+  }, {});
+  const freshSignals7d = input.evidence.filter((item) => {
+    if (!item.occurred_at) return false;
+    const timestamp = new Date(item.occurred_at).getTime();
+    if (Number.isNaN(timestamp)) return false;
+    return (Date.now() - timestamp) / 86400000 <= 7;
+  }).length;
+
+  return {
+    active_directives: input.directives.length,
+    evidence_signals: input.evidence.length,
+    fresh_signals_7d: freshSignals7d,
+    pending_commitments: input.pendingActions.length,
+    evidence_by_source: evidenceBySource,
+  };
+}
+
+function buildMemoryFromFacts(params: {
+  facts: ClientMemoryFactRow[];
+  tokens: string[];
+  maxDirectives: number;
+  maxEvidence: number;
+  maxActions: number;
+}) {
+  const directives = params.facts
+    .filter((item) => item.fact_type === 'directive')
+    .map((item): LivingMemoryDirective => ({
+      directive_type: item.metadata?.directive_type === 'avoid' ? 'avoid' : 'boost',
+      directive: item.title,
+      source: String(item.metadata?.source || item.source_type || 'memory_fact'),
+      source_id: item.source_id || null,
+      created_at: item.related_at || null,
+    }))
+    .slice(0, params.maxDirectives);
+
+  const evidence = params.facts
+    .filter((item) => item.fact_type === 'evidence')
+    .map((item): LivingMemoryEvidence => {
+      const score = scoreEvidence(params.tokens, item.fact_text || item.summary || item.title || '', item.related_at || null);
+      return {
+        source_type: item.source_type || 'memory_fact',
+        source_id: item.source_id || null,
+        title: item.title || null,
+        excerpt: shortText(item.summary || item.fact_text || '', 220),
+        occurred_at: item.related_at || null,
+        score,
+      };
+    })
+    .filter((item) => item.excerpt)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(b.occurred_at || '').localeCompare(String(a.occurred_at || ''));
+    })
+    .filter((item, index) => index < params.maxEvidence && (params.tokens.length === 0 || item.score > 0));
+
+  const pendingActions = params.facts
+    .filter((item) => item.fact_type === 'commitment')
+    .map((item): LivingMemoryAction => ({
+      action_id: item.source_id || null,
+      title: item.title,
+      description: item.summary || null,
+      responsible: item.metadata?.responsible || null,
+      deadline: item.deadline || null,
+      priority: item.priority || null,
+      meeting_title: item.metadata?.meeting_title || null,
+    }))
+    .slice(0, params.maxActions);
+
+  return {
+    directives,
+    evidence,
+    pendingActions,
+    block: buildMemoryBlock({ directives, evidence, pendingActions }),
+    snapshot: buildSnapshot({ directives, evidence, pendingActions }),
+  };
+}
+
 export async function buildClientLivingMemory(params: {
   tenantId: string;
   clientId?: string | null;
@@ -169,7 +297,7 @@ export async function buildClientLivingMemory(params: {
 
   const [directiveRes, docsRes, actionRes] = await Promise.all([
     query<LivingMemoryDirective>(
-      `SELECT directive_type, directive, source, created_at::text
+      `SELECT directive_type, directive, source, source_id, created_at::text
          FROM client_directives
         WHERE tenant_id = $1
           AND client_id = $2
@@ -178,7 +306,7 @@ export async function buildClientLivingMemory(params: {
       [params.tenantId, params.clientId, maxDirectives],
     ).catch(() => ({ rows: [] })),
     query<any>(
-      `SELECT source_type, title, content_excerpt, content_text,
+      `SELECT id::text AS source_id, source_type, title, content_excerpt, content_text,
               COALESCE(published_at, created_at)::text AS occurred_at
          FROM client_documents
         WHERE tenant_id = $1
@@ -190,7 +318,8 @@ export async function buildClientLivingMemory(params: {
       [params.tenantId, params.clientId, MEMORY_SOURCE_TYPES, daysBack],
     ).catch(() => ({ rows: [] })),
     query<LivingMemoryAction>(
-      `SELECT ma.title,
+      `SELECT ma.id::text AS action_id,
+              ma.title,
               ma.description,
               ma.responsible,
               ma.deadline::text,
@@ -217,6 +346,7 @@ export async function buildClientLivingMemory(params: {
       const score = scoreEvidence(tokens, `${row.title || ''}\n${row.content_excerpt || ''}\n${row.content_text || ''}`, row.occurred_at);
       return {
         source_type: String(row.source_type || ''),
+        source_id: row.source_id || null,
         title: row.title || null,
         excerpt,
         occurred_at: row.occurred_at || null,
@@ -232,59 +362,37 @@ export async function buildClientLivingMemory(params: {
 
   const directives = directiveRes.rows;
   const pendingActions = actionRes.rows;
-  const evidenceBySource = evidence.reduce<Record<string, number>>((acc, item) => {
-    acc[item.source_type] = (acc[item.source_type] || 0) + 1;
-    return acc;
-  }, {});
-  const freshSignals7d = evidence.filter((item) => {
-    if (!item.occurred_at) return false;
-    const timestamp = new Date(item.occurred_at).getTime();
-    if (Number.isNaN(timestamp)) return false;
-    return (Date.now() - timestamp) / 86400000 <= 7;
-  }).length;
 
-  const parts: string[] = [];
-
-  if (directives.length) {
-    const boost = directives.filter((item) => item.directive_type === 'boost').map((item) => item.directive);
-    const avoid = directives.filter((item) => item.directive_type === 'avoid').map((item) => item.directive);
-    parts.push('MEMORIA VIVA DO CLIENTE:');
-    if (boost.length) parts.push(`- Potencializar: ${boost.join(' | ')}`);
-    if (avoid.length) parts.push(`- Evitar: ${avoid.join(' | ')}`);
-  }
-
-  if (evidence.length) {
-    if (!parts.length) parts.push('MEMORIA VIVA DO CLIENTE:');
-    parts.push('Evidencias relacionadas a este briefing:');
-    evidence.forEach((item) => {
-      const label = SOURCE_LABELS[item.source_type] || item.source_type;
-      const when = item.occurred_at ? new Date(item.occurred_at).toLocaleDateString('pt-BR') : 'sem data';
-      parts.push(`- [${label}] ${when} | ${item.title || 'Sem titulo'} | ${item.excerpt}`);
-    });
-  }
-
-  if (pendingActions.length) {
-    if (!parts.length) parts.push('MEMORIA VIVA DO CLIENTE:');
-    parts.push('Compromissos e pendencias em aberto:');
-    pendingActions.forEach((item) => {
-      const owner = item.responsible || 'sem responsavel';
-      const deadline = formatDeadline(item.deadline);
-      const meeting = item.meeting_title ? ` | origem: ${item.meeting_title}` : '';
-      parts.push(`- ${item.title} | ${owner} | prazo ${deadline}${meeting}`);
-    });
-  }
-
-  return {
-    block: parts.join('\n'),
+  const factsAvailable = await syncClientMemoryFacts({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
     directives,
     evidence,
     pendingActions,
-    snapshot: {
-      active_directives: directives.length,
-      evidence_signals: evidence.length,
-      fresh_signals_7d: freshSignals7d,
-      pending_commitments: pendingActions.length,
-      evidence_by_source: evidenceBySource,
-    },
+  });
+
+  if (factsAvailable) {
+    const facts = await listClientMemoryFacts({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      daysBack,
+    });
+    if (facts) {
+      return buildMemoryFromFacts({
+        facts,
+        tokens,
+        maxDirectives,
+        maxEvidence,
+        maxActions,
+      });
+    }
+  }
+
+  return {
+    block: buildMemoryBlock({ directives, evidence, pendingActions }),
+    directives,
+    evidence,
+    pendingActions,
+    snapshot: buildSnapshot({ directives, evidence, pendingActions }),
   };
 }
