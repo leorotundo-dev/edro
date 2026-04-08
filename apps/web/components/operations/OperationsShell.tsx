@@ -37,6 +37,7 @@ type CommandOption = {
 const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; icon: ReactElement }> = [
   { key: 'overview', label: 'Hoje', href: '/admin/operacoes', icon: <IconTargetArrow size={16} /> },
   { key: 'jobs', label: 'Pauta Geral', href: '/admin/operacoes/jobs?view=table&group=client', icon: <IconLayoutKanban size={16} /> },
+  { key: 'ia', label: 'Handoff', href: '/admin/operacoes/ia', icon: <IconBrain size={16} /> },
   { key: 'people', label: 'Pessoas', href: '/admin/operacoes/pessoas', icon: <IconUsers size={16} /> },
   { key: 'semana', label: 'Semana', href: '/admin/operacoes/semana', icon: <IconCalendarTime size={16} /> },
   { key: 'radar', label: 'Riscos', href: '/admin/operacoes/radar', icon: <IconAlertTriangle size={16} /> },

@@ -58,7 +58,7 @@ function filterJobs(jobs: OperationsJob[], filter: FilterKey): OperationsJob[] {
     case 'awaiting':
       return jobs.filter((j) => ['awaiting_approval', 'in_review'].includes(j.status));
     case 'unassigned':
-      return jobs.filter((j) => !j.owner_id);
+      return jobs.filter((j) => !j.owner_id && !j.owner_name);
     default:
       return jobs;
   }
@@ -317,7 +317,7 @@ export default function DailyOperationClient() {
     urgent:      urgentCount,
     in_progress: activeJobs.filter((j) => ['allocated', 'in_progress'].includes(j.status)).length,
     awaiting:    activeJobs.filter((j) => ['awaiting_approval', 'in_review'].includes(j.status)).length,
-    unassigned:  activeJobs.filter((j) => !j.owner_id).length,
+    unassigned:  activeJobs.filter((j) => !j.owner_id && !j.owner_name).length,
   }), [activeJobs, urgentCount]);
 
   useJarvisPage(
