@@ -3,6 +3,7 @@ import { query } from '../db';
 import { readFile, saveFile } from '../library/storage';
 import { getReporteiConnector } from '../providers/reportei/reporteiConnector';
 import { generateCompletion as generateClaudeCompletion } from './ai/claudeService';
+import { buildReporteiSemanticSummary, type ReporteiSemanticSummary } from './reporteiSemanticService';
 
 export type BoardPresentationStatus = 'draft' | 'review' | 'approved' | 'exported';
 
@@ -110,6 +111,7 @@ export type BoardPresentationSourceSnapshot = {
       reach_comparison: BoardPresentationChart;
       engagement_comparison: BoardPresentationChart;
     };
+    semantic_summary: ReporteiSemanticSummary | null;
   };
 };
 
@@ -864,6 +866,11 @@ export async function buildBoardPresentationSourceSnapshot(params: {
     const built = buildPlatformSummary(definition, snapshots, periodMonth);
     if (built.summary) platforms.push(built.summary);
   }
+  const semanticSummary = await buildReporteiSemanticSummary({
+    tenantId,
+    clientId,
+    timeWindow: '30d',
+  }).catch(() => null);
 
   return {
     client: {
@@ -885,6 +892,7 @@ export async function buildBoardPresentationSourceSnapshot(params: {
     reportei: {
       platforms,
       charts: buildChartsFromPlatforms(platforms),
+      semantic_summary: semanticSummary,
     },
   };
 }
@@ -1443,6 +1451,7 @@ ${JSON.stringify({
     visibility: platform.metrics.visibility,
     engagement: platform.metrics.engagement,
   })),
+  reportei_semantic_summary: source.reportei.semantic_summary,
   manual_inputs: manualInputs,
 }, null, 2)}
 

@@ -21,6 +21,7 @@ import { generateCompletion } from './ai/claudeService';
 import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { buildBriefingDiagnostics } from './briefingDiagnosticService';
 import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
+import { buildReporteiSemanticPromptBlock, buildReporteiSemanticSummary } from './reporteiSemanticService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ export type CreativeContextObject = {
     copiesAnteriores: string[];           // anti-repetição: últimas 5 copies
     contextoVivo: string | null;
     diagnosticoBriefing: string | null;
+    quantitativo: string | null;
   };
   visual: {
     artDirectionContext: string;
@@ -236,6 +238,15 @@ export async function assembleCreativeContext(params: {
         limit: 80,
       }).catch(() => null)
     : null;
+  const reporteiSummary = resolvedClientId
+    ? await buildReporteiSemanticSummary({
+        tenantId,
+        clientId: resolvedClientId,
+        timeWindow: '30d',
+        platform: briefingRow.payload?.platform ?? briefingRow.payload?.plataforma ?? null,
+      }).catch(() => null)
+    : null;
+  const reporteiBlock = buildReporteiSemanticPromptBlock(reporteiSummary);
   const briefingDiagnostics = buildBriefingDiagnostics({
     briefing: {
       title: briefingRow.title ?? briefingRow.payload?.title ?? '',
@@ -249,6 +260,7 @@ export async function assembleCreativeContext(params: {
     },
     livingMemory,
     memoryGovernance,
+    reporteiSummary,
   });
 
   // Build cultural context block
@@ -288,8 +300,9 @@ export async function assembleCreativeContext(params: {
     cultura,
     memoria: {
       copiesAnteriores: copiesRows.map((r) => r.copy_text).filter(Boolean),
-      contextoVivo: livingMemory.block || null,
+      contextoVivo: [livingMemory.block, reporteiBlock].filter(Boolean).join('\n\n') || null,
       diagnosticoBriefing: briefingDiagnostics.block || null,
+      quantitativo: reporteiBlock || null,
     },
     visual: {
       artDirectionContext: artDirRow?.style_notes ?? '',
@@ -310,6 +323,8 @@ export async function assembleCreativeContext(params: {
         briefing_diagnostics: briefingDiagnostics.block || undefined,
         briefing_diagnostics_structured: briefingDiagnostics,
         memory_governance_summary: memoryGovernance?.summary ?? undefined,
+        reportei_quantitative_context: reporteiBlock || undefined,
+        reportei_semantic_summary: reporteiSummary ?? undefined,
       },
     },
   };

@@ -192,10 +192,11 @@ async function aggregateReporteiPerformance(
     `SELECT platform, payload, created_at
      FROM learned_insights
      WHERE tenant_id = $1
+       AND client_id = $2
        AND created_at > NOW() - INTERVAL '90 days'
      ORDER BY created_at DESC
      LIMIT 20`,
-    [tenantId],
+    [tenantId, clientId],
   );
 
   if (!rows.length) {
@@ -230,6 +231,15 @@ async function aggregateReporteiPerformance(
     const insights = Array.isArray(payload.editorial_insights) ? payload.editorial_insights : [];
     for (const ins of insights) {
       if (typeof ins === 'string' && ins.length > 5) insightsSet.add(ins);
+    }
+
+    const semanticTopMetrics = Array.isArray(payload?.semantic_summary?.top_metrics)
+      ? payload.semantic_summary.top_metrics
+      : [];
+    for (const metric of semanticTopMetrics.slice(0, 3)) {
+      if (metric?.family && typeof metric.family === 'string') {
+        insightsSet.add(`${r.platform}: família quantitativa forte em ${metric.family} (${metric.reference_key})`);
+      }
     }
   }
 

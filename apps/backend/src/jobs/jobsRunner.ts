@@ -12,6 +12,7 @@ import { runClippingTavilyWorkerOnce } from './clippingTavilyWorker';
 import { runCalendarInspirationWorkerOnce } from './calendarInspirationWorker';
 import { runArchiveStaleBriefingsOnce } from './archiveStaleBriefingsWorker';
 import { runReporteiSyncWorkerOnce } from './reporteiSyncWorker';
+import { runReporteiFoundationWorkerOnce } from './reporteiFoundationWorker';
 import { runPerformanceAlertWorkerOnce } from './performanceAlertWorker';
 import { runClientHealthWorkerOnce } from './clientHealthWorker';
 import { runOperationalAgentOnce } from './operationalAgentWorker';
@@ -146,6 +147,8 @@ export function startJobsRunner() {
   startWorkerLoop('archiveStale', runArchiveStaleBriefingsOnce, 6000, undefined, 60_000);
   // Reportei sync — runs Mon/Wed/Fri (3×/week), fetches 7d/30d/90d metrics
   startWorkerLoop('reporteiSync', runReporteiSyncWorkerOnce, 6500, 300_000, 60_000);
+  // Reportei foundation — inventory completo + raw payload lake for all linked clients
+  startWorkerLoop('reporteiFoundation', runReporteiFoundationWorkerOnce, 6750, 600_000, 60_000);
   // Performance alerts — runs every Monday, detects drops/spikes vs previous period
   startWorkerLoop('performanceAlerts', runPerformanceAlertWorkerOnce, 7000, 120_000, 60_000);
   // Client Health Score — runs every Monday, computes 0-100 health per client

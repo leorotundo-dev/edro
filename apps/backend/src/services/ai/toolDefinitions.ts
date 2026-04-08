@@ -485,6 +485,16 @@ export const TOOLS: ToolDefinition[] = [
     category: 'read',
   },
   {
+    name: 'get_client_reportei_summary',
+    description: 'Retorna um resumo quantitativo do cliente a partir do raw lake do Reportei, organizado por famílias de métricas e top sinais por integração. Use quando precisar entender o que realmente está performando em alcance, engajamento, tráfego, conversão ou mídia paga.',
+    parameters: {
+      time_window: { type: 'string', description: 'Janela desejada (ex: 7d, 30d, 90d). Padrão 30d.' },
+      platform: { type: 'string', description: 'Plataforma opcional (Instagram, LinkedIn, MetaAds, GoogleAds, GoogleAnalytics, Facebook).' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
     name: 'get_briefing_diagnostics',
     description: 'Analisa a qualidade do briefing atual e retorna lacunas, tensões e recomendações com base na memória viva do cliente. Use antes de gerar copy, aprovar briefing ou responder quando o briefing estiver raso, ambíguo ou potencialmente conflitante.',
     parameters: {
