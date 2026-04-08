@@ -510,6 +510,68 @@ function GanttView({
    DISTRIBUTION VIEW (preserved)
 ═══════════════════════════════════════════ */
 
+function DistCell({
+  jobs,
+  col,
+  owners,
+  borderColor,
+  dragJobIdRef,
+  onOpenJob,
+}: {
+  jobs: OperationsJob[];
+  col: { key: string; today: boolean };
+  owners: OperationsOwner[];
+  borderColor: string;
+  dragJobIdRef: React.MutableRefObject<string | null>;
+  onOpenJob: (job: OperationsJob) => void;
+}) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  const [dragOver, setDragOver] = useState(false);
+
+  return (
+    <Box
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={() => setDragOver(false)}
+      sx={{
+        minHeight: 64, p: 0.5,
+        borderRight: `1px solid ${alpha(borderColor, 0.5)}`,
+        '&:last-child': { borderRight: 'none' },
+        bgcolor: dragOver ? alpha(theme.palette.primary.main, 0.08) : col.today ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
+        display: 'flex', flexDirection: 'column', gap: 0.4,
+      }}
+    >
+      {jobs.sort(sortByOperationalPriority).map((job) => {
+        const color = ownerColor(job.owner_id, owners);
+        return (
+          <Box
+            key={job.id}
+            draggable
+            onDragStart={(e) => { dragJobIdRef.current = job.id; e.dataTransfer.effectAllowed = 'move'; }}
+            onClick={() => onOpenJob(job)}
+            sx={{
+              px: 0.75, py: 0.4, borderRadius: 1,
+              borderLeft: `3px solid ${color}`,
+              bgcolor: dark ? alpha('#fff', 0.04) : alpha('#000', 0.03),
+              cursor: 'grab', overflow: 'hidden',
+              '&:active': { cursor: 'grabbing' },
+              '&:hover': { bgcolor: alpha(color, dark ? 0.14 : 0.08) },
+            }}
+          >
+            <Typography variant="caption" noWrap sx={{ fontWeight: 700, fontSize: '0.7rem', lineHeight: 1.25, display: 'block' }}>
+              {job.title}
+            </Typography>
+            <Typography variant="caption" noWrap sx={{ fontSize: '0.62rem', color: 'text.disabled', lineHeight: 1 }}>
+              {job.client_name}
+            </Typography>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
 const OWNER_ALLOCABLE = (owner: OperationsOwner) =>
   owner.person_type === 'freelancer' ? 16 * 60 : owner.role === 'admin' || owner.role === 'manager' ? 22 * 60 : 28 * 60;
 
@@ -637,52 +699,17 @@ function DistributionView({
             </Box>
 
             {/* Day cells */}
-            {cols.map((col) => {
-              const cellJobs = dayMap.get(col.key) ?? [];
-              const [dragOver, setDragOver] = useState(false);
-              return (
-                <Box
-                  key={col.key}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={() => { setDragOver(false); }}
-                  sx={{
-                    minHeight: 64, p: 0.5,
-                    borderRight: `1px solid ${alpha(borderColor, 0.5)}`,
-                    '&:last-child': { borderRight: 'none' },
-                    bgcolor: dragOver ? alpha(theme.palette.primary.main, 0.08) : col.today ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
-                    display: 'flex', flexDirection: 'column', gap: 0.4,
-                  }}
-                >
-                  {cellJobs.sort(sortByOperationalPriority).map((job) => {
-                    const color = ownerColor(job.owner_id, owners);
-                    return (
-                      <Box
-                        key={job.id}
-                        draggable
-                        onDragStart={(e) => { dragJobIdRef.current = job.id; e.dataTransfer.effectAllowed = 'move'; }}
-                        onClick={() => onOpenJob(job)}
-                        sx={{
-                          px: 0.75, py: 0.4, borderRadius: 1,
-                          borderLeft: `3px solid ${color}`,
-                          bgcolor: dark ? alpha('#fff', 0.04) : alpha('#000', 0.03),
-                          cursor: 'grab', overflow: 'hidden',
-                          '&:active': { cursor: 'grabbing' },
-                          '&:hover': { bgcolor: alpha(color, dark ? 0.14 : 0.08) },
-                        }}
-                      >
-                        <Typography variant="caption" noWrap sx={{ fontWeight: 700, fontSize: '0.7rem', lineHeight: 1.25, display: 'block' }}>
-                          {job.title}
-                        </Typography>
-                        <Typography variant="caption" noWrap sx={{ fontSize: '0.62rem', color: 'text.disabled', lineHeight: 1 }}>
-                          {job.client_name}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              );
-            })}
+            {cols.map((col) => (
+              <DistCell
+                key={col.key}
+                jobs={dayMap.get(col.key) ?? []}
+                col={col}
+                owners={owners}
+                borderColor={borderColor}
+                dragJobIdRef={dragJobIdRef}
+                onOpenJob={onOpenJob}
+              />
+            ))}
           </Box>
         );
       })}
