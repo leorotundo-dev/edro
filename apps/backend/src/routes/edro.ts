@@ -86,6 +86,7 @@ import { analyzeCognitiveLoad, buildCorrectionPrompt, extractText } from '../ser
 import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../services/decisionStackService';
 import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
+import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
 import { audit } from '../audit/audit';
 import {
   buildArtDirectionFeedbackMetadata,
@@ -1968,8 +1969,43 @@ export default async function edroRoutes(app: FastifyInstance) {
           },
           maxEvidence: 5,
           maxActions: 4,
-        }).catch(() => ({ block: '', directives: [], evidence: [], pendingActions: [] }))
-      : { block: '', directives: [], evidence: [], pendingActions: [] };
+        }).catch(() => ({
+          block: '',
+          directives: [],
+          evidence: [],
+          pendingActions: [],
+          snapshot: {
+            active_directives: 0,
+            evidence_signals: 0,
+            fresh_signals_7d: 0,
+            pending_commitments: 0,
+            evidence_by_source: {},
+          },
+        }))
+      : {
+          block: '',
+          directives: [],
+          evidence: [],
+          pendingActions: [],
+          snapshot: {
+            active_directives: 0,
+            evidence_signals: 0,
+            fresh_signals_7d: 0,
+            pending_commitments: 0,
+            evidence_by_source: {},
+          },
+        };
+    const briefingDiagnostics = buildBriefingDiagnostics({
+      briefing: {
+        title: briefing.title,
+        objective: (briefing.payload as any)?.objective ?? (briefing.payload as any)?.objetivo ?? '',
+        context: (briefing.payload as any)?.context ?? (briefing.payload as any)?.notes ?? (briefing.payload as any)?.additional_notes ?? null,
+        platform: selectedPlatform,
+        format: selectedFormat,
+        payload: briefingPayload,
+      },
+      livingMemory,
+    });
     const performanceHint = selectedPlatform
       ? await fetchPerformanceHint(tenantId, selectedClientId, selectedPlatform)
       : null;
@@ -2044,6 +2080,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
         knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
         livingMemoryBlock = livingMemory.block ? `\n\n${livingMemory.block}` : '';
+        const diagnosticsBlock = briefingDiagnostics.block ? `\n\n${briefingDiagnostics.block}` : '';
         const usageCtx = tenantId ? { tenant_id: tenantId, feature: 'copy_studio' } : undefined;
 
         // Regras criativas nativas da plataforma selecionada
@@ -2313,6 +2350,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         const enrichedKnowledgeBlock = [
           knowledgeBlock,
           livingMemoryBlock,
+          diagnosticsBlock,
           brandVoiceBlock,
           behaviorProfileBlock,
           learningRulesBlock,
@@ -2329,7 +2367,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           webResearchBlock,
         ].filter(Boolean).join('\n');
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
-        const enrichedPrompt = `${prompt}${livingMemoryBlock}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
+        const enrichedPrompt = `${prompt}${livingMemoryBlock}${diagnosticsBlock}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${webResearchBlock}`;
 
         let result;
         if (pipeline === 'adversarial') {
@@ -2493,6 +2531,9 @@ export default async function edroRoutes(app: FastifyInstance) {
     if (reporteiContext?.summary) {
       edroPayload.reportei = reporteiContext.summary;
     }
+    if (briefingDiagnostics.gaps.length || briefingDiagnostics.tensions.length || briefingDiagnostics.recommendations.length) {
+      edroPayload.briefing_diagnostics = briefingDiagnostics;
+    }
     if (cognitiveLoad) {
       edroPayload.cognitive_load = cognitiveLoad;
     }
@@ -2610,6 +2651,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         copy,
         trafficTask,
         trafficNotifications,
+        briefingDiagnostics,
       },
     });
 
