@@ -104,6 +104,8 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
     : Array.isArray(governance?.suggestions)
     ? governance.suggestions.slice(0, 4)
     : [];
+  const briefingCompensations = Array.isArray(artifact.briefing_compensations) ? artifact.briefing_compensations.slice(0, 4) : [];
+  const ignoredMemoryFacts = Array.isArray(artifact.ignored_memory_facts) ? artifact.ignored_memory_facts.slice(0, 4) : [];
   const appliedGovernanceActions = Array.isArray(artifact.applied_governance_actions)
     ? artifact.applied_governance_actions
     : Array.isArray(artifact.applied_actions)
@@ -220,6 +222,30 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 ))}
               </Box>
             )}
+            {briefingCompensations.length > 0 && (
+              <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}>
+                  Compensações aplicadas
+                </Typography>
+                {briefingCompensations.map((item: string, index: number) => (
+                  <Typography key={`comp-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    {item}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+            {ignoredMemoryFacts.length > 0 && (
+              <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}>
+                  Fatos atenuados por governança
+                </Typography>
+                {ignoredMemoryFacts.map((item: string, index: number) => (
+                  <Typography key={`ignored-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    {item}
+                  </Typography>
+                ))}
+              </Box>
+            )}
             {appliedGovernanceActions.length > 0 && (
               <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.35 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}>
@@ -260,6 +286,18 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 {briefingConflicts.map((item: any, index: number) => (
                   <Typography key={`${item.type || 'conflict'}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
                     {item.message}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+            {ignoredMemoryFacts.length > 0 && (
+              <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}>
+                  O que está sendo atenuado
+                </Typography>
+                {ignoredMemoryFacts.map((item: string, index: number) => (
+                  <Typography key={`gate-ignored-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    {item}
                   </Typography>
                 ))}
               </Box>
