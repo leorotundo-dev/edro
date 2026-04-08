@@ -62,6 +62,8 @@ import {
   IconFileText,
   IconEye,
   IconSparkles,
+  IconStar,
+  IconStarFilled,
   IconUser,
 } from '@tabler/icons-react';
 import DashboardCard from '@/components/shared/DashboardCard';
@@ -2079,112 +2081,104 @@ export function OpsCard({
     return isNaN(d.getTime()) ? null : d;
   })();
 
+  const commentCount = job.comments?.length ?? 0;
+  const isFaved = isUrgent; // usar urgência como proxy visual de estrela preenchida
+
   return (
     <>
       <Box
         onClick={onClick}
         sx={{
-          borderRadius: 2.5,
-          bgcolor: dark ? alpha('#fff', 0.035) : '#fff',
-          border: isUrgent
-            ? `1.5px solid ${alpha('#FA896B', 0.55)}`
-            : selected
-              ? `1.5px solid ${alpha(theme.palette.primary.main, 0.45)}`
-              : `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.08)}`,
-          boxShadow: dark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 10px rgba(0,0,0,0.06)',
+          borderRadius: 3,
+          bgcolor: dark ? alpha('#fff', 0.04) : '#fff',
+          boxShadow: dark
+            ? '0 2px 12px rgba(0,0,0,0.35)'
+            : '0 2px 12px rgba(0,0,0,0.07)',
+          border: selected
+            ? `1.5px solid ${alpha(theme.palette.primary.main, 0.5)}`
+            : `1px solid ${dark ? alpha('#fff', 0.06) : alpha('#000', 0.06)}`,
           display: 'flex',
           flexDirection: 'column',
           cursor: onClick ? 'pointer' : 'default',
           overflow: 'hidden',
           transition: 'box-shadow 0.15s, transform 0.15s',
           '&:hover': {
-            boxShadow: dark ? '0 8px 28px rgba(0,0,0,0.4)' : '0 8px 28px rgba(0,0,0,0.12)',
+            boxShadow: dark ? '0 8px 28px rgba(0,0,0,0.45)' : '0 8px 28px rgba(0,0,0,0.13)',
             transform: 'translateY(-2px)',
-            '& .ops-card-actions': { opacity: 1 },
           },
         }}
       >
-        {/* Cover image — ONLY if a real URL exists */}
+        {/* Cover image — só aparece com URL real */}
         {coverImageUrl && (
           <Box sx={{ height: 150, overflow: 'hidden', flexShrink: 0 }}>
             <Box component="img" src={coverImageUrl} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </Box>
         )}
 
-        {/* Card body */}
-        <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 1.1, flex: 1 }}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
 
-          {/* Row 1: type chip + urgent flag + options menu */}
+          {/* Row 1: chip colorido sólido + ⋮ sempre visível */}
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Stack direction="row" spacing={0.5} alignItems="center">
               <Chip
                 size="small"
                 label={formatJobTypeLabel(job.job_type)}
                 sx={{
-                  height: 24, fontSize: '0.7rem', fontWeight: 800, borderRadius: 999,
-                  bgcolor: alpha(typeVis.color, dark ? 0.2 : 0.12),
-                  color: typeVis.color,
-                  border: `1px solid ${alpha(typeVis.color, 0.28)}`,
-                  '& .MuiChip-label': { px: 1 },
+                  height: 26, fontSize: '0.72rem', fontWeight: 800, borderRadius: 999,
+                  bgcolor: typeVis.color,
+                  color: '#fff',
+                  '& .MuiChip-label': { px: 1.25 },
                 }}
               />
               {isUrgent && (
                 <Chip
                   size="small"
-                  icon={<IconAlertTriangle size={11} />}
-                  label="URGENTE"
+                  label="Urgente"
                   sx={{
-                    height: 22, fontSize: '0.62rem', fontWeight: 900, borderRadius: 999,
-                    bgcolor: alpha('#FA896B', 0.12), color: '#FA896B',
-                    border: `1px solid ${alpha('#FA896B', 0.35)}`,
-                    '& .MuiChip-label': { px: 0.75 },
-                    '& .MuiChip-icon': { color: '#FA896B', ml: '6px' },
+                    height: 22, fontSize: '0.65rem', fontWeight: 800, borderRadius: 999,
+                    bgcolor: '#FA896B', color: '#fff',
+                    '& .MuiChip-label': { px: 0.85 },
                   }}
                 />
               )}
             </Stack>
             {onOpen && (
               <IconButton
-                className="ops-card-actions"
                 size="small"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
-                sx={{ p: 0.35, opacity: 0, transition: 'opacity 0.15s', '&:hover': { opacity: '1 !important' } }}
+                sx={{ p: 0.4, color: 'text.secondary', flexShrink: 0 }}
               >
-                <IconDots size={14} />
+                <IconDots size={16} />
               </IconButton>
             )}
           </Stack>
 
-          {/* Client name (small, muted) */}
-          {job.client_name && (
-            <Typography variant="caption" noWrap sx={{ fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: accentColor ? alpha(accentColor, dark ? 0.7 : 0.6) : 'text.disabled', mt: -0.5 }}>
-              {job.client_name}
-            </Typography>
-          )}
-
-          {/* Title */}
+          {/* Título */}
           <Typography
-            variant="body2"
+            variant="body1"
             fontWeight={700}
             sx={{
-              fontSize: '0.9rem', lineHeight: 1.4,
+              fontSize: '0.95rem', lineHeight: 1.35,
               display: '-webkit-box', WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical', overflow: 'hidden',
-              mt: job.client_name ? -0.25 : 0,
             }}
           >
             {job.title}
           </Typography>
 
-          {/* Description */}
-          {showDescription && (job.summary || job.required_skill) && (
+          {/* Descrição */}
+          {(job.summary || job.required_skill) && (
             <Typography
               variant="body2"
               color="text.secondary"
               sx={{
-                display: '-webkit-box', WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                fontSize: '0.78rem', lineHeight: 1.5, flex: 1,
+                display: '-webkit-box',
+                WebkitLineClamp: showDescription ? 3 : 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                fontSize: '0.82rem',
+                lineHeight: 1.55,
+                flex: 1,
               }}
             >
               {job.summary || formatSkillLabel(job.required_skill)}
@@ -2210,16 +2204,17 @@ export function OpsCard({
             </Stack>
           )}
 
-          {/* Footer: avatar stack + status chip + deadline */}
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 0.5 }}>
-            {/* Avatar stack */}
+          {/* Footer: avatares sobrepostos + comentários + estrela */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto' }}>
+
+            {/* Avatares */}
             <Stack direction="row" alignItems="center" spacing={0.75}>
-              <Box sx={{ display: 'flex', '& > *:not(:first-of-type)': { ml: '-7px' } }}>
+              <Box sx={{ display: 'flex', '& > *:not(:first-of-type)': { ml: '-8px' } }}>
                 {job.owner_name && (
                   <Tooltip title={job.owner_name} arrow placement="top">
                     <Avatar
                       src={job.owner_avatar_url ?? undefined}
-                      sx={{ width: 28, height: 28, fontSize: '0.52rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.18), color: '#5D87FF', border: `2px solid ${dark ? alpha('#000', 0.5) : '#fff'}` }}
+                      sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.18), color: '#5D87FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
                     >
                       {initials(job.owner_name)}
                     </Avatar>
@@ -2229,14 +2224,14 @@ export function OpsCard({
                   <Tooltip key={a.user_id} title={a.name} arrow placement="top">
                     <Avatar
                       src={a.avatar_url ?? undefined}
-                      sx={{ width: 28, height: 28, fontSize: '0.52rem', fontWeight: 900, bgcolor: alpha('#7B61FF', 0.18), color: '#7B61FF', border: `2px solid ${dark ? alpha('#000', 0.5) : '#fff'}` }}
+                      sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 900, bgcolor: alpha('#7B61FF', 0.18), color: '#7B61FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
                     >
                       {initials(a.name)}
                     </Avatar>
                   </Tooltip>
                 ))}
                 {extraAssignees.length > 2 && (
-                  <Avatar sx={{ width: 28, height: 28, fontSize: '0.52rem', fontWeight: 900, bgcolor: alpha('#000', 0.1), color: 'text.secondary', border: `2px solid ${dark ? alpha('#000', 0.5) : '#fff'}` }}>
+                  <Avatar sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 800, bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.08), color: 'text.secondary', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}>
                     +{extraAssignees.length - 2}
                   </Avatar>
                 )}
@@ -2246,40 +2241,38 @@ export function OpsCard({
                   <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
                 </Box>
               ) : !job.owner_name ? (
-                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>
-                  Sem dono
-                </Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>Sem dono</Typography>
               ) : null}
-              {agingDays !== null && (
-                <Tooltip title={`${agingDays} dias sem movimentação`} arrow placement="top">
-                  <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 900, color: agingDays >= 7 ? '#FA896B' : '#FFAE1F' }}>
-                    {agingDays}d
-                  </Typography>
-                </Tooltip>
-              )}
             </Stack>
 
-            {/* Status chip + deadline */}
-            <Stack alignItems="flex-end" spacing={0.25} sx={{ flexShrink: 0 }}>
-              <Chip
-                size="small"
-                label={vis.label}
-                sx={{ height: 18, fontSize: '0.58rem', fontWeight: 800, bgcolor: alpha(vis.color, 0.1), color: vis.color, '& .MuiChip-label': { px: 0.6 } }}
-              />
-              {deadlineDate ? (
-                <Stack direction="row" spacing={0.4} alignItems="center">
-                  <DeadlineCountdown deadline={job.deadline_at!} compact />
-                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
-                    {deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+            {/* Comentários + estrela */}
+            <Stack direction="row" spacing={1} alignItems="center">
+              {commentCount > 0 && (
+                <Stack direction="row" spacing={0.35} alignItems="center">
+                  <IconMessageCircle size={15} color={alpha(theme.palette.text.primary, 0.45)} />
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'text.secondary', lineHeight: 1 }}>
+                    {commentCount}
                   </Typography>
                 </Stack>
-              ) : (
-                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>Sem prazo</Typography>
               )}
+              <Box sx={{ color: isFaved ? '#FFAE1F' : alpha(theme.palette.text.primary, 0.22), display: 'flex', lineHeight: 1 }}>
+                {isFaved ? <IconStarFilled size={17} /> : <IconStar size={17} />}
+              </Box>
             </Stack>
           </Stack>
 
-          {/* Advance button — hover only */}
+          {/* Deadline linha discreta */}
+          {deadlineDate && (
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <IconCalendar size={12} color={alpha(theme.palette.text.primary, 0.35)} />
+              <DeadlineCountdown deadline={job.deadline_at!} compact />
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+                {deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </Typography>
+            </Stack>
+          )}
+
+          {/* Avançar status — hover */}
           {nextStatus && onAdvance ? (
             <Button
               className="ops-card-actions"
