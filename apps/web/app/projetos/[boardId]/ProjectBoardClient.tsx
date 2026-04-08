@@ -20,12 +20,16 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
 import LinearProgress from '@mui/material/LinearProgress';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import {
   IconArrowLeft,
   IconBrandTrello,
   IconCalendar,
   IconCheck,
+  IconDots,
   IconExternalLink,
+  IconEyeOff,
   IconPlus,
   IconRefresh,
   IconUserCheck,
@@ -302,18 +306,45 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
   const [allocAssigning, setAllocAssigning] = useState<string | null>(null);
   const autoOpenedCardRef = useRef<string | null>(null);
 
+  // List exclusion from ops flow
+  const [excludedLists, setExcludedLists] = useState<Set<string>>(new Set());
+  const [listMenuAnchor, setListMenuAnchor] = useState<{ el: HTMLElement; listId: string } | null>(null);
+
   const loadBoard = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiGet(`/trello/project-boards/${boardId}`);
-      setBoard(data.board);
-      setLists(data.board.lists ?? []);
+      const [boardData, statusData] = await Promise.all([
+        apiGet(`/trello/project-boards/${boardId}`),
+        apiGet(`/trello/list-status-map/${boardId}`).catch(() => ({ lists: [] })),
+      ]);
+      setBoard(boardData.board);
+      setLists(boardData.board.lists ?? []);
+      const excluded = new Set<string>(
+        (statusData.lists ?? [])
+          .filter((l: any) => l.override_status === 'excluded')
+          .map((l: any) => l.id as string),
+      );
+      setExcludedLists(excluded);
     } catch (err: any) {
       setError(err?.message ?? 'Erro ao carregar board.');
     } finally {
       setLoading(false);
     }
   }, [boardId]);
+
+  async function toggleExcluded(listId: string) {
+    const isExcluded = excludedLists.has(listId);
+    const newStatus = isExcluded ? null : 'excluded'; // null = remove override
+    await apiPost(`/trello/list-status-map/${boardId}`, {
+      mappings: [{ list_id: listId, ops_status: newStatus }],
+    });
+    setExcludedLists((prev) => {
+      const next = new Set(prev);
+      if (isExcluded) next.delete(listId); else next.add(listId);
+      return next;
+    });
+    setListMenuAnchor(null);
+  }
 
   useEffect(() => { loadBoard(); }, [loadBoard]);
 
@@ -521,8 +552,29 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
                   direction="row" justifyContent="space-between" alignItems="center"
                   sx={{ px: 1.5, pt: 1.5, pb: 1 }}
                 >
-                  <Typography variant="subtitle2" fontWeight={700}>{list.name}</Typography>
-                  <Chip label={activeCards.length} size="small" sx={{ height: 18, fontSize: 11 }} />
+                  <Stack direction="row" alignItems="center" gap={0.5} minWidth={0}>
+                    {excludedLists.has(list.id) && (
+                      <Tooltip title="Excluída do fluxo de operações">
+                        <IconEyeOff size={13} color="#94a3b8" />
+                      </Tooltip>
+                    )}
+                    <Typography
+                      variant="subtitle2" fontWeight={700} noWrap
+                      sx={{ opacity: excludedLists.has(list.id) ? 0.45 : 1 }}
+                    >
+                      {list.name}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" alignItems="center" gap={0.5}>
+                    <Chip label={activeCards.length} size="small" sx={{ height: 18, fontSize: 11 }} />
+                    <IconButton
+                      size="small"
+                      onClick={(e) => setListMenuAnchor({ el: e.currentTarget, listId: list.id })}
+                      sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'text.primary' } }}
+                    >
+                      <IconDots size={14} />
+                    </IconButton>
+                  </Stack>
                 </Stack>
 
                 {/* Cards */}
@@ -787,6 +839,24 @@ export default function ProjectBoardClient({ boardId, noShell }: { boardId: stri
           </Box>
         )}
       </Drawer>
+
+      {/* List options menu */}
+      <Menu
+        anchorEl={listMenuAnchor?.el}
+        open={Boolean(listMenuAnchor)}
+        onClose={() => setListMenuAnchor(null)}
+        slotProps={{ paper: { sx: { minWidth: 220 } } }}
+      >
+        <MenuItem
+          onClick={() => listMenuAnchor && toggleExcluded(listMenuAnchor.listId)}
+          sx={{ gap: 1, fontSize: 14 }}
+        >
+          <IconEyeOff size={16} />
+          {listMenuAnchor && excludedLists.has(listMenuAnchor.listId)
+            ? 'Incluir no fluxo de operações'
+            : 'Excluir do fluxo de operações'}
+        </MenuItem>
+      </Menu>
     </Shell>
   );
 }

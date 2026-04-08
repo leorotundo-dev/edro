@@ -876,7 +876,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const { mappings } = request.body as { mappings: Array<{ list_id: string; ops_status: string | null }> };
 
     const VALID = new Set(['intake', 'planned', 'allocated', 'in_progress', 'in_review',
-      'awaiting_approval', 'approved', 'ready', 'done', 'published', 'blocked']);
+      'awaiting_approval', 'approved', 'ready', 'done', 'published', 'blocked', 'excluded']);
 
     for (const m of (mappings ?? [])) {
       if (m.ops_status === null) {
@@ -946,10 +946,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
          AND (
            NOT $2::boolean
            OR pl.id::text NOT IN (
-             -- exclude lists explicitly mapped as done/published
+             -- exclude lists mapped as done/published/excluded
              SELECT list_id::text FROM trello_list_status_map
               WHERE tenant_id = $1
-                AND ops_status IN ('done', 'published')
+                AND ops_status IN ('done', 'published', 'excluded')
            )
          )
          AND (
@@ -961,7 +961,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       baseParams,
     );
 
-    const INACTIVE_STATUSES = new Set(['done', 'published']);
+    const INACTIVE_STATUSES = new Set(['done', 'published', 'excluded']);
 
     const jobs = cards.flatMap((c) => {
       const { band, score } = computePriorityBand(c.due_date, c.due_complete);
@@ -1848,6 +1848,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
          AND pc.is_archived = false
          AND ${currentYearCardClause('pc')}
          AND pl.is_archived = false
+         AND COALESCE(m.ops_status, '') <> 'excluded'
+         AND NOT (
+           m.ops_status IS NULL
+           AND pl.name ~* '(conclu[íi]do|done|publicado|entregue|finalizado|arquivado|cancelled|cancelado)'
+         )
        ORDER BY pc.due_date ASC NULLS LAST`,
       [tenantId],
     );
