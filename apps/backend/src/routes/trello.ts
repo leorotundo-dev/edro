@@ -940,7 +940,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          (SELECT eu.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_user_id,
          (SELECT fp.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_fp_id,
          (SELECT fp.avatar_url FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_avatar_url,
-         EXISTS(SELECT 1 FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id AND fp.person_type = 'freelancer' LIMIT 1) as owner_is_freelancer
+         EXISTS(SELECT 1 FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id LIMIT 1) as owner_is_freelancer
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
