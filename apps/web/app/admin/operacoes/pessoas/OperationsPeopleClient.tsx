@@ -59,6 +59,13 @@ function ownerState(usage: number) {
   return { label: 'Controlado', color: '#13DEB9' };
 }
 
+const STAGE_COLORS: Record<string, string> = {
+  intake: '#A0AEC0', planned: '#5D87FF', ready: '#5D87FF',
+  allocated: '#FFAE1F', in_progress: '#E85219', blocked: '#FA896B',
+  in_review: '#7B61FF', awaiting_approval: '#FFAE1F',
+  approved: '#13DEB9', scheduled: '#13DEB9', published: '#13DEB9',
+};
+
 export default function OperationsPeopleClient() {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
