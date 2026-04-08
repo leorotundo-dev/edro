@@ -921,6 +921,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       due_date: string | null; due_complete: boolean; labels: any;
       cover_color: string | null; trello_url: string | null; trello_card_id: string | null;
       start_date: string | null; priority: string; estimated_hours: number | null;
+      created_at: string;
       list_id: string; list_name: string;
       board_id: string; board_name: string;
       client_id: string | null; client_name: string | null;
@@ -932,6 +933,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
          pc.cover_color, pc.trello_url, pc.trello_card_id,
          pc.start_date::text, pc.priority, pc.estimated_hours,
+         pc.created_at::text,
          pl.id as list_id, pl.name as list_name,
          pb.id as board_id, pb.name as board_name,
          pb.client_id,
@@ -1012,6 +1014,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
         person_type: c.owner_is_freelancer ? 'freelancer' : (c.owner_user_id ? 'internal' : null),
         start_date: c.start_date ?? null,
         deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
+        created_at: c.created_at,
         estimated_minutes: c.estimated_hours ? Math.round(c.estimated_hours * 60) : null,
         actual_minutes: null,
         metadata: {

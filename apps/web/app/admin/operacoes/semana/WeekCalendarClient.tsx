@@ -87,7 +87,8 @@ function dateKey(d: Date): string {
 
 function jobDateKey(job: OperationsJob): string | null {
   const alloc = job.metadata?.allocation as { planned_date?: string } | undefined;
-  const dateStr = alloc?.planned_date || job.deadline_at;
+  // Priority: planned_date → due_date → card creation date (always set)
+  const dateStr = alloc?.planned_date || job.deadline_at || job.created_at;
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return null;
