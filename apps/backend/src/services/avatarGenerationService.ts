@@ -5,17 +5,21 @@ import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
 import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v6';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v7';
 
 const AVATAR_STYLE_REFERENCE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-reference.png');
+const AVATAR_STYLE_BRIDGE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-bridge.jpg');
 let avatarStyleReferenceDataUrlPromise: Promise<string> | null = null;
+let avatarStyleBridgeDataUrlPromise: Promise<string> | null = null;
 
 const EDRO_AVATAR_BASE_PROMPT = `
 create a single stylized 3D avatar character from the reference photo, shown alone in a complete bust portrait from the upper chest upward on a plain very light gray background. keep a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never staring straight into the camera.
 
 identity fidelity is the highest priority. preserve the real person's facial proportions, face width, jawline, chin, cheek volume, eye spacing, eye size, eyebrow shape, nose width and bridge, mouth shape, hairline, beard or mustache if present, skin tone, age range, and overall gender presentation exactly as seen in the reference. the goal is immediate recognition by someone who knows the person. do not beautify, idealize, feminize, masculinize, or replace the face with a generic attractive cartoon face.
 
-the first input image is the person's real photo and must control identity. the second input image is the approved edro style reference and must control the visual family. render the final avatar as if it belongs to the exact same cast, world, and product line as the approved style reference: same simplified head and facial construction, same big readable eyes, same ear scale, same matte toy-like materials, same clean soft shading, same playful friendly energy, same polished 3d mascot finish. the result must feel like a new member of that same turma, not a new unrelated style.
+the first input image is the person's real photo and must control identity. the second input image is a flat caricature bridge and must control how far the face can simplify away from realism. the third input image is the approved edro style reference and must control the final visual family. use the caricature bridge to push the portrait away from realistic rendering and toward bolder, cleaner, friendlier facial simplification before matching the final 3d style family.
+
+render the final avatar as if it belongs to the exact same cast, world, and product line as the approved style reference: same simplified head and facial construction, same big readable eyes, same ear scale, same matte toy-like materials, same clean soft shading, same playful friendly energy, same polished 3d mascot finish. the result must feel like a new member of that same turma, not a new unrelated style.
 
 translate the person into that exact approved style family only after preserving who they are. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. allow a gentle Pixar toy feeling in the sculpted forms and readable silhouette, but never baby-like, never chibi, never like a different person, and never a generic commercial mascot.
 
@@ -41,6 +45,13 @@ async function getAvatarStyleReferenceDataUrl() {
     avatarStyleReferenceDataUrlPromise = readFile(AVATAR_STYLE_REFERENCE_PATH).then((buffer) => `data:image/png;base64,${buffer.toString('base64')}`);
   }
   return avatarStyleReferenceDataUrlPromise;
+}
+
+async function getAvatarStyleBridgeDataUrl() {
+  if (!avatarStyleBridgeDataUrlPromise) {
+    avatarStyleBridgeDataUrlPromise = readFile(AVATAR_STYLE_BRIDGE_PATH).then((buffer) => `data:image/jpeg;base64,${buffer.toString('base64')}`);
+  }
+  return avatarStyleBridgeDataUrlPromise;
 }
 
 function buildStoragePublicUrl(key: string): string | null {
@@ -150,6 +161,7 @@ export async function generateEdroAvatarForFreelancer(params: {
     const sourcePublicUrl = buildStoragePublicUrl(sourceKey);
     // Base64 data URL works as IP-Adapter reference when no public S3 URL is available
     const imageRef = sourcePublicUrl ?? `data:${params.sourceMimeType};base64,${params.sourceBuffer.toString('base64')}`;
+    const styleBridgeRef = await getAvatarStyleBridgeDataUrl();
     const styleRef = await getAvatarStyleReferenceDataUrl();
 
     let provider = 'fal-ai/gemini-flash-edit/multi';
@@ -158,7 +170,7 @@ export async function generateEdroAvatarForFreelancer(params: {
     try {
       result = await generateGeminiFlashEditMultiWithFal({
         prompt: activePrompt,
-        imageUrls: [imageRef, styleRef],
+        imageUrls: [imageRef, styleBridgeRef, styleRef],
       });
     } catch (primaryErr: any) {
       try {
