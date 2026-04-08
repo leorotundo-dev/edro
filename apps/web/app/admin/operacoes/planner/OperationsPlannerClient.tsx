@@ -18,16 +18,12 @@ import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import {
   CapacityBar,
-  ClientThumb,
   EmptyOperationState,
-  EntityLinkCard,
-  OperationsContextRail,
   OpsJobRow,
   OpsSection,
   PersonThumb,
-  SourceThumb,
 } from '@/components/operations/primitives';
-import { formatSkillLabel, formatSourceLabel, getNextAction, type OperationsJob } from '@/components/operations/model';
+import { type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -273,7 +269,6 @@ export default function OperationsPlannerClient() {
   const unassignedJobs = plannerData.unassigned_jobs;
 
   const overloaded = ownerRows.filter((row) => row.usage >= 0.85).length;
-  const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
   const plannerJobs = useMemo(
     () => [...unassignedJobs, ...ownerRows.flatMap((row) => row.activeJobs)],
     [ownerRows, unassignedJobs]
@@ -343,6 +338,11 @@ export default function OperationsPlannerClient() {
     }
   }
 
+  function openDetail(job: OperationsJob) {
+    setSelectedJob(job);
+    setDetailOpen(true);
+  }
+
   return (
     <OperationsShell
       section="semana"
@@ -398,7 +398,7 @@ export default function OperationsPlannerClient() {
                   onSelect={(ownerId) => {
                     const ownerRow = ownerRows.find((r) => r.owner.id === ownerId);
                     const firstJob = ownerRow?.activeJobs[0];
-                    if (firstJob) setSelectedJob(firstJob);
+                    if (firstJob) openDetail(firstJob);
                   }}
                 />
                 <Stack spacing={2}>
@@ -512,7 +512,7 @@ export default function OperationsPlannerClient() {
                           {row.activeJobs.length > 0 ? (
                             <Stack spacing={0.35}>
                               {row.activeJobs.slice(0, 4).map((job) => (
-                                <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} />
+                                <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => openDetail(job)} />
                               ))}
                               {row.activeJobs.length > 4 && (
                                 <Typography variant="caption" color="text.secondary" sx={{ pt: 0.5, pl: 0.5 }}>
@@ -534,171 +534,140 @@ export default function OperationsPlannerClient() {
             </Stack>
           </Grid>
 
-          <Grid size={{ xs: 12, lg: 4.4 }}>
-            <OperationsContextRail
-              job={selectedJob}
-              title={OPS_COPY.common.focusTitle}
-              subtitle={OPS_COPY.planner.focusSubtitle}
-              primaryLabel={focusedAction?.label}
-              onPrimaryAction={() => setDetailOpen(true)}
-              emptyTitle="Selecione uma demanda"
-              emptyDescription={OPS_COPY.planner.focusEmptySubtitle}
-              links={
-                selectedJob ? (
-                  <Grid container spacing={1.25}>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Cliente"
-                        value={selectedJob.client_name || 'Sem cliente'}
-                        href={selectedJob.client_id ? `/clients/${selectedJob.client_id}` : undefined}
-                        subtitle={OPS_COPY.common.clientSubtitle}
-                        accent={selectedJob.client_brand_color || '#E85219'}
-                        thumbnail={<ClientThumb name={selectedJob.client_name} logoUrl={selectedJob.client_logo_url} accent={selectedJob.client_brand_color || '#E85219'} size={26} />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Responsável"
-                        value={selectedJob.owner_name || 'Sem responsável'}
-                        href={(() => {
-                          const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
-                          return owner?.freelancer_profile_id
-                            ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/planner';
-                        })()}
-                        subtitle={formatSkillLabel(selectedJob.required_skill)}
-                        thumbnail={<PersonThumb name={selectedJob.owner_name} src={selectedJob.owner_avatar_url} accent="#5D87FF" size={26} />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Agenda"
-                        value={selectedJob.deadline_at ? 'Já está na agenda' : 'Sem prazo'}
-                        href="/admin/operacoes/agenda"
-                        subtitle={selectedJob.deadline_at ? 'A demanda já mexe na agenda da semana' : 'Defina um prazo para ela entrar na agenda'}
-                        thumbnail={<SourceThumb source="agenda" jobType="meeting" accent="#13DEB9" />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Origem"
-                        value={formatSourceLabel(selectedJob.source)}
-                        subtitle={selectedJob.job_type}
-                        thumbnail={<SourceThumb source={selectedJob.source} jobType={selectedJob.job_type} accent="#E85219" />}
-                      />
-                    </Grid>
-                  </Grid>
-                ) : null
+          <Grid size={{ xs: 12 }}>
+            <OpsSection
+              eyebrow="Ajustes do planner"
+              title="Sem dono, indicação e regras"
+              subtitle="O clique na demanda já abre a popup. Aqui ficam só os sinais para distribuir melhor a semana."
+              action={
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" color="warning" label={`${unassignedJobs.length} sem dono`} />
+                  <Button variant="outlined" size="small" onClick={reloadPlanner}>{OPS_COPY.planner.refresh}</Button>
+                </Stack>
               }
-              sections={[
-                {
-                  title: 'Demandas sem responsável',
-                  action: <Chip size="small" color="warning" label={`${unassignedJobs.length}`} />,
-                  content: (
-                    <Stack spacing={0.35}>
-                      {unassignedJobs.slice(0, 4).map((job) => (
-                        <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} />
-                      ))}
-                      {!unassignedJobs.length ? (
-                        <Typography variant="body2" color="text.secondary">
-                          {OPS_COPY.planner.emptyUnassigned}
+            >
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, lg: 4.5 }}>
+                  <Stack spacing={1.25}>
+                    <Typography variant="body2" fontWeight={900}>
+                      Demandas sem responsável
+                    </Typography>
+                    {unassignedJobs.length ? (
+                      <Stack spacing={0.35}>
+                        {unassignedJobs.slice(0, 6).map((job) => (
+                          <OpsJobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onClick={() => openDetail(job)} />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        {OPS_COPY.planner.emptyUnassigned}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 7.5 }}>
+                  <Stack spacing={1.5}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ sm: 'center' }}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={900}>
+                          Indicação inteligente
                         </Typography>
-                      ) : null}
+                        <Typography variant="caption" color="text.secondary">
+                          {selectedJob
+                            ? `Leitura de ${selectedJob.title}.`
+                            : 'Clique em uma demanda do planner para abrir a popup e ver as melhores combinações.'}
+                        </Typography>
+                      </Box>
+                      <Button variant="outlined" onClick={() => selectedJob && openDetail(selectedJob)} disabled={!selectedJob}>
+                        {OPS_COPY.common.openDetail}
+                      </Button>
                     </Stack>
-                  ),
-                },
-                {
-                  title: 'Indicação inteligente',
-                  content: !selectedJob ? (
-                    <Typography variant="body2" color="text.secondary">Selecione uma demanda para ver sugestões.</Typography>
-                  ) : suggestionsLoading ? (
-                    <Box sx={{ py: 2, display: 'flex', justifyContent: 'center' }}><CircularProgress size={22} /></Box>
-                  ) : suggestions.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">Nenhuma sugestão disponível.</Typography>
-                  ) : (
-                    <Stack spacing={1}>
-                      {suggestions.map((s) => {
-                        const scoreColor = s.score >= 75 ? '#13DEB9' : s.score >= 50 ? '#FFAE1F' : '#FA896B';
-                        const isAssigning = assigning === s.email;
-                        return (
-                          <Box
-                            key={s.email}
-                            sx={(theme) => ({
-                              borderRadius: 2,
-                              border: '1px solid',
-                              borderColor: alpha(scoreColor, 0.25),
-                              borderLeft: `4px solid ${scoreColor}`,
-                              bgcolor: theme.palette.mode === 'dark' ? alpha(scoreColor, 0.06) : alpha(scoreColor, 0.04),
-                              px: 1.5,
-                              py: 1.25,
-                            })}
-                          >
-                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                              <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Stack direction="row" spacing={0.75} alignItems="center">
-                                  <Typography variant="body2" fontWeight={800} noWrap>{s.display_name}</Typography>
-                                  <Chip
-                                    size="small"
-                                    label={`${s.score}`}
-                                    sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha(scoreColor, 0.15), color: scoreColor, '& .MuiChip-label': { px: 0.75 } }}
-                                  />
-                                </Stack>
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: '0.65rem' }}>
-                                  {s.reason}
-                                </Typography>
-                                <LinearProgress
-                                  variant="determinate"
-                                  value={s.score}
-                                  sx={{ height: 3, borderRadius: 99, bgcolor: alpha(scoreColor, 0.12), '& .MuiLinearProgress-bar': { bgcolor: scoreColor } }}
-                                />
-                                <Stack direction="row" spacing={1.5} sx={{ mt: 0.5 }}>
-                                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
-                                    {s.active_cards} cards ativos
+
+                    {!selectedJob ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Selecione uma demanda no planner para carregar as sugestões.
+                      </Typography>
+                    ) : suggestionsLoading ? (
+                      <Box sx={{ py: 2, display: 'flex', justifyContent: 'center' }}>
+                        <CircularProgress size={22} />
+                      </Box>
+                    ) : suggestions.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Nenhuma sugestão disponível.
+                      </Typography>
+                    ) : (
+                      <Stack spacing={1}>
+                        {suggestions.map((s) => {
+                          const scoreColor = s.score >= 75 ? '#13DEB9' : s.score >= 50 ? '#FFAE1F' : '#FA896B';
+                          const isAssigning = assigning === s.email;
+                          return (
+                            <Box
+                              key={s.email}
+                              sx={(theme) => ({
+                                borderRadius: 2,
+                                border: '1px solid',
+                                borderColor: alpha(scoreColor, 0.25),
+                                borderLeft: `4px solid ${scoreColor}`,
+                                bgcolor: theme.palette.mode === 'dark' ? alpha(scoreColor, 0.06) : alpha(scoreColor, 0.04),
+                                px: 1.5,
+                                py: 1.25,
+                              })}
+                            >
+                              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                  <Stack direction="row" spacing={0.75} alignItems="center">
+                                    <Typography variant="body2" fontWeight={800} noWrap>{s.display_name}</Typography>
+                                    <Chip
+                                      size="small"
+                                      label={`${s.score}`}
+                                      sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha(scoreColor, 0.15), color: scoreColor, '& .MuiChip-label': { px: 0.75 } }}
+                                    />
+                                  </Stack>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: '0.65rem' }}>
+                                    {s.reason}
                                   </Typography>
-                                  {s.sla_rate !== null && (
+                                  <LinearProgress
+                                    variant="determinate"
+                                    value={s.score}
+                                    sx={{ height: 3, borderRadius: 99, bgcolor: alpha(scoreColor, 0.12), '& .MuiLinearProgress-bar': { bgcolor: scoreColor } }}
+                                  />
+                                  <Stack direction="row" spacing={1.5} sx={{ mt: 0.5 }}>
                                     <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
-                                      SLA {s.sla_rate}%
+                                      {s.active_cards} cards ativos
                                     </Typography>
-                                  )}
-                                </Stack>
-                              </Box>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                disabled={assigning !== null}
-                                onClick={() => handleAssign(s.email, s.display_name)}
-                                sx={{ flexShrink: 0, minWidth: 72, fontSize: '0.7rem' }}
-                              >
-                                {isAssigning ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : 'Atribuir'}
-                              </Button>
-                            </Stack>
-                          </Box>
-                        );
-                      })}
-                    </Stack>
-                  ),
-                },
-                {
-                  title: OPS_COPY.planner.rulesTitle,
-                  content: (
+                                    {s.sla_rate !== null ? (
+                                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+                                        SLA {s.sla_rate}%
+                                      </Typography>
+                                    ) : null}
+                                  </Stack>
+                                </Box>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  disabled={assigning !== null}
+                                  onClick={() => handleAssign(s.email, s.display_name)}
+                                  sx={{ flexShrink: 0, minWidth: 72, fontSize: '0.7rem' }}
+                                >
+                                  {isAssigning ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : 'Atribuir'}
+                                </Button>
+                              </Stack>
+                            </Box>
+                          );
+                        })}
+                      </Stack>
+                    )}
+
                     <Stack spacing={1.25}>
                       <Alert severity="info">Equipe interna opera com 28h alocáveis por semana nesta versão beta.</Alert>
                       <Alert severity="info">Freelancer opera com 16h alocáveis por semana até existir modelagem fina de capacidade.</Alert>
                       <Alert severity="warning">Acima de 85% a pessoa entra em sobrecarga e exige replanejamento.</Alert>
                     </Stack>
-                  ),
-                },
-                {
-                  content: (
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Button variant="contained" onClick={() => setDetailOpen(true)} disabled={!selectedJob}>{OPS_COPY.common.openDetail}</Button>
-                      <Button variant="outlined" onClick={reloadPlanner}>{OPS_COPY.planner.refresh}</Button>
-                      <Button variant="outlined" onClick={() => selectedJob && fetchJob(selectedJob.id).then((job) => setSelectedJob(job))} disabled={!selectedJob}>{OPS_COPY.common.refreshDetail}</Button>
-                    </Stack>
-                  ),
-                },
-              ]}
-            />
+                  </Stack>
+                </Grid>
+              </Grid>
+            </OpsSection>
           </Grid>
         </Grid>
       )}

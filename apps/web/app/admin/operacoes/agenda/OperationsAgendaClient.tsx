@@ -32,7 +32,6 @@ import {
   ClientThumb,
   EmptyOperationState,
   EntityLinkCard,
-  JobFocusRail,
   OpsDivider,
   OpsJobRow,
   OpsPanel,
@@ -40,9 +39,8 @@ import {
   OpsSurface,
   OpsToolbar,
   PersonThumb,
-  SourceThumb,
 } from '@/components/operations/primitives';
-import { formatSourceLabel, getNextAction, getRisk, type OperationsJob } from '@/components/operations/model';
+import { getRisk, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -76,8 +74,6 @@ const LAYERS: Array<{ key: AgendaLayer; label: string; subtitle: string }> = [
   { key: 'meetings', label: 'Reuniões', subtitle: 'Chamadas e checkpoints' },
   { key: 'risks', label: 'Riscos', subtitle: 'Exceções que já afetam a agenda' },
 ];
-
-const LAYER_LABELS = Object.fromEntries(LAYERS.map((item) => [item.key, item.label])) as Record<AgendaLayer, string>;
 
 function agendaAnchor(job: OperationsJob) {
   return job.metadata?.calendar_item?.starts_at || job.deadline_at || null;
@@ -284,8 +280,6 @@ export default function OperationsAgendaClient() {
     [weekPulseDays]
   );
 
-  const focusedAction = selectedJob ? getNextAction(selectedJob) : null;
-  const selectedLayer = selectedJob ? (agendaLayer(selectedJob) as AgendaLayer) : null;
   const isStandaloneAgendaItem = Boolean(selectedJob?.metadata?.calendar_item?.standalone);
 
   useJarvisPage(
@@ -311,10 +305,6 @@ export default function OperationsAgendaClient() {
       layers.join('|'),
     ]
   );
-  const isNativeMeeting = selectedJob?.metadata?.calendar_item?.source_type === 'meeting';
-  const selectedAgendaLabel = selectedJob
-    ? String(selectedJob.metadata?.calendar_item?.label || (selectedLayer ? LAYER_LABELS[selectedLayer] : 'Sem camada'))
-    : 'Sem camada';
   const shellSubtitle = viewMode === 'calendar'
     ? 'Leitura temporal da operação: prazos, aprovações e publicações que mexem na semana.'
     : 'Leitura de capacidade: quem está apertado, quem ainda comporta demanda e onde a semana já pesou.';
@@ -360,6 +350,10 @@ export default function OperationsAgendaClient() {
 
   const openCommands = (job: OperationsJob) => {
     setSelectedJob(job);
+    if (job.metadata?.calendar_item?.standalone && job.metadata?.calendar_item?.source_type === 'meeting') {
+      router.push('/admin/reunioes');
+      return;
+    }
     setDrawerMode('edit');
     setDetailOpen(true);
   };
@@ -545,7 +539,7 @@ export default function OperationsAgendaClient() {
                         <Box
                           key={day.key}
                           onClick={() => {
-                            if (day.primaryJob) setSelectedJob(day.primaryJob);
+                            if (day.primaryJob) openCommands(day.primaryJob);
                           }}
                           sx={(theme) => ({
                             p: 1.15,
@@ -594,7 +588,7 @@ export default function OperationsAgendaClient() {
                                 sx={{ alignSelf: 'flex-start', px: 0 }}
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  setSelectedJob(day.primaryJob);
+                                  openCommands(day.primaryJob);
                                 }}
                               >
                                 Abrir mais crítica
@@ -746,7 +740,7 @@ export default function OperationsAgendaClient() {
                                       <Button
                                         size="small"
                                         variant="outlined"
-                                        onClick={() => setSelectedJob(summary.primaryJob)}
+                                        onClick={() => openCommands(summary.primaryJob)}
                                       >
                                         Abrir mais crítica
                                       </Button>
@@ -774,7 +768,7 @@ export default function OperationsAgendaClient() {
                                     key={job.id}
                                     job={job}
                                     selected={selectedJob?.id === job.id}
-                                    onClick={() => setSelectedJob(job)}
+                                    onClick={() => openCommands(job)}
                                     showStage
                                     timeValue={agendaAnchor(job)}
                                     onAdvance={handleAdvance}
@@ -851,7 +845,7 @@ export default function OperationsAgendaClient() {
                                 key={job.id}
                                 job={job}
                                 selected={selectedJob?.id === job.id}
-                                onClick={() => setSelectedJob(job)}
+                                onClick={() => openCommands(job)}
                                 showStage
                                 timeValue={agendaAnchor(job)}
                                 onAdvance={handleAdvance}
@@ -961,7 +955,7 @@ export default function OperationsAgendaClient() {
                                 <Grid key={day.key} size={{ xs: 12, sm: 6, md: 2.4 }}>
                                   <Box
                                     onClick={() => {
-                                      if (summary.primaryJob) setSelectedJob(summary.primaryJob);
+                                      if (summary.primaryJob) openCommands(summary.primaryJob);
                                     }}
                                     sx={(theme) => ({
                                       px: 1,
@@ -1016,7 +1010,7 @@ export default function OperationsAgendaClient() {
                                         {day.jobs.slice(0, 2).map((job) => (
                                           <Box
                                             key={job.id}
-                                            onClick={() => setSelectedJob(job)}
+                                            onClick={() => openCommands(job)}
                                             sx={(theme) => ({
                                               px: 0.75,
                                               py: 0.7,
@@ -1050,7 +1044,7 @@ export default function OperationsAgendaClient() {
                                             sx={{ px: 0 }}
                                             onClick={(event) => {
                                               event.stopPropagation();
-                                              setSelectedJob(summary.primaryJob);
+                                              openCommands(summary.primaryJob);
                                             }}
                                           >
                                             Abrir crítica
@@ -1090,159 +1084,6 @@ export default function OperationsAgendaClient() {
             </Stack>
           </Grid>
 
-          <Grid size={{ xs: 12, lg: 4.4 }}>
-            <Stack spacing={3}>
-              <JobFocusRail
-                job={selectedJob}
-                title={viewMode === 'calendar' ? 'Janela da semana' : 'Distribuição da semana'}
-                subtitle={
-                  viewMode === 'calendar'
-                    ? 'Veja como esta demanda entra no tempo da semana: prazo, aprovação e impacto de calendário.'
-                    : 'Veja como esta demanda pesa na distribuição: dono, carga e encaixe.'
-                }
-                primaryLabel={isNativeMeeting ? 'Abrir reunioes' : 'Abrir comandos'}
-                onPrimaryAction={() => {
-                  if (!selectedJob) return;
-                  if (isNativeMeeting) {
-                    router.push('/admin/reunioes');
-                    return;
-                  }
-                  openCommands(selectedJob);
-                }}
-                emptyTitle="Selecione uma demanda"
-                emptyDescription="Clique em uma demanda da semana para ver o pulso, os atalhos e o que precisa ser resolvido."
-                eyebrow="SEMANA EM FOCO"
-                links={
-                  selectedJob ? (
-                    <Grid container spacing={1.25}>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Cliente"
-                        value={selectedJob.client_name || 'Sem cliente'}
-                        href={selectedJob.client_id ? `/clients/${selectedJob.client_id}` : undefined}
-                        subtitle={OPS_COPY.common.clientSubtitle}
-                        accent={selectedJob.client_brand_color || '#E85219'}
-                        thumbnail={<ClientThumb name={selectedJob.client_name} logoUrl={selectedJob.client_logo_url} accent={selectedJob.client_brand_color || '#E85219'} size={26} />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Dono"
-                        value={selectedJob.owner_name || 'Sem responsavel'}
-                        href={(() => {
-                          const owner = lookups.owners.find((o) => o.id === selectedJob.owner_id);
-                          return owner?.freelancer_profile_id
-                            ? `/admin/equipe/${owner.freelancer_profile_id}`
-                            : '/admin/operacoes/semana?view=distribution';
-                        })()}
-                        subtitle="Quem precisa agir primeiro"
-                        thumbnail={<PersonThumb name={selectedJob.owner_name} src={selectedJob.owner_avatar_url} accent="#5D87FF" size={26} />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Janela na agenda"
-                        value={selectedAgendaLabel}
-                        subtitle="Como esta demanda entra na leitura da semana"
-                        thumbnail={<SourceThumb source={selectedLayer || 'agenda'} jobType="meeting" accent="#13DEB9" />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <EntityLinkCard
-                        label="Origem"
-                        value={formatSourceLabel(selectedJob.source)}
-                        subtitle={selectedJob.job_type}
-                        thumbnail={<SourceThumb source={selectedJob.source} jobType={selectedJob.job_type} accent="#E85219" />}
-                      />
-                    </Grid>
-                  </Grid>
-                ) : null
-                }
-                footer={
-                  <Stack spacing={2}>
-                    <Box>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="body2" fontWeight={900}>
-                          {OPS_COPY.agenda.nextDaysTitle}
-                        </Typography>
-                        <Chip size="small" label={`${groupedDays.length}`} />
-                      </Stack>
-                      <Stack spacing={0.35}>
-                        {groupedDays.slice(0, 4).map((group) => (
-                          <Box key={group.day} sx={{ px: 1.25, py: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                            <Stack direction="row" justifyContent="space-between" spacing={1}>
-                              <Box>
-                                <Typography variant="body2" fontWeight={800}>
-                                  {group.day}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {group.jobs.length} item(ns) no dia
-                                </Typography>
-                              </Box>
-                              <Chip size="small" label={`${group.layerSummary.length} camadas`} />
-                            </Stack>
-                          </Box>
-                        ))}
-                      </Stack>
-                    </Box>
-
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Button
-                        variant="contained"
-                        onClick={() => {
-                          if (!selectedJob) return;
-                          if (isNativeMeeting) {
-                            router.push('/admin/reunioes');
-                            return;
-                          }
-                          openCommands(selectedJob);
-                        }}
-                        disabled={!selectedJob}
-                      >
-                        {isNativeMeeting ? 'Abrir reunioes' : 'Abrir prazo e comandos'}
-                      </Button>
-                      {!isNativeMeeting && selectedJob && !selectedJob.owner_id && currentUserId ? (
-                        <Button
-                          variant="outlined"
-                          onClick={async () => {
-                            await handleAssign(selectedJob.id, currentUserId);
-                          }}
-                        >
-                          Assumir agora
-                        </Button>
-                      ) : null}
-                      {!isNativeMeeting && selectedJob?.owner_id ? (
-                        <Button
-                          variant="outlined"
-                          component={Link}
-                          href="/admin/operacoes/semana?view=distribution"
-                        >
-                          Ver distribuicao
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="outlined"
-                        onClick={async () => {
-                          await refresh();
-                          const response = await apiGet<{ data?: { days?: typeof agendaDays } }>('/trello/ops-calendar');
-                          setAgendaDays(response?.data?.days || []);
-                        }}
-                      >
-                        {OPS_COPY.agenda.refresh}
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        onClick={() => selectedJob && fetchJob(selectedJob.id).then((job) => setSelectedJob(job))}
-                        disabled={!selectedJob || isStandaloneAgendaItem}
-                      >
-                        {isNativeMeeting ? 'Demanda indisponivel' : OPS_COPY.common.refreshDetail}
-                      </Button>
-                    </Stack>
-                  </Stack>
-                }
-              />
-            </Stack>
-          </Grid>
         </Grid>
       )}
 

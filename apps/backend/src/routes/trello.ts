@@ -1370,6 +1370,83 @@ export default async function trelloRoutes(app: FastifyInstance) {
     };
   }
 
+  async function getCardAssignees(cardId: string, tenantId: string) {
+    const { rows } = await query<{
+      user_id: string | null;
+      name: string | null;
+      email: string | null;
+      avatar_url: string | null;
+      freelancer_profile_id: string | null;
+    }>(
+      `SELECT
+         eu.id::text AS user_id,
+         COALESCE(NULLIF(eu.name, ''), pcm.display_name, split_part(COALESCE(pcm.email, eu.email, ''), '@', 1)) AS name,
+         COALESCE(pcm.email, eu.email) AS email,
+         fp.avatar_url,
+         fp.id::text AS freelancer_profile_id
+       FROM project_card_members pcm
+       LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+       WHERE pcm.card_id = $1 AND pcm.tenant_id = $2
+       ORDER BY pcm.created_at ASC`,
+      [cardId, tenantId],
+    );
+
+    const seen = new Set<string>();
+    return rows
+      .map((row) => {
+        const key = row.user_id || row.email || row.name || '';
+        if (!key || seen.has(key)) return null;
+        seen.add(key);
+        return {
+          user_id: row.user_id || key,
+          name: row.name || row.email || 'Pessoa sem nome',
+          email: row.email || '',
+          avatar_url: row.freelancer_profile_id && row.avatar_url
+            ? `/api/proxy/freelancers/${row.freelancer_profile_id}/avatar`
+            : (row.avatar_url ?? null),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async function resolveAssignablePeople(userIds: string[], tenantId: string) {
+    if (!userIds.length) return [];
+
+    const { rows } = await query<{
+      user_id: string;
+      name: string;
+      email: string;
+      trello_member_id: string | null;
+    }>(
+      `SELECT
+         u.id::text AS user_id,
+         COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name,
+         u.email,
+         (
+           SELECT pcm.trello_member_id
+           FROM project_card_members pcm
+           JOIN project_cards pc ON pc.id = pcm.card_id
+           JOIN project_boards pb ON pb.id = pc.board_id
+           WHERE LOWER(pcm.email) = LOWER(u.email)
+             AND pb.tenant_id = $2
+             AND pcm.trello_member_id IS NOT NULL
+           ORDER BY pcm.created_at DESC
+           LIMIT 1
+         ) AS trello_member_id
+       FROM edro_users u
+       JOIN tenant_users tu ON tu.user_id = u.id
+       WHERE tu.tenant_id = $2
+         AND u.id = ANY($1::uuid[])`,
+      [userIds, tenantId],
+    );
+
+    const byId = new Map(rows.map((row) => [row.user_id, row]));
+    return userIds
+      .map((userId) => byId.get(userId))
+      .filter(Boolean) as Array<{ user_id: string; name: string; email: string; trello_member_id: string | null }>;
+  }
+
   app.get('/trello/ops-cards/:cardId', { preHandler: [authGuard] }, async (request: any, reply) => {
     const { cardId } = request.params as { cardId: string };
     const tenantId = request.user?.tenant_id as string;
@@ -1401,7 +1478,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     const baseRow = cardRes.rows[0];
     const baseJob = _cardToJob(baseRow);
-    const [historyRes, commentsRes, checklistsRes] = await Promise.all([
+    const [historyRes, commentsRes, checklistsRes, assignees] = await Promise.all([
       query<{ action_type: string; from_list_name: string | null; to_list_name: string | null; actor_name: string | null; occurred_at: string }>(
         `SELECT action_type, from_list_name, to_list_name, actor_name, occurred_at
          FROM project_card_activity
@@ -1425,6 +1502,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          ORDER BY created_at ASC`,
         [cardId],
       ).catch(() => ({ rows: [] as any[] })),
+      getCardAssignees(cardId, tenantId).catch(() => []),
     ]);
 
     let history = historyRes.rows.map((row, index) => ({
@@ -1584,6 +1662,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
       ok: true,
       data: {
         ...liveJob,
+        owner_id: assignees[0]?.user_id ?? liveJob.owner_id ?? null,
+        owner_name: assignees[0]?.name ?? liveJob.owner_name ?? null,
+        owner_email: assignees[0]?.email ?? liveJob.owner_email ?? null,
+        assignees,
         comments,
         checklists,
         history,
@@ -1599,6 +1681,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       summary: z.string().nullable().optional(),
       deadline_at: z.string().nullable().optional(),
       owner_id: z.string().uuid().nullable().optional(),
+      assignee_ids: z.array(z.string().uuid()).optional(),
     }).parse(request.body);
 
     const cardRes = await query<{ board_id: string; trello_card_id: string | null; owner_email: string | null }>(
@@ -1610,6 +1693,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
     );
     if (!cardRes.rows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
     const current = cardRes.rows[0];
+    const currentMembersRes = await query<{ trello_member_id: string | null }>(
+      `SELECT trello_member_id
+       FROM project_card_members
+       WHERE card_id = $1 AND tenant_id = $2`,
+      [cardId, tenantId],
+    );
 
     const patchPayload: Record<string, any> = {};
     if (body.title !== undefined) patchPayload.title = body.title;
@@ -1648,67 +1737,60 @@ export default async function trelloRoutes(app: FastifyInstance) {
       }
     }
 
-    if (body.owner_id !== undefined) {
-      const ownerRes = body.owner_id
-        ? await query<{ email: string | null; name: string | null }>(`SELECT email, name FROM edro_users WHERE id = $1 LIMIT 1`, [body.owner_id])
-        : { rows: [] as any[] };
-      const nextOwnerEmail = ownerRes.rows[0]?.email?.toLowerCase() ?? null;
-      const currentOwnerEmail = current.owner_email?.toLowerCase() ?? null;
+    if (body.owner_id !== undefined || body.assignee_ids !== undefined) {
+      const orderedAssigneeIds = Array.from(
+        new Set([
+          ...(body.owner_id ? [body.owner_id] : []),
+          ...((body.assignee_ids !== undefined
+            ? body.assignee_ids
+            : body.owner_id !== undefined
+              ? []
+              : []) || []),
+        ].filter(Boolean))
+      ) as string[];
 
-      if (body.owner_id === null) {
-        await query(`DELETE FROM project_card_members WHERE card_id = $1 AND tenant_id = $2`, [cardId, tenantId]);
-      } else if (nextOwnerEmail && nextOwnerEmail !== currentOwnerEmail) {
-        const memberRes = await query<{ trello_member_id: string | null; display_name: string | null }>(
-          `SELECT DISTINCT pcm.trello_member_id, pcm.display_name
-           FROM project_card_members pcm
-           JOIN project_cards pc ON pc.id = pcm.card_id
-           JOIN project_boards pb ON pb.id = pc.board_id
-           WHERE LOWER(pcm.email) = LOWER($1) AND pb.tenant_id = $2
-           LIMIT 1`,
-          [nextOwnerEmail, tenantId],
-        );
-        const trelloMemberId = memberRes.rows[0]?.trello_member_id ?? null;
-        const displayName = memberRes.rows[0]?.display_name ?? ownerRes.rows[0]?.name ?? nextOwnerEmail;
+      const resolvedPeople = await resolveAssignablePeople(orderedAssigneeIds, tenantId);
+      if (orderedAssigneeIds.length && resolvedPeople.length !== orderedAssigneeIds.length) {
+        return reply.status(400).send({ error: 'Uma ou mais pessoas selecionadas não foram encontradas no tenant.' });
+      }
 
-        await query(`DELETE FROM project_card_members WHERE card_id = $1 AND tenant_id = $2`, [cardId, tenantId]);
+      await query(`DELETE FROM project_card_members WHERE card_id = $1 AND tenant_id = $2`, [cardId, tenantId]);
+
+      for (const person of resolvedPeople) {
         await query(
           `INSERT INTO project_card_members (card_id, tenant_id, trello_member_id, display_name, email)
            VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT (card_id, trello_member_id) DO UPDATE SET display_name = $4, email = $5`,
-          [cardId, tenantId, trelloMemberId ?? nextOwnerEmail, displayName, nextOwnerEmail],
+          [cardId, tenantId, person.trello_member_id ?? person.email, person.name, person.email],
         );
+      }
 
-        if (current.trello_card_id && trelloMemberId) {
-          try {
-            const creds = await getTrelloCredentials(tenantId);
-            if (creds) {
-              const removeParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken });
-              const addParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, value: trelloMemberId });
-              if (currentOwnerEmail) {
-                const currentMemberRes = await query<{ trello_member_id: string | null }>(
-                  `SELECT DISTINCT trello_member_id
-                   FROM project_card_members
-                   WHERE LOWER(email) = LOWER($1) AND tenant_id = $2
-                   LIMIT 1`,
-                  [currentOwnerEmail, tenantId],
-                );
-                const currentMemberId = currentMemberRes.rows[0]?.trello_member_id ?? null;
-                if (currentMemberId) {
-                  await fetch(`https://api.trello.com/1/cards/${current.trello_card_id}/idMembers/${currentMemberId}?${removeParams}`, {
-                    method: 'DELETE',
-                    signal: AbortSignal.timeout(8_000),
-                  }).catch(() => {});
-                }
-              }
+      if (current.trello_card_id) {
+        try {
+          const creds = await getTrelloCredentials(tenantId);
+          if (creds) {
+            const baseParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken });
+            const currentMemberIds = Array.from(new Set(currentMembersRes.rows.map((row) => row.trello_member_id).filter(Boolean) as string[]));
+            const nextMemberIds = Array.from(new Set(resolvedPeople.map((row) => row.trello_member_id).filter(Boolean) as string[]));
+
+            await Promise.all(currentMemberIds.map((memberId) =>
+              fetch(`https://api.trello.com/1/cards/${current.trello_card_id}/idMembers/${memberId}?${baseParams}`, {
+                method: 'DELETE',
+                signal: AbortSignal.timeout(8_000),
+              }).catch(() => null)
+            ));
+
+            for (const memberId of nextMemberIds) {
+              const addParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, value: memberId });
               const syncRes = await fetch(`https://api.trello.com/1/cards/${current.trello_card_id}/idMembers?${addParams}`, {
                 method: 'POST',
                 signal: AbortSignal.timeout(8_000),
               });
-              if (!syncRes.ok) console.warn('[trello ops] owner sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
+              if (!syncRes.ok) console.warn('[trello ops] assignee sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
             }
-          } catch (err: any) {
-            console.warn('[trello ops] owner sync failed:', err?.message);
           }
+        } catch (err: any) {
+          console.warn('[trello ops] assignee sync failed:', err?.message);
         }
       }
     }

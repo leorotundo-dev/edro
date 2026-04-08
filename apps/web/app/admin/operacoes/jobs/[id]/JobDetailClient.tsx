@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Autocomplete from '@mui/material/Autocomplete';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -39,18 +40,18 @@ import {
   IconUser,
   IconX,
 } from '@tabler/icons-react';
-import { apiGet, apiPost } from '@/lib/api';
-import type { OperationsJob } from '@/components/operations/model';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type Owner = {
-  id: string;
-  name: string;
-  email: string;
-  specialty?: string | null;
-  person_type?: 'internal' | 'freelancer';
-};
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import {
+  PRIORITY_LABELS,
+  formatMinutes,
+  formatSkillLabel,
+  formatSourceLabel,
+  getDeliveryStatus,
+  getNextAction,
+  getRisk,
+  type OperationsOwner,
+  type OperationsJob,
+} from '@/components/operations/model';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,17 @@ function checklistPct(job: OperationsJob) {
   return Math.round((items.filter((i) => i.checked).length / items.length) * 100);
 }
 
+function deadlinePulse(deadline?: string | null) {
+  if (!deadline) return { label: 'Sem prazo definido', tone: 'neutral' as const };
+  const date = new Date(deadline);
+  if (Number.isNaN(date.getTime())) return { label: 'Prazo inválido', tone: 'warning' as const };
+  const diffHours = (date.getTime() - Date.now()) / 3600000;
+  if (diffHours <= 0) return { label: 'Prazo estourado', tone: 'error' as const };
+  if (diffHours <= 24) return { label: 'Vence nas próximas 24h', tone: 'warning' as const };
+  if (diffHours <= 72) return { label: 'Vence nesta janela de 72h', tone: 'info' as const };
+  return { label: 'Prazo sob controle', tone: 'success' as const };
+}
+
 // ── Markdown link parser ──────────────────────────────────────────────────────
 
 function renderDescription(text: string): React.ReactNode[] {
@@ -144,6 +156,45 @@ function MetaRow({ icon, label, children }: { icon: React.ReactNode; label: stri
         {children}
       </Box>
     </Stack>
+  );
+}
+
+function SignalTile({
+  eyebrow,
+  value,
+  caption,
+  color,
+}: {
+  eyebrow: string;
+  value: string;
+  caption?: string;
+  color: string;
+}) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={(theme) => ({
+        p: 1.5,
+        borderRadius: 2.5,
+        borderColor: alpha(color, 0.22),
+        bgcolor: theme.palette.mode === 'dark' ? alpha(color, 0.08) : alpha(color, 0.045),
+      })}
+    >
+      <Typography
+        variant="caption"
+        sx={{ display: 'block', mb: 0.65, fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color }}
+      >
+        {eyebrow}
+      </Typography>
+      <Typography sx={{ fontSize: '0.95rem', fontWeight: 800, lineHeight: 1.2 }}>
+        {value}
+      </Typography>
+      {caption ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.45, fontSize: '0.72rem', lineHeight: 1.45 }}>
+          {caption}
+        </Typography>
+      ) : null}
+    </Paper>
   );
 }
 
@@ -194,6 +245,11 @@ function HistoryRow({ row }: { row: { id: string; from_status?: string | null; t
         <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.68rem' }}>
           {row.changed_by_name ? `por ${row.changed_by_name} · ` : ''}{fmtDateTime(row.changed_at)}
         </Typography>
+        {row.reason ? (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, fontSize: '0.72rem', lineHeight: 1.5 }}>
+            {row.reason}
+          </Typography>
+        ) : null}
       </Box>
     </Stack>
   );
@@ -207,7 +263,7 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   const router = useRouter();
 
   const [job, setJob] = useState<OperationsJob | null>(null);
-  const [owners, setOwners] = useState<Owner[]>([]);
+  const [owners, setOwners] = useState<OperationsOwner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -217,12 +273,11 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   const [submitting, setSubmitting] = useState(false);
   const [commentError, setCommentError] = useState('');
 
-  // DA allocation panel
-  const [allocOpen, setAllocOpen] = useState(false);
-  const [allocEmail, setAllocEmail] = useState('');
-  const [allocating, setAllocating] = useState(false);
-  const [allocError, setAllocError] = useState('');
-  const [allocQuery, setAllocQuery] = useState('');
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
+  const [savingPeople, setSavingPeople] = useState(false);
+  const [peopleError, setPeopleError] = useState('');
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
@@ -230,13 +285,13 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
     setLoading(true);
     setError('');
     try {
-      const [jobRes, feedRes] = await Promise.all([
+      const [jobRes, lookupsRes] = await Promise.all([
         apiGet<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`),
-        apiGet<{ owners?: Owner[] }>('/trello/ops-feed?active=true').catch(() => null),
+        apiGet<{ owners?: OperationsOwner[] }>('/jobs/lookups').catch(() => null),
       ]);
       if (!jobRes?.data) { setError('Job não encontrado.'); return; }
       setJob(jobRes.data);
-      setOwners(feedRes?.owners ?? []);
+      setOwners(lookupsRes?.owners ?? []);
     } catch (e: any) {
       setError(e?.message || 'Falha ao carregar job.');
     } finally {
@@ -245,6 +300,17 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!job) return;
+    const nextAssigneeIds = (job.assignees ?? [])
+      .map((assignee) => assignee.user_id)
+      .filter(Boolean);
+    const normalized = Array.from(new Set(nextAssigneeIds.length ? nextAssigneeIds : (job.owner_id ? [job.owner_id] : [])));
+    setSelectedOwnerId(job.owner_id ?? normalized[0] ?? null);
+    setSelectedAssigneeIds(normalized);
+    setPeopleError('');
+  }, [job]);
 
   const submitComment = async () => {
     if (!commentText.trim() || !job) return;
@@ -269,30 +335,31 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
     }
   };
 
-  const handleAlloc = async () => {
-    const email = allocEmail.trim() || allocQuery.trim();
-    if (!email || !job) return;
-    setAllocating(true);
-    setAllocError('');
+  const handlePeopleSave = async () => {
+    if (!job) return;
+    setSavingPeople(true);
+    setPeopleError('');
     try {
-      await apiPost(`/trello/ops-cards/${id}/assign`, { email });
-      await load();
-      setAllocOpen(false);
-      setAllocEmail('');
-      setAllocQuery('');
+      const effectiveOwnerId = selectedOwnerId || selectedAssigneeIds[0] || null;
+      const effectiveAssigneeIds = Array.from(new Set([
+        ...(effectiveOwnerId ? [effectiveOwnerId] : []),
+        ...selectedAssigneeIds,
+      ]));
+      const response = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
+        owner_id: effectiveOwnerId,
+        assignee_ids: effectiveAssigneeIds,
+      });
+      if (!response?.data) throw new Error('Falha ao salvar pessoas do job.');
+      setJob(response.data);
+      setPeopleOpen(false);
     } catch (e: any) {
-      setAllocError(e?.message || 'Falha ao alocar responsável.');
+      setPeopleError(e?.message || 'Falha ao salvar pessoas do job.');
     } finally {
-      setAllocating(false);
+      setSavingPeople(false);
     }
   };
 
   const pct = job ? checklistPct(job) : null;
-  const filteredOwners = owners.filter((o) =>
-    allocQuery.length >= 2
-      ? o.name.toLowerCase().includes(allocQuery.toLowerCase()) || o.email.toLowerCase().includes(allocQuery.toLowerCase())
-      : true,
-  ).slice(0, 8);
 
   if (loading) {
     return (
@@ -314,6 +381,19 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   const hasChecklist = (job.checklists?.length ?? 0) > 0;
   const allItems = job.checklists?.flatMap((c) => c.items) ?? [];
   const checkedCount = allItems.filter((i) => i.checked).length;
+  const risk = getRisk(job);
+  const nextAction = getNextAction(job);
+  const delivery = getDeliveryStatus(job);
+  const deadlineInfo = deadlinePulse(job.deadline_at);
+  const priorityLabel = PRIORITY_LABELS[job.priority_band] ?? job.priority_band;
+  const skillLabel = formatSkillLabel(job.required_skill);
+  const sourceLabel = formatSourceLabel(job.source);
+  const estimateLabel = job.estimated_minutes ? formatMinutes(job.estimated_minutes) : 'Sem estimativa';
+  const queueLabel = job.queue_minutes ? formatMinutes(job.queue_minutes) : 'Sem fila';
+  const blockedLabel = job.blocked_minutes ? formatMinutes(job.blocked_minutes) : 'Sem bloqueio';
+  const railStickyTop = onClose ? 20 : 80;
+  const selectedOwner = owners.find((owner) => owner.id === selectedOwnerId) || null;
+  const selectedAssignees = owners.filter((owner) => selectedAssigneeIds.includes(owner.id));
 
   return (
     <Box sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
@@ -338,8 +418,21 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
 
       {/* ── Header ── */}
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
-        <Stack spacing={0.75}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+        <Stack spacing={1.15} sx={{ flex: 1, minWidth: 0 }}>
+          <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Avatar
+              src={job.client_logo_url ?? undefined}
+              sx={{
+                width: 34,
+                height: 34,
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                bgcolor: alpha(job.client_brand_color || '#E85219', 0.14),
+                color: job.client_brand_color || '#E85219',
+              }}
+            >
+              {initials(job.client_name)}
+            </Avatar>
             <Chip
               size="small"
               label={STATUS_LABELS[job.status] ?? job.status}
@@ -350,6 +443,30 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
                 bgcolor: alpha(statusColor(job.status), 0.12),
                 color: statusColor(job.status),
                 border: `1px solid ${alpha(statusColor(job.status), 0.3)}`,
+              }}
+            />
+            <Chip
+              size="small"
+              label={risk.label}
+              sx={{
+                fontWeight: 800,
+                fontSize: '0.68rem',
+                height: 22,
+                bgcolor: alpha(risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : risk.level === 'medium' ? '#5D87FF' : '#13DEB9', 0.12),
+                color: risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#B26A00' : risk.level === 'medium' ? '#5D87FF' : '#13DEB9',
+                border: `1px solid ${alpha(risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : risk.level === 'medium' ? '#5D87FF' : '#13DEB9', 0.3)}`,
+              }}
+            />
+            <Chip
+              size="small"
+              label={priorityLabel}
+              sx={{
+                fontWeight: 800,
+                fontSize: '0.68rem',
+                height: 22,
+                bgcolor: alpha('#111827', 0.06),
+                color: 'text.secondary',
+                border: `1px solid ${alpha('#111827', 0.1)}`,
               }}
             />
             {job.is_urgent && (
@@ -373,6 +490,13 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
                 </Typography>
               </Stack>
             )}
+          </Stack>
+          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+            <Chip size="small" variant="outlined" label={sourceLabel} sx={{ fontWeight: 700 }} />
+            <Chip size="small" variant="outlined" label={job.job_type} sx={{ fontWeight: 700 }} />
+            <Chip size="small" variant="outlined" label={skillLabel} sx={{ fontWeight: 700 }} />
+            {job.channel ? <Chip size="small" variant="outlined" label={job.channel} sx={{ fontWeight: 700 }} /> : null}
+            {job.job_size ? <Chip size="small" variant="outlined" label={`Tamanho ${job.job_size}`} sx={{ fontWeight: 700 }} /> : null}
           </Stack>
         </Stack>
 
@@ -408,6 +532,33 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
         {/* ── Left column ── */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Stack spacing={3}>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+                gap: 1.25,
+              }}
+            >
+              <SignalTile
+                eyebrow="Próxima ação"
+                value={nextAction.label}
+                caption={job.owner_name ? `Com ${job.owner_name}` : 'Ainda sem responsável definido'}
+                color={nextAction.intent === 'error' ? '#FA896B' : nextAction.intent === 'warning' ? '#FFAE1F' : nextAction.intent === 'success' ? '#13DEB9' : '#5D87FF'}
+              />
+              <SignalTile
+                eyebrow="Status da entrega"
+                value={delivery.label}
+                caption={deadlineInfo.label}
+                color={delivery.color}
+              />
+              <SignalTile
+                eyebrow="Esforço"
+                value={estimateLabel}
+                caption={hasChecklist ? `${checkedCount}/${allItems.length} itens de checklist` : 'Sem checklist operacional'}
+                color="#5D87FF"
+              />
+            </Box>
+
             {/* Progress bar */}
             {pct !== null && (
               <Box>
@@ -434,14 +585,32 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
 
             {/* Description */}
             {job.summary && (
-              <Box>
+              <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
                 <Typography variant="caption" fontWeight={700} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1 }}>
-                  Descrição
+                  Descrição e contexto
                 </Typography>
                 <Typography variant="body2" sx={{ lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
                   {renderDescription(job.summary)}
                 </Typography>
-              </Box>
+                {job.definition_of_done ? (
+                  <Box
+                    sx={(theme) => ({
+                      mt: 2,
+                      p: 1.5,
+                      borderRadius: 2.5,
+                      bgcolor: theme.palette.mode === 'dark' ? alpha('#13DEB9', 0.08) : alpha('#13DEB9', 0.045),
+                      border: `1px solid ${alpha('#13DEB9', 0.18)}`,
+                    })}
+                  >
+                    <Typography variant="caption" sx={{ display: 'block', mb: 0.45, fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#13DEB9' }}>
+                      Definition of Done
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                      {job.definition_of_done}
+                    </Typography>
+                  </Box>
+                ) : null}
+              </Paper>
             )}
 
             {/* Checklists */}
@@ -587,11 +756,23 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
 
         {/* ── Right column: Metadata ── */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, position: 'sticky', top: 80 }}>
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, position: 'sticky', top: railStickyTop }}>
             <Typography variant="caption" fontWeight={800} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 0.5 }}>
               Detalhes
             </Typography>
             <Divider sx={{ mb: 1 }} />
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: 1,
+                mb: 1.5,
+              }}
+            >
+              <SignalTile eyebrow="Risco" value={risk.label} caption={`Score ${risk.score}`} color={risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : risk.level === 'medium' ? '#5D87FF' : '#13DEB9'} />
+              <SignalTile eyebrow="Fila" value={queueLabel} caption={blockedLabel} color="#5D87FF" />
+            </Box>
 
             {/* Status */}
             <MetaRow icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: statusColor(job.status) }} />} label="Status">
@@ -641,6 +822,21 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
               </>
             )}
 
+            <MetaRow icon={<IconSparkles size={14} />} label="Próxima ação">
+              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{nextAction.label}</Typography>
+            </MetaRow>
+            <Divider sx={{ my: 0.25 }} />
+
+            <MetaRow icon={<IconClipboardList size={14} />} label="Origem">
+              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{sourceLabel}</Typography>
+            </MetaRow>
+            <Divider sx={{ my: 0.25 }} />
+
+            <MetaRow icon={<IconClipboardList size={14} />} label="Especialidade">
+              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{skillLabel}</Typography>
+            </MetaRow>
+            <Divider sx={{ my: 0.25 }} />
+
             {/* Owner / Responsável */}
             <MetaRow icon={<IconUser size={14} />} label="Responsável">
               {job.owner_name ? (
@@ -673,73 +869,155 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
               </>
             )}
 
+            <Divider sx={{ my: 0.25 }} />
+            <MetaRow icon={<IconCalendar size={14} />} label="Ritmo da entrega">
+              <Typography
+                variant="body2"
+                fontWeight={600}
+                sx={{
+                  fontSize: '0.84rem',
+                  color: deadlineInfo.tone === 'error' ? '#FA896B' : deadlineInfo.tone === 'warning' ? '#B26A00' : deadlineInfo.tone === 'info' ? '#5D87FF' : 'text.primary',
+                }}
+              >
+                {deadlineInfo.label}
+              </Typography>
+            </MetaRow>
+
             <Divider sx={{ my: 1.5 }} />
 
-            {/* DA Allocation panel */}
+            {/* People picker */}
             <Box>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                 <Typography variant="caption" fontWeight={800} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Alocar DA
+                  Pessoas no job
                 </Typography>
                 <IconButton
                   size="small"
-                  onClick={() => { setAllocOpen((v) => !v); setAllocError(''); setAllocEmail(''); setAllocQuery(''); }}
+                  onClick={() => { setPeopleOpen((v) => !v); setPeopleError(''); }}
                   sx={{ p: 0.25, opacity: 0.5, '&:hover': { opacity: 1 } }}
                 >
-                  {allocOpen ? <IconX size={14} /> : <IconPlus size={14} />}
+                  {peopleOpen ? <IconX size={14} /> : <IconPlus size={14} />}
                 </IconButton>
               </Stack>
 
-              {allocOpen && (
+              {!peopleOpen ? (
                 <Stack spacing={1}>
-                  <TextField
-                    size="small"
-                    placeholder="Buscar por nome ou email..."
-                    value={allocQuery}
-                    onChange={(e) => { setAllocQuery(e.target.value); setAllocEmail(''); }}
-                    autoFocus
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.82rem' } }}
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {job.owner_name ? (
+                      <>
+                        <Avatar src={job.owner_avatar_url ?? undefined} sx={{ width: 24, height: 24, fontSize: '0.58rem', fontWeight: 800 }}>
+                          {initials(job.owner_name)}
+                        </Avatar>
+                        <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem' }}>
+                          {job.owner_name}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+                        Sem responsável principal
+                      </Typography>
+                    )}
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {(job.assignees?.length ?? 0) > 0 ? (
+                      job.assignees?.map((assignee) => (
+                        <Chip
+                          key={assignee.user_id}
+                          size="small"
+                          avatar={<Avatar src={assignee.avatar_url ?? undefined}>{initials(assignee.name)}</Avatar>}
+                          label={assignee.name}
+                        />
+                      ))
+                    ) : (
+                      <Typography variant="caption" color="text.disabled">
+                        Nenhuma pessoa adicional no job.
+                      </Typography>
+                    )}
+                  </Stack>
+                </Stack>
+              ) : (
+                <Stack spacing={1}>
+                  <Autocomplete
+                    options={owners}
+                    value={selectedOwner}
+                    onChange={(_event, value) => {
+                      const nextOwnerId = value?.id || null;
+                      setSelectedOwnerId(nextOwnerId);
+                      if (nextOwnerId && !selectedAssigneeIds.includes(nextOwnerId)) {
+                        setSelectedAssigneeIds((current) => [...current, nextOwnerId]);
+                      }
+                    }}
+                    getOptionLabel={(option) => option.name}
+                    renderInput={(params) => <TextField {...params} label="Responsável principal" size="small" />}
+                    renderOption={(props, option) => (
+                      <Box component="li" {...props}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>
+                            {initials(option.name)}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </Box>
+                    )}
                   />
 
-                  {allocQuery.length >= 2 && filteredOwners.length > 0 && (
-                    <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', maxHeight: 200, overflowY: 'auto' }}>
-                      {filteredOwners.map((o) => (
-                        <Stack
-                          key={o.id}
-                          direction="row"
-                          spacing={1}
-                          alignItems="center"
-                          sx={{
-                            px: 1.5,
-                            py: 1,
-                            cursor: 'pointer',
-                            bgcolor: allocEmail === o.email ? alpha('#5D87FF', 0.1) : 'transparent',
-                            '&:hover': { bgcolor: dark ? alpha('#fff', 0.05) : alpha('#000', 0.04) },
-                          }}
-                          onClick={() => { setAllocEmail(o.email); setAllocQuery(o.name); }}
-                        >
-                          <Avatar sx={{ width: 22, height: 22, fontSize: '0.55rem', fontWeight: 800 }}>{initials(o.name)}</Avatar>
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.78rem', display: 'block' }}>{o.name}</Typography>
-                            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>{o.specialty || o.email}</Typography>
+                  <Autocomplete
+                    multiple
+                    options={owners}
+                    value={selectedAssignees}
+                    onChange={(_event, value) => {
+                      const ids = value.map((item) => item.id);
+                      setSelectedAssigneeIds(ids);
+                      if (selectedOwnerId && !ids.includes(selectedOwnerId)) {
+                        setSelectedOwnerId(ids[0] ?? null);
+                      }
+                    }}
+                    getOptionLabel={(option) => option.name}
+                    renderInput={(params) => <TextField {...params} label="Equipe do job" size="small" placeholder="Adicionar pessoa..." />}
+                    renderTags={(value, getTagProps) =>
+                      value.map((option, index) => (
+                        <Chip
+                          key={option.id}
+                          size="small"
+                          avatar={<Avatar>{initials(option.name)}</Avatar>}
+                          label={option.name}
+                          {...getTagProps({ index })}
+                        />
+                      ))
+                    }
+                    renderOption={(props, option) => (
+                      <Box component="li" {...props}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>
+                            {initials(option.name)}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}
+                            </Typography>
                           </Box>
-                          {allocEmail === o.email && <IconCheck size={14} color="#5D87FF" />}
                         </Stack>
-                      ))}
-                    </Paper>
-                  )}
+                      </Box>
+                    )}
+                  />
 
-                  {allocError && <Alert severity="error" sx={{ fontSize: '0.78rem', py: 0.5 }}>{allocError}</Alert>}
+                  {peopleError && <Alert severity="error" sx={{ fontSize: '0.78rem', py: 0.5 }}>{peopleError}</Alert>}
 
                   <Button
                     variant="outlined"
                     size="small"
-                    disabled={!allocEmail || allocating}
-                    onClick={handleAlloc}
-                    endIcon={allocating ? <CircularProgress size={12} /> : undefined}
+                    disabled={savingPeople}
+                    onClick={handlePeopleSave}
+                    endIcon={savingPeople ? <CircularProgress size={12} /> : undefined}
                     sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2 }}
                   >
-                    {allocating ? 'Alocando...' : 'Confirmar alocação'}
+                    {savingPeople ? 'Salvando...' : 'Salvar pessoas do job'}
                   </Button>
                 </Stack>
               )}
