@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence, animate } from 'framer-motion';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -251,8 +252,12 @@ function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j
 
 export default function DailyOperationClient() {
   const { jobs, lookups, loading, error, refresh, syncHealth, currentUserId, createJob, updateJob, changeStatus, fetchJob } = useOperationsData('?active=true');
+  const searchParams = useSearchParams();
 
-  const [filter, setFilter]     = useState<FilterKey>('all');
+  const [filter, setFilter] = useState<FilterKey>(() => {
+    const p = searchParams.get('filter') as FilterKey | null;
+    return p && ['urgent', 'in_progress', 'awaiting', 'unassigned'].includes(p) ? p : 'all';
+  });
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [drawerOpen, setDrawerOpen]   = useState(false);
   const [drawerMode, setDrawerMode]   = useState<'create' | 'edit'>('edit');
