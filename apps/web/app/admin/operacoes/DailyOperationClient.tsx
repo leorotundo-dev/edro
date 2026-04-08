@@ -194,6 +194,10 @@ export default function DailyOperationClient() {
     await updateJob(jobId, { owner_id: ownerId });
   }, [updateJob]);
 
+  const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
+    await changeStatus(jobId, nextStatus);
+  }, [changeStatus]);
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -581,7 +585,7 @@ export default function DailyOperationClient() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.22, delay: Math.min(i * 0.02, 0.4), ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <OpsCard job={job} onOpen={openCommands} onClick={() => openDetail(job)} onAssign={assignOwner} owners={lookups.owners} />
+                      <OpsCard job={job} onOpen={openCommands} onClick={() => openDetail(job)} onAssign={assignOwner} owners={lookups.owners} onAdvance={handleAdvance} />
                     </motion.div>
                   </Grid>
                 ))}
@@ -606,7 +610,7 @@ export default function DailyOperationClient() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.28, delay: Math.min(i * 0.025, 0.6), ease: [0.16, 1, 0.3, 1] }}
                   >
-                    <OpsCard job={job} onOpen={openCommands} onClick={() => openDetail(job)} onAssign={assignOwner} owners={lookups.owners} />
+                    <OpsCard job={job} onOpen={openCommands} onClick={() => openDetail(job)} onAssign={assignOwner} owners={lookups.owners} onAdvance={handleAdvance} />
                   </motion.div>
                 </Grid>
               ))}

@@ -1978,8 +1978,6 @@ const PIPELINE_COLUMNS = [
   { key: 'entregue', label: 'Entregue', stages: ['published', 'done'], color: '#13DEB9' },
 ] as const;
 
-const MAX_PIPELINE_CARDS = 4;
-
 /* ═══════════════════════════════════════════════════════════════════
    OpsCard — canonical card shared by ALL ops views
    ═══════════════════════════════════════════════════════════════════ */
@@ -2191,6 +2189,24 @@ export function OpsCard({
               )}
             </Stack>
             <Stack direction="row" spacing={0.5} alignItems="center" flexShrink={0}>
+              {/* Aging badge — days stuck in active stage */}
+              {(() => {
+                if (!job.updated_at) return null;
+                const ACTIVE = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review'];
+                if (!ACTIVE.includes(job.status)) return null;
+                const days = Math.floor((Date.now() - new Date(job.updated_at).getTime()) / 86400000);
+                if (days < 3) return null;
+                return (
+                  <Tooltip title={`${days} dias sem movimentação`} arrow placement="top">
+                    <Typography variant="caption" sx={{
+                      fontSize: '0.56rem', fontWeight: 900, flexShrink: 0,
+                      color: days >= 7 ? '#FA896B' : '#FFAE1F', letterSpacing: '0.04em',
+                    }}>
+                      {days}d
+                    </Typography>
+                  </Tooltip>
+                );
+              })()}
               <Chip
                 size="small"
                 label={vis.label}
@@ -2283,13 +2299,17 @@ export function PipelineCard({
   selected,
   onClick,
   onAdvance,
+  onAssign,
+  owners,
 }: {
   job: OperationsJob;
   selected?: boolean;
   onClick?: () => void;
   onAdvance?: (jobId: string, nextStatus: string) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: OperationsOwner[];
 }) {
-  return <OpsCard job={job} selected={selected} onClick={onClick} onAdvance={onAdvance} showDescription />;
+  return <OpsCard job={job} selected={selected} onClick={onClick} onAdvance={onAdvance} onAssign={onAssign} owners={owners} showDescription />;
 }
 
 export function PipelineColumn({
@@ -2302,6 +2322,8 @@ export function PipelineColumn({
   onSelectJob,
   onAdvance,
   onShowAll,
+  onAssign,
+  owners,
 }: {
   columnKey: string;
   label: string;
@@ -2312,10 +2334,9 @@ export function PipelineColumn({
   onSelectJob: (job: OperationsJob) => void;
   onAdvance?: (jobId: string, nextStatus: string) => void;
   onShowAll?: (columnKey: string) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: OperationsOwner[];
 }) {
-  const visible = jobs.slice(0, MAX_PIPELINE_CARDS);
-  const remaining = allJobsCount - visible.length;
-
   return (
     <Box sx={(theme) => {
       const dark = theme.palette.mode === 'dark';
@@ -2350,7 +2371,7 @@ export function PipelineColumn({
           />
         </Stack>
 
-        {visible.length === 0 ? (
+        {jobs.length === 0 ? (
           <Box
             sx={{
               border: `2px dashed ${alpha(color, 0.24)}`,
@@ -2365,25 +2386,20 @@ export function PipelineColumn({
             </Typography>
           </Box>
         ) : (
-          visible.map((job) => (
-            <PipelineCard
-              key={job.id}
-              job={job}
-              selected={selectedJob?.id === job.id}
-              onClick={() => onSelectJob(job)}
-              onAdvance={onAdvance}
-            />
-          ))
+          <Box sx={{ overflowY: 'auto', maxHeight: 680, display: 'flex', flexDirection: 'column', gap: 1.1 }}>
+            {jobs.map((job) => (
+              <PipelineCard
+                key={job.id}
+                job={job}
+                selected={selectedJob?.id === job.id}
+                onClick={() => onSelectJob(job)}
+                onAdvance={onAdvance}
+                onAssign={onAssign}
+                owners={owners}
+              />
+            ))}
+          </Box>
         )}
-        {remaining > 0 && onShowAll ? (
-          <Button
-            size="small"
-            onClick={() => onShowAll(columnKey)}
-            sx={{ alignSelf: 'flex-start', fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', color, py: 0.25 }}
-          >
-            +{remaining} mais
-          </Button>
-        ) : null}
       </Stack>
     </Box>
   );
@@ -2395,12 +2411,16 @@ export function PipelineBoard({
   onSelectJob,
   onAdvance,
   onShowAll,
+  onAssign,
+  owners,
 }: {
   jobs: OperationsJob[];
   selectedJob: OperationsJob | null;
   onSelectJob: (job: OperationsJob) => void;
   onAdvance?: (jobId: string, nextStatus: string) => void;
   onShowAll?: (columnKey: string) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: OperationsOwner[];
 }) {
   const grouped = useMemo(() => {
     const map: Record<string, OperationsJob[]> = {};
@@ -2465,6 +2485,8 @@ export function PipelineBoard({
               onSelectJob={onSelectJob}
               onAdvance={onAdvance}
               onShowAll={onShowAll}
+              onAssign={onAssign}
+              owners={owners}
             />
           </Box>
         );

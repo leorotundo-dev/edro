@@ -203,6 +203,7 @@ function DayColumnView({
   onDrop: (dayKey: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onAssign: (jobId: string, ownerId: string) => void;
+  onAdvance: (jobId: string, nextStatus: string) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -765,6 +766,10 @@ export default function WeekCalendarClient() {
     await ops.updateJob(jobId, { owner_id: ownerId });
   }, [ops]);
 
+  const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
+    await ops.changeStatus(jobId, nextStatus);
+  }, [ops]);
+
   // Filter active (non-closed) jobs
   const activeJobs = useMemo(() => {
     let filtered = jobs.filter((j) => !isClosedStatus(j.status));
@@ -1006,6 +1011,7 @@ export default function WeekCalendarClient() {
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onAssign={handleAssign}
+                  onAdvance={handleAdvance}
                 />
               ))}
             </Box>
