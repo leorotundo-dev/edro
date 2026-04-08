@@ -32,7 +32,8 @@ import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import JobDetailClient from './jobs/[id]/JobDetailClient';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
-import { getRisk, STAGE_LABELS, type OperationsJob } from '@/components/operations/model';
+import { getRisk, STAGE_LABELS, type OperationsJob, type OperationsOwner } from '@/components/operations/model';
+import { InlineOwnerAssign } from '@/components/operations/primitives';
 import { sortByOperationalPriority } from '@/components/operations/derived';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiPost } from '@/lib/api';
@@ -175,7 +176,13 @@ function StatNumber({ value, label, color, onClick }: { value: number; label: st
 
 // ── DailyOpCard ───────────────────────────────────────────────────────────────
 
-function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j: OperationsJob) => void; onDetail: (j: OperationsJob) => void }) {
+function DailyOpCard({ job, onOpen, onDetail, onAssign, owners }: {
+  job: OperationsJob;
+  onOpen: (j: OperationsJob) => void;
+  onDetail: (j: OperationsJob) => void;
+  onAssign?: (jobId: string, ownerId: string) => void;
+  owners?: OperationsOwner[];
+}) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const pct = checklistPct(job);
@@ -278,15 +285,27 @@ function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j
         {/* Footer */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
           <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
-            <Avatar
-              src={job.owner_avatar_url ?? undefined}
-              sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
-            >
-              {initials(job.owner_name)}
-            </Avatar>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
-              {job.owner_name?.split(' ')[0] ?? 'Sem dono'}
-            </Typography>
+            {job.owner_name ? (
+              <>
+                <Avatar
+                  src={job.owner_avatar_url ?? undefined}
+                  sx={{ width: 18, height: 18, fontSize: '0.45rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.15), color: '#5D87FF', flexShrink: 0 }}
+                >
+                  {initials(job.owner_name)}
+                </Avatar>
+                <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem', fontWeight: 500 }}>
+                  {job.owner_name.split(' ')[0]}
+                </Typography>
+              </>
+            ) : onAssign && owners?.length ? (
+              <Box onClick={(e) => e.stopPropagation()}>
+                <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
+              </Box>
+            ) : (
+              <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>
+                Sem dono
+              </Typography>
+            )}
           </Stack>
           <Chip
             size="small"
@@ -353,6 +372,10 @@ export default function DailyOperationClient() {
     setDrawerMode('create');
     setDrawerOpen(true);
   }, []);
+
+  const assignOwner = useCallback(async (jobId: string, ownerId: string) => {
+    await updateJob(jobId, { owner_id: ownerId });
+  }, [updateJob]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -578,7 +601,7 @@ export default function DailyOperationClient() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.22, delay: Math.min(i * 0.02, 0.4), ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
+                      <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} onAssign={assignOwner} owners={lookups.owners} />
                     </motion.div>
                   </Grid>
                 ))}
@@ -603,7 +626,7 @@ export default function DailyOperationClient() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.28, delay: Math.min(i * 0.025, 0.6), ease: [0.16, 1, 0.3, 1] }}
                   >
-                    <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
+                    <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} onAssign={assignOwner} owners={lookups.owners} />
                   </motion.div>
                 </Grid>
               ))}

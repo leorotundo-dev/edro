@@ -906,7 +906,7 @@ export function OpsJobRow({
   );
 }
 
-function InlineOwnerAssign({
+export function InlineOwnerAssign({
   owners,
   onAssign,
 }: {
