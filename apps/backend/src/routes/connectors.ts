@@ -17,7 +17,7 @@ async function ensureConnectorsTable() {
     await query(`SELECT 1 FROM connectors LIMIT 0`);
   } catch {
     // Create table without FK constraints (they cause issues)
-    console.log('[connectors] Table missing, creating...');
+    console.info('[connectors] Table missing, creating...');
     try {
       await query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
       await query(`
@@ -35,7 +35,7 @@ async function ensureConnectorsTable() {
         )
       `);
       await query(`CREATE INDEX IF NOT EXISTS idx_connectors_lookup ON connectors (tenant_id, client_id, provider)`);
-      console.log('[connectors] Table created successfully');
+      console.info('[connectors] Table created successfully');
     } catch (err: any) {
       console.error('[connectors] Failed to create table:', err.message);
     }
@@ -98,7 +98,7 @@ export default async function connectorsRoutes(app: FastifyInstance) {
         // This allows updating payload fields (e.g. IDs) without requiring the user to re-paste tokens.
         const secretsProvided = Object.prototype.hasOwnProperty.call(rawBody, 'secrets');
 
-        console.log(`[connectors] POST /clients/${params.clientId}/connectors/${params.provider}`, {
+        console.info(`[connectors] POST /clients/${params.clientId}/connectors/${params.provider}`, {
           tenant_id: (request.user as any)?.tenant_id,
           hasPayload: !!body.payload,
           hasSecrets: secretsProvided,
@@ -179,7 +179,7 @@ export default async function connectorsRoutes(app: FastifyInstance) {
           }
         }
 
-        console.log(`[connectors] Saved ${params.provider} for client ${params.clientId}`);
+        console.info(`[connectors] Saved ${params.provider} for client ${params.clientId}`);
         return { ok: true };
       } catch (err: any) {
         console.error('[connectors] POST handler error:', err.message, err.stack);

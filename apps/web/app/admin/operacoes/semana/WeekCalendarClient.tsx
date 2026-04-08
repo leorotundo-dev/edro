@@ -14,6 +14,7 @@ import { OpsCard } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 
+import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -703,7 +704,7 @@ export default function WeekCalendarClient() {
   const dark = theme.palette.mode === 'dark';
 
   const ops = useOperationsData('?active=true');
-  const { jobs, lookups, loading, refresh } = ops;
+  const { jobs, lookups, loading, error, refresh } = ops;
   const owners = lookups.owners;
 
   // Week navigation
@@ -891,6 +892,7 @@ export default function WeekCalendarClient() {
 
   return (
     <OperationsShell section="semana" summary={summary}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {loading ? (
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={48} />
