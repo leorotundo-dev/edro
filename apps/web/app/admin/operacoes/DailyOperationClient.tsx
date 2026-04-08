@@ -22,6 +22,8 @@ import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconAlertTriangle,
   IconDots,
+  IconLayoutGrid,
+  IconList,
   IconPlus,
   IconRefresh,
   IconX,
@@ -106,7 +108,7 @@ function initials(name?: string | null) {
 
 // ── StatNumber ────────────────────────────────────────────────────────────────
 
-function StatNumber({ value, label, color }: { value: number; label: string; color?: string }) {
+function StatNumber({ value, label, color, onClick }: { value: number; label: string; color?: string; onClick?: () => void }) {
   const [display, setDisplay] = useState(0);
   const prevRef = useRef(0);
 
@@ -122,7 +124,12 @@ function StatNumber({ value, label, color }: { value: number; label: string; col
   }, [value]);
 
   return (
-    <Stack spacing={0} alignItems="flex-start">
+    <Stack
+      spacing={0}
+      alignItems="flex-start"
+      onClick={onClick}
+      sx={onClick ? { cursor: 'pointer', '&:hover': { opacity: 0.75 }, transition: 'opacity 0.15s' } : undefined}
+    >
       <Typography variant="h3" fontWeight={900} sx={{ lineHeight: 1, color: color || 'text.primary', fontSize: { xs: '1.8rem', md: '2.4rem' } }}>
         {display}
       </Typography>
@@ -269,6 +276,7 @@ export default function DailyOperationClient() {
     const p = searchParams.get('filter') as FilterKey | null;
     return p && ['urgent', 'in_progress', 'awaiting', 'unassigned'].includes(p) ? p : 'all';
   });
+  const [groupByClient, setGroupByClient] = useState(false);
   const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
   const [drawerOpen, setDrawerOpen]   = useState(false);
   const [drawerMode, setDrawerMode]   = useState<'create' | 'edit'>('edit');
@@ -321,6 +329,18 @@ export default function DailyOperationClient() {
     () => filterJobs(activeJobs, filter).sort(sortByOperationalPriority),
     [activeJobs, filter],
   );
+
+  // Grouped by client (for group mode)
+  const groupedByClient = useMemo(() => {
+    if (!groupByClient) return null;
+    const map = new Map<string, { key: string; name: string; logoUrl: string | null; color: string | null; jobs: OperationsJob[] }>();
+    for (const job of displayed) {
+      const key = job.client_id || '__none__';
+      if (!map.has(key)) map.set(key, { key, name: job.client_name || 'Sem cliente', logoUrl: job.client_logo_url || null, color: job.client_brand_color || null, jobs: [] });
+      map.get(key)!.jobs.push(job);
+    }
+    return Array.from(map.values()).sort((a, b) => b.jobs.length - a.jobs.length);
+  }, [groupByClient, displayed]);
 
   // Filter chip counts
   const counts: Record<FilterKey, number> = useMemo(() => ({
@@ -376,15 +396,24 @@ export default function DailyOperationClient() {
         sx={{ mb: 3 }}
       >
         <Stack direction="row" spacing={4} flexWrap="wrap" useFlexGap>
-          <StatNumber value={activeJobs.length} label="Jobs ativos" />
-          <StatNumber value={pendingApproval}   label="Pendentes aprovação" color={pendingApproval > 0 ? '#7C3AED' : undefined} />
+          <StatNumber value={activeJobs.length} label="Jobs ativos" onClick={() => setFilter('all')} />
+          <StatNumber value={pendingApproval}   label="Pendentes aprovação" color={pendingApproval > 0 ? '#7C3AED' : undefined} onClick={() => setFilter('awaiting')} />
           <StatNumber value={peopleInvolved}    label="Pessoas envolvidas" />
           {urgentCount > 0 && (
-            <StatNumber value={urgentCount} label="Urgentes" color="#F9A825" />
+            <StatNumber value={urgentCount} label="Urgentes" color="#F9A825" onClick={() => setFilter('urgent')} />
           )}
         </Stack>
 
         <Stack direction="row" spacing={1} alignItems="center">
+          <Tooltip title={groupByClient ? 'Vista plana' : 'Agrupar por cliente'}>
+            <IconButton
+              size="small"
+              onClick={() => setGroupByClient((v) => !v)}
+              sx={{ opacity: groupByClient ? 1 : 0.45, '&:hover': { opacity: 1 } }}
+            >
+              {groupByClient ? <IconList size={16} /> : <IconLayoutGrid size={16} />}
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Sincronizar Trello">
             <IconButton size="small" onClick={handleSync} disabled={syncing} sx={{ opacity: 0.6 }}>
               <IconRefresh size={16} />
@@ -442,6 +471,58 @@ export default function DailyOperationClient() {
         <Box sx={{ py: 10, textAlign: 'center' }}>
           <Typography color="text.secondary">Nenhuma demanda encontrada para este filtro.</Typography>
         </Box>
+      ) : groupedByClient ? (
+        <Stack spacing={3}>
+          {groupedByClient.map((group) => (
+            <Box key={group.key}>
+              {/* Client group header */}
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{
+                  mb: 1.5,
+                  pb: 1,
+                  borderBottom: `2px solid ${group.color ? alpha(group.color, 0.3) : 'divider'}`,
+                }}
+              >
+                {group.logoUrl ? (
+                  <Avatar
+                    src={group.logoUrl}
+                    alt={group.name}
+                    variant="rounded"
+                    sx={{ width: 20, height: 20, '& img': { objectFit: 'contain' } }}
+                  />
+                ) : null}
+                <Typography
+                  variant="overline"
+                  sx={{
+                    fontWeight: 900,
+                    letterSpacing: '0.1em',
+                    color: group.color || 'text.secondary',
+                    lineHeight: 1,
+                  }}
+                >
+                  {group.name}
+                </Typography>
+                <Chip size="small" label={group.jobs.length} sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }} />
+              </Stack>
+              <Grid container spacing={2}>
+                {group.jobs.map((job, i) => (
+                  <Grid key={job.id} size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2.4 }}>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.22, delay: Math.min(i * 0.02, 0.4), ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      <DailyOpCard job={job} onOpen={openCommands} onDetail={openDetail} />
+                    </motion.div>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          ))}
+        </Stack>
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
