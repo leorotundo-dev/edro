@@ -211,6 +211,111 @@ function fmtNumber(v: number | null): string {
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
 
+function getFreshnessState(latestSyncedAt: string) {
+  const syncedAt = new Date(latestSyncedAt).getTime();
+  const hoursSinceSync = Number.isFinite(syncedAt)
+    ? (Date.now() - syncedAt) / (1000 * 60 * 60)
+    : Number.POSITIVE_INFINITY;
+
+  if (hoursSinceSync <= 18) {
+    return {
+      label: 'Dado fresco',
+      color: 'success' as const,
+      detail: 'Sincronização recente o suficiente para leitura operacional.',
+    };
+  }
+
+  if (hoursSinceSync <= 48) {
+    return {
+      label: 'Dado recente',
+      color: 'warning' as const,
+      detail: 'Ainda útil para decisão, mas não é leitura em tempo quase real.',
+    };
+  }
+
+  return {
+    label: 'Dado defasado',
+    color: 'error' as const,
+    detail: 'Canal precisa de nova coleta antes de decisões mais finas.',
+  };
+}
+
+function getCoverageState(integration: SemanticIntegrationPreview) {
+  const familyCount = Object.keys(integration.families ?? {}).length;
+  const metricsWithValue = Object.values(integration.families ?? {}).reduce(
+    (total, family) => total + (family.with_values ?? 0),
+    0,
+  );
+
+  if (familyCount >= 4 && metricsWithValue >= 12) {
+    return {
+      label: 'Cobertura alta',
+      color: 'success' as const,
+      detail: 'Canal já oferece leitura quantitativa ampla.',
+    };
+  }
+
+  if (familyCount >= 2 && metricsWithValue >= 5) {
+    return {
+      label: 'Cobertura média',
+      color: 'warning' as const,
+      detail: 'Canal já é útil, mas ainda não cobre todas as frentes.',
+    };
+  }
+
+  return {
+    label: 'Cobertura baixa',
+    color: 'default' as const,
+    detail: 'Canal ainda está raso e merece mais ingestão para leitura forte.',
+  };
+}
+
+function buildExecutiveReading(integration: SemanticIntegrationPreview) {
+  const families = integration.families ?? {};
+  const familyKeys = Object.keys(families);
+  const highlights = familyKeys
+    .flatMap((family) =>
+      (families[family]?.top_metrics ?? []).slice(0, 1).map((metric) => ({
+        family,
+        reference_key: metric.reference_key,
+        value: metric.value,
+        delta_pct: metric.delta_pct,
+      })),
+    )
+    .sort((a, b) => Math.abs(b.delta_pct ?? 0) - Math.abs(a.delta_pct ?? 0));
+
+  const lines: string[] = [];
+
+  if (familyKeys.includes('paid_media')) {
+    lines.push('Canal com leitura de mídia paga; custo, clique e conversão devem pesar na decisão criativa.');
+  } else if (familyKeys.includes('conversion')) {
+    lines.push('Canal com sinal de resultado; CTA, oferta e destino da jornada precisam estar muito claros.');
+  } else if (familyKeys.includes('traffic')) {
+    lines.push('Canal com sinal de tráfego; promessa, título e caminho para clique merecem prioridade.');
+  }
+
+  if (familyKeys.includes('reach') && familyKeys.includes('engagement')) {
+    lines.push('Já existe leitura de atenção e resposta; vale comparar formatos que puxam alcance sem perder reação.');
+  } else if (familyKeys.includes('audience')) {
+    lines.push('A base de audiência já entra na leitura; crescimento e retenção da comunidade podem ser acompanhados.');
+  }
+
+  const mainHighlight = highlights[0];
+  if (mainHighlight?.delta_pct != null && Math.abs(mainHighlight.delta_pct) >= 10) {
+    lines.push(
+      mainHighlight.delta_pct >= 0
+        ? `O melhor sinal recente está em ${METRIC_LABELS[mainHighlight.reference_key] ?? mainHighlight.reference_key} (${mainHighlight.delta_pct.toFixed(1)}%).`
+        : `O principal ponto de atenção está em ${METRIC_LABELS[mainHighlight.reference_key] ?? mainHighlight.reference_key} (${mainHighlight.delta_pct.toFixed(1)}%).`,
+    );
+  }
+
+  if (!lines.length) {
+    lines.push('Canal já tem dados úteis, mas ainda sem um padrão quantitativo forte o bastante para uma leitura mais prescritiva.');
+  }
+
+  return lines.slice(0, 2).join(' ');
+}
+
 function DeltaBadge({ delta }: { delta: number | null }) {
   if (delta == null) return null;
   const pos = delta >= 0;
@@ -367,6 +472,17 @@ function SemanticOverviewSection({ overview }: { overview: SemanticOverview }) {
 
   if (!integrationPreviews.length) return null;
 
+  const freshnessCounts = integrationPreviews.reduce(
+    (acc, integration) => {
+      const state = getFreshnessState(integration.latest_synced_at);
+      if (state.color === 'success') acc.fresh += 1;
+      else if (state.color === 'warning') acc.recent += 1;
+      else acc.stale += 1;
+      return acc;
+    },
+    { fresh: 0, recent: 0, stale: 0 },
+  );
+
   return (
     <Card variant="outlined" sx={{ mb: 4, borderRadius: 2 }}>
       <CardContent>
@@ -388,12 +504,24 @@ function SemanticOverviewSection({ overview }: { overview: SemanticOverview }) {
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Chip size="small" label={`${overview.integrations} integrações com dados`} />
             <Chip size="small" label={`${overview.raw_payloads} payloads no período`} />
+            {freshnessCounts.fresh > 0 && (
+              <Chip size="small" color="success" variant="outlined" label={`${freshnessCounts.fresh} frescas`} />
+            )}
+            {freshnessCounts.recent > 0 && (
+              <Chip size="small" color="warning" variant="outlined" label={`${freshnessCounts.recent} recentes`} />
+            )}
+            {freshnessCounts.stale > 0 && (
+              <Chip size="small" color="error" variant="outlined" label={`${freshnessCounts.stale} defasadas`} />
+            )}
           </Stack>
         </Stack>
 
         <Grid container spacing={2}>
           {integrationPreviews.map((integration) => {
             const familyEntries = Object.entries(integration.families ?? {});
+            const freshness = getFreshnessState(integration.latest_synced_at);
+            const coverage = getCoverageState(integration);
+            const executiveReading = buildExecutiveReading(integration);
             return (
               <Grid key={`${integration.integration_id}-${integration.integration_slug}`} size={{ xs: 12, md: 6 }}>
                 <Card variant="outlined" sx={{ height: '100%', borderRadius: 2 }}>
@@ -407,7 +535,11 @@ function SemanticOverviewSection({ overview }: { overview: SemanticOverview }) {
                           Último sync {new Date(integration.latest_synced_at).toLocaleString('pt-BR')}
                         </Typography>
                       </Box>
-                      <Chip size="small" variant="outlined" label={`${integration.total_metrics} métricas`} />
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="flex-end">
+                        <Chip size="small" variant="outlined" label={`${integration.total_metrics} métricas`} />
+                        <Chip size="small" color={freshness.color} variant="outlined" label={freshness.label} />
+                        <Chip size="small" color={coverage.color} variant="outlined" label={coverage.label} />
+                      </Stack>
                     </Stack>
 
                     {integration.periods?.[0] && (
@@ -415,6 +547,33 @@ function SemanticOverviewSection({ overview }: { overview: SemanticOverview }) {
                         Janela mais recente: {new Date(integration.periods[0].start).toLocaleDateString('pt-BR')} até {new Date(integration.periods[0].end).toLocaleDateString('pt-BR')}
                       </Typography>
                     )}
+
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 1.5 }}>
+                      <Alert severity={freshness.color === 'error' ? 'error' : freshness.color === 'warning' ? 'warning' : 'success'} sx={{ flex: 1, py: 0 }}>
+                        {freshness.detail}
+                      </Alert>
+                      <Alert severity={coverage.color === 'success' ? 'success' : coverage.color === 'warning' ? 'warning' : 'info'} sx={{ flex: 1, py: 0 }}>
+                        {coverage.detail}
+                      </Alert>
+                    </Stack>
+
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        mb: 1.5,
+                        borderRadius: 2,
+                        border: 1,
+                        borderColor: 'divider',
+                        bgcolor: 'action.hover',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                        Leitura executiva
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {executiveReading}
+                      </Typography>
+                    </Box>
 
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: familyEntries.length ? 1.5 : 0 }}>
                       {familyEntries.map(([family, detail]) => (
