@@ -333,6 +333,71 @@ export async function generateImg2ImgWithFal(params: {
   };
 }
 
+export async function generateInstantCharacterWithFal(params: {
+  prompt: string;
+  imageUrl: string;
+  negativePrompt?: string;
+  aspectRatio?: string;
+  numImages?: number;
+  scale?: number;
+  guidanceScale?: number;
+  numInferenceSteps?: number;
+  seed?: number;
+}): Promise<FalImageResult> {
+  const apiKey = env.FAL_API_KEY;
+  if (!apiKey) throw new Error('FAL_API_KEY não configurada');
+
+  const { width, height } = resolveSize(params.aspectRatio);
+
+  const body: Record<string, any> = {
+    prompt: params.prompt.slice(0, 1990),
+    image_url: params.imageUrl,
+    image_size: { width, height },
+    scale: params.scale ?? 1.1,
+    guidance_scale: params.guidanceScale ?? 3.5,
+    num_inference_steps: params.numInferenceSteps ?? 28,
+    num_images: params.numImages ?? 1,
+    enable_safety_checker: false,
+    output_format: 'jpeg',
+  };
+
+  if (params.negativePrompt) body.negative_prompt = params.negativePrompt;
+  if (params.seed) body.seed = params.seed;
+
+  const res = await fetch('https://fal.run/fal-ai/instant-character', {
+    method: 'POST',
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'unknown');
+    throw new Error(`fal.ai instant-character failed (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as {
+    images?: Array<{ url: string; seed?: number }>;
+    image?: { url: string; seed?: number };
+    error?: string;
+  };
+
+  if (data.error) throw new Error(`fal.ai instant-character error: ${data.error}`);
+
+  const images = data.images ?? (data.image ? [data.image] : []);
+  if (!images.length) throw new Error('fal.ai instant-character: nenhuma imagem retornada');
+
+  const imageUrls = images.map((img) => img.url);
+  return {
+    imageUrl: imageUrls[0],
+    imageUrls,
+    endpoint: 'fal-ai/instant-character',
+    seed: images[0]?.seed,
+  };
+}
+
 // ── Remove Background ──────────────────────────────────────────────────────────
 
 /**
