@@ -2,27 +2,33 @@ import path from 'path';
 import { query } from '../db';
 import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
-import { generateImageWithFal, generateImg2ImgWithFal, isFalConfigured } from './ai/falAiService';
+import { generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v3';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v4';
 
-const EDRO_AVATAR_PROMPT = `
-create a single stylized 3D avatar character in the exact same established visual style as the approved result, shown alone in a completed bust portrait from the upper chest upward, isolated on a plain very light gray background. the character must keep the same subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never looking straight into the camera.
+const EDRO_AVATAR_BASE_PROMPT = `
+create a single stylized 3D avatar character from the reference photo, shown alone in a complete bust portrait from the upper chest upward on a plain very light gray background. keep a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never staring straight into the camera.
 
-faithfully translate the person in the reference photo: preserve their distinctive facial features, skin tone, hair color, hair length and style, face shape, and any defining visual characteristics. the goal is that someone who knows this person would immediately recognize this avatar as them. do not invent a generic face — use the reference photo as the direct source for who this character is.
+identity fidelity is the highest priority. preserve the real person's facial proportions, face width, jawline, chin, cheek volume, eye spacing, eye size, eyebrow shape, nose width and bridge, mouth shape, hairline, beard or mustache if present, skin tone, age range, and overall gender presentation exactly as seen in the reference. the goal is immediate recognition by someone who knows the person. do not beautify, idealize, feminize, masculinize, or replace the face with a generic attractive cartoon face.
 
-preserve the same dry, simple, slightly weird, highly stylized 3D avatar language already defined, with the same subtly disproportionate cartoon head, slightly top-heavy elongated cranium, slightly narrower facial area, moderately sized round chimp-like ears, thick dark blocky eyebrows (matching the person's eyebrow color), tiny simple nose, restrained matte rendering, and clean understated materials. keep the skin tone faithful to the reference photo. keep the hair color and general hair style faithful to the reference photo, translated into the simplified stylized 3D language.
+translate the person into the same restrained, slightly weird, simplified stylized 3D avatar language already established, but only after preserving who they are. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. keep the head slightly stylized and slightly top-heavy, but never baby-like, never chibi, never toy-like, never glamorous, and never like a different person.
 
-faithfully translate whatever clothing, accessories, and headwear appear in the reference photo into the same simplified stylized 3D language. preserve color, garment type, and key visual details at a stylized level: keep a hat as a hat in its color, translate a shirt into a stylized shirt with clean neckline and visible shoulders, etc. do not invent new clothing or replace clothing items. apply the same matte, clean, restrained material language to whatever garments appear in the reference photo. the bust portrait must show visible shoulders, visible upper sleeves, and the beginning of both upper arms so the bust feels complete and natural, not cut off awkwardly and not like the arms are missing.
+faithfully translate the real hairstyle, hair volume, hair texture, and facial hair. if the subject has short hair, keep it short; if they have longer hair, keep it longer. if they have a beard, keep the beard. if they are clean-shaven, keep them clean-shaven. preserve clothing, neckline, shoulders, and any visible accessories from the photo in the same simplified 3D language without inventing wardrobe changes.
 
-the facial expression must be pleasantly surprised, excited, and happy — delighted surprise, upbeat excitement, amused enthusiasm, as if the character has just seen something unexpectedly cool. the eyes should be more open than in the neutral version, showing alertness and excitement, but still remain graphic, simple, and in the same style family, never sparkly or overly cute. the eyebrows should lift to support a happy surprised expression, but remain thick, blunt, and blocky, not too elastic and not exaggerated in a cartoony rubber way. the mouth must be open in a cheerful, excited, pleasantly surprised way while preserving the same subtle bean-mouth structural logic in the lower face — the mouth should still feel integrated into a slightly compressed lower facial area rather than pasted onto a flat face. the expression should feel animated, excited, impressed, and happy, while still preserving the same strange charm and same visual family as the approved image. if teeth are visible keep them minimal, simplified, and secondary.
+keep the expression warm, friendly, and naturally upbeat. allow only a subtle pleasant surprise if needed, but do not exaggerate the mouth, eyes, or eyebrows. the expression must still look like the same person from the photo.
 
-keep the head slightly elongated and subtly disproportionate, not round, not spherical, not cute-chibi, not handsome, not polished like a premium toy. keep the rendering soft, matte, and clean, with soft studio lighting and gentle shadows, plain pale gray background, no environment, no text, no watermark, no extra characters. one character only.
+keep the portrait soft, matte, and clean with gentle studio lighting, no environment, no props, no text, no watermark, and no extra characters. one character only.
 `.trim();
 
 const EDRO_AVATAR_NEGATIVE_PROMPT = `
-scared expression, frightened expression, alarmed expression, panicked face, shocked in a negative way, screaming mouth, anxious gasp, sad surprise, front-facing portrait, symmetrical face, round baby head, cute mascot, funko style, vinyl toy style, premium designer toy, polished commercial charm, disney style, pixar style, sparkly eyes, glossy materials, realistic human anatomy, missing arms, incomplete bust, shoulderless torso, cropped arm silhouette, realistic ears, realistic teeth, realistic lips, fashion photography, detailed fabric texture, printed shirt, logo, text, hoodie, beanie, multiple characters, props, detailed background, cinematic lighting, high-end figurine render
+generic face, different person, identity drift, face swap, gender swap, younger face, older face, beauty filter face, handsome toy face, cute mascot face, tiny nose replacement, oversized eyes, glam face, doll face, front-facing portrait, symmetrical face, round baby head, chibi, funko style, vinyl toy style, premium designer toy, disney style, pixar style, sparkly eyes, glossy materials, fashion photography, missing arms, incomplete bust, shoulderless torso, cropped arm silhouette, detailed background, text, watermark, multiple characters, props
 `.trim();
+
+function buildAvatarPrompt(customPrompt?: string) {
+  const extra = customPrompt?.trim();
+  if (!extra || extra === EDRO_AVATAR_BASE_PROMPT) return EDRO_AVATAR_BASE_PROMPT;
+  return `${EDRO_AVATAR_BASE_PROMPT}\n\nadditional requested adjustments:\n${extra}`.trim();
+}
 
 function buildStoragePublicUrl(key: string): string | null {
   if (!env.S3_BUCKET || !env.S3_REGION) return null;
@@ -112,7 +118,7 @@ export async function generateEdroAvatarForFreelancer(params: {
     throw new Error('FAL_API_KEY não configurada');
   }
 
-  const activePrompt = params.customPrompt?.trim() || EDRO_AVATAR_PROMPT;
+  const activePrompt = buildAvatarPrompt(params.customPrompt);
 
   const sourceExt = path.extname(params.sourceFilename).replace('.', '') || fileExtFromMime(params.sourceMimeType);
   const sourceKey = buildKey(params.tenantId, 'avatars-source', `${params.freelancerId}.${sourceExt}`);
@@ -132,30 +138,41 @@ export async function generateEdroAvatarForFreelancer(params: {
     // Base64 data URL works as IP-Adapter reference when no public S3 URL is available
     const imageRef = sourcePublicUrl ?? `data:${params.sourceMimeType};base64,${params.sourceBuffer.toString('base64')}`;
 
-    let provider = 'fal-ai/flux-pro/v1.1';
+    let provider = 'fal-ai/instant-character';
     let result: Awaited<ReturnType<typeof generateImageWithFal>>;
 
     try {
-      result = await generateImageWithFal({
-        model: 'flux-pro',
+      result = await generateInstantCharacterWithFal({
         prompt: activePrompt,
+        imageUrl: imageRef,
         negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
         aspectRatio: '1:1',
         numImages: 1,
-        referenceImageUrl: imageRef,
-        referenceImageStrength: 0.38,
+        scale: 1.12,
       });
     } catch (primaryErr: any) {
-      // Strategy 2 — flux-dev img2img (requires public URL; lower strength for better likeness)
-      if (!sourcePublicUrl) throw primaryErr;
-      provider = 'fal-ai/flux-dev/image-to-image';
-      result = await generateImg2ImgWithFal({
-        imageUrl: sourcePublicUrl,
-        prompt: activePrompt,
-        strength: 0.72,
-        aspectRatio: '1:1',
-        numImages: 1,
-      });
+      try {
+        // Strategy 2 — true img2img preserves face geometry better than weak text reference.
+        provider = 'fal-ai/flux-dev/image-to-image';
+        result = await generateImg2ImgWithFal({
+          imageUrl: imageRef,
+          prompt: activePrompt,
+          strength: 0.9,
+          aspectRatio: '1:1',
+          numImages: 1,
+        });
+      } catch {
+        provider = 'fal-ai/flux-pro/v1.1';
+        result = await generateImageWithFal({
+          model: 'flux-pro',
+          prompt: activePrompt,
+          negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
+          aspectRatio: '1:1',
+          numImages: 1,
+          referenceImageUrl: imageRef,
+          referenceImageStrength: 0.62,
+        });
+      }
     }
 
     let avatarGeneratedKey: string | null = null;
@@ -198,7 +215,7 @@ export async function generateEdroAvatarForFreelancer(params: {
       freelancerId: params.freelancerId,
       avatarSourceKey: sourceKey,
       status: 'failed',
-      provider: 'fal-ai:flux-dev-image-to-image',
+      provider: 'fal-ai/avatar-pipeline',
       promptVersion: EDRO_AVATAR_PROMPT_VERSION,
       error: error?.message?.slice(0, 500) ?? 'Falha ao gerar avatar',
     });
