@@ -113,16 +113,27 @@ export default function OperationsPeopleClient() {
     [plannerData.owners],
   );
 
+  const reloadPlanner = useCallback(async () => {
+    const response = await apiGet<{ data?: PlannerData }>('/trello/ops-planner');
+    if (response?.data) {
+      setPlannerData(response.data);
+      setSelectedOwnerId((current) => current || response.data!.owners[0]?.owner.id || null);
+    }
+  }, []);
+
   const assignOwner = useCallback(async (jobId: string, ownerId: string) => {
     try {
       await apiPatch(`/trello/ops-cards/${jobId}`, { owner_id: ownerId });
-      const response = await apiGet<{ data?: PlannerData }>('/trello/ops-planner');
-      if (response?.data) {
-        setPlannerData(response.data);
-        setSelectedOwnerId((current) => current || response.data!.owners[0]?.owner.id || null);
-      }
+      await reloadPlanner();
     } catch { /* ignore */ }
-  }, []);
+  }, [reloadPlanner]);
+
+  const advanceJob = useCallback(async (jobId: string, nextStatus: string) => {
+    try {
+      await apiPatch(`/trello/ops-cards/${jobId}`, { status: nextStatus });
+      await reloadPlanner();
+    } catch { /* ignore */ }
+  }, [reloadPlanner]);
 
   return (
     <OperationsShell
@@ -369,6 +380,7 @@ export default function OperationsPeopleClient() {
                             job={job}
                             onClick={() => router.push(`/admin/operacoes/jobs?highlight=${encodeURIComponent(job.id)}`)}
                             onAssign={assignOwner}
+                            onAdvance={advanceJob}
                             owners={ownersList}
                           />
                         ))
@@ -413,6 +425,7 @@ export default function OperationsPeopleClient() {
                             job={job}
                             onClick={() => router.push(`/admin/operacoes/jobs?highlight=${encodeURIComponent(job.id)}`)}
                             onAssign={assignOwner}
+                            onAdvance={advanceJob}
                             owners={ownersList}
                           />
                         ))}

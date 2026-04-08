@@ -988,6 +988,8 @@ export default function OperationsJobsClient() {
                     selectedJob={selectedJob}
                     onSelectJob={openJobDetail}
                     onAdvance={handleAdvance}
+                    onAssign={handleAssign}
+                    owners={lookups.owners}
                     onShowAll={() => {
                       setViewMode('list');
                       setGroupMode('status');

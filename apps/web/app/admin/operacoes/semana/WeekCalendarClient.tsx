@@ -193,6 +193,7 @@ function DayColumnView({
   onDrop,
   onDragOver,
   onAssign,
+  onAdvance,
 }: {
   col: DayColumn;
   owners: OperationsOwner[];
@@ -289,6 +290,7 @@ function DayColumnView({
               onClick={() => onSelectJob(job.id)}
               owners={owners}
               onAssign={onAssign}
+              onAdvance={onAdvance}
             />
           </Box>
         ))}
@@ -311,6 +313,7 @@ function BacklogRow({
   onSelectJob,
   onDragStart,
   onAssign,
+  onAdvance,
 }: {
   jobs: OperationsJob[];
   owners: OperationsOwner[];
@@ -318,6 +321,7 @@ function BacklogRow({
   onSelectJob: (id: string) => void;
   onDragStart: (jobId: string, e: React.DragEvent) => void;
   onAssign: (jobId: string, ownerId: string) => void;
+  onAdvance: (jobId: string, nextStatus: string) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -349,6 +353,7 @@ function BacklogRow({
               onClick={() => onSelectJob(job.id)}
               owners={owners}
               onAssign={onAssign}
+              onAdvance={onAdvance}
             />
           </Box>
         ))}
@@ -1056,6 +1061,7 @@ export default function WeekCalendarClient() {
               onSelectJob={handleSelectJob}
               onDragStart={handleDragStart}
               onAssign={handleAssign}
+              onAdvance={handleAdvance}
             />
           </Box>
         </Stack>
