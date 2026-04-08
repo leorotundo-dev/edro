@@ -3,9 +3,19 @@ import type { ClientLivingMemory } from './clientLivingMemoryService';
 type ConflictSeverity = 'none' | 'low' | 'medium' | 'high';
 
 export type BriefingConflict = {
-  type: 'directive' | 'decision' | 'objection' | 'commitment';
+  type: 'directive' | 'decision' | 'objection' | 'commitment' | 'memory_governance';
   severity: Exclude<ConflictSeverity, 'none'>;
   message: string;
+};
+
+type MemoryGovernanceInput = {
+  summary: {
+    stale_facts?: number;
+    stale_directives?: number;
+    stale_commitments?: number;
+    active_conflicts?: number;
+    governance_pressure?: 'low' | 'medium' | 'high';
+  };
 };
 
 export type BriefingDiagnostics = {
@@ -98,6 +108,9 @@ function resolveConflictSeverity(conflicts: BriefingConflict[]): ConflictSeverit
 
 function resolveRecommendedResolution(conflicts: BriefingConflict[]) {
   if (!conflicts.length) return null;
+  if (conflicts.some((item) => item.type === 'memory_governance' && item.severity === 'high')) {
+    return 'Revisar e limpar a memória viva do cliente antes de criar, porque há conflito interno ou pressão alta de governança.';
+  }
   if (conflicts.some((item) => item.type === 'directive' && item.severity === 'high')) {
     return 'Revisar o briefing para remover o conflito com restrições ativas do cliente antes de criar.';
   }
@@ -123,8 +136,9 @@ export function buildBriefingDiagnostics(params: {
     payload?: Record<string, any> | null;
   };
   livingMemory: ClientLivingMemory;
+  memoryGovernance?: MemoryGovernanceInput | null;
 }): BriefingDiagnostics {
-  const { briefing, livingMemory } = params;
+  const { briefing, livingMemory, memoryGovernance } = params;
   const payload = briefing.payload || {};
   const briefingText = buildBriefingText(briefing);
   const normalizedText = normalize(briefingText);
@@ -178,6 +192,20 @@ export function buildBriefingDiagnostics(params: {
   if (objectionSignals.length > 0 && !/obje[cç][aã]o|restri[cç][aã]o|cuidado|evitar|nao|não/.test(normalizedText)) {
     tensions.push('Ha objeções ou sensibilidades recentes do cliente que nao aparecem explicitamente no briefing.');
   }
+  if ((memoryGovernance?.summary.active_conflicts || 0) > 0) {
+    tensions.push('A memória viva do cliente tem conflitos internos ativos; confiar cegamente no contexto acumulado pode gerar desalinhamento.');
+    conflicts.push({
+      type: 'memory_governance',
+      severity: memoryGovernance?.summary.governance_pressure === 'high' ? 'high' : 'medium',
+      message: `A memória viva do cliente contém ${memoryGovernance?.summary.active_conflicts} conflito(s) ativo(s) e precisa revisão antes da criação.`,
+    });
+  }
+  if ((memoryGovernance?.summary.stale_directives || 0) > 0) {
+    tensions.push('Existem diretivas antigas ainda ativas na memória viva que podem contaminar a interpretação do briefing.');
+  }
+  if ((memoryGovernance?.summary.stale_commitments || 0) > 0) {
+    tensions.push('Existem compromissos antigos ou vencidos ainda ativos na memória viva do cliente.');
+  }
   decisionSignals
     .filter((item) => !hasMeaningfulOverlap(briefingText, `${item.title || ''} ${item.excerpt}`))
     .slice(0, 2)
@@ -221,6 +249,9 @@ export function buildBriefingDiagnostics(params: {
   if (objectionSignals.length > 0) {
     recommendations.push('Evitar conflito com objeções e sensibilidades já expressas pelo cliente em conversas recentes.');
   }
+  if ((memoryGovernance?.summary.stale_facts || 0) > 0) {
+    recommendations.push('Antes de confiar totalmente no contexto acumulado, revisar fatos envelhecidos ou em conflito na memória viva do cliente.');
+  }
 
   const severity = resolveConflictSeverity(conflicts);
   const requiresConfirmation = severity === 'high' || conflicts.filter((item) => item.severity === 'medium').length >= 2;
@@ -232,6 +263,9 @@ export function buildBriefingDiagnostics(params: {
     if (gaps.length) lines.push(`- Lacunas: ${gaps.join(' | ')}`);
     if (tensions.length) lines.push(`- Tensoes: ${tensions.join(' | ')}`);
     if (conflicts.length) lines.push(`- Conflitos: ${conflicts.map((item) => item.message).join(' | ')}`);
+    if (memoryGovernance?.summary.governance_pressure && memoryGovernance.summary.governance_pressure !== 'low') {
+      lines.push(`- Governança da memória: pressão ${memoryGovernance.summary.governance_pressure}, fatos envelhecidos ${memoryGovernance.summary.stale_facts || 0}, conflitos internos ${memoryGovernance.summary.active_conflicts || 0}`);
+    }
     if (recommendations.length) lines.push(`- Recomendacoes: ${recommendations.join(' | ')}`);
     if (requiresConfirmation) {
       lines.push(`- Gate: conflito ${severity}. Pedir confirmação explícita antes de criar.`);

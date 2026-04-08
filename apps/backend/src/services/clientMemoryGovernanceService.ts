@@ -44,6 +44,24 @@ export type ClientMemoryGovernanceConflict = {
   };
 };
 
+type GovernancePressure = 'low' | 'medium' | 'high';
+
+export type ClientMemoryGovernanceAnalysis = {
+  summary: {
+    active_facts: number;
+    archive_candidates: number;
+    replace_candidates: number;
+    high_severity: number;
+    stale_facts: number;
+    stale_directives: number;
+    stale_commitments: number;
+    active_conflicts: number;
+    governance_pressure: GovernancePressure;
+  };
+  suggestions: ClientMemoryGovernanceSuggestion[];
+  conflicts: ClientMemoryGovernanceConflict[];
+};
+
 function normalize(value: string) {
   return String(value || '')
     .toLowerCase()
@@ -128,7 +146,7 @@ export async function analyzeClientMemoryGovernance(params: {
   clientId: string;
   daysBack?: number;
   limit?: number;
-}) {
+}): Promise<ClientMemoryGovernanceAnalysis> {
   const facts = await listClientMemoryFacts({
     tenantId: params.tenantId,
     clientId: params.clientId,
@@ -330,7 +348,7 @@ export async function analyzeClientMemoryGovernance(params: {
   const staleDirectives = staleFacts.filter((fact) => fact.fact_type === 'directive').length;
   const staleCommitments = staleFacts.filter((fact) => fact.fact_type === 'commitment').length;
   const highSeverityCount = ordered.filter((item) => item.severity === 'high').length + orderedConflicts.filter((item) => item.severity === 'high').length;
-  const governancePressure =
+  const governancePressure: GovernancePressure =
     highSeverityCount >= 2 || orderedConflicts.length >= 2 ? 'high'
     : ordered.length >= 3 || orderedConflicts.length >= 1 ? 'medium'
     : 'low';

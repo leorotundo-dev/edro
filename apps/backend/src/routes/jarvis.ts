@@ -22,6 +22,7 @@ import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
 import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
+import { analyzeClientMemoryGovernance } from '../services/clientMemoryGovernanceService';
 import { buildClientState } from '../services/jarvisDecisionEngine';
 import { getJobById } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
@@ -361,6 +362,14 @@ async function runCreativeExecutionCapability(params: {
         maxActions: 4,
       }).catch(() => null)
     : null;
+  const memoryGovernancePreflight = target.clientId
+    ? await analyzeClientMemoryGovernance({
+        tenantId: params.tenantId,
+        clientId: target.clientId,
+        daysBack: 365,
+        limit: 80,
+      }).catch(() => null)
+    : null;
   const briefingDiagnostics = briefing && livingMemoryPreflight
     ? buildBriefingDiagnostics({
         briefing: {
@@ -372,6 +381,7 @@ async function runCreativeExecutionCapability(params: {
           payload: briefingPayload,
         },
         livingMemory: livingMemoryPreflight,
+        memoryGovernance: memoryGovernancePreflight,
       })
     : null;
 
@@ -804,6 +814,12 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                     payload,
                   },
                   livingMemory: livingMemoryPreflight,
+                  memoryGovernance: await analyzeClientMemoryGovernance({
+                    tenantId,
+                    clientId: clientId!,
+                    daysBack: 365,
+                    limit: 80,
+                  }).catch(() => null),
                 }),
               };
             })().catch(() => emptyBriefingDiagnosticsPreflight()),

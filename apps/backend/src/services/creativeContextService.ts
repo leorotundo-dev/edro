@@ -20,6 +20,7 @@ import { query } from '../db';
 import { generateCompletion } from './ai/claudeService';
 import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { buildBriefingDiagnostics } from './briefingDiagnosticService';
+import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -227,6 +228,14 @@ export async function assembleCreativeContext(params: {
           evidence_by_source: {},
         },
       };
+  const memoryGovernance = resolvedClientId
+    ? await analyzeClientMemoryGovernance({
+        tenantId,
+        clientId: resolvedClientId,
+        daysBack: 365,
+        limit: 80,
+      }).catch(() => null)
+    : null;
   const briefingDiagnostics = buildBriefingDiagnostics({
     briefing: {
       title: briefingRow.title ?? briefingRow.payload?.title ?? '',
@@ -239,6 +248,7 @@ export async function assembleCreativeContext(params: {
       payload: briefingRow.payload ?? {},
     },
     livingMemory,
+    memoryGovernance,
   });
 
   // Build cultural context block
@@ -299,6 +309,7 @@ export async function assembleCreativeContext(params: {
         ...(briefingRow.payload ?? {}),
         briefing_diagnostics: briefingDiagnostics.block || undefined,
         briefing_diagnostics_structured: briefingDiagnostics,
+        memory_governance_summary: memoryGovernance?.summary ?? undefined,
       },
     },
   };

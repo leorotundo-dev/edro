@@ -87,6 +87,7 @@ import { auditDecisionStack, buildDecisionStackCorrectionPrompt } from '../servi
 import { syncBriefingMetrics } from '../services/briefingPostMetricsService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
 import { buildBriefingDiagnostics } from '../services/briefingDiagnosticService';
+import { analyzeClientMemoryGovernance } from '../services/clientMemoryGovernanceService';
 import { audit } from '../audit/audit';
 import {
   buildArtDirectionFeedbackMetadata,
@@ -2005,6 +2006,14 @@ export default async function edroRoutes(app: FastifyInstance) {
         payload: briefingPayload,
       },
       livingMemory,
+      memoryGovernance: selectedClientId
+        ? await analyzeClientMemoryGovernance({
+            tenantId,
+            clientId: selectedClientId,
+            daysBack: 365,
+            limit: 80,
+          }).catch(() => null)
+        : null,
     });
     const performanceHint = selectedPlatform
       ? await fetchPerformanceHint(tenantId, selectedClientId, selectedPlatform)

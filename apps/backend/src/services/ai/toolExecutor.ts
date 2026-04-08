@@ -1882,6 +1882,7 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
           payload: briefingPayload,
         },
         livingMemory,
+        memoryGovernance,
       })
     : null;
 
@@ -1971,6 +1972,14 @@ async function toolGetBriefingDiagnostics(args: any, ctx: ToolContext): Promise<
       payload,
     },
     livingMemory,
+    memoryGovernance: selectedClientId
+      ? await analyzeClientMemoryGovernance({
+          tenantId: ctx.tenantId,
+          clientId: selectedClientId,
+          daysBack: 365,
+          limit: 80,
+        }).catch(() => null)
+      : null,
   });
 
   return {
