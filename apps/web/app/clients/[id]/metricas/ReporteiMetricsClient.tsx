@@ -82,6 +82,33 @@ type SemanticSummary = {
   top_metrics: SemanticTopMetric[];
 };
 
+type SemanticFamilyDetail = {
+  count: number;
+  with_values: number;
+  top_metrics: Array<{
+    reference_key: string;
+    value: number | null;
+    delta_pct: number | null;
+  }>;
+};
+
+type SemanticIntegrationPreview = {
+  integration_id: number;
+  integration_slug: string;
+  time_window: string | null;
+  latest_synced_at: string;
+  periods: Array<{ start: string; end: string }>;
+  total_metrics: number;
+  families: Record<string, SemanticFamilyDetail>;
+};
+
+type SemanticOverview = {
+  raw_payloads: number;
+  integrations: number;
+  family_totals: Record<string, { integrations: number; metrics: number }>;
+  integration_previews: SemanticIntegrationPreview[];
+};
+
 type MetricsData = {
   snapshot: Snapshot;
   prev_snapshot: Snapshot | null;
@@ -91,6 +118,7 @@ type MetricsData = {
   is_stale?: boolean;
   days_since_sync?: number | null;
   semantic_summary?: SemanticSummary | null;
+  semantic_overview?: SemanticOverview | null;
 };
 
 type BenchmarkData = {
@@ -334,6 +362,117 @@ function SemanticSummaryCard({ summary }: { summary: SemanticSummary }) {
   );
 }
 
+function SemanticOverviewSection({ overview }: { overview: SemanticOverview }) {
+  const integrationPreviews = overview.integration_previews ?? [];
+
+  if (!integrationPreviews.length) return null;
+
+  return (
+    <Card variant="outlined" sx={{ mb: 4, borderRadius: 2 }}>
+      <CardContent>
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          alignItems={{ md: 'center' }}
+          justifyContent="space-between"
+          spacing={2}
+          mb={2}
+        >
+          <Box>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Todas as Integrações do Cliente
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Visão consolidada do que o Reportei já trouxe para cada integração neste período.
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip size="small" label={`${overview.integrations} integrações com dados`} />
+            <Chip size="small" label={`${overview.raw_payloads} payloads no período`} />
+          </Stack>
+        </Stack>
+
+        <Grid container spacing={2}>
+          {integrationPreviews.map((integration) => {
+            const familyEntries = Object.entries(integration.families ?? {});
+            return (
+              <Grid key={`${integration.integration_id}-${integration.integration_slug}`} size={{ xs: 12, md: 6 }}>
+                <Card variant="outlined" sx={{ height: '100%', borderRadius: 2 }}>
+                  <CardContent>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} mb={1.5}>
+                      <Box>
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          {integration.integration_slug}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Último sync {new Date(integration.latest_synced_at).toLocaleString('pt-BR')}
+                        </Typography>
+                      </Box>
+                      <Chip size="small" variant="outlined" label={`${integration.total_metrics} métricas`} />
+                    </Stack>
+
+                    {integration.periods?.[0] && (
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+                        Janela mais recente: {new Date(integration.periods[0].start).toLocaleDateString('pt-BR')} até {new Date(integration.periods[0].end).toLocaleDateString('pt-BR')}
+                      </Typography>
+                    )}
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: familyEntries.length ? 1.5 : 0 }}>
+                      {familyEntries.map(([family, detail]) => (
+                        <Chip
+                          key={family}
+                          size="small"
+                          variant="outlined"
+                          label={`${FAMILY_LABELS[family] ?? family}: ${detail.count}`}
+                        />
+                      ))}
+                    </Stack>
+
+                    {familyEntries.length > 0 && (
+                      <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: 'action.hover' }}>
+                              <TableCell><Typography variant="caption" fontWeight={700}>Família</Typography></TableCell>
+                              <TableCell><Typography variant="caption" fontWeight={700}>Top métrica</Typography></TableCell>
+                              <TableCell align="right"><Typography variant="caption" fontWeight={700}>Valor</Typography></TableCell>
+                              <TableCell align="right"><Typography variant="caption" fontWeight={700}>Delta</Typography></TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {familyEntries.map(([family, detail]) => {
+                              const metric = detail.top_metrics?.[0];
+                              return (
+                                <TableRow key={family} hover>
+                                  <TableCell>
+                                    <Typography variant="body2">{FAMILY_LABELS[family] ?? family}</Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2">{metric ? (METRIC_LABELS[metric.reference_key] ?? metric.reference_key) : '—'}</Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Typography variant="body2" fontWeight={600}>{metric ? fmtNumber(metric.value) : '—'}</Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <DeltaBadge delta={metric?.delta_pct ?? null} />
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── Main component ──────────────────────────────────────────── */
 type Props = { clientId: string };
 
@@ -487,6 +626,10 @@ export default function ReporteiMetricsClient({ clientId }: Props) {
         <>
           {data?.semantic_summary && (
             <SemanticSummaryCard summary={data.semantic_summary} />
+          )}
+
+          {data?.semantic_overview && (
+            <SemanticOverviewSection overview={data.semantic_overview} />
           )}
 
           {/* KPI Grid */}
