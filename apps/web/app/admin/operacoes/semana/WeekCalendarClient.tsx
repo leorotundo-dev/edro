@@ -85,50 +85,18 @@ function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Maps Trello list names that represent a weekday to 0=Sun…6=Sat (ISO: Mon=1) */
-const LIST_DAY_MAP: Array<{ patterns: RegExp; isoDay: number }> = [
-  { patterns: /seg(unda)?(-feira)?/i, isoDay: 1 },
-  { patterns: /ter(ça)?(-feira)?/i,   isoDay: 2 },
-  { patterns: /qua(rta)?(-feira)?/i,  isoDay: 3 },
-  { patterns: /qui(nta)?(-feira)?/i,  isoDay: 4 },
-  { patterns: /sex(ta)?(-feira)?/i,   isoDay: 5 },
-];
-
-function listNameToIsoDay(listName?: string | null): number | null {
-  if (!listName) return null;
-  for (const { patterns, isoDay } of LIST_DAY_MAP) {
-    if (patterns.test(listName)) return isoDay;
-  }
-  return null;
-}
-
 /**
- * Priority:
- * 1. planned_date (manual allocation)
- * 2. Trello list name → weekday of the selected week
- * 3. deadline_at (due date on the card)
+ * Returns the date key for a job's deadline.
+ * Jobs with a due date → appear in that day's column.
+ * Jobs without → go to the backlog below to be allocated.
  */
-function jobDateKey(job: OperationsJob, weekStart: Date): string | null {
+function jobDateKey(job: OperationsJob): string | null {
   const alloc = job.metadata?.allocation as { planned_date?: string } | undefined;
-  if (alloc?.planned_date) {
-    const d = new Date(alloc.planned_date);
-    if (!Number.isNaN(d.getTime())) return dateKey(d);
-  }
-
-  const listName = (job.metadata as any)?.list_name as string | undefined;
-  const isoDay = listNameToIsoDay(listName);
-  if (isoDay !== null) {
-    // Map to the corresponding day of the weekStart week
-    const d = addDays(weekStart, isoDay - 1); // weekStart is Monday (isoDay 1)
-    return dateKey(d);
-  }
-
-  if (job.deadline_at) {
-    const d = new Date(job.deadline_at);
-    if (!Number.isNaN(d.getTime())) return dateKey(d);
-  }
-
-  return null;
+  const dateStr = alloc?.planned_date || job.deadline_at;
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return dateKey(d);
 }
 
 /** Assign a stable color per owner for visual scanning */
@@ -551,7 +519,6 @@ function DistributionView({
   owners,
   columns,
   activeJobs,
-  weekStart,
   selectedJobId,
   onSelectJob,
   onDragStart,
@@ -560,7 +527,6 @@ function DistributionView({
   owners: OperationsOwner[];
   columns: DayColumn[];
   activeJobs: OperationsJob[];
-  weekStart: Date;
   selectedJobId: string | null;
   onSelectJob: (id: string) => void;
   onDragStart: (jobId: string, e: React.DragEvent) => void;
@@ -580,7 +546,7 @@ function DistributionView({
     }
     for (const job of activeJobs) {
       const oid = job.owner_id ?? '__none__';
-      const dk = jobDateKey(job, weekStart);
+      const dk = jobDateKey(job);
       const dayMap = map.get(oid);
       if (!dayMap) continue;
       const bucket = dk ? (dayMap.get(dk) ?? null) : null;
@@ -841,7 +807,7 @@ export default function WeekCalendarClient() {
   const columns: DayColumn[] = useMemo(() => {
     return weekDays.map((d) => {
       const key = dateKey(d);
-      const dayJobs = activeJobs.filter((j) => jobDateKey(j, weekStart) === key);
+      const dayJobs = activeJobs.filter((j) => jobDateKey(j) === key);
       return {
         date: d,
         key,
@@ -856,7 +822,7 @@ export default function WeekCalendarClient() {
   const backlogJobs = useMemo(() => {
     const weekKeys = new Set(columns.map((c) => c.key));
     return activeJobs.filter((j) => {
-      const dk = jobDateKey(j, weekStart);
+      const dk = jobDateKey(j);
       return !dk || !weekKeys.has(dk);
     });
   }, [activeJobs, columns]);
@@ -1067,7 +1033,6 @@ export default function WeekCalendarClient() {
                 owners={owners}
                 columns={columns}
                 activeJobs={activeJobs}
-                weekStart={weekStart}
                 selectedJobId={selectedJobId}
                 onSelectJob={handleSelectJob}
                 onDragStart={handleDragStart}
