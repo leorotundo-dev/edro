@@ -30,6 +30,7 @@ type Props = {
 export default function AvatarGeneratorModal({ file, onAccept, onClose }: Props) {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
   const [error, setError] = useState('');
@@ -41,17 +42,42 @@ export default function AvatarGeneratorModal({ file, onAccept, onClose }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!loading) return;
+
+    const startedAt = Date.now();
+    setProgress(4);
+
+    const interval = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const target = elapsed < 2_000
+        ? 4 + (elapsed / 2_000) * 28
+        : elapsed < 7_000
+          ? 32 + ((elapsed - 2_000) / 5_000) * 38
+          : elapsed < 16_000
+            ? 70 + ((elapsed - 7_000) / 9_000) * 20
+            : 90 + Math.min((elapsed - 16_000) / 12_000, 1) * 7;
+
+      setProgress((current) => Math.max(current, Math.min(97, Math.round(target))));
+    }, 250);
+
+    return () => window.clearInterval(interval);
+  }, [loading]);
+
   async function generate() {
     setLoading(true);
+    setProgress(0);
     setError('');
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('prompt', prompt);
       const res = await apiPostFormData<AvatarResponse>('/freelancers/portal/me/avatar', formData);
+      setProgress(100);
       setResult(res.avatar_url);
       setAttempts((n) => n + 1);
     } catch (e: any) {
+      setProgress(0);
       setError(e?.message ?? 'Erro ao gerar avatar');
     } finally {
       setLoading(false);
@@ -119,9 +145,32 @@ export default function AvatarGeneratorModal({ file, onAccept, onClose }: Props)
               </span>
               <div style={{ aspectRatio: '1', borderRadius: 14, overflow: 'hidden', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 {loading && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: '100%', maxWidth: 260, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 24 }}>
                     <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#FF6600', animation: 'spin 0.9s linear infinite' }} />
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Gerando com IA…</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Gerando com IA...</span>
+                    <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ flex: 1, height: 8, borderRadius: 999, overflow: 'hidden', background: 'rgba(255,255,255,0.08)' }}>
+                        <div
+                          style={{
+                            width: `${progress}%`,
+                            height: '100%',
+                            borderRadius: 999,
+                            background: 'linear-gradient(90deg, #FF6600 0%, #FF8A33 100%)',
+                            transition: 'width 240ms ease',
+                          }}
+                        />
+                      </div>
+                      <span style={{ minWidth: 36, fontSize: 12, fontWeight: 700, color: '#FF8A33', textAlign: 'right' }}>{progress}%</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', textAlign: 'center' }}>
+                      {progress < 35
+                        ? 'Enviando referência'
+                        : progress < 70
+                          ? 'Gerando identidade'
+                          : progress < 95
+                            ? 'Refinando avatar'
+                            : 'Finalizando'}
+                    </span>
                   </div>
                 )}
                 {!loading && result && (

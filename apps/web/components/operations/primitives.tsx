@@ -2166,19 +2166,18 @@ export function OpsCard({
             {job.title}
           </Typography>
 
-          {/* Descrição */}
-          {(job.summary || job.required_skill) && (
+          {/* Descrição — só quando showDescription=true */}
+          {showDescription && (job.summary || job.required_skill) && (
             <Typography
               variant="body2"
               color="text.secondary"
               sx={{
                 display: '-webkit-box',
-                WebkitLineClamp: showDescription ? 3 : 2,
+                WebkitLineClamp: 3,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
                 fontSize: '0.82rem',
                 lineHeight: 1.55,
-                flex: 1,
               }}
             >
               {job.summary || formatSkillLabel(job.required_skill)}
@@ -2334,7 +2333,7 @@ export function PipelineCard({
   onAssign?: (jobId: string, ownerId: string) => void;
   owners?: OperationsOwner[];
 }) {
-  return <OpsCard job={job} selected={selected} onClick={onClick} onAdvance={onAdvance} onAssign={onAssign} owners={owners} showDescription />;
+  return <OpsCard job={job} selected={selected} onClick={onClick} onAdvance={onAdvance} onAssign={onAssign} owners={owners} showDescription={false} />;
 }
 
 export function PipelineColumn({
@@ -2397,22 +2396,12 @@ export function PipelineColumn({
         </Stack>
 
         {jobs.length === 0 ? (
-          <Box
-            sx={{
-              border: `2px dashed ${alpha(color, 0.24)}`,
-              borderRadius: 2,
-              p: 3,
-              textAlign: 'center',
-              bgcolor: '#fff',
-            }}
-          >
-            <Typography variant="caption" color="text.disabled">
-              Nenhum item
-            </Typography>
+          <Box sx={{ border: `2px dashed ${alpha(color, 0.24)}`, borderRadius: 2, p: 3, textAlign: 'center', bgcolor: (t) => t.palette.mode === 'dark' ? alpha('#fff', 0.03) : '#fff' }}>
+            <Typography variant="caption" color="text.disabled">Nenhum item</Typography>
           </Box>
         ) : (
-          <Box sx={{ overflowY: 'auto', maxHeight: 680, display: 'flex', flexDirection: 'column', gap: 1.1 }}>
-            {jobs.map((job) => (
+          <Box sx={{ overflowY: 'auto', maxHeight: 680, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {jobs.slice(0, 12).map((job) => (
               <PipelineCard
                 key={job.id}
                 job={job}
@@ -2423,6 +2412,16 @@ export function PipelineColumn({
                 owners={owners}
               />
             ))}
+            {jobs.length > 12 && (
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => onShowAll?.(columnKey)}
+                sx={{ fontWeight: 700, fontSize: '0.72rem', color: color, alignSelf: 'flex-start', px: 0.5 }}
+              >
+                + {jobs.length - 12} mais
+              </Button>
+            )}
           </Box>
         )}
       </Stack>
