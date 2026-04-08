@@ -142,14 +142,16 @@ function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j
   const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
   const bg = cardBg(job, dark);
   const bar = barColor(job);
+  const accentColor = job.client_brand_color || null;
 
   return (
     <Box
       onClick={() => onDetail(job)}
       sx={{
-        borderRadius: 2.5,
+        borderRadius: accentColor ? '0 10px 10px 0' : 2.5,
         bgcolor: bg,
         boxShadow: dark ? '0 1px 4px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+        borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
         display: 'flex',
         flexDirection: 'column',
         cursor: 'pointer',
@@ -163,20 +165,29 @@ function DailyOpCard({ job, onOpen, onDetail }: { job: OperationsJob; onOpen: (j
       <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
         {/* Client + menu */}
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography
-            variant="caption"
-            noWrap
-            sx={{
-              fontSize: '0.6rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: 'text.disabled',
-              maxWidth: '75%',
-            }}
-          >
-            {job.client_name || 'Sem cliente'}
-          </Typography>
+          <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0, maxWidth: '75%' }}>
+            {job.client_logo_url ? (
+              <Avatar
+                src={job.client_logo_url}
+                alt={job.client_name || ''}
+                variant="rounded"
+                sx={{ width: 14, height: 14, flexShrink: 0, '& img': { objectFit: 'contain' } }}
+              />
+            ) : null}
+            <Typography
+              variant="caption"
+              noWrap
+              sx={{
+                fontSize: '0.6rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: accentColor ? alpha(accentColor, dark ? 0.8 : 0.7) : 'text.disabled',
+              }}
+            >
+              {job.client_name || 'Sem cliente'}
+            </Typography>
+          </Stack>
           <Stack direction="row" spacing={0.25} alignItems="center">
             {isUrgent && (
               <Box sx={{ color: '#F9A825', display: 'flex', lineHeight: 1 }}>
