@@ -1996,6 +1996,7 @@ export function PipelineCard({
   const nextStatus = getNextStatus(job);
   const nextAction = getNextAction(job);
   const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
+  const accentColor = job.client_brand_color || null;
 
   return (
     <>
@@ -2005,7 +2006,8 @@ export function PipelineCard({
         sx={(theme) => {
           const dark = theme.palette.mode === 'dark';
           return {
-            borderRadius: 2.5,
+            borderRadius: accentColor ? '0 10px 10px 0' : 2.5,
+            borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
             cursor: onClick ? 'pointer' : 'default',
             border: selected
               ? `1.5px solid ${alpha(theme.palette.primary.main, 0.35)}`
@@ -2023,22 +2025,34 @@ export function PipelineCard({
       >
         <CardContent sx={{ p: '14px !important' }}>
           <Stack spacing={1.2}>
-            <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Chip
-                size="small"
-                label={job.client_name || 'Sem cliente'}
-                sx={{
-                  height: 22,
-                  fontSize: '0.66rem',
-                  fontWeight: 700,
-                  bgcolor: alpha(clientAccent(job), 0.12),
-                  color: clientAccent(job),
-                }}
-              />
+            <Stack direction="row" spacing={0.7} alignItems="center" justifyContent="space-between">
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
+                {job.client_logo_url ? (
+                  <Avatar
+                    src={job.client_logo_url}
+                    alt={job.client_name || ''}
+                    variant="rounded"
+                    sx={{ width: 14, height: 14, flexShrink: 0, '& img': { objectFit: 'contain' } }}
+                  />
+                ) : null}
+                <Typography
+                  variant="caption"
+                  noWrap
+                  sx={{
+                    fontSize: '0.62rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: accentColor ? alpha(accentColor, 0.8) : 'text.disabled',
+                  }}
+                >
+                  {job.client_name || 'Sem cliente'}
+                </Typography>
+              </Stack>
               <Chip
                 size="small"
                 label={formatSourceLabel(job.source)}
-                sx={{ height: 22, fontSize: '0.66rem', fontWeight: 700 }}
+                sx={{ height: 20, fontSize: '0.62rem', fontWeight: 700, flexShrink: 0 }}
               />
             </Stack>
 
