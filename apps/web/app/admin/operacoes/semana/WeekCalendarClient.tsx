@@ -885,7 +885,7 @@ export default function WeekCalendarClient() {
         open={drawerOpen}
         jobId={selectedJobId}
         onClose={() => setDrawerOpen(false)}
-        onStatusChange={(jobId, status) => ops.changeStatus(jobId, status).catch(() => {})}
+        onStatusChange={(jobId, status) => ops.changeStatus(jobId, status)}
         onAssign={(jobId, ownerId) => ops.updateJob(jobId, { owner_id: ownerId }).catch(() => {})}
         owners={owners}
       />
