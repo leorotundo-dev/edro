@@ -32,12 +32,14 @@ export async function GET(request: NextRequest) {
   let accessToken = request.cookies.get(EDRO_SESSION_COOKIE)?.value ?? null;
   const refreshToken = request.cookies.get(EDRO_REFRESH_COOKIE)?.value ?? null;
   let refreshed: any = null;
+  let tokenPayload = decodeJwtPayload(accessToken ?? '') ?? null;
 
   if (!hasValidAccessToken(accessToken) && refreshToken) {
     const userId = extractUserId(accessToken);
     if (userId) {
       refreshed = await refreshAccessToken(refreshToken, userId);
       accessToken = refreshed?.accessToken ?? null;
+      tokenPayload = decodeJwtPayload(accessToken ?? '') ?? null;
     }
   }
 
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     return response;
   }
 
-  const user = await fetchCurrentUser(accessToken!);
+  let user = await fetchCurrentUser(accessToken!);
   if (!user) {
     const response = NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
     response.cookies.set(EDRO_SESSION_COOKIE, '', { ...getCookieConfig(60 * 30), maxAge: 0 });
@@ -56,8 +58,27 @@ export async function GET(request: NextRequest) {
     return response;
   }
 
+  const sessionRoleMismatch = typeof tokenPayload?.role === 'string' && tokenPayload.role !== user?.role;
+  const sessionTenantMismatch =
+    typeof tokenPayload?.tenant_id === 'string' &&
+    typeof user?.tenant_id === 'string' &&
+    tokenPayload.tenant_id !== user.tenant_id;
+
+  if ((sessionRoleMismatch || sessionTenantMismatch) && refreshToken) {
+    const userId = extractUserId(accessToken);
+    if (userId) {
+      const forcedRefresh = await refreshAccessToken(refreshToken, userId);
+      if (forcedRefresh?.accessToken) {
+        refreshed = forcedRefresh;
+        accessToken = forcedRefresh.accessToken;
+        tokenPayload = decodeJwtPayload(accessToken) ?? null;
+        user = await fetchCurrentUser(accessToken) ?? user;
+      }
+    }
+  }
+
   const response = NextResponse.json(
-    { authenticated: true, user, tokenPayload: decodeJwtPayload(accessToken!) ?? null },
+    { authenticated: true, user, tokenPayload },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 

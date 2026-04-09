@@ -373,7 +373,19 @@ export default async function authRoutes(app: FastifyInstance) {
         return reply.status(401).send({ error: 'invalid_user' });
       }
 
-      const tenant = await getPrimaryTenantForUser(user.id);
+      let tenant = await getPrimaryTenantForUser(user.id);
+      const forcedRole = resolveRole(user.email);
+      if (forcedRole) {
+        const expectedTenantRole = mapRoleToTenantRole(forcedRole);
+        if (user.role !== forcedRole || tenant?.role !== expectedTenantRole) {
+          await selfHealPrivilegedMembership({
+            email: user.email,
+            userId: user.id,
+            tenantId: tenant?.tenant_id ?? null,
+          });
+          tenant = await getPrimaryTenantForUser(user.id);
+        }
+      }
       if (!tenant?.tenant_id) {
         return reply.status(401).send({ error: 'missing_tenant' });
       }
