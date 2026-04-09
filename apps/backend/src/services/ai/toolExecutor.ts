@@ -42,6 +42,7 @@ import {
   updateCreativeStage,
 } from '../jobs/creativeSessionService';
 import { createLibraryItem } from '../../library/libraryRepo';
+import { stripTrelloTitle } from '../trelloCardMapper';
 import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
 import { analyzeCognitiveLoad } from '../cognitiveLoadService';
@@ -4101,6 +4102,7 @@ async function getProjectCardAsJob(tenantId: string, cardId: string) {
   const r = rows[0];
   return {
     ...r,
+    title: stripTrelloTitle(r.title, r.client_name),
     _source: 'project_card',
     deadline_at: r.due_date ? `${r.due_date}T23:59:00` : null,
     estimated_minutes: r.estimated_hours ? Math.round(parseFloat(r.estimated_hours) * 60) : null,

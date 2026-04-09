@@ -1,5 +1,15 @@
 'use client';
 
+export type TrelloLabel = { color: string | null; name: string; hex?: string };
+
+export type TrelloAttachment = {
+  url: string;
+  name: string;
+  type?: string | null;
+  preview_url?: string | null;
+  is_image?: boolean;
+};
+
 export type OperationsJob = {
   id: string;
   client_id?: string | null;
@@ -8,6 +18,12 @@ export type OperationsJob = {
   client_brand_color?: string | null;
   title: string;
   summary?: string | null;
+  /** Trello labels promoted to first-class (color + name + computed hex) */
+  labels?: TrelloLabel[];
+  /** Trello attachments promoted to first-class */
+  attachments?: TrelloAttachment[];
+  /** Trello card cover image URL */
+  cover_url?: string | null;
   job_type: string;
   complexity: 's' | 'm' | 'l';
   job_size?: 'P' | 'M' | 'G' | 'GG' | null;
