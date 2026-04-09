@@ -4538,7 +4538,22 @@ async function opsSuggestJobAllocation(args: any, ctx: OperationsToolContext): P
       LIMIT 1`,
     [ctx.tenantId, args.job_id],
   );
-  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  // Fallback to project_cards for Trello-sourced jobs
+  if (!rows.length) {
+    const card = await getProjectCardAsJob(ctx.tenantId, args.job_id);
+    if (!card) return { success: false, error: 'Job não encontrado.' };
+    const proposals = (await proposeAllocations(ctx.tenantId, args.job_id)).slice(0, limit);
+    return {
+      success: true,
+      data: {
+        job: { id: card.id, title: card.title, client_name: card.client_name, deadline_at: card.deadline_at, _source: 'project_card' },
+        recommended_owner_id: proposals[0]?.freelancerId ?? null,
+        recommended_owner_name: proposals[0]?.name ?? null,
+        recommendations: proposals.map((p, i) => ({ rank: i + 1, freelancer_id: p.freelancerId, name: p.name, specialty: (p as any).specialty })),
+        note: proposals.length ? undefined : 'Nenhum DA elegível encontrado para este job no momento.',
+      },
+    };
+  }
 
   const job = rows[0];
   const proposals = (await proposeAllocations(ctx.tenantId, args.job_id)).slice(0, limit);
