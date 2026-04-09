@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { query } from '../db';
+import { pool, query } from '../db';
 import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 
@@ -163,12 +163,82 @@ export default async function peopleRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { id } = request.params as { id: string };
 
-    const { rows } = await query(
-      `DELETE FROM people WHERE id = $1 AND tenant_id = $2 RETURNING id`,
-      [id, tenantId],
-    );
-    if (!rows.length) return reply.code(404).send({ error: 'not_found' });
-    return reply.send({ success: true });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const existing = await client.query<{ id: string }>(
+        `SELECT id FROM people WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId],
+      );
+      if (!existing.rows.length) {
+        await client.query('ROLLBACK');
+        return reply.code(404).send({ error: 'not_found' });
+      }
+
+      // Clear known references explicitly so delete does not depend on FK shape in legacy data.
+      await client.query(
+        `UPDATE client_contacts
+            SET person_id = NULL
+          WHERE person_id = $1
+            AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      await client.query(
+        `UPDATE freelancer_profiles
+            SET person_id = NULL
+          WHERE person_id = $1`,
+        [id],
+      );
+      await client.query(
+        `UPDATE meeting_participants
+            SET person_id = NULL
+          WHERE person_id = $1
+            AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      await client.query(
+        `UPDATE whatsapp_group_messages
+            SET sender_person_id = NULL
+          WHERE sender_person_id = $1
+            AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      await client.query(
+        `UPDATE whatsapp_messages
+            SET sender_person_id = NULL
+          WHERE sender_person_id = $1
+            AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      await client.query(
+        `DELETE FROM person_identities
+          WHERE person_id = $1
+            AND tenant_id = $2`,
+        [id, tenantId],
+      );
+
+      const deleted = await client.query<{ id: string }>(
+        `DELETE FROM people WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+        [id, tenantId],
+      );
+      if (!deleted.rows.length) {
+        await client.query('ROLLBACK');
+        return reply.code(404).send({ error: 'not_found' });
+      }
+
+      await client.query('COMMIT');
+      return reply.send({ success: true });
+    } catch (error: any) {
+      await client.query('ROLLBACK').catch(() => {});
+      request.log?.error?.(error, 'people.delete failed');
+      return reply.code(409).send({
+        error: 'delete_failed',
+        message: 'Não foi possível excluir este colaborador porque ainda existem vínculos operacionais ativos.',
+      });
+    } finally {
+      client.release();
+    }
   });
 
   // ── DELETE /people/nameless — bulk-delete orphan records with no name and no linked data ──

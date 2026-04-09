@@ -471,6 +471,7 @@ function ColaboradoresView() {
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<PlannerOwner | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -504,6 +505,7 @@ function ColaboradoresView() {
   }, []);
 
   const openDelete = useCallback((row: PlannerOwner) => {
+    setDeleteError('');
     setDeleteTarget(row);
   }, []);
 
@@ -549,11 +551,15 @@ function ColaboradoresView() {
   const handleDelete = async () => {
     if (!deleteTarget?._people_id) return;
     setDeleting(true);
+    setDeleteError('');
     try {
       await apiDelete(`/people/${deleteTarget._people_id}`);
+      setDeleteError('');
       setDeleteTarget(null);
       await load();
-    } catch (e: any) { setError(e.message ?? 'Erro ao excluir'); setDeleteTarget(null); }
+    } catch (e: any) {
+      setDeleteError(e.message ?? 'Erro ao excluir');
+    }
     finally { setDeleting(false); }
   };
 
@@ -681,9 +687,10 @@ function ColaboradoresView() {
             Tem certeza que deseja excluir <strong>{deleteTarget?.owner.name}</strong>?
             Esta ação não pode ser desfeita.
           </Typography>
+          {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+          <Button onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>Cancelar</Button>
           <Button variant="contained" color="error" onClick={handleDelete} disabled={deleting}>
             {deleting ? <CircularProgress size={16} /> : 'Excluir'}
           </Button>
