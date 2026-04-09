@@ -196,8 +196,8 @@ export function startJobsRunner() {
   startWorkerLoop('opportunityDetector', runOpportunityDetectorWorkerOnce, 19000, 600_000, 60_000);
   // Client Living Memory — hourly refresh of typed facts for recently active clients
   startWorkerLoop('clientLivingMemory', runClientLivingMemoryWorkerOnce, 19250, 120_000, 60_000);
-  // Trello Sync — every 30min, keeps Edro boards in sync with Trello
-  startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 300_000, 60_000);
+  // Trello Sync — every 2h reconciliation (realtime via webhooks, syncs only dark boards)
+  startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 600_000, 60_000);
   // Jarvis Alert Engine — 2x/day, cross-source alerts
   startWorkerLoop('jarvisAlerts', runJarvisAlertWorkerOnce, 20000, 120_000, 60_000);
   // Art Direction Reference Discovery — opt-in, searches curated web references every 6h
