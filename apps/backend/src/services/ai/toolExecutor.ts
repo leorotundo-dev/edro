@@ -4074,6 +4074,41 @@ export async function executeOperationsTool(
 
 // ── Operations Tool Implementations ──────────────────────────────
 
+// Resolve a job-like object from project_cards (Trello source) when not found in jobs table.
+async function getProjectCardAsJob(tenantId: string, cardId: string) {
+  const { rows } = await query<any>(
+    `SELECT
+       pc.id, pc.title, pc.description AS summary, pc.due_date, pc.priority, pc.estimated_hours,
+       pc.is_archived, pc.created_at, pc.board_id, pc.list_id,
+       pl.name AS list_name,
+       COALESCE(m.ops_status, pl.name) AS status,
+       pb.client_id,
+       cl.name AS client_name,
+       (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) AS owner_name,
+       (SELECT eu.id FROM project_card_members pcm
+          JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+         WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) AS owner_id
+     FROM project_cards pc
+     JOIN project_lists pl ON pl.id = pc.list_id
+     JOIN project_boards pb ON pb.id = pc.board_id
+     LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
+     LEFT JOIN clients cl ON cl.id::text = pb.client_id
+     WHERE pc.id = $2 AND pc.tenant_id = $1 AND pc.is_archived = false
+     LIMIT 1`,
+    [tenantId, cardId],
+  );
+  if (!rows.length) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    _source: 'project_card',
+    deadline_at: r.due_date ? `${r.due_date}T23:59:00` : null,
+    estimated_minutes: r.estimated_hours ? Math.round(parseFloat(r.estimated_hours) * 60) : null,
+    priority_band: r.priority === 'urgent' ? 'p0' : r.priority === 'high' ? 'p1' : 'p2',
+    is_urgent: r.priority === 'urgent',
+  };
+}
+
 async function opsListJobs(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const values: any[] = [ctx.tenantId];
   const where = [`j.tenant_id = $1`, `j.status <> 'archived'`];
@@ -4087,19 +4122,49 @@ async function opsListJobs(args: any, ctx: OperationsToolContext): Promise<ToolR
 
   const limit = Math.min(args.limit || 20, 50);
 
+  // Only add project_cards UNION when no jobs-specific filters are used
+  const hasJobsOnlyFilter = !!(args.priority_band || args.owner_id || args.urgent);
+  const cardStatusClause = args.status ? `AND COALESCE(m.ops_status, pl.name) = '${args.status.replace(/'/g, "''")}'` : '';
+  const cardUnassignedClause = args.unassigned === true ? `AND (SELECT COUNT(*) FROM project_card_members pcm2 WHERE pcm2.card_id = pc.id) = 0` : '';
+
+  const unionSql = hasJobsOnlyFilter ? '' : `
+    UNION ALL
+    SELECT
+      pc.id, pc.title, COALESCE(m.ops_status, pl.name) AS status,
+      CASE pc.priority WHEN 'urgent' THEN 'p0' WHEN 'high' THEN 'p1' ELSE 'p2' END AS priority_band,
+      NULL AS job_type, pc.priority AS complexity,
+      (pc.priority = 'urgent') AS is_urgent,
+      pc.due_date::timestamptz AS deadline_at,
+      ROUND(pc.estimated_hours * 60)::int AS estimated_minutes,
+      pc.created_at,
+      cl.name AS client_name,
+      (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) AS owner_name,
+      'project_card' AS _source
+    FROM project_cards pc
+    JOIN project_lists pl ON pl.id = pc.list_id
+    JOIN project_boards pb ON pb.id = pc.board_id
+    LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $1
+    LEFT JOIN clients cl ON cl.id::text = pb.client_id
+    WHERE pc.tenant_id = $1 AND pc.is_archived = false
+      ${cardStatusClause}
+      ${cardUnassignedClause}
+  `;
+
   const { rows } = await query(
     `SELECT j.id, j.title, j.status, j.priority_band, j.job_type, j.complexity,
             j.is_urgent, j.deadline_at, j.estimated_minutes, j.created_at,
             c.name AS client_name,
-            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name
+            COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS owner_name,
+            'jobs'::text AS _source
      FROM jobs j
      LEFT JOIN clients c ON c.id = j.client_id
      LEFT JOIN edro_users u ON u.id = j.owner_id
      WHERE ${where.join(' AND ')}
+     ${unionSql}
      ORDER BY
-       CASE j.priority_band WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 WHEN 'p3' THEN 3 ELSE 4 END,
-       j.deadline_at ASC NULLS LAST,
-       j.created_at DESC
+       CASE priority_band WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 WHEN 'p3' THEN 3 ELSE 4 END,
+       deadline_at ASC NULLS LAST,
+       created_at DESC
      LIMIT $${values.length + 1}`,
     [...values, limit],
   );
@@ -4120,7 +4185,16 @@ async function opsGetJob(args: any, ctx: OperationsToolContext): Promise<ToolRes
      LIMIT 1`,
     [ctx.tenantId, args.job_id],
   );
-  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  if (!rows.length) {
+    // Fallback: check project_cards (Trello source)
+    const card = await getProjectCardAsJob(ctx.tenantId, args.job_id);
+    if (!card) return { success: false, error: 'Job não encontrado.' };
+    const { rows: cardComments } = await query(
+      `SELECT body, commented_at AS created_at, author_name FROM project_card_comments WHERE card_id = $1 ORDER BY commented_at DESC LIMIT 10`,
+      [args.job_id],
+    );
+    return { success: true, data: { ...card, history: [], comments: cardComments } };
+  }
 
   const history = await query(
     `SELECT h.from_status, h.to_status, h.reason, h.changed_at,
@@ -5319,7 +5393,26 @@ async function opsCreateJob(args: any, ctx: OperationsToolContext): Promise<Tool
 
 async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const existingRes = await query(`SELECT * FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [ctx.tenantId, args.job_id]);
-  if (!existingRes.rows.length) return { success: false, error: 'Job não encontrado.' };
+  if (!existingRes.rows.length) {
+    // Fallback: update project_cards (Trello source)
+    const card = await getProjectCardAsJob(ctx.tenantId, args.job_id);
+    if (!card) return { success: false, error: 'Job não encontrado.' };
+    const cardSets: string[] = [];
+    const cardValues: any[] = [ctx.tenantId, args.job_id];
+    if (args.deadline_at !== undefined) {
+      const d = args.deadline_at ? args.deadline_at.split('T')[0] : null;
+      cardValues.push(d); cardSets.push(`due_date = $${cardValues.length}`);
+    }
+    if (args.title !== undefined) { cardValues.push(args.title); cardSets.push(`title = $${cardValues.length}`); }
+    if (args.summary !== undefined) { cardValues.push(args.summary); cardSets.push(`description = $${cardValues.length}`); }
+    if (args.is_urgent !== undefined) { cardValues.push(args.is_urgent ? 'urgent' : 'normal'); cardSets.push(`priority = $${cardValues.length}`); }
+    if (!cardSets.length) return { success: false, error: 'Nenhum campo para atualizar.' };
+    const { rows: updated } = await query(
+      `UPDATE project_cards SET ${cardSets.join(', ')}, updated_at = now() WHERE tenant_id = $1 AND id = $2 RETURNING id, title, due_date`,
+      cardValues,
+    );
+    return { success: true, data: { ...updated[0], _source: 'project_card', deadline_at: updated[0]?.due_date ? `${updated[0].due_date}T23:59:00` : null } };
+  }
 
   const existing = existingRes.rows[0];
   const sets: string[] = [];
@@ -5351,7 +5444,27 @@ async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<Tool
 
 async function opsChangeJobStatus(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const currentRes = await query(`SELECT * FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [ctx.tenantId, args.job_id]);
-  if (!currentRes.rows.length) return { success: false, error: 'Job não encontrado.' };
+  if (!currentRes.rows.length) {
+    // Fallback: change status on project_cards by moving to matching list
+    const card = await getProjectCardAsJob(ctx.tenantId, args.job_id);
+    if (!card) return { success: false, error: 'Job não encontrado.' };
+    // Find a list in the same board that maps to the target ops_status
+    const listRes = await query(
+      `SELECT list_id FROM trello_list_status_map WHERE tenant_id = $1 AND board_id = $2 AND ops_status = $3 LIMIT 1`,
+      [ctx.tenantId, card.board_id, args.status],
+    );
+    if (listRes.rows.length) {
+      await query(
+        `UPDATE project_cards SET list_id = $2, updated_at = now() WHERE id = $3 AND tenant_id = $1`,
+        [ctx.tenantId, listRes.rows[0].list_id, args.job_id],
+      );
+    }
+    // For 'done', mark due_complete as well
+    if (args.status === 'done') {
+      await query(`UPDATE project_cards SET due_complete = true, completed_at = now(), updated_at = now() WHERE id = $1 AND tenant_id = $2`, [args.job_id, ctx.tenantId]);
+    }
+    return { success: true, data: { id: args.job_id, title: card.title, status: args.status, _source: 'project_card', list_moved: listRes.rows.length > 0 } };
+  }
   const current = currentRes.rows[0];
 
   if (current.status === args.status) return { success: true, data: { message: 'Status já é ' + args.status } };
@@ -5378,7 +5491,24 @@ async function opsAssignOwner(args: any, ctx: OperationsToolContext): Promise<To
     `UPDATE jobs SET owner_id = $3 WHERE tenant_id = $1 AND id = $2 RETURNING id, title, owner_id`,
     [ctx.tenantId, args.job_id, args.owner_id],
   );
-  if (!rows.length) return { success: false, error: 'Job não encontrado.' };
+  if (!rows.length) {
+    // Fallback: assign on project_cards via project_card_members
+    const card = await getProjectCardAsJob(ctx.tenantId, args.job_id);
+    if (!card) return { success: false, error: 'Job não encontrado.' };
+    const ownerRes = await query(
+      `SELECT COALESCE(NULLIF(name, ''), split_part(email, '@', 1)) AS name, email FROM edro_users WHERE id = $1`,
+      [args.owner_id],
+    );
+    if (!ownerRes.rows.length) return { success: false, error: 'Usuário não encontrado.' };
+    const { name: ownerName, email: ownerEmail } = ownerRes.rows[0];
+    await query(
+      `INSERT INTO project_card_members (card_id, tenant_id, trello_member_id, display_name, email)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (card_id, trello_member_id) DO UPDATE SET display_name = $4, email = $5`,
+      [args.job_id, ctx.tenantId, ownerEmail, ownerName, ownerEmail],
+    );
+    return { success: true, data: { id: args.job_id, title: card.title, owner_name: ownerName, _source: 'project_card' } };
+  }
   await syncOperationalRuntimeForJob(ctx.tenantId, args.job_id);
 
   // Resolve owner name

@@ -81,6 +81,37 @@ export default async function peopleRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: rows });
   });
 
+  // ── POST /people ─────────────────────────────────────────────────────────
+  app.post('/people', {
+    preHandler: [authGuard, requirePerm('clients:write'), tenantGuard()],
+  }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const body = z.object({
+      display_name: z.string().min(1).max(200),
+      is_internal: z.boolean().optional().default(true),
+      notes: z.string().max(2000).nullable().optional(),
+      email: z.string().email().optional(),
+    }).parse(request.body || {});
+
+    const { rows } = await query(
+      `INSERT INTO people (tenant_id, display_name, is_internal, notes)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [tenantId, body.display_name, body.is_internal ?? true, body.notes ?? null],
+    );
+    const personId = rows[0].id;
+
+    if (body.email) {
+      await query(
+        `INSERT INTO person_identities (person_id, tenant_id, identity_type, identity_value, normalized_value, is_primary)
+         VALUES ($1, $2, 'email', $3, LOWER($3), true)
+         ON CONFLICT (tenant_id, identity_type, normalized_value) DO NOTHING`,
+        [personId, tenantId, body.email.trim().toLowerCase()],
+      );
+    }
+
+    return reply.code(201).send({ success: true, id: personId });
+  });
+
   // ── PATCH /people/:id ────────────────────────────────────────────────────
   app.patch('/people/:id', {
     preHandler: [authGuard, requirePerm('clients:write'), tenantGuard()],
@@ -91,6 +122,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
       display_name: z.string().min(1).max(200).optional(),
       is_internal: z.boolean().optional(),
       notes: z.string().max(2000).nullable().optional(),
+      email: z.string().email().nullable().optional(),
     }).parse(request.body || {});
 
     const sets: string[] = ['updated_at = now()'];
@@ -104,6 +136,23 @@ export default async function peopleRoutes(app: FastifyInstance) {
       vals,
     );
     if (!rows.length) return reply.code(404).send({ error: 'not_found' });
+
+    // Update primary email identity if provided
+    if (body.email !== undefined) {
+      await query(
+        `DELETE FROM person_identities WHERE person_id = $1 AND tenant_id = $2 AND identity_type = 'email'`,
+        [id, tenantId],
+      );
+      if (body.email) {
+        await query(
+          `INSERT INTO person_identities (person_id, tenant_id, identity_type, identity_value, normalized_value, is_primary)
+           VALUES ($1, $2, 'email', $3, LOWER($3), true)
+           ON CONFLICT (tenant_id, identity_type, normalized_value) DO NOTHING`,
+          [id, tenantId, body.email.trim().toLowerCase()],
+        );
+      }
+    }
+
     return reply.send({ success: true });
   });
 
