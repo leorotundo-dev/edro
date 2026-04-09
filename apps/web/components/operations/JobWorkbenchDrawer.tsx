@@ -57,6 +57,7 @@ import {
 import {
   calculatePriorityPreview,
   estimateJobMinutes,
+  cleanJobTitle,
   formatSourceLabel,
   formatDateTime,
   formatMinutes,
@@ -1659,7 +1660,7 @@ export default function JobWorkbenchDrawer({
     <ContextDrawer
       open={open}
       presentation={presentation}
-      title={mode === 'create' ? selectedComposer.title : detailJob?.title || 'Demanda operacional'}
+      title={mode === 'create' ? selectedComposer.title : cleanJobTitle(detailJob?.title || 'Demanda operacional', detailJob?.client_name)}
       subtitle={mode === 'create'
         ? selectedComposer.subtitle
         : `${selectedClient?.name || detailJob?.client_name || 'Sem cliente'} · ${STAGE_LABELS[detailJob?.status || 'intake'] || 'Na fila'} · ${formatSourceLabel(detailJob?.source || form.source)}`}
@@ -2401,22 +2402,22 @@ export default function JobWorkbenchDrawer({
                   </Box>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <AskJarvisButton
-                      message={`Resuma a demanda "${detailJob.title}" do cliente "${detailJob.client_name || 'Sem cliente'}" e me diga o próximo passo operacional.`}
+                      message={`Resuma a demanda "${cleanJobTitle(detailJob.title, detailJob.client_name)}" do cliente "${detailJob.client_name || 'Sem cliente'}" e me diga o próximo passo operacional.`}
                       label="Resumir demanda"
                       variant="outlined"
                     />
                     <AskJarvisButton
-                      message={`Transforme a demanda "${detailJob.title}" do cliente "${detailJob.client_name || 'Sem cliente'}" em um briefing objetivo para a equipe executar.`}
+                      message={`Transforme a demanda "${cleanJobTitle(detailJob.title, detailJob.client_name)}" do cliente "${detailJob.client_name || 'Sem cliente'}" em um briefing objetivo para a equipe executar.`}
                       label="Virar briefing"
                       variant="outlined"
                     />
                     <AskJarvisButton
-                      message={`Gere o copy inicial e a direção criativa da demanda "${detailJob.title}" do cliente "${detailJob.client_name || 'Sem cliente'}".`}
+                      message={`Gere o copy inicial e a direção criativa da demanda "${cleanJobTitle(detailJob.title, detailJob.client_name)}" do cliente "${detailJob.client_name || 'Sem cliente'}".`}
                       label="Gerar copy"
                       variant="outlined"
                     />
                     <AskJarvisButton
-                      message={`Prepare a aprovação da demanda "${detailJob.title}" para o cliente, com resumo do que foi feito e do que precisa ser validado.`}
+                      message={`Prepare a aprovação da demanda "${cleanJobTitle(detailJob.title, detailJob.client_name)}" para o cliente, com resumo do que foi feito e do que precisa ser validado.`}
                       label="Preparar aprovação"
                       variant="outlined"
                     />
@@ -2591,7 +2592,7 @@ export default function JobWorkbenchDrawer({
           <Stack spacing={1.5} sx={{ pt: 0.5 }}>
             <Typography variant="body2" color="text.secondary">
               {detailJob
-                ? `A demanda "${detailJob.title}" será removida da Central de Operações.`
+                ? `A demanda "${cleanJobTitle(detailJob.title, detailJob.client_name)}" será removida da Central de Operações.`
                 : 'A demanda selecionada será removida da Central de Operações.'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
