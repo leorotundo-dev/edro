@@ -5,7 +5,7 @@ import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
 import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, generateNanoBananaEditMultiWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v9';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v10';
 
 const AVATAR_STYLE_REFERENCE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-reference.png');
 const AVATAR_STYLE_BRIDGE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-bridge.jpg');
@@ -13,15 +13,15 @@ let avatarStyleReferenceDataUrlPromise: Promise<string> | null = null;
 let avatarStyleBridgeDataUrlPromise: Promise<string> | null = null;
 
 const EDRO_AVATAR_BASE_PROMPT = `
-turn photo 1 into a stylized 3D animated character.
+create a freelancer profile avatar from photo 1.
 
-preserve the exact identity from photo 1: same face shape, eyes, nose, mouth, hair, beard, skin tone, age, and gender presentation. do not beautify, do not feminize, do not masculinize, and do not replace the face with a generic cartoon person.
+photo 1 is the identity source of truth. keep the exact same person: same face shape, forehead, jawline, nose, eyes, eyebrows, mouth, hairline, hairstyle, beard, skin tone, age range, and gender presentation. if there is any conflict, always follow photo 1 and never invent a prettier, younger, more feminine, or more generic face.
 
-use photo 2 as a caricature bridge to simplify the face away from realism. use photo 3 as the approved edro style reference to lock the final visual family. the final result must look like the same real person, but as a new member of that same turma and same polished pixar-toy-like 3d world.
+photo 2 is only a bridge to simplify the face away from realism. photo 3 is the final style reference and must define the finished visual family. the result must look like the same real person from photo 1, now translated into the same polished pixar-toy-like 3d world and same turma visual as photo 3.
 
-make the face simpler, friendlier, and more graphic than the real photo, but still immediately recognizable. preserve the real hairstyle, facial hair, clothing neckline, and shoulders.
+simplify and stylize the face, but keep it unmistakably recognizable. preserve the real haircut, facial hair, neckline, shoulders, and general proportions. do not swap long hair for short hair, do not remove the beard, and do not change the overall presentation of the person.
 
-show only one character in a bust portrait from the upper chest upward, with a subtle three-quarter angle slightly turned to the right. use soft studio lighting, matte materials, and a solid strong edro orange background. no props, no text, no extra characters, no realistic environment.
+render only one character in a clean bust portrait from the upper chest upward, slightly turned to the right. use soft studio lighting, matte toy-like materials, clean shapes, and a solid strong edro orange background. no props, no text, no extra characters, no realistic environment.
 `.trim();
 
 const EDRO_AVATAR_NEGATIVE_PROMPT = `
@@ -31,7 +31,7 @@ generic face, different person, identity drift, face swap, gender swap, younger 
 function buildAvatarPrompt(customPrompt?: string) {
   const extra = customPrompt?.trim();
   if (!extra || extra === EDRO_AVATAR_BASE_PROMPT) return EDRO_AVATAR_BASE_PROMPT;
-  return `${EDRO_AVATAR_BASE_PROMPT}\n\nadditional requested adjustments:\n${extra}`.trim();
+  return `${EDRO_AVATAR_BASE_PROMPT}\n\napply these extra adjustments only if they do not conflict with the identity from photo 1, the final style family from photo 3, the bust composition, or the solid edro orange background:\n${extra}`.trim();
 }
 
 async function getAvatarStyleReferenceDataUrl() {
