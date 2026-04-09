@@ -1933,6 +1933,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const tenantId = request.user?.tenant_id as string;
     const { state } = z.object({ state: z.enum(['complete', 'incomplete']) }).parse(request.body);
 
+    // Validate checkItemId is a safe Trello ID (24-char hex) — prevents SSRF via URL injection
+    if (!/^[a-f0-9]{24}$/i.test(checkItemId)) {
+      return reply.status(400).send({ error: 'checkItemId inválido.' });
+    }
+
     // Resolve the Trello card ID
     const cardRes = await query<{ trello_card_id: string | null }>(
       `SELECT trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2`,
