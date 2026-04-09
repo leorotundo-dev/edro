@@ -10,6 +10,7 @@
 import { query } from '../db';
 import { syncAllTrelloBoardsForTenant } from '../services/trelloSyncService';
 import { analyzeAllBoardsForTenant } from '../services/trelloHistoryAnalyzer';
+import { ensureAllWebhooksForTenant } from '../services/trelloWebhookService';
 
 let lastRunAt = 0;
 const MIN_INTERVAL_MS = 30 * 60 * 1000; // 30 min
@@ -43,6 +44,8 @@ export async function runTrelloSyncWorkerOnce(): Promise<void> {
       await syncAllTrelloBoardsForTenant(tenant_id);
       // Run history analysis after sync to keep analytics fresh
       await analyzeAllBoardsForTenant(tenant_id);
+      // Ensure realtime webhooks are registered for all boards (idempotent)
+      await ensureAllWebhooksForTenant(tenant_id);
 
       await query(
         `UPDATE trello_connectors SET last_synced_at = now() WHERE tenant_id = $1`,

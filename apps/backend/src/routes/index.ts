@@ -60,6 +60,7 @@ import webhookGmailRoutes from './webhookGmail';
 import googleCalendarRoutes from './googleCalendarRoutes';
 import webhookGoogleCalendarRoutes from './webhookGoogleCalendar';
 import webhookRecallRoutes from './webhookRecall';
+import webhookTrelloRoutes from './webhookTrello';
 import jobsRoutes from './jobs';
 import operationsRoutes from './operations';
 import peopleRoutes from './people';
@@ -143,6 +144,8 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(webhookGoogleCalendarRoutes);
   // Recall async webhooks — no /api prefix
   app.register(webhookRecallRoutes);
+  // Trello realtime inbound — no /api prefix (Trello calls the raw URL)
+  app.register(webhookTrelloRoutes);
   app.register(meetingRoutes, { prefix: '/api' });
   app.register(evolutionRoutes, { prefix: '/api' });
   app.register(whatsappInboxRoutes, { prefix: '/api' });
