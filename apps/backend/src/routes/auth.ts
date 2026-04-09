@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { buildPortalCodeHash, issuePortalLoginCode, requestLoginCode, verifyLoginCode } from '../services/authService';
+import { buildPortalCodeHash, issuePortalLoginCode, requestLoginCode, resolveRole, verifyLoginCode } from '../services/authService';
 import { findUserByEmail, findUserById, consumeLoginCode, upsertUser } from '../repositories/edroUserRepository';
 import {
   findUserMfaByUserId,
@@ -177,6 +177,34 @@ export default async function authRoutes(app: FastifyInstance) {
     return undefined;
   };
 
+  const selfHealPrivilegedMembership = async (params: {
+    email: string;
+    userId: string;
+    tenantId?: string | null;
+  }) => {
+    const forcedRole = resolveRole(params.email);
+    if (!forcedRole) return null;
+
+    const tenantRole = mapRoleToTenantRole(forcedRole);
+    let targetTenantId = params.tenantId ?? (await resolvePortalAuthTenantId(params.email));
+    if (!targetTenantId) {
+      const domain = params.email.split('@')[1] || '';
+      const tenant = domain ? await ensureTenantForDomain(domain, true) : null;
+      targetTenantId = tenant?.id ?? null;
+    }
+
+    await upsertUser({ email: params.email, role: forcedRole });
+    if (targetTenantId) {
+      await ensureTenantMembership({
+        tenant_id: targetTenantId,
+        user_id: params.userId,
+        role: tenantRole,
+      });
+    }
+
+    return { tenantRole, tenantId: targetTenantId };
+  };
+
   app.post('/auth/request', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const bodySchema = z.object({ email: z.string().email() });
     const body = bodySchema.parse(request.body);
@@ -282,7 +310,7 @@ export default async function authRoutes(app: FastifyInstance) {
   const handleMe = async (request: any, reply: any) => {
     try {
       await request.jwtVerify();
-      const userPayload = request.user as { email?: string; role?: string; mfa?: boolean };
+      const userPayload = request.user as { email?: string; role?: string; mfa?: boolean; tenant_id?: string | null };
       if (!userPayload?.email) {
         return reply.status(401).send({ error: 'Não autorizado.' });
       }
@@ -290,11 +318,24 @@ export default async function authRoutes(app: FastifyInstance) {
       if (shouldEnforcePrivilegedMfa(userPayload.role) && userPayload.mfa !== true) {
         return reply.status(401).send({ error: 'mfa_required' });
       }
-      const user = await findUserByEmail(userPayload.email);
+      let user = await findUserByEmail(userPayload.email);
       if (!user) {
         return reply.status(404).send({ error: 'Usuário não encontrado.' });
       }
-      const tenant = await getPrimaryTenantForUser(user.id);
+      let tenant = await getPrimaryTenantForUser(user.id);
+      const forcedRole = resolveRole(user.email);
+      if (forcedRole) {
+        const expectedTenantRole = mapRoleToTenantRole(forcedRole);
+        if (user.role !== forcedRole || tenant?.role !== expectedTenantRole) {
+          await selfHealPrivilegedMembership({
+            email: user.email,
+            userId: user.id,
+            tenantId: tenant?.tenant_id ?? userPayload.tenant_id ?? null,
+          });
+          user = (await findUserByEmail(user.email)) ?? user;
+          tenant = await getPrimaryTenantForUser(user.id);
+        }
+      }
       const mfaRecord = await findUserMfaByUserId(user.id);
       const mfaEnabled = Boolean(mfaRecord?.enabled_at && mfaRecord?.secret_enc);
       const mfaEnforced = shouldEnforcePrivilegedMfa(tenant?.role ?? user.role);
