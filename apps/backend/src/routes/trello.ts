@@ -919,7 +919,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const { rows: cards } = await query<{
       id: string; title: string; description: string | null;
       due_date: string | null; due_complete: boolean; labels: any;
-      cover_color: string | null; trello_url: string | null; trello_card_id: string | null;
+      cover_color: string | null; cover_url: string | null;
+      last_activity_at: string | null; attachments: any;
+      trello_url: string | null; trello_card_id: string | null;
       start_date: string | null; priority: string; estimated_hours: number | null;
       created_at: string;
       list_id: string; list_name: string;
@@ -931,7 +933,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
     }>(
       `SELECT
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
-         pc.cover_color, pc.trello_url, pc.trello_card_id,
+         pc.cover_color, pc.cover_url, pc.last_activity_at::text, pc.attachments,
+         pc.trello_url, pc.trello_card_id,
          pc.start_date::text, pc.priority, pc.estimated_hours,
          pc.created_at::text,
          pl.id as list_id, pl.name as list_name,
@@ -1026,6 +1029,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
           list_name: c.list_name,
           labels,
           due_complete: c.due_complete,
+          cover_image_url: c.cover_url ?? null,
+          last_activity_at: c.last_activity_at ?? null,
+          attachments: Array.isArray(c.attachments) ? c.attachments : [],
         },
       };
     });

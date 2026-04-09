@@ -57,6 +57,15 @@ export interface TrelloList {
   pos: number;
 }
 
+export interface TrelloAttachment {
+  id: string;
+  name: string;
+  url: string;
+  mimeType: string;
+  date: string;
+  isUpload: boolean;
+}
+
 export interface TrelloCard {
   id: string;
   idList: string;
@@ -66,11 +75,13 @@ export interface TrelloCard {
   due: string | null;
   dueComplete: boolean;
   labels: { color: string; name: string }[];
-  cover: { color: string | null };
+  cover: { color: string | null; idAttachment: string | null };
   closed: boolean;
   url: string;
   shortLink: string;
   idMembers: string[];
+  dateLastActivity: string | null;
+  attachments: TrelloAttachment[];
 }
 
 export interface TrelloMember {
@@ -204,7 +215,9 @@ export async function syncTrelloBoard(
     lists      = await trelloGet<TrelloList[]>(`/boards/${trelloBoardId}/lists`, creds, { fields: 'id,name,closed,pos' });
     cards      = await trelloGet<TrelloCard[]>(`/boards/${trelloBoardId}/cards`, creds, {
       filter: 'open', // only active cards — archived cards retrieved separately if needed
-      fields: 'id,idList,name,desc,pos,due,dueComplete,labels,cover,closed,url,shortLink,idMembers',
+      fields: 'id,idList,name,desc,pos,due,dueComplete,labels,cover,closed,url,shortLink,idMembers,dateLastActivity',
+      attachments: 'true',
+      attachment_fields: 'id,name,url,mimeType,date,isUpload',
     });
     members    = await trelloGet<TrelloMember[]>(`/boards/${trelloBoardId}/members`, creds, { fields: 'id,fullName,username,email,avatarUrl' });
     checklists = await trelloGet<TrelloChecklist[]>(`/boards/${trelloBoardId}/checklists`, creds, { fields: 'id,idCard,name,checkItems' });
@@ -314,16 +327,24 @@ export async function syncTrelloBoard(
         continue;
       }
 
+      // Derive cover image URL: use the attachment marked as cover, or first image attachment
+      const coverAttachment = card.cover?.idAttachment
+        ? (card.attachments ?? []).find((a) => a.id === card.cover.idAttachment)
+        : (card.attachments ?? []).find((a) => a.mimeType?.startsWith('image/') && a.isUpload);
+      const coverUrl = coverAttachment?.url ?? null;
+
       const cardRes = await client.query<{ id: string }>(
         `INSERT INTO project_cards
            (list_id, board_id, tenant_id, title, description, position, due_date, due_complete,
-            labels, cover_color, is_archived, trello_card_id, trello_url, trello_short_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            labels, cover_color, cover_url, last_activity_at, attachments,
+            is_archived, trello_card_id, trello_url, trello_short_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          ON CONFLICT (board_id, trello_card_id)
          DO UPDATE SET
            list_id = $1, title = $4, description = $5, position = $6,
            due_date = $7, due_complete = $8, labels = $9, cover_color = $10,
-           is_archived = $11, trello_url = $13, updated_at = now()
+           cover_url = $11, last_activity_at = $12, attachments = $13,
+           is_archived = $14, trello_url = $16, updated_at = now()
          RETURNING id`,
         [
           edroListId, boardId, tenantId, card.name, card.desc || null, card.pos,
@@ -333,8 +354,9 @@ export async function syncTrelloBoard(
             const dt = new Date(d + 'T00:00:00Z');
             return !isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === d ? d : null;
           })(), card.dueComplete,
-          JSON.stringify(card.labels ?? []), card.cover?.color ?? null, card.closed,
-          card.id, card.url, card.shortLink,
+          JSON.stringify(card.labels ?? []), card.cover?.color ?? null,
+          coverUrl, card.dateLastActivity ?? null, JSON.stringify(card.attachments ?? []),
+          card.closed, card.id, card.url, card.shortLink,
         ],
       );
       cardIdMap[card.id] = cardRes.rows[0].id;
