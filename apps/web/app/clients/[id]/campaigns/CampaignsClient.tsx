@@ -678,6 +678,12 @@ function CampaignDetail({
   const [biPlatform, setBiPlatform] = useState<Record<string, string>>({});
   const [expandedBiCopy, setExpandedBiCopy] = useState<string | null>(null);
 
+  // Jobs linked to this campaign
+  const [linkedJobs, setLinkedJobs] = useState<Array<{
+    id: string; title: string; status: string; due_date: string | null;
+    owner_name: string | null; list_name: string; client_name: string | null; trello_url: string | null;
+  }>>([]);
+
   // Campaign layout pieces
   const [generatingPiecesFor, setGeneratingPiecesFor] = useState<string | null>(null);
   const [campaignPieces, setCampaignPieces] = useState<any[]>([]);
@@ -692,7 +698,7 @@ function CampaignDetail({
   const loadDetail = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, profilesRes, rulesRes, copiesRes] = await Promise.all([
+      const [res, profilesRes, rulesRes, copiesRes, jobsRes] = await Promise.all([
         apiGet<{
           success: boolean;
           data: {
@@ -711,12 +717,16 @@ function CampaignDetail({
         apiGet<{ success: boolean; data: any[] }>(
           `/campaigns/${campaign.id}/behavioral-copies?limit=50`
         ).catch(() => ({ success: false, data: [] as any[] })),
+        apiGet<{ jobs: any[] }>(
+          `/campaigns/${campaign.id}/jobs`
+        ).catch(() => ({ jobs: [] })),
       ]);
       setFormats(res?.data?.formats || []);
       setBriefings(res?.data?.briefings || []);
       setConcepts(res?.data?.concepts || []);
       setBehaviorProfiles(profilesRes?.data || []);
       setLearningRules(rulesRes?.data || []);
+      setLinkedJobs(jobsRes?.jobs || []);
 
       // Reconstruct behavioralCopyMap from persisted results (most recent per behavior_intent_id)
       const storedCopies: any[] = copiesRes?.data || [];
@@ -1569,6 +1579,55 @@ function CampaignDetail({
                   </Card>
                 );
               })}
+          </Stack>
+        </Box>
+      )}
+
+      {/* ── Jobs Vinculados ─────────────────────────────────────────────── */}
+      {linkedJobs.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+            Jobs em execução ({linkedJobs.length})
+          </Typography>
+          <Stack spacing={0.75}>
+            {linkedJobs.map((j) => {
+              const overdue = j.due_date && new Date(j.due_date) < new Date();
+              const STATUS_COLOR: Record<string, string> = {
+                done: '#13DEB9', published: '#13DEB9', in_progress: '#5D87FF',
+                review: '#FFAE1F', blocked: '#FA896B', backlog: '#94a3b8',
+              };
+              const dot = STATUS_COLOR[j.status] ?? '#94a3b8';
+              return (
+                <Card key={j.id} variant="outlined" sx={{ borderRadius: 2 }}>
+                  <CardContent sx={{ py: 1, '&:last-child': { pb: 1 }, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: dot, flexShrink: 0 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {j.title}
+                      </Typography>
+                      <Stack direction="row" spacing={0.5} sx={{ mt: 0.25 }}>
+                        <Chip size="small" label={j.list_name} sx={{ height: 14, fontSize: '0.56rem' }} />
+                        {j.due_date && (
+                          <Typography variant="caption" color={overdue ? 'error' : 'text.secondary'} sx={{ fontSize: '0.58rem', alignSelf: 'center' }}>
+                            {j.due_date}
+                          </Typography>
+                        )}
+                        {j.owner_name && (
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.58rem', alignSelf: 'center' }}>
+                            · {j.owner_name}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                    {j.trello_url && (
+                      <IconButton size="small" component="a" href={j.trello_url} target="_blank" rel="noreferrer" sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                        <IconExternalLink size={12} />
+                      </IconButton>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </Stack>
         </Box>
       )}

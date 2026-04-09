@@ -326,6 +326,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       priority: z.enum(['urgent', 'high', 'normal', 'low']).optional(),
       estimated_hours: z.number().positive().nullable().optional(),
       parent_card_id: z.string().uuid().nullable().optional(),
+      campaign_id: z.string().uuid().nullable().optional(),
       position: z.number().optional(),
       labels: z.array(z.object({ color: z.string(), name: z.string() })).optional(),
       is_archived: z.boolean().optional(),
@@ -337,7 +338,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     // Fields that map directly to columns
     const directFields = ['title', 'description', 'list_id', 'due_date', 'due_complete', 'start_date',
-      'priority', 'estimated_hours', 'parent_card_id', 'position', 'labels', 'is_archived'] as const;
+      'priority', 'estimated_hours', 'parent_card_id', 'campaign_id', 'position', 'labels', 'is_archived'] as const;
 
     for (const key of directFields) {
       const val = (body as Record<string, unknown>)[key];
@@ -944,7 +945,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pc.cover_color, pc.cover_url, pc.last_activity_at::text, pc.attachments,
          pc.trello_url, pc.trello_card_id,
          pc.start_date::text, pc.priority, pc.estimated_hours,
-         pc.created_at::text,
+         pc.created_at::text, pc.campaign_id,
          pl.id as list_id, pl.name as list_name,
          pb.id as board_id, pb.name as board_name,
          pb.client_id,
@@ -1578,7 +1579,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const cardRes = await query<Record<string, any>>(
       `SELECT
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
-         pc.trello_url, pc.trello_card_id,
+         pc.trello_url, pc.trello_card_id, pc.campaign_id,
+         camp.name as campaign_name,
          pl.id as list_id, pl.name as list_name,
          m.ops_status as override_status,
          pb.id as board_id, pb.name as board_name, pb.client_id,
@@ -1595,6 +1597,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
        JOIN project_boards pb ON pb.id = pc.board_id
        LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       LEFT JOIN campaigns camp ON camp.id = pc.campaign_id
        WHERE pc.id = $1 AND pc.tenant_id = $2`,
       [cardId, tenantId],
     );

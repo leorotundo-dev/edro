@@ -90,6 +90,8 @@ export type OperationsJob = {
       checked: boolean;
     }>;
   }>;
+  campaign_id?: string | null;
+  campaign_name?: string | null;
 };
 
 export type OperationsLookup = {
