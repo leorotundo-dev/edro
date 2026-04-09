@@ -24,6 +24,7 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconArrowLeft,
+  IconBrush,
   IconCalendar,
   IconCheck,
   IconChevronDown,
@@ -33,11 +34,14 @@ import {
   IconHistory,
   IconMessage,
   IconPencil,
+  IconPlayerPause,
+  IconPlayerPlay,
   IconPlus,
   IconRefresh,
   IconSend,
   IconSparkles,
   IconUser,
+  IconUsers,
   IconX,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
@@ -258,7 +262,15 @@ function HistoryRow({ row }: { row: { id: string; from_status?: string | null; t
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function JobDetailClient({ id, onClose }: { id: string; onClose?: () => void }) {
+export default function JobDetailClient({
+  id,
+  onClose,
+  onStatusChange,
+}: {
+  id: string;
+  onClose?: () => void;
+  onStatusChange?: (status: string) => Promise<void>;
+}) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const router = useRouter();
@@ -289,6 +301,10 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   const [editingDesc, setEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState('');
   const [savingDesc, setSavingDesc] = useState(false);
+
+  // Status change
+  const [movingStatus, setMovingStatus] = useState(false);
+  const [statusSelectOpen, setStatusSelectOpen] = useState(false);
 
   // Checklist item toggling
   const [togglingItem, setTogglingItem] = useState<string | null>(null);
@@ -440,6 +456,18 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
       } finally {
         setTogglingItem(null);
       }
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!job || !onStatusChange || newStatus === job.status) return;
+    setMovingStatus(true);
+    try {
+      await onStatusChange(newStatus);
+      await load();
+    } catch { /* silent */ } finally {
+      setMovingStatus(false);
+      setStatusSelectOpen(false);
     }
   };
 
@@ -1037,294 +1065,314 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
           </Stack>
         </Grid>
 
-        {/* ── Right column: Metadata ── */}
+        {/* ── Right column: Trello-style sidebar ── */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, position: 'sticky', top: railStickyTop }}>
-            <Typography variant="caption" fontWeight={800} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 0.5 }}>
-              Detalhes
-            </Typography>
-            <Divider sx={{ mb: 1 }} />
+          <Stack spacing={2.5} sx={{ position: 'sticky', top: railStickyTop }}>
 
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: 1,
-                mb: 1.5,
-              }}
-            >
-              <SignalTile eyebrow="Risco" value={risk.label} caption={`Score ${risk.score}`} color={risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : risk.level === 'medium' ? '#5D87FF' : '#13DEB9'} />
-              <SignalTile eyebrow="Fila" value={queueLabel} caption={blockedLabel} color="#5D87FF" />
-            </Box>
-
-            {/* Status */}
-            <MetaRow icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: statusColor(job.status) }} />} label="Status">
-              <Chip
-                size="small"
-                label={STATUS_LABELS[job.status] ?? job.status}
-                sx={{ fontWeight: 700, fontSize: '0.72rem', height: 20, bgcolor: alpha(statusColor(job.status), 0.12), color: statusColor(job.status) }}
-              />
-            </MetaRow>
-            <Divider sx={{ my: 0.25 }} />
-
-            {/* Client */}
-            {job.client_name && (
-              <>
-                <MetaRow icon={<IconUser size={14} />} label="Cliente">
-                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{job.client_name}</Typography>
-                </MetaRow>
-                <Divider sx={{ my: 0.25 }} />
-              </>
-            )}
-
-            {/* Deadline */}
-            <MetaRow icon={<IconCalendar size={14} />} label="Prazo de entrega">
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem', color: job.deadline_at && new Date(job.deadline_at) < new Date() ? '#FA896B' : 'text.primary' }}>
-                {fmtDate(job.deadline_at)}
-              </Typography>
-            </MetaRow>
-            <Divider sx={{ my: 0.25 }} />
-
-            {/* Size */}
-            {job.job_size && (
-              <>
-                <MetaRow icon={<IconClipboardList size={14} />} label="Tamanho">
-                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{job.job_size}</Typography>
-                </MetaRow>
-                <Divider sx={{ my: 0.25 }} />
-              </>
-            )}
-
-            {/* Type */}
-            {job.job_type && (
-              <>
-                <MetaRow icon={<IconPencil size={14} />} label="Tipo">
-                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{job.job_type}</Typography>
-                </MetaRow>
-                <Divider sx={{ my: 0.25 }} />
-              </>
-            )}
-
-            <MetaRow icon={<IconSparkles size={14} />} label="Próxima ação">
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{nextAction.label}</Typography>
-            </MetaRow>
-            <Divider sx={{ my: 0.25 }} />
-
-            <MetaRow icon={<IconClipboardList size={14} />} label="Origem">
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{sourceLabel}</Typography>
-            </MetaRow>
-            <Divider sx={{ my: 0.25 }} />
-
-            <MetaRow icon={<IconClipboardList size={14} />} label="Especialidade">
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{skillLabel}</Typography>
-            </MetaRow>
-            <Divider sx={{ my: 0.25 }} />
-
-            {/* Owner / Responsável */}
-            <MetaRow icon={<IconUser size={14} />} label="Responsável">
-              {job.owner_name ? (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Avatar src={job.owner_avatar_url ?? undefined} sx={{ width: 22, height: 22, fontSize: '0.55rem', fontWeight: 800 }}>
-                    {initials(job.owner_name)}
-                  </Avatar>
-                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.84rem' }}>{job.owner_name}</Typography>
-                </Stack>
-              ) : (
-                <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.84rem' }}>Sem responsável</Typography>
-              )}
-            </MetaRow>
-
-            {/* Assignees */}
-            {(job.assignees?.length ?? 0) > 0 && (
-              <>
-                <Divider sx={{ my: 0.25 }} />
-                <MetaRow icon={<IconUser size={14} />} label="Equipe">
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                    {job.assignees?.map((a) => (
-                      <Tooltip key={a.user_id} title={a.name}>
-                        <Avatar src={a.avatar_url ?? undefined} sx={{ width: 26, height: 26, fontSize: '0.6rem', fontWeight: 800 }}>
-                          {initials(a.name)}
-                        </Avatar>
-                      </Tooltip>
-                    ))}
-                  </Stack>
-                </MetaRow>
-              </>
-            )}
-
-            <Divider sx={{ my: 0.25 }} />
-            <MetaRow icon={<IconCalendar size={14} />} label="Ritmo da entrega">
-              <Typography
-                variant="body2"
-                fontWeight={600}
-                sx={{
-                  fontSize: '0.84rem',
-                  color: deadlineInfo.tone === 'error' ? '#FA896B' : deadlineInfo.tone === 'warning' ? '#B26A00' : deadlineInfo.tone === 'info' ? '#5D87FF' : 'text.primary',
-                }}
-              >
-                {deadlineInfo.label}
-              </Typography>
-            </MetaRow>
-
-            <Divider sx={{ my: 1.5 }} />
-
-            {/* People picker */}
+            {/* ── ADICIONAR AO CARTÃO ── */}
             <Box>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                <Typography variant="caption" fontWeight={800} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Pessoas no job
-                </Typography>
-                <IconButton
-                  size="small"
-                  onClick={() => { setPeopleOpen((v) => !v); setPeopleError(''); }}
-                  sx={{ p: 0.25, opacity: 0.5, '&:hover': { opacity: 1 } }}
-                >
-                  {peopleOpen ? <IconX size={14} /> : <IconPlus size={14} />}
-                </IconButton>
-              </Stack>
+              <Typography variant="caption" fontWeight={800} color="text.disabled" sx={{ fontSize: '0.64rem', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 1 }}>
+                Adicionar ao cartão
+              </Typography>
+              <Stack spacing={0.75}>
 
-              {!peopleOpen ? (
-                <Stack spacing={1}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    {job.owner_name ? (
-                      <>
-                        <Avatar src={job.owner_avatar_url ?? undefined} sx={{ width: 24, height: 24, fontSize: '0.58rem', fontWeight: 800 }}>
-                          {initials(job.owner_name)}
-                        </Avatar>
-                        <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.82rem' }}>
-                          {job.owner_name}
-                        </Typography>
-                      </>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
-                        Sem responsável principal
-                      </Typography>
-                    )}
-                  </Stack>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                    {(job.assignees?.length ?? 0) > 0 ? (
-                      job.assignees?.map((assignee) => (
-                        <Chip
-                          key={assignee.user_id}
-                          size="small"
-                          avatar={<Avatar src={assignee.avatar_url ?? undefined}>{initials(assignee.name)}</Avatar>}
-                          label={assignee.name}
-                        />
-                      ))
-                    ) : (
-                      <Typography variant="caption" color="text.disabled">
-                        Nenhuma pessoa adicional no job.
-                      </Typography>
-                    )}
-                  </Stack>
-                </Stack>
-              ) : (
-                <Stack spacing={1}>
-                  <Autocomplete
-                    options={owners}
-                    value={selectedOwner}
-                    onChange={(_event, value) => {
-                      const nextOwnerId = value?.id || null;
-                      setSelectedOwnerId(nextOwnerId);
-                      if (nextOwnerId && !selectedAssigneeIds.includes(nextOwnerId)) {
-                        setSelectedAssigneeIds((current) => [...current, nextOwnerId]);
-                      }
-                    }}
-                    getOptionLabel={(option) => option.name}
-                    renderInput={(params) => <TextField {...params} label="Responsável principal" size="small" />}
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>
-                            {initials(option.name)}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </Box>
-                    )}
-                  />
-
-                  <Autocomplete
-                    multiple
-                    options={owners}
-                    value={selectedAssignees}
-                    onChange={(_event, value) => {
-                      const ids = value.map((item) => item.id);
-                      setSelectedAssigneeIds(ids);
-                      if (selectedOwnerId && !ids.includes(selectedOwnerId)) {
-                        setSelectedOwnerId(ids[0] ?? null);
-                      }
-                    }}
-                    getOptionLabel={(option) => option.name}
-                    renderInput={(params) => <TextField {...params} label="Equipe do job" size="small" placeholder="Adicionar pessoa..." />}
-                    renderTags={(value, getTagProps) =>
-                      value.map((option, index) => (
-                        <Chip
-                          key={option.id}
-                          size="small"
-                          avatar={<Avatar>{initials(option.name)}</Avatar>}
-                          label={option.name}
-                          {...getTagProps({ index })}
-                        />
-                      ))
-                    }
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>
-                            {initials(option.name)}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </Box>
-                    )}
-                  />
-
-                  {peopleError && <Alert severity="error" sx={{ fontSize: '0.78rem', py: 0.5 }}>{peopleError}</Alert>}
-
+                {/* Membros */}
+                <Box>
                   <Button
-                    variant="outlined"
+                    fullWidth
                     size="small"
-                    disabled={savingPeople}
-                    onClick={handlePeopleSave}
-                    endIcon={savingPeople ? <CircularProgress size={12} /> : undefined}
-                    sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2 }}
+                    startIcon={<IconUsers size={15} />}
+                    onClick={() => { setPeopleOpen((v) => !v); setPeopleError(''); }}
+                    sx={(t) => ({
+                      justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                      borderRadius: 1.5, px: 1.5,
+                      color: 'text.primary',
+                      bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
+                      '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
+                    })}
                   >
-                    {savingPeople ? 'Salvando...' : 'Salvar pessoas do job'}
+                    Membros
+                    {(job.assignees?.length ?? 0) > 0 && (
+                      <Stack direction="row" spacing={-0.5} sx={{ ml: 'auto' }}>
+                        {(job.assignees ?? []).slice(0, 3).map((a) => (
+                          <Tooltip key={a.user_id} title={a.name}>
+                            <Avatar src={a.avatar_url ?? undefined} sx={{ width: 22, height: 22, fontSize: '0.52rem', fontWeight: 800, border: `2px solid ${dark ? '#1e1e2d' : '#fff'}` }}>
+                              {initials(a.name)}
+                            </Avatar>
+                          </Tooltip>
+                        ))}
+                      </Stack>
+                    )}
                   </Button>
-                </Stack>
-              )}
+
+                  {/* People picker inline */}
+                  {peopleOpen && (
+                    <Box sx={(t) => ({
+                      mt: 0.75, p: 1.5, borderRadius: 2,
+                      border: `1px solid ${t.palette.divider}`,
+                      bgcolor: t.palette.background.paper,
+                    })}>
+                      <Stack spacing={1.25}>
+                        <Autocomplete
+                          options={owners}
+                          value={selectedOwner}
+                          onChange={(_event, value) => {
+                            const nextOwnerId = value?.id || null;
+                            setSelectedOwnerId(nextOwnerId);
+                            if (nextOwnerId && !selectedAssigneeIds.includes(nextOwnerId)) {
+                              setSelectedAssigneeIds((current) => [...current, nextOwnerId]);
+                            }
+                          }}
+                          getOptionLabel={(option) => option.name}
+                          renderInput={(params) => <TextField {...params} label="Responsável principal" size="small" />}
+                          renderOption={(props, option) => (
+                            <Box component="li" {...props}>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>{initials(option.name)}</Avatar>
+                                <Box>
+                                  <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
+                                  <Typography variant="caption" color="text.secondary">{option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}</Typography>
+                                </Box>
+                              </Stack>
+                            </Box>
+                          )}
+                        />
+                        <Autocomplete
+                          multiple
+                          options={owners}
+                          value={selectedAssignees}
+                          onChange={(_event, value) => {
+                            const ids = value.map((item) => item.id);
+                            setSelectedAssigneeIds(ids);
+                            if (selectedOwnerId && !ids.includes(selectedOwnerId)) setSelectedOwnerId(ids[0] ?? null);
+                          }}
+                          getOptionLabel={(option) => option.name}
+                          renderInput={(params) => <TextField {...params} label="Equipe do job" size="small" placeholder="Adicionar pessoa..." />}
+                          renderTags={(value, getTagProps) =>
+                            value.map((option, index) => (
+                              <Chip key={option.id} size="small" avatar={<Avatar>{initials(option.name)}</Avatar>} label={option.name} {...getTagProps({ index })} />
+                            ))
+                          }
+                          renderOption={(props, option) => (
+                            <Box component="li" {...props}>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>{initials(option.name)}</Avatar>
+                                <Box>
+                                  <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
+                                  <Typography variant="caption" color="text.secondary">{option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}</Typography>
+                                </Box>
+                              </Stack>
+                            </Box>
+                          )}
+                        />
+                        {peopleError && <Alert severity="error" sx={{ fontSize: '0.78rem', py: 0.5 }}>{peopleError}</Alert>}
+                        <Stack direction="row" spacing={1}>
+                          <Button variant="contained" size="small" disabled={savingPeople} onClick={handlePeopleSave}
+                            endIcon={savingPeople ? <CircularProgress size={12} /> : undefined}
+                            sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 1.5, boxShadow: 'none', flex: 1 }}>
+                            {savingPeople ? 'Salvando...' : 'Salvar'}
+                          </Button>
+                          <Button size="small" onClick={() => { setPeopleOpen(false); setPeopleError(''); }}
+                            sx={{ fontWeight: 600, fontSize: '0.78rem', textTransform: 'none', borderRadius: 1.5 }}>
+                            Cancelar
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </Box>
+                  )}
+                </Box>
+
+                {/* Mover (status) */}
+                {onStatusChange && (
+                  <Box>
+                    <Button
+                      fullWidth
+                      size="small"
+                      startIcon={movingStatus ? <CircularProgress size={14} /> : <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: statusColor(job.status) }} />}
+                      onClick={() => setStatusSelectOpen((v) => !v)}
+                      disabled={movingStatus}
+                      sx={(t) => ({
+                        justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                        borderRadius: 1.5, px: 1.5,
+                        color: 'text.primary',
+                        bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
+                        '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
+                      })}
+                    >
+                      Mover
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontWeight: 600, fontSize: '0.75rem' }}>
+                        {STATUS_LABELS[job.status] ?? job.status}
+                      </Typography>
+                    </Button>
+                    {statusSelectOpen && (
+                      <Box sx={(t) => ({
+                        mt: 0.75, p: 1.5, borderRadius: 2,
+                        border: `1px solid ${t.palette.divider}`,
+                        bgcolor: t.palette.background.paper,
+                      })}>
+                        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1, fontSize: '0.72rem' }}>
+                          Mover para
+                        </Typography>
+                        <Stack spacing={0.5}>
+                          {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                            <Box
+                              key={key}
+                              component="button"
+                              type="button"
+                              disabled={key === job.status || movingStatus}
+                              onClick={() => handleStatusChange(key)}
+                              sx={(t) => ({
+                                appearance: 'none', textAlign: 'left', width: '100%', cursor: key === job.status ? 'default' : 'pointer',
+                                py: 0.625, px: 1, borderRadius: 1.5,
+                                border: key === job.status ? `1.5px solid ${alpha(statusColor(key), 0.5)}` : '1.5px solid transparent',
+                                bgcolor: key === job.status ? alpha(statusColor(key), 0.08) : 'transparent',
+                                '&:hover:not(:disabled)': { bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055) },
+                                '&:disabled': { opacity: key === job.status ? 1 : 0.4 },
+                              })}
+                            >
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: statusColor(key), flexShrink: 0 }} />
+                                <Typography variant="caption" fontWeight={key === job.status ? 800 : 600} sx={{ fontSize: '0.78rem', color: key === job.status ? statusColor(key) : 'text.primary' }}>
+                                  {label}
+                                </Typography>
+                                {key === job.status && <Box component="span" sx={{ ml: 'auto', fontSize: '0.65rem', color: 'text.disabled' }}>atual</Box>}
+                              </Stack>
+                            </Box>
+                          ))}
+                        </Stack>
+                        <Button size="small" fullWidth onClick={() => setStatusSelectOpen(false)}
+                          sx={{ mt: 1, fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5 }}>
+                          Cancelar
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+                )}
+              </Stack>
             </Box>
 
-            {/* External link */}
-            {job.external_link && (
-              <>
-                <Divider sx={{ my: 1.5 }} />
+            {/* ── AÇÕES ── */}
+            <Box>
+              <Typography variant="caption" fontWeight={800} color="text.disabled" sx={{ fontSize: '0.64rem', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 1 }}>
+                Ações
+              </Typography>
+              <Stack spacing={0.75}>
                 <Button
-                  component="a"
-                  href={job.external_link}
-                  target="_blank"
-                  rel="noreferrer"
-                  size="small"
-                  fullWidth
-                  endIcon={<IconExternalLink size={13} />}
-                  sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2, color: 'text.secondary', border: `1px solid ${theme.palette.divider}` }}
+                  fullWidth size="small"
+                  startIcon={<IconSparkles size={15} />}
+                  component={Link}
+                  href={`/admin/briefings/new?job_id=${job.id}${job.client_id ? `&client_id=${job.client_id}` : ''}`}
+                  sx={(t) => ({
+                    justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                    borderRadius: 1.5, px: 1.5, color: 'text.primary',
+                    bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
+                    '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
+                  })}
                 >
-                  Abrir no Trello
+                  Gerar Copy
                 </Button>
-              </>
-            )}
-          </Paper>
+                <Button
+                  fullWidth size="small"
+                  startIcon={<IconBrush size={15} />}
+                  component={Link}
+                  href={`/studio?jobId=${job.id}`}
+                  sx={(t) => ({
+                    justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                    borderRadius: 1.5, px: 1.5, color: 'text.primary',
+                    bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
+                    '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
+                  })}
+                >
+                  Abrir Studio
+                </Button>
+                {job.external_link && (
+                  <Button
+                    fullWidth size="small"
+                    startIcon={<IconExternalLink size={15} />}
+                    component="a" href={job.external_link} target="_blank" rel="noreferrer"
+                    sx={(t) => ({
+                      justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                      borderRadius: 1.5, px: 1.5, color: 'text.primary',
+                      bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
+                      '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
+                    })}
+                  >
+                    Abrir no Trello
+                  </Button>
+                )}
+                {onStatusChange && (
+                  <Button
+                    fullWidth size="small"
+                    startIcon={job.status === 'blocked' ? <IconPlayerPlay size={15} /> : <IconPlayerPause size={15} />}
+                    onClick={() => handleStatusChange(job.status === 'blocked' ? 'in_progress' : 'blocked')}
+                    disabled={movingStatus}
+                    sx={(t) => ({
+                      justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                      borderRadius: 1.5, px: 1.5,
+                      color: job.status === 'blocked' ? '#13DEB9' : '#FFAE1F',
+                      bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
+                      '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
+                    })}
+                  >
+                    {job.status === 'blocked' ? 'Desbloquear' : 'Bloquear'}
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+
+            {/* ── DETALHES ── */}
+            <Paper variant="outlined" sx={{ borderRadius: 2.5, overflow: 'hidden' }}>
+              <Box sx={{ px: 1.5, py: 1.25 }}>
+                <Typography variant="caption" fontWeight={800} color="text.disabled" sx={{ fontSize: '0.64rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Detalhes
+                </Typography>
+              </Box>
+              <Divider />
+              <Box sx={{ px: 1.5, py: 1 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1, mb: 1.25 }}>
+                  <SignalTile eyebrow="Risco" value={risk.label} caption={`Score ${risk.score}`} color={risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : risk.level === 'medium' ? '#5D87FF' : '#13DEB9'} />
+                  <SignalTile eyebrow="Fila" value={queueLabel} caption={blockedLabel} color="#5D87FF" />
+                </Box>
+                <Stack spacing={0} divider={<Divider />}>
+                  {[
+                    { label: 'Cliente', value: job.client_name },
+                    { label: 'Prazo', value: fmtDate(job.deadline_at), color: job.deadline_at && new Date(job.deadline_at) < new Date() ? '#FA896B' : undefined },
+                    { label: 'Status', value: STATUS_LABELS[job.status] ?? job.status, color: statusColor(job.status) },
+                    { label: 'Tipo', value: job.job_type },
+                    { label: 'Especialidade', value: skillLabel },
+                    { label: 'Origem', value: sourceLabel },
+                    { label: 'Próxima ação', value: nextAction.label },
+                    job.job_size ? { label: 'Tamanho', value: job.job_size } : null,
+                  ].filter(Boolean).map((row) => (
+                    <Stack key={row!.label} direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
+                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>{row!.label}</Typography>
+                      <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem', textAlign: 'right', color: row!.color ?? 'text.primary' }}>{row!.value ?? '—'}</Typography>
+                    </Stack>
+                  ))}
+                  {/* Responsável */}
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Responsável</Typography>
+                    {job.owner_name ? (
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <Avatar src={job.owner_avatar_url ?? undefined} sx={{ width: 18, height: 18, fontSize: '0.5rem', fontWeight: 800 }}>{initials(job.owner_name)}</Avatar>
+                        <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem' }}>{job.owner_name}</Typography>
+                      </Stack>
+                    ) : (
+                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.78rem' }}>—</Typography>
+                    )}
+                  </Stack>
+                  {/* Ritmo */}
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Ritmo</Typography>
+                    <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem', textAlign: 'right', color: deadlineInfo.tone === 'error' ? '#FA896B' : deadlineInfo.tone === 'warning' ? '#B26A00' : deadlineInfo.tone === 'info' ? '#5D87FF' : 'text.primary' }}>
+                      {deadlineInfo.label}
+                    </Typography>
+                  </Stack>
+                </Stack>
+              </Box>
+            </Paper>
+
+          </Stack>
         </Grid>
       </Grid>
     </Box>

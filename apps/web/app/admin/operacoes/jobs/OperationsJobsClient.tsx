@@ -45,8 +45,10 @@ import {
   IconUsers,
   IconUrgent,
 } from '@tabler/icons-react';
+import { IconX } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import JobDetailClient from './[id]/JobDetailClient';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 import {
   ActionStrip,
@@ -1234,23 +1236,38 @@ export default function OperationsJobsClient() {
         onUpdate={updateJob} onStatusChange={changeStatus}
       />
 
-      <JobWorkbenchDrawer
+      {/* Job detail — Trello-style modal */}
+      <Dialog
         open={detailOpen && Boolean(selectedJob)}
-        mode="edit"
-        job={selectedJob}
-        presentation="modal"
-        jobTypes={lookups.jobTypes} skills={lookups.skills} channels={lookups.channels} clients={lookups.clients} owners={lookups.owners}
-        currentUserId={currentUserId}
-        onClose={() => {
-          setDetailOpen(false);
-          setSelectedJob(null);
-        }}
-        onCreate={createJob}
-        onUpdate={async (id, p) => { const u = await updateJob(id, p); await refresh(); setSelectedJob(u as OperationsJob); return u; }}
-        onDelete={handleDeleteJob}
-        onStatusChange={async (id, s, r) => { const u = await changeStatus(id, s, r); await refresh(); setSelectedJob(u as OperationsJob); return u; }}
-        onFetchDetail={fetchJob}
-      />
+        onClose={() => { setDetailOpen(false); setSelectedJob(null); }}
+        fullWidth
+        maxWidth="lg"
+        scroll="paper"
+        PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh' } }}
+      >
+        <DialogTitle sx={{ p: 0, position: 'relative', minHeight: 0 }}>
+          <IconButton
+            onClick={() => { setDetailOpen(false); setSelectedJob(null); }}
+            size="small"
+            sx={{ position: 'absolute', top: 12, right: 12, zIndex: 10, opacity: 0.6, '&:hover': { opacity: 1 } }}
+          >
+            <IconX size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {detailOpen && selectedJob && (
+            <JobDetailClient
+              id={selectedJob.id}
+              onClose={() => { setDetailOpen(false); setSelectedJob(null); }}
+              onStatusChange={async (status) => {
+                const updated = await changeStatus(selectedJob.id, status);
+                await refresh();
+                setSelectedJob(updated as OperationsJob);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={deleteDialogOpen}
