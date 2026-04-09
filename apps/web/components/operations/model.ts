@@ -201,11 +201,15 @@ function normalizeName(s: string): string {
 export function cleanJobTitle(title: string, clientName?: string | null): string {
   // 1. Strip date prefix DDMMYY_ or DDMMYYYY_
   let t = title.replace(/^\d{6,8}_/, '').trim();
-  // 2. Strip client name prefix if first segment matches client name
+  // 2. Strip client name prefix: first segment matches or is contained in client name
   if (clientName) {
     const parts = t.split('_');
-    if (parts.length > 1 && normalizeName(parts[0]) === normalizeName(clientName)) {
-      t = parts.slice(1).join('_').trim();
+    if (parts.length > 1) {
+      const n1 = normalizeName(parts[0]);
+      const n2 = normalizeName(clientName);
+      if (n1.length >= 3 && (n1 === n2 || n2.startsWith(n1) || n1.startsWith(n2))) {
+        t = parts.slice(1).join('_').trim();
+      }
     }
   }
   return t;
