@@ -40,6 +40,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
+import { cleanJobTitle } from '@/components/operations/model';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -498,7 +499,7 @@ export default function BriefingFormClient({ jobId }: { jobId: string }) {
           <Typography variant="h5" fontWeight={700}>Briefing Inteligente</Typography>
           {job && (
             <Typography variant="body2" color="text.secondary">
-              {job.title} · {job.client_name}
+              {cleanJobTitle(job.title, job.client_name)} · {job.client_name}
             </Typography>
           )}
         </Box>
@@ -539,7 +540,7 @@ export default function BriefingFormClient({ jobId }: { jobId: string }) {
             </Stack>
             <Box>
               <Typography variant="caption" color="text.secondary">Título</Typography>
-              <Typography fontWeight={600}>{job?.title ?? '—'}</Typography>
+              <Typography fontWeight={600}>{job ? cleanJobTitle(job.title, job.client_name) : '—'}</Typography>
             </Box>
           </Stack>
         </AccordionDetails>
