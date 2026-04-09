@@ -37,6 +37,13 @@ export type OperationsJob = {
   is_urgent?: boolean;
   urgency_reason?: string | null;
   definition_of_done?: string | null;
+  intelligence?: {
+    risk_score: number;
+    risk_level: 'low' | 'medium' | 'high' | 'critical';
+    alerts: string[];
+    estimated_hours: number | null;
+    suggested_owner_name: string | null;
+  } | null;
   metadata?: Record<string, any>;
   created_at?: string;
   updated_at?: string;

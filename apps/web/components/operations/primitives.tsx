@@ -2179,6 +2179,59 @@ export function OpsCard({
             </Typography>
           )}
 
+          {/* ── Intelligence layer ───────────────────────────────────────── */}
+          {job.intelligence && (() => {
+            const intel = job.intelligence!;
+            const rl = intel.risk_level;
+            const dotColor = rl === 'critical' ? '#FA896B' : rl === 'high' ? '#FFAE1F' : rl === 'medium' ? '#5D87FF' : '#13DEB9';
+            const bgColor = rl === 'critical' ? alpha('#FA896B', 0.12) : rl === 'high' ? alpha('#FFAE1F', 0.12) : rl === 'medium' ? alpha('#5D87FF', 0.10) : alpha('#13DEB9', 0.10);
+            const rlLabel = rl === 'critical' ? 'Crítico' : rl === 'high' ? 'Alto' : rl === 'medium' ? 'Médio' : 'OK';
+            const primaryAlert = intel.alerts[0] ?? null;
+            return (
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={0.75}
+                sx={{ pt: 0.75, borderTop: `1px solid ${dark ? alpha('#fff', 0.05) : alpha('#000', 0.05)}` }}
+              >
+                {/* Risco */}
+                <Tooltip title={intel.alerts.join(' · ') || rlLabel} arrow placement="top">
+                  <Stack direction="row" alignItems="center" spacing={0.4}
+                    sx={{ px: 0.75, py: 0.25, borderRadius: 999, bgcolor: bgColor, flexShrink: 0, cursor: 'default' }}>
+                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: dotColor, flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: dotColor, lineHeight: 1 }}>
+                      {rlLabel}
+                    </Typography>
+                  </Stack>
+                </Tooltip>
+
+                {/* Alerta principal */}
+                {primaryAlert && (
+                  <Typography noWrap sx={{ fontSize: '0.62rem', color: 'text.secondary', flex: 1, minWidth: 0 }}>
+                    {primaryAlert}
+                  </Typography>
+                )}
+
+                {/* Horas estimadas */}
+                {intel.estimated_hours != null && (
+                  <Stack direction="row" alignItems="center" spacing={0.3} sx={{ flexShrink: 0 }}>
+                    <IconClock size={11} color={alpha(theme.palette.text.primary, 0.35)} />
+                    <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>
+                      ~{intel.estimated_hours}h
+                    </Typography>
+                  </Stack>
+                )}
+
+                {/* Dono sugerido quando sem responsável */}
+                {!job.owner_id && intel.suggested_owner_name && !primaryAlert && (
+                  <Typography noWrap sx={{ fontSize: '0.62rem', color: 'text.disabled', flex: 1, minWidth: 0 }}>
+                    Sugerido: {intel.suggested_owner_name.split(' ')[0]}
+                  </Typography>
+                )}
+              </Stack>
+            );
+          })()}
+
           {/* Footer: avatar + datas */}
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 0.75 }}>
 
