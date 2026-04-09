@@ -930,6 +930,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
       client_logo_url: string | null; client_brand_color: string | null;
       owner_name: string | null; owner_email: string | null; owner_user_id: string | null;
       owner_fp_id: string | null; owner_avatar_url: string | null; owner_is_freelancer: boolean;
+      // intelligence fields
+      days_inactive: number | null;
+      client_late_count: number;
+      client_total_count: number;
+      avg_similar_hours: number | null;
+      suggested_owner_name: string | null;
     }>(
       `SELECT
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
@@ -949,7 +955,30 @@ export default async function trelloRoutes(app: FastifyInstance) {
          (SELECT eu.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_user_id,
          (SELECT fp.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_fp_id,
          (SELECT fp.avatar_url FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_avatar_url,
-         EXISTS(SELECT 1 FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id LIMIT 1) as owner_is_freelancer
+         EXISTS(SELECT 1 FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id LIMIT 1) as owner_is_freelancer,
+         -- intelligence: inactivity
+         CASE WHEN pc.last_activity_at IS NOT NULL THEN EXTRACT(DAY FROM NOW() - pc.last_activity_at)::int ELSE NULL END as days_inactive,
+         -- intelligence: client delay history
+         (SELECT COUNT(*)::int FROM project_cards pc_h JOIN project_boards pb_h ON pb_h.id = pc_h.board_id
+          WHERE pb_h.client_id = pb.client_id AND pb_h.client_id IS NOT NULL
+            AND pc_h.is_archived = true AND pc_h.due_date IS NOT NULL
+            AND pc_h.due_date < CURRENT_DATE AND NOT pc_h.due_complete
+            AND pc_h.tenant_id = $1) as client_late_count,
+         (SELECT COUNT(*)::int FROM project_cards pc_h JOIN project_boards pb_h ON pb_h.id = pc_h.board_id
+          WHERE pb_h.client_id = pb.client_id AND pb_h.client_id IS NOT NULL
+            AND pc_h.is_archived = true AND pc_h.tenant_id = $1) as client_total_count,
+         -- intelligence: avg hours for similar jobs on this client
+         (SELECT ROUND(AVG(pc_h.estimated_hours)::numeric, 1)
+          FROM project_cards pc_h JOIN project_boards pb_h ON pb_h.id = pc_h.board_id
+          WHERE pb_h.client_id = pb.client_id AND pb_h.client_id IS NOT NULL
+            AND pc_h.estimated_hours IS NOT NULL AND pc_h.tenant_id = $1)::float as avg_similar_hours,
+         -- intelligence: who worked most on this client (suggested owner when unassigned)
+         (SELECT pcm_s.display_name
+          FROM project_card_members pcm_s JOIN project_cards pc_s ON pc_s.id = pcm_s.card_id
+          JOIN project_boards pb_s ON pb_s.id = pc_s.board_id
+          WHERE pb_s.client_id = pb.client_id AND pb_s.client_id IS NOT NULL
+            AND pcm_s.tenant_id = $1
+          GROUP BY pcm_s.display_name ORDER BY COUNT(*) DESC LIMIT 1) as suggested_owner_name
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
@@ -989,6 +1018,53 @@ export default async function trelloRoutes(app: FastifyInstance) {
         : /reunion|meeting|reunião/.test(labelNames) ? 'meeting'
         : 'copy';
 
+      // ── Intelligence computation ───────────────────────────────────────────
+      const now = Date.now();
+      const daysToDeadline = c.due_date
+        ? Math.floor((new Date(c.due_date).getTime() - now) / 86400000)
+        : null;
+
+      const alerts: string[] = [];
+      if (daysToDeadline !== null && daysToDeadline < 0)
+        alerts.push(`Atrasado ${Math.abs(daysToDeadline)}d`);
+      else if (daysToDeadline === 0)
+        alerts.push('Entrega hoje');
+      else if (daysToDeadline !== null && daysToDeadline <= 2)
+        alerts.push(`Entrega em ${daysToDeadline}d`);
+      if (!c.owner_user_id)
+        alerts.push('Sem responsável');
+      if ((c.client_total_count ?? 0) >= 3 && (c.client_late_count ?? 0) >= 2) {
+        const pct = Math.round(((c.client_late_count ?? 0) / (c.client_total_count ?? 1)) * 100);
+        alerts.push(`Cliente atrasou ${pct}% dos jobs`);
+      }
+      if (c.days_inactive != null && c.days_inactive >= 4)
+        alerts.push(`Parado há ${c.days_inactive}d`);
+      if (!c.description)
+        alerts.push('Sem briefing');
+
+      let riskScore = 0;
+      if (daysToDeadline !== null) {
+        if (daysToDeadline < 0) riskScore += 40;
+        else if (daysToDeadline <= 1) riskScore += 35;
+        else if (daysToDeadline <= 3) riskScore += 20;
+        else if (daysToDeadline <= 7) riskScore += 8;
+      }
+      if (!c.owner_user_id) riskScore += 25;
+      if (c.days_inactive != null && c.days_inactive >= 4) riskScore += 15;
+      if ((c.client_total_count ?? 0) >= 3 && (c.client_late_count ?? 0) / (c.client_total_count ?? 1) >= 0.5) riskScore += 20;
+      riskScore = Math.min(riskScore, 100);
+
+      const riskLevel: 'low' | 'medium' | 'high' | 'critical' =
+        riskScore >= 70 ? 'critical' : riskScore >= 45 ? 'high' : riskScore >= 20 ? 'medium' : 'low';
+
+      const intelligence = {
+        risk_score: riskScore,
+        risk_level: riskLevel,
+        alerts: alerts.slice(0, 3),
+        estimated_hours: c.avg_similar_hours ?? c.estimated_hours ?? null,
+        suggested_owner_name: !c.owner_user_id ? (c.suggested_owner_name ?? null) : null,
+      };
+
       return {
         id: c.id,
         title: c.title,
@@ -1020,6 +1096,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
         created_at: c.created_at,
         estimated_minutes: c.estimated_hours ? Math.round(c.estimated_hours * 60) : null,
         actual_minutes: null,
+        intelligence,
         metadata: {
           trello_card_id: c.trello_card_id,
           trello_url: c.trello_url,

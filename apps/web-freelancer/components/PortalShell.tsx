@@ -238,11 +238,8 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       <aside className="ps-sidebar">
         {/* Brand */}
         <div className="ps-brand">
-          <div className="ps-brand-mark" aria-hidden="true" />
-          <div>
-            <span className="ps-brand-label">Edro Studio</span>
-            <span className="ps-brand-name">Freelancer</span>
-          </div>
+          <img src="/brand/edro-logo.png" alt="Edro" className="ps-brand-logo" />
+          <span className="ps-brand-name">Freelancer</span>
         </div>
 
         {/* Nav */}
