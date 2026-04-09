@@ -40,6 +40,7 @@ import { runWeeklyDigestOnce } from './weeklyDigestWorker';
 import { runCompetitorIntelligenceWorkerOnce } from './competitorIntelligenceWorker';
 import { runOpportunityDetectorWorkerOnce } from './opportunityDetectorWorker';
 import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
+import { runTrelloOutboxWorkerOnce } from './trelloOutboxWorker';
 import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
 import { runArtDirectionReferenceWorkerOnce } from './artDirectionReferenceWorker';
 import { runArtDirectionTrendWorkerOnce } from './artDirectionTrendWorker';
@@ -116,6 +117,8 @@ export function startJobsRunner() {
   startWorkerLoop('jarvisBackground', runJarvisBackgroundWorkerOnce, 17750, 180_000);
   // Webhook Retry — retries failed WhatsApp/Instagram/Recall events (max 3 attempts)
   startWorkerLoop('webhookRetry', runWebhookRetryWorkerOnce, 21500, 30_000);
+  // Trello Outbox — flushes Edro→Trello queue with retry (5s polling)
+  startWorkerLoop('trelloOutbox', runTrelloOutboxWorkerOnce, 22500, 30_000);
 
   // ── 30s — periodic background (self-throttled, no user-visible impact) ───
   startWorkerLoop('clientEnrichment', runClientEnrichmentWorkerOnce, 2500, undefined, 30_000);
