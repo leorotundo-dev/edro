@@ -15,6 +15,7 @@
  */
 
 import { query } from '../db';
+import { refreshSignalForCard } from './trelloSyncService';
 
 // ── Trello action payload types (minimal) ─────────────────────────────────────
 
@@ -299,22 +300,72 @@ async function handleRemoveMember(tenantId: string, action: TrelloWebhookAction)
   );
 }
 
+// ── Anti-loop: detect echo from own outbox ────────────────────────────────────
+
+// Maps Trello action types to the outbox operation that would cause them
+const OUTBOX_OP_FOR_ACTION: Record<string, string> = {
+  updateCard:                   'card.update',
+  commentCard:                  'comment.add',
+  updateCheckItemStateOnCard:   'checklist.toggle',
+  addMemberToCard:              'member.sync',
+  removeMemberFromCard:         'member.sync',
+};
+
+/**
+ * Returns true when this webhook action is a rebound from our own outbox.
+ * We skip projection in that case — the change is already in the DB.
+ */
+async function isEchoFromOutbox(
+  tenantId: string,
+  trelloCardId: string,
+  actionType: string,
+): Promise<boolean> {
+  const op = OUTBOX_OP_FOR_ACTION[actionType];
+  if (!op) return false;
+  const res = await query(
+    `SELECT 1 FROM trello_outbox
+     WHERE tenant_id = $1
+       AND operation = $2
+       AND payload->>'trelloCardId' = $3
+       AND status = 'done'
+       AND updated_at > now() - interval '60 seconds'
+     LIMIT 1`,
+    [tenantId, op, trelloCardId],
+  );
+  return res.rows.length > 0;
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
 /**
  * Applies a single Trello webhook action to the project_* read model.
- * Returns true if the action was handled, false if unsupported (log and skip).
+ * Returns true if the action was handled, false if unsupported or skipped (echo).
  */
 export async function processWebhookAction(
   tenantId: string,
   action: TrelloWebhookAction,
 ): Promise<boolean> {
+  const trelloCardId = action.data.card?.id;
+
+  // Anti-loop: skip echoes from our own outbox writes
+  if (trelloCardId && await isEchoFromOutbox(tenantId, trelloCardId, action.type)) {
+    return false; // marked as 'skipped' by caller
+  }
+
   switch (action.type) {
     case 'updateCard':
       await handleUpdateCard(tenantId, action);
+      if (trelloCardId) {
+        const cardId = await resolveCardId(tenantId, trelloCardId);
+        if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+      }
       return true;
     case 'createCard':
       await handleCreateCard(tenantId, action);
+      if (trelloCardId) {
+        const cardId = await resolveCardId(tenantId, trelloCardId);
+        if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+      }
       return true;
     case 'deleteCard':
       await handleDeleteCard(tenantId, action);
@@ -327,9 +378,17 @@ export async function processWebhookAction(
       return true;
     case 'addMemberToCard':
       await handleAddMember(tenantId, action);
+      if (trelloCardId) {
+        const cardId = await resolveCardId(tenantId, trelloCardId);
+        if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+      }
       return true;
     case 'removeMemberFromCard':
       await handleRemoveMember(tenantId, action);
+      if (trelloCardId) {
+        const cardId = await resolveCardId(tenantId, trelloCardId);
+        if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+      }
       return true;
     default:
       return false;
