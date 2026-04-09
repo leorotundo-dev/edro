@@ -106,6 +106,8 @@ type Campaign = {
   phases: Phase[];
   audiences: Record<string, any>[];
   behavior_intents: Record<string, any>[];
+  job_count?: number;
+  job_done_count?: number;
 };
 
 type CampaignFormat = {
@@ -1584,18 +1586,34 @@ function CampaignDetail({
       )}
 
       {/* ── Jobs Vinculados ─────────────────────────────────────────────── */}
-      {linkedJobs.length > 0 && (
+      {linkedJobs.length > 0 && (() => {
+        const STATUS_COLOR: Record<string, string> = {
+          done: '#13DEB9', published: '#13DEB9', in_progress: '#5D87FF',
+          review: '#FFAE1F', blocked: '#FA896B', backlog: '#94a3b8',
+        };
+        const done = linkedJobs.filter(j => j.status === 'done' || j.status === 'published').length;
+        const blocked = linkedJobs.filter(j => j.status === 'blocked').length;
+        const inProgress = linkedJobs.filter(j => j.status === 'in_progress' || j.status === 'review').length;
+        const pct = Math.round((done / linkedJobs.length) * 100);
+        return (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
-            Jobs em execução ({linkedJobs.length})
-          </Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.75 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+              Jobs em execução ({linkedJobs.length})
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              {done > 0 && <Chip size="small" label={`${done} concluído${done > 1 ? 's' : ''}`} sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#13DEB920', color: '#13DEB9', fontWeight: 700 }} />}
+              {inProgress > 0 && <Chip size="small" label={`${inProgress} em andamento`} sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#5D87FF20', color: '#5D87FF', fontWeight: 700 }} />}
+              {blocked > 0 && <Chip size="small" label={`${blocked} bloqueado${blocked > 1 ? 's' : ''}`} sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#FA896B20', color: '#FA896B', fontWeight: 700 }} />}
+            </Stack>
+          </Stack>
+          {/* Progress bar */}
+          <Box sx={{ mb: 1.25, borderRadius: 99, overflow: 'hidden', height: 6, bgcolor: 'divider' }}>
+            <Box sx={{ height: '100%', width: `${pct}%`, bgcolor: pct === 100 ? '#13DEB9' : '#5D87FF', transition: 'width 0.4s ease', borderRadius: 99 }} />
+          </Box>
           <Stack spacing={0.75}>
             {linkedJobs.map((j) => {
               const overdue = j.due_date && new Date(j.due_date) < new Date();
-              const STATUS_COLOR: Record<string, string> = {
-                done: '#13DEB9', published: '#13DEB9', in_progress: '#5D87FF',
-                review: '#FFAE1F', blocked: '#FA896B', backlog: '#94a3b8',
-              };
               const dot = STATUS_COLOR[j.status] ?? '#94a3b8';
               return (
                 <Card key={j.id} variant="outlined" sx={{ borderRadius: 2 }}>
@@ -1630,7 +1648,8 @@ function CampaignDetail({
             })}
           </Stack>
         </Box>
-      )}
+        );
+      })()}
 
       {/* Formats */}
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
@@ -2506,6 +2525,17 @@ export default function CampaignsClient({ clientId }: { clientId: string }) {
                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.5 }} flexWrap="wrap">
                           <Chip size="small" label={objectiveLabel(c.objective)} variant="outlined" sx={{ height: 18, fontSize: '0.62rem' }} />
                           <Chip size="small" label={c.status} color={statusColor(c.status)} sx={{ height: 18, fontSize: '0.62rem' }} />
+                          {(c.job_count ?? 0) > 0 && (
+                            <Chip
+                              size="small"
+                              label={`${c.job_done_count ?? 0}/${c.job_count} jobs`}
+                              sx={{
+                                height: 18, fontSize: '0.62rem', fontWeight: 700,
+                                bgcolor: (c.job_done_count ?? 0) === c.job_count ? '#13DEB920' : '#5D87FF20',
+                                color: (c.job_done_count ?? 0) === c.job_count ? '#13DEB9' : '#5D87FF',
+                              }}
+                            />
+                          )}
                         </Stack>
                       </Box>
                       <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 1 }}>

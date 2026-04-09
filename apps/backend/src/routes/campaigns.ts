@@ -323,7 +323,13 @@ export default async function campaignRoutes(app: FastifyInstance) {
       where += ` AND status=$${params.length}`;
     }
     const { rows } = await pool.query(
-      `SELECT * FROM campaigns ${where} ORDER BY created_at DESC LIMIT 200`,
+      `SELECT c.*,
+         (SELECT COUNT(*)::int FROM project_cards pc WHERE pc.campaign_id = c.id AND pc.is_archived = false) as job_count,
+         (SELECT COUNT(*)::int FROM project_cards pc
+            JOIN trello_list_status_map m ON m.list_id = pc.list_id AND m.tenant_id = c.tenant_id
+          WHERE pc.campaign_id = c.id AND pc.is_archived = false
+            AND m.ops_status IN ('done', 'published')) as job_done_count
+       FROM campaigns c ${where} ORDER BY c.created_at DESC LIMIT 200`,
       params
     );
     return { success: true, data: rows };
