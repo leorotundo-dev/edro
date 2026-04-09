@@ -1113,28 +1113,33 @@ export default async function trelloRoutes(app: FastifyInstance) {
       };
     });
 
-    // Owners: distinct members across all boards
-    const { rows: members } = await query<{ display_name: string; email: string; user_id: string | null }>(
-      `SELECT DISTINCT pcm.display_name, pcm.email,
-              eu.id as user_id
-       FROM project_card_members pcm
-       JOIN project_boards pb ON pb.id = (
-         SELECT board_id FROM project_cards WHERE id = pcm.card_id LIMIT 1
-       )
-       LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
-       WHERE pb.tenant_id = $1`,
+    // Owners: only team members (edro_users or freelancer_profiles) — excludes external contacts/clients
+    const { rows: members } = await query<{ display_name: string; email: string; user_id: string; fp_id: string | null; avatar_url: string | null; specialty: string | null }>(
+      `SELECT DISTINCT ON (eu.id)
+              COALESCE(NULLIF(eu.name, ''), split_part(eu.email, '@', 1)) as display_name,
+              eu.email,
+              eu.id as user_id,
+              fp.id as fp_id,
+              fp.avatar_url,
+              fp.specialty
+       FROM edro_users eu
+       JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id AND fp.tenant_id = $1
+       ORDER BY eu.id, eu.name`,
       [tenantId],
     );
 
     const owners = members
       .filter((m) => m.display_name)
       .map((m) => ({
-        id: m.user_id ?? m.email,
+        id: m.user_id,
         name: m.display_name,
         email: m.email ?? '',
-        role: 'staff',
-        specialty: null,
-        person_type: 'freelancer' as const,
+        role: m.fp_id ? 'freelancer' : 'staff',
+        specialty: m.specialty ?? null,
+        person_type: (m.fp_id ? 'freelancer' : 'internal') as 'freelancer' | 'internal',
+        freelancer_profile_id: m.fp_id ?? null,
+        avatar_url: m.avatar_url && m.fp_id ? `/api/proxy/freelancers/${m.fp_id}/avatar` : null,
       }));
 
     // Clients
