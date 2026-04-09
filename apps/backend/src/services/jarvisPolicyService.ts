@@ -274,8 +274,17 @@ export function detectJarvisIntent(message: string, contextPage?: string | null,
     return 'creative_execution';
   }
 
+  // page_data with ops_card forces ops route regardless of message content
+  const hasOpsCardContext = Boolean(
+    pageData && (
+      typeof pageData['ops_card_id'] === 'string'
+      || (typeof pageData['ops_card'] === 'object' && pageData['ops_card'] !== null)
+    ),
+  );
+
   if (
-    haystack.includes('/admin/operacoes')
+    hasOpsCardContext
+    || haystack.includes('/admin/operacoes')
     || haystack.includes('/operations')
     || operationsSignals.some((signal) => haystack.includes(signal))
   ) {
