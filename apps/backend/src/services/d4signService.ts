@@ -158,6 +158,7 @@ export async function createAndSendContract(params: {
   freelancerEmail: string;
   freelancerName: string;
   tenantId?: string | null;
+  signers?: D4SignSigner[];
   /** Optional: add Edro as second signer/observer */
   agencyEmail?: string;
   agencyName?: string;
@@ -165,19 +166,21 @@ export async function createAndSendContract(params: {
   try {
     const docUuid = await uploadDocument(params.pdfBuffer, params.filename);
 
-    const signers: D4SignSigner[] = [
-      {
-        email: params.freelancerEmail,
-        display_name: params.freelancerName,
-        act: '1',
-      },
-    ];
+    const signers: D4SignSigner[] = params.signers?.length
+      ? params.signers
+      : [
+          {
+            email: params.freelancerEmail,
+            display_name: params.freelancerName,
+            act: '1',
+          },
+        ];
 
-    if (params.agencyEmail) {
+    if (!params.signers?.length && params.agencyEmail) {
       signers.push({
         email: params.agencyEmail,
         display_name: params.agencyName ?? 'Edro Studio',
-        act: '3', // observer (cc) — or '1' if agency also needs to sign
+        act: '3',
       });
     }
 

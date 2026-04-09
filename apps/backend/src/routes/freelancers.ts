@@ -17,6 +17,7 @@ import { securityLog } from '../audit/securityLog';
 import { isWhatsAppConfigured, sendWhatsAppText } from '../services/whatsappService';
 import { dispatchNotification, upsertNotificationPreferences } from '../services/notificationService';
 import { issuePortalLoginCode } from '../services/authService';
+import { sendEmail } from '../services/emailService';
 import {
   attachExecutionSnapshotToPayload,
   isFreelancerVisibleBriefingStatus,
@@ -439,8 +440,78 @@ const ONBOARDING_STEP_LABELS: Record<OnboardingStep, string> = {
   avatar: 'Avatar Edro',
 };
 
+const AGENCY_CONTRACT_SIGNERS = [
+  { email: 'leo.rotundo@edro.digital', name: 'Leo Rotundo' },
+  { email: 'claudio@edro.digital', name: 'Claudio' },
+];
+
 function hasValue(value: unknown) {
   return typeof value === 'string' ? value.trim().length > 0 : value != null;
+}
+
+function buildFreelancerInviteEmail(params: { firstName: string; code: string; portalUrl: string | null }) {
+  const loginLine = params.portalUrl
+    ? `Acesse o portal em: ${params.portalUrl}/login`
+    : 'Acesse o Portal Freelancer Edro para começar.';
+
+  return {
+    subject: 'Parabéns! Seu acesso ao Portal Freelancer Edro',
+    text: `Olá, ${params.firstName}!\n\nParabéns e seja bem-vindo à Edro.\n\nSeu acesso inicial ao Portal Freelancer já está liberado. Use o código abaixo para entrar e completar seu onboarding:\n\n${params.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\nDepois de preencher seu perfil, você seguirá para a etapa do contrato.\n\n${loginLine}\n\n— Edro Digital`,
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1e293b">
+      <h2 style="margin:0 0 4px">Parabéns! Seu acesso inicial está liberado</h2>
+      <p style="color:#475569;margin:0 0 24px">Portal Freelancer — Edro Digital</p>
+      <p>Olá, <strong>${params.firstName}</strong>! Seja bem-vindo à Edro.</p>
+      <p>Use este código para entrar no Portal Freelancer e completar seu onboarding:</p>
+      <div style="font-size:2rem;font-weight:700;letter-spacing:.3em;background:#f1f5f9;border-radius:12px;padding:16px 24px;text-align:center;margin:24px 0;color:#0f172a">${params.code}</div>
+      <p style="color:#94a3b8;font-size:.875rem">Expira em 24 horas. Não compartilhe este código.</p>
+      <p>Depois de preencher seus dados, você seguirá para a etapa do contrato.</p>
+      ${params.portalUrl ? `<p><a href="${params.portalUrl}/login" style="color:#5D87FF">Acessar o portal →</a></p>` : ''}
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+      <p style="color:#94a3b8;font-size:.75rem">Edro Digital — este é um e-mail automático</p>
+    </div>`,
+  };
+}
+
+async function resolveAgencyWhatsAppRecipients(tenantId: string, emails: string[]) {
+  const normalized = Array.from(new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean)));
+  if (!normalized.length) return [] as string[];
+
+  const { rows } = await pool.query<{ phone: string | null }>(
+    `WITH requested AS (
+       SELECT unnest($2::text[]) AS email
+     )
+     SELECT DISTINCT ON (requested.email)
+            COALESCE(fp.whatsapp_jid, fp.phone, wa.identity_value) AS phone
+       FROM requested
+       LEFT JOIN edro_users eu ON LOWER(eu.email) = requested.email
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+       LEFT JOIN person_identities em
+              ON em.tenant_id = $1
+             AND em.identity_type = 'email'
+             AND em.normalized_value = requested.email
+       LEFT JOIN LATERAL (
+         SELECT pi.identity_value
+           FROM person_identities pi
+          WHERE pi.tenant_id = $1
+            AND pi.person_id = em.person_id
+            AND pi.identity_type IN ('whatsapp_jid', 'phone_e164')
+          ORDER BY CASE WHEN pi.identity_type = 'whatsapp_jid' THEN 0 ELSE 1 END,
+                   pi.is_primary DESC,
+                   pi.updated_at DESC
+          LIMIT 1
+       ) wa ON true
+      ORDER BY requested.email,
+               CASE WHEN COALESCE(fp.whatsapp_jid, fp.phone, wa.identity_value) IS NOT NULL THEN 0 ELSE 1 END`,
+    [tenantId, normalized],
+  );
+
+  return Array.from(
+    new Set(
+      rows
+        .map((row) => normalizePhoneRecipient(row.phone))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
 }
 
 function parseStoredSkills(raw: unknown): Array<{ id?: string; label?: string }> {
@@ -614,6 +685,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     user_id: z.string().uuid().optional().nullable(),
     user_email: z.string().email().optional().nullable(),
     display_name: z.string().min(1),
+    send_invite_email: z.boolean().optional().default(false),
     specialty: z.string().optional().nullable(),
     hourly_rate_brl: z.number().positive().optional().nullable(),
     pix_key: z.string().optional().nullable(),
@@ -658,10 +730,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     const tenantId = (request as any).user?.tenant_id;
 
     let userId = body.user_id ?? null;
+    let accessEmail = body.user_email?.trim().toLowerCase() ?? null;
 
     if (userId) {
       const userCheck = await pool.query(
-        `SELECT eu.id
+        `SELECT eu.id, eu.email
            FROM edro_users eu
            JOIN tenant_users tu ON tu.user_id = eu.id
           WHERE eu.id = $1::uuid
@@ -672,14 +745,14 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       if (!userCheck.rows.length) {
         return reply.status(404).send({ error: 'Usuário não encontrado neste tenant.' });
       }
+      accessEmail = userCheck.rows[0].email?.trim().toLowerCase() ?? accessEmail;
     } else {
-      const normalizedEmail = body.user_email?.trim().toLowerCase();
-      if (!normalizedEmail) {
+      if (!accessEmail) {
         return reply.status(400).send({ error: 'Informe o e-mail de acesso do freelancer.' });
       }
 
       const user = await upsertUser({
-        email: normalizedEmail,
+        email: accessEmail,
         name: body.display_name,
         role: 'staff',
       });
@@ -747,7 +820,40 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       res.rows[0].person_id = synced.personId;
       res.rows[0].whatsapp_jid = synced.whatsappJid;
     }
-    return reply.status(201).send(res.rows[0]);
+
+    let inviteEmailSent = false;
+    let inviteWarning: string | null = null;
+    let inviteExpiresAt: string | null = null;
+
+    if (body.send_invite_email && accessEmail) {
+      const issued = await issuePortalLoginCode(accessEmail, { ttlMinutes: 60 * 24 });
+      const firstName = body.display_name.trim().split(' ')[0] || 'colaborador';
+      const message = buildFreelancerInviteEmail({
+        firstName,
+        code: issued.code,
+        portalUrl: env.FREELANCER_PORTAL_URL ?? null,
+      });
+      const delivery = await sendEmail({
+        to: accessEmail,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+        tenantId,
+      });
+      inviteEmailSent = delivery.ok;
+      inviteExpiresAt = issued.expiresAt.toISOString();
+      if (!delivery.ok) {
+        inviteWarning = 'Colaborador criado, mas o e-mail inicial de onboarding falhou.';
+      }
+    }
+
+    return reply.status(201).send({
+      ...res.rows[0],
+      invite_email_sent: inviteEmailSent,
+      invite_email: accessEmail,
+      invite_expires_at: inviteExpiresAt,
+      warning: inviteWarning,
+    });
   });
 
   app.get('/freelancers/:id', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
@@ -3785,8 +3891,11 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       freelancerEmail: userEmail,
       freelancerName: prof.representante_nome ?? prof.razao_social,
       tenantId,
-      agencyEmail: cfg.agency_email ?? undefined,
-      agencyName: cfg.agency_name ?? 'Edro Studio',
+      signers: AGENCY_CONTRACT_SIGNERS.map((signer) => ({
+        email: signer.email,
+        display_name: signer.name,
+        act: '1' as const,
+      })),
     });
 
     // Persist D4Sign UUID, status and unsigned S3 key
@@ -3810,7 +3919,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
 
     return reply.send({
       ok: true,
-      message: 'Contrato enviado para seu e-mail. Assine digitalmente para liberar acesso completo.',
+      message: 'Contrato enviado para assinatura da equipe Edro. Você receberá o acesso final quando ele for assinado.',
       d4sign_uuid: d4signUuid,
     });
   });
@@ -3937,24 +4046,24 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         ).catch(() => {});
       }
 
-      // Email with portal access code
+      // Email with signed contract + portal access code
       try {
         const issued = await issuePortalLoginCode(prof.email, { ttlMinutes: 60 * 24 });
         const portalUrl = env.FREELANCER_PORTAL_URL ?? null;
         const loginLine = portalUrl
           ? `Acesse o portal em: ${portalUrl}/login`
           : 'Acesse o Portal Freelancer Edro para começar.';
-        const { sendEmail } = await import('../services/emailService');
         await sendEmail({
           to: prof.email,
           subject: '✅ Contrato assinado — seu código de acesso ao Portal Edro',
-          text: `Olá, ${firstName}!\n\nSeu contrato com a Edro foi assinado com sucesso. Seu acesso ao portal está liberado.\n\nSeu código de acesso é:\n\n${issued.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\n${loginLine}\n\n— Edro Digital`,
+          text: `Olá, ${firstName}!\n\nSeu contrato com a Edro foi assinado com sucesso. Seu acesso ao portal está liberado.\n\nSeu código de acesso é:\n\n${issued.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\n${pdfUrl ? `Contrato assinado: ${pdfUrl}\n\n` : ''}${loginLine}\n\n— Edro Digital`,
           html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1e293b">
             <h2 style="margin:0 0 4px">✅ Contrato assinado!</h2>
             <p style="color:#475569;margin:0 0 24px">Portal Freelancer — Edro Digital</p>
             <p>Olá, <strong>${firstName}</strong>! Seu contrato foi assinado com sucesso. Para acessar o portal, use o código abaixo:</p>
             <div style="font-size:2rem;font-weight:700;letter-spacing:.3em;background:#f1f5f9;border-radius:12px;padding:16px 24px;text-align:center;margin:24px 0;color:#0f172a">${issued.code}</div>
             <p style="color:#94a3b8;font-size:.875rem">Expira em 24 horas. Não compartilhe este código.</p>
+            ${pdfUrl ? `<p><a href="${pdfUrl}" style="color:#5D87FF">Baixar contrato assinado →</a></p>` : ''}
             ${portalUrl ? `<p><a href="${portalUrl}/login" style="color:#5D87FF">Acessar o portal →</a></p>` : ''}
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
             <p style="color:#94a3b8;font-size:.75rem">Edro Digital — este é um e-mail automático</p>
@@ -3963,6 +4072,25 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         console.error('[webhook/d4sign] failed to send portal access code email:', err);
+      }
+
+      try {
+        const recipients = await resolveAgencyWhatsAppRecipients(
+          prof.tenant_id,
+          AGENCY_CONTRACT_SIGNERS.map((signer) => signer.email),
+        );
+        const adminMessage = `✅ *Processo concluído*\n\n${firstName} concluiu o onboarding e o contrato foi assinado com sucesso.\n\nEmail: ${prof.email}${pdfUrl ? `\nContrato: ${pdfUrl}` : ''}\n\nO acesso final ao Portal Freelancer já foi liberado.`;
+        await Promise.all(
+          recipients.map((recipient) =>
+            sendWhatsAppText(recipient, adminMessage, {
+              tenantId: prof.tenant_id,
+              event: 'freelancer_onboarding_completed',
+              meta: { freelancer_user_id: prof.user_id, freelancer_email: prof.email },
+            }).catch(() => null),
+          ),
+        );
+      } catch (err) {
+        console.error('[webhook/d4sign] failed to notify agency via whatsapp:', err);
       }
 
     } else if (type_post === 'cancelled') {
