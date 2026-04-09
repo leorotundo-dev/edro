@@ -43,6 +43,7 @@ import {
 } from '../jobs/creativeSessionService';
 import { createLibraryItem } from '../../library/libraryRepo';
 import { stripTrelloTitle } from '../trelloCardMapper';
+import { enqueueOutbox } from '../trelloOutboxService';
 import { generatePautaSuggestions } from '../pautaSuggestionService';
 import { recordPreferenceFeedback } from '../preferenceEngine';
 import { analyzeCognitiveLoad } from '../cognitiveLoadService';
@@ -4111,6 +4112,15 @@ async function getProjectCardAsJob(tenantId: string, cardId: string) {
   };
 }
 
+/** Returns the Trello card ID for a project_card row, or null if not linked. */
+async function getTrelloCardId(tenantId: string, cardId: string): Promise<string | null> {
+  const res = await query<{ trello_card_id: string }>(
+    `SELECT trello_card_id FROM project_cards WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+    [tenantId, cardId],
+  );
+  return res.rows[0]?.trello_card_id ?? null;
+}
+
 async function opsListJobs(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const values: any[] = [ctx.tenantId];
   const where = [`j.tenant_id = $1`, `j.status <> 'archived'`];
@@ -5428,6 +5438,19 @@ async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<Tool
       `UPDATE project_cards SET ${cardSets.join(', ')}, updated_at = now() WHERE tenant_id = $1 AND id = $2 RETURNING id, title, due_date`,
       cardValues,
     );
+
+    // Propagate changes to Trello via outbox
+    const trelloCardId = await getTrelloCardId(ctx.tenantId, args.job_id);
+    if (trelloCardId) {
+      const trelloFields: Record<string, string> = {};
+      if (args.title !== undefined) trelloFields.name = args.title;
+      if (args.summary !== undefined) trelloFields.desc = args.summary;
+      if (args.deadline_at !== undefined) trelloFields.due = args.deadline_at ? args.deadline_at.split('T')[0] + 'T23:59:00.000Z' : 'null';
+      if (Object.keys(trelloFields).length) {
+        await enqueueOutbox(ctx.tenantId, 'card.update', { trelloCardId, fields: trelloFields }, `card.update.${trelloCardId}`).catch(() => undefined);
+      }
+    }
+
     return { success: true, data: { ...updated[0], _source: 'project_card', deadline_at: updated[0]?.due_date ? `${updated[0].due_date}T23:59:00` : null } };
   }
 
@@ -5480,6 +5503,25 @@ async function opsChangeJobStatus(args: any, ctx: OperationsToolContext): Promis
     if (args.status === 'done') {
       await query(`UPDATE project_cards SET due_complete = true, completed_at = now(), updated_at = now() WHERE id = $1 AND tenant_id = $2`, [args.job_id, ctx.tenantId]);
     }
+
+    // Propagate to Trello via outbox
+    const trelloCardId = await getTrelloCardId(ctx.tenantId, args.job_id);
+    if (trelloCardId) {
+      const trelloFields: Record<string, string> = {};
+      if (listRes.rows.length) {
+        // Resolve the Trello list ID for the target list
+        const tlRes = await query<{ trello_list_id: string }>(
+          `SELECT trello_list_id FROM project_lists WHERE id = $1 LIMIT 1`,
+          [listRes.rows[0].list_id],
+        );
+        if (tlRes.rows[0]?.trello_list_id) trelloFields.idList = tlRes.rows[0].trello_list_id;
+      }
+      if (args.status === 'done') trelloFields.dueComplete = 'true';
+      if (Object.keys(trelloFields).length) {
+        await enqueueOutbox(ctx.tenantId, 'card.update', { trelloCardId, fields: trelloFields }, `card.update.${trelloCardId}`).catch(() => undefined);
+      }
+    }
+
     return { success: true, data: { id: args.job_id, title: card.title, status: args.status, _source: 'project_card', list_moved: listRes.rows.length > 0 } };
   }
   const current = currentRes.rows[0];
@@ -5524,6 +5566,26 @@ async function opsAssignOwner(args: any, ctx: OperationsToolContext): Promise<To
        ON CONFLICT (card_id, trello_member_id) DO UPDATE SET display_name = $4, email = $5`,
       [args.job_id, ctx.tenantId, ownerEmail, ownerName, ownerEmail],
     );
+
+    // Propagate to Trello via outbox — find the real trello_member_id by email
+    const trelloCardId = await getTrelloCardId(ctx.tenantId, args.job_id);
+    if (trelloCardId && ownerEmail) {
+      const memberRes = await query<{ trello_member_id: string }>(
+        `SELECT DISTINCT trello_member_id FROM project_card_members
+         WHERE tenant_id = $1 AND LOWER(email) = LOWER($2) AND trello_member_id IS NOT NULL LIMIT 1`,
+        [ctx.tenantId, ownerEmail],
+      );
+      const trelloMemberId = memberRes.rows[0]?.trello_member_id;
+      if (trelloMemberId) {
+        await enqueueOutbox(
+          ctx.tenantId,
+          'member.sync',
+          { trelloCardId, toRemove: [], toAdd: [trelloMemberId] },
+          `member.sync.${trelloCardId}`,
+        ).catch(() => undefined);
+      }
+    }
+
     return { success: true, data: { id: args.job_id, title: card.title, owner_name: ownerName, _source: 'project_card' } };
   }
   await syncOperationalRuntimeForJob(ctx.tenantId, args.job_id);
