@@ -88,7 +88,7 @@ export default async function webhookTrelloRoutes(app: FastifyInstance) {
         ).catch(() => undefined);
       }
     } catch (err: any) {
-      console.error(`[webhookTrello] projection error tenant=${tenantId} action=${action.id}:`, err?.message);
+      console.error('[webhookTrello] projection error:', err?.message, { tenant: tenantId, action: action.id });
       await query(
         `UPDATE trello_webhook_events SET status = 'error', error_message = $1 WHERE id = $2`,
         [err?.message ?? 'unknown', eventId],
