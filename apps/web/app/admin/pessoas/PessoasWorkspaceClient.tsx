@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import PeopleDirectoryClient from './PeopleDirectoryClient';
-import { apiGet } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import type { OperationsJob } from '@/components/operations/model';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -13,6 +13,10 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
@@ -33,8 +37,11 @@ import {
   IconBriefcase,
   IconClock,
   IconDots,
+  IconEdit,
   IconMail,
+  IconPlus,
   IconSearch,
+  IconTrash,
   IconUsers,
   IconUserCheck,
 } from '@tabler/icons-react';
@@ -55,6 +62,9 @@ type PlannerOwner = {
   tentative_minutes: number;
   usage: number;
   jobs: OperationsJob[];
+  // Source tracking for edit/delete
+  _people_id?: string | null;
+  _freelancer_id?: string | null;
 };
 
 type InternalPerson = {
@@ -99,7 +109,12 @@ function ownerState(usage: number) {
 
 // ── ColaboradorCard ───────────────────────────────────────────────────────
 
-function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
+function ColaboradorCard({ row, q, onEdit, onDelete }: {
+  row: PlannerOwner;
+  q: string;
+  onEdit?: (row: PlannerOwner) => void;
+  onDelete?: (row: PlannerOwner) => void;
+}) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const { owner, usage, jobs, allocable_minutes, committed_minutes, tentative_minutes } = row;
@@ -290,6 +305,12 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
           sx={{ fontSize: '0.82rem', gap: 1 }}>
           Ver perfil completo
         </MenuItem>
+        {(row._people_id || row._freelancer_id) && onEdit && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onEdit(row); }}
+            sx={{ fontSize: '0.82rem', gap: 1 }}>
+            <IconEdit size={14} /> Editar
+          </MenuItem>
+        )}
         {owner.email && (
           <MenuItem component="a" href={`mailto:${owner.email}`} onClick={() => setMenuAnchor(null)}
             sx={{ fontSize: '0.82rem', gap: 1 }}>
@@ -300,6 +321,12 @@ function ColaboradorCard({ row, q }: { row: PlannerOwner; q: string }) {
           <MenuItem onClick={() => { navigator.clipboard.writeText(owner.email!); setMenuAnchor(null); }}
             sx={{ fontSize: '0.82rem', gap: 1 }}>
             Copiar email
+          </MenuItem>
+        )}
+        {row._people_id && onDelete && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onDelete(row); }}
+            sx={{ fontSize: '0.82rem', gap: 1, color: 'error.main' }}>
+            <IconTrash size={14} /> Excluir
           </MenuItem>
         )}
       </Menu>
@@ -338,6 +365,7 @@ function mergeColaboradores(
     if (!fp) return o;
     return {
       ...o,
+      _freelancer_id: fp.id,
       owner: {
         ...o.owner,
         // Keep planner's proper name (e.g. "Leo Rotundo") — fall back to fp name only if planner has none
@@ -348,10 +376,12 @@ function mergeColaboradores(
     };
   });
 
-  // Index planner owners by email for dedup
+  // Index planner owners by email AND name for dedup
   const byEmail = new Map<string, PlannerOwner>();
+  const byName  = new Map<string, PlannerOwner>();
   for (const o of result) {
     if (o.owner.email) byEmail.set(o.owner.email.toLowerCase(), o);
+    byName.set(o.owner.name.toLowerCase(), o);
   }
   const seen = new Set(result.map((o) => o.owner.email?.toLowerCase()).filter(Boolean));
 
@@ -359,19 +389,34 @@ function mergeColaboradores(
   for (const p of internalPeople) {
     const email = primaryEmail(p.identities);
     const key = email?.toLowerCase() ?? '';
+
+    // Dedup by email
     if (key && seen.has(key)) {
-      // Already in planner — patch avatar if still missing
       const existing = byEmail.get(key);
-      if (existing && !existing.owner.avatar_url && p.avatar_url) {
-        existing.owner.avatar_url = p.avatar_url;
+      if (existing) {
+        if (!existing.owner.avatar_url && p.avatar_url) existing.owner.avatar_url = p.avatar_url;
+        if (!existing._people_id) existing._people_id = p.id;
       }
       continue;
     }
+
+    // Dedup by display_name (catches duplicates without email, e.g. two "Leo Rotundo")
+    const nameKey = p.display_name.toLowerCase();
+    if (byName.has(nameKey)) {
+      const existing = byName.get(nameKey)!;
+      if (!existing.owner.avatar_url && p.avatar_url) existing.owner.avatar_url = p.avatar_url;
+      if (!existing._people_id) existing._people_id = p.id;
+      continue;
+    }
+
     seen.add(key);
     // Match freelancer: by email first, then by display_name (handles missing identities)
     const fp = (email ? fpByEmail.get(email.toLowerCase()) : undefined)
       ?? fpByDisplayName.get(p.display_name.toLowerCase());
-    result.push({
+
+    const newEntry: PlannerOwner = {
+      _people_id: p.id,
+      _freelancer_id: fp?.id ?? null,
       owner: {
         // Use fp.id (freelancer_profiles PK) so the profile page can match via f.id === decodedId
         id:         fp?.id ?? p.id,
@@ -387,7 +432,9 @@ function mergeColaboradores(
       tentative_minutes: 0,
       usage: 0,
       jobs: [],
-    });
+    };
+    result.push(newEntry);
+    byName.set(newEntry.owner.name.toLowerCase(), newEntry);
   }
 
   // Sort: with jobs first, then alphabetically
@@ -406,6 +453,24 @@ function ColaboradoresView() {
   const [error, setError] = useState('');
   const [owners, setOwners] = useState<PlannerOwner[]>([]);
   const [q, setQ] = useState('');
+
+  // Create dialog
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createSaving, setCreateSaving] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  // Edit dialog
+  const [editTarget, setEditTarget] = useState<PlannerOwner | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<PlannerOwner | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -431,6 +496,57 @@ function ColaboradoresView() {
 
   useEffect(() => { load(); }, [load]);
 
+  const openEdit = useCallback((row: PlannerOwner) => {
+    setEditTarget(row);
+    setEditName(row.owner.name);
+    setEditEmail(row.owner.email ?? '');
+    setEditError('');
+  }, []);
+
+  const openDelete = useCallback((row: PlannerOwner) => {
+    setDeleteTarget(row);
+  }, []);
+
+  const handleCreate = async () => {
+    if (!createName.trim()) { setCreateError('Nome obrigatório'); return; }
+    setCreateSaving(true); setCreateError('');
+    try {
+      await apiPost('/people', { display_name: createName.trim(), is_internal: true, email: createEmail.trim() || undefined });
+      setCreateOpen(false); setCreateName(''); setCreateEmail('');
+      await load();
+    } catch (e: any) { setCreateError(e.message ?? 'Erro ao criar'); }
+    finally { setCreateSaving(false); }
+  };
+
+  const handleEdit = async () => {
+    if (!editTarget || !editName.trim()) { setEditError('Nome obrigatório'); return; }
+    setEditSaving(true); setEditError('');
+    try {
+      if (editTarget._people_id) {
+        await apiPatch(`/people/${editTarget._people_id}`, {
+          display_name: editName.trim(),
+          email: editEmail.trim() || null,
+        });
+      } else if (editTarget._freelancer_id) {
+        await apiPatch(`/freelancers/${editTarget._freelancer_id}`, { display_name: editName.trim() });
+      }
+      setEditTarget(null);
+      await load();
+    } catch (e: any) { setEditError(e.message ?? 'Erro ao salvar'); }
+    finally { setEditSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget?._people_id) return;
+    setDeleting(true);
+    try {
+      await apiDelete(`/people/${deleteTarget._people_id}`);
+      setDeleteTarget(null);
+      await load();
+    } catch (e: any) { setError(e.message ?? 'Erro ao excluir'); setDeleteTarget(null); }
+    finally { setDeleting(false); }
+  };
+
   const overloaded = owners.filter((o) => o.usage >= 1).length;
   const withSlack = owners.filter((o) => o.usage < 0.55 && o.jobs.length > 0).length;
 
@@ -442,16 +558,26 @@ function ColaboradoresView() {
           <Chip label={`${withSlack} com folga`} size="small" color={withSlack ? 'success' : 'default'} variant="outlined" />
           {overloaded > 0 && <Chip label={`${overloaded} sob pressão`} size="small" color="error" variant="outlined" />}
         </Stack>
-        <Button
-          component={Link}
-          href="/admin/equipe"
-          size="small"
-          variant="text"
-          endIcon={<IconArrowUpRight size={13} />}
-          sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', whiteSpace: 'nowrap' }}
-        >
-          Gestão da equipe
-        </Button>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<IconPlus size={14} />}
+            onClick={() => { setCreateOpen(true); setCreateName(''); setCreateEmail(''); setCreateError(''); }}
+          >
+            Novo colaborador
+          </Button>
+          <Button
+            component={Link}
+            href="/admin/equipe"
+            size="small"
+            variant="text"
+            endIcon={<IconArrowUpRight size={13} />}
+            sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none', whiteSpace: 'nowrap' }}
+          >
+            Gestão da equipe
+          </Button>
+        </Stack>
       </Stack>
 
       <TextField
@@ -473,10 +599,10 @@ function ColaboradoresView() {
         <Grid container spacing={2}>
           {owners.map((row) => (
             <Grid key={row.owner.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-              <ColaboradorCard row={row} q={q} />
+              <ColaboradorCard row={row} q={q} onEdit={openEdit} onDelete={openDelete} />
             </Grid>
           ))}
-{!loading && owners.length === 0 && (
+          {!loading && owners.length === 0 && (
             <Grid size={{ xs: 12 }}>
               <Typography color="text.secondary" sx={{ py: 6, textAlign: 'center' }}>
                 Nenhum colaborador com jobs ativos encontrado.
@@ -485,6 +611,74 @@ function ColaboradoresView() {
           )}
         </Grid>
       )}
+
+      {/* ── Create dialog ────────────────────────────── */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Novo colaborador</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              label="Nome completo" size="small" fullWidth autoFocus
+              value={createName} onChange={(e) => setCreateName(e.target.value)}
+            />
+            <TextField
+              label="Email" size="small" fullWidth type="email"
+              value={createEmail} onChange={(e) => setCreateEmail(e.target.value)}
+              helperText="Opcional — usado para login e notificações"
+            />
+            {createError && <Alert severity="error">{createError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleCreate} disabled={createSaving || !createName.trim()}>
+            {createSaving ? <CircularProgress size={16} /> : 'Criar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Edit dialog ──────────────────────────────── */}
+      <Dialog open={!!editTarget} onClose={() => setEditTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Editar colaborador</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              label="Nome completo" size="small" fullWidth autoFocus
+              value={editName} onChange={(e) => setEditName(e.target.value)}
+            />
+            <TextField
+              label="Email" size="small" fullWidth type="email"
+              value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
+              helperText={editTarget?._people_id ? 'Email de acesso ao sistema' : 'Disponível apenas para edição via perfil completo'}
+              disabled={!editTarget?._people_id}
+            />
+            {editError && <Alert severity="error">{editError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setEditTarget(null)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleEdit} disabled={editSaving || !editName.trim()}>
+            {editSaving ? <CircularProgress size={16} /> : 'Salvar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Delete confirm dialog ────────────────────── */}
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Excluir colaborador?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Tem certeza que deseja excluir <strong>{deleteTarget?.owner.name}</strong>?
+            Esta ação não pode ser desfeita.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+          <Button variant="contained" color="error" onClick={handleDelete} disabled={deleting}>
+            {deleting ? <CircularProgress size={16} /> : 'Excluir'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
