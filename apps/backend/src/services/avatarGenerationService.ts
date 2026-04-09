@@ -5,7 +5,7 @@ import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
 import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, generateNanoBananaEditMultiWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v10';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v11';
 
 const AVATAR_STYLE_REFERENCE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-reference.png');
 const AVATAR_STYLE_BRIDGE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-bridge.jpg');
@@ -13,15 +13,15 @@ let avatarStyleReferenceDataUrlPromise: Promise<string> | null = null;
 let avatarStyleBridgeDataUrlPromise: Promise<string> | null = null;
 
 const EDRO_AVATAR_BASE_PROMPT = `
-create a freelancer profile avatar from photo 1.
+transform photo 1 into a highly detailed, stylized 3d caricature avatar for a freelancer profile.
 
-photo 1 is the identity source of truth. keep the exact same person: same face shape, forehead, jawline, nose, eyes, eyebrows, mouth, hairline, hairstyle, beard, skin tone, age range, and gender presentation. if there is any conflict, always follow photo 1 and never invent a prettier, younger, more feminine, or more generic face.
+photo 1 is the identity source of truth. preserve the exact same person: same facial structure, face width, jawline, nose, eyes, eyebrows, mouth, hairline, hairstyle, beard, skin tone, age range, and gender presentation. if there is any conflict, always follow photo 1 and never invent a prettier, younger, more feminine, or more generic face.
 
-photo 2 is only a bridge to simplify the face away from realism. photo 3 is the final style reference and must define the finished visual family. the result must look like the same real person from photo 1, now translated into the same polished pixar-toy-like 3d world and same turma visual as photo 3.
+photo 2 is only a caricature bridge to push the face away from realism. photo 3 is the final style reference and must lock the visual family. the final result must still look like the same real person from photo 1, but translated into the same polished pixar and dreamworks style 3d world and same turma visual as photo 3.
 
-simplify and stylize the face, but keep it unmistakably recognizable. preserve the real haircut, facial hair, neckline, shoulders, and general proportions. do not swap long hair for short hair, do not remove the beard, and do not change the overall presentation of the person.
+make it more stylized, more graphic, and more caricatured than a realistic portrait, but still unmistakably recognizable. preserve the real haircut, facial hair, neckline, shoulders, and overall presentation. do not swap long hair for short hair, do not remove the beard, and do not change the identity of the person.
 
-render only one character in a clean bust portrait from the upper chest upward, slightly turned to the right. use soft studio lighting, matte toy-like materials, clean shapes, and a solid strong edro orange background. no props, no text, no extra characters, no realistic environment.
+render one character only in a clean bust portrait from the upper chest upward, slightly turned to the right. use smooth studio lighting, sharp focus, matte polished materials, vivid shapes, a vivid solid edro orange background, and a premium cinematic finish. aim for a highly detailed animated-feature look, 8k quality feel, octane rendering quality, unreal engine 5 quality. no props, no text, no extra characters, no realistic environment.
 `.trim();
 
 const EDRO_AVATAR_NEGATIVE_PROMPT = `
