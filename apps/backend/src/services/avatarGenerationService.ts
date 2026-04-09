@@ -5,7 +5,7 @@ import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
 import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, generateNanoBananaEditMultiWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v8';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v9';
 
 const AVATAR_STYLE_REFERENCE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-reference.png');
 const AVATAR_STYLE_BRIDGE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-bridge.jpg');
@@ -13,25 +13,19 @@ let avatarStyleReferenceDataUrlPromise: Promise<string> | null = null;
 let avatarStyleBridgeDataUrlPromise: Promise<string> | null = null;
 
 const EDRO_AVATAR_BASE_PROMPT = `
-create a single stylized 3D avatar character from the reference photo, shown alone in a complete bust portrait from the upper chest upward on a plain very light gray background. keep a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never staring straight into the camera.
+turn photo 1 into a stylized 3D animated character.
 
-identity fidelity is the highest priority. preserve the real person's facial proportions, face width, jawline, chin, cheek volume, eye spacing, eye size, eyebrow shape, nose width and bridge, mouth shape, hairline, beard or mustache if present, skin tone, age range, and overall gender presentation exactly as seen in the reference. the goal is immediate recognition by someone who knows the person. do not beautify, idealize, feminize, masculinize, or replace the face with a generic attractive cartoon face.
+preserve the exact identity from photo 1: same face shape, eyes, nose, mouth, hair, beard, skin tone, age, and gender presentation. do not beautify, do not feminize, do not masculinize, and do not replace the face with a generic cartoon person.
 
-the first input image is the person's real photo and must control identity. the second input image is a flat caricature bridge and must control how far the face can simplify away from realism. the third input image is the approved edro style reference and must control the final visual family. use the caricature bridge to push the portrait away from realistic rendering and toward bolder, cleaner, friendlier facial simplification before matching the final 3d style family.
+use photo 2 as a caricature bridge to simplify the face away from realism. use photo 3 as the approved edro style reference to lock the final visual family. the final result must look like the same real person, but as a new member of that same turma and same polished pixar-toy-like 3d world.
 
-render the final avatar as if it belongs to the exact same cast, world, and product line as the approved style reference: same simplified head and facial construction, same big readable eyes, same ear scale, same matte toy-like materials, same clean soft shading, same playful friendly energy, same polished 3d mascot finish. the result must feel like a new member of that same turma, not a new unrelated style.
+make the face simpler, friendlier, and more graphic than the real photo, but still immediately recognizable. preserve the real hairstyle, facial hair, clothing neckline, and shoulders.
 
-translate the person into that exact approved style family only after preserving who they are. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. allow a gentle Pixar toy feeling in the sculpted forms and readable silhouette, but never baby-like, never chibi, never like a different person, and never a generic commercial mascot.
-
-faithfully translate the real hairstyle, hair volume, hair texture, and facial hair. if the subject has short hair, keep it short; if they have longer hair, keep it longer. if they have a beard, keep the beard. if they are clean-shaven, keep them clean-shaven. preserve clothing, neckline, shoulders, and any visible accessories from the photo in the same simplified 3D language without inventing wardrobe changes.
-
-keep the expression warm, friendly, and naturally upbeat. allow only a subtle pleasant surprise if needed, but do not exaggerate the mouth, eyes, or eyebrows. the expression must still look like the same person from the photo.
-
-keep the portrait soft, matte, and clean with gentle studio lighting, no environment, no props, no text, no watermark, and no extra characters. one character only.
+show only one character in a bust portrait from the upper chest upward, with a subtle three-quarter angle slightly turned to the right. use soft studio lighting, matte materials, and a solid strong edro orange background. no props, no text, no extra characters, no realistic environment.
 `.trim();
 
 const EDRO_AVATAR_NEGATIVE_PROMPT = `
-generic face, different person, identity drift, face swap, gender swap, younger face, older face, beauty filter face, handsome toy face, cute mascot face, tiny nose replacement, oversized eyes, glam face, doll face, front-facing portrait, symmetrical face, round baby head, chibi, funko style, vinyl toy style, sparkly eyes, glossy materials, fashion photography, missing arms, incomplete bust, shoulderless torso, cropped arm silhouette, detailed background, text, watermark, multiple characters, props
+generic face, different person, identity drift, face swap, gender swap, younger face, older face, beauty filter face, handsome toy face, cute mascot face, glam face, doll face, front-facing portrait, symmetrical face, round baby head, chibi, funko style, vinyl toy style, sparkly eyes, glossy materials, realistic photo rendering, realistic environment, white background, gray background, detailed background, text, watermark, multiple characters, props
 `.trim();
 
 function buildAvatarPrompt(customPrompt?: string) {

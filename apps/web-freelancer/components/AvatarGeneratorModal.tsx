@@ -3,17 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiPostFormData } from '@/lib/api';
 
-const DEFAULT_PROMPT = `create a single stylized 3D avatar character from the reference photo, shown alone in a complete bust portrait from the upper chest upward on a plain very light gray background. keep a subtle three-quarter angle facing slightly to the right side of the image, never front-facing, never perfectly symmetrical, never staring straight into the camera.
+const DEFAULT_PROMPT = `turn photo 1 into a stylized 3D animated character.
 
-identity fidelity is the highest priority. preserve the real person's facial proportions, face width, jawline, chin, cheek volume, eye spacing, eye size, eyebrow shape, nose width and bridge, mouth shape, hairline, beard or mustache if present, skin tone, age range, and overall gender presentation exactly as seen in the reference. the goal is immediate recognition by someone who knows the person. do not beautify, idealize, feminize, masculinize, or replace the face with a generic attractive cartoon face.
+preserve the exact identity from photo 1: same face shape, eyes, nose, mouth, hair, beard, skin tone, age, and gender presentation. do not replace the face with a generic cartoon character.
 
-the system already applies two internal style references automatically: a flat caricature bridge to push the face away from realism, and the approved edro 3d style reference to lock the final visual family. make the final avatar feel like it belongs to the exact same turma, cast, and polished 3d toy world as those references while still preserving the real person. stylization must simplify the real face, not replace it. keep the rendering matte, clean, understated, and softly lit. allow a gentle Pixar toy feeling in the sculpted forms and readable silhouette, but never baby-like, never chibi, never like a different person, and never a generic commercial mascot.
+the system already applies two internal references automatically: a caricature bridge to simplify the face, and the approved edro 3d style reference to lock the final visual family. the result must look like the same real person, but as part of that same polished pixar-toy-like 3d turma.
 
-faithfully translate the real hairstyle, hair volume, hair texture, and facial hair. if the subject has short hair, keep it short; if they have longer hair, keep it longer. if they have a beard, keep the beard. if they are clean-shaven, keep them clean-shaven. preserve clothing, neckline, shoulders, and any visible accessories from the photo in the same simplified 3D language without inventing wardrobe changes.
-
-keep the expression warm, friendly, and naturally upbeat. allow only a subtle pleasant surprise if needed, but do not exaggerate the mouth, eyes, or eyebrows. the expression must still look like the same person from the photo.
-
-keep the portrait soft, matte, and clean with gentle studio lighting, no environment, no props, no text, no watermark, and no extra characters. one character only.`;
+show one bust portrait from the upper chest upward, slightly turned to the right, with soft studio lighting, matte materials, and a solid strong edro orange background. no props, no text, no extra characters, no realistic environment.`;
 
 type AvatarResponse = {
   ok: boolean;
