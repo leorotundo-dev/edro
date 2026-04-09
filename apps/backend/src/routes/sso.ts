@@ -6,6 +6,7 @@ import { findUserMfaByUserId } from '../repositories/edroUserMfaRepository';
 import { ensureTenantForDomain, ensureTenantMembership, mapRoleToTenantRole } from '../repos/tenantRepo';
 import { shouldEnforcePrivilegedMfa } from '../auth/rbac';
 import { issuePendingMfaToken } from './auth';
+import { resolveRole } from '../services/authService';
 import { env } from '../env';
 
 const SSO_STATE_COOKIE = 'edro_sso_state';
@@ -159,11 +160,12 @@ export default async function ssoRoutes(app: FastifyInstance) {
     if (!tenant) return reply.status(403).send({ error: 'tenant_not_found_for_domain', domain });
 
     let user = await findUserByEmail(email);
-    if (!user) {
-      user = await upsertUser({ email, name, role: 'viewer' });
+    const resolvedRole = resolveRole(email) ?? user?.role ?? 'viewer';
+    if (!user || user.role !== resolvedRole || (name && user.name !== name)) {
+      user = await upsertUser({ email, name, role: resolvedRole });
     }
 
-    const tenantRole = mapRoleToTenantRole(user.role);
+    const tenantRole = mapRoleToTenantRole(resolvedRole);
     await ensureTenantMembership({ tenant_id: tenant.id, user_id: user.id, role: tenantRole });
 
     let token: string;

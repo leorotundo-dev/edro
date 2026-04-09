@@ -29,7 +29,7 @@ export const buildPortalCodeHash = (email: string, code: string) =>
 const generateCode = () =>
   crypto.randomInt(0, 1000000).toString().padStart(6, '0');
 
-const resolveRole = (email: string) =>
+export const resolveRole = (email: string) =>
   adminEmails.includes(email) ? 'gestor' : null;
 
 async function resolveAuthTenantId(email: string): Promise<string | undefined> {
