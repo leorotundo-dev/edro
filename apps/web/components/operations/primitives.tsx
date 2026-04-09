@@ -2117,19 +2117,18 @@ export function OpsCard({
           </Box>
         )}
 
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
 
-          {/* Row 1: chip colorido sólido + ⋮ sempre visível */}
+          {/* Row 1: chip tipo + Urgente + ⋮ */}
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Stack direction="row" spacing={0.5} alignItems="center">
               <Chip
                 size="small"
                 label={formatJobTypeLabel(job.job_type)}
                 sx={{
-                  height: 26, fontSize: '0.72rem', fontWeight: 800, borderRadius: 999,
-                  bgcolor: typeVis.color,
-                  color: '#fff',
-                  '& .MuiChip-label': { px: 1.25 },
+                  height: 24, fontSize: '0.68rem', fontWeight: 800, borderRadius: 999,
+                  bgcolor: typeVis.color, color: '#fff',
+                  '& .MuiChip-label': { px: 1.1 },
                 }}
               />
               {isUrgent && (
@@ -2137,9 +2136,9 @@ export function OpsCard({
                   size="small"
                   label="Urgente"
                   sx={{
-                    height: 22, fontSize: '0.65rem', fontWeight: 800, borderRadius: 999,
+                    height: 20, fontSize: '0.62rem', fontWeight: 800, borderRadius: 999,
                     bgcolor: '#FA896B', color: '#fff',
-                    '& .MuiChip-label': { px: 0.85 },
+                    '& .MuiChip-label': { px: 0.8 },
                   }}
                 />
               )}
@@ -2155,119 +2154,66 @@ export function OpsCard({
             )}
           </Stack>
 
-          {/* Título */}
+          {/* Nome do cliente */}
+          {job.client_name && (
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.07em', lineHeight: 1 }}>
+              {job.client_name}
+            </Typography>
+          )}
+
+          {/* Nome do job */}
           <Typography
-            variant="body1"
             fontWeight={700}
-            sx={{
-              fontSize: '0.95rem', lineHeight: 1.35,
-              display: '-webkit-box', WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}
+            sx={{ fontSize: '0.9rem', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
           >
             {cleanJobTitle(job.title, job.client_name)}
           </Typography>
 
-          {/* Descrição — só quando showDescription=true */}
-          {showDescription && (job.summary || job.required_skill) && (
+          {/* Pequena descrição — sempre visível se existir */}
+          {job.summary && (
             <Typography
-              variant="body2"
               color="text.secondary"
-              sx={{
-                display: '-webkit-box',
-                WebkitLineClamp: 3,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                fontSize: '0.82rem',
-                lineHeight: 1.55,
-              }}
+              sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: '0.78rem', lineHeight: 1.5 }}
             >
-              {job.summary || formatSkillLabel(job.required_skill)}
+              {job.summary}
             </Typography>
           )}
 
-          {/* Progress bar */}
-          {pct !== null && (
-            <Stack spacing={0.5}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>Progresso</Typography>
-                <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 800 }}>{pct}/100</Typography>
-              </Stack>
-              <LinearProgress
-                variant="determinate"
-                value={pct}
-                sx={{
-                  height: 4, borderRadius: 2,
-                  bgcolor: dark ? alpha('#fff', 0.07) : alpha('#000', 0.06),
-                  '& .MuiLinearProgress-bar': { bgcolor: opsBarColor(job), borderRadius: 2 },
-                }}
-              />
-            </Stack>
-          )}
+          {/* Footer: avatar + datas */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 0.75 }}>
 
-          {/* Footer: avatares sobrepostos + comentários + estrela */}
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto' }}>
+            {/* Avatar da pessoa alocada */}
+            {job.owner_name ? (
+              <Tooltip title={job.owner_name} arrow placement="top">
+                <Avatar
+                  src={job.owner_avatar_url ?? undefined}
+                  sx={{ width: 28, height: 28, fontSize: '0.52rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.18), color: '#5D87FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
+                >
+                  {initials(job.owner_name)}
+                </Avatar>
+              </Tooltip>
+            ) : <Box sx={{ width: 28 }} />}
 
-            {/* Avatares */}
-            <Stack direction="row" alignItems="center" spacing={0.75}>
-              <Box sx={{ display: 'flex', '& > *:not(:first-of-type)': { ml: '-8px' } }}>
-                {job.owner_name && (
-                  <Tooltip title={job.owner_name} arrow placement="top">
-                    <Avatar
-                      src={job.owner_avatar_url ?? undefined}
-                      sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.18), color: '#5D87FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
-                    >
-                      {initials(job.owner_name)}
-                    </Avatar>
-                  </Tooltip>
-                )}
-                {extraAssignees.map((a) => (
-                  <Tooltip key={a.user_id} title={a.name} arrow placement="top">
-                    <Avatar
-                      src={a.avatar_url ?? undefined}
-                      sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 900, bgcolor: alpha('#7B61FF', 0.18), color: '#7B61FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
-                    >
-                      {initials(a.name)}
-                    </Avatar>
-                  </Tooltip>
-                ))}
-                {extraAssignees.length > 2 && (
-                  <Avatar sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 800, bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.08), color: 'text.secondary', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}>
-                    +{extraAssignees.length - 2}
-                  </Avatar>
-                )}
-              </Box>
-              {!job.owner_name && (
-                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>Sem dono</Typography>
+            {/* Datas: entrada → entrega */}
+            <Stack direction="row" spacing={0.4} alignItems="center">
+              {job.created_at && (
+                <Typography sx={{ fontSize: '0.63rem', color: 'text.disabled' }}>
+                  {new Date(job.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                </Typography>
               )}
-            </Stack>
-
-            {/* Comentários + estrela */}
-            <Stack direction="row" spacing={1} alignItems="center">
-              {commentCount > 0 && (
-                <Stack direction="row" spacing={0.35} alignItems="center">
-                  <IconMessageCircle size={15} color={alpha(theme.palette.text.primary, 0.45)} />
-                  <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'text.secondary', lineHeight: 1 }}>
-                    {commentCount}
+              {job.created_at && deadlineDate && (
+                <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>→</Typography>
+              )}
+              {deadlineDate && (
+                <Stack direction="row" spacing={0.3} alignItems="center">
+                  <IconCalendar size={11} color={getRisk(job).level === 'critical' ? '#FA896B' : getRisk(job).level === 'warning' ? '#FFAE1F' : alpha(theme.palette.text.primary, 0.35)} />
+                  <Typography sx={{ fontSize: '0.63rem', fontWeight: 700, color: getRisk(job).level === 'critical' ? 'error.main' : getRisk(job).level === 'warning' ? 'warning.main' : 'text.secondary' }}>
+                    {deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                   </Typography>
                 </Stack>
               )}
-              <Box sx={{ color: isFaved ? '#FFAE1F' : alpha(theme.palette.text.primary, 0.22), display: 'flex', lineHeight: 1 }}>
-                {isFaved ? <IconStarFilled size={17} /> : <IconStar size={17} />}
-              </Box>
             </Stack>
           </Stack>
-
-          {/* Deadline linha discreta */}
-          {deadlineDate && (
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <IconCalendar size={12} color={alpha(theme.palette.text.primary, 0.35)} />
-              <DeadlineCountdown deadline={job.deadline_at!} compact />
-              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
-                {deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-              </Typography>
-            </Stack>
-          )}
 
           {/* CTA rodapé — alocar quando sem dono, avançar status quando tem dono */}
           {!job.owner_id && onAssign && owners?.length ? (
