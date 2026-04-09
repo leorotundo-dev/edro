@@ -396,8 +396,28 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   const selectedOwner = owners.find((owner) => owner.id === selectedOwnerId) || null;
   const selectedAssignees = owners.filter((owner) => selectedAssigneeIds.includes(owner.id));
 
+  const trelloLabels = (job.labels ?? (job.metadata?.labels as any[]) ?? []) as Array<{ color: string | null; name: string; hex?: string }>;
+  const trelloAttachments = (job.attachments ?? (job.metadata?.attachments as any[]) ?? []) as Array<{ url: string; name: string; preview_url?: string | null; is_image?: boolean }>;
+  const coverUrl = job.cover_url ?? (job.metadata?.cover_image_url as string | null) ?? null;
+
   return (
     <Box sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
+      {/* ── Cover image (Trello-style) ── */}
+      {coverUrl && (
+        <Box
+          sx={{
+            mx: { xs: -2, md: -4 },
+            mt: -3,
+            mb: 2.5,
+            height: 120,
+            backgroundImage: `url(${coverUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            borderRadius: '12px 12px 0 0',
+          }}
+        />
+      )}
+
       {/* ── Breadcrumb (hidden in modal mode) ── */}
       {!onClose && (
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2.5 }}>
@@ -499,6 +519,34 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
             {job.channel ? <Chip size="small" variant="outlined" label={job.channel} sx={{ fontWeight: 700 }} /> : null}
             {job.job_size ? <Chip size="small" variant="outlined" label={`Tamanho ${job.job_size}`} sx={{ fontWeight: 700 }} /> : null}
           </Stack>
+
+          {/* ── Trello labels row ── */}
+          {trelloLabels.length > 0 && (
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+              {trelloLabels.map((label, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    height: 20,
+                    minWidth: 48,
+                    px: 1,
+                    borderRadius: '4px',
+                    bgcolor: label.hex ?? (label.color ? `#${label.color}` : '#B3BEC4'),
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'default',
+                  }}
+                  title={label.name || label.color || ''}
+                >
+                  {label.name && (
+                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 1px 1px rgba(0,0,0,0.3)', whiteSpace: 'nowrap' }}>
+                      {label.name}
+                    </Typography>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          )}
         </Stack>
 
         {/* Action buttons */}
@@ -661,6 +709,58 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
                     </Box>
                   </>
                 )}
+              </Paper>
+            )}
+
+            {/* ── Attachments (Trello-style) ── */}
+            {trelloAttachments.length > 0 && (
+              <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="caption" fontWeight={700} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Anexos
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
+                    ({trelloAttachments.length})
+                  </Typography>
+                </Stack>
+                <Stack spacing={1}>
+                  {trelloAttachments.map((att, i) => (
+                    <Stack
+                      key={i}
+                      direction="row"
+                      spacing={1.5}
+                      alignItems="center"
+                      component="a"
+                      href={att.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      sx={{ textDecoration: 'none', color: 'inherit', '&:hover .att-name': { textDecoration: 'underline' } }}
+                    >
+                      {att.is_image && att.preview_url ? (
+                        <Box
+                          component="img"
+                          src={att.preview_url}
+                          alt={att.name}
+                          sx={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 1, flexShrink: 0, border: `1px solid ${alpha('#000', 0.08)}` }}
+                        />
+                      ) : (
+                        <Box sx={{ width: 56, height: 40, borderRadius: 1, flexShrink: 0, bgcolor: alpha('#5D87FF', 0.1), border: `1px solid ${alpha('#5D87FF', 0.2)}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: '#5D87FF', textTransform: 'uppercase' }}>
+                            {att.name.split('.').pop()?.slice(0, 4) ?? 'FILE'}
+                          </Typography>
+                        </Box>
+                      )}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography className="att-name" variant="body2" fontWeight={600} sx={{ fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {att.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem' }}>
+                          Abrir anexo →
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ))}
+                </Stack>
               </Paper>
             )}
 

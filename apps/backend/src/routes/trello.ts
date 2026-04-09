@@ -12,6 +12,7 @@ import {
   getTrelloCredentials,
 } from '../services/trelloSyncService';
 import { getBoardInsights, analyzeAllBoardsForTenant, analyzeBoardHistory } from '../services/trelloHistoryAnalyzer';
+import { stripTrelloTitle, normalizeTrelloLabels, normalizeTrelloAttachments, inferJobTypeFromLabels } from '../services/trelloCardMapper';
 import { query } from '../db';
 
 function normalizeBoardBindingKey(value?: string | null) {
@@ -1011,12 +1012,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
       const { band, score } = computePriorityBand(c.due_date, c.due_complete);
       const status = listStatusOverrides.get(c.list_id) ?? listNameToOpsStatus(c.list_name);
       if (activeOnly && INACTIVE_STATUSES.has(status)) return [];
-      const labels: { color: string; name: string }[] = Array.isArray(c.labels) ? c.labels : [];
-      const labelNames = labels.map((l) => l.name?.toLowerCase() ?? '').join(' ');
-      const jobType = /design|arte|artes|visual|criativo/.test(labelNames) ? 'design_static'
-        : /video|vídeo|reels|stories/.test(labelNames) ? 'video_edit'
-        : /reunion|meeting|reunião/.test(labelNames) ? 'meeting'
-        : 'copy';
+      const labels = normalizeTrelloLabels(c.labels);
+      const attachments = normalizeTrelloAttachments(c.attachments);
+      const jobType = inferJobTypeFromLabels(labels);
 
       // ── Intelligence computation ───────────────────────────────────────────
       const now = Date.now();
@@ -1065,12 +1063,16 @@ export default async function trelloRoutes(app: FastifyInstance) {
         suggested_owner_name: !c.owner_user_id ? (c.suggested_owner_name ?? null) : null,
       };
 
+      const clientName = c.client_name ?? c.board_name ?? null;
       return {
         id: c.id,
-        title: c.title,
+        title: stripTrelloTitle(c.title, clientName),
         summary: c.description ?? null,
+        labels,
+        attachments,
+        cover_url: c.cover_url ?? null,
         client_id: c.client_id ?? null,
-        client_name: c.client_name ?? c.board_name,
+        client_name: clientName,
         client_logo_url: c.client_logo_url ?? null,
         client_brand_color: c.client_brand_color ?? null,
         job_type: jobType,
@@ -1097,6 +1099,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
         estimated_minutes: c.estimated_hours ? Math.round(c.estimated_hours * 60) : null,
         actual_minutes: null,
         intelligence,
+        external_link: c.trello_url ?? null,
         metadata: {
           trello_card_id: c.trello_card_id,
           trello_url: c.trello_url,
@@ -1104,11 +1107,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
           board_name: c.board_name,
           list_id: c.list_id,
           list_name: c.list_name,
-          labels,
           due_complete: c.due_complete,
-          cover_image_url: c.cover_url ?? null,
           last_activity_at: c.last_activity_at ?? null,
-          attachments: Array.isArray(c.attachments) ? c.attachments : [],
         },
       };
     });
