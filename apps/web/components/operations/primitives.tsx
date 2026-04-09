@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -67,6 +67,7 @@ import {
   IconUser,
 } from '@tabler/icons-react';
 import DashboardCard from '@/components/shared/DashboardCard';
+import { useJarvis } from '@/contexts/JarvisContext';
 import {
   cleanJobTitle,
   formatSkillLabel,
@@ -2057,6 +2058,31 @@ export function OpsCard({
   const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
   const [assignAnchor, setAssignAnchor] = useState<HTMLElement | null>(null);
   const accentColor = job.client_brand_color || OPS_ACCENT;
+
+  // Jarvis integration
+  const { open: openJarvis, setPageData, openWithMessage } = useJarvis();
+  const handleJarvisClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPageData({
+      ops_card_id: job.id,
+      ops_card: {
+        id: job.id,
+        title: cleanJobTitle(job.title, job.client_name),
+        client_name: job.client_name ?? null,
+        status: job.status,
+        deadline_at: job.deadline_at ?? null,
+        owner_name: job.owner_name ?? null,
+        intelligence: job.intelligence ?? null,
+      },
+    });
+    const riskLabel = job.intelligence?.risk_level === 'critical' ? 'crítico'
+      : job.intelligence?.risk_level === 'high' ? 'alto' : null;
+    const alerts = job.intelligence?.alerts?.slice(0, 2).join(', ') ?? '';
+    const msg = riskLabel
+      ? `Analisa o job "${cleanJobTitle(job.title, job.client_name)}" (${job.client_name ?? ''}) — risco ${riskLabel}${alerts ? `: ${alerts}` : ''}. O que você recomenda?`
+      : `Me ajuda com o job "${cleanJobTitle(job.title, job.client_name)}" (${job.client_name ?? ''}).`;
+    openWithMessage(msg);
+  }, [job, setPageData, openWithMessage]);
   const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
   const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
   const nextStatus = getNextStatus(job);
@@ -2143,15 +2169,27 @@ export function OpsCard({
                 />
               )}
             </Stack>
-            {onOpen && (
-              <IconButton
-                size="small"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
-                sx={{ p: 0.4, color: 'text.secondary', flexShrink: 0 }}
-              >
-                <IconDots size={16} />
-              </IconButton>
-            )}
+            <Stack direction="row" alignItems="center" spacing={0}>
+              {/* Jarvis — abre com contexto do job */}
+              <Tooltip title="Falar com Jarvis sobre este job" arrow placement="top">
+                <IconButton
+                  size="small"
+                  onClick={handleJarvisClick}
+                  sx={{ p: 0.4, color: job.intelligence?.risk_level === 'critical' ? 'error.main' : job.intelligence?.risk_level === 'high' ? 'warning.main' : alpha(theme.palette.text.primary, 0.35), flexShrink: 0 }}
+                >
+                  <IconSparkles size={15} />
+                </IconButton>
+              </Tooltip>
+              {onOpen && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(job); }}
+                  sx={{ p: 0.4, color: 'text.secondary', flexShrink: 0 }}
+                >
+                  <IconDots size={16} />
+                </IconButton>
+              )}
+            </Stack>
           </Stack>
 
           {/* Nome do cliente */}

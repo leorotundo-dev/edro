@@ -590,6 +590,127 @@ export async function syncAllTrelloBoardsForTenant(tenantId: string): Promise<vo
       console.error(`[trelloSync] Board ${board.trello_board_id} error:`, err?.message);
     }
   }
+
+  // After all boards synced, refresh intelligence signals (non-blocking)
+  syncTrelloIntelligenceSignals(tenantId).catch((err: any) =>
+    console.error(`[trelloSync] intelligence signals error:`, err?.message),
+  );
+}
+
+// ─── Public: compute intelligence and upsert operational_signals ─────────────
+// Called after sync. Creates/updates signals for critical/high risk Trello cards
+// so Jarvis tools (get_operations_signals) automatically see Trello alerts.
+
+export async function syncTrelloIntelligenceSignals(tenantId: string): Promise<void> {
+  const { rows } = await query<{
+    id: string; title: string; description: string | null;
+    due_date: string | null; due_complete: boolean;
+    trello_url: string | null; client_id: string | null; client_name: string | null;
+    days_inactive: number | null;
+    client_late_count: number; client_total_count: number;
+    owner_user_id: string | null;
+  }>(`
+    SELECT
+      pc.id, pc.title, pc.description, pc.due_date::text, pc.due_complete, pc.trello_url,
+      pb.client_id,
+      cl.name as client_name,
+      CASE WHEN pc.last_activity_at IS NOT NULL THEN EXTRACT(DAY FROM NOW() - pc.last_activity_at)::int ELSE NULL END as days_inactive,
+      (SELECT COUNT(*)::int FROM project_cards pc_h JOIN project_boards pb_h ON pb_h.id = pc_h.board_id
+       WHERE pb_h.client_id = pb.client_id AND pb_h.client_id IS NOT NULL
+         AND pc_h.is_archived = true AND pc_h.due_date IS NOT NULL
+         AND pc_h.due_date < CURRENT_DATE AND NOT pc_h.due_complete
+         AND pc_h.tenant_id = $1) as client_late_count,
+      (SELECT COUNT(*)::int FROM project_cards pc_h JOIN project_boards pb_h ON pb_h.id = pc_h.board_id
+       WHERE pb_h.client_id = pb.client_id AND pb_h.client_id IS NOT NULL
+         AND pc_h.is_archived = true AND pc_h.tenant_id = $1) as client_total_count,
+      (SELECT eu.id FROM project_card_members pcm
+         JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+       WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_user_id
+    FROM project_cards pc
+    JOIN project_boards pb ON pb.id = pc.board_id
+    JOIN project_lists pl ON pl.id = pc.list_id
+    LEFT JOIN clients cl ON cl.id::text = pb.client_id
+    WHERE pc.tenant_id = $1
+      AND pc.is_archived = false
+      AND pl.is_archived = false
+  `, [tenantId]);
+
+  const now = Date.now();
+  const resolvedCardIds: string[] = [];
+
+  for (const c of rows) {
+    const daysToDeadline = c.due_date
+      ? Math.floor((new Date(c.due_date).getTime() - now) / 86400000)
+      : null;
+
+    const alerts: string[] = [];
+    if (daysToDeadline !== null && daysToDeadline < 0)
+      alerts.push(`Atrasado ${Math.abs(daysToDeadline)}d`);
+    else if (daysToDeadline === 0)
+      alerts.push('Entrega hoje');
+    else if (daysToDeadline !== null && daysToDeadline <= 2)
+      alerts.push(`Entrega em ${daysToDeadline}d`);
+    if (!c.owner_user_id) alerts.push('Sem responsável');
+    if ((c.client_total_count ?? 0) >= 3 && (c.client_late_count ?? 0) >= 2)
+      alerts.push(`Cliente atrasou ${Math.round(((c.client_late_count ?? 0) / (c.client_total_count ?? 1)) * 100)}%`);
+    if (c.days_inactive != null && c.days_inactive >= 4) alerts.push(`Parado há ${c.days_inactive}d`);
+    if (!c.description) alerts.push('Sem briefing');
+
+    let riskScore = 0;
+    if (daysToDeadline !== null) {
+      if (daysToDeadline < 0) riskScore += 40;
+      else if (daysToDeadline <= 1) riskScore += 35;
+      else if (daysToDeadline <= 3) riskScore += 20;
+      else if (daysToDeadline <= 7) riskScore += 8;
+    }
+    if (!c.owner_user_id) riskScore += 25;
+    if (c.days_inactive != null && c.days_inactive >= 4) riskScore += 15;
+    if ((c.client_total_count ?? 0) >= 3 && (c.client_late_count ?? 0) / (c.client_total_count ?? 1) >= 0.5) riskScore += 20;
+    riskScore = Math.min(riskScore, 100);
+
+    const riskLevel = riskScore >= 70 ? 'critical' : riskScore >= 45 ? 'high' : 'low';
+
+    if (riskLevel === 'low') {
+      resolvedCardIds.push(c.id);
+      continue;
+    }
+
+    const severity = riskLevel === 'critical' ? 85 : 65;
+    const emoji = riskLevel === 'critical' ? '🔴' : '🟡';
+    const dedupKey = `trello_card_risk_${c.id}`;
+    const clientUuid = c.client_id && /^[0-9a-f-]{36}$/i.test(c.client_id) ? c.client_id : null;
+
+    await query(`
+      INSERT INTO operational_signals
+        (tenant_id, domain, signal_type, severity, title, summary,
+         entity_type, entity_id, client_id, client_name, actions, dedup_key, expires_at)
+      VALUES ($1, 'trello_ops', 'attention', $2, $3, $4, 'trello_card', $5, $6::uuid, $7, $8, $9, now() + interval '72 hours')
+      ON CONFLICT (tenant_id, dedup_key) WHERE resolved_at IS NULL
+      DO UPDATE SET severity = $2, summary = $4, expires_at = now() + interval '72 hours', created_at = now()
+    `, [
+      tenantId, severity,
+      `${emoji} ${c.client_name ?? 'Job'}: ${c.title.slice(0, 60)}`,
+      alerts.join(' · '),
+      c.id, clientUuid, c.client_name ?? null,
+      JSON.stringify(c.trello_url ? [{ label: 'Ver no Trello', href: c.trello_url, action_type: 'link' }] : []),
+      dedupKey,
+    ]);
+  }
+
+  // Resolve signals for cards that are no longer high/critical
+  if (resolvedCardIds.length > 0) {
+    await query(`
+      UPDATE operational_signals
+         SET resolved_at = now()
+       WHERE tenant_id = $1
+         AND domain = 'trello_ops'
+         AND entity_type = 'trello_card'
+         AND entity_id = ANY($2::text[])
+         AND resolved_at IS NULL
+    `, [tenantId, resolvedCardIds]);
+  }
+
+  console.log(`[trelloIntel] Signals synced for tenant ${tenantId}: ${rows.length} cards evaluated, ${resolvedCardIds.length} resolved`);
 }
 
 // ─── Internal ────────────────────────────────────────────────────────────────
