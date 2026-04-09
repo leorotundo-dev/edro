@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPatch } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -15,6 +15,9 @@ import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import Tooltip from '@mui/material/Tooltip';
 import {
   IconArrowLeft,
   IconArrowUpRight,
@@ -22,9 +25,11 @@ import {
   IconCheck,
   IconClock,
   IconMail,
+  IconPencil,
   IconPhone,
   IconBrandWhatsapp,
   IconStar,
+  IconX,
 } from '@tabler/icons-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -170,6 +175,25 @@ function TagList({ items, color }: { items: string[]; color?: string }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 
+const SKILL_OPTIONS = [
+  { value: 'copy', label: 'Copy' },
+  { value: 'design', label: 'Design' },
+  { value: 'video', label: 'Vídeo' },
+  { value: 'social', label: 'Social' },
+  { value: 'estrategia', label: 'Estratégia' },
+  { value: 'operacao', label: 'Operação' },
+  { value: 'atendimento', label: 'Atendimento' },
+  { value: 'financeiro', label: 'Financeiro' },
+];
+
+const PLATFORM_OPTIONS = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'facebook', label: 'Facebook' },
+];
+
 export default function ColaboradorProfileClient({ id }: { id: string }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -180,6 +204,15 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
   // Data from two sources
   const [planner, setPlanner] = useState<PlannerOwner | null>(null);
   const [stats, setStats] = useState<FreelancerStats | null>(null);
+
+  // Skills editor
+  const [editingSkills, setEditingSkills] = useState(false);
+  const [savingSkills, setSavingSkills] = useState(false);
+  const [skillsDraft, setSkillsDraft] = useState<{
+    skills: string[];
+    experience_level: string;
+    platform_expertise: string[];
+  }>({ skills: [], experience_level: '', platform_expertise: [] });
 
   useEffect(() => {
     let active = true;
@@ -245,6 +278,47 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
     load();
     return () => { active = false; };
   }, [id]);
+
+  function openSkillsEditor() {
+    const p = stats?.profile;
+    setSkillsDraft({
+      skills: p?.skills ?? [],
+      experience_level: p?.experience_level ?? '',
+      platform_expertise: p?.platform_expertise ?? [],
+    });
+    setEditingSkills(true);
+  }
+
+  async function saveSkills() {
+    const p = stats?.profile;
+    if (!p) return;
+    setSavingSkills(true);
+    try {
+      await apiPatch(`/freelancers/${p.id}`, {
+        skills: skillsDraft.skills,
+        experience_level: skillsDraft.experience_level || null,
+        platform_expertise: skillsDraft.platform_expertise,
+      });
+      setStats((prev) => prev ? {
+        ...prev,
+        profile: {
+          ...prev.profile,
+          skills: skillsDraft.skills,
+          experience_level: (skillsDraft.experience_level || null) as 'junior' | 'mid' | 'senior' | null,
+          platform_expertise: skillsDraft.platform_expertise,
+        },
+      } : prev);
+      setEditingSkills(false);
+    } catch {
+      // keep editing open so user can retry
+    } finally {
+      setSavingSkills(false);
+    }
+  }
+
+  function toggleSkill(val: string, list: string[], setter: (v: string[]) => void) {
+    setter(list.includes(val) ? list.filter((x) => x !== val) : [...list, val]);
+  }
 
   // Merge data — prefer stats.profile, fall back to planner
   const profile = stats?.profile ?? null;
@@ -551,69 +625,183 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
           <Grid size={{ xs: 12, md: 7 }}>
             <Stack spacing={2.5} sx={{ height: '100%' }}>
 
-              {/* Habilidades */}
-              {(profile?.skills?.length || profile?.tools?.length || profile?.platform_expertise?.length) ? (
-                <>
-                  {profile?.skills?.length ? (
-                    <Box
-                      sx={{
-                        borderRadius: 3,
-                        border: `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.07)}`,
-                        bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
-                        p: 2.5,
-                      }}
-                    >
-                      <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 1.25 }}>Habilidades</Typography>
-                      <TagList items={profile.skills} color={theme.palette.primary.main} />
-                    </Box>
-                  ) : null}
+              {/* Habilidades + Plataformas — editable by admin */}
+              <Box
+                sx={{
+                  borderRadius: 3,
+                  border: `1px solid ${editingSkills
+                    ? theme.palette.primary.main
+                    : dark ? alpha('#fff', 0.07) : alpha('#000', 0.07)}`,
+                  bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
+                  p: 2.5,
+                  transition: 'border-color 150ms ease',
+                }}
+              >
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                  <Typography variant="subtitle2" fontWeight={900}>Habilidades &amp; Plataformas</Typography>
+                  {!editingSkills && profile && (
+                    <Tooltip title="Editar habilidades">
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<IconPencil size={14} />}
+                        onClick={openSkillsEditor}
+                        sx={{ fontSize: '0.7rem', textTransform: 'none', minWidth: 0, px: 1, py: 0.25 }}
+                      >
+                        Editar
+                      </Button>
+                    </Tooltip>
+                  )}
+                </Stack>
 
-                  {profile?.tools?.length ? (
-                    <Box
-                      sx={{
-                        borderRadius: 3,
-                        border: `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.07)}`,
-                        bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
-                        p: 2.5,
-                      }}
-                    >
-                      <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 1.25 }}>Ferramentas</Typography>
-                      <TagList items={profile.tools} color="#FFAE1F" />
+                {editingSkills ? (
+                  <Stack spacing={2}>
+                    {/* Experience level */}
+                    <Box>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                        Nível
+                      </Typography>
+                      <Select
+                        size="small"
+                        value={skillsDraft.experience_level}
+                        onChange={(e) => setSkillsDraft((d) => ({ ...d, experience_level: e.target.value }))}
+                        displayEmpty
+                        sx={{ fontSize: '0.78rem', minWidth: 140 }}
+                      >
+                        <MenuItem value=""><em>Não definido</em></MenuItem>
+                        <MenuItem value="junior">Júnior</MenuItem>
+                        <MenuItem value="mid">Pleno</MenuItem>
+                        <MenuItem value="senior">Sênior</MenuItem>
+                      </Select>
                     </Box>
-                  ) : null}
 
-                  {profile?.platform_expertise?.length ? (
-                    <Box
-                      sx={{
-                        borderRadius: 3,
-                        border: `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.07)}`,
-                        bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
-                        p: 2.5,
-                      }}
-                    >
-                      <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 1.25 }}>Plataformas</Typography>
-                      <TagList items={profile.platform_expertise} color="#13DEB9" />
+                    {/* Skills chips */}
+                    <Box>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                        Habilidades
+                      </Typography>
+                      <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+                        {SKILL_OPTIONS.map((opt) => {
+                          const active = skillsDraft.skills.includes(opt.value);
+                          return (
+                            <Chip
+                              key={opt.value}
+                              label={opt.label}
+                              size="small"
+                              onClick={() => toggleSkill(opt.value, skillsDraft.skills, (v) => setSkillsDraft((d) => ({ ...d, skills: v })))}
+                              sx={{
+                                cursor: 'pointer',
+                                fontSize: '0.7rem',
+                                height: 24,
+                                fontWeight: active ? 700 : 500,
+                                bgcolor: active ? alpha(theme.palette.primary.main, 0.15) : undefined,
+                                color: active ? theme.palette.primary.main : 'text.secondary',
+                                border: `1px solid ${active ? theme.palette.primary.main : 'transparent'}`,
+                              }}
+                            />
+                          );
+                        })}
+                      </Stack>
                     </Box>
-                  ) : null}
-                </>
-              ) : (
-                <Box
-                  sx={{
-                    flex: 1,
-                    borderRadius: 3,
-                    border: `1px dashed ${dark ? alpha('#fff', 0.1) : alpha('#000', 0.1)}`,
-                    p: 2.5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Typography variant="body2" color="text.disabled" sx={{ textAlign: 'center' }}>
-                    Habilidades, ferramentas e plataformas<br />
-                    podem ser adicionadas no perfil de equipe.
-                  </Typography>
-                </Box>
-              )}
+
+                    {/* Platform chips */}
+                    <Box>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                        Plataformas
+                      </Typography>
+                      <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+                        {PLATFORM_OPTIONS.map((opt) => {
+                          const active = skillsDraft.platform_expertise.includes(opt.value);
+                          return (
+                            <Chip
+                              key={opt.value}
+                              label={opt.label}
+                              size="small"
+                              onClick={() => toggleSkill(opt.value, skillsDraft.platform_expertise, (v) => setSkillsDraft((d) => ({ ...d, platform_expertise: v })))}
+                              sx={{
+                                cursor: 'pointer',
+                                fontSize: '0.7rem',
+                                height: 24,
+                                fontWeight: active ? 700 : 500,
+                                bgcolor: active ? alpha('#13DEB9', 0.15) : undefined,
+                                color: active ? '#13DEB9' : 'text.secondary',
+                                border: `1px solid ${active ? '#13DEB9' : 'transparent'}`,
+                              }}
+                            />
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+
+                    {/* Actions */}
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        onClick={saveSkills}
+                        disabled={savingSkills}
+                        sx={{ fontSize: '0.72rem', textTransform: 'none', px: 1.5 }}
+                      >
+                        {savingSkills ? 'Salvando…' : 'Salvar'}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<IconX size={14} />}
+                        onClick={() => setEditingSkills(false)}
+                        disabled={savingSkills}
+                        sx={{ fontSize: '0.72rem', textTransform: 'none' }}
+                      >
+                        Cancelar
+                      </Button>
+                    </Stack>
+                  </Stack>
+                ) : (
+                  <Stack spacing={1.5}>
+                    {profile?.experience_level && (
+                      <Box>
+                        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          Nível
+                        </Typography>
+                        <Chip
+                          label={expLabel(profile.experience_level)}
+                          size="small"
+                          sx={{ fontSize: '0.68rem', height: 22, fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}
+                        />
+                      </Box>
+                    )}
+                    {profile?.skills?.length ? (
+                      <Box>
+                        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          Habilidades
+                        </Typography>
+                        <TagList items={profile.skills} color={theme.palette.primary.main} />
+                      </Box>
+                    ) : null}
+                    {profile?.tools?.length ? (
+                      <Box>
+                        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          Ferramentas
+                        </Typography>
+                        <TagList items={profile.tools} color="#FFAE1F" />
+                      </Box>
+                    ) : null}
+                    {profile?.platform_expertise?.length ? (
+                      <Box>
+                        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          Plataformas
+                        </Typography>
+                        <TagList items={profile.platform_expertise} color="#13DEB9" />
+                      </Box>
+                    ) : null}
+                    {!profile?.skills?.length && !profile?.tools?.length && !profile?.platform_expertise?.length && !profile?.experience_level && (
+                      <Typography variant="body2" color="text.disabled">
+                        Nenhuma habilidade cadastrada. Clique em Editar para adicionar.
+                      </Typography>
+                    )}
+                  </Stack>
+                )}
+              </Box>
 
             </Stack>
           </Grid>

@@ -785,8 +785,8 @@ export default async function freelancersRoutes(app: FastifyInstance) {
          bank_name = EXCLUDED.bank_name,
          bank_agency = EXCLUDED.bank_agency,
          bank_account = EXCLUDED.bank_account,
-         skills = EXCLUDED.skills,
-         available_days = EXCLUDED.available_days,
+         skills = CASE WHEN EXCLUDED.skills <> '{}' THEN EXCLUDED.skills ELSE COALESCE(freelancer_profiles.skills, '{}') END,
+         available_days = CASE WHEN EXCLUDED.available_days <> '{}' THEN EXCLUDED.available_days ELSE COALESCE(freelancer_profiles.available_days, '{}') END,
          available_hours_start = EXCLUDED.available_hours_start,
          available_hours_end = EXCLUDED.available_hours_end,
          weekly_capacity_hours = EXCLUDED.weekly_capacity_hours,
@@ -805,10 +805,10 @@ export default async function freelancersRoutes(app: FastifyInstance) {
        body.phone ?? null, body.whatsapp_jid ?? null, body.department ?? null, body.role_title ?? null,
        body.email_personal ?? null, body.notes ?? null, body.cpf ?? null, body.rg ?? null, body.birth_date ?? null,
        body.bank_name ?? null, body.bank_agency ?? null, body.bank_account ?? null,
-       body.skills ?? null, body.available_days ?? null, body.available_hours_start ?? null,
+       body.skills ?? [], body.available_days ?? [], body.available_hours_start ?? null,
        body.available_hours_end ?? null, body.weekly_capacity_hours ?? null, body.contract_type ?? null,
        body.tools ?? null, body.ai_tools ?? null, body.experience_level ?? null,
-       body.max_concurrent_jobs ?? null, body.portfolio_url ?? null,
+       body.max_concurrent_jobs ?? 3, body.portfolio_url ?? null,
        body.platform_expertise ?? null, body.languages ?? null],
     );
     const synced = await syncFreelancerOperationalIdentity({

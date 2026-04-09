@@ -1087,6 +1087,7 @@ function DAAssignmentBlock({
             const slotsLeft = p.maxConcurrentJobs - p.currentActiveJobs;
             const bg = avatarBg(p.name);
             const availNow = new Date(p.estimatedAvailableAt) <= new Date();
+            const scoreColor = p.score >= 85 ? '#13DEB9' : p.score >= 65 ? '#5D87FF' : p.score >= 50 ? '#FFAE1F' : '#B0BEC5';
             return (
               <Box
                 key={p.freelancerId}
@@ -1104,15 +1105,32 @@ function DAAssignmentBlock({
                   '&:disabled': { opacity: 0.5 },
                 })}
               >
-                <Stack direction="row" alignItems="center" spacing={1.25}>
-                  <Avatar sx={{ width: 30, height: 30, bgcolor: bg, fontSize: '0.65rem', fontWeight: 800, flexShrink: 0 }}>
+                <Stack direction="row" alignItems="flex-start" spacing={1.25}>
+                  <Avatar sx={{ width: 30, height: 30, bgcolor: bg, fontSize: '0.65rem', fontWeight: 800, flexShrink: 0, mt: 0.25 }}>
                     {initials(p.name)}
                   </Avatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.75rem', display: 'block' }}>{p.name}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                    <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 0.1 }}>
+                      <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.75rem' }}>{p.name}</Typography>
+                      <Box sx={{
+                        px: 0.6, py: 0.05, borderRadius: 0.75,
+                        bgcolor: alpha(scoreColor, 0.15), color: scoreColor,
+                        fontSize: '0.6rem', fontWeight: 800, lineHeight: 1.6, flexShrink: 0,
+                      }}>
+                        {p.score}
+                      </Box>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'block' }}>
                       {p.specialty || 'Freelancer'} · {p.currentActiveJobs}/{p.maxConcurrentJobs} jobs
                     </Typography>
+                    {p.rationale && (
+                      <Typography variant="caption" color="text.disabled" sx={{
+                        fontSize: '0.6rem', display: 'block', mt: 0.25,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {p.rationale}
+                      </Typography>
+                    )}
                   </Box>
                   <Stack alignItems="flex-end" spacing={0.25} sx={{ flexShrink: 0 }}>
                     <Chip
