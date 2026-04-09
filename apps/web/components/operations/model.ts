@@ -85,6 +85,7 @@ export type OperationsJob = {
     id: string;
     name: string;
     items: Array<{
+      id?: string;
       text: string;
       checked: boolean;
     }>;

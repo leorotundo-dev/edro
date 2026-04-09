@@ -1661,7 +1661,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
             fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}/members?${auth}&fields=id,fullName,username,email,avatarUrl`, {
               signal: AbortSignal.timeout(8_000),
             }),
-            fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}/checklists?${auth}&fields=id,name&checkItems=all&checkItem_fields=name,state`, {
+            fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}/checklists?${auth}&fields=id,name&checkItems=all&checkItem_fields=id,name,state`, {
               signal: AbortSignal.timeout(8_000),
             }),
             fetch(`https://api.trello.com/1/cards/${baseRow.trello_card_id}/actions?${auth}&filter=commentCard,updateCard:idList&limit=100&fields=id,type,date,data&memberCreator_fields=fullName,avatarUrl`, {
@@ -1718,13 +1718,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
             const liveChecklists = await checklistsLiveRes.json() as Array<{
               id: string;
               name: string;
-              checkItems?: Array<{ name: string; state: 'complete' | 'incomplete' }>;
+              checkItems?: Array<{ id: string; name: string; state: 'complete' | 'incomplete' }>;
             }>;
             checklists = liveChecklists.map((checklist) => ({
               id: checklist.id,
               name: checklist.name,
               items: Array.isArray(checklist.checkItems)
                 ? checklist.checkItems.map((item) => ({
+                    id: item.id,
                     text: item.name,
                     checked: item.state === 'complete',
                   }))
@@ -1924,6 +1925,58 @@ export default async function trelloRoutes(app: FastifyInstance) {
       headers: request.headers as Record<string, string>,
     });
     return reply.status(detailRes.statusCode).headers(detailRes.headers).send(detailRes.json());
+  });
+
+  // PATCH /trello/ops-cards/:cardId/checklist-items/:checkItemId — toggle checklist item state
+  app.patch('/trello/ops-cards/:cardId/checklist-items/:checkItemId', { preHandler: [authGuard] }, async (request: TR, reply) => {
+    const { cardId, checkItemId } = request.params as { cardId: string; checkItemId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const { state } = z.object({ state: z.enum(['complete', 'incomplete']) }).parse(request.body);
+
+    // Resolve the Trello card ID
+    const cardRes = await query<{ trello_card_id: string | null }>(
+      `SELECT trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRes.rows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+
+    const trelloCardId = cardRes.rows[0].trello_card_id;
+
+    // Update in Trello if synced
+    if (trelloCardId) {
+      const creds = await getTrelloCredentials(tenantId);
+      if (creds) {
+        const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, state });
+        const syncRes = await fetch(
+          `https://api.trello.com/1/cards/${trelloCardId}/checkItem/${checkItemId}?${params}`,
+          { method: 'PUT', signal: AbortSignal.timeout(8_000) },
+        );
+        if (!syncRes.ok) {
+          const errText = await syncRes.text().catch(() => '');
+          console.warn('[trello ops] checklist item sync failed:', syncRes.status, errText);
+          // Still reflect optimistically in the local DB (best effort)
+        }
+      }
+    }
+
+    // Update locally in JSONB — find the checklist row containing this item and update it
+    const clRes = await query<{ id: string; items: Array<{ id?: string; text: string; checked: boolean }> }>(
+      `SELECT id, items FROM project_card_checklists WHERE card_id = $1 AND tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    for (const cl of clRes.rows) {
+      const idx = cl.items.findIndex((it) => it.id === checkItemId);
+      if (idx !== -1) {
+        cl.items[idx] = { ...cl.items[idx], checked: state === 'complete' };
+        await query(
+          `UPDATE project_card_checklists SET items = $1, updated_at = now() WHERE id = $2`,
+          [JSON.stringify(cl.items), cl.id],
+        );
+        break;
+      }
+    }
+
+    return reply.send({ ok: true });
   });
 
   // GET /trello/ops-planner — workload per Trello member for the Planner tab
