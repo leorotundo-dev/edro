@@ -49,7 +49,15 @@ export async function getPrimaryTenantForUser(userId: string) {
     `SELECT tenant_id, role
      FROM tenant_users
      WHERE user_id=$1
-     ORDER BY role='admin' DESC
+     ORDER BY CASE role
+       WHEN 'admin' THEN 0
+       WHEN 'manager' THEN 1
+       WHEN 'staff' THEN 2
+       WHEN 'reviewer' THEN 3
+       WHEN 'viewer' THEN 4
+       ELSE 5
+     END ASC,
+     tenant_id ASC
      LIMIT 1`,
     [userId]
   );
