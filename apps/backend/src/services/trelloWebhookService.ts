@@ -31,7 +31,10 @@ async function getCreds(tenantId: string): Promise<TrelloCreds | null> {
 }
 
 function buildCallbackUrl(tenantId: string): string {
-  const base = env.PUBLIC_API_URL ?? 'https://api.edro.digital';
+  // PUBLIC_API_URL may end in /api (e.g. https://host/api) — strip it;
+  // the webhook route is registered WITHOUT the /api prefix.
+  const raw = env.PUBLIC_API_URL ?? 'https://edro-backend-production.up.railway.app';
+  const base = raw.replace(/\/api$/, '');
   const params = new URLSearchParams({ tenant: tenantId });
   if (env.TRELLO_WEBHOOK_SECRET) params.set('secret', env.TRELLO_WEBHOOK_SECRET);
   return `${base}/webhook/trello?${params}`;
