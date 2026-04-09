@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiPostFormData } from '@/lib/api';
 
-const DEFAULT_PROMPT = `turn photo 1 into a stylized 3D animated character.
+const DEFAULT_PROMPT = `transform photo 1 into a highly detailed, stylized 3d caricature avatar.
 
-photo 1 is the identity source of truth. keep the exact same person: same face shape, eyes, nose, mouth, hair, beard, skin tone, age range, and gender presentation. do not replace the face with a generic cartoon character.
+photo 1 is the identity source of truth. preserve the exact same person: same facial structure, hair, beard, skin tone, age range, and gender presentation. do not replace the face with a generic cartoon character.
 
-the system already applies two internal references automatically: a caricature bridge to simplify the face, and the approved edro 3d style reference to lock the final visual family. the final result must look like the same real person, but as part of that same polished pixar-toy-like 3d turma.
+the system already applies two internal references automatically: a caricature bridge to push the face away from realism, and the approved edro 3d style reference to lock the final visual family. the final result must look like the same real person, but in that same polished pixar and dreamworks style 3d turma.
 
-show one clean bust portrait from the upper chest upward, slightly turned to the right, with soft studio lighting, matte toy-like materials, and a solid strong edro orange background. no props, no text, no extra characters, no realistic environment.`;
+show one clean bust portrait from the upper chest upward, slightly turned to the right, with smooth studio lighting, sharp focus, matte polished materials, and a vivid solid edro orange background. premium animated-feature 3d quality, no props, no text, no extra characters, no realistic environment.`;
 
 type AvatarResponse = {
   ok: boolean;
