@@ -1124,7 +1124,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
               fp.specialty
        FROM edro_users eu
        JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $1
-       LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id AND fp.tenant_id = $1
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
        ORDER BY eu.id, eu.name`,
       [tenantId],
     );
