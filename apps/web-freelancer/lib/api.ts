@@ -3,11 +3,10 @@ export function setToken(_token: string) {}
 export function clearToken() {}
 
 async function request<T = any>(method: string, path: string, body?: unknown): Promise<T> {
+  const hasJsonBody = body !== undefined;
   const res = await fetch(`/api/proxy${path}`, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: hasJsonBody ? { 'Content-Type': 'application/json' } : undefined,
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     cache: 'no-store',
   });
