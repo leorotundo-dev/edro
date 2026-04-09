@@ -8,6 +8,11 @@ import {
   IconUsersGroup,
   IconUserCircle,
   IconInbox,
+  IconReportAnalytics,
+  IconAlertSquare,
+  IconCalendarStats,
+  IconFileTypePdf,
+  IconHeartbeat,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
@@ -79,10 +84,34 @@ const MenuItems: MenuGroupType[] = [
     requiredGroupRole: ['admin', 'manager'],
     items: [
       {
+        id: 'painel-executivo',
+        title: 'Painel Executivo',
+        icon: IconReportAnalytics,
+        href: '/admin/relatorios/painel',
+      },
+      {
+        id: 'fila-de-acao',
+        title: 'Fila de Ação',
+        icon: IconAlertSquare,
+        href: '/admin/relatorios/fila',
+      },
+      {
+        id: 'diario',
+        title: 'Diário',
+        icon: IconCalendarStats,
+        href: '/admin/diario',
+      },
+      {
         id: 'financeiro',
         title: 'Financeiro',
         icon: IconCurrencyDollar,
-        href: '/financeiro',
+        href: '/admin/financeiro',
+      },
+      {
+        id: 'relatorios-mensais',
+        title: 'Relatórios',
+        icon: IconFileTypePdf,
+        href: '/admin/relatorios',
       },
       {
         id: 'equipe',
@@ -93,8 +122,15 @@ const MenuItems: MenuGroupType[] = [
       {
         id: 'admin-system',
         title: 'Admin',
-        icon: IconShieldCheck,
+        icon: IconHeartbeat,
         href: '/admin/controle',
+        requiredRole: ['admin'],
+      },
+      {
+        id: 'system-admin',
+        title: 'System',
+        icon: IconShieldCheck,
+        href: '/admin/system',
         requiredRole: ['admin'],
       },
     ],
