@@ -1541,7 +1541,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
   // Lists project_cards linked to this campaign with status + assignee info.
   app.get(
     '/campaigns/:id/jobs',
-    { preHandler: [requirePerm('clients:read'), requireCampaignPerm('read')] },
+    { preHandler: [requirePerm('clients:read'), requireCampaignPerm('read')], config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
     async (request: any, reply) => {
       const { id } = request.params as { id: string };
       const tenantId = request.user?.tenant_id as string;
@@ -1589,7 +1589,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
   // ── PATCH /campaigns/:id/jobs/:jobId — link/unlink a job to this campaign
   app.patch(
     '/campaigns/:id/jobs/:jobId',
-    { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')] },
+    { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')], config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
     async (request: any, reply) => {
       const { id, jobId } = request.params as { id: string; jobId: string };
       const tenantId = request.user?.tenant_id as string;
