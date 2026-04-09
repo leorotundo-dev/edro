@@ -547,7 +547,9 @@ function buildCalendarEventDedupKey(dateISO: string, item: CalendarEventItem, fa
     return `${item.layer || 'event'}:${item.id || String(fallbackIndex)}`;
   }
 
-  const normalizedName = normalizeCalendarEventName(item.slug || item.name);
+  // Normalize slug to name-like form so "dia-do-astronauta" and "Dia do Astronauta" resolve to the same key
+  const rawSlugOrName = (item.slug || item.name || '').replace(/-/g, ' ');
+  const normalizedName = normalizeCalendarEventName(rawSlugOrName);
   const clientKey = item.client_id || item.client_name || 'global';
   const originKey = item.origin || 'editorial';
 
