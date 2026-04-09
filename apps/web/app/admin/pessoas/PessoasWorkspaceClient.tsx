@@ -509,9 +509,19 @@ function ColaboradoresView() {
 
   const handleCreate = async () => {
     if (!createName.trim()) { setCreateError('Nome obrigatório'); return; }
+    if (!createEmail.trim()) { setCreateError('Email obrigatório para enviar o onboarding'); return; }
     setCreateSaving(true); setCreateError('');
     try {
-      await apiPost('/people', { display_name: createName.trim(), is_internal: true, email: createEmail.trim() || undefined });
+      const result = await apiPost('/freelancers', {
+        display_name: createName.trim(),
+        user_email: createEmail.trim(),
+        send_invite_email: true,
+      });
+      if (result?.invite_email_sent === false) {
+        setCreateError(result?.warning ?? 'Colaborador criado, mas o e-mail inicial não foi enviado.');
+        await load();
+        return;
+      }
       setCreateOpen(false); setCreateName(''); setCreateEmail('');
       await load();
     } catch (e: any) { setCreateError(e.message ?? 'Erro ao criar'); }
@@ -624,15 +634,15 @@ function ColaboradoresView() {
             <TextField
               label="Email" size="small" fullWidth type="email"
               value={createEmail} onChange={(e) => setCreateEmail(e.target.value)}
-              helperText="Opcional — usado para login e notificações"
+              helperText="Obrigatório — recebe o onboarding e o primeiro código de acesso"
             />
             {createError && <Alert severity="error">{createError}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={createSaving || !createName.trim()}>
-            {createSaving ? <CircularProgress size={16} /> : 'Criar'}
+          <Button variant="contained" onClick={handleCreate} disabled={createSaving || !createName.trim() || !createEmail.trim()}>
+            {createSaving ? <CircularProgress size={16} /> : 'Criar e convidar'}
           </Button>
         </DialogActions>
       </Dialog>
