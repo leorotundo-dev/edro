@@ -812,7 +812,7 @@ export function OpsJobRow({
             <Stack direction="row" spacing={0.6} alignItems="center">
               <JobTypeIcon jobType={job.job_type} size={18} />
               <Typography variant="body2" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
-                {cleanJobTitle(job.title)}
+                {cleanJobTitle(job.title, job.client_name)}
               </Typography>
             </Stack>
             <Stack direction="row" spacing={0.75} alignItems="center">
@@ -1453,7 +1453,7 @@ export function OperationCard({
               <JobTypeIcon jobType={job.job_type} size={24} />
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2 }}>
-                  {cleanJobTitle(job.title)}
+                  {cleanJobTitle(job.title, job.client_name)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {job.client_name || 'Sem cliente'} · {job.owner_name || 'Sem responsável'} · {formatSkillLabel(job.required_skill)}
@@ -1761,7 +1761,7 @@ export function OperationsContextRail({
                   <Stack direction="row" spacing={0.6} alignItems="center">
                     <JobTypeIcon jobType={job.job_type} size={20} />
                     <Typography variant="body1" fontWeight={900} sx={{ lineHeight: 1.1 }}>
-                      {cleanJobTitle(job.title)}
+                      {cleanJobTitle(job.title, job.client_name)}
                     </Typography>
                   </Stack>
                 </Box>
@@ -2055,6 +2055,7 @@ export function OpsCard({
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
   const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
+  const [assignAnchor, setAssignAnchor] = useState<HTMLElement | null>(null);
   const accentColor = job.client_brand_color || OPS_ACCENT;
   const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
   const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
@@ -2164,7 +2165,7 @@ export function OpsCard({
               WebkitBoxOrient: 'vertical', overflow: 'hidden',
             }}
           >
-            {cleanJobTitle(job.title)}
+            {cleanJobTitle(job.title, job.client_name)}
           </Typography>
 
           {/* Descrição — só quando showDescription=true */}
@@ -2236,13 +2237,9 @@ export function OpsCard({
                   </Avatar>
                 )}
               </Box>
-              {!job.owner_name && onAssign && owners?.length ? (
-                <Box onClick={(e) => e.stopPropagation()}>
-                  <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
-                </Box>
-              ) : !job.owner_name ? (
+              {!job.owner_name && (
                 <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>Sem dono</Typography>
-              ) : null}
+              )}
             </Stack>
 
             {/* Comentários + estrela */}
@@ -2272,8 +2269,40 @@ export function OpsCard({
             </Stack>
           )}
 
-          {/* Avançar status — hover */}
-          {nextStatus && onAdvance ? (
+          {/* CTA rodapé — alocar quando sem dono, avançar status quando tem dono */}
+          {!job.owner_id && onAssign && owners?.length ? (
+            <>
+              <Button
+                variant="text"
+                size="small"
+                endIcon={<IconArrowRight size={14} />}
+                onClick={(e) => { e.stopPropagation(); setAssignAnchor(e.currentTarget); }}
+                sx={{ alignSelf: 'flex-start', px: 0, minWidth: 0, fontWeight: 700, color: 'warning.main' }}
+              >
+                Alocar freelancer
+              </Button>
+              <Menu
+                anchorEl={assignAnchor}
+                open={Boolean(assignAnchor)}
+                onClose={(e: React.SyntheticEvent) => { e.stopPropagation?.(); setAssignAnchor(null); }}
+                onClick={(e) => e.stopPropagation()}
+                slotProps={{ paper: { sx: { maxHeight: 240, minWidth: 180 } } }}
+              >
+                {(owners ?? []).map((o) => (
+                  <MenuItem
+                    key={o.id}
+                    onClick={(e) => { e.stopPropagation(); onAssign(job.id, o.id); setAssignAnchor(null); }}
+                    sx={{ fontSize: '0.75rem', py: 0.5 }}
+                  >
+                    <Avatar sx={{ width: 22, height: 22, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.14), color: '#5D87FF', mr: 1, flexShrink: 0 }}>
+                      {initials(o.name)}
+                    </Avatar>
+                    {o.name}
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
+          ) : nextStatus && onAdvance ? (
             <Button
               className="ops-card-actions"
               variant="text"
@@ -2565,7 +2594,7 @@ export function AlertCard({
       </Avatar>
       <Stack spacing={0} sx={{ minWidth: 0, flex: 1 }}>
         <Typography variant="caption" fontWeight={700} noWrap sx={{ fontSize: '0.68rem', lineHeight: 1.2 }}>
-          {cleanJobTitle(job.title)}
+          {cleanJobTitle(job.title, job.client_name)}
         </Typography>
         <Typography variant="caption" sx={{ fontSize: '0.58rem', color: riskColor, fontWeight: 800, lineHeight: 1 }}>
           {risk.label}
@@ -2708,7 +2737,7 @@ export function ActionStrip({
                         textOverflow: 'ellipsis',
                       }}
                     >
-                      {cleanJobTitle(job.title)}
+                      {cleanJobTitle(job.title, job.client_name)}
                     </Typography>
                   </Box>
                 );

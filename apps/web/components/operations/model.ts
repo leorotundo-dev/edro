@@ -189,9 +189,26 @@ export function formatSourceLabel(value?: string | null) {
   return SOURCE_LABELS[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-/** Strip Trello date prefix (DDMMYY_ or DDMMYYYY_) from job titles stored before backend fix */
-export function cleanJobTitle(title: string): string {
-  return title.replace(/^\d{6,8}_/, '').trim();
+function normalizeName(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[\s\-_]/g, '');
+}
+
+/** Strip Trello prefixes: date (DDMMYY_) and client name from job titles */
+export function cleanJobTitle(title: string, clientName?: string | null): string {
+  // 1. Strip date prefix DDMMYY_ or DDMMYYYY_
+  let t = title.replace(/^\d{6,8}_/, '').trim();
+  // 2. Strip client name prefix if first segment matches client name
+  if (clientName) {
+    const parts = t.split('_');
+    if (parts.length > 1 && normalizeName(parts[0]) === normalizeName(clientName)) {
+      t = parts.slice(1).join('_').trim();
+    }
+  }
+  return t;
 }
 
 export function formatSkillLabel(value?: string | null) {

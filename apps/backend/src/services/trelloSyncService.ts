@@ -282,11 +282,16 @@ export async function syncTrelloBoard(
       );
     }
 
+    // Helper: normalize for prefix matching (strip accents, spaces, case)
+    const normalizeName = (s: string) =>
+      s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s\-_]/g, '');
+
     // 3. Upsert cards
     const cardIdMap: Record<string, string> = {};
     let cardsSync = 0;
     for (const card of cards) {
-      // Parse date prefix from Trello naming convention: DDMMYY_ or DDMMYYYY_
+      // Strip Trello naming prefixes: DDMMYY_ and/or Cliente_
+      // 1. Date prefix
       const titleMatch = card.name.match(/^(\d{2})(\d{2})(\d{2,4})_([\s\S]+)$/);
       if (titleMatch) {
         const [, dd, mm, yy, rest] = titleMatch;
@@ -297,6 +302,11 @@ export async function syncTrelloBoard(
           if (!card.due) card.due = parsedDate + 'T00:00:00.000Z';
           card.name = rest.trim();
         }
+      }
+      // 2. Client name prefix (board name) — e.g. "CSGrãos_Post_..." → "Post_..."
+      const nameParts = card.name.split('_');
+      if (nameParts.length > 1 && normalizeName(nameParts[0]) === normalizeName(board.name)) {
+        card.name = nameParts.slice(1).join('_').trim();
       }
       const edroListId = listIdMap[card.idList];
       if (!edroListId) {

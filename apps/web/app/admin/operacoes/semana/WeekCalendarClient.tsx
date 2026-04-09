@@ -881,14 +881,23 @@ export default function WeekCalendarClient() {
       )}
 
       {/* Job drawer */}
-      <JobWorkbenchDrawer
-        open={drawerOpen}
-        jobId={selectedJobId}
-        onClose={() => setDrawerOpen(false)}
-        onStatusChange={(jobId, status) => ops.changeStatus(jobId, status).catch(() => {})}
-        onAssign={(jobId, ownerId) => ops.updateJob(jobId, { owner_id: ownerId }).catch(() => {})}
-        owners={owners}
-      />
+      {selectedJob && (
+        <JobWorkbenchDrawer
+          open={drawerOpen}
+          mode="edit"
+          job={selectedJob}
+          jobTypes={ops.lookups.jobTypes}
+          skills={ops.lookups.skills}
+          channels={ops.lookups.channels}
+          clients={ops.lookups.clients}
+          owners={ops.lookups.owners}
+          currentUserId={ops.currentUserId}
+          onClose={() => setDrawerOpen(false)}
+          onCreate={ops.createJob as (payload: Record<string, any>) => Promise<OperationsJob>}
+          onUpdate={ops.updateJob as (jobId: string, payload: Record<string, any>) => Promise<OperationsJob>}
+          onStatusChange={ops.changeStatus as (jobId: string, status: string, reason?: string | null) => Promise<OperationsJob>}
+        />
+      )}
     </OperationsShell>
   );
 }
