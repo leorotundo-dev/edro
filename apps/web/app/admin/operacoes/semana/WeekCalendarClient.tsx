@@ -5,26 +5,21 @@ import OperationsShell from '@/components/operations/OperationsShell';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { isClosedStatus, sortByOperationalPriority } from '@/components/operations/derived';
 import {
-  STATUS_VISUALS,
-  initials,
-  InlineOwnerAssign,
-  DeadlineCountdown,
-} from '@/components/operations/primitives';
-import {
+  formatMinutes,
   getRisk,
-  cleanJobTitle,
   type OperationsJob,
   type OperationsOwner,
 } from '@/components/operations/model';
+import { ClientThumb, StatusDot, DeadlineCountdown } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 
-import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
+import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Skeleton from '@mui/material/Skeleton';
@@ -33,498 +28,506 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
+  IconBrandFacebook,
+  IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandTiktok,
+  IconBrandWhatsapp,
+  IconBrandYoutube,
   IconCalendarWeek,
   IconChevronLeft,
   IconChevronRight,
-  IconFlag,
-  IconLayoutKanban,
+  IconDeviceDesktop,
+  IconLayoutList,
+  IconMail,
   IconRefresh,
-  IconUserOff,
   IconUsers,
+  IconUserOff,
 } from '@tabler/icons-react';
 
-/* ═══════════════════════════════════════════
-   CONSTANTS
-═══════════════════════════════════════════ */
+/* ─── helpers ─── */
 
-const DAY_PX = 46;         // pixels per day
-const ROW_H = 52;          // px per job row
-const GROUP_H = 36;        // px per group header
-const LEFT_W = 240;        // px left panel
-const WINDOW_DAYS = 35;    // total days visible in timeline
-const DAYS_BEFORE = 7;     // days before today visible
-
-/* ═══════════════════════════════════════════
-   HELPERS
-═══════════════════════════════════════════ */
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
+function startOfWeek(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Monday = start
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
-function startOfDay(d: Date): Date {
-  const r = new Date(d);
-  r.setHours(0, 0, 0, 0);
-  return r;
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
 }
 
-function daysBetween(a: Date, b: Date): number {
-  return Math.round((b.getTime() - a.getTime()) / 86400000);
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-function parseDate(str?: string | null): Date | null {
-  if (!str) return null;
-  const d = new Date(str);
-  if (isNaN(d.getTime())) return null;
-  return startOfDay(d);
+function isToday(d: Date): boolean {
+  return isSameDay(d, new Date());
 }
 
-function formatDayHeader(d: Date): { dayNum: string; weekday: string } {
-  return {
-    dayNum: String(d.getDate()).padStart(2, '0'),
-    weekday: new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(d).replace('.', ''),
-  };
+function formatDayHeader(d: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit' }).format(d);
 }
 
-function isWeekend(d: Date): boolean {
-  const dow = d.getDay();
-  return dow === 0 || dow === 6;
-}
-
-function checklistPct(job: OperationsJob): number | null {
-  const items = job.checklists?.flatMap((c) => c.items) ?? [];
-  if (!items.length) return null;
-  return Math.round((items.filter((i) => i.checked).length / items.length) * 100);
-}
-
-function ownerColor(ownerId: string | null | undefined, owners: OperationsOwner[]): string {
-  const COLORS = ['#5D87FF', '#E85219', '#49BEFF', '#13DEB9', '#FFAE1F', '#FA896B', '#7C5DFA', '#D63384'];
-  if (!ownerId) return '#888';
-  const idx = owners.findIndex((o) => o.id === ownerId);
-  return COLORS[idx >= 0 ? idx % COLORS.length : 0];
+function formatWeekRange(monday: Date): string {
+  const friday = addDays(monday, 4);
+  const fmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+  return `${fmt.format(monday)} – ${fmt.format(friday)}`;
 }
 
 function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function startOfWeek(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function jobDateKey(job: OperationsJob): string | null {
+  const alloc = job.metadata?.allocation as { planned_date?: string } | undefined;
+  const dateStr = alloc?.planned_date || job.deadline_at;
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return dateKey(d);
 }
 
-/* ═══════════════════════════════════════════
-   STATUS GROUPS
-═══════════════════════════════════════════ */
+/** Assign a stable color per owner for visual scanning */
+const OWNER_COLORS = [
+  '#5D87FF', '#E85219', '#49BEFF', '#13DEB9', '#FFAE1F',
+  '#FA896B', '#7C5DFA', '#0DCAF0', '#D63384', '#198754',
+];
 
-const STATUS_GROUPS = [
-  { key: 'active',   label: 'Em Produção',        statuses: ['allocated', 'in_progress'] },
-  { key: 'queue',    label: 'Fila',                statuses: ['intake', 'planned', 'ready'] },
-  { key: 'review',   label: 'Revisão / Aprovação', statuses: ['in_review', 'awaiting_approval', 'approved'] },
-  { key: 'blocked',  label: 'Bloqueado',           statuses: ['blocked'] },
-  { key: 'closing',  label: 'Agendado / Entregue', statuses: ['scheduled', 'published', 'done'] },
-] as const;
+function ownerColor(ownerId: string | null | undefined, owners: OperationsOwner[]): string {
+  if (!ownerId) return '#888';
+  const idx = owners.findIndex((o) => o.id === ownerId);
+  return OWNER_COLORS[idx >= 0 ? idx % OWNER_COLORS.length : 0];
+}
 
-function getGroupKey(status: string): string {
-  for (const g of STATUS_GROUPS) {
-    if ((g.statuses as readonly string[]).includes(status)) return g.key;
+function riskDot(job: OperationsJob): string {
+  const risk = getRisk(job);
+  switch (risk.level) {
+    case 'critical': return '#FF4842';
+    case 'high': return '#FFAE1F';
+    case 'medium': return '#49BEFF';
+    default: return '#13DEB9';
   }
-  return 'queue';
 }
 
-/* ═══════════════════════════════════════════
-   GANTT BAR
-═══════════════════════════════════════════ */
+/* ─── types ─── */
 
-function GanttBar({
+type DayColumn = {
+  date: Date;
+  key: string;
+  label: string;
+  today: boolean;
+  jobs: OperationsJob[];
+  totalMinutes: number;
+};
+
+/* ─── OWNER LEGEND ─── */
+
+function OwnerLegend({ owners, jobs }: { owners: OperationsOwner[]; jobs: OperationsJob[] }) {
+  const activeOwnerIds = new Set(jobs.filter((j) => j.owner_id && !isClosedStatus(j.status)).map((j) => j.owner_id));
+  const activeOwners = owners.filter((o) => activeOwnerIds.has(o.id));
+  if (!activeOwners.length) return null;
+
+  return (
+    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+      {activeOwners.map((o) => (
+        <Chip
+          key={o.id}
+          size="small"
+          avatar={
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ownerColor(o.id, owners), flexShrink: 0 }} />
+          }
+          label={o.name?.split(' ')[0] || 'Sem nome'}
+          sx={{ height: 24, fontWeight: 700, borderRadius: 1 }}
+        />
+      ))}
+      {jobs.some((j) => !j.owner_id && !isClosedStatus(j.status)) && (
+        <Chip
+          size="small"
+          avatar={<Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#888', flexShrink: 0 }} />}
+          label="Sem dono"
+          sx={{ height: 24, fontWeight: 700, borderRadius: 1 }}
+        />
+      )}
+    </Stack>
+  );
+}
+
+/* ─── CHANNEL ICON ─── */
+
+const CHANNEL_ICON_MAP: Record<string, React.ReactNode> = {
+  instagram: <IconBrandInstagram size={12} />,
+  facebook: <IconBrandFacebook size={12} />,
+  linkedin: <IconBrandLinkedin size={12} />,
+  tiktok: <IconBrandTiktok size={12} />,
+  youtube: <IconBrandYoutube size={12} />,
+  whatsapp: <IconBrandWhatsapp size={12} />,
+  email: <IconMail size={12} />,
+  site: <IconDeviceDesktop size={12} />,
+  web: <IconDeviceDesktop size={12} />,
+};
+
+function channelIcon(channel?: string | null) {
+  if (!channel) return null;
+  const key = channel.toLowerCase();
+  for (const [match, icon] of Object.entries(CHANNEL_ICON_MAP)) {
+    if (key.includes(match)) return icon;
+  }
+  return null;
+}
+
+/* ─── JOB CARD (minimal, inspired by Monday/ClickUp) ─── */
+
+function JobCard({
   job,
-  windowStart,
-  onClick,
-  onAssign,
   owners,
+  selected,
+  onClick,
+  onDragStart,
 }: {
   job: OperationsJob;
-  windowStart: Date;
+  owners: OperationsOwner[];
+  selected?: boolean;
   onClick: () => void;
-  onAssign?: (jobId: string, ownerId: string) => void;
-  owners?: OperationsOwner[];
+  onDragStart?: (e: React.DragEvent) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
-
-  const startDate = parseDate(job.start_date || job.created_at);
-  const endDate = parseDate(job.deadline_at);
-
-  if (!startDate && !endDate) {
-    return (
-      <Box sx={{ height: ROW_H, display: 'flex', alignItems: 'center', px: 1 }}>
-        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>Sem datas</Typography>
-      </Box>
-    );
-  }
-
-  const start = startDate ?? endDate!;
-  const end = endDate ?? addDays(start, 7);
-
-  const leftDays = daysBetween(windowStart, start);
-  const spanDays = Math.max(1, daysBetween(start, end) + 1);
-
-  const left = leftDays * DAY_PX;
-  const width = spanDays * DAY_PX - 4;
-
-  const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
-  const barColor = job.client_brand_color || vis.color;
-  const pct = checklistPct(job);
-  const isOverdue = endDate ? endDate < startOfDay(new Date()) : false;
-  const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
+  const color = ownerColor(job.owner_id, owners);
+  const risk = getRisk(job);
+  const ownerFirstName = job.owner_name?.split(' ')[0] || 'Sem dono';
+  const hours = job.estimated_minutes ? `${Math.round(job.estimated_minutes / 60)}h` : '';
+  const chIcon = channelIcon(job.channel);
 
   return (
-    <Box sx={{ position: 'relative', height: ROW_H }}>
-      <Tooltip
-        arrow
-        placement="top"
-        title={
-          <Stack spacing={0.4} sx={{ p: 0.25 }}>
-            <Typography variant="body2" fontWeight={800}>{cleanJobTitle(job.title, job.client_name)}</Typography>
-            <Typography variant="caption" color="text.secondary">{job.client_name}</Typography>
-            {job.deadline_at && <DeadlineCountdown deadline={job.deadline_at} compact />}
-          </Stack>
-        }
-      >
-        <Box
-          onClick={onClick}
-          sx={{
-            position: 'absolute',
-            left: `${left}px`,
-            width: `${Math.max(width, 40)}px`,
-            top: 8,
-            height: ROW_H - 16,
-            borderRadius: 2,
-            bgcolor: alpha(barColor, dark ? 0.22 : 0.14),
-            border: `1.5px solid ${alpha(barColor, isOverdue ? 0.85 : 0.45)}`,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            px: 0.75,
-            gap: 0.5,
-            overflow: 'hidden',
-            transition: 'all 130ms ease',
-            '&:hover': {
-              bgcolor: alpha(barColor, dark ? 0.35 : 0.24),
-              transform: 'scaleY(1.06)',
-              boxShadow: `0 3px 12px ${alpha(barColor, 0.3)}`,
-            },
-            ...(isUrgent && {
-              borderColor: alpha('#FA896B', 0.85),
-              animation: 'gantt-pulse 2s ease-in-out infinite',
-              '@keyframes gantt-pulse': {
-                '0%,100%': { boxShadow: `0 0 0 0 ${alpha('#FA896B', 0)}` },
-                '50%': { boxShadow: `0 0 0 3px ${alpha('#FA896B', 0.25)}` },
-              },
-            }),
-          }}
-        >
-          {/* Owner avatar */}
-          {job.owner_name ? (
-            <Tooltip title={job.owner_name} arrow>
-              <Avatar
-                src={job.owner_avatar_url ?? undefined}
-                sx={{ width: 20, height: 20, fontSize: '0.45rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.2), color: '#5D87FF', flexShrink: 0 }}
-              >
-                {initials(job.owner_name)}
-              </Avatar>
-            </Tooltip>
-          ) : null}
-
-          {/* Title */}
-          <Typography noWrap sx={{ fontSize: '0.74rem', fontWeight: 700, flex: 1, color: dark ? alpha(barColor, 0.9) : barColor, lineHeight: 1.2 }}>
-            {cleanJobTitle(job.title, job.client_name)}
-          </Typography>
-
-          {/* Urgent flag */}
-          {isUrgent && <Box sx={{ color: '#FA896B', display: 'flex', flexShrink: 0 }}><IconFlag size={12} /></Box>}
-
-          {/* Progress % */}
-          {pct !== null && (
-            <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, color: alpha(barColor, 0.85), flexShrink: 0 }}>
-              {pct}%
+    <Tooltip
+      arrow
+      enterDelay={400}
+      title={
+        <Box sx={{ p: 0.5 }}>
+          <Typography variant="body2" fontWeight={800}>{job.title}</Typography>
+          <Typography variant="caption" display="block">Cliente: {job.client_name || '—'}</Typography>
+          <Typography variant="caption" display="block">Tipo: {job.job_type}</Typography>
+          <Typography variant="caption" display="block">Canal: {job.channel || '—'}</Typography>
+          <Typography variant="caption" display="block">Status: {job.status}</Typography>
+          <Typography variant="caption" display="block">Risco: {risk.label}</Typography>
+          {job.deadline_at && (
+            <Typography variant="caption" display="block">
+              Prazo: {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(job.deadline_at))}
             </Typography>
           )}
-
-          {/* Progress fill bar at bottom */}
-          {pct !== null && pct > 0 && (
-            <Box sx={{
-              position: 'absolute', bottom: 0, left: 0,
-              height: 3, width: `${pct}%`,
-              bgcolor: barColor, borderRadius: '0 0 8px 8px',
-              opacity: 0.65,
-            }} />
-          )}
         </Box>
-      </Tooltip>
+      }
+    >
+      <Box
+        draggable
+        onDragStart={onDragStart}
+        onClick={onClick}
+        sx={{
+          px: 1,
+          py: 0.75,
+          borderRadius: 2,
+          cursor: 'grab',
+          bgcolor: selected
+            ? alpha(color, dark ? 0.16 : 0.08)
+            : dark ? alpha(theme.palette.common.white, 0.025) : '#fff',
+          border: selected
+            ? `1.5px solid ${alpha(color, 0.4)}`
+            : `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+          transition: 'all 150ms ease',
+          '&:hover': {
+            bgcolor: selected
+              ? alpha(color, dark ? 0.2 : 0.1)
+              : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.02),
+          },
+          '&:active': { cursor: 'grabbing' },
+        }}
+      >
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <StatusDot status={job.status} size={16} />
+          <ClientThumb
+            name={job.client_name}
+            logoUrl={job.client_logo_url}
+            accent={job.client_brand_color || color}
+            size={20}
+          />
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 700,
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              lineHeight: 1.3,
+            }}
+          >
+            {job.title}
+          </Typography>
+          {chIcon && (
+            <Box sx={{ flexShrink: 0, color: alpha(theme.palette.text.primary, 0.45), display: 'flex' }}>
+              {chIcon}
+            </Box>
+          )}
+        </Stack>
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, pl: 2.5 }}>
+          <Typography variant="caption" sx={(t) => ({ color: alpha(t.palette.text.primary, 0.55), fontWeight: 600, fontSize: '0.68rem' })}>
+            {ownerFirstName}
+          </Typography>
+          {hours && (
+            <Typography variant="caption" sx={(t) => ({ color: alpha(t.palette.text.primary, 0.4), fontSize: '0.65rem' })}>
+              {hours}
+            </Typography>
+          )}
+          <Box sx={{ flex: 1 }} />
+          <DeadlineCountdown deadline={job.deadline_at} compact />
+        </Stack>
+      </Box>
+    </Tooltip>
+  );
+}
+
+/* ─── DAY COLUMN ─── */
+
+function DayColumnView({
+  col,
+  owners,
+  teamCapacityPerDay,
+  selectedJobId,
+  onSelectJob,
+  onDragStart,
+  onDrop,
+  onDragOver,
+}: {
+  col: DayColumn;
+  owners: OperationsOwner[];
+  teamCapacityPerDay: number;
+  selectedJobId: string | null;
+  onSelectJob: (id: string) => void;
+  onDragStart: (jobId: string, e: React.DragEvent) => void;
+  onDrop: (dayKey: string) => void;
+  onDragOver: (e: React.DragEvent) => void;
+}) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  const usage = teamCapacityPerDay > 0 ? Math.min(col.totalMinutes / teamCapacityPerDay, 1.4) : 0;
+  const usagePct = Math.round(usage * 100);
+  const usageColor = usage > 1 ? theme.palette.error.main : usage > 0.8 ? theme.palette.warning.main : theme.palette.success.main;
+  const [dragOver, setDragOver] = useState(false);
+
+  return (
+    <Box
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+        onDragOver(e);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={() => {
+        setDragOver(false);
+        onDrop(col.key);
+      }}
+      sx={{
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        borderRight: `1px solid ${theme.palette.divider}`,
+        '&:last-child': { borderRight: 'none' },
+        bgcolor: dragOver
+          ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.05)
+          : col.today
+            ? alpha(theme.palette.primary.main, dark ? 0.04 : 0.02)
+            : 'transparent',
+        transition: 'background-color 150ms ease',
+      }}
+    >
+      {/* Day header */}
+      <Box
+        sx={{
+          px: 1,
+          py: 0.75,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: col.today ? 900 : 700,
+              textTransform: 'capitalize',
+              color: col.today ? theme.palette.primary.main : undefined,
+            }}
+          >
+            {col.label}
+          </Typography>
+          <Typography variant="caption" sx={{ color: alpha(theme.palette.text.primary, 0.45), fontSize: '0.65rem' }}>
+            {formatMinutes(col.totalMinutes)}
+          </Typography>
+        </Stack>
+        {/* Capacity bar */}
+        <LinearProgress
+          variant="determinate"
+          value={Math.min(usagePct, 100)}
+          sx={{
+            mt: 0.5,
+            height: 3,
+            borderRadius: 1,
+            bgcolor: dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06),
+            '& .MuiLinearProgress-bar': {
+              bgcolor: usageColor,
+              borderRadius: 1,
+            },
+          }}
+        />
+      </Box>
+
+      {/* Job cards */}
+      <Box sx={{ flex: 1, p: 0.75, display: 'flex', flexDirection: 'column', gap: 0.5, minHeight: 120, overflowY: 'auto' }}>
+        {col.jobs.sort(sortByOperationalPriority).map((job) => (
+          <JobCard
+            key={job.id}
+            job={job}
+            owners={owners}
+            selected={selectedJobId === job.id}
+            onClick={() => onSelectJob(job.id)}
+            onDragStart={(e) => onDragStart(job.id, e)}
+          />
+        ))}
+        {!col.jobs.length && (
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
+            <Typography variant="caption">—</Typography>
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 }
 
-/* ═══════════════════════════════════════════
-   GANTT VIEW
-═══════════════════════════════════════════ */
+/* ─── BACKLOG ─── */
 
-function GanttView({
+function BacklogRow({
   jobs,
   owners,
-  onOpenJob,
-  onAssign,
+  selectedJobId,
+  onSelectJob,
+  onDragStart,
 }: {
   jobs: OperationsJob[];
   owners: OperationsOwner[];
-  onOpenJob: (job: OperationsJob) => void;
-  onAssign: (jobId: string, ownerId: string) => void;
+  selectedJobId: string | null;
+  onSelectJob: (id: string) => void;
+  onDragStart: (jobId: string, e: React.DragEvent) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const today = useMemo(() => startOfDay(new Date()), []);
-  const windowStart = useMemo(() => addDays(today, -DAYS_BEFORE), [today]);
-  const windowDays = useMemo(() => {
-    const days: Date[] = [];
-    for (let i = 0; i < WINDOW_DAYS; i++) days.push(addDays(windowStart, i));
-    return days;
-  }, [windowStart]);
-
-  const todayOffset = daysBetween(windowStart, today) * DAY_PX;
-  const totalWidth = WINDOW_DAYS * DAY_PX;
-
-  // Group jobs by status group, sorted by deadline within group
-  const groups = useMemo(() => {
-    return STATUS_GROUPS
-      .map((g) => ({
-        ...g,
-        jobs: jobs
-          .filter((j) => getGroupKey(j.status) === g.key)
-          .sort((a, b) => {
-            const da = parseDate(a.deadline_at)?.getTime() ?? Infinity;
-            const db = parseDate(b.deadline_at)?.getTime() ?? Infinity;
-            return da - db;
-          }),
-      }))
-      .filter((g) => g.jobs.length > 0);
-  }, [jobs]);
-
-  // Month groupings for header
-  const monthGroups = useMemo(() => {
-    const groups: { label: string; startIdx: number; count: number }[] = [];
-    let currentMonth = '';
-    windowDays.forEach((d, i) => {
-      const mLabel = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' }).format(d);
-      if (mLabel !== currentMonth) {
-        currentMonth = mLabel;
-        groups.push({ label: mLabel, startIdx: i, count: 1 });
-      } else {
-        groups[groups.length - 1].count++;
-      }
-    });
-    return groups;
-  }, [windowDays]);
-
-  const borderColor = dark ? alpha('#fff', 0.06) : alpha('#000', 0.07);
-  const todayColor = theme.palette.primary.main;
-
-  // Cell background per day
-  const dayCellBg = (d: Date) => {
-    if (isWeekend(d)) return dark ? alpha('#fff', 0.015) : alpha('#000', 0.015);
-    if (dateKey(d) === dateKey(today)) return alpha(todayColor, dark ? 0.06 : 0.04);
-    return 'transparent';
-  };
+  if (!jobs.length) return null;
 
   return (
-    <Box sx={{ display: 'flex', borderRadius: 2, border: `1px solid ${borderColor}`, overflow: 'hidden', bgcolor: dark ? alpha('#fff', 0.02) : '#fff' }}>
-
-      {/* ── Left panel ── */}
-      <Box sx={{ width: LEFT_W, flexShrink: 0, borderRight: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column' }}>
-        {/* Month header spacer (same height as timeline month row) */}
-        <Box sx={{ height: 24, borderBottom: `1px solid ${borderColor}`, bgcolor: dark ? alpha('#fff', 0.02) : alpha('#000', 0.02), flexShrink: 0 }} />
-        {/* Day header spacer */}
-        <Box sx={{ height: 40, borderBottom: `1px solid ${borderColor}`, bgcolor: dark ? alpha('#fff', 0.02) : alpha('#000', 0.02), display: 'flex', alignItems: 'center', px: 1.5, flexShrink: 0 }}>
-          <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.6rem', color: 'text.disabled' }}>
-            Job
-          </Typography>
-        </Box>
-
-        {/* Groups + rows */}
-        {groups.map((g) => (
-          <Box key={g.key}>
-            {/* Group header */}
-            <Box sx={{
-              height: GROUP_H, px: 1.5, display: 'flex', alignItems: 'center', gap: 0.75,
-              bgcolor: dark ? alpha('#fff', 0.025) : alpha('#000', 0.025),
-              borderBottom: `1px solid ${borderColor}`,
-              flexShrink: 0,
-            }}>
-              <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>
-                {g.label}
-              </Typography>
-              <Chip size="small" label={g.jobs.length} sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, '& .MuiChip-label': { px: 0.75 } }} />
-            </Box>
-
-            {/* Job rows */}
-            {g.jobs.map((job) => {
-              const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
-              const accent = job.client_brand_color || vis.color;
-              return (
-                <Box
-                  key={job.id}
-                  onClick={() => onOpenJob(job)}
-                  sx={{
-                    height: ROW_H, px: 1.25, display: 'flex', flexDirection: 'column',
-                    justifyContent: 'center', gap: 0.3,
-                    borderBottom: `1px solid ${borderColor}`,
-                    borderLeft: `3px solid ${alpha(accent, 0.7)}`,
-                    cursor: 'pointer', transition: 'background 120ms',
-                    '&:hover': { bgcolor: alpha(accent, dark ? 0.06 : 0.04) },
-                    minWidth: 0,
-                  }}
-                >
-                  <Typography noWrap variant="caption" sx={{ fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.2 }}>
-                    {cleanJobTitle(job.title, job.client_name)}
-                  </Typography>
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    {job.client_logo_url ? (
-                      <Avatar src={job.client_logo_url} sx={{ width: 14, height: 14, borderRadius: '3px' }} />
-                    ) : null}
-                    <Typography noWrap variant="caption" sx={{ fontSize: '0.62rem', color: 'text.disabled', lineHeight: 1 }}>
-                      {job.client_name || '—'}
-                    </Typography>
-                    {!job.owner_id && (
-                      <Box onClick={(e) => e.stopPropagation()}>
-                        <InlineOwnerAssign owners={owners} onAssign={(ownerId) => onAssign(job.id, ownerId)} />
-                      </Box>
-                    )}
-                  </Stack>
-                </Box>
-              );
-            })}
+    <Box
+      sx={{
+        px: 1.5,
+        py: 1.25,
+        borderTop: `2px dashed ${dark ? alpha(theme.palette.common.white, 0.1) : alpha(theme.palette.common.black, 0.12)}`,
+      }}
+    >
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+        <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+          Sem data
+        </Typography>
+        <Chip size="small" label={jobs.length} sx={{ height: 20, fontWeight: 800, borderRadius: 1 }} />
+        <Typography variant="caption" sx={{ color: alpha(theme.palette.text.primary, 0.45) }}>
+          Arraste para a semana ↑
+        </Typography>
+      </Stack>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+        {jobs.sort(sortByOperationalPriority).map((job) => (
+          <Box key={job.id} sx={{ width: { xs: '100%', sm: '48%', md: '23%', lg: '18%' } }}>
+            <JobCard
+              job={job}
+              owners={owners}
+              selected={selectedJobId === job.id}
+              onClick={() => onSelectJob(job.id)}
+              onDragStart={(e) => onDragStart(job.id, e)}
+            />
           </Box>
         ))}
       </Box>
-
-      {/* ── Right: scrollable timeline ── */}
-      <Box ref={scrollRef} sx={{ flex: 1, overflowX: 'auto', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        {/* Sticky header wrapper */}
-        <Box sx={{ position: 'sticky', top: 0, zIndex: 2, bgcolor: dark ? '#101020' : '#fff', flexShrink: 0 }}>
-          {/* Month row */}
-          <Box sx={{ display: 'flex', height: 24, borderBottom: `1px solid ${borderColor}`, width: totalWidth }}>
-            {monthGroups.map((mg) => (
-              <Box
-                key={mg.label + mg.startIdx}
-                sx={{
-                  width: mg.count * DAY_PX, flexShrink: 0, display: 'flex', alignItems: 'center',
-                  px: 1, borderRight: `1px solid ${borderColor}`,
-                  bgcolor: dark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
-                }}
-              >
-                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'text.secondary' }}>
-                  {mg.label}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-
-          {/* Day header row */}
-          <Box sx={{ display: 'flex', height: 40, borderBottom: `1px solid ${borderColor}`, width: totalWidth }}>
-            {windowDays.map((d, i) => {
-              const isT = dateKey(d) === dateKey(today);
-              const { dayNum, weekday } = formatDayHeader(d);
-              return (
-                <Box
-                  key={i}
-                  sx={{
-                    width: DAY_PX, flexShrink: 0, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center', gap: 0.1,
-                    borderRight: `1px solid ${alpha(borderColor, 0.5)}`,
-                    bgcolor: isT ? alpha(todayColor, dark ? 0.1 : 0.06) : dayCellBg(d),
-                  }}
-                >
-                  <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 600, color: isT ? todayColor : isWeekend(d) ? 'text.disabled' : 'text.secondary', lineHeight: 1, textTransform: 'capitalize' }}>
-                    {weekday}
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.78rem', fontWeight: isT ? 900 : 700, color: isT ? todayColor : isWeekend(d) ? 'text.disabled' : 'text.primary', lineHeight: 1 }}>
-                    {dayNum}
-                  </Typography>
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-
-        {/* Timeline body */}
-        <Box sx={{ position: 'relative', minWidth: totalWidth, flex: 1 }}>
-          {/* Day column backgrounds */}
-          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', pointerEvents: 'none', zIndex: 0 }}>
-            {windowDays.map((d, i) => (
-              <Box key={i} sx={{ width: DAY_PX, flexShrink: 0, height: '100%', bgcolor: dayCellBg(d), borderRight: `1px solid ${alpha(borderColor, 0.4)}` }} />
-            ))}
-          </Box>
-
-          {/* Today vertical line */}
-          <Box sx={{
-            position: 'absolute', top: 0, bottom: 0,
-            left: todayOffset + DAY_PX / 2,
-            width: 2, bgcolor: todayColor, opacity: 0.6,
-            zIndex: 1, pointerEvents: 'none',
-          }} />
-
-          {/* Groups + bars */}
-          {groups.map((g) => (
-            <Box key={g.key}>
-              {/* Group header spacer */}
-              <Box sx={{ height: GROUP_H, borderBottom: `1px solid ${borderColor}`, bgcolor: dark ? alpha('#fff', 0.015) : alpha('#000', 0.015) }} />
-
-              {/* Job bar rows */}
-              {g.jobs.map((job) => (
-                <Box key={job.id} sx={{ borderBottom: `1px solid ${alpha(borderColor, 0.6)}`, position: 'relative', zIndex: 1 }}>
-                  <GanttBar
-                    job={job}
-                    windowStart={windowStart}
-                    onClick={() => onOpenJob(job)}
-                    onAssign={onAssign}
-                    owners={owners}
-                  />
-                </Box>
-              ))}
-            </Box>
-          ))}
-        </Box>
-      </Box>
     </Box>
   );
 }
 
-/* ═══════════════════════════════════════════
-   DISTRIBUTION VIEW (preserved)
-═══════════════════════════════════════════ */
+/* ─── PUBLICATIONS ROW ─── */
 
-function DistCell({
+function PublicationsRow({ jobs }: { jobs: OperationsJob[] }) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  const pubJobs = jobs.filter(
+    (j) =>
+      !isClosedStatus(j.status) &&
+      (j.job_type === 'publication' || j.status === 'scheduled' || j.status === 'published' || j.status === 'approved')
+  );
+  if (!pubJobs.length) return null;
+
+  return (
+    <Box
+      sx={{
+        px: 1.5,
+        py: 0.75,
+        borderTop: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.08)}`,
+      }}
+    >
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', mr: 0.5 }}>
+          Publicações
+        </Typography>
+        {pubJobs.slice(0, 8).map((j) => {
+          const d = j.deadline_at ? new Date(j.deadline_at) : null;
+          const dayLabel = d ? new Intl.DateTimeFormat('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(d) : '—';
+          return (
+            <Chip
+              key={j.id}
+              size="small"
+              label={`${dayLabel}: ${j.title?.slice(0, 20) || j.job_type}${j.channel ? ` (${j.channel})` : ''}`}
+              sx={{ height: 22, fontWeight: 600, borderRadius: 1 }}
+            />
+          );
+        })}
+      </Stack>
+    </Box>
+  );
+}
+
+/* ─── DISTRIBUTION VIEW ─── */
+
+const OWNER_ALLOCABLE = (owner: OperationsOwner) =>
+  owner.person_type === 'freelancer' ? 16 * 60 : owner.role === 'admin' || owner.role === 'manager' ? 22 * 60 : 28 * 60;
+
+function DistributionCell({
   jobs,
-  col,
   owners,
-  borderColor,
-  dragJobIdRef,
-  onOpenJob,
+  dayKey,
+  ownerId,
+  today,
+  selectedJobId,
+  onSelectJob,
+  onDragStart,
+  onDrop,
 }: {
   jobs: OperationsJob[];
-  col: { key: string; today: boolean };
   owners: OperationsOwner[];
-  borderColor: string;
-  dragJobIdRef: React.MutableRefObject<string | null>;
-  onOpenJob: (job: OperationsJob) => void;
+  dayKey: string;
+  ownerId: string | null;
+  today: boolean;
+  selectedJobId: string | null;
+  onSelectJob: (id: string) => void;
+  onDragStart: (jobId: string, e: React.DragEvent) => void;
+  onDrop: (dayKey: string, ownerId: string | null) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
@@ -534,223 +537,337 @@ function DistCell({
     <Box
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={() => setDragOver(false)}
+      onDrop={() => { setDragOver(false); onDrop(dayKey, ownerId); }}
       sx={{
-        minHeight: 64, p: 0.5,
-        borderRight: `1px solid ${alpha(borderColor, 0.5)}`,
-        '&:last-child': { borderRight: 'none' },
-        bgcolor: dragOver ? alpha(theme.palette.primary.main, 0.08) : col.today ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
-        display: 'flex', flexDirection: 'column', gap: 0.4,
+        minHeight: 64,
+        p: 0.5,
+        borderLeft: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+        bgcolor: dragOver
+          ? alpha(theme.palette.primary.main, dark ? 0.1 : 0.06)
+          : today
+            ? alpha(theme.palette.primary.main, dark ? 0.03 : 0.015)
+            : 'transparent',
+        transition: 'background-color 150ms ease',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.4,
       }}
     >
       {jobs.sort(sortByOperationalPriority).map((job) => {
         const color = ownerColor(job.owner_id, owners);
+        const selected = selectedJobId === job.id;
         return (
-          <Box
+          <Tooltip
             key={job.id}
-            draggable
-            onDragStart={(e) => { dragJobIdRef.current = job.id; e.dataTransfer.effectAllowed = 'move'; }}
-            onClick={() => onOpenJob(job)}
-            sx={{
-              px: 0.75, py: 0.4, borderRadius: 1,
-              borderLeft: `3px solid ${color}`,
-              bgcolor: dark ? alpha('#fff', 0.04) : alpha('#000', 0.03),
-              cursor: 'grab', overflow: 'hidden',
-              '&:active': { cursor: 'grabbing' },
-              '&:hover': { bgcolor: alpha(color, dark ? 0.14 : 0.08) },
-            }}
+            arrow
+            enterDelay={400}
+            title={
+              <Box sx={{ p: 0.5 }}>
+                <Typography variant="body2" fontWeight={800}>{job.title}</Typography>
+                <Typography variant="caption" display="block">{job.client_name || '—'} · {job.status}</Typography>
+              </Box>
+            }
           >
-            <Typography variant="caption" noWrap sx={{ fontWeight: 700, fontSize: '0.7rem', lineHeight: 1.25, display: 'block' }}>
-              {cleanJobTitle(job.title, job.client_name)}
-            </Typography>
-            <Typography variant="caption" noWrap sx={{ fontSize: '0.62rem', color: 'text.disabled', lineHeight: 1 }}>
-              {job.client_name}
-            </Typography>
-          </Box>
+            <Box
+              draggable
+              onDragStart={(e) => onDragStart(job.id, e)}
+              onClick={() => onSelectJob(job.id)}
+              sx={{
+                px: 0.75,
+                py: 0.4,
+                borderRadius: 1,
+                borderLeft: `3px solid ${color}`,
+                bgcolor: selected
+                  ? alpha(color, dark ? 0.2 : 0.1)
+                  : dark ? alpha(theme.palette.common.white, 0.04) : alpha(theme.palette.common.black, 0.03),
+                cursor: 'grab',
+                overflow: 'hidden',
+                '&:active': { cursor: 'grabbing' },
+                '&:hover': { bgcolor: alpha(color, dark ? 0.14 : 0.08) },
+                transition: 'background-color 120ms ease',
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.68rem',
+                  display: 'block',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1.4,
+                }}
+              >
+                {job.title}
+              </Typography>
+            </Box>
+          </Tooltip>
         );
       })}
     </Box>
   );
 }
 
-const OWNER_ALLOCABLE = (owner: OperationsOwner) =>
-  owner.person_type === 'freelancer' ? 16 * 60 : owner.role === 'admin' || owner.role === 'manager' ? 22 * 60 : 28 * 60;
-
-function jobDeadlineKey(job: OperationsJob): string | null {
-  const alloc = job.metadata?.allocation as { planned_date?: string } | undefined;
-  const dateStr = alloc?.planned_date || job.deadline_at;
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  return dateKey(startOfDay(d));
-}
-
 function DistributionView({
-  jobs,
   owners,
-  onOpenJob,
-  onAssign,
-  onAdvance,
+  columns,
+  activeJobs,
+  selectedJobId,
+  onSelectJob,
+  onDragStart,
+  onDistributionDrop,
 }: {
-  jobs: OperationsJob[];
   owners: OperationsOwner[];
-  onOpenJob: (job: OperationsJob) => void;
-  onAssign: (jobId: string, ownerId: string) => void;
-  onAdvance: (jobId: string, nextStatus: string) => void;
+  columns: DayColumn[];
+  activeJobs: OperationsJob[];
+  selectedJobId: string | null;
+  onSelectJob: (id: string) => void;
+  onDragStart: (jobId: string, e: React.DragEvent) => void;
+  onDistributionDrop: (dayKey: string, ownerId: string | null) => void;
 }) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
-  const dragJobIdRef = useRef<string | null>(null);
-  const [weekStart] = useState(() => startOfWeek(new Date()));
 
-  const weekDays = useMemo(() => {
-    const days: Date[] = [];
-    for (let i = 0; i < 5; i++) days.push(addDays(weekStart, i));
-    return days;
-  }, [weekStart]);
-
-  const cols = weekDays.map((d) => ({ date: d, key: dateKey(d), today: dateKey(d) === dateKey(new Date()) }));
-  const gridCols = `${LEFT_W}px repeat(5, minmax(0, 1fr))`;
-  const borderColor = dark ? alpha('#fff', 0.07) : alpha('#000', 0.07);
-  const headerBg = dark ? alpha('#fff', 0.025) : alpha('#000', 0.025);
-
+  // Build cell maps: ownerId → dayKey → jobs
   const ownerJobMap = useMemo(() => {
     const map = new Map<string, Map<string, OperationsJob[]>>();
+    // null key = unassigned
     for (const owner of [...owners, { id: null } as any]) {
       const dayMap = new Map<string, OperationsJob[]>();
-      for (const col of cols) dayMap.set(col.key, []);
+      for (const col of columns) dayMap.set(col.key, []);
       map.set(owner.id ?? '__none__', dayMap);
     }
-    for (const job of jobs) {
+    for (const job of activeJobs) {
       const oid = job.owner_id ?? '__none__';
-      const dk = jobDeadlineKey(job);
+      const dk = jobDateKey(job);
       const dayMap = map.get(oid);
       if (!dayMap) continue;
       const bucket = dk ? (dayMap.get(dk) ?? null) : null;
       if (bucket) bucket.push(job);
     }
     return map;
-  }, [owners, cols, jobs]);
+  }, [owners, columns, activeJobs]);
 
-  const handleDrop = useCallback(async (dayKey: string, ownerId: string | null, ops: ReturnType<typeof useOperationsData>) => {
-    const jobId = dragJobIdRef.current;
-    if (!jobId) return;
-    dragJobIdRef.current = null;
-    const payload: Record<string, any> = { deadline_at: `${dayKey}T18:00:00.000Z` };
-    if (ownerId) payload.owner_id = ownerId;
-    try { await ops.updateJob(jobId, payload); } catch { /* silent */ }
-  }, []);
+  const headerBg = dark ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.common.black, 0.025);
+  const borderColor = alpha(theme.palette.divider, dark ? 0.5 : 0.7);
+  const gridCols = `180px repeat(${columns.length}, minmax(0, 1fr))`;
+
+  const renderOwnerRow = (ownerId: string | null, ownerObj: OperationsOwner | null) => {
+    const mapKey = ownerId ?? '__none__';
+    const dayMap = ownerJobMap.get(mapKey);
+    if (!dayMap) return null;
+    const allJobs = Array.from(dayMap.values()).flat();
+    const totalMins = allJobs.reduce((s, j) => s + (j.estimated_minutes || 0), 0);
+    const allocable = ownerObj ? OWNER_ALLOCABLE(ownerObj) : 40 * 60;
+    const usage = allocable > 0 ? Math.min(totalMins / allocable, 1.4) : 0;
+    const usageColor = usage > 1 ? '#FA896B' : usage > 0.8 ? '#FFAE1F' : '#13DEB9';
+    const name = ownerObj?.name || 'Sem dono';
+    const firstName = name.split(' ')[0];
+
+    return (
+      <Box
+        key={mapKey}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: gridCols,
+          borderBottom: `1px solid ${borderColor}`,
+          minHeight: 56,
+          '&:last-child': { borderBottom: 'none' },
+        }}
+      >
+        {/* Owner label */}
+        <Box
+          sx={{
+            px: 1.25,
+            py: 0.75,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: 0.6,
+            borderRight: `1px solid ${borderColor}`,
+            bgcolor: headerBg,
+            minWidth: 0,
+          }}
+        >
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            {ownerObj ? (
+              <Avatar
+                sx={{ width: 24, height: 24, fontSize: '0.65rem', bgcolor: ownerColor(ownerId, owners), flexShrink: 0 }}
+              >
+                {firstName.charAt(0).toUpperCase()}
+              </Avatar>
+            ) : (
+              <Box sx={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                <IconUserOff size={14} />
+              </Box>
+            )}
+            <Stack sx={{ minWidth: 0 }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.72rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {firstName}
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: '0.62rem', color: alpha(theme.palette.text.primary, 0.5), lineHeight: 1 }}>
+                {allJobs.length} jobs
+              </Typography>
+            </Stack>
+          </Stack>
+          <Box sx={{ width: '100%', height: 3, borderRadius: 1, bgcolor: alpha(usageColor, 0.18) }}>
+            <Box sx={{ height: 3, borderRadius: 1, width: `${Math.min(100, Math.round(usage * 100))}%`, bgcolor: usageColor }} />
+          </Box>
+        </Box>
+
+        {/* Day cells */}
+        {columns.map((col) => (
+          <DistributionCell
+            key={col.key}
+            jobs={dayMap.get(col.key) ?? []}
+            owners={owners}
+            dayKey={col.key}
+            ownerId={ownerId}
+            today={col.today}
+            selectedJobId={selectedJobId}
+            onSelectJob={onSelectJob}
+            onDragStart={onDragStart}
+            onDrop={onDistributionDrop}
+          />
+        ))}
+      </Box>
+    );
+  };
+
+  const hasUnassigned = (ownerJobMap.get('__none__') ? Array.from(ownerJobMap.get('__none__')!.values()).flat() : []).length > 0;
 
   return (
-    <Box sx={{ border: `1px solid ${borderColor}`, borderRadius: 2, overflow: 'hidden' }}>
-      {/* Header */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: gridCols, borderBottom: `1px solid ${borderColor}`, bgcolor: headerBg }}>
-        <Box sx={{ px: 1.5, py: 1, borderRight: `1px solid ${borderColor}` }}>
-          <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.6rem', color: 'text.disabled' }}>Pessoa</Typography>
+    <Box
+      sx={{
+        border: `1px solid ${borderColor}`,
+        borderRadius: 2,
+        overflow: 'hidden',
+        bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
+      }}
+    >
+      {/* Header row */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: gridCols,
+          borderBottom: `2px solid ${borderColor}`,
+          bgcolor: headerBg,
+        }}
+      >
+        <Box sx={{ px: 1.25, py: 0.75, borderRight: `1px solid ${borderColor}` }}>
+          <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.65rem', color: 'text.secondary' }}>
+            Pessoa
+          </Typography>
         </Box>
-        {cols.map((col) => (
-          <Box key={col.key} sx={{ px: 1, py: 1, borderRight: `1px solid ${alpha(borderColor, 0.5)}`, '&:last-child': { borderRight: 'none' }, textAlign: 'center', bgcolor: col.today ? alpha(theme.palette.primary.main, 0.06) : undefined }}>
-            <Typography variant="caption" sx={{ fontWeight: col.today ? 900 : 700, fontSize: '0.72rem', textTransform: 'capitalize', color: col.today ? theme.palette.primary.main : undefined }}>
-              {new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit' }).format(col.date)}
+        {columns.map((col) => (
+          <Box
+            key={col.key}
+            sx={{
+              px: 1,
+              py: 0.75,
+              borderLeft: `1px solid ${borderColor}`,
+              bgcolor: col.today ? alpha(theme.palette.primary.main, dark ? 0.08 : 0.04) : undefined,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: col.today ? 900 : 700,
+                textTransform: 'capitalize',
+                color: col.today ? theme.palette.primary.main : undefined,
+                fontSize: '0.72rem',
+              }}
+            >
+              {col.label}
             </Typography>
           </Box>
         ))}
       </Box>
 
-      {/* Rows */}
-      {[...owners, null].map((ownerObj) => {
-        const ownerId = ownerObj?.id ?? null;
-        const mapKey = ownerId ?? '__none__';
-        const dayMap = ownerJobMap.get(mapKey);
-        if (!dayMap) return null;
-        const allJobs = Array.from(dayMap.values()).flat();
-        if (ownerId !== null && allJobs.length === 0) return null;
-        const allocable = ownerObj ? OWNER_ALLOCABLE(ownerObj) : 40 * 60;
-        const totalMins = allJobs.reduce((s, j) => s + (j.estimated_minutes || 0), 0);
-        const usage = allocable > 0 ? Math.min(totalMins / allocable, 1.4) : 0;
-        const usageColor = usage > 1 ? '#FA896B' : usage > 0.8 ? '#FFAE1F' : '#13DEB9';
-        const name = ownerObj?.name || 'Sem dono';
+      {/* Owner rows */}
+      {owners.map((owner) => renderOwnerRow(owner.id, owner))}
 
-        return (
-          <Box key={mapKey} sx={{ display: 'grid', gridTemplateColumns: gridCols, borderBottom: `1px solid ${borderColor}`, minHeight: 64, '&:last-child': { borderBottom: 'none' } }}>
-            {/* Owner cell */}
-            <Box sx={{ px: 1.25, py: 0.75, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.5, borderRight: `1px solid ${borderColor}`, bgcolor: headerBg }}>
-              <Stack direction="row" spacing={0.75} alignItems="center">
-                {ownerObj ? (
-                  <Avatar sx={{ width: 24, height: 24, fontSize: '0.65rem', bgcolor: ownerColor(ownerId, owners), flexShrink: 0 }}>
-                    {name.charAt(0).toUpperCase()}
-                  </Avatar>
-                ) : (
-                  <Box sx={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-                    <IconUserOff size={14} />
-                  </Box>
-                )}
-                <Stack sx={{ minWidth: 0 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.72rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {name.split(' ')[0]}
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontSize: '0.62rem', color: alpha(theme.palette.text.primary, 0.5), lineHeight: 1 }}>
-                    {allJobs.length} jobs
-                  </Typography>
-                </Stack>
-              </Stack>
-              <Box sx={{ width: '100%', height: 3, borderRadius: 1, bgcolor: alpha(usageColor, 0.18) }}>
-                <Box sx={{ height: 3, borderRadius: 1, width: `${Math.min(100, Math.round(usage * 100))}%`, bgcolor: usageColor }} />
-              </Box>
-            </Box>
-
-            {/* Day cells */}
-            {cols.map((col) => (
-              <DistCell
-                key={col.key}
-                jobs={dayMap.get(col.key) ?? []}
-                col={col}
-                owners={owners}
-                borderColor={borderColor}
-                dragJobIdRef={dragJobIdRef}
-                onOpenJob={onOpenJob}
-              />
-            ))}
-          </Box>
-        );
-      })}
+      {/* Unassigned row */}
+      {hasUnassigned && renderOwnerRow(null, null)}
     </Box>
   );
 }
 
-/* ═══════════════════════════════════════════
-   MAIN COMPONENT
-═══════════════════════════════════════════ */
+/* ─── MAIN COMPONENT ─── */
 
-type ViewMode = 'gantt' | 'distribution';
+type ViewMode = 'calendar' | 'distribution';
 
 export default function WeekCalendarClient() {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
 
   const ops = useOperationsData('?active=true');
-  const { jobs, lookups, loading, error, refresh } = ops;
+  const { jobs, lookups, loading, refresh } = ops;
   const owners = lookups.owners;
 
-  const [viewMode, setViewMode] = useState<ViewMode>('gantt');
+  // Week navigation
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const goToday = () => setWeekStart(startOfWeek(new Date()));
+  const goPrev = () => setWeekStart((prev) => addDays(prev, -7));
+  const goNext = () => setWeekStart((prev) => addDays(prev, 7));
+
+  // View mode
+  const [viewMode, setViewMode] = useState<ViewMode>('calendar');
+
+  // Filters
   const [filterOwner, setFilterOwner] = useState<string>('all');
   const [filterClient, setFilterClient] = useState<string>('all');
+
+  // Selection & drawer
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const openJob = useCallback((job: OperationsJob) => {
-    setSelectedJobId(job.id);
+  const handleSelectJob = useCallback((id: string) => {
+    setSelectedJobId(id);
     setDrawerOpen(true);
   }, []);
 
-  const handleAssign = useCallback(async (jobId: string, ownerId: string) => {
-    await ops.updateJob(jobId, { owner_id: ownerId });
+  // Drag state
+  const dragJobIdRef = useRef<string | null>(null);
+
+  const handleDragStart = useCallback((jobId: string, e: React.DragEvent) => {
+    dragJobIdRef.current = jobId;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', jobId);
+  }, []);
+
+  const handleDrop = useCallback(async (dayKey: string) => {
+    const jobId = dragJobIdRef.current;
+    if (!jobId) return;
+    dragJobIdRef.current = null;
+
+    try {
+      await ops.updateJob(jobId, { deadline_at: `${dayKey}T18:00:00.000Z` });
+    } catch {
+      // silently fail — user sees no change
+    }
   }, [ops]);
 
-  const handleAdvance = useCallback(async (jobId: string, nextStatus: string) => {
-    await ops.changeStatus(jobId, nextStatus);
+  const handleDistributionDrop = useCallback(async (dayKey: string, ownerId: string | null) => {
+    const jobId = dragJobIdRef.current;
+    if (!jobId) return;
+    dragJobIdRef.current = null;
+
+    const payload: Record<string, any> = { deadline_at: `${dayKey}T18:00:00.000Z` };
+    if (ownerId) payload.owner_id = ownerId;
+    try {
+      await ops.updateJob(jobId, payload);
+    } catch {
+      // silently fail
+    }
   }, [ops]);
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  // Filter active (non-closed) jobs
   const activeJobs = useMemo(() => {
     let filtered = jobs.filter((j) => !isClosedStatus(j.status));
     if (filterOwner !== 'all') {
@@ -764,37 +881,101 @@ export default function WeekCalendarClient() {
     return filtered;
   }, [jobs, filterOwner, filterClient]);
 
+  // Build day columns
+  const weekDays = useMemo(() => {
+    const days: Date[] = [];
+    for (let i = 0; i < 5; i++) {
+      days.push(addDays(weekStart, i));
+    }
+    return days;
+  }, [weekStart]);
+
+  const columns: DayColumn[] = useMemo(() => {
+    return weekDays.map((d) => {
+      const key = dateKey(d);
+      const dayJobs = activeJobs.filter((j) => jobDateKey(j) === key);
+      return {
+        date: d,
+        key,
+        label: formatDayHeader(d),
+        today: isToday(d),
+        jobs: dayJobs,
+        totalMinutes: dayJobs.reduce((sum, j) => sum + Number(j.estimated_minutes || 0), 0),
+      };
+    });
+  }, [weekDays, activeJobs]);
+
+  const backlogJobs = useMemo(() => {
+    const weekKeys = new Set(columns.map((c) => c.key));
+    return activeJobs.filter((j) => {
+      const dk = jobDateKey(j);
+      return !dk || !weekKeys.has(dk);
+    });
+  }, [activeJobs, columns]);
+
+  // Team capacity per day (all owners' daily capacity summed)
+  const teamCapacityPerDay = useMemo(() => {
+    const weeklyMinutes = owners.reduce((sum, o) => {
+      if (o.person_type === 'freelancer') return sum + 16 * 60;
+      if (o.role === 'admin' || o.role === 'manager') return sum + 22 * 60;
+      return sum + 28 * 60;
+    }, 0);
+    return Math.round(weeklyMinutes / 5);
+  }, [owners]);
+
+  // Summary stats
+  const totalWeekMinutes = columns.reduce((s, c) => s + c.totalMinutes, 0);
+  const totalWeekJobs = columns.reduce((s, c) => s + c.jobs.length, 0);
+  const criticalJobs = activeJobs.filter((j) => getRisk(j).level === 'critical').length;
+
+  // Active clients for filter
   const activeClients = useMemo(() => {
     const map = new Map<string, string>();
-    activeJobs.forEach((j) => { if (j.client_id && j.client_name) map.set(j.client_id, j.client_name); });
+    activeJobs.forEach((j) => {
+      if (j.client_id && j.client_name) map.set(j.client_id, j.client_name);
+    });
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [activeJobs]);
 
-  const criticalJobs = activeJobs.filter((j) => getRisk(j).level === 'critical').length;
-  const noDateJobs = activeJobs.filter((j) => !j.deadline_at && !j.start_date && !j.created_at).length;
   const selectedJob = selectedJobId ? jobs.find((j) => j.id === selectedJobId) : null;
 
   useJarvisPage(
     {
-      screen: 'operations_gantt',
+      screen: 'operations_week',
+      weekRange: formatWeekRange(weekStart),
       clientId: selectedJob?.client_id ?? null,
       currentJobId: selectedJob?.id ?? null,
       currentJobTitle: selectedJob?.title ?? null,
       currentJobStatus: selectedJob?.status ?? null,
+      currentJobOwner: selectedJob?.owner_name ?? null,
+      currentJobDeadline: selectedJob?.deadline_at ?? null,
     },
-    [selectedJob?.id, selectedJob?.client_id, selectedJob?.title, selectedJob?.status]
+    [
+      weekStart.toISOString(),
+      selectedJob?.id,
+      selectedJob?.client_id,
+      selectedJob?.title,
+      selectedJob?.status,
+      selectedJob?.owner_name,
+      selectedJob?.deadline_at,
+    ]
   );
 
   const summary = (
     <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
       {[
-        { value: activeJobs.length, label: 'Jobs ativos', color: theme.palette.primary.main },
-        { value: criticalJobs, label: 'Críticos', color: criticalJobs > 0 ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.4) },
-        { value: noDateJobs, label: 'Sem data', color: noDateJobs > 3 ? theme.palette.warning.main : alpha(theme.palette.text.primary, 0.4) },
+        { value: totalWeekJobs, label: 'Jobs', color: theme.palette.primary.main },
+        { value: formatMinutes(totalWeekMinutes), label: 'Estimado', color: theme.palette.success.main },
+        { value: backlogJobs.length, label: 'Sem data', color: backlogJobs.length > 5 ? theme.palette.warning.main : alpha(theme.palette.text.primary, 0.5) },
+        { value: criticalJobs, label: 'Críticos', color: criticalJobs > 0 ? theme.palette.error.main : alpha(theme.palette.text.primary, 0.5) },
       ].map((kpi) => (
         <Stack key={kpi.label} direction="row" spacing={0.5} alignItems="baseline">
-          <Typography variant="body1" sx={{ fontWeight: 900, color: kpi.color, lineHeight: 1 }}>{kpi.value}</Typography>
-          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>{kpi.label}</Typography>
+          <Typography variant="body1" sx={{ fontWeight: 900, color: kpi.color, lineHeight: 1 }}>
+            {kpi.value}
+          </Typography>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.68rem' }}>
+            {kpi.label}
+          </Typography>
         </Stack>
       ))}
     </Stack>
@@ -802,103 +983,196 @@ export default function WeekCalendarClient() {
 
   return (
     <OperationsShell section="semana" summary={summary}>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {loading ? (
         <Stack spacing={2}>
           <Skeleton variant="rounded" height={48} />
-          <Skeleton variant="rounded" height={480} />
+          <Skeleton variant="rounded" height={400} />
         </Stack>
       ) : (
-        <Stack spacing={2}>
-          {/* ── Toolbar ── */}
-          <Box sx={{
-            px: 2, py: 1.25, borderRadius: 2,
-            border: `1px solid ${dark ? alpha('#fff', 0.06) : alpha('#000', 0.06)}`,
-            bgcolor: dark ? alpha('#fff', 0.02) : '#fff',
-          }}>
+        <Stack spacing={0}>
+          {/* ─── Toolbar ─── */}
+          <Box
+            sx={{
+              px: 2,
+              py: 1.25,
+              borderRadius: '8px 8px 0 0',
+              border: `1px solid ${dark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.06)}`,
+              bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : '#fff',
+            }}
+          >
             <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-              <Stack direction="row" spacing={0.75} alignItems="center">
+              {/* Week nav */}
+              <Stack direction="row" spacing={0.5} alignItems="center">
                 <IconCalendarWeek size={18} />
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>Semana · Gantt</Typography>
+                <IconButton size="small" onClick={goPrev}><IconChevronLeft size={18} /></IconButton>
+                <Typography variant="body2" sx={{ fontWeight: 800, minWidth: 160, textAlign: 'center', textTransform: 'capitalize' }}>
+                  {formatWeekRange(weekStart)}
+                </Typography>
+                <IconButton size="small" onClick={goNext}><IconChevronRight size={18} /></IconButton>
+                <Button size="small" onClick={goToday} sx={{ fontWeight: 700, minWidth: 0 }}>Hoje</Button>
               </Stack>
 
+              {/* Filters + view toggle */}
               <Stack direction="row" spacing={1} alignItems="center">
-                {/* Filters */}
-                {owners.length > 0 && (
-                  <Select value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)} size="small"
-                    sx={{ fontSize: '0.75rem', fontWeight: 700, height: 32, minWidth: 120 }}>
-                    <MenuItem value="all" sx={{ fontSize: '0.75rem' }}>Todos</MenuItem>
-                    <MenuItem value="none" sx={{ fontSize: '0.75rem' }}>Sem dono</MenuItem>
-                    {owners.map((o) => <MenuItem key={o.id} value={o.id} sx={{ fontSize: '0.75rem' }}>{o.name}</MenuItem>)}
-                  </Select>
-                )}
-                {activeClients.length > 1 && (
-                  <Select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} size="small"
-                    sx={{ fontSize: '0.75rem', fontWeight: 700, height: 32, minWidth: 130 }}>
-                    <MenuItem value="all" sx={{ fontSize: '0.75rem' }}>Todos clientes</MenuItem>
-                    {activeClients.map(([id, name]) => <MenuItem key={id} value={id} sx={{ fontSize: '0.75rem' }}>{name}</MenuItem>)}
-                  </Select>
-                )}
-
                 {/* View toggle */}
-                <Box sx={{ display: 'flex', borderRadius: 1.5, overflow: 'hidden', border: `1px solid ${alpha(theme.palette.divider, 0.5)}` }}>
+                <Box
+                  sx={(t) => ({
+                    display: 'flex',
+                    borderRadius: 1.5,
+                    overflow: 'hidden',
+                    border: `1px solid ${alpha(t.palette.divider, 0.5)}`,
+                  })}
+                >
                   {([
-                    { mode: 'gantt' as ViewMode, icon: <IconLayoutKanban size={15} />, label: 'Gantt' },
+                    { mode: 'calendar' as ViewMode, icon: <IconCalendarWeek size={15} />, label: 'Por dia' },
                     { mode: 'distribution' as ViewMode, icon: <IconUsers size={15} />, label: 'Por pessoa' },
                   ] as const).map(({ mode, icon, label }) => (
-                    <Button
-                      key={mode}
-                      size="small"
-                      startIcon={icon}
-                      onClick={() => setViewMode(mode)}
-                      sx={{
-                        borderRadius: 0, px: 1.25, py: 0.5, fontWeight: 700, fontSize: '0.72rem',
-                        bgcolor: viewMode === mode ? alpha(theme.palette.primary.main, 0.12) : 'transparent',
-                        color: viewMode === mode ? theme.palette.primary.main : 'text.secondary',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
-                      }}
-                    >
-                      {label}
-                    </Button>
+                    <Tooltip key={mode} title={label}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setViewMode(mode)}
+                        sx={(t) => ({
+                          borderRadius: 0,
+                          px: 1,
+                          py: 0.5,
+                          bgcolor: viewMode === mode
+                            ? t.palette.primary.main
+                            : 'transparent',
+                          color: viewMode === mode ? '#fff' : alpha(t.palette.text.primary, 0.55),
+                          '&:hover': {
+                            bgcolor: viewMode === mode
+                              ? t.palette.primary.dark
+                              : alpha(t.palette.text.primary, 0.06),
+                          },
+                        })}
+                      >
+                        {icon}
+                      </IconButton>
+                    </Tooltip>
                   ))}
                 </Box>
 
-                <Tooltip title="Atualizar">
-                  <IconButton size="small" onClick={refresh}><IconRefresh size={16} /></IconButton>
-                </Tooltip>
+                <Select
+                  size="small"
+                  value={filterOwner}
+                  onChange={(e) => setFilterOwner(e.target.value)}
+                  sx={{ minWidth: 130, height: 32, fontSize: '0.8rem', fontWeight: 700 }}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="none">Sem dono</MenuItem>
+                  {owners.map((o) => (
+                    <MenuItem key={o.id} value={o.id}>{o.name?.split(' ')[0]}</MenuItem>
+                  ))}
+                </Select>
+                <Select
+                  size="small"
+                  value={filterClient}
+                  onChange={(e) => setFilterClient(e.target.value)}
+                  sx={{ minWidth: 130, height: 32, fontSize: '0.8rem', fontWeight: 700 }}
+                >
+                  <MenuItem value="all">Clientes</MenuItem>
+                  {activeClients.map(([id, name]) => (
+                    <MenuItem key={id} value={id}>{name}</MenuItem>
+                  ))}
+                </Select>
+                <IconButton size="small" onClick={() => refresh()}>
+                  <IconRefresh size={16} />
+                </IconButton>
               </Stack>
+
+              {/* Legend */}
+              <OwnerLegend owners={owners} jobs={activeJobs} />
             </Stack>
           </Box>
 
-          {/* ── View ── */}
-          {viewMode === 'gantt' && (
-            <GanttView jobs={activeJobs} owners={owners} onOpenJob={openJob} onAssign={handleAssign} />
+          {/* ─── Week Grid / Distribution ─── */}
+          {viewMode === 'calendar' ? (
+            <Box
+              sx={{
+                display: 'flex',
+                border: `1px solid ${theme.palette.divider}`,
+                borderTop: 'none',
+                minHeight: 360,
+                bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
+              }}
+            >
+              {columns.map((col) => (
+                <DayColumnView
+                  key={col.key}
+                  col={col}
+                  owners={owners}
+                  teamCapacityPerDay={teamCapacityPerDay}
+                  selectedJobId={selectedJobId}
+                  onSelectJob={handleSelectJob}
+                  onDragStart={handleDragStart}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                />
+              ))}
+            </Box>
+          ) : (
+            <Box sx={{ mt: '-1px' }}>
+              <DistributionView
+                owners={owners}
+                columns={columns}
+                activeJobs={activeJobs}
+                selectedJobId={selectedJobId}
+                onSelectJob={handleSelectJob}
+                onDragStart={handleDragStart}
+                onDistributionDrop={handleDistributionDrop}
+              />
+            </Box>
           )}
 
-          {viewMode === 'distribution' && (
-            <DistributionView jobs={activeJobs} owners={owners} onOpenJob={openJob} onAssign={handleAssign} onAdvance={handleAdvance} />
-          )}
+          {/* ─── Publications ─── */}
+          <Box
+            sx={{
+              border: `1px solid ${theme.palette.divider}`,
+              borderTop: 'none',
+              bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
+            }}
+          >
+            <PublicationsRow jobs={activeJobs} />
+          </Box>
+
+          {/* ─── Backlog ─── */}
+          <Box
+            sx={{
+              border: `1px solid ${theme.palette.divider}`,
+              borderTop: 'none',
+              borderRadius: '0 0 8px 8px',
+              bgcolor: dark ? alpha(theme.palette.background.paper, 0.3) : alpha(theme.palette.background.paper, 0.7),
+            }}
+          >
+            <BacklogRow
+              jobs={backlogJobs}
+              owners={owners}
+              selectedJobId={selectedJobId}
+              onSelectJob={handleSelectJob}
+              onDragStart={handleDragStart}
+            />
+          </Box>
         </Stack>
       )}
 
-      {/* Job drawer */}
-      {selectedJob && (
-        <JobWorkbenchDrawer
-          open={drawerOpen}
-          mode="edit"
-          job={selectedJob}
-          jobTypes={ops.lookups.jobTypes}
-          skills={ops.lookups.skills}
-          channels={ops.lookups.channels}
-          clients={ops.lookups.clients}
-          owners={ops.lookups.owners}
-          currentUserId={ops.currentUserId}
-          onClose={() => setDrawerOpen(false)}
-          onCreate={ops.createJob as (payload: Record<string, any>) => Promise<OperationsJob>}
-          onUpdate={ops.updateJob as (jobId: string, payload: Record<string, any>) => Promise<OperationsJob>}
-          onStatusChange={ops.changeStatus as (jobId: string, status: string, reason?: string | null) => Promise<OperationsJob>}
-        />
-      )}
+      {/* ─── Job Detail Drawer ─── */}
+      <JobWorkbenchDrawer
+        open={drawerOpen}
+        mode="edit"
+        job={selectedJob || null}
+        presentation="modal"
+        jobTypes={lookups.jobTypes}
+        skills={lookups.skills}
+        channels={lookups.channels}
+        clients={lookups.clients}
+        owners={lookups.owners}
+        currentUserId={ops.currentUserId}
+        onClose={() => { setDrawerOpen(false); setSelectedJobId(null); }}
+        onCreate={async (payload) => ops.createJob(payload)}
+        onUpdate={async (id, payload) => ops.updateJob(id, payload)}
+        onStatusChange={async (id, status, reason) => ops.changeStatus(id, status, reason)}
+        onFetchDetail={async (id) => ops.fetchJob(id)}
+      />
     </OperationsShell>
   );
 }
