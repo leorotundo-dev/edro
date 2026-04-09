@@ -185,10 +185,10 @@ export default async function peopleRoutes(app: FastifyInstance) {
            LEFT JOIN freelancer_profiles fp
              ON fp.user_id = eu.id
            LEFT JOIN person_identities pi
-             ON pi.person_id = $1
+             ON pi.person_id::text = $1::text
             AND pi.tenant_id = $2
             AND pi.identity_type = 'email'
-          WHERE fp.person_id = $1
+          WHERE fp.person_id::text = $1::text
              OR LOWER(eu.email) = pi.normalized_value`,
         [id, tenantId],
       );
@@ -198,34 +198,34 @@ export default async function peopleRoutes(app: FastifyInstance) {
       await client.query(
         `UPDATE client_contacts
             SET person_id = NULL
-          WHERE person_id = $1
+          WHERE person_id::text = $1::text
             AND tenant_id = $2`,
         [id, tenantId],
       );
       await client.query(
         `UPDATE freelancer_profiles
             SET person_id = NULL
-          WHERE person_id = $1`,
+          WHERE person_id::text = $1::text`,
         [id],
       );
       await client.query(
         `UPDATE meeting_participants
             SET person_id = NULL
-          WHERE person_id = $1
+          WHERE person_id::text = $1::text
             AND tenant_id = $2`,
         [id, tenantId],
       );
       await client.query(
         `UPDATE whatsapp_group_messages
             SET sender_person_id = NULL
-          WHERE sender_person_id = $1
+          WHERE sender_person_id::text = $1::text
             AND tenant_id = $2`,
         [id, tenantId],
       );
       await client.query(
         `UPDATE whatsapp_messages
             SET sender_person_id = NULL
-          WHERE sender_person_id = $1
+          WHERE sender_person_id::text = $1::text
             AND tenant_id = $2`,
         [id, tenantId],
       );
@@ -267,7 +267,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
 
       await client.query(
         `DELETE FROM person_identities
-          WHERE person_id = $1
+          WHERE person_id::text = $1::text
             AND tenant_id = $2`,
         [id, tenantId],
       );
