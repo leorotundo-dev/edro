@@ -98,10 +98,10 @@ export interface ApiResponse<T = unknown> {
   [key: string]: unknown;
 }
 
-function getAuthHeaders(): HeadersInit {
-  return {
-    'Content-Type': 'application/json',
-  };
+function getAuthHeaders(hasJsonBody = false): HeadersInit {
+  return hasJsonBody
+    ? { 'Content-Type': 'application/json' }
+    : {};
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -145,9 +145,13 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 async function requestWithRefresh<T>(path: string, options: RequestInit): Promise<T> {
   const apiBase = getApiBase();
+  const hasJsonBody = options.body !== undefined && options.body !== null;
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
-    headers: getAuthHeaders(),
+    headers: {
+      ...getAuthHeaders(hasJsonBody),
+      ...(options.headers ?? {}),
+    },
   });
 
   if (response.status === 401) {
