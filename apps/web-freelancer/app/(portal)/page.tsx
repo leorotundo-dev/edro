@@ -212,8 +212,41 @@ export default function DashboardPage() {
       {/* Greeting */}
       <div>
         <span className="portal-kicker">Workspace</span>
-        <h2 className="portal-page-title">
-          {overdueCount > 0 ? '🚨' : todayCount > 0 ? '👋' : '🌟'} Olá, {firstName}!
+        <h2 className="portal-page-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {profile.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt={firstName}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '1.5px solid rgba(255,255,255,0.14)',
+                boxShadow: '0 4px 18px rgba(0,0,0,0.22)',
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1.5px solid rgba(255,255,255,0.1)',
+                fontSize: 24,
+                flexShrink: 0,
+              }}
+            >
+              {overdueCount > 0 ? '🚨' : todayCount > 0 ? '👋' : '🌟'}
+            </span>
+          )}
+          <span>Olá, {firstName}!</span>
         </h2>
         <p className="portal-page-subtitle">
           {overdueCount > 0
