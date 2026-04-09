@@ -490,11 +490,14 @@ function getCalendarDedupFamily(item: {
   client_id?: string | null;
   source?: string | null;
 }) {
+  // For editorial items, source differences (e.g. different CSV imports) must NOT split dedup families.
+  // Two "Dia do Astronauta" events from different CSV sources are the same event.
+  const useSource = item.layer !== 'editorial';
   return [
     String(item.layer || ''),
     String(item.origin || ''),
     String(item.client_id || ''),
-    String(item.source || ''),
+    useSource ? String(item.source || '') : '',
   ].join('|');
 }
 
