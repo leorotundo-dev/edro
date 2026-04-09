@@ -40,6 +40,7 @@ import { runWeeklyDigestOnce } from './weeklyDigestWorker';
 import { runCompetitorIntelligenceWorkerOnce } from './competitorIntelligenceWorker';
 import { runOpportunityDetectorWorkerOnce } from './opportunityDetectorWorker';
 import { runTrelloSyncWorkerOnce } from './trelloSyncWorker';
+import { runTrelloOutboxWorkerOnce } from './trelloOutboxWorker';
 import { runJarvisAlertWorkerOnce } from './jarvisAlertWorker';
 import { runArtDirectionReferenceWorkerOnce } from './artDirectionReferenceWorker';
 import { runArtDirectionTrendWorkerOnce } from './artDirectionTrendWorker';
@@ -116,6 +117,8 @@ export function startJobsRunner() {
   startWorkerLoop('jarvisBackground', runJarvisBackgroundWorkerOnce, 17750, 180_000);
   // Webhook Retry — retries failed WhatsApp/Instagram/Recall events (max 3 attempts)
   startWorkerLoop('webhookRetry', runWebhookRetryWorkerOnce, 21500, 30_000);
+  // Trello Outbox — flushes Edro→Trello queue with retry (5s polling)
+  startWorkerLoop('trelloOutbox', runTrelloOutboxWorkerOnce, 22500, 30_000);
 
   // ── 30s — periodic background (self-throttled, no user-visible impact) ───
   startWorkerLoop('clientEnrichment', runClientEnrichmentWorkerOnce, 2500, undefined, 30_000);
@@ -193,8 +196,8 @@ export function startJobsRunner() {
   startWorkerLoop('opportunityDetector', runOpportunityDetectorWorkerOnce, 19000, 600_000, 60_000);
   // Client Living Memory — hourly refresh of typed facts for recently active clients
   startWorkerLoop('clientLivingMemory', runClientLivingMemoryWorkerOnce, 19250, 120_000, 60_000);
-  // Trello Sync — every 30min, keeps Edro boards in sync with Trello
-  startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 300_000, 60_000);
+  // Trello Sync — every 2h reconciliation (realtime via webhooks, syncs only dark boards)
+  startWorkerLoop('trelloSync', runTrelloSyncWorkerOnce, 19500, 600_000, 60_000);
   // Jarvis Alert Engine — 2x/day, cross-source alerts
   startWorkerLoop('jarvisAlerts', runJarvisAlertWorkerOnce, 20000, 120_000, 60_000);
   // Art Direction Reference Discovery — opt-in, searches curated web references every 6h

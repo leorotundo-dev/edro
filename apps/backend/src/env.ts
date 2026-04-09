@@ -65,6 +65,7 @@ const envSchema = z.object({
   WEB_URL: z.string().optional(),
   FREELANCER_PORTAL_URL: z.string().optional(),
   PUBLIC_API_URL: z.string().optional(),
+  TRELLO_WEBHOOK_SECRET: z.string().optional(),
   PUBLISHER_GATEWAY_URL: z.string().optional(),
   GATEWAY_SHARED_SECRET: z.string().optional(),
   ENABLE_METRICS: envBoolean.optional(),

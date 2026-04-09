@@ -433,6 +433,8 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
       metaFailingRes,
       whatsappInstanceRes,
       freshnessRes,
+      trelloWebhookRes,
+      trelloOutboxRes,
     ] = await Promise.all([
       safeQuery<{ last_synced_at: string | null; is_active: boolean }>(
         `SELECT last_synced_at, is_active FROM trello_connectors WHERE tenant_id = $1 LIMIT 1`,
@@ -530,6 +532,29 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
            (SELECT MAX(updated_at)::text FROM edro_briefings WHERE tenant_id = $1) as last_briefing`,
         [tenantId],
       ),
+      // Trello webhook health
+      safeQuery<{ total: number; active: number; last_seen_at: string | null; boards_without_webhook: number }>(
+        `SELECT
+           COUNT(tw.id)::int as total,
+           COUNT(tw.id) FILTER (WHERE tw.is_active = true AND tw.last_seen_at > now() - interval '2 hours')::int as active,
+           MAX(tw.last_seen_at)::text as last_seen_at,
+           (SELECT COUNT(*)::int FROM project_boards pb2
+            WHERE pb2.tenant_id = $1 AND pb2.is_archived = false AND pb2.trello_board_id IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM trello_webhooks tw2
+                              WHERE tw2.tenant_id = pb2.tenant_id AND tw2.trello_board_id = pb2.trello_board_id AND tw2.is_active = true)
+           ) as boards_without_webhook
+         FROM trello_webhooks tw
+         WHERE tw.tenant_id = $1`,
+        [tenantId],
+      ),
+      // Trello outbox backlog
+      safeQuery<{ backlog: number; dead: number }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE status IN ('pending','error'))::int as backlog,
+           COUNT(*) FILTER (WHERE status = 'dead')::int as dead
+         FROM trello_outbox WHERE tenant_id = $1`,
+        [tenantId],
+      ),
     ]);
     const fr: {
       last_meta_metrics: string | null;
@@ -575,6 +600,8 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
     const trelloMembers = trelloMembersRes.rows[0];
     const metaFailing = metaFailingRes.rows[0];
     const whatsappInstance = whatsappInstanceRes.rows[0];
+    const trelloWebhook = trelloWebhookRes.rows[0] ?? { total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 };
+    const trelloOutbox = trelloOutboxRes.rows[0] ?? { backlog: 0, dead: 0 };
 
     const calendarExpiry = calendar?.expires_at ? new Date(calendar.expires_at).getTime() : null;
     const calendarExpired = calendarExpiry !== null && calendarExpiry <= now;
@@ -608,16 +635,28 @@ export default async function integrationHealthRoutes(app: FastifyInstance) {
         configured: Boolean(trello?.is_active),
         status: !trello ? 'disconnected'
           : (tb?.err ?? 0) > 0 ? 'error'
-          : (tb?.stale ?? 0) > 0 || (trelloUnmapped?.count ?? 0) > 0 ? 'stale'
+          : (tb?.stale ?? 0) > 0 || (trelloUnmapped?.count ?? 0) > 0 || (trelloOutbox?.dead ?? 0) > 0 ? 'stale'
           : 'ok',
-        last_activity: trello?.last_synced_at ?? null,
+        last_activity: trelloWebhook.last_seen_at ?? trello?.last_synced_at ?? null,
         details: trello
-          ? `${tb?.total ?? 0} boards · ${tb?.unlinked ?? 0} sem cliente · ${tb?.stale ?? 0} desatualizados · ${trelloUnmapped?.count ?? 0} listas sem mapeamento`
+          ? [
+              `${tb?.total ?? 0} boards`,
+              `${tb?.unlinked ?? 0} sem cliente`,
+              trelloWebhook.total > 0
+                ? `${trelloWebhook.active}/${trelloWebhook.total} webhooks ativos`
+                : 'webhooks não configurados',
+              trelloOutbox.backlog > 0 ? `${trelloOutbox.backlog} itens na fila` : null,
+              trelloOutbox.dead > 0 ? `${trelloOutbox.dead} falhas permanentes` : null,
+            ].filter(Boolean).join(' · ')
           : 'Não conectado',
         action_url: '/admin/trello',
-        warning: (trelloUnmapped?.count ?? 0) > 0
-          ? `${trelloUnmapped.count} lista(s) com cards sem status definido — podem aparecer como "Intake" incorretamente`
-          : null,
+        warning: (trelloOutbox?.dead ?? 0) > 0
+          ? `${trelloOutbox.dead} operação(ões) Trello com falha permanente — verificar trello_outbox`
+          : (trelloWebhook.boards_without_webhook ?? 0) > 0
+            ? `${trelloWebhook.boards_without_webhook} board(s) sem webhook ativo — sync em tempo real inativo`
+            : (trelloUnmapped?.count ?? 0) > 0
+              ? `${trelloUnmapped.count} lista(s) com cards sem status definido`
+              : null,
       },
       {
         key: 'meta',

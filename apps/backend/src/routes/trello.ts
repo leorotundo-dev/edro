@@ -13,6 +13,7 @@ import {
 } from '../services/trelloSyncService';
 import { getBoardInsights, analyzeAllBoardsForTenant, analyzeBoardHistory } from '../services/trelloHistoryAnalyzer';
 import { stripTrelloTitle, normalizeTrelloLabels, normalizeTrelloAttachments, inferJobTypeFromLabels } from '../services/trelloCardMapper';
+import { enqueueOutbox } from '../services/trelloOutboxService';
 import { query } from '../db';
 
 function normalizeBoardBindingKey(value?: string | null) {
@@ -1842,21 +1843,13 @@ export default async function trelloRoutes(app: FastifyInstance) {
       await query(`UPDATE project_cards SET ${sets.join(', ')}, updated_at = now() WHERE id = $${i} AND tenant_id = $${i + 1}`, vals);
 
       if (current.trello_card_id) {
-        try {
-          const creds = await getTrelloCredentials(tenantId);
-          if (creds) {
-            const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken });
-            if (patchPayload.title !== undefined) params.set('name', patchPayload.title);
-            if (patchPayload.description !== undefined) params.set('desc', patchPayload.description);
-            if (body.deadline_at !== undefined) params.set('due', toTrelloDueValue(patchPayload.due_date));
-            const syncRes = await fetch(`https://api.trello.com/1/cards/${current.trello_card_id}?${params}`, {
-              method: 'PUT',
-              signal: AbortSignal.timeout(8_000),
-            });
-            if (!syncRes.ok) console.warn('[trello ops] detail sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
-          }
-        } catch (err: any) {
-          console.warn('[trello ops] detail sync failed:', err?.message);
+        const trelloFields: Record<string, string> = {};
+        if (patchPayload.title !== undefined) trelloFields.name = patchPayload.title;
+        if (patchPayload.description !== undefined) trelloFields.desc = patchPayload.description;
+        if (body.deadline_at !== undefined) trelloFields.due = toTrelloDueValue(patchPayload.due_date);
+        if (Object.keys(trelloFields).length) {
+          enqueueOutbox(tenantId, 'card.update', { trelloCardId: current.trello_card_id, fields: trelloFields },
+            `card.update.${current.trello_card_id}`).catch(() => undefined);
         }
       }
     }
@@ -1890,32 +1883,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
       }
 
       if (current.trello_card_id) {
-        try {
-          const creds = await getTrelloCredentials(tenantId);
-          if (creds) {
-            const baseParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken });
-            const currentMemberIds = Array.from(new Set(currentMembersRes.rows.map((row) => row.trello_member_id).filter(Boolean) as string[]));
-            const nextMemberIds = Array.from(new Set(resolvedPeople.map((row) => row.trello_member_id).filter(Boolean) as string[]));
-
-            await Promise.all(currentMemberIds.map((memberId) =>
-              fetch(`https://api.trello.com/1/cards/${current.trello_card_id}/idMembers/${memberId}?${baseParams}`, {
-                method: 'DELETE',
-                signal: AbortSignal.timeout(8_000),
-              }).catch(() => null)
-            ));
-
-            for (const memberId of nextMemberIds) {
-              const addParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, value: memberId });
-              const syncRes = await fetch(`https://api.trello.com/1/cards/${current.trello_card_id}/idMembers?${addParams}`, {
-                method: 'POST',
-                signal: AbortSignal.timeout(8_000),
-              });
-              if (!syncRes.ok) console.warn('[trello ops] assignee sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
-            }
-          }
-        } catch (err: any) {
-          console.warn('[trello ops] assignee sync failed:', err?.message);
-        }
+        const toRemove = Array.from(new Set(currentMembersRes.rows.map((r) => r.trello_member_id).filter(Boolean) as string[]));
+        const toAdd    = Array.from(new Set(resolvedPeople.map((r) => r.trello_member_id).filter(Boolean) as string[]));
+        enqueueOutbox(tenantId, 'member.sync', { trelloCardId: current.trello_card_id, toRemove, toAdd },
+          `member.sync.${current.trello_card_id}`).catch(() => undefined);
       }
     }
 
@@ -1947,21 +1918,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     const trelloCardId = cardRes.rows[0].trello_card_id;
 
-    // Update in Trello if synced
+    // Enqueue outbound sync via outbox (with retry)
     if (trelloCardId) {
-      const creds = await getTrelloCredentials(tenantId);
-      if (creds) {
-        const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, state });
-        const syncRes = await fetch(
-          `https://api.trello.com/1/cards/${trelloCardId}/checkItem/${checkItemId}?${params}`,
-          { method: 'PUT', signal: AbortSignal.timeout(8_000) },
-        );
-        if (!syncRes.ok) {
-          const errText = await syncRes.text().catch(() => '');
-          console.warn('[trello ops] checklist item sync failed:', syncRes.status, errText);
-          // Still reflect optimistically in the local DB (best effort)
-        }
-      }
+      enqueueOutbox(tenantId, 'checklist.toggle', { trelloCardId, checkItemId, state }).catch(() => undefined);
     }
 
     // Update locally in JSONB — find the checklist row containing this item and update it
