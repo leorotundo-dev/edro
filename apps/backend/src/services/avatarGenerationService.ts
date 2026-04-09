@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { query } from '../db';
 import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
-import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, isFalConfigured } from './ai/falAiService';
+import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, generateNanoBananaEditMultiWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v7';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v8';
 
 const AVATAR_STYLE_REFERENCE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-reference.png');
 const AVATAR_STYLE_BRIDGE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-bridge.jpg');
@@ -152,7 +152,7 @@ export async function generateEdroAvatarForFreelancer(params: {
     freelancerId: params.freelancerId,
     avatarSourceKey: sourceKey,
     status: 'pending',
-    provider: 'fal-ai/flux-pro/v1.1',
+    provider: 'fal-ai/nano-banana-2/edit',
     promptVersion: EDRO_AVATAR_PROMPT_VERSION,
     error: null,
   });
@@ -164,47 +164,56 @@ export async function generateEdroAvatarForFreelancer(params: {
     const styleBridgeRef = await getAvatarStyleBridgeDataUrl();
     const styleRef = await getAvatarStyleReferenceDataUrl();
 
-    let provider = 'fal-ai/gemini-flash-edit/multi';
+    let provider = 'fal-ai/nano-banana-2/edit';
     let result: Awaited<ReturnType<typeof generateImageWithFal>>;
 
     try {
-      result = await generateGeminiFlashEditMultiWithFal({
+      result = await generateNanoBananaEditMultiWithFal({
         prompt: activePrompt,
         imageUrls: [imageRef, styleBridgeRef, styleRef],
+        aspectRatio: '1:1',
       });
-    } catch (primaryErr: any) {
+    } catch {
       try {
-        provider = 'fal-ai/instant-character';
-        result = await generateInstantCharacterWithFal({
+        result = await generateGeminiFlashEditMultiWithFal({
           prompt: activePrompt,
-          imageUrl: imageRef,
-          negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
-          aspectRatio: '1:1',
-          numImages: 1,
-          scale: 1.12,
+          imageUrls: [imageRef, styleBridgeRef, styleRef],
         });
+        provider = 'fal-ai/gemini-flash-edit/multi';
       } catch {
         try {
-          // Strategy 3 — true img2img preserves face geometry better than weak text reference.
-          provider = 'fal-ai/flux-dev/image-to-image';
-          result = await generateImg2ImgWithFal({
+          provider = 'fal-ai/instant-character';
+          result = await generateInstantCharacterWithFal({
+            prompt: activePrompt,
             imageUrl: imageRef,
-            prompt: activePrompt,
-            strength: 0.9,
-            aspectRatio: '1:1',
-            numImages: 1,
-          });
-        } catch {
-          provider = 'fal-ai/flux-pro/v1.1';
-          result = await generateImageWithFal({
-            model: 'flux-pro',
-            prompt: activePrompt,
             negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
             aspectRatio: '1:1',
             numImages: 1,
-            referenceImageUrl: imageRef,
-            referenceImageStrength: 0.62,
+            scale: 1.12,
           });
+        } catch {
+          try {
+            // Strategy 4 — true img2img preserves face geometry better than weak text reference.
+            provider = 'fal-ai/flux-dev/image-to-image';
+            result = await generateImg2ImgWithFal({
+              imageUrl: imageRef,
+              prompt: activePrompt,
+              strength: 0.9,
+              aspectRatio: '1:1',
+              numImages: 1,
+            });
+          } catch {
+            provider = 'fal-ai/flux-pro/v1.1';
+            result = await generateImageWithFal({
+              model: 'flux-pro',
+              prompt: activePrompt,
+              negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
+              aspectRatio: '1:1',
+              numImages: 1,
+              referenceImageUrl: imageRef,
+              referenceImageStrength: 0.62,
+            });
+          }
         }
       }
     }

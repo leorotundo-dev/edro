@@ -587,6 +587,99 @@ export async function generateGeminiFlashEditMultiWithFal(params: {
   throw new Error('fal.ai gemini-flash-edit: timeout aguardando resultado da fila');
 }
 
+export async function generateNanoBananaEditMultiWithFal(params: {
+  prompt: string;
+  imageUrls: string[];
+  aspectRatio?: '1:1' | '4:5' | '3:4' | '9:16' | '16:9';
+}): Promise<FalImageResult> {
+  const apiKey = env.FAL_API_KEY;
+  if (!apiKey) throw new Error('FAL_API_KEY não configurada');
+  if (!params.imageUrls.length) throw new Error('fal.ai nano-banana-2/edit: nenhuma imagem de entrada enviada');
+
+  const model = 'fal-ai/nano-banana-2/edit';
+  const body = {
+    prompt: params.prompt.slice(0, 1990),
+    image_urls: params.imageUrls,
+    num_images: 1,
+    aspect_ratio: params.aspectRatio ?? '1:1',
+    output_format: 'png',
+    resolution: '1K',
+    safety_tolerance: '5',
+    limit_generations: true,
+  };
+
+  const queueRes = await fetch(`https://queue.fal.run/${model}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!queueRes.ok) {
+    const err = await queueRes.text().catch(() => 'unknown');
+    throw new Error(`fal.ai nano-banana-2/edit submit failed (${queueRes.status}): ${err.slice(0, 300)}`);
+  }
+
+  const queue = await queueRes.json() as { request_id?: string };
+  if (!queue.request_id) {
+    throw new Error('fal.ai nano-banana-2/edit: request_id não retornado');
+  }
+
+  const statusUrl = `https://queue.fal.run/${model}/requests/${queue.request_id}/status`;
+  const resultUrl = `https://queue.fal.run/${model}/requests/${queue.request_id}`;
+
+  for (let i = 0; i < 45; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+
+    const statusRes = await fetch(statusUrl, {
+      headers: { Authorization: `Key ${apiKey}` },
+    });
+
+    if (!statusRes.ok) {
+      const err = await statusRes.text().catch(() => 'unknown');
+      throw new Error(`fal.ai nano-banana-2/edit status failed (${statusRes.status}): ${err.slice(0, 300)}`);
+    }
+
+    const statusData = await statusRes.json() as { status?: string };
+    if (statusData.status === 'COMPLETED') {
+      const resultRes = await fetch(resultUrl, {
+        headers: { Authorization: `Key ${apiKey}` },
+      });
+
+      if (!resultRes.ok) {
+        const err = await resultRes.text().catch(() => 'unknown');
+        throw new Error(`fal.ai nano-banana-2/edit result failed (${resultRes.status}): ${err.slice(0, 300)}`);
+      }
+
+      const data = await resultRes.json() as {
+        images?: Array<{ url: string }>;
+        image?: { url: string };
+        error?: string;
+      };
+
+      if (data.error) throw new Error(`fal.ai nano-banana-2/edit error: ${data.error}`);
+
+      const images = data.images ?? (data.image ? [data.image] : []);
+      if (!images.length) throw new Error('fal.ai nano-banana-2/edit: nenhuma imagem retornada');
+
+      const imageUrls = images.map((img) => img.url);
+      return {
+        imageUrl: imageUrls[0],
+        imageUrls,
+        endpoint: model,
+      };
+    }
+
+    if (statusData.status === 'FAILED') {
+      throw new Error('fal.ai nano-banana-2/edit: geração falhou na fila');
+    }
+  }
+
+  throw new Error('fal.ai nano-banana-2/edit: timeout aguardando resultado da fila');
+}
+
 // ── Remove Background ──────────────────────────────────────────────────────────
 
 /**
