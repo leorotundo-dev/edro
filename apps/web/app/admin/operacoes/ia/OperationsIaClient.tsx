@@ -36,6 +36,7 @@ import {
   isCopyReadyJob,
   isWaitingBriefing,
   isWaitingInfo,
+  cleanJobTitle,
   type OperationsJob,
 } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
@@ -344,7 +345,7 @@ export default function OperationsIaClient() {
                                           overflow: 'hidden',
                                         }}
                                       >
-                                        {job.title}
+                                        {cleanJobTitle(job.title, job.client_name)}
                                       </Typography>
                                     </Box>
                                     <Chip

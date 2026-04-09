@@ -40,7 +40,7 @@ import {
   OpsToolbar,
   PersonThumb,
 } from '@/components/operations/primitives';
-import { getRisk, type OperationsJob } from '@/components/operations/model';
+import { getRisk, cleanJobTitle, type OperationsJob } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
 
@@ -1025,7 +1025,7 @@ export default function OperationsAgendaClient() {
                                             <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
                                               <ClientThumb name={job.client_name} logoUrl={job.client_logo_url} accent={job.client_brand_color || '#E85219'} size={22} />
                                               <Typography variant="caption" sx={{ display: 'block', fontWeight: 700 }} noWrap>
-                                                {job.title}
+                                                {cleanJobTitle(job.title, job.client_name)}
                                               </Typography>
                                             </Stack>
                                           </Box>

@@ -12,6 +12,7 @@ import {
 } from '@/components/operations/primitives';
 import {
   getRisk,
+  cleanJobTitle,
   type OperationsJob,
   type OperationsOwner,
 } from '@/components/operations/model';
@@ -190,7 +191,7 @@ function GanttBar({
         placement="top"
         title={
           <Stack spacing={0.4} sx={{ p: 0.25 }}>
-            <Typography variant="body2" fontWeight={800}>{job.title}</Typography>
+            <Typography variant="body2" fontWeight={800}>{cleanJobTitle(job.title, job.client_name)}</Typography>
             <Typography variant="caption" color="text.secondary">{job.client_name}</Typography>
             {job.deadline_at && <DeadlineCountdown deadline={job.deadline_at} compact />}
           </Stack>
@@ -243,7 +244,7 @@ function GanttBar({
 
           {/* Title */}
           <Typography noWrap sx={{ fontSize: '0.74rem', fontWeight: 700, flex: 1, color: dark ? alpha(barColor, 0.9) : barColor, lineHeight: 1.2 }}>
-            {job.title}
+            {cleanJobTitle(job.title, job.client_name)}
           </Typography>
 
           {/* Urgent flag */}
@@ -392,7 +393,7 @@ function GanttView({
                   }}
                 >
                   <Typography noWrap variant="caption" sx={{ fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.2 }}>
-                    {job.title}
+                    {cleanJobTitle(job.title, job.client_name)}
                   </Typography>
                   <Stack direction="row" spacing={0.5} alignItems="center">
                     {job.client_logo_url ? (
@@ -560,7 +561,7 @@ function DistCell({
             }}
           >
             <Typography variant="caption" noWrap sx={{ fontWeight: 700, fontSize: '0.7rem', lineHeight: 1.25, display: 'block' }}>
-              {job.title}
+              {cleanJobTitle(job.title, job.client_name)}
             </Typography>
             <Typography variant="caption" noWrap sx={{ fontSize: '0.62rem', color: 'text.disabled', lineHeight: 1 }}>
               {job.client_name}

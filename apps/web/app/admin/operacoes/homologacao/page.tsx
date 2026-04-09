@@ -17,6 +17,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { IconCheck, IconSend, IconX } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
+import { cleanJobTitle } from '@/components/operations/model';
 
 type InReviewJob = {
   id: string;
@@ -69,7 +70,7 @@ function JobReviewCard({ job, onAction }: { job: InReviewJob; onAction: () => vo
       <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} flexWrap="wrap">
         <Box flex={1} minWidth={0}>
           <Stack direction="row" spacing={1} alignItems="center" mb={0.5} flexWrap="wrap">
-            <Typography fontWeight={700} fontSize={15}>{job.title}</Typography>
+            <Typography fontWeight={700} fontSize={15}>{cleanJobTitle(job.title, job.client_name)}</Typography>
             {job.job_size && <Chip label={job.job_size} size="small" variant="outlined" />}
             {days !== null && (
               <Chip

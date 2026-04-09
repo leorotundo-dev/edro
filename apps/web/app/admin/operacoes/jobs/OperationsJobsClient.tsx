@@ -81,6 +81,7 @@ import {
   groupBy,
   matchesOperationalFocus,
   type OperationalFocusKey,
+  cleanJobTitle,
   type OperationsJob,
   type OperationsOwner,
 } from '@/components/operations/model';
@@ -1093,7 +1094,7 @@ export default function OperationsJobsClient() {
                                     overflow: 'hidden',
                                   }}
                                 >
-                                  {job.title}
+                                  {cleanJobTitle(job.title, job.client_name)}
                                 </Typography>
                                 <Typography
                                   variant="caption"
