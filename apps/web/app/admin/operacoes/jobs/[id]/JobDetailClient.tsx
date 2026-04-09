@@ -280,6 +280,19 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
   const [savingPeople, setSavingPeople] = useState(false);
   const [peopleError, setPeopleError] = useState('');
 
+  // Inline title editing
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [savingTitle, setSavingTitle] = useState(false);
+
+  // Inline description editing
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState('');
+  const [savingDesc, setSavingDesc] = useState(false);
+
+  // Checklist item toggling
+  const [togglingItem, setTogglingItem] = useState<string | null>(null);
+
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -357,6 +370,76 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
       setPeopleError(e?.message || 'Falha ao salvar pessoas do job.');
     } finally {
       setSavingPeople(false);
+    }
+  };
+
+  const saveTitle = async () => {
+    if (!job || !titleDraft.trim() || titleDraft.trim() === job.title) { setEditingTitle(false); return; }
+    setSavingTitle(true);
+    try {
+      const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, { title: titleDraft.trim() });
+      if (res?.data) setJob(res.data);
+    } finally {
+      setSavingTitle(false);
+      setEditingTitle(false);
+    }
+  };
+
+  const saveDesc = async () => {
+    if (!job) { setEditingDesc(false); return; }
+    setSavingDesc(true);
+    try {
+      const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, { summary: descDraft });
+      if (res?.data) setJob(res.data);
+    } finally {
+      setSavingDesc(false);
+      setEditingDesc(false);
+    }
+  };
+
+  const toggleChecklistItem = async (checklistId: string, itemId: string | undefined, currentChecked: boolean, itemIndex: number) => {
+    if (!job) return;
+    const newState = currentChecked ? 'incomplete' : 'complete';
+
+    // Optimistic update
+    setJob((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        checklists: prev.checklists?.map((cl) =>
+          cl.id !== checklistId ? cl : {
+            ...cl,
+            items: cl.items.map((item, i) =>
+              i !== itemIndex ? item : { ...item, checked: !currentChecked }
+            ),
+          }
+        ),
+      };
+    });
+
+    if (itemId) {
+      setTogglingItem(itemId);
+      try {
+        await apiPatch(`/trello/ops-cards/${id}/checklist-items/${itemId}`, { state: newState });
+      } catch {
+        // Revert optimistic update on failure
+        setJob((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            checklists: prev.checklists?.map((cl) =>
+              cl.id !== checklistId ? cl : {
+                ...cl,
+                items: cl.items.map((item, i) =>
+                  i !== itemIndex ? item : { ...item, checked: currentChecked }
+                ),
+              }
+            ),
+          };
+        });
+      } finally {
+        setTogglingItem(null);
+      }
     }
   };
 
@@ -494,9 +577,45 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
               <Chip size="small" label="Urgente" sx={{ fontWeight: 800, fontSize: '0.68rem', height: 22, bgcolor: alpha('#F9A825', 0.12), color: '#F9A825', border: `1px solid ${alpha('#F9A825', 0.3)}` }} />
             )}
           </Stack>
-          <Typography fontWeight={800} sx={{ lineHeight: 1.2, fontSize: { xs: '1.4rem', md: '1.7rem' }, color: 'text.primary' }}>
-            {cleanJobTitle(job.title, job.client_name)}
-          </Typography>
+          {editingTitle ? (
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                autoFocus
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveTitle();
+                  if (e.key === 'Escape') setEditingTitle(false);
+                }}
+                onBlur={saveTitle}
+                disabled={savingTitle}
+                size="small"
+                fullWidth
+                inputProps={{ style: { fontSize: '1.2rem', fontWeight: 800 } }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              />
+              {savingTitle && <CircularProgress size={16} />}
+            </Stack>
+          ) : (
+            <Tooltip title="Clique para editar o título" placement="top-start">
+              <Typography
+                fontWeight={800}
+                sx={{
+                  lineHeight: 1.2,
+                  fontSize: { xs: '1.4rem', md: '1.7rem' },
+                  color: 'text.primary',
+                  cursor: 'text',
+                  borderRadius: 1,
+                  px: 0.5,
+                  mx: -0.5,
+                  '&:hover': { bgcolor: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' },
+                }}
+                onClick={() => { setTitleDraft(job.title); setEditingTitle(true); }}
+              >
+                {cleanJobTitle(job.title, job.client_name)}
+              </Typography>
+            </Tooltip>
+          )}
           <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
             {job.client_name && (
               <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ fontSize: '0.78rem' }}>
@@ -633,34 +752,87 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
             )}
 
             {/* Description */}
-            {job.summary && (
-              <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
-                <Typography variant="caption" fontWeight={700} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1 }}>
+            <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                <Typography variant="caption" fontWeight={700} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   Descrição e contexto
                 </Typography>
+                {!editingDesc && (
+                  <Tooltip title="Editar descrição">
+                    <IconButton
+                      size="small"
+                      onClick={() => { setDescDraft(job.summary ?? ''); setEditingDesc(true); }}
+                      sx={{ p: 0.25, opacity: 0.4, '&:hover': { opacity: 1 } }}
+                    >
+                      <IconPencil size={13} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Stack>
+              {editingDesc ? (
+                <Stack spacing={1}>
+                  <TextField
+                    autoFocus
+                    multiline
+                    minRows={4}
+                    maxRows={16}
+                    fullWidth
+                    value={descDraft}
+                    onChange={(e) => setDescDraft(e.target.value)}
+                    disabled={savingDesc}
+                    size="small"
+                    placeholder="Adicione uma descrição..."
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.84rem' } }}
+                  />
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => setEditingDesc(false)} disabled={savingDesc} sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.78rem', borderRadius: 2 }}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={saveDesc}
+                      disabled={savingDesc}
+                      endIcon={savingDesc ? <CircularProgress size={12} /> : undefined}
+                      sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.78rem', borderRadius: 2, boxShadow: 'none' }}
+                    >
+                      {savingDesc ? 'Salvando...' : 'Salvar'}
+                    </Button>
+                  </Stack>
+                </Stack>
+              ) : job.summary ? (
                 <Typography variant="body2" sx={{ lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
                   {renderDescription(job.summary)}
                 </Typography>
-                {job.definition_of_done ? (
-                  <Box
-                    sx={(theme) => ({
-                      mt: 2,
-                      p: 1.5,
-                      borderRadius: 2.5,
-                      bgcolor: theme.palette.mode === 'dark' ? alpha('#13DEB9', 0.08) : alpha('#13DEB9', 0.045),
-                      border: `1px solid ${alpha('#13DEB9', 0.18)}`,
-                    })}
-                  >
-                    <Typography variant="caption" sx={{ display: 'block', mb: 0.45, fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#13DEB9' }}>
-                      Definition of Done
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
-                      {job.definition_of_done}
-                    </Typography>
-                  </Box>
-                ) : null}
-              </Paper>
-            )}
+              ) : (
+                <Typography
+                  variant="body2"
+                  color="text.disabled"
+                  sx={{ cursor: 'text', fontStyle: 'italic', fontSize: '0.84rem' }}
+                  onClick={() => { setDescDraft(''); setEditingDesc(true); }}
+                >
+                  Clique para adicionar uma descrição...
+                </Typography>
+              )}
+              {!editingDesc && job.definition_of_done ? (
+                <Box
+                  sx={(theme) => ({
+                    mt: 2,
+                    p: 1.5,
+                    borderRadius: 2.5,
+                    bgcolor: theme.palette.mode === 'dark' ? alpha('#13DEB9', 0.08) : alpha('#13DEB9', 0.045),
+                    border: `1px solid ${alpha('#13DEB9', 0.18)}`,
+                  })}
+                >
+                  <Typography variant="caption" sx={{ display: 'block', mb: 0.45, fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#13DEB9' }}>
+                    Definition of Done
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                    {job.definition_of_done}
+                  </Typography>
+                </Box>
+              ) : null}
+            </Paper>
 
             {/* Checklists */}
             {hasChecklist && (
@@ -693,16 +865,26 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
                             </Typography>
                           )}
                           <Stack spacing={0.75}>
-                            {cl.items.map((item, i) => (
-                              <Stack key={i} direction="row" spacing={1} alignItems="flex-start">
-                                <Box sx={{ width: 16, height: 16, mt: '1px', flexShrink: 0, borderRadius: '4px', border: `2px solid ${item.checked ? '#5D87FF' : theme.palette.divider}`, bgcolor: item.checked ? '#5D87FF' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  {item.checked && <IconCheck size={10} color="#fff" />}
-                                </Box>
-                                <Typography variant="body2" sx={{ fontSize: '0.84rem', lineHeight: 1.5, textDecoration: item.checked ? 'line-through' : 'none', color: item.checked ? 'text.disabled' : 'text.primary' }}>
-                                  {item.text}
-                                </Typography>
-                              </Stack>
-                            ))}
+                            {cl.items.map((item, i) => {
+                              const isToggling = item.id ? togglingItem === item.id : false;
+                              return (
+                                <Stack
+                                  key={item.id ?? i}
+                                  direction="row"
+                                  spacing={1}
+                                  alignItems="flex-start"
+                                  onClick={() => !isToggling && toggleChecklistItem(cl.id, item.id, item.checked, i)}
+                                  sx={{ cursor: 'pointer', borderRadius: 1, px: 0.5, mx: -0.5, py: 0.25, '&:hover': { bgcolor: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }, opacity: isToggling ? 0.5 : 1, transition: 'opacity 0.15s' }}
+                                >
+                                  <Box sx={{ width: 16, height: 16, mt: '1px', flexShrink: 0, borderRadius: '4px', border: `2px solid ${item.checked ? '#5D87FF' : theme.palette.divider}`, bgcolor: item.checked ? '#5D87FF' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                                    {item.checked && <IconCheck size={10} color="#fff" />}
+                                  </Box>
+                                  <Typography variant="body2" sx={{ fontSize: '0.84rem', lineHeight: 1.5, textDecoration: item.checked ? 'line-through' : 'none', color: item.checked ? 'text.disabled' : 'text.primary', transition: 'all 0.15s', userSelect: 'none' }}>
+                                    {item.text}
+                                  </Typography>
+                                </Stack>
+                              );
+                            })}
                           </Stack>
                         </Box>
                       ))}
