@@ -76,6 +76,23 @@ function verifyPendingMfaToken(app: FastifyInstance, token: string) {
 }
 
 export default async function authRoutes(app: FastifyInstance) {
+  const hasActiveStaffPortalAccess = async (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    const { rows } = await pool.query<{ tenant_id: string }>(
+      `SELECT tu.tenant_id
+         FROM edro_users eu
+         JOIN freelancer_profiles fp
+           ON fp.user_id = eu.id
+          AND fp.is_active = true
+         JOIN tenant_users tu
+           ON tu.user_id = eu.id
+        WHERE eu.email = $1
+        LIMIT 1`,
+      [normalized],
+    );
+    return rows[0]?.tenant_id ?? null;
+  };
+
   const buildAuthUserPayload = async (params: {
     userId: string;
     email: string;
@@ -145,7 +162,9 @@ export default async function authRoutes(app: FastifyInstance) {
         const { rows } = await pool.query<{ tenant_id: string }>(
           `SELECT tu.tenant_id
              FROM edro_users eu
-             JOIN freelancer_profiles fp ON fp.user_id = eu.id
+             JOIN freelancer_profiles fp
+               ON fp.user_id = eu.id
+              AND fp.is_active = true
              JOIN tenant_users tu ON tu.user_id = eu.id
             WHERE eu.email = $1
             LIMIT 1`,
@@ -361,6 +380,13 @@ export default async function authRoutes(app: FastifyInstance) {
       role: z.enum(['client', 'staff']).optional(),
     }).parse(request.body);
 
+    if (role === 'staff') {
+      const tenantId = await hasActiveStaffPortalAccess(email);
+      if (!tenantId) {
+        return reply.status(403).send({ ok: false, error: 'Nenhum perfil ativo de freelancer vinculado a este e-mail.' });
+      }
+    }
+
     const { email: normalized, code } = await issuePortalLoginCode(email, { ttlMinutes: 15 });
 
     const portalName = role === 'client' ? 'Portal do Cliente' : 'Portal Freelancer';
@@ -479,6 +505,7 @@ export default async function authRoutes(app: FastifyInstance) {
          FROM freelancer_profiles fp
          JOIN tenant_users tu ON tu.user_id = fp.user_id
          WHERE fp.user_id = $1
+           AND fp.is_active = true
          LIMIT 1`,
         [user.id],
       );
@@ -508,7 +535,9 @@ export default async function authRoutes(app: FastifyInstance) {
               `SELECT fp.id AS freelancer_id, tu.tenant_id
                FROM freelancer_profiles fp
                JOIN tenant_users tu ON tu.user_id = fp.user_id
-               WHERE fp.user_id = $1 LIMIT 1`,
+               WHERE fp.user_id = $1
+                 AND fp.is_active = true
+               LIMIT 1`,
               [user.id],
             );
             rows = refetch.rows;

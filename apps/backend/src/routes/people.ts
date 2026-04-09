@@ -176,6 +176,24 @@ export default async function peopleRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: 'not_found' });
       }
 
+      const linkedUsers = await client.query<{ user_id: string }>(
+        `SELECT DISTINCT eu.id AS user_id
+           FROM edro_users eu
+           JOIN tenant_users tu
+             ON tu.user_id = eu.id
+            AND tu.tenant_id = $2
+           LEFT JOIN freelancer_profiles fp
+             ON fp.user_id = eu.id
+           LEFT JOIN person_identities pi
+             ON pi.person_id = $1
+            AND pi.tenant_id = $2
+            AND pi.identity_type = 'email'
+          WHERE fp.person_id = $1
+             OR LOWER(eu.email) = pi.normalized_value`,
+        [id, tenantId],
+      );
+      const userIds = linkedUsers.rows.map((row) => row.user_id);
+
       // Clear known references explicitly so delete does not depend on FK shape in legacy data.
       await client.query(
         `UPDATE client_contacts
@@ -211,6 +229,42 @@ export default async function peopleRoutes(app: FastifyInstance) {
             AND tenant_id = $2`,
         [id, tenantId],
       );
+
+      if (userIds.length) {
+        await client.query(
+          `UPDATE freelancer_profiles
+              SET is_active = false,
+                  person_id = NULL,
+                  updated_at = now()
+            WHERE user_id = ANY($1::uuid[])`,
+          [userIds],
+        );
+        await client.query(
+          `DELETE FROM client_permissions
+            WHERE tenant_id = $1
+              AND user_id = ANY($2::uuid[])`,
+          [tenantId, userIds],
+        );
+        await client.query(
+          `DELETE FROM tenant_users
+            WHERE tenant_id = $1
+              AND user_id = ANY($2::uuid[])`,
+          [tenantId, userIds],
+        );
+        await client.query(
+          `UPDATE edro_users eu
+              SET status = 'inactive',
+                  updated_at = now()
+            WHERE eu.id = ANY($1::uuid[])
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM tenant_users tu
+                 WHERE tu.user_id = eu.id
+              )`,
+          [userIds],
+        );
+      }
+
       await client.query(
         `DELETE FROM person_identities
           WHERE person_id = $1
