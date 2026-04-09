@@ -49,6 +49,7 @@ import {
   getDeliveryStatus,
   getNextAction,
   getRisk,
+  cleanJobTitle,
   type OperationsOwner,
   type OperationsJob,
 } from '@/components/operations/model';
@@ -474,7 +475,7 @@ export default function JobDetailClient({ id, onClose }: { id: string; onClose?:
             )}
           </Stack>
           <Typography fontWeight={800} sx={{ lineHeight: 1.2, fontSize: { xs: '1.4rem', md: '1.7rem' }, color: 'text.primary' }}>
-            {job.title}
+            {cleanJobTitle(job.title, job.client_name)}
           </Typography>
           <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
             {job.client_name && (

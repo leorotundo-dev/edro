@@ -19,6 +19,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
 import { apiGet, apiPatch } from '@/lib/api';
+import { cleanJobTitle } from '@/components/operations/model';
 
 type PoolJob = {
   id: string;
@@ -63,7 +64,7 @@ function PoolJobRow({ job, onSaved }: { job: PoolJob; onSaved: () => void }) {
     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: visible ? 'primary.main' : undefined }}>
       <Stack direction="row" alignItems="flex-start" spacing={2} flexWrap="wrap">
         <Box flex={1} minWidth={200}>
-          <Typography fontWeight={700} fontSize={14} noWrap>{job.title}</Typography>
+          <Typography fontWeight={700} fontSize={14} noWrap>{cleanJobTitle(job.title, job.client_name)}</Typography>
           <Typography variant="caption" color="text.secondary">{job.client_name ?? '—'}</Typography>
         </Box>
 
