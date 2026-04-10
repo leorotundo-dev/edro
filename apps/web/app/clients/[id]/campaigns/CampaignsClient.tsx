@@ -339,6 +339,9 @@ function MetricsDialog({
         roas: fields.roas ? Number(fields.roas) : null,
         data_source: fields.data_source || null,
       });
+      // Auto-recalc summary so format_performance_summary gets populated
+      // and the Performance panel shows data immediately
+      await apiPost(`/campaign-formats/${format.id}/summary/recalc`, {}).catch(() => {});
       onSuccess();
       onClose();
     } catch {
@@ -818,6 +821,10 @@ function CampaignDetail({
       if (res?.data) {
         setSummaries((prev) => ({ ...prev, [format.id]: res.data }));
       }
+      // Refresh campaign-level performance cache
+      apiGet<{ success: boolean; data: any }>(`/campaigns/${campaign.id}/performance`)
+        .then((r) => { if (r?.data) setPerfData(r.data); })
+        .catch(() => {});
     } catch {
       //
     } finally {
