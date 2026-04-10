@@ -313,23 +313,28 @@ export default async function campaignRoutes(app: FastifyInstance) {
     const clientId = request.query?.client_id as string | undefined;
     const status = request.query?.status as string | undefined;
     const params: any[] = [tenantId];
-    let where = 'WHERE tenant_id=$1';
+    let where = 'WHERE c.tenant_id=$1';
     if (clientId) {
       params.push(clientId);
-      where += ` AND client_id=$${params.length}`;
+      where += ` AND c.client_id=$${params.length}`;
     }
     if (status) {
       params.push(status);
-      where += ` AND status=$${params.length}`;
+      where += ` AND c.status=$${params.length}`;
     }
     const { rows } = await pool.query(
       `SELECT c.*,
+         cl.name as client_name,
+         cl.profile->>'logo_url' as client_logo_url,
+         cl.profile->'brand_colors'->>0 as client_brand_color,
          (SELECT COUNT(*)::int FROM project_cards pc WHERE pc.campaign_id = c.id AND pc.is_archived = false) as job_count,
          (SELECT COUNT(*)::int FROM project_cards pc
             JOIN trello_list_status_map m ON m.list_id = pc.list_id AND m.tenant_id = c.tenant_id
           WHERE pc.campaign_id = c.id AND pc.is_archived = false
             AND m.ops_status IN ('done', 'published')) as job_done_count
-       FROM campaigns c ${where} ORDER BY c.created_at DESC LIMIT 200`,
+       FROM campaigns c
+       LEFT JOIN clients cl ON cl.id::text = c.client_id
+       ${where} ORDER BY c.created_at DESC LIMIT 200`,
       params
     );
     return { success: true, data: rows };

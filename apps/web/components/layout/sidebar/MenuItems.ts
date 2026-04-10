@@ -2,6 +2,7 @@ import {
   IconLayoutDashboard,
   IconUsers,
   IconCalendar,
+  IconFlag,
   IconPalette,
   IconShieldCheck,
   IconCurrencyDollar,
@@ -47,6 +48,12 @@ const MenuItems: MenuGroupType[] = [
         title: 'Clientes',
         icon: IconUsers,
         href: '/clients',
+      },
+      {
+        id: 'campanhas',
+        title: 'Campanhas',
+        icon: IconFlag,
+        href: '/admin/campanhas',
       },
       {
         id: 'solicitacoes',
