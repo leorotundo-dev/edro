@@ -1383,6 +1383,22 @@ export default function JobDetailClient({
                 >
                   Abrir Studio
                 </Button>
+                {job.campaign_id && job.client_id && (
+                  <Button
+                    fullWidth size="small"
+                    startIcon={<IconFlag size={15} />}
+                    component={Link}
+                    href={`/clients/${job.client_id}/campaigns`}
+                    sx={(t) => ({
+                      justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                      borderRadius: 1.5, px: 1.5, color: '#13DEB9',
+                      bgcolor: dark ? alpha('#13DEB9', 0.08) : alpha('#13DEB9', 0.07),
+                      '&:hover': { bgcolor: dark ? alpha('#13DEB9', 0.14) : alpha('#13DEB9', 0.13) },
+                    })}
+                  >
+                    Abrir Campanha
+                  </Button>
+                )}
                 {job.external_link && (
                   <Button
                     fullWidth size="small"
@@ -1436,7 +1452,6 @@ export default function JobDetailClient({
                     { label: 'Cliente', value: job.client_name },
                     { label: 'Prazo', value: fmtDate(job.deadline_at), color: job.deadline_at && new Date(job.deadline_at) < new Date() ? '#FA896B' : undefined },
                     { label: 'Status', value: STATUS_LABELS[job.status] ?? job.status, color: statusColor(job.status) },
-                    job.campaign_name ? { label: 'Campanha', value: job.campaign_name, color: '#13DEB9' } : null,
                     { label: 'Tipo', value: job.job_type },
                     { label: 'Especialidade', value: skillLabel },
                     { label: 'Origem', value: sourceLabel },
@@ -1448,6 +1463,21 @@ export default function JobDetailClient({
                       <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem', textAlign: 'right', color: row!.color ?? 'text.primary' }}>{row!.value ?? '—'}</Typography>
                     </Stack>
                   ))}
+                  {/* Campanha — rendered separately to allow navigation link */}
+                  {job.campaign_name && (
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
+                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Campanha</Typography>
+                      <Typography
+                        component={Link}
+                        href={`/clients/${job.client_id}/campaigns`}
+                        variant="caption"
+                        fontWeight={600}
+                        sx={{ fontSize: '0.78rem', textAlign: 'right', color: '#13DEB9', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        {job.campaign_name}
+                      </Typography>
+                    </Stack>
+                  )}
                   {/* Responsável */}
                   <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
                     <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Responsável</Typography>
