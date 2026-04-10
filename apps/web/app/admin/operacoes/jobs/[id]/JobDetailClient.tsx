@@ -31,6 +31,7 @@ import {
   IconChevronUp,
   IconClipboardList,
   IconExternalLink,
+  IconFlag,
   IconHistory,
   IconMessage,
   IconPencil,
@@ -306,6 +307,12 @@ export default function JobDetailClient({
   const [movingStatus, setMovingStatus] = useState(false);
   const [statusSelectOpen, setStatusSelectOpen] = useState(false);
 
+  // Campaign link
+  const [campaignPickerOpen, setCampaignPickerOpen] = useState(false);
+  const [availableCampaigns, setAvailableCampaigns] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [linkingCampaign, setLinkingCampaign] = useState(false);
+
   // Checklist item toggling
   const [togglingItem, setTogglingItem] = useState<string | null>(null);
 
@@ -468,6 +475,39 @@ export default function JobDetailClient({
     } catch { /* silent */ } finally {
       setMovingStatus(false);
       setStatusSelectOpen(false);
+    }
+  };
+
+  const openCampaignPicker = async () => {
+    if (!job?.client_id) return;
+    setCampaignPickerOpen((v) => !v);
+    if (availableCampaigns.length) return; // already loaded
+    setLoadingCampaigns(true);
+    try {
+      const res = await apiGet<{ data?: Array<{ id: string; name: string; status: string }> }>(
+        `/campaigns?client_id=${job.client_id}`
+      );
+      setAvailableCampaigns((res?.data ?? []).filter((c) => c.status !== 'cancelled'));
+    } catch { /* silent */ } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  const handleLinkCampaign = async (campaignId: string | null) => {
+    if (!job) return;
+    setLinkingCampaign(true);
+    try {
+      if (campaignId) {
+        await apiPatch(`/campaigns/${campaignId}/jobs/${job.id}`, { link: true });
+      } else {
+        // unlink: find current campaign and unlink
+        const cur = job.campaign_id;
+        if (cur) await apiPatch(`/campaigns/${cur}/jobs/${job.id}`, { link: false });
+      }
+      await load();
+      setCampaignPickerOpen(false);
+    } catch { /* silent */ } finally {
+      setLinkingCampaign(false);
     }
   };
 
@@ -1183,6 +1223,64 @@ export default function JobDetailClient({
                 </Box>
 
                 {/* Mover (status) */}
+                {/* Campanha */}
+                {job.client_id && (
+                  <Box>
+                    <Button
+                      fullWidth size="small"
+                      startIcon={linkingCampaign ? <CircularProgress size={14} /> : <IconFlag size={15} />}
+                      onClick={openCampaignPicker}
+                      disabled={linkingCampaign}
+                      sx={(t) => ({
+                        justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                        borderRadius: 1.5, px: 1.5, color: 'text.primary',
+                        bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
+                        '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
+                      })}
+                    >
+                      Campanha
+                      {job.campaign_id && (
+                        <Chip size="small" label="✓" sx={{ ml: 'auto', height: 16, fontSize: '0.65rem', fontWeight: 800, bgcolor: '#13DEB920', color: '#13DEB9' }} />
+                      )}
+                    </Button>
+
+                    {campaignPickerOpen && (
+                      <Box sx={(t) => ({ mt: 0.75, p: 1.5, borderRadius: 2, border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.background.paper })}>
+                        <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 1 }}>Vincular a uma campanha</Typography>
+                        {loadingCampaigns ? (
+                          <CircularProgress size={18} sx={{ display: 'block', mx: 'auto' }} />
+                        ) : (
+                          <Stack spacing={0.5}>
+                            {availableCampaigns.length === 0 && (
+                              <Typography variant="caption" color="text.disabled">Nenhuma campanha ativa para este cliente.</Typography>
+                            )}
+                            {availableCampaigns.map((c) => (
+                              <Button
+                                key={c.id} fullWidth size="small"
+                                onClick={() => handleLinkCampaign(job.campaign_id === c.id ? null : c.id)}
+                                sx={(t) => ({
+                                  justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.78rem',
+                                  borderRadius: 1.5, px: 1.25,
+                                  bgcolor: job.campaign_id === c.id ? alpha('#13DEB9', 0.12) : 'transparent',
+                                  color: job.campaign_id === c.id ? '#13DEB9' : 'text.primary',
+                                  '&:hover': { bgcolor: job.campaign_id === c.id ? alpha('#13DEB9', 0.2) : (dark ? alpha('#fff', 0.08) : alpha('#000', 0.06)) },
+                                })}
+                              >
+                                {job.campaign_id === c.id && <IconCheck size={13} style={{ marginRight: 6 }} />}
+                                {c.name}
+                              </Button>
+                            ))}
+                            <Button size="small" fullWidth onClick={() => setCampaignPickerOpen(false)}
+                              sx={{ mt: 0.5, fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5 }}>
+                              Fechar
+                            </Button>
+                          </Stack>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
                 {onStatusChange && (
                   <Box>
                     <Button
@@ -1285,6 +1383,22 @@ export default function JobDetailClient({
                 >
                   Abrir Studio
                 </Button>
+                {job.campaign_id && job.client_id && (
+                  <Button
+                    fullWidth size="small"
+                    startIcon={<IconFlag size={15} />}
+                    component={Link}
+                    href={`/clients/${job.client_id}/campaigns`}
+                    sx={(t) => ({
+                      justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
+                      borderRadius: 1.5, px: 1.5, color: '#13DEB9',
+                      bgcolor: dark ? alpha('#13DEB9', 0.08) : alpha('#13DEB9', 0.07),
+                      '&:hover': { bgcolor: dark ? alpha('#13DEB9', 0.14) : alpha('#13DEB9', 0.13) },
+                    })}
+                  >
+                    Abrir Campanha
+                  </Button>
+                )}
                 {job.external_link && (
                   <Button
                     fullWidth size="small"
@@ -1349,6 +1463,21 @@ export default function JobDetailClient({
                       <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem', textAlign: 'right', color: row!.color ?? 'text.primary' }}>{row!.value ?? '—'}</Typography>
                     </Stack>
                   ))}
+                  {/* Campanha — rendered separately to allow navigation link */}
+                  {job.campaign_name && (
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
+                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Campanha</Typography>
+                      <Typography
+                        component={Link}
+                        href={`/clients/${job.client_id}/campaigns`}
+                        variant="caption"
+                        fontWeight={600}
+                        sx={{ fontSize: '0.78rem', textAlign: 'right', color: '#13DEB9', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        {job.campaign_name}
+                      </Typography>
+                    </Stack>
+                  )}
                   {/* Responsável */}
                   <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
                     <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Responsável</Typography>

@@ -313,17 +313,28 @@ export default async function campaignRoutes(app: FastifyInstance) {
     const clientId = request.query?.client_id as string | undefined;
     const status = request.query?.status as string | undefined;
     const params: any[] = [tenantId];
-    let where = 'WHERE tenant_id=$1';
+    let where = 'WHERE c.tenant_id=$1';
     if (clientId) {
       params.push(clientId);
-      where += ` AND client_id=$${params.length}`;
+      where += ` AND c.client_id=$${params.length}`;
     }
     if (status) {
       params.push(status);
-      where += ` AND status=$${params.length}`;
+      where += ` AND c.status=$${params.length}`;
     }
     const { rows } = await pool.query(
-      `SELECT * FROM campaigns ${where} ORDER BY created_at DESC LIMIT 200`,
+      `SELECT c.*,
+         cl.name as client_name,
+         cl.profile->>'logo_url' as client_logo_url,
+         cl.profile->'brand_colors'->>0 as client_brand_color,
+         (SELECT COUNT(*)::int FROM project_cards pc WHERE pc.campaign_id = c.id AND pc.is_archived = false) as job_count,
+         (SELECT COUNT(*)::int FROM project_cards pc
+            JOIN trello_list_status_map m ON m.list_id = pc.list_id AND m.tenant_id = c.tenant_id
+          WHERE pc.campaign_id = c.id AND pc.is_archived = false
+            AND m.ops_status IN ('done', 'published')) as job_done_count
+       FROM campaigns c
+       LEFT JOIN clients cl ON cl.id::text = c.client_id
+       ${where} ORDER BY c.created_at DESC LIMIT 200`,
       params
     );
     return { success: true, data: rows };
@@ -1534,6 +1545,81 @@ export default async function campaignRoutes(app: FastifyInstance) {
 
       if (!rows[0]) return reply.status(404).send({ error: 'behavioral_copy_not_found' });
       return reply.send({ success: true, data: rows[0] });
+    }
+  );
+
+  // ── GET /campaigns/:id/jobs ───────────────────────────────────────────────
+  // Lists project_cards linked to this campaign with status + assignee info.
+  app.get(
+    '/campaigns/:id/jobs',
+    { preHandler: [requirePerm('clients:read'), requireCampaignPerm('read')], config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (request: any, reply) => {
+      const { id } = request.params as { id: string };
+      const tenantId = request.user?.tenant_id as string;
+
+      const { rows } = await pool.query<{
+        id: string;
+        title: string;
+        status: string;
+        due_date: string | null;
+        owner_name: string | null;
+        owner_avatar_url: string | null;
+        list_name: string;
+        board_name: string;
+        client_name: string | null;
+        trello_url: string | null;
+      }>(
+        `SELECT
+           pc.id, pc.title, pc.due_date::text,
+           COALESCE(m.ops_status, 'backlog') as status,
+           pl.name as list_name,
+           pb.name as board_name,
+           cl.name as client_name,
+           pc.trello_url,
+           (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_name,
+           (SELECT fp.avatar_url FROM project_card_members pcm
+              JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+              JOIN freelancer_profiles fp ON fp.user_id = eu.id
+             WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_avatar_url
+         FROM project_cards pc
+         JOIN project_lists pl ON pl.id = pc.list_id
+         JOIN project_boards pb ON pb.id = pc.board_id
+         LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
+         LEFT JOIN clients cl ON cl.id::text = pb.client_id
+         WHERE pc.campaign_id = $1
+           AND pc.tenant_id = $2
+           AND pc.is_archived = false
+         ORDER BY pc.due_date ASC NULLS LAST, pc.created_at ASC`,
+        [id, tenantId]
+      );
+
+      return reply.send({ jobs: rows });
+    }
+  );
+
+  // ── PATCH /campaigns/:id/jobs/:jobId — link/unlink a job to this campaign
+  app.patch(
+    '/campaigns/:id/jobs/:jobId',
+    { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')], config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (request: any, reply) => {
+      const { id, jobId } = request.params as { id: string; jobId: string };
+      const tenantId = request.user?.tenant_id as string;
+      const { link } = z.object({ link: z.boolean() }).parse(request.body);
+
+      // Verify campaign belongs to tenant
+      const camp = await pool.query(
+        `SELECT id FROM campaigns WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId]
+      );
+      if (!camp.rows.length) return reply.status(404).send({ error: 'campaign_not_found' });
+
+      await pool.query(
+        `UPDATE project_cards SET campaign_id = $1, updated_at = now()
+         WHERE id = $2 AND tenant_id = $3`,
+        [link ? id : null, jobId, tenantId]
+      );
+
+      return reply.send({ success: true });
     }
   );
 }

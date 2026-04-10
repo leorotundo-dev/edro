@@ -106,6 +106,8 @@ type Campaign = {
   phases: Phase[];
   audiences: Record<string, any>[];
   behavior_intents: Record<string, any>[];
+  job_count?: number;
+  job_done_count?: number;
 };
 
 type CampaignFormat = {
@@ -678,6 +680,12 @@ function CampaignDetail({
   const [biPlatform, setBiPlatform] = useState<Record<string, string>>({});
   const [expandedBiCopy, setExpandedBiCopy] = useState<string | null>(null);
 
+  // Jobs linked to this campaign
+  const [linkedJobs, setLinkedJobs] = useState<Array<{
+    id: string; title: string; status: string; due_date: string | null;
+    owner_name: string | null; list_name: string; client_name: string | null; trello_url: string | null;
+  }>>([]);
+
   // Campaign layout pieces
   const [generatingPiecesFor, setGeneratingPiecesFor] = useState<string | null>(null);
   const [campaignPieces, setCampaignPieces] = useState<any[]>([]);
@@ -692,7 +700,7 @@ function CampaignDetail({
   const loadDetail = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, profilesRes, rulesRes, copiesRes] = await Promise.all([
+      const [res, profilesRes, rulesRes, copiesRes, jobsRes] = await Promise.all([
         apiGet<{
           success: boolean;
           data: {
@@ -711,12 +719,16 @@ function CampaignDetail({
         apiGet<{ success: boolean; data: any[] }>(
           `/campaigns/${campaign.id}/behavioral-copies?limit=50`
         ).catch(() => ({ success: false, data: [] as any[] })),
+        apiGet<{ jobs: any[] }>(
+          `/campaigns/${campaign.id}/jobs`
+        ).catch(() => ({ jobs: [] })),
       ]);
       setFormats(res?.data?.formats || []);
       setBriefings(res?.data?.briefings || []);
       setConcepts(res?.data?.concepts || []);
       setBehaviorProfiles(profilesRes?.data || []);
       setLearningRules(rulesRes?.data || []);
+      setLinkedJobs(jobsRes?.jobs || []);
 
       // Reconstruct behavioralCopyMap from persisted results (most recent per behavior_intent_id)
       const storedCopies: any[] = copiesRes?.data || [];
@@ -1572,6 +1584,72 @@ function CampaignDetail({
           </Stack>
         </Box>
       )}
+
+      {/* ── Jobs Vinculados ─────────────────────────────────────────────── */}
+      {linkedJobs.length > 0 && (() => {
+        const STATUS_COLOR: Record<string, string> = {
+          done: '#13DEB9', published: '#13DEB9', in_progress: '#5D87FF',
+          review: '#FFAE1F', blocked: '#FA896B', backlog: '#94a3b8',
+        };
+        const done = linkedJobs.filter(j => j.status === 'done' || j.status === 'published').length;
+        const blocked = linkedJobs.filter(j => j.status === 'blocked').length;
+        const inProgress = linkedJobs.filter(j => j.status === 'in_progress' || j.status === 'review').length;
+        const pct = Math.round((done / linkedJobs.length) * 100);
+        return (
+        <Box sx={{ mb: 2 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.75 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+              Jobs em execução ({linkedJobs.length})
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              {done > 0 && <Chip size="small" label={`${done} concluído${done > 1 ? 's' : ''}`} sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#13DEB920', color: '#13DEB9', fontWeight: 700 }} />}
+              {inProgress > 0 && <Chip size="small" label={`${inProgress} em andamento`} sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#5D87FF20', color: '#5D87FF', fontWeight: 700 }} />}
+              {blocked > 0 && <Chip size="small" label={`${blocked} bloqueado${blocked > 1 ? 's' : ''}`} sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#FA896B20', color: '#FA896B', fontWeight: 700 }} />}
+            </Stack>
+          </Stack>
+          {/* Progress bar */}
+          <Box sx={{ mb: 1.25, borderRadius: 99, overflow: 'hidden', height: 6, bgcolor: 'divider' }}>
+            <Box sx={{ height: '100%', width: `${pct}%`, bgcolor: pct === 100 ? '#13DEB9' : '#5D87FF', transition: 'width 0.4s ease', borderRadius: 99 }} />
+          </Box>
+          <Stack spacing={0.75}>
+            {linkedJobs.map((j) => {
+              const overdue = j.due_date && new Date(j.due_date) < new Date();
+              const dot = STATUS_COLOR[j.status] ?? '#94a3b8';
+              return (
+                <Card key={j.id} variant="outlined" sx={{ borderRadius: 2 }}>
+                  <CardContent sx={{ py: 1, '&:last-child': { pb: 1 }, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: dot, flexShrink: 0 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {j.title}
+                      </Typography>
+                      <Stack direction="row" spacing={0.5} sx={{ mt: 0.25 }}>
+                        <Chip size="small" label={j.list_name} sx={{ height: 14, fontSize: '0.56rem' }} />
+                        {j.due_date && (
+                          <Typography variant="caption" color={overdue ? 'error' : 'text.secondary'} sx={{ fontSize: '0.58rem', alignSelf: 'center' }}>
+                            {j.due_date}
+                          </Typography>
+                        )}
+                        {j.owner_name && (
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.58rem', alignSelf: 'center' }}>
+                            · {j.owner_name}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                    {j.trello_url && (
+                      <IconButton size="small" component="a" href={j.trello_url} target="_blank" rel="noreferrer" sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                        <IconExternalLink size={12} />
+                      </IconButton>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+        </Box>
+        );
+      })()}
 
       {/* Formats */}
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
@@ -2447,6 +2525,17 @@ export default function CampaignsClient({ clientId }: { clientId: string }) {
                         <Stack direction="row" spacing={0.75} sx={{ mt: 0.5 }} flexWrap="wrap">
                           <Chip size="small" label={objectiveLabel(c.objective)} variant="outlined" sx={{ height: 18, fontSize: '0.62rem' }} />
                           <Chip size="small" label={c.status} color={statusColor(c.status)} sx={{ height: 18, fontSize: '0.62rem' }} />
+                          {(c.job_count ?? 0) > 0 && (
+                            <Chip
+                              size="small"
+                              label={`${c.job_done_count ?? 0}/${c.job_count} jobs`}
+                              sx={{
+                                height: 18, fontSize: '0.62rem', fontWeight: 700,
+                                bgcolor: (c.job_done_count ?? 0) === c.job_count ? '#13DEB920' : '#5D87FF20',
+                                color: (c.job_done_count ?? 0) === c.job_count ? '#13DEB9' : '#5D87FF',
+                              }}
+                            />
+                          )}
                         </Stack>
                       </Box>
                       <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 1 }}>
