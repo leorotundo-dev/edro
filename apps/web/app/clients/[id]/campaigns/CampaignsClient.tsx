@@ -58,6 +58,8 @@ import {
   IconLink,
   IconLinkOff,
   IconUsersGroup,
+  IconEye,
+  IconZoomQuestion,
 } from '@tabler/icons-react';
 import { apiDelete } from '@/lib/api';
 import CampaignCanvasView from '@/app/studio/canvas/components/CampaignCanvasView';
@@ -686,6 +688,24 @@ function CampaignDetail({
     owner_name: string | null; list_name: string; client_name: string | null; trello_url: string | null;
   }>>([]);
 
+  // Performance metrics
+  const [perfData, setPerfData] = useState<{
+    has_data: boolean;
+    format_count: number;
+    total_impressions: number;
+    total_reach: number;
+    total_clicks: number;
+    total_conversions: number;
+    total_spend_brl: number;
+    total_revenue_brl: number;
+    avg_roas: number | null;
+    impressions_30d: number;
+    reach_30d: number;
+    conversions_30d: number;
+    spend_30d: number;
+    dark_funnel_count: number;
+  } | null>(null);
+
   // Campaign layout pieces
   const [generatingPiecesFor, setGeneratingPiecesFor] = useState<string | null>(null);
   const [campaignPieces, setCampaignPieces] = useState<any[]>([]);
@@ -700,7 +720,7 @@ function CampaignDetail({
   const loadDetail = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, profilesRes, rulesRes, copiesRes, jobsRes] = await Promise.all([
+      const [res, profilesRes, rulesRes, copiesRes, jobsRes, perfRes] = await Promise.all([
         apiGet<{
           success: boolean;
           data: {
@@ -722,6 +742,9 @@ function CampaignDetail({
         apiGet<{ jobs: any[] }>(
           `/campaigns/${campaign.id}/jobs`
         ).catch(() => ({ jobs: [] })),
+        apiGet<{ success: boolean; data: any }>(
+          `/campaigns/${campaign.id}/performance`
+        ).catch(() => null),
       ]);
       setFormats(res?.data?.formats || []);
       setBriefings(res?.data?.briefings || []);
@@ -729,6 +752,7 @@ function CampaignDetail({
       setBehaviorProfiles(profilesRes?.data || []);
       setLearningRules(rulesRes?.data || []);
       setLinkedJobs(jobsRes?.jobs || []);
+      setPerfData(perfRes?.data ?? null);
 
       // Reconstruct behavioralCopyMap from persisted results (most recent per behavior_intent_id)
       const storedCopies: any[] = copiesRes?.data || [];
@@ -1650,6 +1674,59 @@ function CampaignDetail({
         </Box>
         );
       })()}
+
+      {/* ── Performance ─────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.08em', mb: 1 }}>
+          Performance
+        </Typography>
+        {perfData && perfData.has_data ? (
+          <>
+            <Grid container spacing={1} sx={{ mb: 1 }}>
+              {[
+                { label: 'Impressões', value: perfData.total_impressions >= 1_000_000 ? `${(perfData.total_impressions / 1_000_000).toFixed(1)}M` : perfData.total_impressions >= 1_000 ? `${(perfData.total_impressions / 1_000).toFixed(0)}k` : String(perfData.total_impressions), icon: <IconEye size={14} />, color: '#5D87FF' },
+                { label: 'Alcance', value: perfData.total_reach >= 1_000_000 ? `${(perfData.total_reach / 1_000_000).toFixed(1)}M` : perfData.total_reach >= 1_000 ? `${(perfData.total_reach / 1_000).toFixed(0)}k` : String(perfData.total_reach), icon: <IconUsersGroup size={14} />, color: '#13DEB9' },
+                { label: 'Conversões', value: String(perfData.total_conversions), icon: <IconCheck size={14} />, color: '#FFAE1F' },
+                ...(perfData.avg_roas ? [{ label: 'ROAS', value: `${perfData.avg_roas}×`, icon: <IconCoin size={14} />, color: '#FA896B' }] : []),
+              ].map(({ label, value, icon, color }) => (
+                <Grid size={{ xs: 6 }} key={label}>
+                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                    <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <Box sx={{ color }}>{icon}</Box>
+                        <Box>
+                          <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, lineHeight: 1.1 }}>{value}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>{label}</Typography>
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+            {perfData.dark_funnel_count > 0 && (
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <IconZoomQuestion size={13} color="#94a3b8" />
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>
+                  {perfData.dark_funnel_count} sinal{perfData.dark_funnel_count > 1 ? 'is' : ''} dark funnel atribuído{perfData.dark_funnel_count > 1 ? 's' : ''} a esta campanha
+                </Typography>
+              </Stack>
+            )}
+            {perfData.impressions_30d > 0 && (
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', display: 'block', mt: 0.5 }}>
+                Últimos 30 dias: {perfData.impressions_30d >= 1_000 ? `${(perfData.impressions_30d / 1_000).toFixed(0)}k` : String(perfData.impressions_30d)} impressões
+              </Typography>
+            )}
+          </>
+        ) : (
+          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ py: 0.5 }}>
+            <IconZoomQuestion size={14} color="#94a3b8" />
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.66rem' }}>
+              Sem métricas registradas — registre resultados nos formatos para ver aqui
+            </Typography>
+          </Stack>
+        )}
+      </Box>
 
       {/* Formats */}
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>

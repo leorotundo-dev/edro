@@ -1622,4 +1622,138 @@ export default async function campaignRoutes(app: FastifyInstance) {
       return reply.send({ success: true });
     }
   );
+
+  // ── GET /campaigns/:id/performance ────────────────────────────────────────
+  // Returns aggregate KPIs for a campaign: format metrics + dark funnel count.
+  // Hits format_performance_summary (via campaign_formats) and dark_funnel_events.
+  // Also upserts into campaign_performance_cache for future fast reads.
+  app.get(
+    '/campaigns/:id/performance',
+    { preHandler: [requirePerm('clients:read'), requireCampaignPerm('read')], config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (request: any, reply) => {
+      const { id } = request.params as { id: string };
+      const tenantId = request.user?.tenant_id as string;
+
+      // Verify campaign exists
+      const { rows: camps } = await pool.query(
+        `SELECT id FROM campaigns WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId]
+      );
+      if (!camps.length) return reply.status(404).send({ error: 'campaign_not_found' });
+
+      // Aggregate from format_performance_summary
+      const { rows: summaryRows } = await pool.query<{
+        total_impressions: string;
+        total_reach: string;
+        total_clicks: string;
+        total_engagements: string;
+        total_conversions: string;
+        total_spend_brl: string;
+        total_revenue_brl: string;
+        format_count: string;
+        has_data: boolean;
+      }>(
+        `SELECT
+           COALESCE(SUM(fps.total_impressions), 0)     AS total_impressions,
+           COALESCE(SUM(fps.total_reach), 0)           AS total_reach,
+           COALESCE(SUM(fps.total_clicks), 0)          AS total_clicks,
+           COALESCE(SUM(fps.total_engagements), 0)     AS total_engagements,
+           COALESCE(SUM(fps.total_conversions), 0)     AS total_conversions,
+           COALESCE(SUM(fps.total_spend_brl), 0)       AS total_spend_brl,
+           COALESCE(SUM(fps.total_revenue_brl), 0)     AS total_revenue_brl,
+           COUNT(cf.id)::int                           AS format_count,
+           COUNT(fps.id) > 0                           AS has_data
+         FROM campaign_formats cf
+         LEFT JOIN format_performance_summary fps ON fps.campaign_format_id = cf.id
+         WHERE cf.campaign_id = $1 AND cf.tenant_id = $2`,
+        [id, tenantId]
+      );
+
+      // Last 30d from format_performance_metrics
+      const { rows: recentRows } = await pool.query<{
+        impressions_30d: string;
+        reach_30d: string;
+        conversions_30d: string;
+        spend_30d: string;
+      }>(
+        `SELECT
+           COALESCE(SUM(m.impressions), 0)  AS impressions_30d,
+           COALESCE(SUM(m.reach), 0)        AS reach_30d,
+           COALESCE(SUM(m.conversions), 0)  AS conversions_30d,
+           COALESCE(SUM(m.spend_brl), 0)    AS spend_30d
+         FROM format_performance_metrics m
+         JOIN campaign_formats cf ON cf.id = m.campaign_format_id
+         WHERE cf.campaign_id = $1 AND cf.tenant_id = $2
+           AND m.measurement_date >= CURRENT_DATE - INTERVAL '30 days'`,
+        [id, tenantId]
+      );
+
+      // Dark funnel signals linked to this campaign
+      const { rows: dfRows } = await pool.query<{ count: string }>(
+        `SELECT COUNT(*)::int AS count FROM dark_funnel_events
+         WHERE campaign_id = $1 AND tenant_id = $2`,
+        [id, tenantId]
+      );
+
+      const s = summaryRows[0];
+      const r = recentRows[0];
+      const darkFunnelCount = Number(dfRows[0]?.count ?? 0);
+
+      const perf = {
+        has_data: s.has_data,
+        format_count: Number(s.format_count),
+        total_impressions: Number(s.total_impressions),
+        total_reach: Number(s.total_reach),
+        total_clicks: Number(s.total_clicks),
+        total_engagements: Number(s.total_engagements),
+        total_conversions: Number(s.total_conversions),
+        total_spend_brl: Number(s.total_spend_brl),
+        total_revenue_brl: Number(s.total_revenue_brl),
+        avg_roas: s.total_spend_brl && Number(s.total_spend_brl) > 0
+          ? Number((Number(s.total_revenue_brl) / Number(s.total_spend_brl)).toFixed(2))
+          : null,
+        impressions_30d: Number(r.impressions_30d),
+        reach_30d: Number(r.reach_30d),
+        conversions_30d: Number(r.conversions_30d),
+        spend_30d: Number(r.spend_30d),
+        dark_funnel_count: darkFunnelCount,
+      };
+
+      // Upsert into cache (non-blocking)
+      pool.query(
+        `INSERT INTO campaign_performance_cache (
+           campaign_id, tenant_id,
+           total_impressions, total_reach, total_clicks, total_engagements,
+           total_conversions, total_spend_brl, total_revenue_brl, avg_roas,
+           impressions_30d, reach_30d, conversions_30d, spend_30d,
+           dark_funnel_count, refreshed_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now())
+         ON CONFLICT (campaign_id) DO UPDATE SET
+           total_impressions = EXCLUDED.total_impressions,
+           total_reach = EXCLUDED.total_reach,
+           total_clicks = EXCLUDED.total_clicks,
+           total_engagements = EXCLUDED.total_engagements,
+           total_conversions = EXCLUDED.total_conversions,
+           total_spend_brl = EXCLUDED.total_spend_brl,
+           total_revenue_brl = EXCLUDED.total_revenue_brl,
+           avg_roas = EXCLUDED.avg_roas,
+           impressions_30d = EXCLUDED.impressions_30d,
+           reach_30d = EXCLUDED.reach_30d,
+           conversions_30d = EXCLUDED.conversions_30d,
+           spend_30d = EXCLUDED.spend_30d,
+           dark_funnel_count = EXCLUDED.dark_funnel_count,
+           refreshed_at = now()`,
+        [
+          id, tenantId,
+          perf.total_impressions, perf.total_reach, perf.total_clicks,
+          perf.total_engagements, perf.total_conversions,
+          perf.total_spend_brl, perf.total_revenue_brl, perf.avg_roas,
+          perf.impressions_30d, perf.reach_30d, perf.conversions_30d, perf.spend_30d,
+          perf.dark_funnel_count,
+        ]
+      ).catch(() => { /* cache upsert failure is non-fatal */ });
+
+      return reply.send({ success: true, data: perf });
+    }
+  );
 }
