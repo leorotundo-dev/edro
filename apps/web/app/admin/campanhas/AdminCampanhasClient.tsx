@@ -8,6 +8,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
@@ -20,16 +21,18 @@ import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconBrain,
   IconCalendar,
-  IconChartBar,
   IconCheck,
+  IconChevronDown,
+  IconChevronUp,
   IconCoin,
+  IconEye,
   IconExternalLink,
   IconFlag,
   IconPlayerPlay,
   IconRefresh,
   IconSearch,
-  IconTarget,
-  IconTrendingUp,
+  IconUsers,
+  IconZoomQuestion,
 } from '@tabler/icons-react';
 import { apiGet } from '@/lib/api';
 
@@ -50,6 +53,23 @@ type Campaign = {
   created_at: string;
   job_count?: number;
   job_done_count?: number;
+};
+
+type CampaignPerf = {
+  has_data: boolean;
+  format_count: number;
+  total_impressions: number;
+  total_reach: number;
+  total_clicks: number;
+  total_conversions: number;
+  total_spend_brl: number;
+  total_revenue_brl: number;
+  avg_roas: number | null;
+  impressions_30d: number;
+  reach_30d: number;
+  conversions_30d: number;
+  spend_30d: number;
+  dark_funnel_count: number;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -84,8 +104,103 @@ function fmtBrl(v: number | null) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
+  return String(n);
+}
+
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
+// ── Performance Panel ─────────────────────────────────────────────────────────
+
+function PerfPanel({ campaignId }: { campaignId: string }) {
+  const [perf, setPerf] = useState<CampaignPerf | null>(null);
+  const [loading, setLoading] = useState(true);
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+
+  useEffect(() => {
+    apiGet<{ success: boolean; data: CampaignPerf }>(`/campaigns/${campaignId}/performance`)
+      .then((res) => setPerf(res?.data ?? null))
+      .catch(() => setPerf(null))
+      .finally(() => setLoading(false));
+  }, [campaignId]);
+
+  if (loading) {
+    return (
+      <Stack alignItems="center" sx={{ py: 2 }}>
+        <CircularProgress size={16} />
+      </Stack>
+    );
+  }
+
+  if (!perf || !perf.has_data) {
+    return (
+      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ py: 1.5 }}>
+        <IconZoomQuestion size={14} color="#94a3b8" />
+        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.62rem' }}>
+          Sem métricas registradas ainda
+        </Typography>
+        {perf && perf.dark_funnel_count > 0 && (
+          <Chip
+            size="small"
+            label={`${perf.dark_funnel_count} dark funnel`}
+            sx={{ height: 16, fontSize: '0.58rem', ml: 0.5, bgcolor: dark ? 'rgba(93,135,255,0.15)' : 'rgba(93,135,255,0.08)', color: '#5D87FF' }}
+          />
+        )}
+      </Stack>
+    );
+  }
+
+  const kpis = [
+    { label: 'Impressões', value: fmtCompact(perf.total_impressions), icon: <IconEye size={12} />, color: '#5D87FF' },
+    { label: 'Alcance', value: fmtCompact(perf.total_reach), icon: <IconUsers size={12} />, color: '#13DEB9' },
+    { label: 'Conversões', value: fmtCompact(perf.total_conversions), icon: <IconCheck size={12} />, color: '#FFAE1F' },
+    ...(perf.avg_roas ? [{ label: 'ROAS', value: `${perf.avg_roas}×`, icon: <IconCoin size={12} />, color: '#FA896B' }] : []),
+  ];
+
+  return (
+    <Box>
+      <Grid container spacing={0.75}>
+        {kpis.map(({ label, value, icon, color }) => (
+          <Grid size={{ xs: 6 }} key={label}>
+            <Stack
+              direction="row"
+              spacing={0.5}
+              alignItems="center"
+              sx={{
+                p: 0.75,
+                borderRadius: 1.5,
+                bgcolor: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+              }}
+            >
+              <Box sx={{ color, flexShrink: 0 }}>{icon}</Box>
+              <Box>
+                <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, lineHeight: 1 }}>{value}</Typography>
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.55rem' }}>{label}</Typography>
+              </Box>
+            </Stack>
+          </Grid>
+        ))}
+      </Grid>
+      {perf.dark_funnel_count > 0 && (
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.75 }}>
+          <IconZoomQuestion size={11} color="#94a3b8" />
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.58rem' }}>
+            {perf.dark_funnel_count} sinal{perf.dark_funnel_count > 1 ? 'is' : ''} dark funnel
+          </Typography>
+        </Stack>
+      )}
+      {perf.impressions_30d > 0 && (
+        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.58rem', display: 'block', mt: 0.5 }}>
+          30d: {fmtCompact(perf.impressions_30d)} impressões
+        </Typography>
+      )}
+    </Box>
+  );
 }
 
 // ── Campaign Card ─────────────────────────────────────────────────────────────
@@ -97,6 +212,7 @@ function CampaignCard({ c }: { c: Campaign }) {
   const done = c.job_done_count ?? 0;
   const pct = total > 0 ? Math.round((done / total) * 100) : null;
   const allDone = total > 0 && done === total;
+  const [perfOpen, setPerfOpen] = useState(false);
 
   return (
     <Card
@@ -187,7 +303,7 @@ function CampaignCard({ c }: { c: Campaign }) {
 
         <Divider sx={{ mb: 1 }} />
 
-        {/* Footer: dates + actions */}
+        {/* Footer: dates + perf toggle + external link */}
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Stack direction="row" spacing={0.5} alignItems="center">
             <IconCalendar size={12} color="#94a3b8" />
@@ -195,17 +311,34 @@ function CampaignCard({ c }: { c: Campaign }) {
               {fmtDate(c.start_date)}{c.end_date ? ` → ${fmtDate(c.end_date)}` : ''}
             </Typography>
           </Stack>
-          <Tooltip title="Ver campanha">
-            <IconButton
-              size="small"
-              component={Link}
-              href={`/clients/${c.client_id}/campaigns`}
-              sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-            >
-              <IconExternalLink size={13} />
-            </IconButton>
-          </Tooltip>
+          <Stack direction="row" spacing={0.25}>
+            <Tooltip title={perfOpen ? 'Ocultar métricas' : 'Ver métricas'}>
+              <IconButton
+                size="small"
+                onClick={() => setPerfOpen((o) => !o)}
+                sx={{ opacity: perfOpen ? 1 : 0.45, '&:hover': { opacity: 1 }, color: '#FFAE1F' }}
+              >
+                {perfOpen ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Ver campanha">
+              <IconButton
+                size="small"
+                component={Link}
+                href={`/clients/${c.client_id}/campaigns`}
+                sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+              >
+                <IconExternalLink size={13} />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Stack>
+
+        {/* Performance collapse */}
+        <Collapse in={perfOpen} unmountOnExit>
+          <Divider sx={{ my: 1 }} />
+          <PerfPanel campaignId={c.id} />
+        </Collapse>
       </CardContent>
     </Card>
   );
