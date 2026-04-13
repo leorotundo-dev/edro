@@ -122,7 +122,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
       // Execute all tool calls and build tool_result content
       const toolResults: any[] = [];
       for (const block of toolUseBlocks) {
-        const toolResult = await toolExecutorFn(block.name!, block.input || {}, toolContext);
+        const toolResult = await toolExecutorFn(block.name!, block.input || {}, toolContext as any);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] Claude tool=${block.name} success=${toolResult.success}`);
         collectedToolResults.push({ toolName: block.name!, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata });
@@ -203,7 +203,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
             : tc.function.arguments || {};
         } catch { /* keep empty args */ }
 
-        const toolResult = await toolExecutorFn(tc.function.name, args, toolContext);
+        const toolResult = await toolExecutorFn(tc.function.name, args, toolContext as any);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] OpenAI tool=${tc.function.name} success=${toolResult.success}`);
         collectedToolResults.push({ toolName: tc.function.name, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata });
@@ -270,7 +270,7 @@ export async function runToolUseLoop(params: ToolUseLoopParams): Promise<ToolUse
       // Execute and append function responses
       const responseParts: any[] = [];
       for (const fc of functionCalls) {
-        const toolResult = await toolExecutorFn(fc.functionCall.name, fc.functionCall.args || {}, toolContext);
+        const toolResult = await toolExecutorFn(fc.functionCall.name, fc.functionCall.args || {}, toolContext as any);
         toolCallsExecuted++;
         console.log(`[toolUseLoop] Gemini tool=${fc.functionCall.name} success=${toolResult.success}`);
         collectedToolResults.push({ toolName: fc.functionCall.name, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata });

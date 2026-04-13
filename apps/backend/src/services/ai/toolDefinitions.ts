@@ -1005,8 +1005,25 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'action',
   },
   {
+    name: 'get_client_weekly_summary',
+    description: 'Monta um resumo semanal consolidado de um cliente: WhatsApp recente, reuniões e decisões pendentes, jobs em andamento e alertas ativos. Use para perguntas como "me resume esse cliente na última semana".',
+    parameters: {
+      client_id: { type: 'string', description: 'ID do cliente. Opcional no planning quando o cliente atual já está no contexto.' },
+      days_back: { type: 'number', description: 'Janela em dias (padrão 7, máximo 14).' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_operations_daily_brief',
+    description: 'Gera o daily brief da agência com o que está pegando hoje: entregas do dia, bloqueios, sinais críticos e principal ação sugerida.',
+    parameters: {},
+    required: [],
+    category: 'read',
+  },
+  {
     name: 'get_operations_lookups',
-    description: 'Retorna dados de referência para criação de jobs: tipos de job, skills, canais, clientes e owners disponíveis.',
+    description: 'Retorna dados de referência para criação de jobs e ações operacionais: tipos de job, skills, canais, clientes, owners e boards/listas do Trello disponíveis.',
     parameters: {},
     required: [],
     category: 'read',
@@ -1033,6 +1050,47 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'write',
   },
   {
+    name: 'send_whatsapp_message',
+    description: 'Envia uma mensagem de WhatsApp para cliente, responsável interno/freela ou número explícito. Exige confirmação explícita.',
+    parameters: {
+      message: { type: 'string', description: 'Mensagem a enviar.' },
+      client_id: { type: 'string', description: 'ID do cliente para usar o WhatsApp principal dele.' },
+      user_id: { type: 'string', description: 'UUID do usuário interno/freela que deve receber a mensagem.' },
+      phone: { type: 'string', description: 'Número/WhatsApp explícito em E.164 ou jid.' },
+      confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar o envio.' },
+    },
+    required: ['message'],
+    category: 'action',
+  },
+  {
+    name: 'send_email',
+    description: 'Envia um e-mail para cliente, responsável interno/freela ou endereço explícito. Exige confirmação explícita.',
+    parameters: {
+      subject: { type: 'string', description: 'Assunto do e-mail.' },
+      body: { type: 'string', description: 'Corpo do e-mail em texto simples.' },
+      client_id: { type: 'string', description: 'ID do cliente para usar o contato principal.' },
+      user_id: { type: 'string', description: 'UUID do usuário interno/freela que deve receber o e-mail.' },
+      to: { type: 'string', description: 'E-mail explícito de destino.' },
+      confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar o envio.' },
+    },
+    required: ['subject', 'body'],
+    category: 'action',
+  },
+  {
+    name: 'create_trello_card',
+    description: 'Cria um card ad-hoc em um board/lista específica do Trello e espelha no Edro. Use quando o usuário pedir para abrir uma demanda rápida direto no board.',
+    parameters: {
+      board_id: { type: 'string', description: 'ID do board importado no Edro (project_boards.id).' },
+      list_id: { type: 'string', description: 'ID da lista no Edro (project_lists.id).' },
+      title: { type: 'string', description: 'Título do card.' },
+      description: { type: 'string', description: 'Descrição/resumo do card.' },
+      due_date: { type: 'string', description: 'Prazo opcional no formato YYYY-MM-DD.' },
+      owner_id: { type: 'string', description: 'UUID opcional do responsável a vincular.' },
+    },
+    required: ['board_id', 'list_id', 'title'],
+    category: 'action',
+  },
+  {
     name: 'update_operations_job',
     description: 'Atualiza campos de um job existente: título, responsável, prazo, prioridade, complexidade, etc.',
     parameters: {
@@ -1050,6 +1108,16 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   },
 
   // ── Action ──
+  {
+    name: 'execute_multi_step_workflow',
+    description: 'Executa um workflow multi-step com confirmação única em lote e rollback básico de passos reversíveis. Use quando o usuário pedir para fazer uma sequência inteira de ações de uma vez.',
+    parameters: {
+      workflow_json: { type: 'string', description: 'JSON string com array de steps: [{"tool":"change_job_status","args":{...}}, ...].' },
+      confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar a execução do lote.' },
+    },
+    required: ['workflow_json', 'confirmed'],
+    category: 'action',
+  },
   {
     name: 'change_job_status',
     description: 'Muda o status de um job. Use para avançar, bloquear, concluir ou retroceder um job na pipeline.',

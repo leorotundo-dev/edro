@@ -51,14 +51,18 @@ import { generateWithProvider } from './copyOrchestrator';
 import { enqueueJob, getJobById as getQueueJobById } from '../../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../jarvisBackgroundJobService';
 import { sendEmail } from '../emailService';
+import { sendWhatsAppText } from '../whatsappService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
 import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFactsService';
 import { analyzeClientMemoryGovernance, applyClientMemoryGovernanceAction } from '../clientMemoryGovernanceService';
-import { buildClientState } from '../jarvisDecisionEngine';
+import { buildClientState, processAlerts } from '../jarvisDecisionEngine';
 import { buildBriefingDiagnostics } from '../briefingDiagnosticService';
 import { buildReporteiSemanticSummary } from '../reporteiSemanticService';
+import { getTrelloCredentials } from '../trelloSyncService';
+import { buildDailyDigest } from '../agencyDigestService';
+import { createCalendarEvent } from '../integrations/googleCalendarService';
 import crypto from 'crypto';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -222,6 +226,16 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
 };
 
 const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
+  ...buildRequirementMap([
+    'get_client_weekly_summary',
+    'get_operations_daily_brief',
+  ], { systemPerm: 'clients:read' }),
+  ...buildRequirementMap([
+    'send_whatsapp_message',
+    'send_email',
+    'create_trello_card',
+    'execute_multi_step_workflow',
+  ], { systemPerm: 'clients:write' }),
   ...buildRequirementMap([
     'list_operations_jobs',
     'get_operations_job',
@@ -907,12 +921,32 @@ async function toolAddCalendarEvent(args: any, ctx: ToolContext): Promise<ToolRe
     return { success: false, error: 'Não foi possível criar o evento (possível duplicata).' };
   }
 
+  let googleCalendar: { synced: boolean; event_id?: string | null; html_link?: string | null; error?: string | null } = { synced: false };
+  try {
+    const { rows: clientRows } = await query<{ name: string }>(
+      `SELECT name FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      [ctx.tenantId, ctx.clientId],
+    ).catch(() => ({ rows: [] as { name: string }[] }));
+    const external = await createCalendarEvent({
+      tenantId: ctx.tenantId,
+      title,
+      eventDate: event_date,
+      description: description || notes || null,
+      clientId: ctx.clientId,
+      clientName: clientRows[0]?.name || null,
+    });
+    googleCalendar = { synced: true, event_id: external.eventId, html_link: external.htmlLink };
+  } catch (err: any) {
+    googleCalendar = { synced: false, error: err?.message || 'google_calendar_sync_failed' };
+  }
+
   return {
     success: true,
     data: {
       message: `"${title}" criado no calendário do cliente para ${event_date}.`,
       event: rows[0],
       type: 'custom',
+      google_calendar: googleCalendar,
     },
   };
 }
@@ -2830,6 +2864,56 @@ async function resolvePrimaryClientEmail(tenantId: string, clientId: string) {
   return String(rows[0]?.email || '').trim() || null;
 }
 
+async function resolvePrimaryClientPhone(tenantId: string, clientId: string) {
+  const { rows } = await query<{ whatsapp_phone: string | null }>(
+    `SELECT whatsapp_phone
+       FROM clients
+      WHERE tenant_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [tenantId, clientId],
+  ).catch(() => ({ rows: [] as { whatsapp_phone: string | null }[] }));
+  return String(rows[0]?.whatsapp_phone || '').trim() || null;
+}
+
+async function resolveUserChannels(tenantId: string, userId: string) {
+  const { rows } = await query<{ email: string | null; phone: string | null }>(
+    `WITH base AS (
+       SELECT eu.email,
+              fp.whatsapp_jid,
+              fp.person_id
+         FROM edro_users eu
+         LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+        WHERE eu.id = $1
+        LIMIT 1
+     )
+     SELECT (SELECT email FROM base) AS email,
+            COALESCE(
+              NULLIF((SELECT whatsapp_jid FROM base), ''),
+              (
+                SELECT pi.identity_value
+                  FROM person_identities pi
+                 WHERE pi.tenant_id = $2
+                   AND pi.person_id = (SELECT person_id FROM base)
+                   AND pi.identity_type IN ('whatsapp_jid', 'phone_e164')
+                 ORDER BY CASE WHEN pi.identity_type = 'whatsapp_jid' THEN 0 ELSE 1 END,
+                          pi.is_primary DESC,
+                          pi.updated_at DESC
+                 LIMIT 1
+              )
+            ) AS phone`,
+    [userId, tenantId],
+  ).catch(() => ({ rows: [] as { email: string | null; phone: string | null }[] }));
+  return {
+    email: String(rows[0]?.email || '').trim() || null,
+    phone: String(rows[0]?.phone || '').trim() || null,
+  };
+}
+
+function getAppBaseUrl() {
+  return process.env.APP_URL || process.env.WEB_URL || 'https://app.edro.digital';
+}
+
 async function resolvePostWorkflowContext(args: any, ctx: ToolContext): Promise<ResolvedPostWorkflowContext> {
   const backgroundJobId = String(args.background_job_id || '').trim() || null;
   const providedBriefingId = resolveContextBriefingId(args, ctx);
@@ -4024,6 +4108,8 @@ async function opsNavigateTo(args: any, _ctx: OperationsToolContext): Promise<To
 }
 
 const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Promise<ToolResult>> = {
+  get_client_weekly_summary: opsGetClientWeeklySummary,
+  get_operations_daily_brief: opsGetOperationsDailyBrief,
   list_operations_jobs: opsListJobs,
   get_operations_job: opsGetJob,
   get_operations_overview: opsGetOverview,
@@ -4040,6 +4126,9 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   apply_job_allocation_recommendation: opsApplyJobAllocationRecommendation,
   apply_creative_redistribution: opsApplyCreativeRedistribution,
   get_operations_lookups: opsGetLookups,
+  send_whatsapp_message: opsSendWhatsAppMessage,
+  send_email: opsSendEmail,
+  create_trello_card: opsCreateTrelloCard,
   create_operations_job: opsCreateJob,
   update_operations_job: opsUpdateJob,
   change_job_status: opsChangeJobStatus,
@@ -4047,6 +4136,7 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   resolve_operations_signal: opsResolveSignal,
   snooze_operations_signal: opsSnoozeSignal,
   manage_job_allocation: opsManageAllocation,
+  execute_multi_step_workflow: opsExecuteMultiStepWorkflow,
   navigate_to_view: opsNavigateTo,
 };
 
@@ -5371,8 +5461,166 @@ async function opsApplyCreativeRedistribution(args: any, ctx: OperationsToolCont
   };
 }
 
+async function opsGetClientWeeklySummary(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const clientId = contextualString(args.client_id) || contextualString((ctx as any).clientId);
+  if (!clientId) return { success: false, error: 'client_id é obrigatório neste contexto.' };
+  const daysBack = Math.min(Math.max(Number(args.days_back || 7), 1), 14);
+
+  const [clientRes, digestRes, messageRes, meetingRes, jobsRes, alertsRes] = await Promise.all([
+    query<{ name: string }>(`SELECT name FROM clients WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [clientId, ctx.tenantId]),
+    query<any>(
+      `SELECT summary, key_decisions, pending_actions, created_at
+         FROM whatsapp_group_digests
+        WHERE tenant_id = $1 AND client_id = $2 AND created_at > NOW() - make_interval(days => $3)
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [ctx.tenantId, clientId, daysBack],
+    ).catch(() => ({ rows: [] as any[] })),
+    query<any>(
+      `SELECT COUNT(*)::int AS message_count, MAX(wgm.created_at) AS last_activity
+         FROM whatsapp_groups wg
+         JOIN whatsapp_group_messages wgm ON wgm.group_id = wg.id
+        WHERE wg.tenant_id = $1 AND wg.client_id = $2
+          AND wgm.created_at > NOW() - make_interval(days => $3)
+          AND wgm.content IS NOT NULL`,
+      [ctx.tenantId, clientId, daysBack],
+    ).catch(() => ({ rows: [{ message_count: 0, last_activity: null }] as any[] })),
+    query<any>(
+      `SELECT title, summary, meeting_date, has_action_items
+         FROM meeting_summaries
+        WHERE tenant_id = $1 AND client_id = $2
+          AND meeting_date > NOW() - make_interval(days => $3)
+        ORDER BY meeting_date DESC
+        LIMIT 5`,
+      [ctx.tenantId, clientId, daysBack],
+    ).catch(() => ({ rows: [] as any[] })),
+    query<any>(
+      `SELECT status, COUNT(*)::int AS total
+         FROM jobs
+        WHERE tenant_id = $1 AND client_id = $2 AND status NOT IN ('done', 'archived')
+        GROUP BY status
+        ORDER BY total DESC, status ASC`,
+      [ctx.tenantId, clientId],
+    ).catch(() => ({ rows: [] as any[] })),
+    query<any>(
+      `SELECT id, title, priority, created_at
+         FROM jarvis_alerts
+        WHERE tenant_id = $1 AND client_id = $2 AND status = 'open'
+        ORDER BY created_at DESC
+        LIMIT 8`,
+      [ctx.tenantId, clientId],
+    ).catch(() => ({ rows: [] as any[] })),
+  ]);
+
+  const digest = digestRes.rows[0] || null;
+  const jobSummary = jobsRes.rows.reduce((acc: Record<string, number>, row: any) => {
+    acc[row.status] = Number(row.total || 0);
+    return acc;
+  }, {});
+
+  return {
+    success: true,
+    data: {
+      client_id: clientId,
+      client_name: clientRes.rows[0]?.name || 'Cliente',
+      days_back: daysBack,
+      whatsapp: {
+        summary: digest?.summary || null,
+        key_decisions: Array.isArray(digest?.key_decisions) ? digest.key_decisions.slice(0, 5) : [],
+        pending_actions: Array.isArray(digest?.pending_actions) ? digest.pending_actions.slice(0, 5) : [],
+        message_count: Number(messageRes.rows[0]?.message_count || 0),
+        last_activity: messageRes.rows[0]?.last_activity || null,
+      },
+      meetings: meetingRes.rows.map((row: any) => ({
+        title: row.title || 'Reunião',
+        summary: buildEvidenceExcerpt(row.summary, 220),
+        meeting_date: row.meeting_date,
+        has_action_items: Boolean(row.has_action_items),
+      })),
+      jobs: {
+        open_total: Object.values(jobSummary).reduce((sum, value) => Number(sum) + Number(value || 0), 0),
+        by_status: jobSummary,
+      },
+      active_alerts: alertsRes.rows.map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        priority: row.priority,
+        created_at: row.created_at,
+      })),
+    },
+  };
+}
+
+async function opsGetOperationsDailyBrief(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const [digest, decisions] = await Promise.all([
+    buildDailyDigest(ctx.tenantId),
+    processAlerts(ctx.tenantId, 8).catch(() => []),
+  ]);
+
+  return {
+    success: true,
+    data: {
+      ...digest,
+      jarvis_focus: decisions
+        .filter((item) => item.autonomy_level >= 1)
+        .slice(0, 5)
+        .map((item) => ({
+          title: item.event.title,
+          body: item.event.body,
+          autonomy_level: item.autonomy_level,
+          category: item.category,
+          reasoning: item.reasoning,
+        })),
+    },
+  };
+}
+
+async function opsSendWhatsAppMessage(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const clientId = contextualString(args.client_id) || contextualString((ctx as any).clientId);
+  const resolvedUser = contextualString(args.user_id) ? await resolveUserChannels(ctx.tenantId, String(args.user_id)) : null;
+  const phone = contextualString(args.phone) || resolvedUser?.phone || (clientId ? await resolvePrimaryClientPhone(ctx.tenantId, clientId) : null);
+  if (!phone) return { success: false, error: 'Nenhum WhatsApp resolvido. Informe phone, user_id ou client_id válido.' };
+
+  const result = await sendWhatsAppText(phone, String(args.message || '').trim(), {
+    tenantId: ctx.tenantId,
+    event: 'jarvis_tool_message_sent',
+    meta: { channel: 'jarvis', client_id: clientId || null, user_id: args.user_id || null },
+  });
+
+  if (!result.ok) return { success: false, error: result.error || 'whatsapp_send_failed' };
+
+  return {
+    success: true,
+    data: {
+      message: 'WhatsApp enviado com sucesso.',
+      recipient_phone: phone,
+      client_id: clientId || null,
+      user_id: args.user_id || null,
+      message_id: result.messageId || null,
+    },
+  };
+}
+
+async function opsSendEmail(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const clientId = contextualString(args.client_id) || contextualString((ctx as any).clientId);
+  const resolvedUser = contextualString(args.user_id) ? await resolveUserChannels(ctx.tenantId, String(args.user_id)) : null;
+  const to = contextualString(args.to) || resolvedUser?.email || (clientId ? await resolvePrimaryClientEmail(ctx.tenantId, clientId) : null);
+  if (!to) return { success: false, error: 'Nenhum email resolvido. Informe to, user_id ou client_id válido.' };
+
+  const result = await sendEmail({
+    tenantId: ctx.tenantId,
+    to,
+    subject: String(args.subject || '').trim(),
+    text: String(args.body || '').trim(),
+    html: `<div style="font-family:Inter,Arial,sans-serif;background:#fff7f2;padding:24px"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ffe1d4;border-radius:16px;padding:24px"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;color:#f25c05;text-transform:uppercase">Edro Studio</div><h1 style="font-size:24px;line-height:1.2;color:#10131a;margin:12px 0 16px">${String(args.subject || '').trim()}</h1><div style="font-size:15px;line-height:1.7;color:#3b4354;white-space:pre-wrap">${String(args.body || '').trim()}</div></div></div>`,
+  });
+
+  if (!result.ok) return { success: false, error: result.error || 'email_send_failed' };
+  return { success: true, data: { message: 'E-mail enviado com sucesso.', to, provider: result.provider || null } };
+}
+
 async function opsGetLookups(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
-  const [jobTypesRes, skillsRes, channelsRes, clientsRes, ownersRes] = await Promise.all([
+  const [jobTypesRes, skillsRes, channelsRes, clientsRes, ownersRes, boardsRes, listsRes] = await Promise.all([
     query(`SELECT code, label FROM job_types ORDER BY label ASC`),
     query(`SELECT code, label, category FROM skills ORDER BY label ASC`),
     query(`SELECT code, label FROM channels ORDER BY label ASC`),
@@ -5383,6 +5631,8 @@ async function opsGetLookups(_args: any, ctx: OperationsToolContext): Promise<To
        WHERE tu.tenant_id = $1 ORDER BY name ASC`,
       [ctx.tenantId],
     ),
+    query(`SELECT id, name, client_id FROM project_boards WHERE tenant_id = $1 AND is_archived = false ORDER BY name ASC`, [ctx.tenantId]),
+    query(`SELECT id, board_id, name FROM project_lists WHERE tenant_id = $1 AND is_archived = false ORDER BY position ASC, name ASC`, [ctx.tenantId]),
   ]);
   return {
     success: true,
@@ -5392,6 +5642,8 @@ async function opsGetLookups(_args: any, ctx: OperationsToolContext): Promise<To
       channels: channelsRes.rows,
       clients: clientsRes.rows,
       owners: ownersRes.rows,
+      trello_boards: boardsRes.rows,
+      trello_lists: listsRes.rows,
     },
   };
 }
@@ -5457,6 +5709,127 @@ async function opsCreateJob(args: any, ctx: OperationsToolContext): Promise<Tool
   }
 
   return { success: true, data: { id: rows[0].id, title: rows[0].title, status: rows[0].status, priority_band: rows[0].priority_band, briefing_url: `/admin/operacoes/jobs/${rows[0].id}/briefing` } };
+}
+
+async function opsCreateTrelloCard(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const { rows: listRows } = await query<any>(
+    `SELECT pl.id, pl.board_id, pl.name, pl.trello_list_id, pb.name AS board_name
+       FROM project_lists pl
+       JOIN project_boards pb ON pb.id = pl.board_id
+      WHERE pl.id = $1 AND pl.board_id = $2 AND pb.tenant_id = $3 AND pl.is_archived = false`,
+    [args.list_id, args.board_id, ctx.tenantId],
+  );
+  const list = listRows[0];
+  if (!list) return { success: false, error: 'board_id/list_id inválidos para este tenant.' };
+
+  let trelloCardId: string | null = null;
+  let trelloUrl: string | null = null;
+  const creds = await getTrelloCredentials(ctx.tenantId).catch(() => null);
+  if (creds && list.trello_list_id) {
+    const params = new URLSearchParams({
+      key: creds.apiKey,
+      token: creds.apiToken,
+      idList: list.trello_list_id,
+      name: String(args.title || '').trim(),
+      desc: String(args.description || '').trim(),
+      pos: 'bottom',
+      ...(contextualString(args.due_date) ? { due: `${args.due_date}T23:59:00.000Z` } : {}),
+    });
+    const res = await fetch(`https://api.trello.com/1/cards?${params}`, { method: 'POST', signal: AbortSignal.timeout(10_000) });
+    if (res.ok) {
+      const created = await res.json() as { id: string; shortUrl: string };
+      trelloCardId = created.id;
+      trelloUrl = created.shortUrl;
+    }
+  }
+
+  const { rows: positionRows } = await query<{ max_pos: string }>(
+    `SELECT COALESCE(MAX(position), 0) + 65536 AS max_pos
+       FROM project_cards
+      WHERE list_id = $1 AND tenant_id = $2 AND is_archived = false`,
+    [args.list_id, ctx.tenantId],
+  );
+  const position = Number(positionRows[0]?.max_pos ?? 65536);
+  const { rows: inserted } = await query<any>(
+    `INSERT INTO project_cards (board_id, list_id, tenant_id, title, description, position, due_date, start_date, trello_card_id, trello_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()::date, $8, $9)
+     RETURNING id, title, due_date, trello_card_id, trello_url`,
+    [args.board_id, args.list_id, ctx.tenantId, args.title, args.description || null, position, args.due_date || null, trelloCardId, trelloUrl],
+  );
+  return { success: true, data: { ...inserted[0], board_name: list.board_name, list_name: list.name } };
+}
+
+async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const steps = JSON.parse(String(args.workflow_json || '[]'));
+  if (!Array.isArray(steps) || !steps.length) return { success: false, error: 'workflow_json deve ser um array JSON de steps.' };
+  if (steps.length > 6) return { success: false, error: 'Máximo de 6 steps por workflow.' };
+
+  const irreversible = new Set(['send_whatsapp_message', 'send_email']);
+  let hitIrreversible = false;
+  for (const step of steps) {
+    if (irreversible.has(step?.tool)) hitIrreversible = true;
+    else if (hitIrreversible) return { success: false, error: 'Passos irreversíveis de comunicação devem ficar no final do workflow.' };
+  }
+
+  const confirmedCtx = { ...ctx, explicitConfirmation: true };
+  const rollbackStack: Array<{ type: string; payload: any }> = [];
+  const executed: any[] = [];
+
+  for (const step of steps) {
+    const toolName = String(step?.tool || '').trim();
+    const stepArgs = step?.args && typeof step.args === 'object' ? step.args : {};
+    let result: ToolResult;
+    if (toolName === 'create_briefing' || toolName === 'add_calendar_event') {
+      const clientId = contextualString(stepArgs.client_id) || contextualString((ctx as any).clientId);
+      if (!clientId) return { success: false, error: `${toolName} exige client_id no workflow.` };
+      const { rows: edroRows } = await query<{ id: string }>(
+        `SELECT id FROM edro_clients WHERE tenant_id = $1 AND client_id = $2 LIMIT 1`,
+        [ctx.tenantId, clientId],
+      ).catch(() => ({ rows: [] as { id: string }[] }));
+      result = await executeTool(toolName, stepArgs, {
+        ...(ctx as any),
+        tenantId: ctx.tenantId,
+        clientId,
+        edroClientId: edroRows[0]?.id || null,
+        explicitConfirmation: true,
+      });
+    } else {
+      result = await executeOperationsTool(toolName, stepArgs, confirmedCtx);
+    }
+    executed.push({ tool: toolName, success: result.success, data: result.data, error: result.error });
+
+    if (!result.success) {
+      const rollback: any[] = [];
+      for (const frame of rollbackStack.reverse()) {
+        try {
+          if (frame.type === 'job_status') rollback.push(await executeOperationsTool('change_job_status', { job_id: frame.payload.job_id, status: frame.payload.status, reason: 'rollback' }, confirmedCtx));
+          if (frame.type === 'briefing') rollback.push(await executeTool('delete_briefing', { briefing_id: frame.payload.briefing_id, confirmed: true }, { ...(ctx as any), clientId: frame.payload.client_id, edroClientId: frame.payload.edro_client_id, explicitConfirmation: true }));
+          if (frame.type === 'job_created') {
+            await query(`DELETE FROM job_status_history WHERE job_id = $1`, [frame.payload.job_id]).catch(() => {});
+            rollback.push({ success: (await query(`DELETE FROM jobs WHERE id = $1 AND tenant_id = $2`, [frame.payload.job_id, ctx.tenantId])).rowCount > 0 });
+          }
+          if (frame.type === 'trello_card') {
+            await query(`UPDATE project_cards SET is_archived = true, updated_at = now() WHERE id = $1 AND tenant_id = $2`, [frame.payload.card_id, ctx.tenantId]).catch(() => {});
+            if (frame.payload.trello_card_id) {
+              const creds = await getTrelloCredentials(ctx.tenantId).catch(() => null);
+              if (creds) await fetch(`https://api.trello.com/1/cards/${frame.payload.trello_card_id}?key=${creds.apiKey}&token=${creds.apiToken}&closed=true`, { method: 'PUT', signal: AbortSignal.timeout(8_000) }).catch(() => null);
+            }
+            rollback.push({ success: true });
+          }
+        } catch (rollbackErr: any) {
+          rollback.push({ success: false, error: rollbackErr?.message || 'rollback_failed' });
+        }
+      }
+      return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data: { executed, rollback } };
+    }
+
+    if (toolName === 'change_job_status' && result.data?.from_status) rollbackStack.push({ type: 'job_status', payload: { job_id: stepArgs.job_id, status: result.data.from_status } });
+    if (toolName === 'create_operations_job' && result.data?.id) rollbackStack.push({ type: 'job_created', payload: { job_id: result.data.id } });
+    if (toolName === 'create_trello_card' && result.data?.id) rollbackStack.push({ type: 'trello_card', payload: { card_id: result.data.id, trello_card_id: result.data.trello_card_id || null } });
+    if (toolName === 'create_briefing' && result.data?.id) rollbackStack.push({ type: 'briefing', payload: { briefing_id: result.data.id, client_id: contextualString(stepArgs.client_id) || contextualString((ctx as any).clientId), edro_client_id: null } });
+  }
+
+  return { success: true, data: { completed_steps: executed.length, steps: executed } };
 }
 
 async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {

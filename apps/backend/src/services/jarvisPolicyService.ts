@@ -98,11 +98,16 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
         reason: 'Arquiva, substitui ou rejeita algo persistido e exige confirmação explícita.',
       };
     case 'publish_studio_post':
+    case 'send_whatsapp_message':
+    case 'send_email':
+    case 'execute_multi_step_workflow':
       return {
         toolName,
         level: 'confirm',
-        category: 'publishing',
-        reason: 'Publica em canal real e precisa confirmação explícita.',
+        category: toolName === 'publish_studio_post' ? 'publishing' : 'external',
+        reason: toolName === 'publish_studio_post'
+          ? 'Publica em canal real e precisa confirmação explícita.'
+          : 'Dispara comunicação ou lote de ações reais e exige confirmação explícita.',
       };
     case 'schedule_post_publication':
     case 'prepare_post_approval':
@@ -160,6 +165,7 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
     case 'add_calendar_event':
     case 'add_library_note':
     case 'add_library_url':
+    case 'create_trello_card':
     case 'create_briefing_from_clipping':
     case 'approve_job_briefing':
     case 'approve_creative_draft':

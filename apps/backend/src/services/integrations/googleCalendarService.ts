@@ -636,6 +636,48 @@ export async function createCalendarMeeting(params: {
   return { eventId: event.id, meetUrl, htmlLink: event.htmlLink ?? '', endAt };
 }
 
+export async function createCalendarEvent(params: {
+  tenantId: string;
+  title: string;
+  eventDate: string;
+  description?: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
+}): Promise<{ eventId: string; htmlLink: string }> {
+  const accessToken = await getCalendarAccessToken(params.tenantId);
+  const body = {
+    summary: params.title,
+    description: params.description ?? '',
+    start: { date: params.eventDate },
+    end: { date: params.eventDate },
+    extendedProperties: {
+      private: {
+        edro_tenant_id: params.tenantId,
+        edro_client_id: params.clientId ?? '',
+        edro_client_name: params.clientName ?? '',
+        edro_source: 'edro_calendar_event',
+      },
+    },
+  };
+
+  const res = await fetch(`${CALENDAR_API}/calendars/primary/events?sendUpdates=all`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Google Calendar createCalendarEvent failed (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const event = await res.json() as any;
+  return { eventId: event.id, htmlLink: event.htmlLink ?? '' };
+}
+
 async function upsertAutoJoin(params: {
   tenantId: string;
   eventId: string;
