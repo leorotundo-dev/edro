@@ -1495,6 +1495,35 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     });
   });
 
+  app.get('/jarvis/operations-daily-brief', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const userId = request.user?.id as string | undefined;
+    const toolCtx: ToolContext = {
+      tenantId,
+      userId: userId ?? null,
+      clientId: '',
+      edroClientId: null,
+      conversationId: null,
+      conversationRoute: 'operations',
+      explicitConfirmation: false,
+    };
+    const result = await executeTool('get_operations_daily_brief', {}, toolCtx);
+
+    if (!result.success || !result.data) {
+      return reply.status(400).send({ success: false, error: result.error || 'operations_daily_brief_failed' });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        artifact: {
+          type: 'get_operations_daily_brief',
+          ...result.data,
+        },
+      },
+    });
+  });
+
   // POST /jarvis/alerts/:id/dismiss
   app.post('/jarvis/alerts/:id/dismiss', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;

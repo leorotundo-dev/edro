@@ -296,7 +296,9 @@ export default function JarvisChatPanel() {
   useEffect(() => {
     const contextualClientId = typeof pageData?.clientId === 'string' ? pageData.clientId : null;
     const effectiveClientId = contextualClientId ?? clientId ?? null;
-    const summaryKey = isOpen && effectiveClientId && !conversationId ? `${effectiveClientId}:7` : null;
+    const summaryKey = isOpen && !conversationId
+      ? (effectiveClientId ? `${effectiveClientId}:7` : 'operations:daily')
+      : null;
     if (!summaryKey) {
       autoSummaryKeyRef.current = null;
       return;
@@ -304,7 +306,10 @@ export default function JarvisChatPanel() {
     if (messages.length > 0 || loading || autoSummaryKeyRef.current === summaryKey) return;
 
     autoSummaryKeyRef.current = summaryKey;
-    apiGet<{ data?: { artifact?: Artifact } }>(`/jarvis/client-weekly-summary?client_id=${encodeURIComponent(effectiveClientId)}&days_back=7`)
+    const endpoint = effectiveClientId
+      ? `/jarvis/client-weekly-summary?client_id=${encodeURIComponent(effectiveClientId)}&days_back=7`
+      : '/jarvis/operations-daily-brief';
+    apiGet<{ data?: { artifact?: Artifact } }>(endpoint)
       .then((res) => {
         const artifact = res?.data?.artifact;
         if (!artifact) return;
@@ -312,7 +317,9 @@ export default function JarvisChatPanel() {
           if (prev.length) return prev;
           return [{
             role: 'assistant',
-            content: `Separei o resumo semanal de ${clientName || 'este cliente'} para você começar mais rápido.`,
+            content: effectiveClientId
+              ? `Separei o resumo semanal de ${clientName || 'este cliente'} para você começar mais rápido.`
+              : 'Separei o daily brief da operação para você começar mais rápido.',
             timestamp: new Date().toISOString(),
             artifacts: [artifact],
           }];
