@@ -5972,23 +5972,24 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       }
     }
     if (isStaleRunningWorkflow) {
-      const staleRecoveryRes = await query(
-        `UPDATE agent_action_log
-            SET fired_at = now(),
-                metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
-          WHERE tenant_id = $1::uuid
-            AND trigger_key = $2
-            AND COALESCE(metadata->>'status', '') IN ('running', 'rolling_back')
-        RETURNING id`,
-        [ctx.tenantId, workflowTriggerKey, JSON.stringify({
-          workflow_id: workflowId,
-          workflow_state_version: currentWorkflowStateVersion + 1,
-          status: 'failed',
-          last_error: 'Execução anterior ficou stale e foi liberada para nova tentativa.',
-          stale_recovered_at: new Date().toISOString(),
-          finished_at: new Date().toISOString(),
-        })],
-      ).catch(() => ({ rowCount: 0 }));
+    const staleRecoveryRes = await query(
+      `UPDATE agent_action_log
+          SET fired_at = now(),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+        WHERE tenant_id = $1::uuid
+          AND trigger_key = $2
+          AND COALESCE(metadata->>'status', '') IN ('running', 'rolling_back')
+          AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $4
+      RETURNING id`,
+      [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+        workflow_id: workflowId,
+        workflow_state_version: currentWorkflowStateVersion + 1,
+        status: 'failed',
+        last_error: 'Execução anterior ficou stale e foi liberada para nova tentativa.',
+        stale_recovered_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+      }), currentWorkflowStateVersion],
+    ).catch(() => ({ rowCount: 0 }));
       if (!staleRecoveryRes.rowCount) {
         return { success: false, error: 'Este workflow mudou de estado e não pode ser retomado agora. Recarregue e tente novamente.' };
       }
@@ -6279,12 +6280,13 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           AND trigger_key = $2
           AND COALESCE(metadata->>'status', '') NOT IN ('running', 'rolling_back', 'completed')
           AND COALESCE((metadata->>'requires_manual_followup')::boolean, false) = false
+          AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $5
           AND (
             COALESCE(metadata->>'status', '') <> 'failed'
             OR COALESCE((metadata->>'resume_from_step')::int, 1) = $4
           )
         RETURNING id`,
-      [ctx.tenantId, workflowTriggerKey, JSON.stringify(runningMetadata), resumeFromStep],
+      [ctx.tenantId, workflowTriggerKey, JSON.stringify(runningMetadata), resumeFromStep, currentWorkflowStateVersion],
     ).catch(() => ({ rowCount: 0 }));
     if (!claimRes.rowCount) {
       return { success: false, error: 'Este workflow mudou de estado e não pode ser executado agora. Recarregue e tente novamente.' };
