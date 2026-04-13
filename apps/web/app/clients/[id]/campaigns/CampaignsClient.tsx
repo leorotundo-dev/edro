@@ -707,6 +707,7 @@ function CampaignDetail({
     conversions_30d: number;
     spend_30d: number;
     dark_funnel_count: number;
+    health_score: number | null;
   } | null>(null);
 
   // Campaign layout pieces
@@ -1689,6 +1690,26 @@ function CampaignDetail({
         </Typography>
         {perfData && perfData.has_data ? (
           <>
+            {perfData.health_score !== null && (() => {
+              const score = perfData.health_score as number;
+              const scoreColor = score >= 80 ? '#13DEB9' : score >= 50 ? '#FFAE1F' : '#FA896B';
+              const scoreLabel = score >= 80 ? 'Excelente' : score >= 50 ? 'Em desenvolvimento' : 'Atenção';
+              return (
+                <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 1 }}>
+                  <Box sx={{
+                    minWidth: 36, height: 36, borderRadius: '50%',
+                    bgcolor: scoreColor + '22', border: `2px solid ${scoreColor}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{score}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: scoreColor }}>{scoreLabel}</Typography>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.58rem' }}>Health Score</Typography>
+                  </Box>
+                </Stack>
+              );
+            })()}
             <Grid container spacing={1} sx={{ mb: 1 }}>
               {[
                 { label: 'Impressões', value: perfData.total_impressions >= 1_000_000 ? `${(perfData.total_impressions / 1_000_000).toFixed(1)}M` : perfData.total_impressions >= 1_000 ? `${(perfData.total_impressions / 1_000).toFixed(0)}k` : String(perfData.total_impressions), icon: <IconEye size={14} />, color: '#5D87FF' },
