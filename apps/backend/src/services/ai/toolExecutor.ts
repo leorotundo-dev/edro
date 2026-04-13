@@ -5960,11 +5960,23 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   const summarizeRollback = (items: any[]) => {
     const total = items.length;
     const failures = items.filter((item) => item?.success === false).length;
+    const manualFollowup = items
+      .filter((item) => item?.success === false)
+      .map((item) => {
+        if (item?.type === 'job_status') return 'Reverter status do job manualmente.';
+        if (item?.type === 'briefing') return 'Revisar briefing criado e remover manualmente.';
+        if (item?.type === 'job_created') return 'Revisar job criado e excluir manualmente.';
+        if (item?.type === 'trello_card') return 'Revisar card no Trello e arquivar manualmente.';
+        return 'Revisar a compensação manualmente.';
+      })
+      .slice(0, 4);
     return {
       rollback_total: total,
       rollback_completed: total,
       rollback_failures: failures,
       rollback_status: total === 0 ? 'not_needed' : failures > 0 ? 'partial_failure' : 'completed',
+      requires_manual_followup: manualFollowup.length > 0,
+      manual_followup: manualFollowup,
     };
   };
   await query(
@@ -6033,12 +6045,19 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         ).catch(() => null);
         const rollback: any[] = [];
         for (const frame of rollbackStack.reverse()) {
+        let rollbackEntry: any = { type: frame.type, success: true };
         try {
-          if (frame.type === 'job_status') rollback.push(await executeOperationsTool('change_job_status', { job_id: frame.payload.job_id, status: frame.payload.status, reason: 'rollback' }, confirmedCtx));
-          if (frame.type === 'briefing') rollback.push(await executeTool('delete_briefing', { briefing_id: frame.payload.briefing_id, confirmed: true }, { ...(ctx as any), clientId: frame.payload.client_id, edroClientId: frame.payload.edro_client_id, explicitConfirmation: true }));
+          if (frame.type === 'job_status') {
+            const rb = await executeOperationsTool('change_job_status', { job_id: frame.payload.job_id, status: frame.payload.status, reason: 'rollback' }, confirmedCtx);
+            rollbackEntry = { type: frame.type, success: rb?.success !== false, error: rb?.success === false ? rb.error || 'rollback_failed' : null };
+          }
+          if (frame.type === 'briefing') {
+            const rb = await executeTool('delete_briefing', { briefing_id: frame.payload.briefing_id, confirmed: true }, { ...(ctx as any), clientId: frame.payload.client_id, edroClientId: frame.payload.edro_client_id, explicitConfirmation: true });
+            rollbackEntry = { type: frame.type, success: rb?.success !== false, error: rb?.success === false ? rb.error || 'rollback_failed' : null };
+          }
           if (frame.type === 'job_created') {
             await query(`DELETE FROM job_status_history WHERE job_id = $1`, [frame.payload.job_id]).catch(() => {});
-            rollback.push({ success: (await query(`DELETE FROM jobs WHERE id = $1 AND tenant_id = $2`, [frame.payload.job_id, ctx.tenantId])).rowCount > 0 });
+            rollbackEntry = { type: frame.type, success: (await query(`DELETE FROM jobs WHERE id = $1 AND tenant_id = $2`, [frame.payload.job_id, ctx.tenantId])).rowCount > 0 };
           }
           if (frame.type === 'trello_card') {
             await query(`UPDATE project_cards SET is_archived = true, updated_at = now() WHERE id = $1 AND tenant_id = $2`, [frame.payload.card_id, ctx.tenantId]).catch(() => {});
@@ -6046,11 +6065,12 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
               const creds = await getTrelloCredentials(ctx.tenantId).catch(() => null);
               if (creds) await fetch(`https://api.trello.com/1/cards/${frame.payload.trello_card_id}?key=${creds.apiKey}&token=${creds.apiToken}&closed=true`, { method: 'PUT', signal: AbortSignal.timeout(8_000) }).catch(() => null);
             }
-            rollback.push({ success: true });
+            rollbackEntry = { type: frame.type, success: true };
           }
           } catch (rollbackErr: any) {
-            rollback.push({ success: false, error: rollbackErr?.message || 'rollback_failed' });
+            rollbackEntry = { type: frame.type, success: false, error: rollbackErr?.message || 'rollback_failed' };
           }
+          rollback.push(rollbackEntry);
           await query(
             `UPDATE agent_action_log
                 SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb

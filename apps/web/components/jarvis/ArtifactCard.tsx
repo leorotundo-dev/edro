@@ -187,6 +187,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
     : null;
   const retryWorkflowAction = artifact.type === 'execute_multi_step_workflow'
     && artifact.workflow_status === 'failed'
+    && artifact.requires_manual_followup !== true
     && onRunClientAction
     && workflowJson
     ? () => onRunClientAction({
@@ -636,6 +637,11 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
               >
                 Compensação: {artifact.rollback_completed || 0}/{artifact.rollback_total || 0}
                 {artifact.rollback_failures ? ` · ${artifact.rollback_failures} falha(s)` : ''}
+              </Typography>
+            ) : null}
+            {artifact.requires_manual_followup === true && Array.isArray(artifact.manual_followup) && artifact.manual_followup.length > 0 ? (
+              <Typography variant="caption" color="error.main" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Ação manual necessária: {artifact.manual_followup.join(' · ')}
               </Typography>
             ) : null}
             {Array.isArray(artifact.steps_preview) ? (

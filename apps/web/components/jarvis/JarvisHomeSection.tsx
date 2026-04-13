@@ -83,6 +83,8 @@ type JarvisFeed = {
     rollback_total?: number;
     rollback_completed?: number;
     rollback_failures?: number;
+    requires_manual_followup?: boolean;
+    manual_followup?: string[];
     steps_preview?: Array<{ tool: string; success: boolean; error?: string | null; summary?: string | null }>;
     finished_at?: string | null;
   }>;
@@ -650,13 +652,18 @@ export default function JarvisHomeSection() {
                               {workflow.rollback_failures ? ` · ${workflow.rollback_failures} falha(s)` : ''}
                             </Typography>
                           ) : null}
+                          {workflow.requires_manual_followup && Array.isArray(workflow.manual_followup) && workflow.manual_followup.length > 0 ? (
+                            <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              Manual: {workflow.manual_followup.join(' · ')}
+                            </Typography>
+                          ) : null}
                           {Array.isArray(workflow.steps_preview) && workflow.steps_preview.length > 0 ? (
                             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
                               {workflow.steps_preview.map((step) => `${step.success ? 'OK' : 'Falhou'} ${step.tool}${step.summary ? ` (${step.summary})` : ''}`).join(' · ')}
                             </Typography>
                           ) : null}
                         </Box>
-                        {workflow.status === 'failed' && workflow.workflow_json ? (
+                        {workflow.status === 'failed' && workflow.workflow_json && workflow.requires_manual_followup !== true ? (
                           <Button
                             size="small"
                             variant="outlined"

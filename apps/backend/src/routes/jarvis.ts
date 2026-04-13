@@ -1687,6 +1687,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           rollback_total: Number(row.metadata?.rollback_total || 0),
           rollback_completed: Number(row.metadata?.rollback_completed || 0),
           rollback_failures: Number(row.metadata?.rollback_failures || 0),
+          requires_manual_followup: row.metadata?.requires_manual_followup === true,
+          manual_followup: Array.isArray(row.metadata?.manual_followup) ? row.metadata.manual_followup.slice(0, 3) : [],
           steps_preview: Array.isArray(row.metadata?.steps_preview) ? row.metadata.steps_preview.slice(0, 5) : [],
           finished_at: row.metadata?.finished_at || null,
         }))
