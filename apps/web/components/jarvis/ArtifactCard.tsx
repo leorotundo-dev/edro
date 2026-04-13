@@ -630,6 +630,11 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 Falhou em: {artifact.failed_step}{artifact.failure_class ? ` · ${artifact.failure_class}` : ''}
               </Typography>
             ) : null}
+            {artifact.failed_step_args_preview ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Entrada: {artifact.failed_step_args_preview}{artifact.failed_step_duration_ms ? ` · ${artifact.failed_step_duration_ms}ms` : ''}
+              </Typography>
+            ) : null}
             {artifact.recommended_next_label ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
                 Próxima ação sugerida: {artifact.recommended_next_label}

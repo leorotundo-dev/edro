@@ -1684,6 +1684,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           last_step: row.metadata?.last_step || null,
           failed_step: row.metadata?.failed_step || null,
           last_error: row.metadata?.last_error || null,
+          failed_step_args_preview: row.metadata?.failed_step_args_preview || null,
+          failed_step_duration_ms: Number(row.metadata?.failed_step_duration_ms || 0),
           failure_class: row.metadata?.failure_class || null,
           recommended_next_action: row.metadata?.recommended_next_action || null,
           recommended_next_label: row.metadata?.recommended_next_label || null,

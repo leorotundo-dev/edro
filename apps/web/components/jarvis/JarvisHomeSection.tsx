@@ -80,6 +80,8 @@ type JarvisFeed = {
     last_step?: string | null;
     failed_step?: string | null;
     last_error?: string | null;
+    failed_step_args_preview?: string | null;
+    failed_step_duration_ms?: number;
     failure_class?: string | null;
     recommended_next_action?: string | null;
     recommended_next_label?: string | null;
@@ -646,6 +648,11 @@ export default function JarvisHomeSection() {
                           {workflow.status === 'failed' && workflow.last_error ? (
                             <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
                               {workflow.last_error}{workflow.failure_class ? ` · ${workflow.failure_class}` : ''}
+                            </Typography>
+                          ) : null}
+                          {workflow.status === 'failed' && workflow.failed_step_args_preview ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              Entrada: {workflow.failed_step_args_preview}{workflow.failed_step_duration_ms ? ` · ${workflow.failed_step_duration_ms}ms` : ''}
                             </Typography>
                           ) : null}
                           {workflow.status === 'failed' && workflow.recommended_next_label ? (

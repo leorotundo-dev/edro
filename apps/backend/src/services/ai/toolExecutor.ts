@@ -6033,11 +6033,23 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     if (typeof data.status === 'string' && data.status.trim()) return data.status.trim();
     return null;
   };
+  const summarizeStepArgs = (stepArgs: any): string | null => {
+    if (!stepArgs || typeof stepArgs !== 'object') return null;
+    const entries = Object.entries(stepArgs).slice(0, 4);
+    if (!entries.length) return null;
+    const rendered = entries.map(([key, value]) => {
+      const normalized = typeof value === 'string' ? value : JSON.stringify(value);
+      return `${key}=${String(normalized || '').slice(0, 40)}`;
+    }).join(', ');
+    return rendered.slice(0, 180);
+  };
   const buildExecutedPreview = () => executed.slice(0, 5).map((item) => ({
     tool: item.tool,
     success: item.success,
     error: item.error || null,
     summary: summarizeStepResult(item.data),
+    args_preview: item.args_preview || null,
+    duration_ms: item.duration_ms || null,
   }));
   const classifyWorkflowFailure = (errorMessage: string | null | undefined, rollbackSummary?: { requires_manual_followup?: boolean }) => {
     const text = String(errorMessage || '').toLowerCase();
@@ -6127,6 +6139,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     const step = steps[stepIndex];
     const toolName = String(step?.tool || '').trim();
     const stepArgs = step?.args && typeof step.args === 'object' ? step.args : {};
+    const stepStartedAt = Date.now();
     let result: ToolResult;
     if (toolName === 'create_briefing' || toolName === 'add_calendar_event') {
       const clientId = contextualString(stepArgs.client_id) || contextualString((ctx as any).clientId);
@@ -6145,7 +6158,16 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     } else {
       result = await executeOperationsTool(toolName, stepArgs, confirmedCtx);
     }
-    executed.push({ tool: toolName, success: result.success, data: result.data, error: result.error });
+    const stepDurationMs = Date.now() - stepStartedAt;
+    const stepArgsPreview = summarizeStepArgs(stepArgs);
+    executed.push({
+      tool: toolName,
+      success: result.success,
+      data: result.data,
+      error: result.error,
+      args_preview: stepArgsPreview,
+      duration_ms: stepDurationMs,
+    });
 
       if (!result.success) {
         const rollbackTotal = rollbackStack.length;
@@ -6159,6 +6181,8 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             status: 'rolling_back',
             failed_step: toolName,
             last_error: result.error || `Workflow falhou em ${toolName}.`,
+            failed_step_args_preview: stepArgsPreview,
+            failed_step_duration_ms: stepDurationMs,
             attempt_count: nextAttemptCount,
             completed_steps: startIndex + executed.filter((item) => item.success).length,
             resume_from_step: startIndex + executed.filter((item) => item.success).length + 1,
@@ -6209,6 +6233,8 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
               status: 'rolling_back',
               failed_step: toolName,
               last_error: result.error || `Workflow falhou em ${toolName}.`,
+              failed_step_args_preview: stepArgsPreview,
+              failed_step_duration_ms: stepDurationMs,
               attempt_count: nextAttemptCount,
               last_activity_at: new Date().toISOString(),
               steps_preview: buildExecutedPreview(),
@@ -6229,6 +6255,8 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           workflow_json: String(args.workflow_json || '[]'),
           failed_step: toolName,
           last_error: result.error || `Workflow falhou em ${toolName}.`,
+          failed_step_args_preview: stepArgsPreview,
+          failed_step_duration_ms: stepDurationMs,
           failure_class: failureClass,
           ...failurePolicy,
           completed_steps: completedSteps,
@@ -6248,6 +6276,8 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             status: 'failed',
             failed_step: toolName,
             last_error: result.error || `Workflow falhou em ${toolName}.`,
+            failed_step_args_preview: stepArgsPreview,
+            failed_step_duration_ms: stepDurationMs,
             failure_class: failureClass,
             ...failurePolicy,
             completed_steps: completedSteps,
