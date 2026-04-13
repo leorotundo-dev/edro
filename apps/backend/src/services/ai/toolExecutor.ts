@@ -5881,6 +5881,47 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   const startIndex = resumeFromStep - 1;
   const workflowId = String(args.workflow_id || '').trim() || crypto.randomUUID();
   const workflowTriggerKey = `jarvis_workflow:${workflowId}`;
+  const existingWorkflowRes = await query<{ metadata: any }>(
+    `SELECT metadata
+       FROM agent_action_log
+      WHERE tenant_id = $1::uuid
+        AND trigger_key = $2
+      ORDER BY fired_at DESC
+      LIMIT 1`,
+    [ctx.tenantId, workflowTriggerKey],
+  ).catch(() => ({ rows: [] as Array<{ metadata: any }> }));
+  const existingMetadata = existingWorkflowRes.rows[0]?.metadata && typeof existingWorkflowRes.rows[0].metadata === 'object'
+    ? existingWorkflowRes.rows[0].metadata
+    : null;
+  const existingStatus = String(existingMetadata?.status || '').trim();
+  const attemptCount = Math.max(0, Number(existingMetadata?.attempt_count || 0));
+
+  if (ctx.explicitConfirmation === true) {
+    if (existingStatus === 'completed') {
+      return { success: false, error: 'Este workflow já foi concluído. Gere um novo plano para rodar novamente.' };
+    }
+    if (existingStatus === 'running' || existingStatus === 'rolling_back') {
+      return { success: false, error: 'Este workflow já está em execução. Aguarde a conclusão antes de tentar novamente.' };
+    }
+    if (existingMetadata?.requires_manual_followup === true) {
+      return {
+        success: false,
+        error: 'Este workflow exige follow-up manual antes de qualquer nova tentativa.',
+        data: {
+          workflow_id: workflowId,
+          workflow_status: existingStatus || 'failed',
+          manual_followup: Array.isArray(existingMetadata?.manual_followup) ? existingMetadata.manual_followup.slice(0, 4) : [],
+        },
+      };
+    }
+    if (existingStatus === 'failed') {
+      const persistedResume = Math.max(1, Number(existingMetadata?.resume_from_step || 1));
+      if (resumeFromStep !== persistedResume) {
+        return { success: false, error: `resume_from_step inválido para retomada. O próximo passo seguro é ${persistedResume}.` };
+      }
+    }
+  }
+
   if (ctx.explicitConfirmation !== true) {
     await query(
       `INSERT INTO agent_action_log (tenant_id, trigger_key, metadata)
@@ -5896,6 +5937,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         status: 'pending_confirmation',
         steps_total: steps.length,
         completed_steps: startIndex,
+        attempt_count: attemptCount,
         resume_from_step: resumeFromStep,
         steps_preview: steps.slice(startIndex, startIndex + 6).map((step: any, index: number) => ({
           index: startIndex + index + 1,
@@ -5911,6 +5953,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       workflow_status: 'pending_confirmation',
       workflow_json: String(args.workflow_json || '[]'),
       completed_steps: startIndex,
+      attempt_count: attemptCount,
       resume_from_step: resumeFromStep,
       steps_preview: steps.slice(startIndex, startIndex + 6).map((step: any, index: number) => ({
         index: startIndex + index + 1,
@@ -5935,6 +5978,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   }
 
   const confirmedCtx = { ...ctx, explicitConfirmation: true };
+  const nextAttemptCount = attemptCount + 1;
   const rollbackStack: Array<{ type: string; payload: any }> = [];
   const executed: any[] = [];
   const summarizeStepResult = (data: any): string | null => {
@@ -5992,7 +6036,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       workflow_json: String(args.workflow_json || '[]'),
       status: 'running',
       steps_total: steps.length,
+      attempt_count: nextAttemptCount,
       resume_from_step: resumeFromStep,
+      last_attempt_at: new Date().toISOString(),
       started_at: new Date().toISOString(),
     })],
   ).catch(() => null);
@@ -6033,6 +6079,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             status: 'rolling_back',
             failed_step: toolName,
             last_error: result.error || `Workflow falhou em ${toolName}.`,
+            attempt_count: nextAttemptCount,
             completed_steps: startIndex + executed.filter((item) => item.success).length,
             resume_from_step: startIndex + executed.filter((item) => item.success).length + 1,
             last_step: toolName,
@@ -6081,6 +6128,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
               status: 'rolling_back',
               failed_step: toolName,
               last_error: result.error || `Workflow falhou em ${toolName}.`,
+              attempt_count: nextAttemptCount,
               steps_preview: buildExecutedPreview(),
               rollback_status: 'running',
               rollback_total: rollbackTotal,
@@ -6098,6 +6146,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           failed_step: toolName,
           last_error: result.error || `Workflow falhou em ${toolName}.`,
           completed_steps: completedSteps,
+          attempt_count: nextAttemptCount,
           resume_from_step: completedSteps + 1,
           executed,
           rollback,
@@ -6114,6 +6163,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             failed_step: toolName,
             last_error: result.error || `Workflow falhou em ${toolName}.`,
             completed_steps: completedSteps,
+            attempt_count: nextAttemptCount,
             resume_from_step: completedSteps + 1,
             steps_preview: buildExecutedPreview(),
             finished_at: new Date().toISOString(),
@@ -6138,6 +6188,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         workflow_json: String(args.workflow_json || '[]'),
         status: 'running',
         completed_steps: startIndex + executed.length,
+        attempt_count: nextAttemptCount,
         resume_from_step: stepIndex + 2,
         last_step: toolName,
         steps_preview: buildExecutedPreview(),
@@ -6153,6 +6204,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     workflow_id: workflowId,
     workflow_status: 'completed',
     completed_steps: startIndex + executed.length,
+    attempt_count: nextAttemptCount,
     resume_from_step: null,
     steps: executed,
   };
@@ -6165,6 +6217,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       workflow_json: String(args.workflow_json || '[]'),
       status: 'completed',
       completed_steps: startIndex + executed.length,
+      attempt_count: nextAttemptCount,
       resume_from_step: null,
       steps_preview: buildExecutedPreview(),
       rollback_status: null,

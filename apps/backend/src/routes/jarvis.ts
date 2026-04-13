@@ -1679,6 +1679,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           status: row.metadata?.status || 'running',
           completed_steps: Number(row.metadata?.completed_steps || 0),
           steps_total: Number(row.metadata?.steps_total || 0),
+          attempt_count: Number(row.metadata?.attempt_count || 0),
           resume_from_step: Number(row.metadata?.resume_from_step || 1),
           last_step: row.metadata?.last_step || null,
           failed_step: row.metadata?.failed_step || null,

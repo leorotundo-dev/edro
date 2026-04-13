@@ -75,6 +75,7 @@ type JarvisFeed = {
     status: string;
     completed_steps: number;
     steps_total: number;
+    attempt_count?: number;
     resume_from_step?: number;
     last_step?: string | null;
     failed_step?: string | null;
@@ -626,7 +627,10 @@ export default function JarvisHomeSection() {
                           </Typography>
                           <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }} noWrap>
                             {workflow.workflow_id ? `Workflow ${String(workflow.workflow_id).slice(0, 8)} · ` : ''}
-                            {workflow.completed_steps || 0}/{workflow.steps_total || 0} etapas · {relativeTime(workflow.finished_at || workflow.fired_at)}
+                            {workflow.completed_steps || 0}/{workflow.steps_total || 0} etapas
+                            {workflow.attempt_count ? ` · tentativa ${workflow.attempt_count}` : ''}
+                            {' · '}
+                            {relativeTime(workflow.finished_at || workflow.fired_at)}
                           </Typography>
                           {workflow.last_step ? (
                             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
