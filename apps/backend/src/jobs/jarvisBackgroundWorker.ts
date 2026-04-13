@@ -1,9 +1,46 @@
+import { query } from '../db';
 import { fetchJobs, getJobById, markJob, mergeJobPayload } from './jobQueue';
 import { runCreatePostPipelineNow, runExecuteMultiStepWorkflowNow, type ToolContext } from '../services/ai/toolExecutor';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import { updateUnifiedConversationArtifact } from '../services/jarvisPolicyService';
 
 let running = false;
+
+async function syncWorkflowBackgroundFailure(params: {
+  tenantId: string;
+  workflowId?: string | null;
+  workflowStateVersion?: number | null;
+  workflowJson?: string | null;
+  backgroundJobId: string;
+  errorMessage: string;
+}) {
+  const workflowId = String(params.workflowId || '').trim();
+  const workflowStateVersion = Math.max(0, Number(params.workflowStateVersion || 0));
+  if (!workflowId || workflowStateVersion <= 0) return;
+
+  await query(
+    `UPDATE agent_action_log
+        SET fired_at = now(),
+            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+      WHERE tenant_id = $1::uuid
+        AND trigger_key = $2
+        AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $4
+        AND COALESCE(metadata->>'status', '') IN ('queued', 'running')`,
+    [params.tenantId, `jarvis_workflow:${workflowId}`, JSON.stringify({
+      workflow_id: workflowId,
+      workflow_state_version: workflowStateVersion,
+      workflow_json: params.workflowJson || null,
+      background_job_id: params.backgroundJobId,
+      status: 'failed',
+      workflow_status: 'failed',
+      last_error: params.errorMessage,
+      finished_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString(),
+      can_retry_now: false,
+      retry_block_reason: 'Workflow falhou no worker antes de concluir a execução.',
+    }), workflowStateVersion],
+  ).catch(() => {});
+}
 
 export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
   if (running) return;
@@ -31,9 +68,20 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
       const route = payload.conversation?.route === 'operations' ? 'operations' : 'planning';
       const conversationId = payload.conversation?.conversationId || null;
       const edroClientId = payload.conversation?.edroClientId || payload.context?.edroClientId || null;
+      const workflowId = String(payload.args?.workflow_id || '').trim();
+      const workflowStateVersion = Number(payload.args?.workflow_state_version || 0) || 0;
+      const workflowJson = String(payload.args?.workflow_json || '');
 
       try {
         if (!payload.context || !['create_post_pipeline', 'execute_multi_step_workflow'].includes(String(payload.kind || ''))) {
+          await syncWorkflowBackgroundFailure({
+            tenantId: job.tenant_id,
+            workflowId,
+            workflowStateVersion,
+            workflowJson,
+            backgroundJobId: job.id,
+            errorMessage: 'Unsupported Jarvis background job',
+          });
           await markJob(job.id, 'failed', 'Unsupported Jarvis background job');
           continue;
         }
@@ -64,6 +112,14 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             result: result.data && typeof result.data === 'object' ? result.data : null,
             result_error: result.error || 'Falha desconhecida',
             failed_at: new Date().toISOString(),
+          });
+          await syncWorkflowBackgroundFailure({
+            tenantId: job.tenant_id,
+            workflowId,
+            workflowStateVersion,
+            workflowJson,
+            backgroundJobId: job.id,
+            errorMessage: result.error || 'Falha desconhecida',
           });
           if (conversationId) {
             await updateUnifiedConversationArtifact({
@@ -123,6 +179,14 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
           result_error: error?.message || 'Falha desconhecida',
           failed_at: new Date().toISOString(),
         }).catch(() => {});
+        await syncWorkflowBackgroundFailure({
+          tenantId: job.tenant_id,
+          workflowId,
+          workflowStateVersion,
+          workflowJson,
+          backgroundJobId: job.id,
+          errorMessage: error?.message || 'Falha desconhecida',
+        });
         await markJob(job.id, 'failed', error?.message || 'Falha desconhecida');
         if (conversationId) {
           await updateUnifiedConversationArtifact({
