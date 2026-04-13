@@ -14,6 +14,7 @@ import {
 import { getBoardInsights, analyzeAllBoardsForTenant, analyzeBoardHistory } from '../services/trelloHistoryAnalyzer';
 import { stripTrelloTitle, normalizeTrelloLabels, normalizeTrelloAttachments, inferJobTypeFromLabels } from '../services/trelloCardMapper';
 import { enqueueOutbox } from '../services/trelloOutboxService';
+import { ensureAllWebhooksForTenant, ensureWebhookForBoard } from '../services/trelloWebhookService';
 import { query } from '../db';
 
 function normalizeBoardBindingKey(value?: string | null) {
@@ -51,6 +52,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     try {
       const info = await upsertTrelloConnector(tenantId, body.api_key, body.api_token);
+      void ensureAllWebhooksForTenant(tenantId).catch((err) => {
+        console.warn(`[trelloWebhook] ensureAll after connect failed tenant=${tenantId}:`, err?.message);
+      });
       return reply.send({ ok: true, member_id: info.memberId, full_name: info.fullName });
     } catch (err: any) {
       return reply.status(400).send({ ok: false, error: err?.message ?? 'Credenciais inválidas.' });
@@ -72,6 +76,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
   app.delete('/trello/connector', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     await query(`UPDATE trello_connectors SET is_active = false WHERE tenant_id = $1`, [tenantId]);
+    await query(
+      `UPDATE trello_webhooks
+       SET is_active = false, last_error = 'connector_disabled', updated_at = now()
+       WHERE tenant_id = $1`,
+      [tenantId],
+    ).catch(() => undefined);
     return reply.send({ ok: true });
   });
 
@@ -94,6 +104,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     try {
       const result = await syncTrelloBoard(tenantId, trelloBoardId, client_id);
+      await ensureWebhookForBoard(tenantId, result.boardId, trelloBoardId).catch((err) => {
+        console.warn(`[trelloWebhook] ensure after board sync failed board=${trelloBoardId}:`, err?.message);
+      });
       return reply.send({ ok: true, ...result });
     } catch (err: any) {
       return reply.status(500).send({ ok: false, error: err?.message ?? 'Erro na sincronização.' });
@@ -104,7 +117,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
   app.post('/trello/sync-all', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
     try {
-      void syncAllTrelloBoardsForTenant(tenantId); // fire and forget — pode demorar
+      void syncAllTrelloBoardsForTenant(tenantId)
+        .then(() => ensureAllWebhooksForTenant(tenantId))
+        .catch((err: any) => {
+          console.error(`[trelloSync] sync-all error tenant=${tenantId}:`, err?.message);
+        });
       return reply.send({ ok: true, message: 'Sincronização iniciada em background.' });
     } catch (err: any) {
       return reply.status(500).send({ ok: false, error: err?.message });
