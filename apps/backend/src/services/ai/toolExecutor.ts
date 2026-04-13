@@ -96,6 +96,7 @@ export type ToolResult = {
     row_count?: number;
     truncated?: boolean;
     governance?: any;
+    confirmation_required?: boolean;
     access?: {
       systemPerm?: string | null;
       clientPerm?: ClientPerm | null;
@@ -272,6 +273,24 @@ function applyContextualConfirmation<T extends { explicitConfirmation?: boolean 
     return { ...args, confirmed: true };
   }
   return args;
+}
+
+function buildConfirmationRequiredResult(
+  message: string,
+  data: Record<string, any>,
+): ToolResult {
+  return {
+    success: false,
+    error: 'Confirmação obrigatória. Só execute esta ação quando o usuário confirmar explicitamente.',
+    data: {
+      ...data,
+      confirmation_required: true,
+      message,
+    },
+    metadata: {
+      confirmation_required: true,
+    },
+  };
 }
 
 function contextualString(value: unknown) {
@@ -5580,8 +5599,25 @@ async function opsSendWhatsAppMessage(args: any, ctx: OperationsToolContext): Pr
   const resolvedUser = contextualString(args.user_id) ? await resolveUserChannels(ctx.tenantId, String(args.user_id)) : null;
   const phone = contextualString(args.phone) || resolvedUser?.phone || (clientId ? await resolvePrimaryClientPhone(ctx.tenantId, clientId) : null);
   if (!phone) return { success: false, error: 'Nenhum WhatsApp resolvido. Informe phone, user_id ou client_id válido.' };
+  const message = String(args.message || '').trim();
+  if (ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para enviar WhatsApp.', {
+      recipient_phone: phone,
+      client_id: clientId || null,
+      user_id: args.user_id || null,
+      preview_message: message,
+      tool_name: 'send_whatsapp_message',
+      tool_args: {
+        message,
+        client_id: clientId || null,
+        user_id: args.user_id || null,
+        phone: contextualString(args.phone) || null,
+      },
+      confirmation_prompt: `Confirmo o envio do WhatsApp para ${phone}.`,
+    });
+  }
 
-  const result = await sendWhatsAppText(phone, String(args.message || '').trim(), {
+  const result = await sendWhatsAppText(phone, message, {
     tenantId: ctx.tenantId,
     event: 'jarvis_tool_message_sent',
     meta: { channel: 'jarvis', client_id: clientId || null, user_id: args.user_id || null },
@@ -5606,13 +5642,33 @@ async function opsSendEmail(args: any, ctx: OperationsToolContext): Promise<Tool
   const resolvedUser = contextualString(args.user_id) ? await resolveUserChannels(ctx.tenantId, String(args.user_id)) : null;
   const to = contextualString(args.to) || resolvedUser?.email || (clientId ? await resolvePrimaryClientEmail(ctx.tenantId, clientId) : null);
   if (!to) return { success: false, error: 'Nenhum email resolvido. Informe to, user_id ou client_id válido.' };
+  const subject = String(args.subject || '').trim();
+  const body = String(args.body || '').trim();
+  if (ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para enviar e-mail.', {
+      to,
+      client_id: clientId || null,
+      user_id: args.user_id || null,
+      preview_subject: subject,
+      preview_body: body,
+      tool_name: 'send_email',
+      tool_args: {
+        subject,
+        body,
+        client_id: clientId || null,
+        user_id: args.user_id || null,
+        to: contextualString(args.to) || null,
+      },
+      confirmation_prompt: `Confirmo o envio do e-mail para ${to}.`,
+    });
+  }
 
   const result = await sendEmail({
     tenantId: ctx.tenantId,
     to,
-    subject: String(args.subject || '').trim(),
-    text: String(args.body || '').trim(),
-    html: `<div style="font-family:Inter,Arial,sans-serif;background:#fff7f2;padding:24px"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ffe1d4;border-radius:16px;padding:24px"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;color:#f25c05;text-transform:uppercase">Edro Studio</div><h1 style="font-size:24px;line-height:1.2;color:#10131a;margin:12px 0 16px">${String(args.subject || '').trim()}</h1><div style="font-size:15px;line-height:1.7;color:#3b4354;white-space:pre-wrap">${String(args.body || '').trim()}</div></div></div>`,
+    subject,
+    text: body,
+    html: `<div style="font-family:Inter,Arial,sans-serif;background:#fff7f2;padding:24px"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #ffe1d4;border-radius:16px;padding:24px"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;color:#f25c05;text-transform:uppercase">Edro Studio</div><h1 style="font-size:24px;line-height:1.2;color:#10131a;margin:12px 0 16px">${subject}</h1><div style="font-size:15px;line-height:1.7;color:#3b4354;white-space:pre-wrap">${body}</div></div></div>`,
   });
 
   if (!result.ok) return { success: false, error: result.error || 'email_send_failed' };
@@ -5763,6 +5819,21 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   const steps = JSON.parse(String(args.workflow_json || '[]'));
   if (!Array.isArray(steps) || !steps.length) return { success: false, error: 'workflow_json deve ser um array JSON de steps.' };
   if (steps.length > 6) return { success: false, error: 'Máximo de 6 steps por workflow.' };
+  if (ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para executar workflow em lote.', {
+      completed_steps: 0,
+      steps_preview: steps.slice(0, 6).map((step: any, index: number) => ({
+        index: index + 1,
+        tool: String(step?.tool || '').trim(),
+        summary: JSON.stringify(step?.args || {}).slice(0, 180),
+      })),
+      tool_name: 'execute_multi_step_workflow',
+      tool_args: {
+        workflow_json: String(args.workflow_json || '[]'),
+      },
+      confirmation_prompt: 'Confirmo a execução do workflow em lote.',
+    });
+  }
 
   const irreversible = new Set(['send_whatsapp_message', 'send_email']);
   let hitIrreversible = false;

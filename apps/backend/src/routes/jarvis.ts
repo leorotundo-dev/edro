@@ -6,7 +6,7 @@ import { query } from '../db';
 import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
 import { runToolUseLoop } from '../services/ai/toolUseLoop';
 import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
-import { type ToolContext } from '../services/ai/toolExecutor';
+import { executeTool, type ToolContext } from '../services/ai/toolExecutor';
 import { getBriefingById } from '../repositories/edroBriefingRepository';
 import {
   buildAgentSystemPrompt,
@@ -28,9 +28,10 @@ import {
   applyClientMemoryGovernanceAction,
   type ClientMemoryGovernanceAnalysis,
 } from '../services/clientMemoryGovernanceService';
-import { buildClientState } from '../services/jarvisDecisionEngine';
+import { buildClientState, processAlerts } from '../services/jarvisDecisionEngine';
 import { getJobById } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
+import { buildDailyDigest } from '../services/agencyDigestService';
 import {
   buildInlineAttachmentContext,
   buildJarvisObservability,
@@ -86,6 +87,7 @@ const jarvisChatSchema = z.object({
       'apply_memory_governance',
       'apply_memory_governance_and_retry_creative',
       'retry_creative_with_confirmation',
+      'confirm_tool_call',
     ]),
     actions: z.array(z.object({
       action: z.enum(['archive', 'replace']),
@@ -93,6 +95,8 @@ const jarvisChatSchema = z.object({
       replacement_fingerprint: z.string().trim().optional().nullable(),
       reason: z.string().trim().optional().nullable(),
     })).optional().default([]),
+    tool_name: z.string().trim().optional().nullable(),
+    tool_args: z.record(z.string(), z.unknown()).optional().nullable(),
   }).optional().nullable(),
 });
 
@@ -123,6 +127,19 @@ function readPageDataString(pageData: Record<string, unknown> | null | undefined
 function asUuid(value?: string | null) {
   const trimmed = String(value || '').trim();
   return UUID_PATTERN.test(trimmed) ? trimmed : null;
+}
+
+function mapJarvisToolResultsToArtifacts(
+  toolResults: Array<{ toolName: string; data: any; success: boolean; metadata?: any }> | undefined,
+) {
+  return (toolResults ?? [])
+    .map((result) => {
+      if (!result?.toolName || !result.data) return null;
+      if (result.success) return { type: result.toolName, ...result.data };
+      if (result.metadata?.confirmation_required === true) return { type: result.toolName, ...result.data };
+      return null;
+    })
+    .filter((item): item is { type: string; [key: string]: any } => Boolean(item));
 }
 
 function shouldDelegateToCreativeExecutor(message: string, pageData?: Record<string, unknown> | null) {
@@ -773,6 +790,76 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       });
     }
 
+    if (body.client_action?.type === 'confirm_tool_call') {
+      const toolName = String(body.client_action.tool_name || '').trim();
+      if (!toolName) {
+        return reply.status(400).send({ success: false, error: 'A confirmação inline exige tool_name.' });
+      }
+
+      const toolArgs = body.client_action.tool_args && typeof body.client_action.tool_args === 'object'
+        ? body.client_action.tool_args
+        : {};
+      const toolResult = await executeTool(toolName, { ...toolArgs, confirmed: true }, {
+        tenantId,
+        clientId: clientId || '',
+        edroClientId: edroClientId || null,
+        userId: userId ?? undefined,
+        userEmail,
+        role: userRole,
+        explicitConfirmation: true,
+        conversationId: effectiveConversationId,
+        conversationRoute: decision.route,
+        pageData: body.page_data ?? undefined,
+      });
+
+      if (!toolResult.success) {
+        return reply.status(400).send({ success: false, error: toolResult.error || 'inline_tool_confirmation_failed' });
+      }
+
+      const inlineArtifacts = mapJarvisToolResultsToArtifacts([
+        { toolName, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata },
+      ]);
+      const responseText = toolResult.data?.message || `Ação ${toolName} executada com sucesso.`;
+      const durationMs = Date.now() - startMs;
+      const observability = buildJarvisObservability(decision, {
+        durationMs,
+        toolsUsed: 1,
+        provider: 'jarvis_inline_action',
+        model: 'jarvis_tool_confirmation_inline',
+        loadedMemoryBlocks: ['Confirmação inline de ferramenta'],
+      });
+      const savedConversationId = await saveUnifiedConversation({
+        route: decision.route,
+        tenantId,
+        edroClientId,
+        userId,
+        conversationId: effectiveConversationId,
+        message: body.message,
+        assistantContent: responseText,
+        provider: 'jarvis_inline_action',
+        observability,
+        artifacts: inlineArtifacts,
+      }).catch(() => effectiveConversationId);
+
+      return reply.send({
+        success: true,
+        data: {
+          response: responseText,
+          provider: 'jarvis_inline_action',
+          model: 'jarvis_tool_confirmation_inline',
+          conversationId: savedConversationId,
+          artifacts: inlineArtifacts,
+          intent: decision.intent,
+          route: decision.route,
+          primaryMemory: decision.primaryMemory,
+          secondaryMemories: decision.secondaryMemories,
+          retrievalBudget: decision.retrievalBudget,
+          durationMs,
+          observability,
+        },
+      });
+    }
+
     if (decision.route === 'planning' && clientId && body.client_action) {
       const actionType = body.client_action.type;
       const normalizedActions = (body.client_action.actions || []).slice(0, 4) as InlineGovernanceAction[];
@@ -953,9 +1040,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
         toolsUsed = loopResult.toolCallsExecuted ?? 0;
-        artifacts = (loopResult.toolResults ?? [])
-          .filter((result) => result.success && result.data)
-          .map((result) => ({ type: result.toolName, ...result.data }));
+        artifacts = mapJarvisToolResultsToArtifacts(loopResult.toolResults);
         const loadedMemoryBlocks = memoryBlocks.map((block) => block.label);
         const durationMs = Date.now() - startMs;
         const observability = buildJarvisObservability(decision, {
@@ -1219,9 +1304,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
         toolsUsed = loopResult.toolCallsExecuted ?? 0;
-        artifacts = (loopResult.toolResults ?? [])
-          .filter((result) => result.success && result.data)
-          .map((result) => ({ type: result.toolName, ...result.data }));
+        artifacts = mapJarvisToolResultsToArtifacts(loopResult.toolResults);
         if (
           memoryGovernancePreflight.summary.governance_pressure !== 'low'
           || memoryGovernancePreflight.summary.active_conflicts
@@ -1374,6 +1457,44 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: alerts });
   });
 
+  app.get('/jarvis/client-weekly-summary', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const userId = request.user?.id as string | undefined;
+    const { client_id, days_back } = request.query as { client_id?: string; days_back?: string };
+    if (!client_id) {
+      return reply.status(400).send({ success: false, error: 'client_id é obrigatório.' });
+    }
+    const edroClientId = await resolveEdroClientId(client_id);
+
+    const toolCtx: ToolContext = {
+      tenantId,
+      userId: userId ?? null,
+      clientId: client_id,
+      edroClientId,
+      conversationId: null,
+      conversationRoute: 'planning',
+      explicitConfirmation: false,
+    };
+    const result = await executeTool('get_client_weekly_summary', {
+      client_id,
+      days_back: Number(days_back) || 7,
+    }, toolCtx);
+
+    if (!result.success || !result.data) {
+      return reply.status(400).send({ success: false, error: result.error || 'weekly_summary_failed' });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        artifact: {
+          type: 'get_client_weekly_summary',
+          ...result.data,
+        },
+      },
+    });
+  });
+
   // POST /jarvis/alerts/:id/dismiss
   app.post('/jarvis/alerts/:id/dismiss', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
@@ -1395,9 +1516,15 @@ export default async function jarvisRoutes(app: FastifyInstance) {
   app.get('/jarvis/feed', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
-    const [alertsRes, briefingPendingRes, autoBriefingsRes, proposalsRes, opportunitiesRes] = await Promise.allSettled([
+    const [alertsRes, decisionsRes, dailyBriefRes, briefingPendingRes, autoBriefingsRes, opportunitiesRes] = await Promise.allSettled([
       // Open Jarvis alerts
       getJarvisAlerts(tenantId, undefined, 10),
+
+      // Actionable Jarvis proposals from current decisions
+      processAlerts(tenantId, 12),
+
+      // Daily brief already precomputed from operations data
+      buildDailyDigest(tenantId),
 
       // Jobs in briefing stage without a briefing submitted yet
       query(
@@ -1423,17 +1550,6 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         [tenantId],
       ),
 
-      // Meeting proposals (Jarvis proposals from meeting summaries)
-      query(
-        `SELECT jp.id, jp.title, jp.meeting_title, c.name AS client_name
-         FROM jarvis_proposals jp
-         LEFT JOIN clients c ON c.id = jp.client_id
-         WHERE jp.tenant_id = $1
-           AND jp.status = 'pending'
-         ORDER BY jp.created_at DESC LIMIT 5`,
-        [tenantId],
-      ),
-
       // High-confidence opportunities without a briefing yet
       query(
         `SELECT o.id, o.title, o.confidence, c.name AS client_name, o.client_id
@@ -1447,22 +1563,74 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       ),
     ]);
 
-    const alerts           = alertsRes.status === 'fulfilled' ? alertsRes.value : [];
+    const rawAlerts        = alertsRes.status === 'fulfilled' ? alertsRes.value : [];
+    const decisions        = decisionsRes.status === 'fulfilled' ? decisionsRes.value : [];
+    const dailyBrief       = dailyBriefRes.status === 'fulfilled' ? dailyBriefRes.value : null;
     const briefingPending  = briefingPendingRes.status === 'fulfilled' ? briefingPendingRes.value.rows : [];
     const autoBriefings    = autoBriefingsRes.status === 'fulfilled' ? autoBriefingsRes.value.rows : [];
-    const proposals        = proposalsRes.status === 'fulfilled' ? proposalsRes.value.rows : [];
     const opportunities    = opportunitiesRes.status === 'fulfilled' ? opportunitiesRes.value.rows : [];
+    const actionableById = new Map(
+      decisions
+        .filter((decision) => decision.autonomy_level >= 3 && decision.event.ref_id)
+        .map((decision) => [String(decision.event.ref_id), decision] as const),
+    );
+    const proposals = rawAlerts
+      .filter((alert) => actionableById.has(String(alert.id)))
+      .slice(0, 5)
+      .map((alert) => {
+        const decision = actionableById.get(String(alert.id));
+        return {
+          id: alert.id,
+          title: alert.title,
+          client_name: alert.client_name,
+          client_id: alert.client_id,
+          reasoning: decision?.reasoning || alert.body,
+          category: decision?.category || null,
+          autonomy_level: decision?.autonomy_level || null,
+          href: alert.client_id ? `/clients/${alert.client_id}` : '/jarvis',
+        };
+      });
+    const proposalIds = new Set(proposals.map((item) => String(item.id)));
+    const alerts = rawAlerts.filter((alert) => !proposalIds.has(String(alert.id)));
 
     const total_actions = alerts.length + briefingPending.length + autoBriefings.length + proposals.length + opportunities.length;
 
     return reply.send({
       alerts,
+      daily_brief: dailyBrief,
       briefing_pending: briefingPending,
       auto_briefings: autoBriefings,
       proposals,
       opportunities,
       total_actions,
     });
+  });
+
+  app.post('/jarvis/proposals/:id/:action', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const { id, action } = request.params as { id: string; action: 'approve' | 'discard' };
+    if (action !== 'approve' && action !== 'discard') {
+      return reply.status(400).send({ success: false, error: 'Ação inválida.' });
+    }
+
+    const { rows } = await query<{ id: string }>(
+      `SELECT id FROM jarvis_alerts WHERE tenant_id = $1 AND id = $2 AND status = 'open' LIMIT 1`,
+      [tenantId, id],
+    );
+    if (!rows.length) {
+      return reply.status(404).send({ success: false, error: 'Proposta não encontrada.' });
+    }
+
+    if (action === 'discard') {
+      await dismissAlert(id, tenantId);
+      return reply.send({ success: true, status: 'dismissed' });
+    }
+
+    await query(
+      `UPDATE jarvis_alerts SET status = 'actioned', updated_at = now() WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId],
+    );
+    return reply.send({ success: true, status: 'actioned' });
   });
 
   // POST /jarvis/alerts/run — trigger manual (admin)

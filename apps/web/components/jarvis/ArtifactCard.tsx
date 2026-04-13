@@ -25,13 +25,15 @@ export type Artifact = {
 };
 
 export type JarvisClientAction = {
-  type: 'apply_memory_governance' | 'apply_memory_governance_and_retry_creative' | 'retry_creative_with_confirmation';
+  type: 'apply_memory_governance' | 'apply_memory_governance_and_retry_creative' | 'retry_creative_with_confirmation' | 'confirm_tool_call';
   actions?: Array<{
     action: 'archive' | 'replace';
     target_fingerprint: string;
     replacement_fingerprint?: string | null;
     reason?: string | null;
   }>;
+  tool_name?: string;
+  tool_args?: Record<string, unknown> | null;
 };
 
 export type JarvisArtifactAction = {
@@ -109,6 +111,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
 
   const Icon = meta.icon;
   const subtitle = artifact.message || artifact.brief?.slice(0, 80) || null;
+  const confirmationRequired = artifact.confirmation_required === true;
 
   const href = artifact.post_url
     ? artifact.post_url
@@ -168,6 +171,17 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
     : jobStatus === 'done'
     ? '#10B981'
     : meta.color;
+  const confirmAction = confirmationRequired && onRunClientAction && artifact.tool_name
+    ? () => onRunClientAction({
+        message: artifact.confirmation_prompt || `Confirmo a execução de ${artifact.tool_name}.`,
+        clientAction: {
+          type: 'confirm_tool_call',
+          tool_name: artifact.tool_name,
+          tool_args: artifact.tool_args || null,
+        },
+        pageData: artifactPageData,
+      })
+    : null;
 
   return (
     <Box
@@ -433,7 +447,13 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
               Destino: {artifact.recipient_phone || '—'}
             </Typography>
+            {truncate(artifact.preview_message || artifact.message, 220) ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.45, fontSize: '0.68rem' }}>
+                Mensagem: {truncate(artifact.preview_message || artifact.message, 220)}
+              </Typography>
+            ) : null}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {confirmationRequired ? <Chip size="small" label="confirmação obrigatória" sx={{ height: 22, fontSize: '0.68rem', bgcolor: '#FFF1E8', color: '#D9480F', border: '1px solid #FFD8C2' }} /> : null}
               {artifact.message_id ? <Chip size="small" label={`msg ${String(artifact.message_id).slice(0, 8)}`} sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
               {artifact.client_id ? <Chip size="small" label="cliente" sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
               {artifact.user_id ? <Chip size="small" label="colaborador" sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
@@ -445,9 +465,20 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
               Destino: {artifact.to || '—'}
             </Typography>
+            {truncate(artifact.preview_subject, 180) ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+                Assunto: {truncate(artifact.preview_subject, 180)}
+              </Typography>
+            ) : null}
+            {truncate(artifact.preview_body, 220) ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.45, fontSize: '0.68rem' }}>
+                Corpo: {truncate(artifact.preview_body, 220)}
+              </Typography>
+            ) : null}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {confirmationRequired ? <Chip size="small" label="confirmação obrigatória" sx={{ height: 22, fontSize: '0.68rem', bgcolor: '#FFF1E8', color: '#D9480F', border: '1px solid #FFD8C2' }} /> : null}
               {artifact.provider ? <Chip size="small" label={String(artifact.provider)} sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
-              <Chip size="small" label="entregue ao provider" sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} />
+              {!confirmationRequired ? <Chip size="small" label="entregue ao provider" sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} /> : null}
             </Box>
           </Box>
         )}
@@ -522,8 +553,17 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
           <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.55 }}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
               <Chip size="small" label={`${artifact.completed_steps || 0} etapa(s)`} sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} />
+              {confirmationRequired ? <Chip size="small" label="confirmação obrigatória" sx={{ height: 22, fontSize: '0.68rem', bgcolor: '#FFF1E8', color: '#D9480F', border: '1px solid #FFD8C2' }} /> : null}
             </Box>
-            {Array.isArray(artifact.steps) ? (
+            {Array.isArray(artifact.steps_preview) ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                {artifact.steps_preview.slice(0, 6).map((step: any, index: number) => (
+                  <Typography key={`${step.tool || 'preview'}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    {step.index}. {step.tool}{step.summary ? ` · ${truncate(step.summary, 100)}` : ''}
+                  </Typography>
+                ))}
+              </Box>
+            ) : Array.isArray(artifact.steps) ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
                 {artifact.steps.slice(0, 5).map((step: any, index: number) => (
                   <Typography key={`${step.tool || 'step'}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
@@ -534,6 +574,18 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             ) : null}
           </Box>
         )}
+        {confirmAction ? (
+          <Box sx={{ mt: 0.9, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={confirmAction}
+              sx={{ minHeight: 28, fontSize: '0.68rem' }}
+            >
+              Confirmar
+            </Button>
+          </Box>
+        ) : null}
         {(artifact.type === 'prepare_post_approval' || artifact.type === 'schedule_post_publication' || artifact.type === 'publish_studio_post') && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.45, fontSize: '0.68rem' }}>
             {artifact.briefing_id ? `Briefing ${artifact.briefing_id.slice(0, 8)} · ` : ''}{artifact.channel ? `${artifact.channel} · ` : ''}{artifact.scheduled_for ? artifact.scheduled_for : ''}

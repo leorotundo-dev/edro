@@ -36,7 +36,7 @@ type RecentConversation = {
 
 type FeedItem = {
   id: string;
-  kind: 'briefing' | 'alert' | 'auto_briefing' | 'proposal' | 'opportunity';
+  kind: 'daily_brief' | 'briefing' | 'alert' | 'auto_briefing' | 'proposal' | 'opportunity';
   title: string;
   subtitle?: string;
   reasoning?: string;   // fontes/raciocínio — transparência do Jarvis
@@ -48,6 +48,13 @@ type FeedItem = {
 };
 
 type JarvisFeed = {
+  daily_brief?: {
+    active_jobs_total: number;
+    top_action: string | null;
+    jobs_due_today: Array<any>;
+    jobs_blocked: Array<any>;
+    signals_critical: Array<any>;
+  } | null;
   briefing_pending: any[];
   alerts: any[];
   auto_briefings: any[];
@@ -58,6 +65,20 @@ type JarvisFeed = {
 
 function buildFeedItems(feed: JarvisFeed): FeedItem[] {
   const items: FeedItem[] = [];
+
+  if (feed.daily_brief) {
+    items.push({
+      id: 'daily-brief',
+      kind: 'daily_brief',
+      title: feed.daily_brief.top_action || 'Daily brief da operação pronto',
+      subtitle: `${feed.daily_brief.active_jobs_total || 0} jobs ativos · ${feed.daily_brief.jobs_blocked?.length || 0} bloqueados · ${feed.daily_brief.jobs_due_today?.length || 0} vencem hoje`,
+      reasoning: feed.daily_brief.signals_critical?.[0]?.title || 'Resumo automático do que está pegando hoje na agência.',
+      href: '/admin/operacoes',
+      color: '#8B5CF6',
+      icon: <IconBrain size={14} />,
+      cta: 'Abrir operação',
+    });
+  }
 
   for (const j of feed.briefing_pending.slice(0, 3)) {
     items.push({

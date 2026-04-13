@@ -222,6 +222,7 @@ export default function JarvisChatPanel() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const autoSummaryKeyRef = useRef<string | null>(null);
 
   // Keep a ref to always have the latest clientId (avoids stale closures in event handlers)
   const clientIdRef = useRef(clientId);
@@ -291,6 +292,36 @@ export default function JarvisChatPanel() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, pendingMessage]);
+
+  useEffect(() => {
+    const contextualClientId = typeof pageData?.clientId === 'string' ? pageData.clientId : null;
+    const effectiveClientId = contextualClientId ?? clientId ?? null;
+    const summaryKey = isOpen && effectiveClientId && !conversationId ? `${effectiveClientId}:7` : null;
+    if (!summaryKey) {
+      autoSummaryKeyRef.current = null;
+      return;
+    }
+    if (messages.length > 0 || loading || autoSummaryKeyRef.current === summaryKey) return;
+
+    autoSummaryKeyRef.current = summaryKey;
+    apiGet<{ data?: { artifact?: Artifact } }>(`/jarvis/client-weekly-summary?client_id=${encodeURIComponent(effectiveClientId)}&days_back=7`)
+      .then((res) => {
+        const artifact = res?.data?.artifact;
+        if (!artifact) return;
+        setMessages((prev) => {
+          if (prev.length) return prev;
+          return [{
+            role: 'assistant',
+            content: `Separei o resumo semanal de ${clientName || 'este cliente'} para você começar mais rápido.`,
+            timestamp: new Date().toISOString(),
+            artifacts: [artifact],
+          }];
+        });
+      })
+      .catch(() => {
+        autoSummaryKeyRef.current = null;
+      });
+  }, [isOpen, clientId, clientName, conversationId, loading, messages.length, pageData]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
