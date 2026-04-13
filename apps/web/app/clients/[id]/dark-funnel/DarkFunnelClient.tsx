@@ -24,6 +24,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   IconEyeOff,
+  IconFlag,
   IconPlus,
   IconTrash,
   IconX,
@@ -50,6 +51,8 @@ type DarkFunnelEvent = {
   notes: string | null;
   recorded_by: string | null;
   created_at: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
 };
 
 type Stats = {
@@ -105,7 +108,17 @@ export default function DarkFunnelClient({ clientId: clientIdProp }: { clientId?
     raw_text: '',
     notes: '',
     recorded_by: '',
+    campaign_id: '',
   });
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (dialogOpen && campaigns.length === 0) {
+      apiGet<{ success: boolean; data: Array<{ id: string; name: string }> }>(
+        `/campaigns?client_id=${clientId}`
+      ).then((res) => setCampaigns(res?.data ?? [])).catch(() => {});
+    }
+  }, [dialogOpen, clientId, campaigns.length]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -141,9 +154,10 @@ export default function DarkFunnelClient({ clientId: clientIdProp }: { clientId?
         raw_text: form.raw_text,
         notes: form.notes || null,
         recorded_by: form.recorded_by || null,
+        campaign_id: form.campaign_id || null,
       });
       setDialogOpen(false);
-      setForm({ source_type: 'sales_call_note', raw_text: '', notes: '', recorded_by: '' });
+      setForm({ source_type: 'sales_call_note', raw_text: '', notes: '', recorded_by: '', campaign_id: '' });
       await loadData();
     } catch (err: any) {
       setError(err?.message ?? 'Erro ao salvar');
@@ -322,6 +336,14 @@ export default function DarkFunnelClient({ clientId: clientIdProp }: { clientId?
                             color="warning"
                           />
                         )}
+                        {event.campaign_name && (
+                          <Chip
+                            size="small"
+                            icon={<IconFlag size={11} />}
+                            label={event.campaign_name}
+                            sx={{ height: 20, fontSize: '0.62rem', bgcolor: 'rgba(93,135,255,0.12)', color: '#5D87FF' }}
+                          />
+                        )}
                       </Stack>
 
                       {/* Raw text */}
@@ -424,6 +446,22 @@ export default function DarkFunnelClient({ clientId: clientIdProp }: { clientId?
               value={form.recorded_by}
               onChange={(e) => setForm({ ...form, recorded_by: e.target.value })}
             />
+
+            {campaigns.length > 0 && (
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Campanha vinculada (opcional)"
+                value={form.campaign_id}
+                onChange={(e) => setForm({ ...form, campaign_id: e.target.value })}
+              >
+                <MenuItem value="">— nenhuma —</MenuItem>
+                {campaigns.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                ))}
+              </TextField>
+            )}
 
             {error && <Alert severity="error">{error}</Alert>}
           </Stack>

@@ -16,6 +16,8 @@ const PostBody = z.object({
   // Optional overrides (if caller already knows the channel)
   parsed_channel: z.string().optional().nullable(),
   journey_stage: z.enum(['first_touch_dark', 'middle_touch_dark', 'last_touch_dark']).optional().nullable(),
+  // Campaign attribution
+  campaign_id: z.string().uuid().optional().nullable(),
 });
 
 export default async function darkFunnelRoutes(app: FastifyInstance) {
@@ -46,8 +48,8 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
          (tenant_id, client_id, source_type, raw_text,
           parsed_channel, confidence_score,
           related_content_ids, journey_stage,
-          notes, recorded_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::text[],$8,$9,$10)
+          notes, recorded_by, campaign_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::text[],$8,$9,$10,$11)
        RETURNING *`,
       [
         tenantId, body.client_id, body.source_type, body.raw_text,
@@ -56,6 +58,7 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
         finalStage,
         body.notes ?? null,
         body.recorded_by ?? null,
+        body.campaign_id ?? null,
       ]
     );
 
@@ -79,12 +82,14 @@ export default async function darkFunnelRoutes(app: FastifyInstance) {
     const offset = Number(query_params['offset'] ?? 0);
 
     const { rows } = await query(
-      `SELECT id, source_type, raw_text, parsed_channel, confidence_score,
-              related_content_ids, journey_stage, notes, recorded_by, created_at
-       FROM dark_funnel_events
-       WHERE tenant_id=$1 AND client_id=$2
-         ${channel ? `AND parsed_channel=$3` : ''}
-       ORDER BY created_at DESC
+      `SELECT dfe.id, dfe.source_type, dfe.raw_text, dfe.parsed_channel, dfe.confidence_score,
+              dfe.related_content_ids, dfe.journey_stage, dfe.notes, dfe.recorded_by,
+              dfe.created_at, dfe.campaign_id, c.name AS campaign_name
+       FROM dark_funnel_events dfe
+       LEFT JOIN campaigns c ON c.id = dfe.campaign_id
+       WHERE dfe.tenant_id=$1 AND dfe.client_id=$2
+         ${channel ? `AND dfe.parsed_channel=$3` : ''}
+       ORDER BY dfe.created_at DESC
        LIMIT $${channel ? 4 : 3} OFFSET $${channel ? 5 : 4}`,
       channel
         ? [tenantId, clientId, channel, limit, offset]
