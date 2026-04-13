@@ -87,6 +87,7 @@ export async function computeLearningRules(
   clientId: string
 ): Promise<LearningRule[]> {
   // 1. Load format stats aggregated per campaign_format_id
+  //    Also pull ROAS data from format_performance_summary (one row per format).
   const { rows: rawStats } = await query(
     `SELECT
        cf.id              AS format_id,
@@ -99,11 +100,15 @@ export async function computeLearningRules(
        COALESCE(SUM(fpm.likes),        0) AS total_likes,
        COALESCE(SUM(fpm.shares),       0) AS total_shares,
        COALESCE(SUM(fpm.comments),     0) AS total_comments,
-       COALESCE(SUM(fpm.conversions),  0) AS total_conversions
+       COALESCE(SUM(fpm.conversions),  0) AS total_conversions,
+       COALESCE(fps.total_revenue_brl, 0) AS total_revenue,
+       COALESCE(fps.total_spend_brl,   0) AS total_spend
      FROM campaign_formats cf
      JOIN format_performance_metrics fpm ON fpm.campaign_format_id = cf.id
+     LEFT JOIN format_performance_summary fps ON fps.campaign_format_id = cf.id
      WHERE cf.tenant_id=$1 AND cf.client_id=$2
-     GROUP BY cf.id, cf.format_name, cf.platform, cf.campaign_id
+     GROUP BY cf.id, cf.format_name, cf.platform, cf.campaign_id,
+              fps.total_revenue_brl, fps.total_spend_brl
      HAVING SUM(fpm.impressions) > 0`,
     [tenantId, clientId]
   );
@@ -135,6 +140,8 @@ export async function computeLearningRules(
     const shares   = Number(r.total_shares);
     const comments = Number(r.total_comments);
     const conv     = Number(r.total_conversions);
+    const revenue  = Number(r.total_revenue);
+    const spend    = Number(r.total_spend);
     return {
       format_id:       r.format_id,
       format_name:     r.format_name,
@@ -146,6 +153,7 @@ export async function computeLearningRules(
       like_rate:       safeRate(likes, imp),
       eng_rate:        safeRate(saves + clicks + likes + shares + comments, imp),
       conversion_rate: safeRate(conv, imp),
+      roas:            spend > 0 ? revenue / spend : null as number | null,
       amd:             ci.amd,
       triggers:        ci.triggers,
     };
@@ -160,6 +168,12 @@ export async function computeLearningRules(
     eng_rate:        stats.reduce((s, f) => s + f.eng_rate, 0) / n,
     conversion_rate: stats.reduce((s, f) => s + f.conversion_rate, 0) / n,
   };
+
+  // ROAS baseline: mean of formats that actually have spend data
+  const roasFormats = stats.filter((f) => f.roas !== null) as Array<typeof stats[number] & { roas: number }>;
+  const baselineRoas = roasFormats.length >= MIN_SAMPLE_SIZE
+    ? roasFormats.reduce((s, f) => s + f.roas, 0) / roasFormats.length
+    : null;
 
   const rules: LearningRule[] = [];
   const seen = new Set<string>();
@@ -191,6 +205,31 @@ export async function computeLearningRules(
     });
   }
 
+  function tryAddRoasRule(
+    ruleName: string,
+    segDef: Record<string, any>,
+    pattern: string,
+    avgRoas: number,
+    sampleSize: number,
+  ): void {
+    if (!baselineRoas || baselineRoas <= 0) return;
+    if (seen.has(ruleName)) return;
+    if (sampleSize < MIN_SAMPLE_SIZE) return;
+    const up = upliftPct(avgRoas, baselineRoas);
+    if (up < UPLIFT_THRESHOLD_PCT) return;
+    seen.add(ruleName);
+    rules.push({
+      rule_name:          ruleName,
+      segment_definition: segDef,
+      effective_pattern:  pattern,
+      uplift_metric:      'roas',
+      uplift_value:       up,
+      confidence_score:   calcConfidence(sampleSize),
+      sample_size:        sampleSize,
+      is_active:          true,
+    });
+  }
+
   // 5. AMD rules
   const amdGroups: Record<string, typeof stats> = {};
   for (const f of stats) {
@@ -211,6 +250,18 @@ export async function computeLearningRules(
         metric,
         avgRate,
         sz
+      );
+    }
+    // ROAS rule for this AMD
+    const amdRoas = group.filter((f) => f.roas !== null) as Array<typeof group[number] & { roas: number }>;
+    if (amdRoas.length >= MIN_SAMPLE_SIZE) {
+      const avgRoas = amdRoas.reduce((s, f) => s + f.roas, 0) / amdRoas.length;
+      tryAddRoasRule(
+        `amd_${amd}_roas`,
+        { type: 'amd', value: amd },
+        `AMD "${amd}" produz ROAS ${avgRoas.toFixed(2)}x (baseline ${(baselineRoas ?? 0).toFixed(2)}x)`,
+        avgRoas,
+        amdRoas.length,
       );
     }
   }
@@ -237,6 +288,18 @@ export async function computeLearningRules(
         sz
       );
     }
+    // ROAS rule for this trigger
+    const trigRoas = group.filter((f) => f.roas !== null) as Array<typeof group[number] & { roas: number }>;
+    if (trigRoas.length >= MIN_SAMPLE_SIZE) {
+      const avgRoas = trigRoas.reduce((s, f) => s + f.roas, 0) / trigRoas.length;
+      tryAddRoasRule(
+        `trigger_${trigger}_roas`,
+        { type: 'trigger', value: trigger },
+        `Gatilho "${trigger}" produz ROAS ${avgRoas.toFixed(2)}x (baseline ${(baselineRoas ?? 0).toFixed(2)}x)`,
+        avgRoas,
+        trigRoas.length,
+      );
+    }
   }
 
   // 7. Platform rules
@@ -249,16 +312,29 @@ export async function computeLearningRules(
   }
   for (const [platform, group] of Object.entries(platformGroups)) {
     const sz = group.length;
+    const platformKey = platform.toLowerCase().replace(/[^a-z0-9]/g, '_');
     for (const metric of ['save_rate', 'click_rate', 'eng_rate'] as const) {
       const avgRate = group.reduce((s, f) => s + f[metric], 0) / sz;
       const metricLabel = metric.replace('_', ' ');
       tryAddRule(
-        `platform_${platform.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${metric}`,
+        `platform_${platformKey}_${metric}`,
         { type: 'platform', value: platform },
         `Plataforma "${platform}" produz ${(avgRate * 100).toFixed(2)}% de ${metricLabel} (baseline ${(baseline[metric] * 100).toFixed(2)}%)`,
         metric,
         avgRate,
         sz
+      );
+    }
+    // ROAS rule for this platform
+    const platRoas = group.filter((f) => f.roas !== null) as Array<typeof group[number] & { roas: number }>;
+    if (platRoas.length >= MIN_SAMPLE_SIZE) {
+      const avgRoas = platRoas.reduce((s, f) => s + f.roas, 0) / platRoas.length;
+      tryAddRoasRule(
+        `platform_${platformKey}_roas`,
+        { type: 'platform', value: platform },
+        `Plataforma "${platform}" produz ROAS ${avgRoas.toFixed(2)}x (baseline ${(baselineRoas ?? 0).toFixed(2)}x)`,
+        avgRoas,
+        platRoas.length,
       );
     }
   }
