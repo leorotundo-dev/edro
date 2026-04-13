@@ -279,7 +279,7 @@ export default function JarvisHomeSection() {
   const [userName, setUserName] = useState<string | null>(null);
   const [proposalAction, setProposalAction] = useState<Record<string, 'approving' | 'discarding' | 'done'>>({});
   const hasActiveWorkflow = Array.isArray(feed?.recent_workflows)
-    && feed.recent_workflows.some((workflow) => workflow.status === 'running' || workflow.status === 'pending_confirmation');
+    && feed.recent_workflows.some((workflow) => workflow.status === 'running' || workflow.status === 'pending_confirmation' || workflow.status === 'queued');
 
   useEffect(() => {
     try {
@@ -610,6 +610,8 @@ export default function JarvisHomeSection() {
                 : (feed?.recent_workflows || []).slice(0, 3).map((workflow) => {
                     const statusColor = workflow.status === 'completed'
                       ? '#13DEB9'
+                      : workflow.status === 'queued'
+                      ? EDRO_ORANGE
                       : workflow.status === 'rolling_back'
                       ? '#F59E0B'
                       : workflow.status === 'failed'
@@ -625,6 +627,8 @@ export default function JarvisHomeSection() {
                       ? `Workflow falhou em ${workflow.failed_step || 'uma etapa'}`
                       : workflow.status === 'completed'
                       ? 'Workflow concluído'
+                      : workflow.status === 'queued'
+                      ? 'Workflow na fila'
                       : workflow.status === 'pending_confirmation'
                       ? 'Workflow aguardando confirmação'
                       : 'Workflow em execução';

@@ -38,31 +38,77 @@ function buildQueuedPostArtifact(job: JobQueueRecord) {
   };
 }
 
+function parseWorkflowSteps(workflowJson: string) {
+  try {
+    const parsed = JSON.parse(workflowJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildQueuedWorkflowArtifact(job: JobQueueRecord) {
+  const payload = job.payload || {};
+  const args = payload.args || {};
+  const workflowJson = String(args.workflow_json || '');
+  const steps = parseWorkflowSteps(workflowJson);
+  const resumeFromStep = Math.max(1, Number(args.resume_from_step || 1));
+
+  return {
+    type: 'execute_multi_step_workflow',
+    background_job_id: job.id,
+    job_status: job.status === 'processing' ? 'processing' : 'queued',
+    workflow_id: String(args.workflow_id || '').trim() || null,
+    workflow_state_version: Number(args.workflow_state_version || 0) || 0,
+    workflow_status: job.status === 'processing' ? 'running' : 'queued',
+    workflow_json: workflowJson || null,
+    steps_total: steps.length,
+    completed_steps: Math.max(0, resumeFromStep - 1),
+    resume_from_step: resumeFromStep,
+    message: job.status === 'processing'
+      ? 'O Jarvis está executando o workflow em background.'
+      : 'Workflow enfileirado para execução em background.',
+    next_step: job.status === 'processing'
+      ? 'Assim que o workflow terminar, este artifact troca sozinho para o resultado final.'
+      : 'O Jarvis vai executar o fluxo em background e atualizar este card sozinho.',
+  };
+}
+
 export function buildJarvisBackgroundArtifact(job: JobQueueRecord | null | undefined) {
   if (!job || job.type !== 'jarvis_background') return null;
 
   const kind = String(job.payload?.kind || '');
-  if (kind !== 'create_post_pipeline') return null;
-
-  const base = buildQueuedPostArtifact(job);
+  const base = kind === 'execute_multi_step_workflow'
+    ? buildQueuedWorkflowArtifact(job)
+    : kind === 'create_post_pipeline'
+    ? buildQueuedPostArtifact(job)
+    : null;
+  if (!base) return null;
   if (job.status === 'done' && job.payload?.result && typeof job.payload.result === 'object') {
     return {
       ...base,
       ...job.payload.result,
-      type: 'create_post_pipeline',
+      type: kind === 'execute_multi_step_workflow' ? 'execute_multi_step_workflow' : 'create_post_pipeline',
       background_job_id: job.id,
       job_status: 'done',
-      message: job.payload.result.message || 'Pipeline criativo montado com sucesso.',
+      message: job.payload.result.message || (kind === 'execute_multi_step_workflow'
+        ? 'Workflow concluído com sucesso.'
+        : 'Pipeline criativo montado com sucesso.'),
     };
   }
 
   if (job.status === 'failed') {
     return {
       ...base,
+      ...(job.payload?.result && typeof job.payload.result === 'object' ? job.payload.result : {}),
       job_status: 'failed',
-      message: 'O Jarvis não conseguiu concluir o pipeline criativo.',
+      message: kind === 'execute_multi_step_workflow'
+        ? 'O Jarvis não conseguiu concluir o workflow em background.'
+        : 'O Jarvis não conseguiu concluir o pipeline criativo.',
       error: job.error_message || String(job.payload?.result_error || 'Falha desconhecida'),
-      next_step: 'Ajuste o pedido e tente novamente.',
+      next_step: kind === 'execute_multi_step_workflow'
+        ? 'Revise a falha do workflow e siga a próxima ação sugerida.'
+        : 'Ajuste o pedido e tente novamente.',
     };
   }
 

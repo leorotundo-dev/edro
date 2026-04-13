@@ -4,7 +4,7 @@
  */
 
 import crypto from 'crypto';
-import { query } from '../../db';
+import { pool, query } from '../../db';
 import { hasClientPerm } from '../../auth/clientPerms';
 import { can, normalizeRole } from '../../auth/rbac';
 import {
@@ -6058,6 +6058,129 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     else if (hitIrreversible) return { success: false, error: 'Passos irreversíveis de comunicação devem ficar no final do workflow.' };
   }
 
+  if (ctx.explicitConfirmation === true && args.background_execution !== true) {
+    const queuedWorkflowStateVersion = currentWorkflowStateVersion + 1;
+    const queuedClient = await pool.connect();
+    try {
+      await queuedClient.query('BEGIN');
+
+      const { rows: jobRows } = await queuedClient.query<any>(
+        `INSERT INTO job_queue (tenant_id, type, payload, scheduled_for)
+         VALUES ($1, 'jarvis_background', $2::jsonb, NOW())
+         RETURNING *`,
+        [ctx.tenantId, JSON.stringify({
+          kind: 'execute_multi_step_workflow',
+          args: {
+            ...args,
+            confirmed: true,
+            background_execution: true,
+            workflow_id: workflowId,
+            workflow_state_version: queuedWorkflowStateVersion,
+            resume_from_step: resumeFromStep,
+          },
+          context: {
+            tenantId: ctx.tenantId,
+            clientId: (ctx as any).clientId || '',
+            edroClientId: (ctx as any).edroClientId || null,
+            userId: ctx.userId ?? null,
+            userEmail: ctx.userEmail ?? null,
+            role: ctx.role ?? null,
+            explicitConfirmation: true,
+            conversationId: (ctx as any).conversationId || null,
+            conversationRoute: (ctx as any).conversationRoute || 'operations',
+            pageData: (ctx as any).pageData ?? null,
+          },
+          conversation: {
+            route: (ctx as any).conversationRoute === 'planning' ? 'planning' : 'operations',
+            conversationId: (ctx as any).conversationId || null,
+            edroClientId: (ctx as any).edroClientId || null,
+          },
+        })],
+      );
+      const backgroundJob = jobRows[0];
+      const queuedMetadata = {
+        workflow_id: workflowId,
+        workflow_state_version: queuedWorkflowStateVersion,
+        workflow_json: String(args.workflow_json || '[]'),
+        status: 'queued',
+        background_job_id: backgroundJob.id,
+        steps_total: steps.length,
+        completed_steps: startIndex,
+        attempt_count: attemptCount,
+        resume_from_step: resumeFromStep,
+        last_activity_at: new Date().toISOString(),
+        queued_at: new Date().toISOString(),
+        steps_preview: steps.slice(startIndex, startIndex + 6).map((step: any, index: number) => ({
+          index: startIndex + index + 1,
+          tool: String(step?.tool || '').trim(),
+          summary: JSON.stringify(step?.args || {}).slice(0, 180),
+        })),
+        retry_after_at: null,
+        retry_cooldown_ms: null,
+        retry_attempts_remaining: null,
+      };
+
+      if (existingMetadata) {
+        const queueRes = await queuedClient.query<{ id: string }>(
+          `UPDATE agent_action_log
+              SET fired_at = now(),
+                  metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+            WHERE tenant_id = $1::uuid
+              AND trigger_key = $2
+              AND COALESCE(metadata->>'status', '') NOT IN ('queued', 'running', 'rolling_back', 'completed')
+              AND COALESCE((metadata->>'requires_manual_followup')::boolean, false) = false
+              AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $5
+              AND (
+                COALESCE(metadata->>'status', '') <> 'failed'
+                OR COALESCE((metadata->>'resume_from_step')::int, 1) = $4
+              )
+            RETURNING id`,
+          [ctx.tenantId, workflowTriggerKey, JSON.stringify(queuedMetadata), resumeFromStep, currentWorkflowStateVersion],
+        );
+        if (!queueRes.rowCount) {
+          await queuedClient.query('ROLLBACK');
+          return { success: false, error: 'Este workflow mudou de estado e não pode ser enfileirado agora. Recarregue e tente novamente.' };
+        }
+      } else {
+        await queuedClient.query(
+          `INSERT INTO agent_action_log (tenant_id, trigger_key, metadata)
+           VALUES ($1::uuid, $2, $3::jsonb)
+           ON CONFLICT (trigger_key, fired_date)
+           DO UPDATE SET
+             tenant_id = EXCLUDED.tenant_id,
+             fired_at = now(),
+             metadata = COALESCE(agent_action_log.metadata, '{}'::jsonb) || EXCLUDED.metadata`,
+          [ctx.tenantId, workflowTriggerKey, JSON.stringify(queuedMetadata)],
+        );
+      }
+
+      await queuedClient.query('COMMIT');
+      return {
+        success: true,
+        data: {
+          background_job_id: backgroundJob.id,
+          job_status: 'queued',
+          workflow_id: workflowId,
+          workflow_state_version: queuedWorkflowStateVersion,
+          workflow_status: 'queued',
+          workflow_json: String(args.workflow_json || '[]'),
+          completed_steps: startIndex,
+          steps_total: steps.length,
+          attempt_count: attemptCount,
+          resume_from_step: resumeFromStep,
+          steps_preview: queuedMetadata.steps_preview,
+          message: 'Workflow enfileirado para execução em background.',
+          next_step: 'O Jarvis vai executar o fluxo em background e atualizar este card sozinho.',
+        },
+      };
+    } catch (error: any) {
+      await queuedClient.query('ROLLBACK').catch(() => {});
+      return { success: false, error: error?.message || 'Falha ao enfileirar o workflow.' };
+    } finally {
+      queuedClient.release();
+    }
+  }
+
   const confirmedCtx = { ...ctx, explicitConfirmation: true };
   const nextAttemptCount = attemptCount + 1;
   const runningWorkflowStateVersion = currentWorkflowStateVersion + 1;
@@ -6586,6 +6709,20 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     })],
   ).catch(() => null);
   return { success: true, data };
+}
+
+export async function runExecuteMultiStepWorkflowNow(args: any, ctx: ToolContext): Promise<ToolResult> {
+  return opsExecuteMultiStepWorkflow(
+    { ...args, confirmed: true, background_execution: true },
+    {
+      ...(ctx as any),
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      role: ctx.role ?? null,
+      explicitConfirmation: true,
+    },
+  );
 }
 
 async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {

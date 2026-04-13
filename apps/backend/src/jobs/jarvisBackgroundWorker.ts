@@ -1,5 +1,5 @@
 import { fetchJobs, getJobById, markJob, mergeJobPayload } from './jobQueue';
-import { runCreatePostPipelineNow, type ToolContext } from '../services/ai/toolExecutor';
+import { runCreatePostPipelineNow, runExecuteMultiStepWorkflowNow, type ToolContext } from '../services/ai/toolExecutor';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import { updateUnifiedConversationArtifact } from '../services/jarvisPolicyService';
 
@@ -33,25 +33,35 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
       const edroClientId = payload.conversation?.edroClientId || payload.context?.edroClientId || null;
 
       try {
-        if (payload.kind !== 'create_post_pipeline' || !payload.context) {
+        if (!payload.context || !['create_post_pipeline', 'execute_multi_step_workflow'].includes(String(payload.kind || ''))) {
           await markJob(job.id, 'failed', 'Unsupported Jarvis background job');
           continue;
         }
 
         await mergeJobPayload(job.id, { started_at: new Date().toISOString() });
 
-        const result = await runCreatePostPipelineNow(payload.args || {}, payload.context);
+        const result = payload.kind === 'execute_multi_step_workflow'
+          ? await runExecuteMultiStepWorkflowNow(payload.args || {}, payload.context)
+          : await runCreatePostPipelineNow(payload.args || {}, payload.context);
+        const artifactType = payload.kind === 'execute_multi_step_workflow'
+          ? 'execute_multi_step_workflow'
+          : 'create_post_pipeline';
+        const failureMessage = payload.kind === 'execute_multi_step_workflow'
+          ? 'O Jarvis não conseguiu concluir o workflow em background.'
+          : 'O Jarvis não conseguiu concluir o pipeline criativo.';
         if (!result.success) {
           const failureArtifact = {
             ...(buildJarvisBackgroundArtifact(await getJobById(job.id, job.tenant_id)) || {
-              type: 'create_post_pipeline',
+              type: artifactType,
               background_job_id: job.id,
             }),
             job_status: 'failed',
-            message: 'O Jarvis não conseguiu concluir o pipeline criativo.',
+            ...(result.data && typeof result.data === 'object' ? result.data : {}),
+            message: failureMessage,
             error: result.error || 'Falha desconhecida',
           };
           await mergeJobPayload(job.id, {
+            result: result.data && typeof result.data === 'object' ? result.data : null,
             result_error: result.error || 'Falha desconhecida',
             failed_at: new Date().toISOString(),
           });
@@ -78,7 +88,7 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
         const completedJob = await getJobById(job.id, job.tenant_id);
         const completedArtifact = buildJarvisBackgroundArtifact(completedJob) || {
           ...(result.data || {}),
-          type: 'create_post_pipeline',
+          type: artifactType,
           background_job_id: job.id,
           job_status: 'done',
         };
@@ -94,13 +104,19 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
           }).catch(() => {});
         }
       } catch (error: any) {
+        const artifactType = payload.kind === 'execute_multi_step_workflow'
+          ? 'execute_multi_step_workflow'
+          : 'create_post_pipeline';
+        const failureMessage = payload.kind === 'execute_multi_step_workflow'
+          ? 'O Jarvis não conseguiu concluir o workflow em background.'
+          : 'O Jarvis não conseguiu concluir o pipeline criativo.';
         const failureArtifact = {
           ...(buildJarvisBackgroundArtifact(await getJobById(job.id, job.tenant_id)) || {
-            type: 'create_post_pipeline',
+            type: artifactType,
             background_job_id: job.id,
           }),
           job_status: 'failed',
-          message: 'O Jarvis não conseguiu concluir o pipeline criativo.',
+          message: failureMessage,
           error: error?.message || 'Falha desconhecida',
         };
         await mergeJobPayload(job.id, {
