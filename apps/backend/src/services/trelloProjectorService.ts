@@ -9,7 +9,11 @@
  *   createCard              — insert new card (partial; full sync will enrich later)
  *   deleteCard              — mark archived
  *   commentCard             — upsert project_card_comments
+ *   createCheckItem          — add checklist item in JSONB
+ *   updateCheckItem          — rename checklist item in JSONB
  *   updateCheckItemStateOnCard — toggle checklist item in JSONB
+ *   deleteCheckItem          — remove checklist item from JSONB
+ *   updateChecklist          — rename checklist container
  *   addMemberToCard         — insert project_card_members
  *   removeMemberFromCard    — delete from project_card_members
  */
@@ -252,7 +256,7 @@ async function handleUpdateCheckItem(tenantId: string, action: TrelloWebhookActi
   if (!clRes.rows.length) return;
 
   const cl = clRes.rows[0];
-  const idx = cl.items.findIndex((it) => it.id === checkItem.id);
+  const idx = cl.items.findIndex((it) => (it as any).trello_id === checkItem.id || (it as any).id === checkItem.id);
   if (idx === -1) {
     // Item not found by ID — try by name as fallback
     const nameIdx = cl.items.findIndex((it) => it.text === checkItem.name);
@@ -265,6 +269,120 @@ async function handleUpdateCheckItem(tenantId: string, action: TrelloWebhookActi
   await query(
     `UPDATE project_card_checklists SET items = $1, updated_at = now() WHERE id = $2`,
     [JSON.stringify(cl.items), cl.id],
+  );
+}
+
+async function resolveChecklistRow(
+  tenantId: string,
+  cardId: string,
+  checklist?: TrelloActionChecklist,
+): Promise<{ id: string; name: string | null; items: Array<{ trello_id?: string; id?: string; text: string; checked: boolean }> } | null> {
+  const clWhere = checklist?.id
+    ? 'card_id = $1 AND tenant_id = $2 AND trello_checklist_id = $3'
+    : 'card_id = $1 AND tenant_id = $2';
+  const clParams = checklist?.id ? [cardId, tenantId, checklist.id] : [cardId, tenantId];
+
+  const clRes = await query<{ id: string; name: string | null; items: Array<{ trello_id?: string; id?: string; text: string; checked: boolean }> }>(
+    `SELECT id, name, items FROM project_card_checklists WHERE ${clWhere} LIMIT 1`,
+    clParams,
+  );
+  return clRes.rows[0] ?? null;
+}
+
+async function handleCreateCheckItem(tenantId: string, action: TrelloWebhookAction): Promise<void> {
+  const trelloCardId = action.data.card?.id;
+  const checkItem = action.data.checkItem;
+  const checklist = action.data.checklist;
+  if (!trelloCardId || !checkItem?.id) return;
+
+  const cardId = await resolveCardId(tenantId, trelloCardId);
+  if (!cardId) return;
+
+  const existing = await resolveChecklistRow(tenantId, cardId, checklist);
+  const newItem = {
+    trello_id: checkItem.id,
+    text: checkItem.name,
+    checked: checkItem.state === 'complete',
+  };
+
+  if (!existing) {
+    await query(
+      `INSERT INTO project_card_checklists (card_id, tenant_id, name, items, trello_checklist_id)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (trello_checklist_id) DO NOTHING`,
+      [cardId, tenantId, checklist?.name ?? 'Checklist', JSON.stringify([newItem]), checklist?.id ?? null],
+    );
+    return;
+  }
+
+  if (existing.items.some((it) => it.trello_id === checkItem.id || it.id === checkItem.id)) return;
+
+  await query(
+    `UPDATE project_card_checklists SET items = $1, updated_at = now() WHERE id = $2`,
+    [JSON.stringify([...existing.items, newItem]), existing.id],
+  );
+}
+
+async function handleDeleteCheckItem(tenantId: string, action: TrelloWebhookAction): Promise<void> {
+  const trelloCardId = action.data.card?.id;
+  const checkItem = action.data.checkItem;
+  const checklist = action.data.checklist;
+  if (!trelloCardId || !checkItem?.id) return;
+
+  const cardId = await resolveCardId(tenantId, trelloCardId);
+  if (!cardId) return;
+
+  const existing = await resolveChecklistRow(tenantId, cardId, checklist);
+  if (!existing) return;
+
+  const nextItems = existing.items.filter((it) => it.trello_id !== checkItem.id && it.id !== checkItem.id && it.text !== checkItem.name);
+  await query(
+    `UPDATE project_card_checklists SET items = $1, updated_at = now() WHERE id = $2`,
+    [JSON.stringify(nextItems), existing.id],
+  );
+}
+
+async function handleRenameCheckItem(tenantId: string, action: TrelloWebhookAction): Promise<void> {
+  const trelloCardId = action.data.card?.id;
+  const checkItem = action.data.checkItem;
+  const checklist = action.data.checklist;
+  if (!trelloCardId || !checkItem?.id) return;
+
+  const cardId = await resolveCardId(tenantId, trelloCardId);
+  if (!cardId) return;
+
+  const existing = await resolveChecklistRow(tenantId, cardId, checklist);
+  if (!existing) return;
+
+  const idx = existing.items.findIndex((it) => it.trello_id === checkItem.id || it.id === checkItem.id);
+  if (idx === -1) return;
+
+  existing.items[idx] = {
+    ...existing.items[idx],
+    trello_id: existing.items[idx].trello_id ?? checkItem.id,
+    text: checkItem.name,
+  };
+
+  await query(
+    `UPDATE project_card_checklists SET items = $1, updated_at = now() WHERE id = $2`,
+    [JSON.stringify(existing.items), existing.id],
+  );
+}
+
+async function handleUpdateChecklist(tenantId: string, action: TrelloWebhookAction): Promise<void> {
+  const trelloCardId = action.data.card?.id;
+  const checklist = action.data.checklist;
+  if (!trelloCardId || !checklist?.id || !checklist.name) return;
+
+  const cardId = await resolveCardId(tenantId, trelloCardId);
+  if (!cardId) return;
+
+  const existing = await resolveChecklistRow(tenantId, cardId, checklist);
+  if (!existing) return;
+
+  await query(
+    `UPDATE project_card_checklists SET name = $1, updated_at = now() WHERE id = $2`,
+    [checklist.name, existing.id],
   );
 }
 
@@ -306,7 +424,10 @@ async function handleRemoveMember(tenantId: string, action: TrelloWebhookAction)
 const OUTBOX_OP_FOR_ACTION: Record<string, string> = {
   updateCard:                   'card.update',
   commentCard:                  'comment.add',
+  createCheckItem:              'checklist.toggle',
+  updateCheckItem:              'checklist.toggle',
   updateCheckItemStateOnCard:   'checklist.toggle',
+  deleteCheckItem:              'checklist.toggle',
   addMemberToCard:              'member.sync',
   removeMemberFromCard:         'member.sync',
 };
@@ -373,8 +494,28 @@ export async function processWebhookAction(
     case 'commentCard':
       await handleCommentCard(tenantId, action);
       return true;
+    case 'createCheckItem':
+      await handleCreateCheckItem(tenantId, action);
+      if (trelloCardId) {
+        const cardId = await resolveCardId(tenantId, trelloCardId);
+        if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+      }
+      return true;
+    case 'updateCheckItem':
+      await handleRenameCheckItem(tenantId, action);
+      return true;
     case 'updateCheckItemStateOnCard':
       await handleUpdateCheckItem(tenantId, action);
+      return true;
+    case 'deleteCheckItem':
+      await handleDeleteCheckItem(tenantId, action);
+      if (trelloCardId) {
+        const cardId = await resolveCardId(tenantId, trelloCardId);
+        if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+      }
+      return true;
+    case 'updateChecklist':
+      await handleUpdateChecklist(tenantId, action);
       return true;
     case 'addMemberToCard':
       await handleAddMember(tenantId, action);
