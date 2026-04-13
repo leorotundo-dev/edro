@@ -1699,24 +1699,40 @@ export default async function campaignRoutes(app: FastifyInstance) {
       const r = recentRows[0];
       const darkFunnelCount = Number(dfRows[0]?.count ?? 0);
 
+      const imp     = Number(s.total_impressions);
+      const clicks  = Number(s.total_clicks);
+      const conv    = Number(s.total_conversions);
+      const spend   = Number(s.total_spend_brl);
+      const revenue = Number(s.total_revenue_brl);
+      const avgRoas = spend > 0 ? revenue / spend : null;
+
+      // Campaign Health Score (0–100): ROAS(40) + CTR(30) + Conv(20) + DarkFunnel(10)
+      let healthScore: number | null = null;
+      if (s.has_data && imp > 0) {
+        const roasPts = avgRoas !== null ? Math.min(40, (avgRoas / 3.0) * 40) : 0;
+        const ctrPts  = Math.min(30, (clicks / imp / 0.03) * 30);
+        const convPts = Math.min(20, (conv   / imp / 0.02) * 20);
+        const dfPts   = Math.min(10, (darkFunnelCount / imp / 0.001) * 10);
+        healthScore   = Math.round(roasPts + ctrPts + convPts + dfPts);
+      }
+
       const perf = {
         has_data: s.has_data,
         format_count: Number(s.format_count),
-        total_impressions: Number(s.total_impressions),
+        total_impressions: imp,
         total_reach: Number(s.total_reach),
-        total_clicks: Number(s.total_clicks),
+        total_clicks: clicks,
         total_engagements: Number(s.total_engagements),
-        total_conversions: Number(s.total_conversions),
-        total_spend_brl: Number(s.total_spend_brl),
-        total_revenue_brl: Number(s.total_revenue_brl),
-        avg_roas: s.total_spend_brl && Number(s.total_spend_brl) > 0
-          ? Number((Number(s.total_revenue_brl) / Number(s.total_spend_brl)).toFixed(2))
-          : null,
+        total_conversions: conv,
+        total_spend_brl: spend,
+        total_revenue_brl: revenue,
+        avg_roas: avgRoas !== null ? Number(avgRoas.toFixed(2)) : null,
         impressions_30d: Number(r.impressions_30d),
         reach_30d: Number(r.reach_30d),
         conversions_30d: Number(r.conversions_30d),
         spend_30d: Number(r.spend_30d),
         dark_funnel_count: darkFunnelCount,
+        health_score: healthScore,
       };
 
       // Upsert into cache (non-blocking)
