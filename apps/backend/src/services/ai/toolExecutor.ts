@@ -6046,6 +6046,18 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     if (/(timeout|timed out|temporar|429|502|503|504|network|fetch|gateway|service unavailable|econnreset|etimedout)/i.test(text)) return 'transient';
     return 'business';
   };
+  const buildFailurePolicy = (failureClass: string) => {
+    if (failureClass === 'transient') {
+      return { recommended_next_action: 'retry', recommended_next_label: 'Tentar novamente' };
+    }
+    if (failureClass === 'permission') {
+      return { recommended_next_action: 'fix_permissions', recommended_next_label: 'Ajustar permissões' };
+    }
+    if (failureClass === 'irreversible') {
+      return { recommended_next_action: 'manual_followup', recommended_next_label: 'Resolver manualmente' };
+    }
+    return { recommended_next_action: 'fix_input', recommended_next_label: 'Corrigir dados do workflow' };
+  };
   const summarizeRollback = (items: any[]) => {
     const total = items.length;
     const failures = items.filter((item) => item?.success === false).length;
@@ -6210,6 +6222,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         const completedSteps = startIndex + executed.filter((item) => item.success).length;
         const rollbackSummary = summarizeRollback(rollback);
         const failureClass = classifyWorkflowFailure(result.error || `Workflow falhou em ${toolName}.`, rollbackSummary);
+        const failurePolicy = buildFailurePolicy(failureClass);
         const data = {
           workflow_id: workflowId,
           workflow_status: 'failed',
@@ -6217,6 +6230,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           failed_step: toolName,
           last_error: result.error || `Workflow falhou em ${toolName}.`,
           failure_class: failureClass,
+          ...failurePolicy,
           completed_steps: completedSteps,
           attempt_count: nextAttemptCount,
           resume_from_step: completedSteps + 1,
@@ -6235,6 +6249,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             failed_step: toolName,
             last_error: result.error || `Workflow falhou em ${toolName}.`,
             failure_class: failureClass,
+            ...failurePolicy,
             completed_steps: completedSteps,
             attempt_count: nextAttemptCount,
             resume_from_step: completedSteps + 1,

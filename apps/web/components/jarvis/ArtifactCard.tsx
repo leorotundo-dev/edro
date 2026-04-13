@@ -187,6 +187,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
     : null;
   const retryWorkflowAction = artifact.type === 'execute_multi_step_workflow'
     && artifact.workflow_status === 'failed'
+    && String(artifact.recommended_next_action || '') === 'retry'
     && artifact.requires_manual_followup !== true
     && onRunClientAction
     && workflowJson
@@ -627,6 +628,11 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             {artifact.failed_step ? (
               <Typography variant="caption" color="error.main" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
                 Falhou em: {artifact.failed_step}{artifact.failure_class ? ` · ${artifact.failure_class}` : ''}
+              </Typography>
+            ) : null}
+            {artifact.recommended_next_label ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Próxima ação sugerida: {artifact.recommended_next_label}
               </Typography>
             ) : null}
             {artifact.rollback_status && artifact.rollback_status !== 'not_needed' ? (

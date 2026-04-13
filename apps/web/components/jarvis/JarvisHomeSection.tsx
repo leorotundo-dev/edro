@@ -81,6 +81,8 @@ type JarvisFeed = {
     failed_step?: string | null;
     last_error?: string | null;
     failure_class?: string | null;
+    recommended_next_action?: string | null;
+    recommended_next_label?: string | null;
     rollback_status?: string | null;
     rollback_total?: number;
     rollback_completed?: number;
@@ -646,6 +648,11 @@ export default function JarvisHomeSection() {
                               {workflow.last_error}{workflow.failure_class ? ` · ${workflow.failure_class}` : ''}
                             </Typography>
                           ) : null}
+                          {workflow.status === 'failed' && workflow.recommended_next_label ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              Próxima ação: {workflow.recommended_next_label}
+                            </Typography>
+                          ) : null}
                           {workflow.rollback_status && workflow.rollback_status !== 'not_needed' ? (
                             <Typography
                               variant="caption"
@@ -668,7 +675,10 @@ export default function JarvisHomeSection() {
                             </Typography>
                           ) : null}
                         </Box>
-                        {workflow.status === 'failed' && workflow.workflow_json && workflow.requires_manual_followup !== true ? (
+                        {workflow.status === 'failed'
+                          && workflow.workflow_json
+                          && workflow.requires_manual_followup !== true
+                          && workflow.recommended_next_action === 'retry' ? (
                           <Button
                             size="small"
                             variant="outlined"
