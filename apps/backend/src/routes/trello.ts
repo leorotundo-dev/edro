@@ -423,13 +423,52 @@ export default async function trelloRoutes(app: FastifyInstance) {
                 method: 'PUT',
                 signal: AbortSignal.timeout(8_000),
               });
-              if (!syncRes.ok) console.warn('[trello] card update sync-back failed:', syncRes.status, await syncRes.text().catch(() => ''));
+              if (!syncRes.ok) {
+                console.warn('[trello] card update sync-back failed:', syncRes.status, await syncRes.text().catch(() => ''));
+                enqueueOutbox(
+                  tenantId,
+                  'card.update',
+                  { trelloCardId, fields: trelloUpdate },
+                  `card.update.${trelloCardId}`,
+                ).catch(() => undefined);
+              }
             }
           }
         }
       } catch (err) {
         // Non-fatal — local update already applied
         console.warn('[trello] sync-back failed:', (err as any)?.message);
+        if (body.title !== undefined || body.description !== undefined || body.due_date !== undefined || body.due_complete !== undefined || body.is_archived !== undefined || body.list_id !== undefined || body.position !== undefined) {
+          const { rows: cardRows } = await query<{ trello_card_id: string }>(
+            `SELECT trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2`,
+            [cardId, tenantId],
+          );
+          const trelloCardId = cardRows[0]?.trello_card_id;
+          if (trelloCardId) {
+            const fields: Record<string, string> = {};
+            if (body.position !== undefined) fields.pos = String(body.position);
+            if (body.due_complete !== undefined) fields.dueComplete = String(body.due_complete);
+            if (body.due_date !== undefined) fields.due = toTrelloDueValue(body.due_date);
+            if (body.description !== undefined) fields.desc = body.description ?? '';
+            if (body.title !== undefined) fields.name = body.title;
+            if (body.is_archived !== undefined) fields.closed = String(body.is_archived);
+            if (body.list_id !== undefined) {
+              const { rows: listRows } = await query<{ trello_list_id: string }>(
+                `SELECT trello_list_id FROM project_lists WHERE id = $1 AND tenant_id = $2`,
+                [body.list_id, tenantId],
+              );
+              if (listRows[0]?.trello_list_id) fields.idList = listRows[0].trello_list_id;
+            }
+            if (Object.keys(fields).length) {
+              enqueueOutbox(
+                tenantId,
+                'card.update',
+                { trelloCardId, fields },
+                `card.update.${trelloCardId}`,
+              ).catch(() => undefined);
+            }
+          }
+        }
       }
     }
 
@@ -482,6 +521,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
           const created = await res.json() as { id: string; shortUrl: string };
           trelloCardId = created.id;
           trelloUrl = created.shortUrl;
+        } else {
+          console.warn('[trello] create card on Trello failed:', res.status, await res.text().catch(() => ''));
         }
       }
     } catch (err) {
@@ -495,6 +536,21 @@ export default async function trelloRoutes(app: FastifyInstance) {
        RETURNING id`,
       [boardId, body.list_id, tenantId, body.title, position, body.due_date ?? null, trelloCardId, trelloUrl]
     );
+
+    if (!trelloCardId && listRows[0].trello_list_id) {
+      enqueueOutbox(
+        tenantId,
+        'card.create',
+        {
+          localCardId: inserted[0].id,
+          trelloListId: listRows[0].trello_list_id,
+          name: body.title,
+          due: body.due_date ?? null,
+          pos: 'bottom',
+        },
+        `card.create.${inserted[0].id}`,
+      ).catch(() => undefined);
+    }
 
     return reply.send({ ok: true, card: { id: inserted[0].id, title: body.title, list_id: body.list_id } });
   });
@@ -1313,6 +1369,22 @@ export default async function trelloRoutes(app: FastifyInstance) {
       ],
     );
 
+    if (!trelloCardId && preferredList.trello_list_id) {
+      enqueueOutbox(
+        tenantId,
+        'card.create',
+        {
+          localCardId: insertRes.rows[0].id,
+          trelloListId: preferredList.trello_list_id,
+          name: body.title,
+          desc: body.summary ?? '',
+          due: dueDateValue ? toTrelloDueValue(dueDateValue) : null,
+          pos: 'bottom',
+        },
+        `card.create.${insertRes.rows[0].id}`,
+      ).catch(() => undefined);
+    }
+
     let ownerName: string | null = null;
     let ownerEmail: string | null = null;
 
@@ -1352,10 +1424,24 @@ export default async function trelloRoutes(app: FastifyInstance) {
                 method: 'POST',
                 signal: AbortSignal.timeout(8_000),
               });
-              if (!syncRes.ok) console.warn('[trello ops] owner sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
+              if (!syncRes.ok) {
+                console.warn('[trello ops] owner sync failed:', syncRes.status, await syncRes.text().catch(() => ''));
+                enqueueOutbox(
+                  tenantId,
+                  'member.sync',
+                  { trelloCardId, toRemove: [], toAdd: [trelloMemberId] },
+                  `member.sync.${trelloCardId}`,
+                ).catch(() => undefined);
+              }
             }
           } catch (err: any) {
             console.warn('[trello ops] owner assignment sync failed:', err?.message);
+            enqueueOutbox(
+              tenantId,
+              'member.sync',
+              { trelloCardId, toRemove: [], toAdd: [trelloMemberId] },
+              `member.sync.${trelloCardId}`,
+            ).catch(() => undefined);
           }
         }
       }
@@ -2321,10 +2407,24 @@ export default async function trelloRoutes(app: FastifyInstance) {
             method: 'POST',
             signal: AbortSignal.timeout(8_000),
           });
-          if (!syncRes.ok) console.warn('[trello] assign member sync-back failed:', syncRes.status, await syncRes.text().catch(() => ''));
+          if (!syncRes.ok) {
+            console.warn('[trello] assign member sync-back failed:', syncRes.status, await syncRes.text().catch(() => ''));
+            enqueueOutbox(
+              tenantId,
+              'member.sync',
+              { trelloCardId, toRemove: [], toAdd: [trello_member_id] },
+              `member.sync.${trelloCardId}`,
+            ).catch(() => undefined);
+          }
         }
       } catch (err: any) {
         console.warn('[trello] assign member sync failed:', err?.message);
+        enqueueOutbox(
+          tenantId,
+          'member.sync',
+          { trelloCardId, toRemove: [], toAdd: [trello_member_id] },
+          `member.sync.${trelloCardId}`,
+        ).catch(() => undefined);
       }
     }
 

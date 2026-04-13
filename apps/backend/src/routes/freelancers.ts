@@ -18,6 +18,7 @@ import { isWhatsAppConfigured, sendWhatsAppText } from '../services/whatsappServ
 import { dispatchNotification, upsertNotificationPreferences } from '../services/notificationService';
 import { issuePortalLoginCode } from '../services/authService';
 import { sendEmail } from '../services/emailService';
+import { enqueueOutbox } from '../services/trelloOutboxService';
 import {
   attachExecutionSnapshotToPayload,
   isFreelancerVisibleBriefingStatus,
@@ -1934,12 +1935,26 @@ export default async function freelancersRoutes(app: FastifyInstance) {
           const { getTrelloCredentials } = await import('../services/trelloSyncService');
           const creds = await getTrelloCredentials(cardRows[0].tenant_id);
           if (creds) {
-            const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, text: `❌ Job recusado. Motivo: ${reason}` });
-            await fetch(`https://api.trello.com/1/cards/${cardRows[0].trello_card_id}/actions/comments?${params}`, {
+            const text = `❌ Job recusado. Motivo: ${reason}`;
+            const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, text });
+            const response = await fetch(`https://api.trello.com/1/cards/${cardRows[0].trello_card_id}/actions/comments?${params}`, {
               method: 'POST', signal: AbortSignal.timeout(8_000),
             });
+            if (!response.ok) {
+              enqueueOutbox(
+                cardRows[0].tenant_id,
+                'comment.add',
+                { trelloCardId: cardRows[0].trello_card_id, text },
+              ).catch(() => undefined);
+            }
           }
-        } catch { /* best-effort */ }
+        } catch {
+          enqueueOutbox(
+            cardRows[0].tenant_id,
+            'comment.add',
+            { trelloCardId: cardRows[0].trello_card_id, text: `❌ Job recusado. Motivo: ${reason}` },
+          ).catch(() => undefined);
+        }
       }
 
       return reply.send({ ok: true, action });

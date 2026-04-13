@@ -46,6 +46,59 @@ async function execCardUpdate(creds: { apiKey: string; apiToken: string }, paylo
   if (!res.ok) throw new Error(`card.update ${res.status}: ${await res.text().catch(() => '')}`);
 }
 
+async function execCardCreate(
+  creds: { apiKey: string; apiToken: string },
+  tenantId: string,
+  payload: Record<string, any>,
+): Promise<void> {
+  const {
+    localCardId,
+    trelloListId,
+    name,
+    desc,
+    due,
+    pos,
+  } = payload as {
+    localCardId: string;
+    trelloListId: string;
+    name: string;
+    desc?: string | null;
+    due?: string | null;
+    pos?: string | null;
+  };
+  if (!localCardId || !trelloListId || !name) return;
+
+  const existing = await query<{ trello_card_id: string | null }>(
+    `SELECT trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    [localCardId, tenantId],
+  );
+  if (existing.rows[0]?.trello_card_id) return;
+
+  const params = new URLSearchParams({
+    key: creds.apiKey,
+    token: creds.apiToken,
+    idList: trelloListId,
+    name,
+    ...(desc ? { desc } : {}),
+    ...(due ? { due } : {}),
+    ...(pos ? { pos } : {}),
+  });
+  // codeql[js/request-forgery] TRELLO_BASE is a hardcoded constant
+  const res = await fetch(`${TRELLO_BASE}/cards?${params}`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`card.create ${res.status}: ${await res.text().catch(() => '')}`);
+
+  const created = await res.json() as { id: string; shortUrl?: string; url?: string };
+  await query(
+    `UPDATE project_cards
+     SET trello_card_id = $1, trello_url = $2, updated_at = now()
+     WHERE id = $3 AND tenant_id = $4`,
+    [created.id, created.shortUrl ?? created.url ?? null, localCardId, tenantId],
+  );
+}
+
 async function execMemberSync(creds: { apiKey: string; apiToken: string }, payload: Record<string, any>): Promise<void> {
   const { trelloCardId, toRemove, toAdd } = payload as {
     trelloCardId: string;
@@ -108,6 +161,7 @@ async function executeItem(item: OutboxItem): Promise<void> {
   if (!creds) throw new Error('no_trello_credentials');
 
   switch (item.operation) {
+    case 'card.create':       return execCardCreate(creds, item.tenant_id, item.payload);
     case 'card.update':       return execCardUpdate(creds, item.payload);
     case 'member.sync':       return execMemberSync(creds, item.payload);
     case 'comment.add':       return execCommentAdd(creds, item.payload);

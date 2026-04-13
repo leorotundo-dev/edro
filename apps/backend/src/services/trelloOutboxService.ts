@@ -4,6 +4,7 @@
  * Enqueue and flush Trello outbound operations.
  *
  * Operations:
+ *   card.create        — { localCardId, trelloListId, name, desc?, due?, pos? }
  *   card.update        — { trelloCardId, fields: { name?, desc?, due?, dueComplete? } }
  *   member.sync        — { trelloCardId, toRemove: string[], toAdd: string[] }
  *   comment.add        — { trelloCardId, text }
@@ -16,6 +17,7 @@
 import { query } from '../db';
 
 export type OutboxOperation =
+  | 'card.create'
   | 'card.update'
   | 'member.sync'
   | 'comment.add'
