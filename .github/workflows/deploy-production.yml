@@ -238,29 +238,32 @@ jobs:
       - name: Railway version
         run: railway --version
 
+      - name: Make Railway retry helper executable
+        run: chmod +x scripts/retry-railway-up.sh
+
       - name: Deploy edro-backend
         if: needs.prepare.outputs.deploy_backend == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service edro-backend --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+        run: scripts/retry-railway-up.sh edro-backend "${{ needs.prepare.outputs.project_id }}" "${{ needs.prepare.outputs.environment }}"
 
       - name: Deploy edro-web
         if: needs.prepare.outputs.deploy_web == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service edro-web --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+        run: scripts/retry-railway-up.sh edro-web "${{ needs.prepare.outputs.project_id }}" "${{ needs.prepare.outputs.environment }}"
 
       - name: Deploy edro-web-cliente
         if: needs.prepare.outputs.deploy_web_cliente == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service edro-web-cliente --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+        run: scripts/retry-railway-up.sh edro-web-cliente "${{ needs.prepare.outputs.project_id }}" "${{ needs.prepare.outputs.environment }}"
 
       - name: Deploy edro-web-freelancer
         if: needs.prepare.outputs.deploy_web_freelancer == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service edro-web-freelancer --project "${{ needs.prepare.outputs.project_id }}" --environment "${{ needs.prepare.outputs.environment }}" --ci
+        run: scripts/retry-railway-up.sh edro-web-freelancer "${{ needs.prepare.outputs.project_id }}" "${{ needs.prepare.outputs.environment }}"
 
       - name: Capture deployment lock
         env:
