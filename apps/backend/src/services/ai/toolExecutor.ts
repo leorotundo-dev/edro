@@ -5957,6 +5957,16 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     error: item.error || null,
     summary: summarizeStepResult(item.data),
   }));
+  const summarizeRollback = (items: any[]) => {
+    const total = items.length;
+    const failures = items.filter((item) => item?.success === false).length;
+    return {
+      rollback_total: total,
+      rollback_completed: total,
+      rollback_failures: failures,
+      rollback_status: total === 0 ? 'not_needed' : failures > 0 ? 'partial_failure' : 'completed',
+    };
+  };
   await query(
     `INSERT INTO agent_action_log (tenant_id, trigger_key, metadata)
      VALUES ($1::uuid, $2, $3::jsonb)
@@ -6000,6 +6010,27 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     executed.push({ tool: toolName, success: result.success, data: result.data, error: result.error });
 
       if (!result.success) {
+        const rollbackTotal = rollbackStack.length;
+        await query(
+          `UPDATE agent_action_log
+              SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+            WHERE tenant_id = $1::uuid AND trigger_key = $2`,
+          [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+            workflow_id: workflowId,
+            workflow_json: String(args.workflow_json || '[]'),
+            status: 'rolling_back',
+            failed_step: toolName,
+            last_error: result.error || `Workflow falhou em ${toolName}.`,
+            completed_steps: startIndex + executed.filter((item) => item.success).length,
+            resume_from_step: startIndex + executed.filter((item) => item.success).length + 1,
+            last_step: toolName,
+            steps_preview: buildExecutedPreview(),
+            rollback_status: rollbackTotal > 0 ? 'running' : 'not_needed',
+            rollback_total: rollbackTotal,
+            rollback_completed: 0,
+            rollback_failures: 0,
+          })],
+        ).catch(() => null);
         const rollback: any[] = [];
         for (const frame of rollbackStack.reverse()) {
         try {
@@ -6020,8 +6051,26 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           } catch (rollbackErr: any) {
             rollback.push({ success: false, error: rollbackErr?.message || 'rollback_failed' });
           }
+          await query(
+            `UPDATE agent_action_log
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+              WHERE tenant_id = $1::uuid AND trigger_key = $2`,
+            [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+              workflow_id: workflowId,
+              workflow_json: String(args.workflow_json || '[]'),
+              status: 'rolling_back',
+              failed_step: toolName,
+              last_error: result.error || `Workflow falhou em ${toolName}.`,
+              steps_preview: buildExecutedPreview(),
+              rollback_status: 'running',
+              rollback_total: rollbackTotal,
+              rollback_completed: rollback.length,
+              rollback_failures: rollback.filter((item) => item?.success === false).length,
+            })],
+          ).catch(() => null);
         }
         const completedSteps = startIndex + executed.filter((item) => item.success).length;
+        const rollbackSummary = summarizeRollback(rollback);
         const data = {
           workflow_id: workflowId,
           workflow_status: 'failed',
@@ -6032,6 +6081,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           resume_from_step: completedSteps + 1,
           executed,
           rollback,
+          ...rollbackSummary,
         };
         await query(
           `UPDATE agent_action_log
@@ -6048,6 +6098,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             steps_preview: buildExecutedPreview(),
             finished_at: new Date().toISOString(),
             rollback,
+            ...rollbackSummary,
           })],
         ).catch(() => null);
         return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data };
@@ -6070,6 +6121,10 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         resume_from_step: stepIndex + 2,
         last_step: toolName,
         steps_preview: buildExecutedPreview(),
+        rollback_status: null,
+        rollback_total: 0,
+        rollback_completed: 0,
+        rollback_failures: 0,
       })],
     ).catch(() => null);
   }
@@ -6092,6 +6147,10 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       completed_steps: startIndex + executed.length,
       resume_from_step: null,
       steps_preview: buildExecutedPreview(),
+      rollback_status: null,
+      rollback_total: 0,
+      rollback_completed: 0,
+      rollback_failures: 0,
       finished_at: new Date().toISOString(),
     })],
   ).catch(() => null);

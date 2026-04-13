@@ -628,6 +628,16 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 Falhou em: {artifact.failed_step}
               </Typography>
             ) : null}
+            {artifact.rollback_status && artifact.rollback_status !== 'not_needed' ? (
+              <Typography
+                variant="caption"
+                color={artifact.rollback_status === 'partial_failure' ? 'error.main' : 'text.secondary'}
+                sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}
+              >
+                Compensação: {artifact.rollback_completed || 0}/{artifact.rollback_total || 0}
+                {artifact.rollback_failures ? ` · ${artifact.rollback_failures} falha(s)` : ''}
+              </Typography>
+            ) : null}
             {Array.isArray(artifact.steps_preview) ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
                 {artifact.steps_preview.slice(0, 6).map((step: any, index: number) => (

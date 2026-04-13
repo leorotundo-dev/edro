@@ -1117,7 +1117,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   // ── Action ──
   {
     name: 'execute_multi_step_workflow',
-    description: 'Executa um workflow multi-step com confirmação única em lote e rollback básico de passos reversíveis. Use quando o usuário pedir para fazer uma sequência inteira de ações de uma vez.',
+    description: 'Executa um workflow multi-step com confirmação única em lote, retomada do ponto de falha e compensação dos passos reversíveis. Use quando o usuário pedir para fazer uma sequência inteira de ações de uma vez.',
     parameters: {
       workflow_json: { type: 'string', description: 'JSON string com array de steps: [{"tool":"change_job_status","args":{...}}, ...].' },
       confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar a execução do lote.' },

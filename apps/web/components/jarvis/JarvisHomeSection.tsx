@@ -79,6 +79,10 @@ type JarvisFeed = {
     last_step?: string | null;
     failed_step?: string | null;
     last_error?: string | null;
+    rollback_status?: string | null;
+    rollback_total?: number;
+    rollback_completed?: number;
+    rollback_failures?: number;
     steps_preview?: Array<{ tool: string; success: boolean; error?: string | null; summary?: string | null }>;
     finished_at?: string | null;
   }>;
@@ -578,12 +582,18 @@ export default function JarvisHomeSection() {
                 : (feed?.recent_workflows || []).slice(0, 3).map((workflow) => {
                     const statusColor = workflow.status === 'completed'
                       ? '#13DEB9'
+                      : workflow.status === 'rolling_back'
+                      ? '#F59E0B'
                       : workflow.status === 'failed'
                       ? '#EF4444'
                       : workflow.status === 'pending_confirmation'
                       ? EDRO_ORANGE
                       : '#5D87FF';
-                    const title = workflow.status === 'failed'
+                    const title = workflow.status === 'rolling_back'
+                      ? 'Workflow compensando falha'
+                      : workflow.status === 'failed' && workflow.rollback_status === 'partial_failure'
+                      ? 'Workflow falhou com compensação parcial'
+                      : workflow.status === 'failed'
                       ? `Workflow falhou em ${workflow.failed_step || 'uma etapa'}`
                       : workflow.status === 'completed'
                       ? 'Workflow concluído'
@@ -627,6 +637,17 @@ export default function JarvisHomeSection() {
                           {workflow.status === 'failed' && workflow.last_error ? (
                             <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
                               {workflow.last_error}
+                            </Typography>
+                          ) : null}
+                          {workflow.rollback_status && workflow.rollback_status !== 'not_needed' ? (
+                            <Typography
+                              variant="caption"
+                              color={workflow.rollback_status === 'partial_failure' ? 'error.main' : 'text.disabled'}
+                              sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }}
+                              noWrap
+                            >
+                              Compensação: {workflow.rollback_completed || 0}/{workflow.rollback_total || 0}
+                              {workflow.rollback_failures ? ` · ${workflow.rollback_failures} falha(s)` : ''}
                             </Typography>
                           ) : null}
                           {Array.isArray(workflow.steps_preview) && workflow.steps_preview.length > 0 ? (
