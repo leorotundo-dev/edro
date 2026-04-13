@@ -67,10 +67,12 @@ const ARTIFACT_MAP: Record<string, ArtifactMeta> = {
   add_calendar_event:        { icon: IconCalendar,     label: 'Evento adicionado ao calendário', color: '#F59E0B' },
   get_client_weekly_summary: { icon: IconMessageSearch,label: 'Resumo semanal do cliente',      color: '#0EA5E9' },
   get_operations_daily_brief:{ icon: IconChecklist,    label: 'Daily brief da operação',        color: '#8B5CF6' },
+  get_system_health:         { icon: IconAlertTriangle,label: 'Saúde do sistema',               color: '#D97706' },
   send_whatsapp_message:     { icon: IconMessage,      label: 'WhatsApp enviado',               color: '#10B981' },
   send_email:                { icon: IconMail,         label: 'E-mail enviado',                 color: '#5D87FF' },
   create_trello_card:        { icon: IconBrandTrello,  label: 'Card criado no Trello',          color: '#0079BF' },
   execute_multi_step_workflow:{ icon: IconChecklist,   label: 'Workflow executado',             color: '#E85219' },
+  run_system_repair:         { icon: IconCircleCheck,  label: 'Reparo do sistema',              color: '#10B981' },
   create_campaign:           { icon: IconSparkles,     label: 'Campanha criada',                color: '#8B5CF6' },
   retrieve_client_evidence:  { icon: IconMessageSearch,label: 'Evidências recuperadas',         color: '#0EA5E9' },
   create_post_pipeline:      { icon: IconSparkles,     label: 'Pipeline de post criado',        color: '#E85219' },
@@ -112,6 +114,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
   const Icon = meta.icon;
   const subtitle = artifact.message || artifact.brief?.slice(0, 80) || null;
   const confirmationRequired = artifact.confirmation_required === true;
+  const workflowJson = String(artifact.workflow_json || '').trim();
 
   const href = artifact.post_url
     ? artifact.post_url
@@ -182,6 +185,49 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
         pageData: artifactPageData,
       })
     : null;
+  const retryWorkflowAction = artifact.type === 'execute_multi_step_workflow'
+    && artifact.workflow_status === 'failed'
+    && onRunClientAction
+    && workflowJson
+    ? () => onRunClientAction({
+        message: 'Retome este workflow do ponto em que falhou.',
+        clientAction: {
+          type: 'confirm_tool_call',
+          tool_name: 'execute_multi_step_workflow',
+          tool_args: {
+            workflow_json: workflowJson,
+            workflow_id: artifact.workflow_id || undefined,
+            resume_from_step: Number(artifact.resume_from_step || (artifact.completed_steps || 0) + 1),
+          },
+        },
+        pageData: artifactPageData,
+      })
+    : null;
+  const repairSystemAction = artifact.type === 'get_system_health'
+    && onRunClientAction
+    && Number(artifact.summary?.open_issues || 0) > 0
+    ? () => onRunClientAction({
+        message: 'Confirma o auto-reparo seguro do sistema.',
+        clientAction: {
+          type: 'confirm_tool_call',
+          tool_name: 'run_system_repair',
+          tool_args: { repair_type: 'auto_repair' },
+        },
+        pageData: artifactPageData,
+      })
+    : null;
+  const repairActions = artifact.type === 'get_system_health' && onRunClientAction
+    ? (Array.isArray(artifact.repair_actions) ? artifact.repair_actions.slice(0, 3) : [])
+    : [];
+  const runSpecificRepairAction = (repairType: string, label?: string | null) => onRunClientAction?.({
+    message: `Confirma o reparo ${label || repairType} no sistema.`,
+    clientAction: {
+      type: 'confirm_tool_call',
+      tool_name: 'run_system_repair',
+      tool_args: { repair_type: repairType },
+    },
+    pageData: artifactPageData,
+  });
 
   return (
     <Box
@@ -549,12 +595,39 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             ) : null}
           </Box>
         )}
+        {artifact.type === 'get_system_health' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.55 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              <Chip size="small" label={`status ${artifact.summary?.status || 'ok'}`} sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} />
+              <Chip size="small" label={`${artifact.summary?.open_issues || 0} issue(s)`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              <Chip size="small" label={`${artifact.summary?.critical_issues || 0} crítica(s)`} sx={{ height: 22, fontSize: '0.68rem' }} />
+            </Box>
+            {Array.isArray(artifact.issues) && artifact.issues.slice(0, 4).map((item: any) => (
+              <Typography key={item.key} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                {item.severity === 'critical' ? 'Crítico' : 'Aviso'}: {item.title} · {truncate(item.message, 140)}
+              </Typography>
+            ))}
+          </Box>
+        )}
         {artifact.type === 'execute_multi_step_workflow' && (
           <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.55 }}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
               <Chip size="small" label={`${artifact.completed_steps || 0} etapa(s)`} sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} />
+              {artifact.workflow_status ? (
+                <Chip size="small" label={`status: ${artifact.workflow_status}`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              ) : null}
               {confirmationRequired ? <Chip size="small" label="confirmação obrigatória" sx={{ height: 22, fontSize: '0.68rem', bgcolor: '#FFF1E8', color: '#D9480F', border: '1px solid #FFD8C2' }} /> : null}
             </Box>
+            {artifact.workflow_id ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Workflow: {String(artifact.workflow_id).slice(0, 8)}
+              </Typography>
+            ) : null}
+            {artifact.failed_step ? (
+              <Typography variant="caption" color="error.main" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Falhou em: {artifact.failed_step}
+              </Typography>
+            ) : null}
             {Array.isArray(artifact.steps_preview) ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
                 {artifact.steps_preview.slice(0, 6).map((step: any, index: number) => (
@@ -574,6 +647,24 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             ) : null}
           </Box>
         )}
+        {artifact.type === 'run_system_repair' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.55 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {artifact.before_summary ? <Chip size="small" label={`antes ${artifact.before_summary.status}`} sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
+              {artifact.after_summary ? <Chip size="small" label={`depois ${artifact.after_summary.status}`} sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} /> : null}
+            </Box>
+            {Array.isArray(artifact.executed_repairs) && artifact.executed_repairs.slice(0, 4).map((item: any, index: number) => (
+              <Typography key={`${item.repair_type}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                {item.repair_type}: {truncate(item.outcome || item.message || JSON.stringify(item), 140)}
+              </Typography>
+            ))}
+            {Array.isArray(artifact.remaining_issues) && artifact.remaining_issues.slice(0, 3).map((item: any) => (
+              <Typography key={`remaining-${item.key}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Pendente: {item.title}
+              </Typography>
+            ))}
+          </Box>
+        )}
         {confirmAction ? (
           <Box sx={{ mt: 0.9, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
             <Button
@@ -584,6 +675,71 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             >
               Confirmar
             </Button>
+            {retryWorkflowAction ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={retryWorkflowAction}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                Retomar do ponto de falha
+              </Button>
+            ) : null}
+            {repairSystemAction ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={repairSystemAction}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                Auto-reparar agora
+              </Button>
+            ) : null}
+            {repairActions.map((item: any) => (
+              <Button
+                key={`repair-${item.repair_type}`}
+                size="small"
+                variant="text"
+                onClick={() => runSpecificRepairAction(String(item.repair_type || ''), item.label)}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                {String(item.label || item.repair_type || 'Reparar')}
+              </Button>
+            ))}
+          </Box>
+        ) : retryWorkflowAction || repairSystemAction ? (
+          <Box sx={{ mt: 0.9, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+            {retryWorkflowAction ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={retryWorkflowAction}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                Retomar do ponto de falha
+              </Button>
+            ) : null}
+            {repairSystemAction ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={repairSystemAction}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                Auto-reparar agora
+              </Button>
+            ) : null}
+            {repairActions.map((item: any) => (
+              <Button
+                key={`repair-${item.repair_type}`}
+                size="small"
+                variant="text"
+                onClick={() => runSpecificRepairAction(String(item.repair_type || ''), item.label)}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                {String(item.label || item.repair_type || 'Reparar')}
+              </Button>
+            ))}
           </Box>
         ) : null}
         {(artifact.type === 'prepare_post_approval' || artifact.type === 'schedule_post_publication' || artifact.type === 'publish_studio_post') && (

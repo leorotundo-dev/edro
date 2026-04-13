@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -36,7 +36,7 @@ type RecentConversation = {
 
 type FeedItem = {
   id: string;
-  kind: 'daily_brief' | 'briefing' | 'alert' | 'auto_briefing' | 'proposal' | 'opportunity';
+  kind: 'daily_brief' | 'system_health' | 'briefing' | 'alert' | 'auto_briefing' | 'proposal' | 'opportunity';
   title: string;
   subtitle?: string;
   reasoning?: string;   // fontes/raciocínio — transparência do Jarvis
@@ -45,6 +45,8 @@ type FeedItem = {
   icon: React.ReactNode;
   cta: string;
   proposalId?: string;  // para proposals com approve/discard inline
+  systemAction?: 'auto_repair';
+  repairActions?: Array<{ repair_type: string; label: string }>;
 };
 
 type JarvisFeed = {
@@ -55,11 +57,31 @@ type JarvisFeed = {
     jobs_blocked: Array<any>;
     signals_critical: Array<any>;
   } | null;
+  system_health?: {
+    summary?: { status: string; open_issues: number; critical_issues: number };
+    issues?: Array<{ key: string; title: string; message: string; severity: 'warning' | 'critical'; repair_type: string }>;
+    repair_actions?: Array<{ repair_type: string; label: string }>;
+  } | null;
   briefing_pending: any[];
   alerts: any[];
   auto_briefings: any[];
   proposals: any[];
   opportunities: any[];
+  recent_workflows: Array<{
+    id: string;
+    fired_at: string;
+    workflow_id?: string | null;
+    workflow_json?: string | null;
+    status: string;
+    completed_steps: number;
+    steps_total: number;
+    resume_from_step?: number;
+    last_step?: string | null;
+    failed_step?: string | null;
+    last_error?: string | null;
+    steps_preview?: Array<{ tool: string; success: boolean; error?: string | null; summary?: string | null }>;
+    finished_at?: string | null;
+  }>;
   total_actions: number;
 };
 
@@ -77,6 +99,25 @@ function buildFeedItems(feed: JarvisFeed): FeedItem[] {
       color: '#8B5CF6',
       icon: <IconBrain size={14} />,
       cta: 'Abrir operação',
+    });
+  }
+
+  if (feed.system_health?.summary && Number(feed.system_health.summary.open_issues || 0) > 0) {
+    items.push({
+      id: 'system-health',
+      kind: 'system_health',
+      title: feed.system_health.summary.status === 'critical'
+        ? 'Jarvis detectou issues críticas no sistema'
+        : 'Jarvis detectou gargalos operacionais no sistema',
+      subtitle: `${feed.system_health.summary.open_issues || 0} issue(s) · ${feed.system_health.summary.critical_issues || 0} crítica(s)`,
+      reasoning: feed.system_health.issues?.[0]?.message || 'Há filas, watches ou syncs que podem ser auto-reparados.',
+      color: '#D97706',
+      icon: <IconAlertTriangle size={14} />,
+      cta: 'Auto-reparar',
+      systemAction: 'auto_repair',
+      repairActions: Array.isArray(feed.system_health.repair_actions)
+        ? feed.system_health.repair_actions.slice(0, 2)
+        : [],
     });
   }
 
@@ -183,6 +224,8 @@ function initials(name?: string) {
 const QUICK_ACTIONS = [
   'O que está pegando hoje na agência?',
   'Me dá o daily brief da operação',
+  'Me mostra a saúde do sistema',
+  'O que o Jarvis pode corrigir sozinho agora?',
   'Quais são os alertas críticos do Jarvis agora?',
   'Quais briefings estão em aberto?',
 ];
@@ -196,6 +239,8 @@ export default function JarvisHomeSection() {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
   const [proposalAction, setProposalAction] = useState<Record<string, 'approving' | 'discarding' | 'done'>>({});
+  const hasActiveWorkflow = Array.isArray(feed?.recent_workflows)
+    && feed.recent_workflows.some((workflow) => workflow.status === 'running' || workflow.status === 'pending_confirmation');
 
   useEffect(() => {
     try {
@@ -204,8 +249,9 @@ export default function JarvisHomeSection() {
     } catch {}
   }, []);
 
-  useEffect(() => {
-    Promise.all([
+  const loadFeed = useCallback(async (keepLoading = false) => {
+    if (!keepLoading) setLoading(true);
+    await Promise.all([
       apiGet<{ data?: { conversations?: RecentConversation[] } }>('/planning/conversations?limit=5')
         .then(res => setConversations(res?.data?.conversations ?? []))
         .catch(() => setConversations([])),
@@ -217,6 +263,32 @@ export default function JarvisHomeSection() {
         .catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    void loadFeed();
+
+    const interval = window.setInterval(() => {
+      void loadFeed(true);
+    }, hasActiveWorkflow ? 10_000 : 60_000);
+
+    const handleFocus = () => { void loadFeed(true); };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void loadFeed(true);
+      }
+    };
+    const handleJarvisRefresh = () => { void loadFeed(true); };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('jarvis-feed-refresh', handleJarvisRefresh);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('jarvis-feed-refresh', handleJarvisRefresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [loadFeed, hasActiveWorkflow]);
 
   const handleSend = (text?: string) => {
     const msg = (text ?? input).trim();
@@ -239,10 +311,71 @@ export default function JarvisHomeSection() {
     try {
       await apiPost(`/jarvis/proposals/${proposalId}/${action}`, {});
       setProposalAction((prev) => ({ ...prev, [proposalId]: 'done' }));
-      setFeedItems((prev) => prev.filter((item) => item.proposalId !== proposalId));
+      await loadFeed(true);
     } catch {
       setProposalAction((prev) => { const next = { ...prev }; delete next[proposalId]; return next; });
     }
+  };
+
+  const handleSystemRepair = () => {
+    setConversationId(null);
+    open(clientId ?? undefined);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('jarvis-home-send', {
+        detail: {
+          message: 'Confirma o auto-reparo seguro do sistema.',
+          clientAction: {
+            type: 'confirm_tool_call',
+            tool_name: 'run_system_repair',
+            tool_args: { repair_type: 'auto_repair' },
+          },
+        },
+      }));
+    }, 100);
+  };
+
+  const handleSpecificSystemRepair = (repairType: string, label?: string) => {
+    setConversationId(null);
+    open(clientId ?? undefined);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('jarvis-home-send', {
+        detail: {
+          message: `Confirma o reparo ${label || repairType} no sistema.`,
+          clientAction: {
+            type: 'confirm_tool_call',
+            tool_name: 'run_system_repair',
+            tool_args: { repair_type: repairType },
+          },
+        },
+      }));
+    }, 100);
+  };
+
+  const triggerWorkflowAction = (workflow: JarvisFeed['recent_workflows'][number], mode: 'retry' | 'confirm') => {
+    const workflowJson = String(workflow.workflow_json || '').trim();
+    if (!workflowJson) return;
+    setConversationId(null);
+    open(clientId ?? undefined);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('jarvis-home-send', {
+        detail: {
+          message: mode === 'confirm'
+            ? 'Confirmo a execução deste workflow em lote.'
+            : 'Tente novamente executar este workflow em lote.',
+          clientAction: {
+            type: 'confirm_tool_call',
+            tool_name: 'execute_multi_step_workflow',
+            tool_args: {
+              workflow_json: workflowJson,
+              workflow_id: workflow.workflow_id || undefined,
+              resume_from_step: mode === 'retry'
+                ? Number(workflow.resume_from_step || (workflow.completed_steps || 0) + 1)
+                : 1,
+            },
+          },
+        },
+      }));
+    }, 100);
   };
 
   return (
@@ -292,6 +425,7 @@ export default function JarvisHomeSection() {
                 ? [1, 2, 3].map((i) => <Skeleton key={i} height={44} sx={{ borderRadius: 1.5 }} />)
                 : feedItems.map((item) => {
                     const isProposal = item.kind === 'proposal' && !!item.proposalId;
+                    const isSystemHealth = item.kind === 'system_health' && item.systemAction === 'auto_repair';
                     const pAction = item.proposalId ? proposalAction[item.proposalId] : undefined;
 
                     return (
@@ -364,6 +498,28 @@ export default function JarvisHomeSection() {
                             }}
                           />
                         </Stack>
+                      ) : isSystemHealth ? (
+                        <Stack direction="row" spacing={0.5} flexShrink={0} alignItems="center">
+                          {Array.isArray(item.repairActions) && item.repairActions.map((repair) => (
+                            <Button
+                              key={repair.repair_type}
+                              size="small"
+                              variant="text"
+                              onClick={() => handleSpecificSystemRepair(repair.repair_type, repair.label)}
+                              sx={{ minHeight: 26, fontSize: '0.62rem', px: 0.75, whiteSpace: 'nowrap' }}
+                            >
+                              {repair.label}
+                            </Button>
+                          ))}
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={handleSystemRepair}
+                            sx={{ minHeight: 26, fontSize: '0.62rem', flexShrink: 0, whiteSpace: 'nowrap' }}
+                          >
+                            {item.cta}
+                          </Button>
+                        </Stack>
                       ) : (
                         <Chip
                           label={item.cta}
@@ -397,6 +553,116 @@ export default function JarvisHomeSection() {
             <Typography variant="body2" sx={{ fontSize: '0.78rem', color: 'success.main', fontWeight: 600 }}>
               Tudo em dia — nenhuma decisão pendente.
             </Typography>
+          </Box>
+        )}
+
+        {(loading || (Array.isArray(feed?.recent_workflows) && feed!.recent_workflows.length > 0)) && (
+          <Box sx={{ mb: 2 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>
+                Execuções recentes
+              </Typography>
+            </Stack>
+            <Stack spacing={0.5}>
+              {loading
+                ? [1, 2].map((i) => <Skeleton key={`wf-${i}`} height={40} sx={{ borderRadius: 1.5 }} />)
+                : (feed?.recent_workflows || []).slice(0, 3).map((workflow) => {
+                    const statusColor = workflow.status === 'completed'
+                      ? '#13DEB9'
+                      : workflow.status === 'failed'
+                      ? '#EF4444'
+                      : workflow.status === 'pending_confirmation'
+                      ? EDRO_ORANGE
+                      : '#5D87FF';
+                    const title = workflow.status === 'failed'
+                      ? `Workflow falhou em ${workflow.failed_step || 'uma etapa'}`
+                      : workflow.status === 'completed'
+                      ? 'Workflow concluído'
+                      : workflow.status === 'pending_confirmation'
+                      ? 'Workflow aguardando confirmação'
+                      : 'Workflow em execução';
+
+                    return (
+                      <Box
+                        key={workflow.id}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.25,
+                          py: 0.75,
+                          borderRadius: 1.5,
+                          border: `1px solid ${alpha(statusColor, 0.18)}`,
+                          bgcolor: alpha(statusColor, 0.05),
+                        }}
+                      >
+                        <Box sx={{ color: statusColor, display: 'flex', flexShrink: 0 }}>
+                          <IconBrain size={14} />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }} noWrap>
+                            {title}
+                          </Typography>
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }} noWrap>
+                            {workflow.workflow_id ? `Workflow ${String(workflow.workflow_id).slice(0, 8)} · ` : ''}
+                            {workflow.completed_steps || 0}/{workflow.steps_total || 0} etapas · {relativeTime(workflow.finished_at || workflow.fired_at)}
+                          </Typography>
+                          {workflow.last_step ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              Última etapa: {workflow.last_step}
+                              {workflow.status === 'running' && workflow.resume_from_step
+                                ? ` · próxima ${workflow.resume_from_step}/${workflow.steps_total || 0}`
+                                : ''}
+                            </Typography>
+                          ) : null}
+                          {workflow.status === 'failed' && workflow.last_error ? (
+                            <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              {workflow.last_error}
+                            </Typography>
+                          ) : null}
+                          {Array.isArray(workflow.steps_preview) && workflow.steps_preview.length > 0 ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              {workflow.steps_preview.map((step) => `${step.success ? 'OK' : 'Falhou'} ${step.tool}${step.summary ? ` (${step.summary})` : ''}`).join(' · ')}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                        {workflow.status === 'failed' && workflow.workflow_json ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => triggerWorkflowAction(workflow, 'retry')}
+                            sx={{ minHeight: 26, fontSize: '0.62rem', flexShrink: 0 }}
+                          >
+                            Retomar
+                          </Button>
+                        ) : workflow.status === 'pending_confirmation' && workflow.workflow_json ? (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => triggerWorkflowAction(workflow, 'confirm')}
+                            sx={{ minHeight: 26, fontSize: '0.62rem', flexShrink: 0 }}
+                          >
+                            Confirmar
+                          </Button>
+                        ) : (
+                          <Chip
+                            label={workflow.status}
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: '0.62rem',
+                              fontWeight: 600,
+                              bgcolor: alpha(statusColor, 0.12),
+                              color: statusColor,
+                              flexShrink: 0,
+                              '& .MuiChip-label': { px: 0.75 },
+                            }}
+                          />
+                        )}
+                      </Box>
+                    );
+                  })}
+            </Stack>
           </Box>
         )}
 

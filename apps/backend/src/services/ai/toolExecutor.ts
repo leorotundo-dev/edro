@@ -3,6 +3,7 @@
  * Implements all 22 tools with DB queries and service calls.
  */
 
+import crypto from 'crypto';
 import { query } from '../../db';
 import { hasClientPerm } from '../../auth/clientPerms';
 import { can, normalizeRole } from '../../auth/rbac';
@@ -62,8 +63,12 @@ import { buildBriefingDiagnostics } from '../briefingDiagnosticService';
 import { buildReporteiSemanticSummary } from '../reporteiSemanticService';
 import { getTrelloCredentials } from '../trelloSyncService';
 import { buildDailyDigest } from '../agencyDigestService';
-import { createCalendarEvent } from '../integrations/googleCalendarService';
-import crypto from 'crypto';
+import { createCalendarEvent, watchCalendar } from '../integrations/googleCalendarService';
+import { processPendingRetries } from '../webhookRetryService';
+import { runTrelloOutboxWorkerOnce } from '../../jobs/trelloOutboxWorker';
+import { watchGmailInbox, syncGmailInboxFallback } from '../integrations/gmailService';
+import { refreshAllClientsForTenant } from '../../clientIntelligence/worker';
+import { runJarvisAlertEngine } from '../jarvisAlertEngine';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -237,6 +242,8 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'create_trello_card',
     'execute_multi_step_workflow',
   ], { systemPerm: 'clients:write' }),
+  get_system_health: { systemPerm: 'portfolio:read' },
+  run_system_repair: { systemPerm: 'admin:jobs' },
   ...buildRequirementMap([
     'list_operations_jobs',
     'get_operations_job',
@@ -4129,6 +4136,7 @@ async function opsNavigateTo(args: any, _ctx: OperationsToolContext): Promise<To
 const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Promise<ToolResult>> = {
   get_client_weekly_summary: opsGetClientWeeklySummary,
   get_operations_daily_brief: opsGetOperationsDailyBrief,
+  get_system_health: opsGetSystemHealth,
   list_operations_jobs: opsListJobs,
   get_operations_job: opsGetJob,
   get_operations_overview: opsGetOverview,
@@ -4148,6 +4156,7 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   send_whatsapp_message: opsSendWhatsAppMessage,
   send_email: opsSendEmail,
   create_trello_card: opsCreateTrelloCard,
+  run_system_repair: opsRunSystemRepair,
   create_operations_job: opsCreateJob,
   update_operations_job: opsUpdateJob,
   change_job_status: opsChangeJobStatus,
@@ -5589,7 +5598,309 @@ async function opsGetOperationsDailyBrief(_args: any, ctx: OperationsToolContext
           autonomy_level: item.autonomy_level,
           category: item.category,
           reasoning: item.reasoning,
-        })),
+      })),
+    },
+  };
+}
+
+const SYSTEM_REPAIR_LABELS: Record<string, string> = {
+  auto_repair: 'Auto-reparo seguro',
+  process_webhook_retries: 'Processar retries de webhook',
+  flush_trello_outbox: 'Destravar fila do Trello',
+  renew_google_watches: 'Renovar watches do Google',
+  run_gmail_fallback: 'Rodar fallback do Gmail',
+  refresh_client_intelligence: 'Atualizar inteligência dos clientes',
+  refresh_jarvis_alerts: 'Recalcular alertas do Jarvis',
+};
+
+async function buildSystemHealthSnapshot(tenantId: string) {
+  const [retryRes, trelloRes, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
+    query<any>(
+      `SELECT source,
+              COUNT(*) FILTER (WHERE status = 'pending' AND next_retry_at <= now())::int AS due,
+              COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
+              COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
+         FROM webhook_retry_queue
+        WHERE tenant_id = $1
+        GROUP BY source
+        ORDER BY source ASC`,
+      [tenantId],
+    ).catch(() => ({ rows: [] as any[] })),
+    query<any>(
+      `SELECT COUNT(*) FILTER (WHERE status IN ('pending','error'))::int AS backlog,
+              COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
+              COUNT(*) FILTER (WHERE status = 'dead')::int AS dead
+         FROM trello_outbox
+        WHERE tenant_id = $1`,
+      [tenantId],
+    ).catch(() => ({ rows: [{ backlog: 0, processing: 0, dead: 0 }] as any[] })),
+    query<any>(
+      `SELECT email_address, watch_expiry, last_sync_at, last_error
+         FROM gmail_connections
+        WHERE tenant_id = $1
+        LIMIT 1`,
+      [tenantId],
+    ).catch(() => ({ rows: [] as any[] })),
+    query<any>(
+      `SELECT email_address, expires_at, watch_status, last_watch_error
+         FROM google_calendar_channels
+        WHERE tenant_id = $1
+        LIMIT 1`,
+      [tenantId],
+    ).catch(() => ({ rows: [] as any[] })),
+    query<any>(
+      `SELECT COUNT(*)::int AS total_clients,
+              COUNT(*) FILTER (
+                WHERE intelligence_refreshed_at IS NULL
+                   OR intelligence_refreshed_at < now() - interval '7 days'
+              )::int AS stale_clients
+         FROM clients
+        WHERE tenant_id = $1
+          AND status != 'archived'`,
+      [tenantId],
+    ).catch(() => ({ rows: [{ total_clients: 0, stale_clients: 0 }] as any[] })),
+    query<any>(
+      `SELECT COUNT(*)::int AS open_alerts, MAX(created_at)::text AS last_open_alert_at
+         FROM jarvis_alerts
+        WHERE tenant_id = $1
+          AND status = 'open'`,
+      [tenantId],
+    ).catch(() => ({ rows: [{ open_alerts: 0, last_open_alert_at: null }] as any[] })),
+  ]);
+
+  const now = Date.now();
+  const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; failed: number }>;
+  const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, dead: 0 };
+  const gmail = gmailRes.rows[0] ?? null;
+  const calendar = calendarRes.rows[0] ?? null;
+  const intelligence = intelligenceRes.rows[0] ?? { total_clients: 0, stale_clients: 0 };
+  const alerts = alertsRes.rows[0] ?? { open_alerts: 0, last_open_alert_at: null };
+  const gmailExpiryMs = gmail?.watch_expiry ? new Date(gmail.watch_expiry).getTime() : null;
+  const calendarExpiryMs = calendar?.expires_at ? new Date(calendar.expires_at).getTime() : null;
+  const gmailNeedsAttention = Boolean(gmail?.last_error) || (gmailExpiryMs !== null && gmailExpiryMs < now + 48 * 3_600_000);
+  const calendarNeedsAttention = Boolean(calendar?.last_watch_error) || (calendarExpiryMs !== null && calendarExpiryMs < now + 48 * 3_600_000);
+
+  const issues: Array<{ key: string; severity: 'warning' | 'critical'; title: string; message: string; repair_type: string }> = [];
+  const dueRetries = retry.reduce((sum, row) => sum + Number(row.due || 0), 0);
+  const failedRetries = retry.reduce((sum, row) => sum + Number(row.failed || 0), 0);
+
+  if (dueRetries || failedRetries) {
+    issues.push({
+      key: 'webhook_retry_queue',
+      severity: failedRetries > 0 ? 'critical' : 'warning',
+      title: 'Fila de webhook com eventos pendentes',
+      message: `${dueRetries} retry(s) de webhook vencidos e ${failedRetries} falha(s) permanentes.`,
+      repair_type: 'process_webhook_retries',
+    });
+  }
+  if (Number(trello.backlog || 0) || Number(trello.dead || 0)) {
+    issues.push({
+      key: 'trello_outbox',
+      severity: Number(trello.dead || 0) > 0 ? 'critical' : 'warning',
+      title: 'Fila do Trello acumulada',
+      message: `${Number(trello.backlog || 0)} item(ns) pendentes e ${Number(trello.dead || 0)} falha(s) permanentes.`,
+      repair_type: 'flush_trello_outbox',
+    });
+  }
+  if (gmailNeedsAttention || calendarNeedsAttention) {
+    issues.push({
+      key: 'google_watches',
+      severity: (gmailExpiryMs !== null && gmailExpiryMs <= now) || (calendarExpiryMs !== null && calendarExpiryMs <= now) ? 'critical' : 'warning',
+      title: 'Watches do Google precisam atenção',
+      message: [
+        gmailNeedsAttention ? `Gmail ${gmail?.email_address || ''}`.trim() : null,
+        calendarNeedsAttention ? `Calendar ${calendar?.email_address || ''}`.trim() : null,
+      ].filter(Boolean).join(' · ') || 'Conexões Google exigem renovação.',
+      repair_type: 'renew_google_watches',
+    });
+  }
+  if (Number(intelligence.stale_clients || 0) > 0) {
+    issues.push({
+      key: 'client_intelligence',
+      severity: Number(intelligence.stale_clients || 0) >= 5 ? 'critical' : 'warning',
+      title: 'Clientes com inteligência stale',
+      message: `${Number(intelligence.stale_clients || 0)} cliente(s) sem refresh de inteligência nos últimos 7 dias.`,
+      repair_type: 'refresh_client_intelligence',
+    });
+  }
+
+  const status = issues.some((item) => item.severity === 'critical')
+    ? 'critical'
+    : issues.length
+      ? 'warning'
+      : 'ok';
+
+  return {
+    summary: {
+      status,
+      open_issues: issues.length,
+      critical_issues: issues.filter((item) => item.severity === 'critical').length,
+    },
+    components: {
+      webhook_retry: retry,
+      trello_outbox: {
+        backlog: Number(trello.backlog || 0),
+        processing: Number(trello.processing || 0),
+        dead: Number(trello.dead || 0),
+      },
+      gmail: gmail ? {
+        email_address: gmail.email_address,
+        watch_expiry: gmail.watch_expiry,
+        last_sync_at: gmail.last_sync_at,
+        last_error: gmail.last_error,
+        needs_attention: gmailNeedsAttention,
+      } : null,
+      google_calendar: calendar ? {
+        email_address: calendar.email_address,
+        expires_at: calendar.expires_at,
+        watch_status: calendar.watch_status,
+        last_watch_error: calendar.last_watch_error,
+        needs_attention: calendarNeedsAttention,
+      } : null,
+      client_intelligence: {
+        total_clients: Number(intelligence.total_clients || 0),
+        stale_clients: Number(intelligence.stale_clients || 0),
+      },
+      jarvis_alerts: {
+        open_alerts: Number(alerts.open_alerts || 0),
+        last_open_alert_at: alerts.last_open_alert_at || null,
+      },
+    },
+    issues,
+    repair_actions: Array.from(new Set(issues.map((item) => item.repair_type))).map((repairType) => ({
+      repair_type: repairType,
+      label: SYSTEM_REPAIR_LABELS[repairType] || repairType,
+    })),
+  };
+}
+
+async function opsGetSystemHealth(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  return {
+    success: true,
+    data: await buildSystemHealthSnapshot(ctx.tenantId),
+  };
+}
+
+async function opsRunSystemRepair(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const repairType = String(args.repair_type || '').trim();
+  if (!repairType) return { success: false, error: 'repair_type é obrigatório.' };
+
+  const before = await buildSystemHealthSnapshot(ctx.tenantId);
+  const repairPlan = repairType === 'auto_repair'
+    ? before.repair_actions.map((item) => item.repair_type)
+    : [repairType];
+
+  if (!repairPlan.length) {
+    return {
+      success: true,
+      data: {
+        repair_type: repairType,
+        message: 'Nenhum reparo necessário no momento.',
+        executed_repairs: [],
+        before_summary: before.summary,
+        after_summary: before.summary,
+      },
+    };
+  }
+
+  if (ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para executar reparo do sistema.', {
+      repair_type: repairType,
+      plan: repairPlan.map((item) => ({ repair_type: item, label: SYSTEM_REPAIR_LABELS[item] || item })),
+      before_summary: before.summary,
+      issues: before.issues,
+      tool_name: 'run_system_repair',
+      tool_args: { repair_type: repairType },
+      confirmation_prompt: `Confirmo o reparo ${repairType === 'auto_repair' ? 'automático' : repairType} no sistema.`,
+    });
+  }
+
+  const executedRepairs: Array<Record<string, any>> = [];
+
+  for (const plannedRepair of repairPlan) {
+    switch (plannedRepair) {
+      case 'process_webhook_retries': {
+        const result = await processPendingRetries();
+        executedRepairs.push({ repair_type: plannedRepair, ...result });
+        break;
+      }
+      case 'flush_trello_outbox': {
+        const beforeOutbox = before.components.trello_outbox;
+        await runTrelloOutboxWorkerOnce();
+        const afterSnapshot = await buildSystemHealthSnapshot(ctx.tenantId);
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          backlog_before: beforeOutbox.backlog,
+          backlog_after: afterSnapshot.components.trello_outbox.backlog,
+          dead_after: afterSnapshot.components.trello_outbox.dead,
+        });
+        break;
+      }
+      case 'renew_google_watches': {
+        const gmailConnected = await query(`SELECT 1 FROM gmail_connections WHERE tenant_id = $1 AND refresh_token IS NOT NULL LIMIT 1`, [ctx.tenantId]).catch(() => ({ rows: [] as any[] }));
+        const calendarConnected = await query(`SELECT 1 FROM google_calendar_channels WHERE tenant_id = $1 AND refresh_token IS NOT NULL LIMIT 1`, [ctx.tenantId]).catch(() => ({ rows: [] as any[] }));
+        const googleResult = {
+          repair_type: plannedRepair,
+          gmail: { attempted: false, ok: false as boolean, error: null as string | null },
+          calendar: { attempted: false, ok: false as boolean, error: null as string | null },
+        };
+        if (gmailConnected.rows.length) {
+          googleResult.gmail.attempted = true;
+          try {
+            await watchGmailInbox(ctx.tenantId);
+            googleResult.gmail.ok = true;
+          } catch (error: any) {
+            googleResult.gmail.error = error?.message || 'gmail_watch_failed';
+          }
+        }
+        if (calendarConnected.rows.length) {
+          googleResult.calendar.attempted = true;
+          try {
+            await watchCalendar(ctx.tenantId);
+            googleResult.calendar.ok = true;
+          } catch (error: any) {
+            googleResult.calendar.error = error?.message || 'calendar_watch_failed';
+          }
+        }
+        executedRepairs.push(googleResult);
+        break;
+      }
+      case 'run_gmail_fallback': {
+        const outcome = await syncGmailInboxFallback(ctx.tenantId);
+        executedRepairs.push({ repair_type: plannedRepair, outcome });
+        break;
+      }
+      case 'refresh_client_intelligence': {
+        const result = await refreshAllClientsForTenant(ctx.tenantId);
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          total_clients: result.total,
+          processed: result.processed,
+          ok: result.results.filter((item) => item.ok).length,
+          failed: result.results.filter((item) => !item.ok).length,
+        });
+        break;
+      }
+      case 'refresh_jarvis_alerts': {
+        const saved = await runJarvisAlertEngine(ctx.tenantId);
+        executedRepairs.push({ repair_type: plannedRepair, saved });
+        break;
+      }
+      default:
+        return { success: false, error: `repair_type não suportado: ${plannedRepair}` };
+    }
+  }
+
+  const after = await buildSystemHealthSnapshot(ctx.tenantId);
+  return {
+    success: true,
+    data: {
+      repair_type: repairType,
+      executed_repairs: executedRepairs,
+      before_summary: before.summary,
+      after_summary: after.summary,
+      remaining_issues: after.issues,
+      message: `Reparo ${SYSTEM_REPAIR_LABELS[repairType] || repairType} concluído.`,
     },
   };
 }
@@ -5819,17 +6130,54 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   const steps = JSON.parse(String(args.workflow_json || '[]'));
   if (!Array.isArray(steps) || !steps.length) return { success: false, error: 'workflow_json deve ser um array JSON de steps.' };
   if (steps.length > 6) return { success: false, error: 'Máximo de 6 steps por workflow.' };
+  const resumeFromStep = Math.max(1, Number(args.resume_from_step || 1));
+  if (!Number.isInteger(resumeFromStep) || resumeFromStep > steps.length) {
+    return { success: false, error: 'resume_from_step inválido para este workflow.' };
+  }
+  const startIndex = resumeFromStep - 1;
+  const workflowId = String(args.workflow_id || '').trim() || crypto.randomUUID();
+  const workflowTriggerKey = `jarvis_workflow:${workflowId}`;
   if (ctx.explicitConfirmation !== true) {
+    await query(
+      `INSERT INTO agent_action_log (tenant_id, trigger_key, metadata)
+       VALUES ($1::uuid, $2, $3::jsonb)
+       ON CONFLICT (trigger_key, fired_date)
+       DO UPDATE SET
+         tenant_id = EXCLUDED.tenant_id,
+         fired_at = now(),
+         metadata = COALESCE(agent_action_log.metadata, '{}'::jsonb) || EXCLUDED.metadata`,
+      [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+        workflow_id: workflowId,
+        workflow_json: String(args.workflow_json || '[]'),
+        status: 'pending_confirmation',
+        steps_total: steps.length,
+        completed_steps: startIndex,
+        resume_from_step: resumeFromStep,
+        steps_preview: steps.slice(startIndex, startIndex + 6).map((step: any, index: number) => ({
+          index: startIndex + index + 1,
+          tool: String(step?.tool || '').trim(),
+          summary: JSON.stringify(step?.args || {}).slice(0, 180),
+        })),
+        confirmation_prompt: 'Confirmo a execução do workflow em lote.',
+        requested_at: new Date().toISOString(),
+      })],
+    ).catch(() => null);
     return buildConfirmationRequiredResult('Confirmação pendente para executar workflow em lote.', {
-      completed_steps: 0,
-      steps_preview: steps.slice(0, 6).map((step: any, index: number) => ({
-        index: index + 1,
+      workflow_id: workflowId,
+      workflow_status: 'pending_confirmation',
+      workflow_json: String(args.workflow_json || '[]'),
+      completed_steps: startIndex,
+      resume_from_step: resumeFromStep,
+      steps_preview: steps.slice(startIndex, startIndex + 6).map((step: any, index: number) => ({
+        index: startIndex + index + 1,
         tool: String(step?.tool || '').trim(),
         summary: JSON.stringify(step?.args || {}).slice(0, 180),
       })),
       tool_name: 'execute_multi_step_workflow',
       tool_args: {
         workflow_json: String(args.workflow_json || '[]'),
+        workflow_id: workflowId,
+        resume_from_step: resumeFromStep,
       },
       confirmation_prompt: 'Confirmo a execução do workflow em lote.',
     });
@@ -5845,8 +6193,46 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   const confirmedCtx = { ...ctx, explicitConfirmation: true };
   const rollbackStack: Array<{ type: string; payload: any }> = [];
   const executed: any[] = [];
+  const summarizeStepResult = (data: any): string | null => {
+    if (!data || typeof data !== 'object') return null;
+    if (typeof data.message === 'string' && data.message.trim()) return data.message.trim();
+    if (typeof data.title === 'string' && data.title.trim()) return data.title.trim();
+    if (typeof data.to === 'string' && data.to.trim()) return `para ${data.to.trim()}`;
+    if (typeof data.recipient_phone === 'string' && data.recipient_phone.trim()) return `para ${data.recipient_phone.trim()}`;
+    if (typeof data.board_name === 'string' || typeof data.list_name === 'string') {
+      const board = String(data.board_name || '').trim();
+      const list = String(data.list_name || '').trim();
+      return [board, list].filter(Boolean).join(' / ') || null;
+    }
+    if (typeof data.status === 'string' && data.status.trim()) return data.status.trim();
+    return null;
+  };
+  const buildExecutedPreview = () => executed.slice(0, 5).map((item) => ({
+    tool: item.tool,
+    success: item.success,
+    error: item.error || null,
+    summary: summarizeStepResult(item.data),
+  }));
+  await query(
+    `INSERT INTO agent_action_log (tenant_id, trigger_key, metadata)
+     VALUES ($1::uuid, $2, $3::jsonb)
+     ON CONFLICT (trigger_key, fired_date)
+     DO UPDATE SET
+       tenant_id = EXCLUDED.tenant_id,
+       fired_at = now(),
+       metadata = COALESCE(agent_action_log.metadata, '{}'::jsonb) || EXCLUDED.metadata`,
+    [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+      workflow_id: workflowId,
+      workflow_json: String(args.workflow_json || '[]'),
+      status: 'running',
+      steps_total: steps.length,
+      resume_from_step: resumeFromStep,
+      started_at: new Date().toISOString(),
+    })],
+  ).catch(() => null);
 
-  for (const step of steps) {
+  for (let stepIndex = startIndex; stepIndex < steps.length; stepIndex += 1) {
+    const step = steps[stepIndex];
     const toolName = String(step?.tool || '').trim();
     const stepArgs = step?.args && typeof step.args === 'object' ? step.args : {};
     let result: ToolResult;
@@ -5869,9 +6255,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     }
     executed.push({ tool: toolName, success: result.success, data: result.data, error: result.error });
 
-    if (!result.success) {
-      const rollback: any[] = [];
-      for (const frame of rollbackStack.reverse()) {
+      if (!result.success) {
+        const rollback: any[] = [];
+        for (const frame of rollbackStack.reverse()) {
         try {
           if (frame.type === 'job_status') rollback.push(await executeOperationsTool('change_job_status', { job_id: frame.payload.job_id, status: frame.payload.status, reason: 'rollback' }, confirmedCtx));
           if (frame.type === 'briefing') rollback.push(await executeTool('delete_briefing', { briefing_id: frame.payload.briefing_id, confirmed: true }, { ...(ctx as any), clientId: frame.payload.client_id, edroClientId: frame.payload.edro_client_id, explicitConfirmation: true }));
@@ -5887,20 +6273,85 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             }
             rollback.push({ success: true });
           }
-        } catch (rollbackErr: any) {
-          rollback.push({ success: false, error: rollbackErr?.message || 'rollback_failed' });
+          } catch (rollbackErr: any) {
+            rollback.push({ success: false, error: rollbackErr?.message || 'rollback_failed' });
+          }
         }
+        const completedSteps = startIndex + executed.filter((item) => item.success).length;
+        const data = {
+          workflow_id: workflowId,
+          workflow_status: 'failed',
+          workflow_json: String(args.workflow_json || '[]'),
+          failed_step: toolName,
+          last_error: result.error || `Workflow falhou em ${toolName}.`,
+          completed_steps: completedSteps,
+          resume_from_step: completedSteps + 1,
+          executed,
+          rollback,
+        };
+        await query(
+          `UPDATE agent_action_log
+              SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+            WHERE tenant_id = $1::uuid AND trigger_key = $2`,
+          [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+            workflow_id: workflowId,
+            workflow_json: String(args.workflow_json || '[]'),
+            status: 'failed',
+            failed_step: toolName,
+            last_error: result.error || `Workflow falhou em ${toolName}.`,
+            completed_steps: completedSteps,
+            resume_from_step: completedSteps + 1,
+            steps_preview: buildExecutedPreview(),
+            finished_at: new Date().toISOString(),
+            rollback,
+          })],
+        ).catch(() => null);
+        return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data };
       }
-      return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data: { executed, rollback } };
-    }
 
     if (toolName === 'change_job_status' && result.data?.from_status) rollbackStack.push({ type: 'job_status', payload: { job_id: stepArgs.job_id, status: result.data.from_status } });
     if (toolName === 'create_operations_job' && result.data?.id) rollbackStack.push({ type: 'job_created', payload: { job_id: result.data.id } });
     if (toolName === 'create_trello_card' && result.data?.id) rollbackStack.push({ type: 'trello_card', payload: { card_id: result.data.id, trello_card_id: result.data.trello_card_id || null } });
     if (toolName === 'create_briefing' && result.data?.id) rollbackStack.push({ type: 'briefing', payload: { briefing_id: result.data.id, client_id: contextualString(stepArgs.client_id) || contextualString((ctx as any).clientId), edro_client_id: null } });
+
+    await query(
+      `UPDATE agent_action_log
+          SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+        WHERE tenant_id = $1::uuid AND trigger_key = $2`,
+      [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+        workflow_id: workflowId,
+        workflow_json: String(args.workflow_json || '[]'),
+        status: 'running',
+        completed_steps: startIndex + executed.length,
+        resume_from_step: stepIndex + 2,
+        last_step: toolName,
+        steps_preview: buildExecutedPreview(),
+      })],
+    ).catch(() => null);
   }
 
-  return { success: true, data: { completed_steps: executed.length, steps: executed } };
+  const data = {
+    workflow_id: workflowId,
+    workflow_status: 'completed',
+    completed_steps: startIndex + executed.length,
+    resume_from_step: null,
+    steps: executed,
+  };
+  await query(
+    `UPDATE agent_action_log
+        SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+      WHERE tenant_id = $1::uuid AND trigger_key = $2`,
+    [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+      workflow_id: workflowId,
+      workflow_json: String(args.workflow_json || '[]'),
+      status: 'completed',
+      completed_steps: startIndex + executed.length,
+      resume_from_step: null,
+      steps_preview: buildExecutedPreview(),
+      finished_at: new Date().toISOString(),
+    })],
+  ).catch(() => null);
+  return { success: true, data };
 }
 
 async function opsUpdateJob(args: any, ctx: OperationsToolContext): Promise<ToolResult> {

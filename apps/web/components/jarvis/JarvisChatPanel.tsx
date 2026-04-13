@@ -183,6 +183,8 @@ function getQuickActions(pathname: string, hasClient: boolean): string[] {
     return [
       'O que está pegando hoje na agência?',
       'Me dá o daily brief da operação',
+      'Me mostra a saúde do sistema',
+      'O que o Jarvis pode corrigir sozinho agora?',
       'Quais jobs estão mais críticos agora?',
       'Quais alertas do Jarvis estão abertos?',
     ];
@@ -205,6 +207,7 @@ function getQuickActions(pathname: string, hasClient: boolean): string[] {
     'Quais briefings estão em aberto?',
     'Mostra pendências por cliente',
     'Quais são as próximas datas relevantes?',
+    'Me mostra a saúde do sistema',
     'Recalcula a inteligência dos clientes',
   ];
 }
@@ -297,7 +300,7 @@ export default function JarvisChatPanel() {
     const contextualClientId = typeof pageData?.clientId === 'string' ? pageData.clientId : null;
     const effectiveClientId = contextualClientId ?? clientId ?? null;
     const summaryKey = isOpen && !conversationId
-      ? (effectiveClientId ? `${effectiveClientId}:7` : 'operations:daily')
+      ? (effectiveClientId ? `${effectiveClientId}:7` : 'operations:daily:system')
       : null;
     if (!summaryKey) {
       autoSummaryKeyRef.current = null;
@@ -306,22 +309,37 @@ export default function JarvisChatPanel() {
     if (messages.length > 0 || loading || autoSummaryKeyRef.current === summaryKey) return;
 
     autoSummaryKeyRef.current = summaryKey;
-    const endpoint = effectiveClientId
-      ? `/jarvis/client-weekly-summary?client_id=${encodeURIComponent(effectiveClientId)}&days_back=7`
-      : '/jarvis/operations-daily-brief';
-    apiGet<{ data?: { artifact?: Artifact } }>(endpoint)
-      .then((res) => {
-        const artifact = res?.data?.artifact;
-        if (!artifact) return;
+    const requests = effectiveClientId
+      ? [
+          apiGet<{ data?: { artifact?: Artifact } }>(
+            `/jarvis/client-weekly-summary?client_id=${encodeURIComponent(effectiveClientId)}&days_back=7`,
+          ),
+        ]
+      : [
+          apiGet<{ data?: { artifact?: Artifact } }>('/jarvis/operations-daily-brief'),
+          apiGet<{ data?: { artifact?: Artifact } }>('/jarvis/system-health-summary'),
+        ];
+    Promise.allSettled(requests)
+      .then((responses) => {
+        const artifacts = responses
+          .map((response) => response.status === 'fulfilled' ? response.value?.data?.artifact : null)
+          .filter((artifact): artifact is Artifact => Boolean(artifact));
+        if (!artifacts.length) {
+          autoSummaryKeyRef.current = null;
+          return;
+        }
         setMessages((prev) => {
           if (prev.length) return prev;
+          const openingMessage = effectiveClientId
+            ? `Separei o resumo semanal de ${clientName || 'este cliente'} para você começar mais rápido.`
+            : artifacts.length > 1
+              ? 'Separei o daily brief da operação e a saúde atual do sistema para você começar mais rápido.'
+              : 'Separei o daily brief da operação para você começar mais rápido.';
           return [{
             role: 'assistant',
-            content: effectiveClientId
-              ? `Separei o resumo semanal de ${clientName || 'este cliente'} para você começar mais rápido.`
-              : 'Separei o daily brief da operação para você começar mais rápido.',
+            content: openingMessage,
             timestamp: new Date().toISOString(),
-            artifacts: [artifact],
+            artifacts,
           }];
         });
       })
@@ -423,6 +441,12 @@ export default function JarvisChatPanel() {
 
       if (data?.conversationId && !conversationId) setConversationId(data.conversationId);
       if (!isOpen) bump();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('jarvis-feed-refresh'));
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jarvis-feed-refresh'));
+        }, 1500);
+      }
 
       // Auto-navigate if the response includes a navigate_to_view tool result
       const navArtifact = data?.artifacts?.find((a) => a.type === 'navigate_to_view' && a.navigate && a.path);
@@ -450,12 +474,16 @@ export default function JarvisChatPanel() {
       const detail = (e as CustomEvent).detail ?? {};
       const msg = detail.message as string | undefined;
       const evtClientId = detail.clientId as string | undefined;
+      const clientAction = detail.clientAction as JarvisClientAction | undefined;
+      const pageDataOverride = detail.pageData as Record<string, unknown> | undefined;
       // Override clientIdRef immediately so sendMessage uses the right client
       if (evtClientId) {
         clientIdRef.current = evtClientId;
         setClientId(evtClientId);
       }
-      if (msg) sendMessageRef.current(msg, evtClientId);
+      if (msg || clientAction) {
+        sendMessageRef.current(msg || 'Executar ação do Jarvis.', evtClientId, clientAction ?? null, pageDataOverride ?? undefined);
+      }
     };
     window.addEventListener('jarvis-home-send', handler);
     window.addEventListener('jarvis-studio-send', handler);

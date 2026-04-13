@@ -101,12 +101,19 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
     case 'send_whatsapp_message':
     case 'send_email':
     case 'execute_multi_step_workflow':
+    case 'run_system_repair':
       return {
         toolName,
         level: 'confirm',
-        category: toolName === 'publish_studio_post' ? 'publishing' : 'external',
+        category: toolName === 'publish_studio_post'
+          ? 'publishing'
+          : toolName === 'run_system_repair'
+            ? 'operations'
+            : 'external',
         reason: toolName === 'publish_studio_post'
           ? 'Publica em canal real e precisa confirmação explícita.'
+          : toolName === 'run_system_repair'
+            ? 'Reexecuta rotinas operacionais do sistema e exige confirmação explícita.'
           : 'Dispara comunicação ou lote de ações reais e exige confirmação explícita.',
       };
     case 'schedule_post_publication':

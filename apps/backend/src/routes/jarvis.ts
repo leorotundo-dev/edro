@@ -1524,6 +1524,39 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     });
   });
 
+  app.get('/jarvis/system-health-summary', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const userId = request.user?.id as string | undefined;
+    const userEmail = request.user?.email as string | undefined;
+    const userRole = request.user?.role as string | undefined;
+    const toolCtx: ToolContext = {
+      tenantId,
+      userId: userId ?? null,
+      userEmail: userEmail ?? null,
+      role: userRole ?? null,
+      clientId: '',
+      edroClientId: null,
+      conversationId: null,
+      conversationRoute: 'operations',
+      explicitConfirmation: false,
+    };
+    const result = await executeTool('get_system_health', {}, toolCtx);
+
+    if (!result.success || !result.data) {
+      return reply.status(400).send({ success: false, error: result.error || 'system_health_failed' });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        artifact: {
+          type: 'get_system_health',
+          ...result.data,
+        },
+      },
+    });
+  });
+
   // POST /jarvis/alerts/:id/dismiss
   app.post('/jarvis/alerts/:id/dismiss', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
@@ -1544,8 +1577,10 @@ export default async function jarvisRoutes(app: FastifyInstance) {
   // GET /jarvis/feed — unified decision queue for JarvisHomeSection
   app.get('/jarvis/feed', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
+    const userRole = request.user?.role as string | undefined;
+    const canSeeSystemHealth = can(normalizeRole(userRole), 'portfolio:read');
 
-    const [alertsRes, decisionsRes, dailyBriefRes, briefingPendingRes, autoBriefingsRes, opportunitiesRes] = await Promise.allSettled([
+    const [alertsRes, decisionsRes, dailyBriefRes, briefingPendingRes, autoBriefingsRes, opportunitiesRes, recentWorkflowsRes, systemHealthRes] = await Promise.allSettled([
       // Open Jarvis alerts
       getJarvisAlerts(tenantId, undefined, 10),
 
@@ -1590,6 +1625,30 @@ export default async function jarvisRoutes(app: FastifyInstance) {
          ORDER BY o.confidence DESC LIMIT 5`,
         [tenantId],
       ),
+
+      query(
+        `SELECT id, fired_at, metadata
+         FROM agent_action_log
+         WHERE tenant_id = $1
+           AND trigger_key LIKE 'jarvis_workflow:%'
+         ORDER BY fired_at DESC
+         LIMIT 5`,
+        [tenantId],
+      ),
+
+      canSeeSystemHealth
+        ? executeTool('get_system_health', {}, {
+            tenantId,
+            userId: request.user?.id ?? null,
+            userEmail: request.user?.email ?? null,
+            role: userRole ?? null,
+            clientId: '',
+            edroClientId: null,
+            conversationId: null,
+            conversationRoute: 'operations',
+            explicitConfirmation: false,
+          })
+        : Promise.resolve({ success: false, data: null }),
     ]);
 
     const rawAlerts        = alertsRes.status === 'fulfilled' ? alertsRes.value : [];
@@ -1598,6 +1657,26 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const briefingPending  = briefingPendingRes.status === 'fulfilled' ? briefingPendingRes.value.rows : [];
     const autoBriefings    = autoBriefingsRes.status === 'fulfilled' ? autoBriefingsRes.value.rows : [];
     const opportunities    = opportunitiesRes.status === 'fulfilled' ? opportunitiesRes.value.rows : [];
+    const systemHealth     = systemHealthRes.status === 'fulfilled' && systemHealthRes.value.success
+      ? systemHealthRes.value.data
+      : null;
+    const recentWorkflows  = recentWorkflowsRes.status === 'fulfilled'
+      ? recentWorkflowsRes.value.rows.map((row: any) => ({
+          id: row.id,
+          fired_at: row.fired_at,
+          workflow_id: row.metadata?.workflow_id || null,
+          workflow_json: row.metadata?.workflow_json || null,
+          status: row.metadata?.status || 'running',
+          completed_steps: Number(row.metadata?.completed_steps || 0),
+          steps_total: Number(row.metadata?.steps_total || 0),
+          resume_from_step: Number(row.metadata?.resume_from_step || 1),
+          last_step: row.metadata?.last_step || null,
+          failed_step: row.metadata?.failed_step || null,
+          last_error: row.metadata?.last_error || null,
+          steps_preview: Array.isArray(row.metadata?.steps_preview) ? row.metadata.steps_preview.slice(0, 5) : [],
+          finished_at: row.metadata?.finished_at || null,
+        }))
+      : [];
     const actionableById = new Map(
       decisions
         .filter((decision) => decision.autonomy_level >= 3 && decision.event.ref_id)
@@ -1627,10 +1706,12 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     return reply.send({
       alerts,
       daily_brief: dailyBrief,
+      system_health: systemHealth,
       briefing_pending: briefingPending,
       auto_briefings: autoBriefings,
       proposals,
       opportunities,
+      recent_workflows: recentWorkflows,
       total_actions,
     });
   });
