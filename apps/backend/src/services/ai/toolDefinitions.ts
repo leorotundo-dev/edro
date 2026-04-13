@@ -845,7 +845,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   // ── Read ──
   {
     name: 'list_operations_jobs',
-    description: 'Lista jobs/demandas operacionais da agência com filtros. Retorna título, cliente, status, prioridade, responsável, prazo e risco.',
+    description: 'Lista jobs/demandas operacionais da agência com filtros. Retorna título, cliente, status, prioridade, responsável, prazo e risco. Use deadline_month+deadline_year para perguntas como "quantos jobs venceram em Janeiro?" ou "quais prazos caíram em março?".',
     parameters: {
       status: { type: 'string', description: 'Filtrar por status', enum: ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'blocked', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'archived'] },
       priority_band: { type: 'string', description: 'Filtrar por faixa de prioridade', enum: ['p0', 'p1', 'p2', 'p3'] },
@@ -853,6 +853,9 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
       client_id: { type: 'string', description: 'Filtrar por cliente (ID)' },
       urgent: { type: 'boolean', description: 'Mostrar apenas urgentes' },
       unassigned: { type: 'boolean', description: 'Mostrar apenas sem responsável' },
+      deadline_month: { type: 'number', description: 'Mês do prazo/deadline (1=Jan, 2=Fev, ..., 12=Dez). Use com deadline_year para filtrar por mês específico.' },
+      deadline_year: { type: 'number', description: 'Ano do prazo/deadline (ex: 2026). Padrão: ano corrente se omitido.' },
+      include_completed: { type: 'boolean', description: 'Se true, inclui jobs com status done e archived (necessário para análises históricas).' },
       limit: { type: 'number', description: 'Máximo de resultados (default 20, max 50)' },
     },
     required: [],
@@ -1178,6 +1181,30 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
       step: { type: 'string', description: 'Etapa a regenerar', enum: ['copy', 'image'] },
     },
     required: ['job_id', 'step'],
+    category: 'action',
+  },
+  {
+    name: 'navigate_to_view',
+    description: 'Navega o usuário para uma tela específica do sistema. Use quando o usuário pedir "me leva até", "abrir", "ir para", "mostrar a tela de", etc.',
+    parameters: {
+      view: {
+        type: 'string',
+        description: 'Destino da navegação',
+        enum: [
+          'operacoes',
+          'operacoes/kanban',
+          'clientes',
+          'campanhas',
+          'equipe',
+          'agenda',
+          'admin/health',
+          'admin/trello',
+          'admin/campanhas',
+        ],
+      },
+      label: { type: 'string', description: 'Texto descritivo curto do destino para exibir ao usuário' },
+    },
+    required: ['view'],
     category: 'action',
   },
 ];
