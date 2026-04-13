@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
@@ -205,6 +205,7 @@ function getQuickActions(pathname: string, hasClient: boolean): string[] {
 export default function JarvisChatPanel() {
   const { clientId, setClientId, clientName, conversationId, setConversationId, bump, isOpen, pendingMessage, clearPendingMessage, pageData } = useJarvis();
   const pathname = usePathname();
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -375,6 +376,12 @@ export default function JarvisChatPanel() {
 
       if (data?.conversationId && !conversationId) setConversationId(data.conversationId);
       if (!isOpen) bump();
+
+      // Auto-navigate if the response includes a navigate_to_view tool result
+      const navArtifact = data?.artifacts?.find((a) => a.type === 'navigate_to_view' && a.navigate && a.path);
+      if (navArtifact?.path) {
+        setTimeout(() => router.push(navArtifact.path as string), 400);
+      }
     } catch {
       setMessages(prev => [...prev, {
         role: 'assistant',
