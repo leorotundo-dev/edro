@@ -72,6 +72,8 @@ type JarvisFeed = {
     fired_at: string;
     workflow_id?: string | null;
     workflow_json?: string | null;
+    confirm_tool_args?: Record<string, unknown> | null;
+    retry_tool_args?: Record<string, unknown> | null;
     status: string;
     completed_steps: number;
     steps_total: number;
@@ -388,8 +390,9 @@ export default function JarvisHomeSection() {
   };
 
   const triggerWorkflowAction = (workflow: JarvisFeed['recent_workflows'][number], mode: 'retry' | 'confirm') => {
+    const toolArgs = mode === 'confirm' ? workflow.confirm_tool_args : workflow.retry_tool_args;
     const workflowJson = String(workflow.workflow_json || '').trim();
-    if (!workflowJson) return;
+    if (!toolArgs && !workflowJson) return;
     setConversationId(null);
     open(clientId ?? undefined);
     setTimeout(() => {
@@ -401,7 +404,7 @@ export default function JarvisHomeSection() {
           clientAction: {
             type: 'confirm_tool_call',
             tool_name: 'execute_multi_step_workflow',
-            tool_args: {
+            tool_args: toolArgs || {
               workflow_json: workflowJson,
               workflow_id: workflow.workflow_id || undefined,
               resume_from_step: mode === 'retry'

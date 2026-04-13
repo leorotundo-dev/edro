@@ -6425,6 +6425,13 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           workflow_id: workflowId,
           workflow_status: 'failed',
           workflow_json: String(args.workflow_json || '[]'),
+          retry_tool_args: retryAvailability.can_retry_now
+            ? {
+                workflow_json: String(args.workflow_json || '[]'),
+                workflow_id: workflowId,
+                resume_from_step: completedSteps + 1,
+              }
+            : null,
           failed_step: toolName,
           last_error: result.error || `Workflow falhou em ${toolName}.`,
           failed_step_args_preview: stepArgsPreview,

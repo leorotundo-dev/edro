@@ -115,6 +115,9 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
   const subtitle = artifact.message || artifact.brief?.slice(0, 80) || null;
   const confirmationRequired = artifact.confirmation_required === true;
   const workflowJson = String(artifact.workflow_json || '').trim();
+  const retryToolArgs = artifact.retry_tool_args && typeof artifact.retry_tool_args === 'object'
+    ? artifact.retry_tool_args
+    : null;
 
   const href = artifact.post_url
     ? artifact.post_url
@@ -190,13 +193,13 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
     && artifact.can_retry_now === true
     && artifact.requires_manual_followup !== true
     && onRunClientAction
-    && workflowJson
+    && (retryToolArgs || workflowJson)
     ? () => onRunClientAction({
         message: 'Retome este workflow do ponto em que falhou.',
         clientAction: {
           type: 'confirm_tool_call',
           tool_name: 'execute_multi_step_workflow',
-          tool_args: {
+          tool_args: retryToolArgs || {
             workflow_json: workflowJson,
             workflow_id: artifact.workflow_id || undefined,
             resume_from_step: Number(artifact.resume_from_step || (artifact.completed_steps || 0) + 1),

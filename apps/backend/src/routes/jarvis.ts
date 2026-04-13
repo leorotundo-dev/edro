@@ -1688,6 +1688,18 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                 : isCooldownActive
                 ? `Workflow em cooldown até ${retryAfterDate!.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`
                 : null,
+              confirm_tool_args: {
+                workflow_json: row.metadata?.workflow_json || null,
+                workflow_id: row.metadata?.workflow_id || null,
+                resume_from_step: 1,
+              },
+              retry_tool_args: !requiresManualFollowup && recommendedNextAction === 'retry' && !isCooldownActive
+                ? {
+                    workflow_json: row.metadata?.workflow_json || null,
+                    workflow_id: row.metadata?.workflow_id || null,
+                    resume_from_step: Number(row.metadata?.resume_from_step || 1),
+                  }
+                : null,
             };
           })(),
           id: row.id,
