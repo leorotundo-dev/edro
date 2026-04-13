@@ -5871,6 +5871,7 @@ async function opsCreateTrelloCard(args: any, ctx: OperationsToolContext): Promi
 }
 
 async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const WORKFLOW_STALE_MS = 15 * 60 * 1000;
   const steps = JSON.parse(String(args.workflow_json || '[]'));
   if (!Array.isArray(steps) || !steps.length) return { success: false, error: 'workflow_json deve ser um array JSON de steps.' };
   if (steps.length > 6) return { success: false, error: 'Máximo de 6 steps por workflow.' };
@@ -5881,26 +5882,39 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   const startIndex = resumeFromStep - 1;
   const workflowId = String(args.workflow_id || '').trim() || crypto.randomUUID();
   const workflowTriggerKey = `jarvis_workflow:${workflowId}`;
-  const existingWorkflowRes = await query<{ metadata: any }>(
-    `SELECT metadata
+  const existingWorkflowRes = await query<{ metadata: any; fired_at: string | Date | null }>(
+    `SELECT metadata, fired_at
        FROM agent_action_log
       WHERE tenant_id = $1::uuid
         AND trigger_key = $2
       ORDER BY fired_at DESC
       LIMIT 1`,
     [ctx.tenantId, workflowTriggerKey],
-  ).catch(() => ({ rows: [] as Array<{ metadata: any }> }));
+  ).catch(() => ({ rows: [] as Array<{ metadata: any; fired_at: string | Date | null }> }));
   const existingMetadata = existingWorkflowRes.rows[0]?.metadata && typeof existingWorkflowRes.rows[0].metadata === 'object'
     ? existingWorkflowRes.rows[0].metadata
     : null;
-  const existingStatus = String(existingMetadata?.status || '').trim();
+  const existingRow = existingWorkflowRes.rows[0];
+  let existingStatus = String(existingMetadata?.status || '').trim();
   const attemptCount = Math.max(0, Number(existingMetadata?.attempt_count || 0));
+  const lastActivityRaw = String(
+    existingMetadata?.last_attempt_at
+      || existingMetadata?.started_at
+      || existingMetadata?.finished_at
+      || existingRow?.fired_at
+      || '',
+  ).trim();
+  const lastActivityAt = lastActivityRaw ? new Date(lastActivityRaw) : null;
+  const isStaleRunningWorkflow = (existingStatus === 'running' || existingStatus === 'rolling_back')
+    && !!lastActivityAt
+    && !Number.isNaN(lastActivityAt.getTime())
+    && (Date.now() - lastActivityAt.getTime()) > WORKFLOW_STALE_MS;
 
   if (ctx.explicitConfirmation === true) {
     if (existingStatus === 'completed') {
       return { success: false, error: 'Este workflow já foi concluído. Gere um novo plano para rodar novamente.' };
     }
-    if (existingStatus === 'running' || existingStatus === 'rolling_back') {
+    if ((existingStatus === 'running' || existingStatus === 'rolling_back') && !isStaleRunningWorkflow) {
       return { success: false, error: 'Este workflow já está em execução. Aguarde a conclusão antes de tentar novamente.' };
     }
     if (existingMetadata?.requires_manual_followup === true) {
@@ -5919,6 +5933,28 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       if (resumeFromStep !== persistedResume) {
         return { success: false, error: `resume_from_step inválido para retomada. O próximo passo seguro é ${persistedResume}.` };
       }
+    }
+    if (isStaleRunningWorkflow) {
+      const staleRecoveryRes = await query(
+        `UPDATE agent_action_log
+            SET fired_at = now(),
+                metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+          WHERE tenant_id = $1::uuid
+            AND trigger_key = $2
+            AND COALESCE(metadata->>'status', '') IN ('running', 'rolling_back')
+        RETURNING id`,
+        [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+          workflow_id: workflowId,
+          status: 'failed',
+          last_error: 'Execução anterior ficou stale e foi liberada para nova tentativa.',
+          stale_recovered_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+        })],
+      ).catch(() => ({ rowCount: 0 }));
+      if (!staleRecoveryRes.rowCount) {
+        return { success: false, error: 'Este workflow mudou de estado e não pode ser retomado agora. Recarregue e tente novamente.' };
+      }
+      existingStatus = 'failed';
     }
   }
 
