@@ -70,6 +70,7 @@ type CampaignPerf = {
   conversions_30d: number;
   spend_30d: number;
   dark_funnel_count: number;
+  health_score: number | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -162,8 +163,30 @@ function PerfPanel({ campaignId }: { campaignId: string }) {
     ...(perf.avg_roas ? [{ label: 'ROAS', value: `${perf.avg_roas}×`, icon: <IconCoin size={12} />, color: '#FA896B' }] : []),
   ];
 
+  const scoreColor = perf.health_score !== null
+    ? perf.health_score >= 80 ? '#13DEB9' : perf.health_score >= 50 ? '#FFAE1F' : '#FA896B'
+    : null;
+  const scoreLabel = perf.health_score !== null
+    ? perf.health_score >= 80 ? 'Excelente' : perf.health_score >= 50 ? 'Em desenvolvimento' : 'Atenção'
+    : null;
+
   return (
     <Box>
+      {scoreColor && scoreLabel && (
+        <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 1 }}>
+          <Box sx={{
+            minWidth: 30, height: 30, borderRadius: '50%',
+            bgcolor: scoreColor + '22', border: `2px solid ${scoreColor}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{perf.health_score}</Typography>
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: scoreColor }}>{scoreLabel}</Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.52rem' }}>Health Score</Typography>
+          </Box>
+        </Stack>
+      )}
       <Grid container spacing={0.75}>
         {kpis.map(({ label, value, icon, color }) => (
           <Grid size={{ xs: 6 }} key={label}>
