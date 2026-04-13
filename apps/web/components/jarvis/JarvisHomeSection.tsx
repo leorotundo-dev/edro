@@ -85,6 +85,7 @@ type JarvisFeed = {
     failure_class?: string | null;
     recommended_next_action?: string | null;
     recommended_next_label?: string | null;
+    failure_resolution_hint?: string | null;
     retry_after_at?: string | null;
     retry_attempts_remaining?: number | null;
     rollback_status?: string | null;
@@ -669,6 +670,11 @@ export default function JarvisHomeSection() {
                           {workflow.status === 'failed' && workflow.recommended_next_label ? (
                             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
                               Próxima ação: {workflow.recommended_next_label}
+                            </Typography>
+                          ) : null}
+                          {workflow.status === 'failed' && workflow.failure_resolution_hint ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              {workflow.failure_resolution_hint}
                             </Typography>
                           ) : null}
                           {workflow.status === 'failed' && workflow.retry_after_at ? (

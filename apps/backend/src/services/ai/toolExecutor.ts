@@ -6133,6 +6133,28 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       retry_attempts_remaining: null,
     };
   };
+  const buildFailureResolutionHint = (params: {
+    failureClass: string;
+    toolName: string;
+    argsPreview?: string | null;
+    retryAfterAt?: string | null;
+    retryAttemptsRemaining?: number | null;
+  }) => {
+    const stepRef = params.argsPreview ? `${params.toolName} (${params.argsPreview})` : params.toolName;
+    if (params.failureClass === 'transient') {
+      if ((params.retryAttemptsRemaining || 0) <= 0) {
+        return `O step ${stepRef} atingiu o limite de tentativas automáticas. Faça follow-up manual antes de insistir.`;
+      }
+      return `O step ${stepRef} falhou por instabilidade transitória. Aguarde até ${params.retryAfterAt ? new Date(params.retryAfterAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'o fim do cooldown'} e tente novamente.`;
+    }
+    if (params.failureClass === 'permission') {
+      return `O step ${stepRef} falhou por permissão. Ajuste acesso ou credenciais antes de repetir o workflow.`;
+    }
+    if (params.failureClass === 'irreversible') {
+      return `O step ${stepRef} deixou pendência operacional. Resolva manualmente antes de qualquer nova execução.`;
+    }
+    return `O step ${stepRef} falhou por dado ou regra de negócio. Corrija a entrada do workflow antes de tentar novamente.`;
+  };
   const summarizeRollback = (items: any[]) => {
     const total = items.length;
     const failures = items.filter((item) => item?.success === false).length;
@@ -6323,6 +6345,13 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         const rollbackSummary = summarizeRollback(rollback);
         const failureClass = classifyWorkflowFailure(result.error || `Workflow falhou em ${toolName}.`, rollbackSummary);
         const failurePolicy = buildFailurePolicy(failureClass);
+        const failureResolutionHint = buildFailureResolutionHint({
+          failureClass,
+          toolName,
+          argsPreview: stepArgsPreview,
+          retryAfterAt: failurePolicy.retry_after_at,
+          retryAttemptsRemaining: failurePolicy.retry_attempts_remaining,
+        });
         const data = {
           workflow_id: workflowId,
           workflow_status: 'failed',
@@ -6340,10 +6369,11 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         steps_history: buildExecutedHistory(),
         rollback,
         ...rollbackSummary,
-        retry_after_at: failurePolicy.retry_after_at,
-        retry_cooldown_ms: failurePolicy.retry_cooldown_ms,
-        retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
-      };
+          retry_after_at: failurePolicy.retry_after_at,
+          retry_cooldown_ms: failurePolicy.retry_cooldown_ms,
+          retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
+          failure_resolution_hint: failureResolutionHint,
+        };
         await query(
           `UPDATE agent_action_log
               SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
@@ -6370,6 +6400,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             retry_after_at: failurePolicy.retry_after_at,
             retry_cooldown_ms: failurePolicy.retry_cooldown_ms,
             retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
+            failure_resolution_hint: failureResolutionHint,
           })],
         ).catch(() => null);
         return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data };

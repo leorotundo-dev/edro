@@ -641,6 +641,11 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 Próxima ação sugerida: {artifact.recommended_next_label}
               </Typography>
             ) : null}
+            {artifact.failure_resolution_hint ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Como resolver: {artifact.failure_resolution_hint}
+              </Typography>
+            ) : null}
             {artifact.retry_after_at ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
                 Retry após: {formatDate(artifact.retry_after_at)}
