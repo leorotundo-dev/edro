@@ -6155,6 +6155,37 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     }
     return `O step ${stepRef} falhou por dado ou regra de negócio. Corrija a entrada do workflow antes de tentar novamente.`;
   };
+  const buildFailureActionItems = (params: {
+    failureClass: string;
+    toolName: string;
+    retryAfterAt?: string | null;
+    retryAttemptsRemaining?: number | null;
+    manualFollowup?: string[];
+  }) => {
+    if (params.failureClass === 'transient') {
+      const items = [];
+      if ((params.retryAttemptsRemaining || 0) > 0 && params.retryAfterAt) {
+        items.push(`aguarde o cooldown até ${new Date(params.retryAfterAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`);
+      }
+      if ((params.retryAttemptsRemaining || 0) > 0) {
+        items.push(`retome o workflow a partir de ${params.toolName}`);
+      }
+      if ((params.retryAttemptsRemaining || 0) <= 0) {
+        items.push('pare de insistir no retry automático');
+        items.push('faça follow-up manual do fluxo');
+      }
+      return items;
+    }
+    if (params.failureClass === 'permission') {
+      return ['revise as permissões do usuário ou tenant', 'valide credenciais e integrações antes de repetir'];
+    }
+    if (params.failureClass === 'irreversible') {
+      return Array.isArray(params.manualFollowup) && params.manualFollowup.length > 0
+        ? params.manualFollowup.slice(0, 3)
+        : ['resolva manualmente a pendência operacional antes de repetir'];
+    }
+    return ['corrija os dados de entrada do workflow', `revise os argumentos do step ${params.toolName}`];
+  };
   const summarizeRollback = (items: any[]) => {
     const total = items.length;
     const failures = items.filter((item) => item?.success === false).length;
@@ -6352,6 +6383,13 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           retryAfterAt: failurePolicy.retry_after_at,
           retryAttemptsRemaining: failurePolicy.retry_attempts_remaining,
         });
+        const failureActionItems = buildFailureActionItems({
+          failureClass,
+          toolName,
+          retryAfterAt: failurePolicy.retry_after_at,
+          retryAttemptsRemaining: failurePolicy.retry_attempts_remaining,
+          manualFollowup: rollbackSummary.manual_followup,
+        });
         const data = {
           workflow_id: workflowId,
           workflow_status: 'failed',
@@ -6373,6 +6411,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           retry_cooldown_ms: failurePolicy.retry_cooldown_ms,
           retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
           failure_resolution_hint: failureResolutionHint,
+          failure_action_items: failureActionItems,
         };
         await query(
           `UPDATE agent_action_log
@@ -6401,6 +6440,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             retry_cooldown_ms: failurePolicy.retry_cooldown_ms,
             retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
             failure_resolution_hint: failureResolutionHint,
+            failure_action_items: failureActionItems,
           })],
         ).catch(() => null);
         return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data };

@@ -646,6 +646,11 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 Como resolver: {artifact.failure_resolution_hint}
               </Typography>
             ) : null}
+            {Array.isArray(artifact.failure_action_items) && artifact.failure_action_items.length > 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Ações: {artifact.failure_action_items.join(' · ')}
+              </Typography>
+            ) : null}
             {artifact.retry_after_at ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
                 Retry após: {formatDate(artifact.retry_after_at)}
