@@ -3997,6 +3997,32 @@ import { estimateMinutes } from '../../services/jobs/estimationService';
 import { proposeAllocations } from '../../services/allocationService';
 import { getAvailableDAs, getWeeklyCapacity } from '../../services/daBillingService';
 
+// View path map — keeps routing logic in one place
+const VIEW_PATHS: Record<string, string> = {
+  operacoes:           '/operacoes',
+  'operacoes/kanban':  '/operacoes',
+  clientes:            '/clientes',
+  campanhas:           '/admin/campanhas',
+  equipe:              '/admin/equipe',
+  agenda:              '/agenda',
+  'admin/health':      '/admin/health',
+  'admin/trello':      '/admin/trello',
+  'admin/campanhas':   '/admin/campanhas',
+};
+
+async function opsNavigateTo(args: any, _ctx: OperationsToolContext): Promise<ToolResult> {
+  const path = VIEW_PATHS[args.view] ?? `/${args.view}`;
+  return {
+    success: true,
+    data: {
+      navigate: true,
+      path,
+      label: args.label ?? args.view,
+    },
+    metadata: {},
+  };
+}
+
 const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Promise<ToolResult>> = {
   list_operations_jobs: opsListJobs,
   get_operations_job: opsGetJob,
@@ -4021,6 +4047,7 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   resolve_operations_signal: opsResolveSignal,
   snooze_operations_signal: opsSnoozeSignal,
   manage_job_allocation: opsManageAllocation,
+  navigate_to_view: opsNavigateTo,
 };
 
 export async function executeOperationsTool(
@@ -4123,7 +4150,13 @@ async function getTrelloCardId(tenantId: string, cardId: string): Promise<string
 
 async function opsListJobs(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const values: any[] = [ctx.tenantId];
-  const where = [`j.tenant_id = $1`, `j.status <> 'archived'`];
+  // By default exclude archived; include_completed also adds done; deadline_month forces include_completed
+  const hasDateFilter = !!(args.deadline_month);
+  const includeCompleted = args.include_completed === true || hasDateFilter;
+  const where = [`j.tenant_id = $1`];
+  if (!includeCompleted) {
+    where.push(`j.status NOT IN ('archived','done')`);
+  }
 
   if (args.status) { values.push(args.status); where.push(`j.status = $${values.length}`); }
   if (args.priority_band) { values.push(args.priority_band); where.push(`j.priority_band = $${values.length}`); }
@@ -4131,6 +4164,14 @@ async function opsListJobs(args: any, ctx: OperationsToolContext): Promise<ToolR
   if (args.client_id) { values.push(args.client_id); where.push(`j.client_id = $${values.length}`); }
   if (args.urgent === true) { where.push(`j.is_urgent = true`); }
   if (args.unassigned === true) { where.push(`j.owner_id IS NULL`); }
+
+  // Date filters on deadline_at
+  if (args.deadline_month) {
+    const month = Number(args.deadline_month);
+    const year = args.deadline_year ? Number(args.deadline_year) : new Date().getFullYear();
+    values.push(month); where.push(`EXTRACT(MONTH FROM j.deadline_at) = $${values.length}`);
+    values.push(year);  where.push(`EXTRACT(YEAR  FROM j.deadline_at) = $${values.length}`);
+  }
 
   const limit = Math.min(args.limit || 20, 50);
 

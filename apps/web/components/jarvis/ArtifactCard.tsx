@@ -11,6 +11,7 @@ import {
   IconFileText, IconLink, IconCircleCheck, IconBulb,
   IconRss, IconChartBar, IconSparkles, IconArchive,
   IconCalendar, IconBrain, IconExternalLink, IconCopy, IconMessageSearch, IconAlertTriangle,
+  IconArrowRight,
 } from '@tabler/icons-react';
 
 export type Artifact = {
@@ -69,6 +70,7 @@ const ARTIFACT_MAP: Record<string, ArtifactMeta> = {
   memory_governance_gate:    { icon: IconAlertTriangle,label: 'Gate de governança da memória',  color: '#D97706' },
   memory_governance_applied: { icon: IconArchive,      label: 'Governança aplicada',            color: '#0EA5E9' },
   creative_conflict_gate:    { icon: IconAlertTriangle,label: 'Conflito criativo detectado',   color: '#EF4444' },
+  navigate_to_view:          { icon: IconArrowRight,   label: 'Navegando...',                  color: '#5D87FF' },
 };
 
 type Props = {
