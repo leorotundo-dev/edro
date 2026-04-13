@@ -160,10 +160,10 @@ function initials(name?: string) {
 }
 
 const QUICK_ACTIONS = [
+  'O que está pegando hoje na agência?',
+  'Me dá o daily brief da operação',
+  'Quais são os alertas críticos do Jarvis agora?',
   'Quais briefings estão em aberto?',
-  'Gera o brief estratégico do mês',
-  'Quais são as oportunidades ativas?',
-  'Recalcula a inteligência dos clientes',
 ];
 
 export default function JarvisHomeSection() {

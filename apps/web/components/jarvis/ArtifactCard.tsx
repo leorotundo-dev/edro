@@ -11,7 +11,7 @@ import {
   IconFileText, IconLink, IconCircleCheck, IconBulb,
   IconRss, IconChartBar, IconSparkles, IconArchive,
   IconCalendar, IconBrain, IconExternalLink, IconCopy, IconMessageSearch, IconAlertTriangle,
-  IconArrowRight,
+  IconArrowRight, IconMessage, IconMail, IconBrandTrello, IconChecklist,
 } from '@tabler/icons-react';
 
 export type Artifact = {
@@ -63,6 +63,12 @@ const ARTIFACT_MAP: Record<string, ArtifactMeta> = {
   compute_learning_rules:    { icon: IconBrain,        label: 'Regras de aprendizado recalculadas', color: '#3B82F6' },
   add_clipping_source:       { icon: IconRss,          label: 'Fonte de monitoramento adicionada', color: '#10B981' },
   add_calendar_event:        { icon: IconCalendar,     label: 'Evento adicionado ao calendário', color: '#F59E0B' },
+  get_client_weekly_summary: { icon: IconMessageSearch,label: 'Resumo semanal do cliente',      color: '#0EA5E9' },
+  get_operations_daily_brief:{ icon: IconChecklist,    label: 'Daily brief da operação',        color: '#8B5CF6' },
+  send_whatsapp_message:     { icon: IconMessage,      label: 'WhatsApp enviado',               color: '#10B981' },
+  send_email:                { icon: IconMail,         label: 'E-mail enviado',                 color: '#5D87FF' },
+  create_trello_card:        { icon: IconBrandTrello,  label: 'Card criado no Trello',          color: '#0079BF' },
+  execute_multi_step_workflow:{ icon: IconChecklist,   label: 'Workflow executado',             color: '#E85219' },
   create_campaign:           { icon: IconSparkles,     label: 'Campanha criada',                color: '#8B5CF6' },
   retrieve_client_evidence:  { icon: IconMessageSearch,label: 'Evidências recuperadas',         color: '#0EA5E9' },
   create_post_pipeline:      { icon: IconSparkles,     label: 'Pipeline de post criado',        color: '#E85219' },
@@ -83,6 +89,24 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
   const meta = ARTIFACT_MAP[artifact.type];
   if (!meta) return null;
 
+  const formatDate = (value?: string | null) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const truncate = (value?: string | null, size = 140) => {
+    const text = String(value || '').trim();
+    if (!text) return null;
+    return text.length > size ? `${text.slice(0, size)}…` : text;
+  };
+
   const Icon = meta.icon;
   const subtitle = artifact.message || artifact.brief?.slice(0, 80) || null;
 
@@ -90,6 +114,8 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
     ? artifact.post_url
     : artifact.studio_url
     ? artifact.studio_url
+    : artifact.trello_url
+    ? artifact.trello_url
     : artifact.briefing_id && clientId
     ? `/clients/${clientId}/briefings`
     : artifact.pauta_id && clientId
@@ -400,6 +426,112 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 {item.source_label}: {item.title}
               </Typography>
             ))}
+          </Box>
+        )}
+        {artifact.type === 'send_whatsapp_message' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.45 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+              Destino: {artifact.recipient_phone || '—'}
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {artifact.message_id ? <Chip size="small" label={`msg ${String(artifact.message_id).slice(0, 8)}`} sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
+              {artifact.client_id ? <Chip size="small" label="cliente" sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
+              {artifact.user_id ? <Chip size="small" label="colaborador" sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
+            </Box>
+          </Box>
+        )}
+        {artifact.type === 'send_email' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.45 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+              Destino: {artifact.to || '—'}
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {artifact.provider ? <Chip size="small" label={String(artifact.provider)} sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
+              <Chip size="small" label="entregue ao provider" sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} />
+            </Box>
+          </Box>
+        )}
+        {artifact.type === 'create_trello_card' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.45 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+              {artifact.board_name ? `${artifact.board_name} · ` : ''}{artifact.list_name || 'lista não informada'}
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {artifact.due_date ? <Chip size="small" label={`vence ${formatDate(artifact.due_date) || artifact.due_date}`} sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
+              {artifact.trello_card_id ? <Chip size="small" label={`trello ${String(artifact.trello_card_id).slice(0, 8)}`} sx={{ height: 22, fontSize: '0.68rem' }} /> : null}
+            </Box>
+          </Box>
+        )}
+        {artifact.type === 'get_client_weekly_summary' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.55 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              <Chip size="small" label={`${artifact.days_back || 7}d`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              <Chip size="small" label={`${artifact.whatsapp?.message_count || 0} msgs`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              <Chip size="small" label={`${artifact.jobs?.open_total || 0} jobs abertos`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              <Chip size="small" label={`${Array.isArray(artifact.active_alerts) ? artifact.active_alerts.length : 0} alertas`} sx={{ height: 22, fontSize: '0.68rem' }} />
+            </Box>
+            {truncate(artifact.whatsapp?.summary, 180) ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+                WhatsApp: {truncate(artifact.whatsapp?.summary, 180)}
+              </Typography>
+            ) : null}
+            {Array.isArray(artifact.whatsapp?.key_decisions) && artifact.whatsapp.key_decisions.length > 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+                Decisões: {artifact.whatsapp.key_decisions.slice(0, 2).join(' · ')}
+              </Typography>
+            ) : null}
+            {Array.isArray(artifact.whatsapp?.pending_actions) && artifact.whatsapp.pending_actions.length > 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+                Pendências: {artifact.whatsapp.pending_actions.slice(0, 2).join(' · ')}
+              </Typography>
+            ) : null}
+            {artifact.jobs?.by_status ? (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                {Object.entries(artifact.jobs.by_status).slice(0, 4).map(([status, total]) => (
+                  <Chip key={status} size="small" label={`${status}: ${total as number}`} sx={{ height: 22, fontSize: '0.68rem' }} />
+                ))}
+              </Box>
+            ) : null}
+          </Box>
+        )}
+        {artifact.type === 'get_operations_daily_brief' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.55 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              <Chip size="small" label={`${artifact.active_jobs_total || 0} jobs ativos`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              <Chip size="small" label={`${Array.isArray(artifact.jobs_due_today) ? artifact.jobs_due_today.length : 0} vencem hoje`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              <Chip size="small" label={`${Array.isArray(artifact.jobs_blocked) ? artifact.jobs_blocked.length : 0} bloqueados`} sx={{ height: 22, fontSize: '0.68rem' }} />
+              <Chip size="small" label={`${Array.isArray(artifact.jarvis_focus) ? artifact.jarvis_focus.length : 0} focos Jarvis`} sx={{ height: 22, fontSize: '0.68rem' }} />
+            </Box>
+            {truncate(artifact.top_action, 180) ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4, fontSize: '0.68rem' }}>
+                Prioridade do dia: {truncate(artifact.top_action, 180)}
+              </Typography>
+            ) : null}
+            {Array.isArray(artifact.jarvis_focus) && artifact.jarvis_focus.length > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                {artifact.jarvis_focus.slice(0, 3).map((item: any, index: number) => (
+                  <Typography key={`${item.title || 'focus'}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    {item.title}
+                  </Typography>
+                ))}
+              </Box>
+            ) : null}
+          </Box>
+        )}
+        {artifact.type === 'execute_multi_step_workflow' && (
+          <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.55 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              <Chip size="small" label={`${artifact.completed_steps || 0} etapa(s)`} sx={{ height: 22, fontSize: '0.68rem', bgcolor: `${meta.color}12`, color: meta.color, border: `1px solid ${meta.color}30` }} />
+            </Box>
+            {Array.isArray(artifact.steps) ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                {artifact.steps.slice(0, 5).map((step: any, index: number) => (
+                  <Typography key={`${step.tool || 'step'}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    {step.success ? 'OK' : 'Falhou'} · {step.tool}
+                  </Typography>
+                ))}
+              </Box>
+            ) : null}
           </Box>
         )}
         {(artifact.type === 'prepare_post_approval' || artifact.type === 'schedule_post_publication' || artifact.type === 'publish_studio_post') && (

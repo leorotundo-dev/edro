@@ -172,10 +172,19 @@ function getQuickActions(pathname: string, hasClient: boolean): string[] {
   }
   if (hasClient && pathname.includes('/clients/')) {
     return [
+      'Me dá o resumo semanal deste cliente',
       'Quais briefings estão em aberto?',
       'Gera um brief estratégico para este mês',
       'Analisa oportunidades e riscos',
       'Quais pautas estão pendentes?',
+    ];
+  }
+  if (pathname.includes('/admin/operacoes') || pathname.includes('/operations')) {
+    return [
+      'O que está pegando hoje na agência?',
+      'Me dá o daily brief da operação',
+      'Quais jobs estão mais críticos agora?',
+      'Quais alertas do Jarvis estão abertos?',
     ];
   }
   if (pathname.includes('/calendar')) {
