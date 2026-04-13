@@ -85,6 +85,8 @@ type JarvisFeed = {
     failure_class?: string | null;
     recommended_next_action?: string | null;
     recommended_next_label?: string | null;
+    retry_after_at?: string | null;
+    retry_attempts_remaining?: number | null;
     rollback_status?: string | null;
     rollback_total?: number;
     rollback_completed?: number;
@@ -669,6 +671,12 @@ export default function JarvisHomeSection() {
                               Próxima ação: {workflow.recommended_next_label}
                             </Typography>
                           ) : null}
+                          {workflow.status === 'failed' && workflow.retry_after_at ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              Retry após {relativeTime(workflow.retry_after_at)}
+                              {workflow.retry_attempts_remaining != null ? ` · restantes ${workflow.retry_attempts_remaining}` : ''}
+                            </Typography>
+                          ) : null}
                           {workflow.rollback_status && workflow.rollback_status !== 'not_needed' ? (
                             <Typography
                               variant="caption"
@@ -700,7 +708,8 @@ export default function JarvisHomeSection() {
                         {workflow.status === 'failed'
                           && workflow.workflow_json
                           && workflow.requires_manual_followup !== true
-                          && workflow.recommended_next_action === 'retry' ? (
+                          && workflow.recommended_next_action === 'retry'
+                          && (!workflow.retry_after_at || new Date(String(workflow.retry_after_at)).getTime() <= Date.now()) ? (
                           <Button
                             size="small"
                             variant="outlined"

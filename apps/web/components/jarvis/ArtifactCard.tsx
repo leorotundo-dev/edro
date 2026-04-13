@@ -188,6 +188,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
   const retryWorkflowAction = artifact.type === 'execute_multi_step_workflow'
     && artifact.workflow_status === 'failed'
     && String(artifact.recommended_next_action || '') === 'retry'
+    && (!artifact.retry_after_at || new Date(String(artifact.retry_after_at)).getTime() <= Date.now())
     && artifact.requires_manual_followup !== true
     && onRunClientAction
     && workflowJson
@@ -638,6 +639,12 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             {artifact.recommended_next_label ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
                 Próxima ação sugerida: {artifact.recommended_next_label}
+              </Typography>
+            ) : null}
+            {artifact.retry_after_at ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Retry após: {formatDate(artifact.retry_after_at)}
+                {artifact.retry_attempts_remaining != null ? ` · restantes ${artifact.retry_attempts_remaining}` : ''}
               </Typography>
             ) : null}
             {artifact.rollback_status && artifact.rollback_status !== 'not_needed' ? (

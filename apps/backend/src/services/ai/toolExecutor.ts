@@ -5872,6 +5872,8 @@ async function opsCreateTrelloCard(args: any, ctx: OperationsToolContext): Promi
 
 async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const WORKFLOW_STALE_MS = 15 * 60 * 1000;
+  const TRANSIENT_RETRY_MAX_ATTEMPTS = 3;
+  const TRANSIENT_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
   const steps = JSON.parse(String(args.workflow_json || '[]'));
   if (!Array.isArray(steps) || !steps.length) return { success: false, error: 'workflow_json deve ser um array JSON de steps.' };
   if (steps.length > 6) return { success: false, error: 'Máximo de 6 steps por workflow.' };
@@ -5933,6 +5935,25 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       const persistedResume = Math.max(1, Number(existingMetadata?.resume_from_step || 1));
       if (resumeFromStep !== persistedResume) {
         return { success: false, error: `resume_from_step inválido para retomada. O próximo passo seguro é ${persistedResume}.` };
+      }
+      const retryAfterRaw = String(existingMetadata?.retry_after_at || '').trim();
+      const retryAfterAt = retryAfterRaw ? new Date(retryAfterRaw) : null;
+      if (
+        existingMetadata?.failure_class === 'transient'
+        && retryAfterAt
+        && !Number.isNaN(retryAfterAt.getTime())
+        && retryAfterAt.getTime() > Date.now()
+      ) {
+        return {
+          success: false,
+          error: `Este workflow ainda está em cooldown. Tente novamente após ${retryAfterAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`,
+          data: {
+            workflow_id: workflowId,
+            workflow_status: existingStatus || 'failed',
+            retry_after_at: retryAfterAt.toISOString(),
+            retry_attempts_remaining: Number(existingMetadata?.retry_attempts_remaining || 0),
+          },
+        };
       }
     }
     if (isStaleRunningWorkflow) {
@@ -6069,15 +6090,48 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   };
   const buildFailurePolicy = (failureClass: string) => {
     if (failureClass === 'transient') {
-      return { recommended_next_action: 'retry', recommended_next_label: 'Tentar novamente' };
+      if (nextAttemptCount >= TRANSIENT_RETRY_MAX_ATTEMPTS) {
+        return {
+          recommended_next_action: 'manual_followup',
+          recommended_next_label: 'Limite de tentativas atingido',
+          retry_after_at: null,
+          retry_cooldown_ms: null,
+          retry_attempts_remaining: 0,
+        };
+      }
+      return {
+        recommended_next_action: 'retry',
+        recommended_next_label: 'Tentar novamente após cooldown',
+        retry_after_at: new Date(Date.now() + TRANSIENT_RETRY_COOLDOWN_MS).toISOString(),
+        retry_cooldown_ms: TRANSIENT_RETRY_COOLDOWN_MS,
+        retry_attempts_remaining: Math.max(0, TRANSIENT_RETRY_MAX_ATTEMPTS - nextAttemptCount),
+      };
     }
     if (failureClass === 'permission') {
-      return { recommended_next_action: 'fix_permissions', recommended_next_label: 'Ajustar permissões' };
+      return {
+        recommended_next_action: 'fix_permissions',
+        recommended_next_label: 'Ajustar permissões',
+        retry_after_at: null,
+        retry_cooldown_ms: null,
+        retry_attempts_remaining: null,
+      };
     }
     if (failureClass === 'irreversible') {
-      return { recommended_next_action: 'manual_followup', recommended_next_label: 'Resolver manualmente' };
+      return {
+        recommended_next_action: 'manual_followup',
+        recommended_next_label: 'Resolver manualmente',
+        retry_after_at: null,
+        retry_cooldown_ms: null,
+        retry_attempts_remaining: null,
+      };
     }
-    return { recommended_next_action: 'fix_input', recommended_next_label: 'Corrigir dados do workflow' };
+    return {
+      recommended_next_action: 'fix_input',
+      recommended_next_label: 'Corrigir dados do workflow',
+      retry_after_at: null,
+      retry_cooldown_ms: null,
+      retry_attempts_remaining: null,
+    };
   };
   const summarizeRollback = (items: any[]) => {
     const total = items.length;
@@ -6111,6 +6165,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     last_activity_at: new Date().toISOString(),
     last_attempt_at: new Date().toISOString(),
     started_at: new Date().toISOString(),
+    retry_after_at: null,
+    retry_cooldown_ms: null,
+    retry_attempts_remaining: null,
   };
   if (existingMetadata) {
     const claimRes = await query(
@@ -6203,6 +6260,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             rollback_total: rollbackTotal,
             rollback_completed: 0,
             rollback_failures: 0,
+            retry_after_at: null,
+            retry_cooldown_ms: null,
+            retry_attempts_remaining: null,
           })],
         ).catch(() => null);
         const rollback: any[] = [];
@@ -6253,6 +6313,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
               rollback_total: rollbackTotal,
               rollback_completed: rollback.length,
               rollback_failures: rollback.filter((item) => item?.success === false).length,
+              retry_after_at: null,
+              retry_cooldown_ms: null,
+              retry_attempts_remaining: null,
             })],
           ).catch(() => null);
         }
@@ -6274,10 +6337,13 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           attempt_count: nextAttemptCount,
           resume_from_step: completedSteps + 1,
           executed,
-          steps_history: buildExecutedHistory(),
-          rollback,
-          ...rollbackSummary,
-        };
+        steps_history: buildExecutedHistory(),
+        rollback,
+        ...rollbackSummary,
+        retry_after_at: failurePolicy.retry_after_at,
+        retry_cooldown_ms: failurePolicy.retry_cooldown_ms,
+        retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
+      };
         await query(
           `UPDATE agent_action_log
               SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
@@ -6301,6 +6367,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             finished_at: new Date().toISOString(),
             rollback,
             ...rollbackSummary,
+            retry_after_at: failurePolicy.retry_after_at,
+            retry_cooldown_ms: failurePolicy.retry_cooldown_ms,
+            retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
           })],
         ).catch(() => null);
         return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data };
@@ -6330,6 +6399,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         rollback_total: 0,
         rollback_completed: 0,
         rollback_failures: 0,
+        retry_after_at: null,
+        retry_cooldown_ms: null,
+        retry_attempts_remaining: null,
       })],
     ).catch(() => null);
   }
@@ -6361,6 +6433,9 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       rollback_total: 0,
       rollback_completed: 0,
       rollback_failures: 0,
+      retry_after_at: null,
+      retry_cooldown_ms: null,
+      retry_attempts_remaining: null,
       finished_at: new Date().toISOString(),
     })],
   ).catch(() => null);
