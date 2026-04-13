@@ -6039,6 +6039,13 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     error: item.error || null,
     summary: summarizeStepResult(item.data),
   }));
+  const classifyWorkflowFailure = (errorMessage: string | null | undefined, rollbackSummary?: { requires_manual_followup?: boolean }) => {
+    const text = String(errorMessage || '').toLowerCase();
+    if (rollbackSummary?.requires_manual_followup) return 'irreversible';
+    if (/(permission|permiss|forbidden|403|access denied|não autorizado)/i.test(text)) return 'permission';
+    if (/(timeout|timed out|temporar|429|502|503|504|network|fetch|gateway|service unavailable|econnreset|etimedout)/i.test(text)) return 'transient';
+    return 'business';
+  };
   const summarizeRollback = (items: any[]) => {
     const total = items.length;
     const failures = items.filter((item) => item?.success === false).length;
@@ -6202,12 +6209,14 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         }
         const completedSteps = startIndex + executed.filter((item) => item.success).length;
         const rollbackSummary = summarizeRollback(rollback);
+        const failureClass = classifyWorkflowFailure(result.error || `Workflow falhou em ${toolName}.`, rollbackSummary);
         const data = {
           workflow_id: workflowId,
           workflow_status: 'failed',
           workflow_json: String(args.workflow_json || '[]'),
           failed_step: toolName,
           last_error: result.error || `Workflow falhou em ${toolName}.`,
+          failure_class: failureClass,
           completed_steps: completedSteps,
           attempt_count: nextAttemptCount,
           resume_from_step: completedSteps + 1,
@@ -6225,6 +6234,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             status: 'failed',
             failed_step: toolName,
             last_error: result.error || `Workflow falhou em ${toolName}.`,
+            failure_class: failureClass,
             completed_steps: completedSteps,
             attempt_count: nextAttemptCount,
             resume_from_step: completedSteps + 1,

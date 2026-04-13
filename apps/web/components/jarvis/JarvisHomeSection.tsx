@@ -80,6 +80,7 @@ type JarvisFeed = {
     last_step?: string | null;
     failed_step?: string | null;
     last_error?: string | null;
+    failure_class?: string | null;
     rollback_status?: string | null;
     rollback_total?: number;
     rollback_completed?: number;
@@ -642,7 +643,7 @@ export default function JarvisHomeSection() {
                           ) : null}
                           {workflow.status === 'failed' && workflow.last_error ? (
                             <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
-                              {workflow.last_error}
+                              {workflow.last_error}{workflow.failure_class ? ` · ${workflow.failure_class}` : ''}
                             </Typography>
                           ) : null}
                           {workflow.rollback_status && workflow.rollback_status !== 'not_needed' ? (

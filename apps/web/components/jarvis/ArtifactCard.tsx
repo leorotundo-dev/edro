@@ -626,7 +626,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             ) : null}
             {artifact.failed_step ? (
               <Typography variant="caption" color="error.main" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
-                Falhou em: {artifact.failed_step}
+                Falhou em: {artifact.failed_step}{artifact.failure_class ? ` · ${artifact.failure_class}` : ''}
               </Typography>
             ) : null}
             {artifact.rollback_status && artifact.rollback_status !== 'not_needed' ? (
