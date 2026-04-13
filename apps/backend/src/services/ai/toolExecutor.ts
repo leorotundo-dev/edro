@@ -6023,25 +6023,47 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       manual_followup: manualFollowup,
     };
   };
-  await query(
-    `INSERT INTO agent_action_log (tenant_id, trigger_key, metadata)
-     VALUES ($1::uuid, $2, $3::jsonb)
-     ON CONFLICT (trigger_key, fired_date)
-     DO UPDATE SET
-       tenant_id = EXCLUDED.tenant_id,
-       fired_at = now(),
-       metadata = COALESCE(agent_action_log.metadata, '{}'::jsonb) || EXCLUDED.metadata`,
-    [ctx.tenantId, workflowTriggerKey, JSON.stringify({
-      workflow_id: workflowId,
-      workflow_json: String(args.workflow_json || '[]'),
-      status: 'running',
-      steps_total: steps.length,
-      attempt_count: nextAttemptCount,
-      resume_from_step: resumeFromStep,
-      last_attempt_at: new Date().toISOString(),
-      started_at: new Date().toISOString(),
-    })],
-  ).catch(() => null);
+  const runningMetadata = {
+    workflow_id: workflowId,
+    workflow_json: String(args.workflow_json || '[]'),
+    status: 'running',
+    steps_total: steps.length,
+    attempt_count: nextAttemptCount,
+    resume_from_step: resumeFromStep,
+    last_attempt_at: new Date().toISOString(),
+    started_at: new Date().toISOString(),
+  };
+  if (existingMetadata) {
+    const claimRes = await query(
+      `UPDATE agent_action_log
+          SET fired_at = now(),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+        WHERE tenant_id = $1::uuid
+          AND trigger_key = $2
+          AND COALESCE(metadata->>'status', '') NOT IN ('running', 'rolling_back', 'completed')
+          AND COALESCE((metadata->>'requires_manual_followup')::boolean, false) = false
+          AND (
+            COALESCE(metadata->>'status', '') <> 'failed'
+            OR COALESCE((metadata->>'resume_from_step')::int, 1) = $4
+          )
+        RETURNING id`,
+      [ctx.tenantId, workflowTriggerKey, JSON.stringify(runningMetadata), resumeFromStep],
+    ).catch(() => ({ rowCount: 0 }));
+    if (!claimRes.rowCount) {
+      return { success: false, error: 'Este workflow mudou de estado e não pode ser executado agora. Recarregue e tente novamente.' };
+    }
+  } else {
+    await query(
+      `INSERT INTO agent_action_log (tenant_id, trigger_key, metadata)
+       VALUES ($1::uuid, $2, $3::jsonb)
+       ON CONFLICT (trigger_key, fired_date)
+       DO UPDATE SET
+         tenant_id = EXCLUDED.tenant_id,
+         fired_at = now(),
+         metadata = COALESCE(agent_action_log.metadata, '{}'::jsonb) || EXCLUDED.metadata`,
+      [ctx.tenantId, workflowTriggerKey, JSON.stringify(runningMetadata)],
+    ).catch(() => null);
+  }
 
   for (let stepIndex = startIndex; stepIndex < steps.length; stepIndex += 1) {
     const step = steps[stepIndex];
