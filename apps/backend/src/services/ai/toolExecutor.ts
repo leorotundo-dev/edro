@@ -6155,6 +6155,31 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     }
     return `O step ${stepRef} falhou por dado ou regra de negócio. Corrija a entrada do workflow antes de tentar novamente.`;
   };
+  const buildRetryAvailability = (params: {
+    recommendedNextAction?: string | null;
+    recommendedNextLabel?: string | null;
+    retryAfterAt?: string | null;
+    requiresManualFollowup?: boolean;
+  }) => {
+    if (params.requiresManualFollowup) {
+      return { can_retry_now: false, retry_block_reason: 'Workflow exige follow-up manual antes de qualquer retry.' };
+    }
+    if (params.recommendedNextAction !== 'retry') {
+      return {
+        can_retry_now: false,
+        retry_block_reason: params.recommendedNextLabel ? `Retry indisponível: ${params.recommendedNextLabel}.` : 'Retry indisponível.',
+      };
+    }
+    const retryAfterRaw = String(params.retryAfterAt || '').trim();
+    const retryAfterAt = retryAfterRaw ? new Date(retryAfterRaw) : null;
+    if (retryAfterAt && !Number.isNaN(retryAfterAt.getTime()) && retryAfterAt.getTime() > Date.now()) {
+      return {
+        can_retry_now: false,
+        retry_block_reason: `Workflow em cooldown até ${retryAfterAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`,
+      };
+    }
+    return { can_retry_now: true, retry_block_reason: null };
+  };
   const buildFailureActionItems = (params: {
     failureClass: string;
     toolName: string;
@@ -6383,6 +6408,12 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           retryAfterAt: failurePolicy.retry_after_at,
           retryAttemptsRemaining: failurePolicy.retry_attempts_remaining,
         });
+        const retryAvailability = buildRetryAvailability({
+          recommendedNextAction: failurePolicy.recommended_next_action,
+          recommendedNextLabel: failurePolicy.recommended_next_label,
+          retryAfterAt: failurePolicy.retry_after_at,
+          requiresManualFollowup: rollbackSummary.requires_manual_followup,
+        });
         const failureActionItems = buildFailureActionItems({
           failureClass,
           toolName,
@@ -6412,6 +6443,8 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
           failure_resolution_hint: failureResolutionHint,
           failure_action_items: failureActionItems,
+          can_retry_now: retryAvailability.can_retry_now,
+          retry_block_reason: retryAvailability.retry_block_reason,
         };
         await query(
           `UPDATE agent_action_log
@@ -6441,6 +6474,8 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             retry_attempts_remaining: failurePolicy.retry_attempts_remaining,
             failure_resolution_hint: failureResolutionHint,
             failure_action_items: failureActionItems,
+            can_retry_now: retryAvailability.can_retry_now,
+            retry_block_reason: retryAvailability.retry_block_reason,
           })],
         ).catch(() => null);
         return { success: false, error: result.error || `Workflow falhou em ${toolName}.`, data };

@@ -1672,6 +1672,24 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       : null;
     const recentWorkflows  = recentWorkflowsRes.status === 'fulfilled'
       ? recentWorkflowsRes.value.rows.map((row: any) => ({
+          ...(() => {
+            const recommendedNextAction = row.metadata?.recommended_next_action || null;
+            const recommendedNextLabel = row.metadata?.recommended_next_label || null;
+            const requiresManualFollowup = row.metadata?.requires_manual_followup === true;
+            const retryAfterAt = row.metadata?.retry_after_at || null;
+            const retryAfterDate = retryAfterAt ? new Date(String(retryAfterAt)) : null;
+            const isCooldownActive = !!(retryAfterDate && !Number.isNaN(retryAfterDate.getTime()) && retryAfterDate.getTime() > Date.now());
+            return {
+              can_retry_now: !requiresManualFollowup && recommendedNextAction === 'retry' && !isCooldownActive,
+              retry_block_reason: requiresManualFollowup
+                ? 'Workflow exige follow-up manual antes de qualquer retry.'
+                : recommendedNextAction !== 'retry'
+                ? (recommendedNextLabel ? `Retry indisponível: ${recommendedNextLabel}.` : 'Retry indisponível.')
+                : isCooldownActive
+                ? `Workflow em cooldown até ${retryAfterDate!.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`
+                : null,
+            };
+          })(),
           id: row.id,
           fired_at: row.fired_at,
           workflow_id: row.metadata?.workflow_id || null,
