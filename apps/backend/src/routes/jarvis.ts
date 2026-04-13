@@ -5,8 +5,8 @@ import { getJarvisAlerts, dismissAlert, snoozeAlert } from '../services/jarvisAl
 import { query } from '../db';
 import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
 import { runToolUseLoop } from '../services/ai/toolUseLoop';
-import { getAllToolDefinitions, getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
-import { executeOperationsTool, type OperationsToolContext, type ToolContext } from '../services/ai/toolExecutor';
+import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
+import { type ToolContext } from '../services/ai/toolExecutor';
 import { getBriefingById } from '../repositories/edroBriefingRepository';
 import {
   buildAgentSystemPrompt,
@@ -925,8 +925,10 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           maxBlocks: decision.retrievalBudget.contextBlocks,
         });
         const memoryFabric = formatJarvisMemoryBlocks(memoryBlocks);
-        const toolCtx: OperationsToolContext = {
+        const toolCtx: ToolContext = {
           tenantId,
+          clientId: clientId || '',
+          edroClientId: edroClientId || null,
           userId: userId ?? undefined,
           userEmail,
           role: userRole,
@@ -936,14 +938,13 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
             systemPrompt: buildOperationsSystemPrompt(memoryFabric),
-            tools: getOperationsToolDefinitions(),
+            tools: getAllToolDefinitions(),
             provider: resolvedProvider,
             toolContext: toolCtx,
             maxIterations: decision.retrievalBudget.toolIterations,
             temperature: 0.5,
             maxTokens: 4096,
             usageContext: usageCtx,
-            toolExecutorFn: executeOperationsTool,
           }),
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('JARVIS_OPS_TIMEOUT_60s')), 60000)),
         ]);
@@ -952,6 +953,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         resultProvider = loopResult.provider;
         resultModel = loopResult.model;
         toolsUsed = loopResult.toolCallsExecuted ?? 0;
+        artifacts = (loopResult.toolResults ?? [])
+          .filter((result) => result.success && result.data)
+          .map((result) => ({ type: result.toolName, ...result.data }));
         const loadedMemoryBlocks = memoryBlocks.map((block) => block.label);
         const durationMs = Date.now() - startMs;
         const observability = buildJarvisObservability(decision, {

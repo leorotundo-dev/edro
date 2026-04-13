@@ -304,7 +304,7 @@ export function buildJarvisRoutingDecision(intent: JarvisIntent): JarvisRoutingD
         route: 'operations',
         primaryMemory: 'operations_memory',
         secondaryMemories: ['client_memory'],
-        retrievalBudget: { historyMessages: 20, toolIterations: 5, contextBlocks: 2 },
+        retrievalBudget: { historyMessages: 20, toolIterations: 8, contextBlocks: 3 },
       };
     case 'client_memory':
       return {
