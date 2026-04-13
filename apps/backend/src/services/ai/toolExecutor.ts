@@ -63,12 +63,13 @@ import { buildBriefingDiagnostics } from '../briefingDiagnosticService';
 import { buildReporteiSemanticSummary } from '../reporteiSemanticService';
 import { getTrelloCredentials } from '../trelloSyncService';
 import { buildDailyDigest } from '../agencyDigestService';
-import { createCalendarEvent, watchCalendar } from '../integrations/googleCalendarService';
-import { processPendingRetries } from '../webhookRetryService';
-import { runTrelloOutboxWorkerOnce } from '../../jobs/trelloOutboxWorker';
-import { watchGmailInbox, syncGmailInboxFallback } from '../integrations/gmailService';
-import { refreshAllClientsForTenant } from '../../clientIntelligence/worker';
-import { runJarvisAlertEngine } from '../jarvisAlertEngine';
+import { createCalendarEvent } from '../integrations/googleCalendarService';
+import {
+  buildSystemHealthSnapshot,
+  resolveSystemRepairPlan,
+  runSystemRepair,
+  SYSTEM_REPAIR_LABELS,
+} from '../jarvisSystemHealthService';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -5603,177 +5604,6 @@ async function opsGetOperationsDailyBrief(_args: any, ctx: OperationsToolContext
   };
 }
 
-const SYSTEM_REPAIR_LABELS: Record<string, string> = {
-  auto_repair: 'Auto-reparo seguro',
-  process_webhook_retries: 'Processar retries de webhook',
-  flush_trello_outbox: 'Destravar fila do Trello',
-  renew_google_watches: 'Renovar watches do Google',
-  run_gmail_fallback: 'Rodar fallback do Gmail',
-  refresh_client_intelligence: 'Atualizar inteligência dos clientes',
-  refresh_jarvis_alerts: 'Recalcular alertas do Jarvis',
-};
-
-async function buildSystemHealthSnapshot(tenantId: string) {
-  const [retryRes, trelloRes, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
-    query<any>(
-      `SELECT source,
-              COUNT(*) FILTER (WHERE status = 'pending' AND next_retry_at <= now())::int AS due,
-              COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
-              COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
-         FROM webhook_retry_queue
-        WHERE tenant_id = $1
-        GROUP BY source
-        ORDER BY source ASC`,
-      [tenantId],
-    ).catch(() => ({ rows: [] as any[] })),
-    query<any>(
-      `SELECT COUNT(*) FILTER (WHERE status IN ('pending','error'))::int AS backlog,
-              COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
-              COUNT(*) FILTER (WHERE status = 'dead')::int AS dead
-         FROM trello_outbox
-        WHERE tenant_id = $1`,
-      [tenantId],
-    ).catch(() => ({ rows: [{ backlog: 0, processing: 0, dead: 0 }] as any[] })),
-    query<any>(
-      `SELECT email_address, watch_expiry, last_sync_at, last_error
-         FROM gmail_connections
-        WHERE tenant_id = $1
-        LIMIT 1`,
-      [tenantId],
-    ).catch(() => ({ rows: [] as any[] })),
-    query<any>(
-      `SELECT email_address, expires_at, watch_status, last_watch_error
-         FROM google_calendar_channels
-        WHERE tenant_id = $1
-        LIMIT 1`,
-      [tenantId],
-    ).catch(() => ({ rows: [] as any[] })),
-    query<any>(
-      `SELECT COUNT(*)::int AS total_clients,
-              COUNT(*) FILTER (
-                WHERE intelligence_refreshed_at IS NULL
-                   OR intelligence_refreshed_at < now() - interval '7 days'
-              )::int AS stale_clients
-         FROM clients
-        WHERE tenant_id = $1
-          AND status != 'archived'`,
-      [tenantId],
-    ).catch(() => ({ rows: [{ total_clients: 0, stale_clients: 0 }] as any[] })),
-    query<any>(
-      `SELECT COUNT(*)::int AS open_alerts, MAX(created_at)::text AS last_open_alert_at
-         FROM jarvis_alerts
-        WHERE tenant_id = $1
-          AND status = 'open'`,
-      [tenantId],
-    ).catch(() => ({ rows: [{ open_alerts: 0, last_open_alert_at: null }] as any[] })),
-  ]);
-
-  const now = Date.now();
-  const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; failed: number }>;
-  const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, dead: 0 };
-  const gmail = gmailRes.rows[0] ?? null;
-  const calendar = calendarRes.rows[0] ?? null;
-  const intelligence = intelligenceRes.rows[0] ?? { total_clients: 0, stale_clients: 0 };
-  const alerts = alertsRes.rows[0] ?? { open_alerts: 0, last_open_alert_at: null };
-  const gmailExpiryMs = gmail?.watch_expiry ? new Date(gmail.watch_expiry).getTime() : null;
-  const calendarExpiryMs = calendar?.expires_at ? new Date(calendar.expires_at).getTime() : null;
-  const gmailNeedsAttention = Boolean(gmail?.last_error) || (gmailExpiryMs !== null && gmailExpiryMs < now + 48 * 3_600_000);
-  const calendarNeedsAttention = Boolean(calendar?.last_watch_error) || (calendarExpiryMs !== null && calendarExpiryMs < now + 48 * 3_600_000);
-
-  const issues: Array<{ key: string; severity: 'warning' | 'critical'; title: string; message: string; repair_type: string }> = [];
-  const dueRetries = retry.reduce((sum, row) => sum + Number(row.due || 0), 0);
-  const failedRetries = retry.reduce((sum, row) => sum + Number(row.failed || 0), 0);
-
-  if (dueRetries || failedRetries) {
-    issues.push({
-      key: 'webhook_retry_queue',
-      severity: failedRetries > 0 ? 'critical' : 'warning',
-      title: 'Fila de webhook com eventos pendentes',
-      message: `${dueRetries} retry(s) de webhook vencidos e ${failedRetries} falha(s) permanentes.`,
-      repair_type: 'process_webhook_retries',
-    });
-  }
-  if (Number(trello.backlog || 0) || Number(trello.dead || 0)) {
-    issues.push({
-      key: 'trello_outbox',
-      severity: Number(trello.dead || 0) > 0 ? 'critical' : 'warning',
-      title: 'Fila do Trello acumulada',
-      message: `${Number(trello.backlog || 0)} item(ns) pendentes e ${Number(trello.dead || 0)} falha(s) permanentes.`,
-      repair_type: 'flush_trello_outbox',
-    });
-  }
-  if (gmailNeedsAttention || calendarNeedsAttention) {
-    issues.push({
-      key: 'google_watches',
-      severity: (gmailExpiryMs !== null && gmailExpiryMs <= now) || (calendarExpiryMs !== null && calendarExpiryMs <= now) ? 'critical' : 'warning',
-      title: 'Watches do Google precisam atenção',
-      message: [
-        gmailNeedsAttention ? `Gmail ${gmail?.email_address || ''}`.trim() : null,
-        calendarNeedsAttention ? `Calendar ${calendar?.email_address || ''}`.trim() : null,
-      ].filter(Boolean).join(' · ') || 'Conexões Google exigem renovação.',
-      repair_type: 'renew_google_watches',
-    });
-  }
-  if (Number(intelligence.stale_clients || 0) > 0) {
-    issues.push({
-      key: 'client_intelligence',
-      severity: Number(intelligence.stale_clients || 0) >= 5 ? 'critical' : 'warning',
-      title: 'Clientes com inteligência stale',
-      message: `${Number(intelligence.stale_clients || 0)} cliente(s) sem refresh de inteligência nos últimos 7 dias.`,
-      repair_type: 'refresh_client_intelligence',
-    });
-  }
-
-  const status = issues.some((item) => item.severity === 'critical')
-    ? 'critical'
-    : issues.length
-      ? 'warning'
-      : 'ok';
-
-  return {
-    summary: {
-      status,
-      open_issues: issues.length,
-      critical_issues: issues.filter((item) => item.severity === 'critical').length,
-    },
-    components: {
-      webhook_retry: retry,
-      trello_outbox: {
-        backlog: Number(trello.backlog || 0),
-        processing: Number(trello.processing || 0),
-        dead: Number(trello.dead || 0),
-      },
-      gmail: gmail ? {
-        email_address: gmail.email_address,
-        watch_expiry: gmail.watch_expiry,
-        last_sync_at: gmail.last_sync_at,
-        last_error: gmail.last_error,
-        needs_attention: gmailNeedsAttention,
-      } : null,
-      google_calendar: calendar ? {
-        email_address: calendar.email_address,
-        expires_at: calendar.expires_at,
-        watch_status: calendar.watch_status,
-        last_watch_error: calendar.last_watch_error,
-        needs_attention: calendarNeedsAttention,
-      } : null,
-      client_intelligence: {
-        total_clients: Number(intelligence.total_clients || 0),
-        stale_clients: Number(intelligence.stale_clients || 0),
-      },
-      jarvis_alerts: {
-        open_alerts: Number(alerts.open_alerts || 0),
-        last_open_alert_at: alerts.last_open_alert_at || null,
-      },
-    },
-    issues,
-    repair_actions: Array.from(new Set(issues.map((item) => item.repair_type))).map((repairType) => ({
-      repair_type: repairType,
-      label: SYSTEM_REPAIR_LABELS[repairType] || repairType,
-    })),
-  };
-}
-
 async function opsGetSystemHealth(_args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   return {
     success: true,
@@ -5786,9 +5616,7 @@ async function opsRunSystemRepair(args: any, ctx: OperationsToolContext): Promis
   if (!repairType) return { success: false, error: 'repair_type é obrigatório.' };
 
   const before = await buildSystemHealthSnapshot(ctx.tenantId);
-  const repairPlan = repairType === 'auto_repair'
-    ? before.repair_actions.map((item) => item.repair_type)
-    : [repairType];
+  const repairPlan = resolveSystemRepairPlan(repairType as any, before);
 
   if (!repairPlan.length) {
     return {
@@ -5815,93 +5643,9 @@ async function opsRunSystemRepair(args: any, ctx: OperationsToolContext): Promis
     });
   }
 
-  const executedRepairs: Array<Record<string, any>> = [];
-
-  for (const plannedRepair of repairPlan) {
-    switch (plannedRepair) {
-      case 'process_webhook_retries': {
-        const result = await processPendingRetries();
-        executedRepairs.push({ repair_type: plannedRepair, ...result });
-        break;
-      }
-      case 'flush_trello_outbox': {
-        const beforeOutbox = before.components.trello_outbox;
-        await runTrelloOutboxWorkerOnce();
-        const afterSnapshot = await buildSystemHealthSnapshot(ctx.tenantId);
-        executedRepairs.push({
-          repair_type: plannedRepair,
-          backlog_before: beforeOutbox.backlog,
-          backlog_after: afterSnapshot.components.trello_outbox.backlog,
-          dead_after: afterSnapshot.components.trello_outbox.dead,
-        });
-        break;
-      }
-      case 'renew_google_watches': {
-        const gmailConnected = await query(`SELECT 1 FROM gmail_connections WHERE tenant_id = $1 AND refresh_token IS NOT NULL LIMIT 1`, [ctx.tenantId]).catch(() => ({ rows: [] as any[] }));
-        const calendarConnected = await query(`SELECT 1 FROM google_calendar_channels WHERE tenant_id = $1 AND refresh_token IS NOT NULL LIMIT 1`, [ctx.tenantId]).catch(() => ({ rows: [] as any[] }));
-        const googleResult = {
-          repair_type: plannedRepair,
-          gmail: { attempted: false, ok: false as boolean, error: null as string | null },
-          calendar: { attempted: false, ok: false as boolean, error: null as string | null },
-        };
-        if (gmailConnected.rows.length) {
-          googleResult.gmail.attempted = true;
-          try {
-            await watchGmailInbox(ctx.tenantId);
-            googleResult.gmail.ok = true;
-          } catch (error: any) {
-            googleResult.gmail.error = error?.message || 'gmail_watch_failed';
-          }
-        }
-        if (calendarConnected.rows.length) {
-          googleResult.calendar.attempted = true;
-          try {
-            await watchCalendar(ctx.tenantId);
-            googleResult.calendar.ok = true;
-          } catch (error: any) {
-            googleResult.calendar.error = error?.message || 'calendar_watch_failed';
-          }
-        }
-        executedRepairs.push(googleResult);
-        break;
-      }
-      case 'run_gmail_fallback': {
-        const outcome = await syncGmailInboxFallback(ctx.tenantId);
-        executedRepairs.push({ repair_type: plannedRepair, outcome });
-        break;
-      }
-      case 'refresh_client_intelligence': {
-        const result = await refreshAllClientsForTenant(ctx.tenantId);
-        executedRepairs.push({
-          repair_type: plannedRepair,
-          total_clients: result.total,
-          processed: result.processed,
-          ok: result.results.filter((item) => item.ok).length,
-          failed: result.results.filter((item) => !item.ok).length,
-        });
-        break;
-      }
-      case 'refresh_jarvis_alerts': {
-        const saved = await runJarvisAlertEngine(ctx.tenantId);
-        executedRepairs.push({ repair_type: plannedRepair, saved });
-        break;
-      }
-      default:
-        return { success: false, error: `repair_type não suportado: ${plannedRepair}` };
-    }
-  }
-
-  const after = await buildSystemHealthSnapshot(ctx.tenantId);
   return {
     success: true,
-    data: {
-      repair_type: repairType,
-      executed_repairs: executedRepairs,
-      before_summary: before.summary,
-      after_summary: after.summary,
-      remaining_issues: after.issues,
-      message: `Reparo ${SYSTEM_REPAIR_LABELS[repairType] || repairType} concluído.`,
-    },
+    data: await runSystemRepair(ctx.tenantId, repairType as any, before),
   };
 }
 

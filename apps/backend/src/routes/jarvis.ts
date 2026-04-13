@@ -1580,7 +1580,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const userRole = request.user?.role as string | undefined;
     const canSeeSystemHealth = can(normalizeRole(userRole), 'portfolio:read');
 
-    const [alertsRes, decisionsRes, dailyBriefRes, briefingPendingRes, autoBriefingsRes, opportunitiesRes, recentWorkflowsRes, systemHealthRes] = await Promise.allSettled([
+    const [alertsRes, decisionsRes, dailyBriefRes, briefingPendingRes, autoBriefingsRes, opportunitiesRes, recentWorkflowsRes, recentRepairsRes, systemHealthRes] = await Promise.allSettled([
       // Open Jarvis alerts
       getJarvisAlerts(tenantId, undefined, 10),
 
@@ -1636,6 +1636,16 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         [tenantId],
       ),
 
+      query(
+        `SELECT id, fired_at, metadata
+           FROM agent_action_log
+          WHERE tenant_id = $1
+            AND trigger_key LIKE 'jarvis_auto_repair:%'
+          ORDER BY fired_at DESC
+          LIMIT 5`,
+        [tenantId],
+      ),
+
       canSeeSystemHealth
         ? executeTool('get_system_health', {}, {
             tenantId,
@@ -1677,6 +1687,17 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           finished_at: row.metadata?.finished_at || null,
         }))
       : [];
+    const recentRepairs = recentRepairsRes.status === 'fulfilled'
+      ? recentRepairsRes.value.rows.map((row: any) => ({
+          id: row.id,
+          fired_at: row.fired_at,
+          repair_type: row.metadata?.repair_type || null,
+          before_summary: row.metadata?.before_summary || null,
+          after_summary: row.metadata?.after_summary || null,
+          executed_repairs: Array.isArray(row.metadata?.executed_repairs) ? row.metadata.executed_repairs.slice(0, 4) : [],
+          remaining_issues: Array.isArray(row.metadata?.remaining_issues) ? row.metadata.remaining_issues : [],
+        }))
+      : [];
     const actionableById = new Map(
       decisions
         .filter((decision) => decision.autonomy_level >= 3 && decision.event.ref_id)
@@ -1712,6 +1733,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       proposals,
       opportunities,
       recent_workflows: recentWorkflows,
+      recent_repairs: recentRepairs,
       total_actions,
     });
   });

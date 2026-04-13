@@ -82,6 +82,15 @@ type JarvisFeed = {
     steps_preview?: Array<{ tool: string; success: boolean; error?: string | null; summary?: string | null }>;
     finished_at?: string | null;
   }>;
+  recent_repairs: Array<{
+    id: string;
+    fired_at: string;
+    repair_type?: string | null;
+    before_summary?: { status?: string | null } | null;
+    after_summary?: { status?: string | null } | null;
+    executed_repairs?: Array<{ repair_type?: string | null }>;
+    remaining_issues?: Array<{ key: string }>;
+  }>;
   total_actions: number;
 };
 
@@ -662,6 +671,65 @@ export default function JarvisHomeSection() {
                       </Box>
                     );
                   })}
+            </Stack>
+          </Box>
+        )}
+
+        {(loading || (Array.isArray(feed?.recent_repairs) && feed!.recent_repairs.length > 0)) && (
+          <Box sx={{ mb: 2 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>
+                Auto-reparos recentes
+              </Typography>
+            </Stack>
+            <Stack spacing={0.5}>
+              {loading
+                ? [1, 2].map((i) => <Skeleton key={`repair-${i}`} height={36} sx={{ borderRadius: 1.5 }} />)
+                : (feed?.recent_repairs || []).slice(0, 3).map((repair) => (
+                    <Box
+                      key={repair.id}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 1.25,
+                        py: 0.75,
+                        borderRadius: 1.5,
+                        border: `1px solid ${alpha('#10B981', 0.18)}`,
+                        bgcolor: alpha('#10B981', 0.05),
+                      }}
+                    >
+                      <Box sx={{ color: '#10B981', display: 'flex', flexShrink: 0 }}>
+                        <IconCheck size={14} />
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }} noWrap>
+                          {String(repair.repair_type || 'auto_repair')}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }} noWrap>
+                          {String(repair.before_summary?.status || 'unknown')} → {String(repair.after_summary?.status || 'ok')} · {relativeTime(repair.fired_at)}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                          {Array.isArray(repair.executed_repairs) && repair.executed_repairs.length
+                            ? repair.executed_repairs.map((item) => String(item.repair_type || 'repair')).join(' · ')
+                            : `${repair.remaining_issues?.length || 0} issue(s) remanescente(s)`}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={`${repair.remaining_issues?.length || 0} pendente(s)`}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.62rem',
+                          fontWeight: 600,
+                          bgcolor: alpha('#10B981', 0.12),
+                          color: '#10B981',
+                          flexShrink: 0,
+                          '& .MuiChip-label': { px: 0.75 },
+                        }}
+                      />
+                    </Box>
+                  ))}
             </Stack>
           </Box>
         )}
