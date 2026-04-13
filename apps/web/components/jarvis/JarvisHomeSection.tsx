@@ -71,6 +71,7 @@ type JarvisFeed = {
     id: string;
     fired_at: string;
     workflow_id?: string | null;
+    workflow_state_version?: number;
     workflow_json?: string | null;
     confirm_tool_args?: Record<string, unknown> | null;
     retry_tool_args?: Record<string, unknown> | null;
@@ -407,6 +408,7 @@ export default function JarvisHomeSection() {
             tool_args: toolArgs || {
               workflow_json: workflowJson,
               workflow_id: workflow.workflow_id || undefined,
+              workflow_state_version: Number(workflow.workflow_state_version || 0) || undefined,
               resume_from_step: mode === 'retry'
                 ? Number(workflow.resume_from_step || (workflow.completed_steps || 0) + 1)
                 : 1,

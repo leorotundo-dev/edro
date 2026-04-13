@@ -1691,12 +1691,14 @@ export default async function jarvisRoutes(app: FastifyInstance) {
               confirm_tool_args: {
                 workflow_json: row.metadata?.workflow_json || null,
                 workflow_id: row.metadata?.workflow_id || null,
+                workflow_state_version: Number(row.metadata?.workflow_state_version || 0),
                 resume_from_step: 1,
               },
               retry_tool_args: !requiresManualFollowup && recommendedNextAction === 'retry' && !isCooldownActive
                 ? {
                     workflow_json: row.metadata?.workflow_json || null,
                     workflow_id: row.metadata?.workflow_id || null,
+                    workflow_state_version: Number(row.metadata?.workflow_state_version || 0),
                     resume_from_step: Number(row.metadata?.resume_from_step || 1),
                   }
                 : null,
@@ -1705,6 +1707,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           id: row.id,
           fired_at: row.fired_at,
           workflow_id: row.metadata?.workflow_id || null,
+          workflow_state_version: Number(row.metadata?.workflow_state_version || 0),
           workflow_json: row.metadata?.workflow_json || null,
           status: row.metadata?.status || 'running',
           completed_steps: Number(row.metadata?.completed_steps || 0),

@@ -202,6 +202,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
           tool_args: retryToolArgs || {
             workflow_json: workflowJson,
             workflow_id: artifact.workflow_id || undefined,
+            workflow_state_version: Number(artifact.workflow_state_version || 0) || undefined,
             resume_from_step: Number(artifact.resume_from_step || (artifact.completed_steps || 0) + 1),
           },
         },
