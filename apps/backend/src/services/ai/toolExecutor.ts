@@ -5898,7 +5898,8 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   let existingStatus = String(existingMetadata?.status || '').trim();
   const attemptCount = Math.max(0, Number(existingMetadata?.attempt_count || 0));
   const lastActivityRaw = String(
-    existingMetadata?.last_attempt_at
+    existingMetadata?.last_activity_at
+      || existingMetadata?.last_attempt_at
       || existingMetadata?.started_at
       || existingMetadata?.finished_at
       || existingRow?.fired_at
@@ -5975,6 +5976,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         completed_steps: startIndex,
         attempt_count: attemptCount,
         resume_from_step: resumeFromStep,
+        last_activity_at: new Date().toISOString(),
         steps_preview: steps.slice(startIndex, startIndex + 6).map((step: any, index: number) => ({
           index: startIndex + index + 1,
           tool: String(step?.tool || '').trim(),
@@ -6066,6 +6068,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     steps_total: steps.length,
     attempt_count: nextAttemptCount,
     resume_from_step: resumeFromStep,
+    last_activity_at: new Date().toISOString(),
     last_attempt_at: new Date().toISOString(),
     started_at: new Date().toISOString(),
   };
@@ -6140,6 +6143,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             attempt_count: nextAttemptCount,
             completed_steps: startIndex + executed.filter((item) => item.success).length,
             resume_from_step: startIndex + executed.filter((item) => item.success).length + 1,
+            last_activity_at: new Date().toISOString(),
             last_step: toolName,
             steps_preview: buildExecutedPreview(),
             rollback_status: rollbackTotal > 0 ? 'running' : 'not_needed',
@@ -6187,6 +6191,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
               failed_step: toolName,
               last_error: result.error || `Workflow falhou em ${toolName}.`,
               attempt_count: nextAttemptCount,
+              last_activity_at: new Date().toISOString(),
               steps_preview: buildExecutedPreview(),
               rollback_status: 'running',
               rollback_total: rollbackTotal,
@@ -6223,6 +6228,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             completed_steps: completedSteps,
             attempt_count: nextAttemptCount,
             resume_from_step: completedSteps + 1,
+            last_activity_at: new Date().toISOString(),
             steps_preview: buildExecutedPreview(),
             finished_at: new Date().toISOString(),
             rollback,
@@ -6248,6 +6254,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         completed_steps: startIndex + executed.length,
         attempt_count: nextAttemptCount,
         resume_from_step: stepIndex + 2,
+        last_activity_at: new Date().toISOString(),
         last_step: toolName,
         steps_preview: buildExecutedPreview(),
         rollback_status: null,
@@ -6277,6 +6284,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       completed_steps: startIndex + executed.length,
       attempt_count: nextAttemptCount,
       resume_from_step: null,
+      last_activity_at: new Date().toISOString(),
       steps_preview: buildExecutedPreview(),
       rollback_status: null,
       rollback_total: 0,
