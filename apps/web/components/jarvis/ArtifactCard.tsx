@@ -655,7 +655,18 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 Ação manual necessária: {artifact.manual_followup.join(' · ')}
               </Typography>
             ) : null}
-            {Array.isArray(artifact.steps_preview) ? (
+            {Array.isArray(artifact.steps_history) && artifact.steps_history.length > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                {artifact.steps_history.slice(0, 6).map((step: any, index: number) => (
+                  <Typography key={`${step.tool || 'history'}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                    {step.index || index + 1}. {step.success ? 'OK' : 'Falhou'} {step.tool}
+                    {step.summary ? ` · ${truncate(step.summary, 90)}` : ''}
+                    {step.args_preview ? ` · ${truncate(step.args_preview, 70)}` : ''}
+                    {step.duration_ms ? ` · ${step.duration_ms}ms` : ''}
+                  </Typography>
+                ))}
+              </Box>
+            ) : Array.isArray(artifact.steps_preview) ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
                 {artifact.steps_preview.slice(0, 6).map((step: any, index: number) => (
                   <Typography key={`${step.tool || 'preview'}-${index}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>

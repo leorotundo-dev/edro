@@ -6051,6 +6051,15 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     args_preview: item.args_preview || null,
     duration_ms: item.duration_ms || null,
   }));
+  const buildExecutedHistory = () => executed.map((item, index) => ({
+    index: index + 1,
+    tool: item.tool,
+    success: item.success,
+    error: item.error || null,
+    summary: summarizeStepResult(item.data),
+    args_preview: item.args_preview || null,
+    duration_ms: item.duration_ms || null,
+  }));
   const classifyWorkflowFailure = (errorMessage: string | null | undefined, rollbackSummary?: { requires_manual_followup?: boolean }) => {
     const text = String(errorMessage || '').toLowerCase();
     if (rollbackSummary?.requires_manual_followup) return 'irreversible';
@@ -6189,6 +6198,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             last_activity_at: new Date().toISOString(),
             last_step: toolName,
             steps_preview: buildExecutedPreview(),
+            steps_history: buildExecutedHistory(),
             rollback_status: rollbackTotal > 0 ? 'running' : 'not_needed',
             rollback_total: rollbackTotal,
             rollback_completed: 0,
@@ -6238,6 +6248,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
               attempt_count: nextAttemptCount,
               last_activity_at: new Date().toISOString(),
               steps_preview: buildExecutedPreview(),
+              steps_history: buildExecutedHistory(),
               rollback_status: 'running',
               rollback_total: rollbackTotal,
               rollback_completed: rollback.length,
@@ -6263,6 +6274,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
           attempt_count: nextAttemptCount,
           resume_from_step: completedSteps + 1,
           executed,
+          steps_history: buildExecutedHistory(),
           rollback,
           ...rollbackSummary,
         };
@@ -6285,6 +6297,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             resume_from_step: completedSteps + 1,
             last_activity_at: new Date().toISOString(),
             steps_preview: buildExecutedPreview(),
+            steps_history: buildExecutedHistory(),
             finished_at: new Date().toISOString(),
             rollback,
             ...rollbackSummary,
@@ -6312,6 +6325,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         last_activity_at: new Date().toISOString(),
         last_step: toolName,
         steps_preview: buildExecutedPreview(),
+        steps_history: buildExecutedHistory(),
         rollback_status: null,
         rollback_total: 0,
         rollback_completed: 0,
@@ -6327,6 +6341,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     attempt_count: nextAttemptCount,
     resume_from_step: null,
     steps: executed,
+    steps_history: buildExecutedHistory(),
   };
   await query(
     `UPDATE agent_action_log
@@ -6341,6 +6356,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
       resume_from_step: null,
       last_activity_at: new Date().toISOString(),
       steps_preview: buildExecutedPreview(),
+      steps_history: buildExecutedHistory(),
       rollback_status: null,
       rollback_total: 0,
       rollback_completed: 0,

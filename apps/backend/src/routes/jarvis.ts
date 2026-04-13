@@ -1696,6 +1696,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           requires_manual_followup: row.metadata?.requires_manual_followup === true,
           manual_followup: Array.isArray(row.metadata?.manual_followup) ? row.metadata.manual_followup.slice(0, 3) : [],
           steps_preview: Array.isArray(row.metadata?.steps_preview) ? row.metadata.steps_preview.slice(0, 5) : [],
+          steps_history: Array.isArray(row.metadata?.steps_history) ? row.metadata.steps_history.slice(0, 6) : [],
           finished_at: row.metadata?.finished_at || null,
         }))
       : [];

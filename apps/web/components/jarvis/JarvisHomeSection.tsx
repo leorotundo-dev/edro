@@ -92,6 +92,15 @@ type JarvisFeed = {
     requires_manual_followup?: boolean;
     manual_followup?: string[];
     steps_preview?: Array<{ tool: string; success: boolean; error?: string | null; summary?: string | null }>;
+    steps_history?: Array<{
+      index?: number;
+      tool: string;
+      success: boolean;
+      error?: string | null;
+      summary?: string | null;
+      args_preview?: string | null;
+      duration_ms?: number | null;
+    }>;
     finished_at?: string | null;
   }>;
   recent_repairs: Array<{
@@ -676,7 +685,13 @@ export default function JarvisHomeSection() {
                               Manual: {workflow.manual_followup.join(' · ')}
                             </Typography>
                           ) : null}
-                          {Array.isArray(workflow.steps_preview) && workflow.steps_preview.length > 0 ? (
+                          {Array.isArray(workflow.steps_history) && workflow.steps_history.length > 0 ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              {workflow.steps_history
+                                .map((step) => `${step.success ? 'OK' : 'Falhou'} ${step.tool}${step.summary ? ` (${step.summary})` : ''}${step.args_preview ? ` [${step.args_preview}]` : ''}`)
+                                .join(' · ')}
+                            </Typography>
+                          ) : Array.isArray(workflow.steps_preview) && workflow.steps_preview.length > 0 ? (
                             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
                               {workflow.steps_preview.map((step) => `${step.success ? 'OK' : 'Falhou'} ${step.tool}${step.summary ? ` (${step.summary})` : ''}`).join(' · ')}
                             </Typography>
