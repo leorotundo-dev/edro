@@ -291,8 +291,20 @@ export default function JarvisHomeSection() {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
   const [proposalAction, setProposalAction] = useState<Record<string, 'approving' | 'discarding' | 'done'>>({});
+  const [bulkQueueAction, setBulkQueueAction] = useState<'cancel_queued' | 'requeue_dead_letter' | null>(null);
   const hasActiveWorkflow = Array.isArray(feed?.recent_workflows)
     && feed.recent_workflows.some((workflow) => workflow.status === 'running' || workflow.status === 'pending_confirmation' || workflow.status === 'queued');
+  const deadLetterWorkflowIds = Array.isArray(feed?.dead_letter_workflows)
+    ? feed.dead_letter_workflows
+        .map((workflow) => String(workflow.background_job_id || '').trim())
+        .filter(Boolean)
+    : [];
+  const queuedWorkflowIds = Array.isArray(feed?.recent_workflows)
+    ? feed.recent_workflows
+        .filter((workflow) => workflow.status === 'queued' && workflow.can_cancel === true)
+        .map((workflow) => String(workflow.background_job_id || '').trim())
+        .filter(Boolean)
+    : [];
 
   useEffect(() => {
     try {
@@ -447,6 +459,24 @@ export default function JarvisHomeSection() {
       await loadFeed(true);
       window.dispatchEvent(new CustomEvent('jarvis-feed-refresh'));
     } catch {}
+  };
+
+  const runBulkQueueAction = async (action: 'cancel_queued' | 'requeue_dead_letter') => {
+    const jobIds = action === 'cancel_queued' ? queuedWorkflowIds : deadLetterWorkflowIds;
+    if (!jobIds.length) return;
+    try {
+      setBulkQueueAction(action);
+      await apiPost('/jarvis/background-jobs/bulk-actions', {
+        action,
+        job_ids: jobIds,
+      });
+      await loadFeed(true);
+      window.dispatchEvent(new CustomEvent('jarvis-feed-refresh'));
+    } catch {
+      // noop
+    } finally {
+      setBulkQueueAction(null);
+    }
   };
 
   return (
@@ -633,6 +663,17 @@ export default function JarvisHomeSection() {
               <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>
                 Fila morta do Jarvis
               </Typography>
+              {!loading && deadLetterWorkflowIds.length > 1 ? (
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => void runBulkQueueAction('requeue_dead_letter')}
+                  disabled={bulkQueueAction !== null}
+                  sx={{ minHeight: 24, px: 0.75, fontSize: '0.62rem' }}
+                >
+                  {bulkQueueAction === 'requeue_dead_letter' ? 'Reenfileirando…' : 'Reenfileirar fila'}
+                </Button>
+              ) : null}
             </Stack>
             <Stack spacing={0.5}>
               {loading
@@ -716,6 +757,18 @@ export default function JarvisHomeSection() {
               <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>
                 Execuções recentes
               </Typography>
+              {!loading && queuedWorkflowIds.length > 1 ? (
+                <Button
+                  size="small"
+                  variant="text"
+                  color="inherit"
+                  onClick={() => void runBulkQueueAction('cancel_queued')}
+                  disabled={bulkQueueAction !== null}
+                  sx={{ minHeight: 24, px: 0.75, fontSize: '0.62rem' }}
+                >
+                  {bulkQueueAction === 'cancel_queued' ? 'Cancelando…' : 'Cancelar fila'}
+                </Button>
+              ) : null}
             </Stack>
             <Stack spacing={0.5}>
               {loading

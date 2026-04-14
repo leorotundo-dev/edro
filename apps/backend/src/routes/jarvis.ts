@@ -101,6 +101,11 @@ const jarvisChatSchema = z.object({
   }).optional().nullable(),
 });
 
+const jarvisBackgroundBulkActionSchema = z.object({
+  action: z.enum(['cancel_queued', 'requeue_dead_letter']),
+  job_ids: z.array(z.string().uuid()).max(20),
+});
+
 function buildPageDataContext(pageData?: Record<string, unknown> | null) {
   if (!pageData || typeof pageData !== 'object') return '';
   const lines = Object.entries(pageData)
@@ -1529,6 +1534,159 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         status: cancelRequestedJob.status,
         error: cancelRequestedJob.error_message || null,
         artifact: buildJarvisBackgroundArtifact(cancelRequestedJob),
+      },
+    });
+  });
+
+  app.post('/jarvis/background-jobs/bulk-actions', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const userId = request.user?.id as string | undefined;
+    const userEmail = request.user?.email as string | undefined;
+    const role = normalizeRole(request.user?.role || request.user?.tenant_role || '');
+    const parsed = jarvisBackgroundBulkActionSchema.safeParse(request.body || {});
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Payload inválido para bulk action da fila do Jarvis.' });
+    }
+
+    const jobIds = Array.from(new Set(parsed.data.job_ids.map((id) => String(id).trim()).filter(Boolean)));
+    if (!jobIds.length) {
+      return reply.status(400).send({ success: false, error: 'job_ids é obrigatório.' });
+    }
+
+    if (parsed.data.action === 'cancel_queued') {
+      let processed = 0;
+      let succeeded = 0;
+      const skipped: Array<{ job_id: string; reason: string }> = [];
+      const errors: Array<{ job_id: string; error: string }> = [];
+
+      for (const jobId of jobIds) {
+        const job = await getJobById(jobId, tenantId);
+        if (!job || job.type !== 'jarvis_background') {
+          skipped.push({ job_id: jobId, reason: 'job_not_found' });
+          continue;
+        }
+        if (job.status !== 'queued') {
+          skipped.push({ job_id: jobId, reason: `status_${job.status}` });
+          continue;
+        }
+
+        processed += 1;
+        const payload = (job.payload || {}) as { args?: Record<string, any> };
+        const workflowId = String(payload.args?.workflow_id || '').trim();
+        const workflowStateVersion = Number(payload.args?.workflow_state_version || 0) || 0;
+        const workflowJson = String(payload.args?.workflow_json || '');
+        const cancelledAt = new Date().toISOString();
+        const errorMessage = 'Workflow cancelado em lote antes da execução.';
+
+        const cancelledJob = await cancelQueuedJob(job.id, tenantId, 'bulk_cancelled_by_user', {
+          cancelled_at: cancelledAt,
+          cancelled_by_user_id: String(userId || '').trim() || null,
+          cancelled_by_user_email: String(userEmail || '').trim() || null,
+          cancel_reason: 'bulk_cancelled_by_user',
+          result_error: errorMessage,
+        });
+
+        if (!cancelledJob) {
+          errors.push({ job_id: job.id, error: 'O workflow saiu da fila antes de ser cancelado.' });
+          continue;
+        }
+
+        await syncWorkflowBackgroundCancelled({
+          tenantId,
+          workflowId,
+          workflowStateVersion,
+          workflowJson,
+          backgroundJobId: job.id,
+          errorMessage,
+        });
+        succeeded += 1;
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          action: parsed.data.action,
+          processed,
+          succeeded,
+          skipped,
+          errors,
+        },
+      });
+    }
+
+    let processed = 0;
+    let succeeded = 0;
+    const skipped: Array<{ job_id: string; reason: string }> = [];
+    const errors: Array<{ job_id: string; error: string }> = [];
+
+    const toolCtx: ToolContext = {
+      tenantId,
+      userId: userId ?? null,
+      userEmail: userEmail ?? null,
+      role: role || null,
+      clientId: '',
+      edroClientId: null,
+      conversationId: null,
+      conversationRoute: 'operations',
+      explicitConfirmation: true,
+    };
+
+    const { rows: workflowRows } = await query<{ metadata: any }>(
+      `SELECT metadata
+         FROM agent_action_log
+        WHERE tenant_id = $1::uuid
+          AND COALESCE(metadata->>'background_job_id', '') = ANY($2::text[])
+          AND COALESCE((metadata->>'is_dead_letter')::boolean, false) = true`,
+      [tenantId, jobIds],
+    ).catch(() => ({ rows: [] as Array<{ metadata: any }> }));
+
+    const workflowMap = new Map<string, any>();
+    for (const row of workflowRows) {
+      const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : null;
+      const backgroundJobId = String(metadata?.background_job_id || '').trim();
+      if (backgroundJobId) workflowMap.set(backgroundJobId, metadata);
+    }
+
+    for (const jobId of jobIds) {
+      const metadata = workflowMap.get(jobId);
+      if (!metadata) {
+        skipped.push({ job_id: jobId, reason: 'dead_letter_not_found' });
+        continue;
+      }
+
+      const workflowJson = String(metadata.workflow_json || '').trim();
+      const workflowId = String(metadata.workflow_id || '').trim();
+      const workflowStateVersion = Number(metadata.workflow_state_version || 0) || 0;
+      if (!workflowJson || !workflowId || workflowStateVersion <= 0) {
+        skipped.push({ job_id: jobId, reason: 'invalid_workflow_metadata' });
+        continue;
+      }
+
+      processed += 1;
+      const result = await executeTool('execute_multi_step_workflow', {
+        workflow_json: workflowJson,
+        workflow_id: workflowId,
+        workflow_state_version: workflowStateVersion,
+        resume_from_step: Math.max(1, Number(metadata.resume_from_step || 1)),
+        manual_requeue: true,
+      }, toolCtx);
+
+      if (!result.success) {
+        errors.push({ job_id: jobId, error: result.error || 'requeue_failed' });
+        continue;
+      }
+
+      succeeded += 1;
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        action: parsed.data.action,
+        processed,
+        succeeded,
+        skipped,
+        errors,
       },
     });
   });
