@@ -73,3 +73,32 @@ export async function reviveDeadOutboxItems(tenantId: string, limit = 50) {
     revived: rows.length,
   };
 }
+
+export async function recoverStaleOutboxItems(tenantId: string, limit = 50, staleMinutes = 15) {
+  const safeLimit = Math.max(1, Math.min(limit, 200));
+  const safeMinutes = Math.max(5, Math.min(staleMinutes, 240));
+
+  const { rows } = await query<{ id: string }>(
+    `UPDATE trello_outbox
+        SET status = 'error',
+            next_retry_at = now(),
+            last_error = COALESCE(NULLIF(last_error, ''), 'trello_outbox_processing_stale'),
+            updated_at = now()
+      WHERE id IN (
+        SELECT id
+          FROM trello_outbox
+         WHERE tenant_id = $1
+           AND status = 'processing'
+           AND updated_at < now() - make_interval(mins => $3::int)
+         ORDER BY updated_at ASC
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id`,
+    [tenantId, safeLimit, safeMinutes],
+  );
+
+  return {
+    recovered: rows.length,
+  };
+}

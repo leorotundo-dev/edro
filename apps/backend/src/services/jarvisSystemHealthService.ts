@@ -2,7 +2,7 @@ import { query } from '../db';
 import { watchCalendar } from './integrations/googleCalendarService';
 import { processPendingRetries } from './webhookRetryService';
 import { runTrelloOutboxWorkerOnce } from '../jobs/trelloOutboxWorker';
-import { reviveDeadOutboxItems } from './trelloOutboxService';
+import { recoverStaleOutboxItems, reviveDeadOutboxItems } from './trelloOutboxService';
 import { syncGmailInboxFallback, watchGmailInbox } from './integrations/gmailService';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { runJarvisAlertEngine } from './jarvisAlertEngine';
@@ -22,6 +22,7 @@ export type SystemRepairType =
   | 'auto_repair'
   | 'process_webhook_retries'
   | 'flush_trello_outbox'
+  | 'recover_stale_trello_outbox'
   | 'revive_dead_trello_outbox'
   | 'ensure_trello_webhooks'
   | 'replay_trello_webhook_events'
@@ -49,7 +50,7 @@ export type SystemHealthSnapshot = {
   };
   components: {
     webhook_retry: Array<{ source: string; due: number; processing: number; failed: number }>;
-    trello_outbox: { backlog: number; processing: number; dead: number };
+    trello_outbox: { backlog: number; processing: number; stale_processing: number; dead: number; oldest_processing_at: string | null };
     trello_webhooks: { total: number; active: number; boards_without_webhook: number; last_seen_at: string | null };
     trello_webhook_events: {
       pending: number;
@@ -100,6 +101,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
   auto_repair: 'Auto-reparo seguro',
   process_webhook_retries: 'Processar retries de webhook',
   flush_trello_outbox: 'Destravar fila do Trello',
+  recover_stale_trello_outbox: 'Recuperar itens presos da fila do Trello',
   revive_dead_trello_outbox: 'Reenfileirar falhas permanentes do Trello',
   ensure_trello_webhooks: 'Garantir webhooks do Trello',
   replay_trello_webhook_events: 'Reprocessar eventos inbound do Trello',
@@ -115,6 +117,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
 const AUTO_REPAIRABLE_TYPES = new Set<Exclude<SystemRepairType, 'auto_repair'>>([
   'process_webhook_retries',
   'flush_trello_outbox',
+  'recover_stale_trello_outbox',
   'ensure_trello_webhooks',
   'replay_trello_webhook_events',
   'reconcile_trello_dark_boards',
@@ -261,11 +264,16 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
     query<any>(
       `SELECT COUNT(*) FILTER (WHERE status IN ('pending','error'))::int AS backlog,
               COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
+              COUNT(*) FILTER (
+                WHERE status = 'processing'
+                  AND updated_at < now() - interval '15 minutes'
+              )::int AS stale_processing,
+              MIN(updated_at) FILTER (WHERE status = 'processing')::text AS oldest_processing_at,
               COUNT(*) FILTER (WHERE status = 'dead')::int AS dead
          FROM trello_outbox
         WHERE tenant_id = $1`,
       [tenantId],
-    ).catch(() => ({ rows: [{ backlog: 0, processing: 0, dead: 0 }] as any[] })),
+    ).catch(() => ({ rows: [{ backlog: 0, processing: 0, stale_processing: 0, oldest_processing_at: null, dead: 0 }] as any[] })),
     query<any>(
       `SELECT
          COUNT(tw.id)::int as total,
@@ -353,7 +361,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
 
   const now = Date.now();
   const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; failed: number }>;
-  const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, dead: 0 };
+  const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, stale_processing: 0, oldest_processing_at: null, dead: 0 };
   const trelloWebhooks = trelloWebhookRes.rows[0] ?? { total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 };
   const trelloWebhookEvents = trelloWebhookEventsRes.rows[0] ?? {
     pending: 0,
@@ -392,6 +400,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       title: 'Fila do Trello acumulada',
       message: `${Number(trello.backlog || 0)} item(ns) pendentes aguardando envio.`,
       repair_type: 'flush_trello_outbox',
+    });
+  }
+  if (Number(trello.stale_processing || 0)) {
+    issues.push({
+      key: 'trello_outbox_processing',
+      severity: 'critical',
+      title: 'Fila do Trello com itens presos em processamento',
+      message: `${Number(trello.stale_processing || 0)} operação(ões) da outbox do Trello ficaram presas em processing e precisam recuperação.`,
+      repair_type: 'recover_stale_trello_outbox',
     });
   }
   if (Number(trello.dead || 0)) {
@@ -490,7 +507,9 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       trello_outbox: {
         backlog: Number(trello.backlog || 0),
         processing: Number(trello.processing || 0),
+        stale_processing: Number(trello.stale_processing || 0),
         dead: Number(trello.dead || 0),
+        oldest_processing_at: trello.oldest_processing_at || null,
       },
       trello_webhooks: {
         total: Number(trelloWebhooks.total || 0),
@@ -572,6 +591,19 @@ export async function runSystemRepair(
           backlog_before: beforeOutbox.backlog,
           backlog_after: outboxAfter.components.trello_outbox.backlog,
           dead_after: outboxAfter.components.trello_outbox.dead,
+        });
+        break;
+      }
+      case 'recover_stale_trello_outbox': {
+        const beforeOutbox = before.components.trello_outbox;
+        const recovered = await recoverStaleOutboxItems(tenantId);
+        const outboxAfter = await buildSystemHealthSnapshot(tenantId);
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          stale_processing_before: beforeOutbox.stale_processing,
+          recovered: recovered.recovered,
+          stale_processing_after: outboxAfter.components.trello_outbox.stale_processing,
+          backlog_after: outboxAfter.components.trello_outbox.backlog,
         });
         break;
       }
