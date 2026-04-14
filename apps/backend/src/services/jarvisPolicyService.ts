@@ -49,12 +49,15 @@ export type JarvisToolGovernance = {
     clientPolicy: {
       blockedTools: string[];
       blockedChannels: string[];
+      operationalHoursStart: number | null;
+      operationalHoursEnd: number | null;
+      allowWeekendActions: boolean;
       externalRequiresPrivilegedRole: boolean;
       meetingRequiresPrivilegedRole: boolean;
       publishingRequiresPrivilegedRole: boolean;
     };
     policyFlags: string[];
-    blockedReason: 'quiet_hours' | 'weekend' | 'client_risk' | 'client_policy' | 'client_platform' | null;
+    blockedReason: 'quiet_hours' | 'weekend' | 'client_risk' | 'client_policy' | 'client_platform' | 'client_window' | null;
     nextAllowedAt: string | null;
   };
   confirmed: boolean;
@@ -102,6 +105,9 @@ type ClientPolicyContext = {
   blockedPublishingPlatform: string | null;
   blockedTools: string[];
   blockedChannels: string[];
+  operationalHoursStart: number | null;
+  operationalHoursEnd: number | null;
+  allowWeekendActions: boolean;
   externalRequiresPrivilegedRole: boolean;
   meetingRequiresPrivilegedRole: boolean;
   publishingRequiresPrivilegedRole: boolean;
@@ -261,7 +267,7 @@ function levelWeight(level: JarvisAutonomyLevel) {
   }
 }
 
-function getSaoPauloDateParts() {
+function getSaoPauloDateParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
     hour12: false,
@@ -270,7 +276,7 @@ function getSaoPauloDateParts() {
     month: '2-digit',
     day: '2-digit',
     timeZone: 'America/Sao_Paulo',
-  }).formatToParts(new Date());
+  }).formatToParts(date);
 
   const record = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   const hour = Number(record.hour);
@@ -298,30 +304,62 @@ function getSaoPauloDateParts() {
   };
 }
 
-function nextOperationalWindowIso() {
+function normalizeHourValue(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 23 ? Math.trunc(parsed) : null;
+}
+
+function isOutsideOperationalWindow(hour: number, startHour: number, endHour: number) {
+  if (startHour === endHour) return false;
+  if (startHour < endHour) return hour < startHour || hour >= endHour;
+  return hour < startHour && hour >= endHour;
+}
+
+function nextOperationalWindowIso(options?: {
+  startHour?: number | null;
+  endHour?: number | null;
+  allowWeekendActions?: boolean;
+}) {
   const now = new Date();
   const parts = getSaoPauloDateParts();
-  const candidate = new Date(now);
+  const startHour = normalizeHourValue(options?.startHour) ?? 7;
+  const endHour = normalizeHourValue(options?.endHour) ?? 20;
+  const allowWeekendActions = options?.allowWeekendActions === true;
+  const weekendBlocked = !allowWeekendActions;
 
-  const setNextBusinessMorning = (daysToAdd: number) => {
-    candidate.setUTCDate(candidate.getUTCDate() + daysToAdd);
-    candidate.setUTCHours(10, 0, 0, 0); // 07:00 America/Sao_Paulo ~= 10:00 UTC without DST
-  };
-
-  if (parts.weekday === 6) {
-    setNextBusinessMorning(2);
-  } else if (parts.weekday === 0) {
-    setNextBusinessMorning(1);
-  } else if (parts.hour < 7) {
-    candidate.setUTCHours(10, 0, 0, 0);
-  } else if (parts.hour >= 20) {
-    if (parts.weekday === 5) setNextBusinessMorning(3);
-    else setNextBusinessMorning(1);
-  } else {
+  if (
+    (!weekendBlocked || (parts.weekday !== 0 && parts.weekday !== 6))
+    && !isOutsideOperationalWindow(parts.hour, startHour, endHour)
+  ) {
     return null;
   }
 
-  return candidate.toISOString();
+  for (let daysToAdd = 0; daysToAdd <= 7; daysToAdd += 1) {
+    const candidate = new Date(now);
+    candidate.setUTCDate(candidate.getUTCDate() + daysToAdd);
+    candidate.setUTCHours(startHour + 3, 0, 0, 0); // America/Sao_Paulo ~= UTC-3
+
+    const candidateParts = getSaoPauloDateParts(candidate);
+    if (weekendBlocked && (candidateParts.weekday === 0 || candidateParts.weekday === 6)) {
+      continue;
+    }
+
+    if (daysToAdd === 0 && parts.hour >= startHour && !isOutsideOperationalWindow(parts.hour, startHour, endHour)) {
+      continue;
+    }
+
+    if (daysToAdd === 0 && parts.hour < startHour && !weekendBlocked) {
+      return candidate.toISOString();
+    }
+
+    if (daysToAdd === 0 && parts.hour < startHour && candidateParts.weekday !== 0 && candidateParts.weekday !== 6) {
+      return candidate.toISOString();
+    }
+
+    if (daysToAdd > 0) return candidate.toISOString();
+  }
+
+  return null;
 }
 
 function normalizeBooleanFlag(value: unknown) {
@@ -348,6 +386,9 @@ async function resolveClientPolicyContext(
       blockedPublishingPlatform: null,
       blockedTools: [],
       blockedChannels: [],
+      operationalHoursStart: null,
+      operationalHoursEnd: null,
+      allowWeekendActions: false,
       externalRequiresPrivilegedRole: false,
       meetingRequiresPrivilegedRole: false,
       publishingRequiresPrivilegedRole: false,
@@ -402,6 +443,9 @@ async function resolveClientPolicyContext(
     blockedPublishingPlatform,
     blockedTools: normalizeStringList(jarvisPolicy.blocked_tools ?? jarvisPolicy.blockedTools),
     blockedChannels: normalizeStringList(jarvisPolicy.blocked_channels ?? jarvisPolicy.blockedChannels),
+    operationalHoursStart: normalizeHourValue(jarvisPolicy.operational_hours_start ?? jarvisPolicy.operationalHoursStart),
+    operationalHoursEnd: normalizeHourValue(jarvisPolicy.operational_hours_end ?? jarvisPolicy.operationalHoursEnd),
+    allowWeekendActions: normalizeBooleanFlag(jarvisPolicy.allow_weekend_actions ?? jarvisPolicy.allowWeekendActions),
     externalRequiresPrivilegedRole: normalizeBooleanFlag(
       jarvisPolicy.external_requires_privileged_role
       ?? jarvisPolicy.strict_external_actions,
@@ -419,8 +463,6 @@ async function resolveClientPolicyContext(
 
 async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null, context?: GovernanceContext) {
   const dateParts = getSaoPauloDateParts();
-  const quietHoursActive = dateParts.hour < 7 || dateParts.hour >= 20;
-  const weekendActive = dateParts.weekday === 0 || dateParts.weekday === 6;
   const overrideQuietHours = args?.override_quiet_hours === true;
   const overrideRiskGuard = args?.override_risk_guard === true;
   const actorRole = normalizeRole(context?.role);
@@ -442,6 +484,10 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   })();
 
   const clientPolicy = await resolveClientPolicyContext(args, context);
+  const effectiveStartHour = clientPolicy.operationalHoursStart ?? 7;
+  const effectiveEndHour = clientPolicy.operationalHoursEnd ?? 20;
+  const quietHoursActive = isOutsideOperationalWindow(dateParts.hour, effectiveStartHour, effectiveEndHour);
+  const weekendActive = (dateParts.weekday === 0 || dateParts.weekday === 6) && !clientPolicy.allowWeekendActions;
   const riskTolerance = clientPolicy.riskTolerance;
   const toolNameNormalized = String(toolName || '').trim().toLowerCase();
   const policyFlags: string[] = [];
@@ -452,6 +498,10 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   if (clientPolicy.blockedPublishingPlatform) policyFlags.push(`client_platform_disabled:${clientPolicy.blockedPublishingPlatform}`);
   if (clientPolicy.blockedTools.includes(toolNameNormalized)) policyFlags.push(`client_tool_blocked:${toolNameNormalized}`);
   if (clientPolicy.blockedChannels.includes(channel)) policyFlags.push(`client_channel_blocked:${channel}`);
+  if (clientPolicy.operationalHoursStart !== null || clientPolicy.operationalHoursEnd !== null) {
+    policyFlags.push(`client_operational_window:${effectiveStartHour}-${effectiveEndHour}`);
+  }
+  if (clientPolicy.allowWeekendActions) policyFlags.push('client_allow_weekend_actions');
   if (clientPolicy.externalRequiresPrivilegedRole) policyFlags.push('client_policy_external_requires_privileged_role');
   if (clientPolicy.meetingRequiresPrivilegedRole) policyFlags.push('client_policy_meeting_requires_privileged_role');
   if (clientPolicy.publishingRequiresPrivilegedRole) policyFlags.push('client_policy_publishing_requires_privileged_role');
@@ -461,6 +511,9 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
 
   const blockedReason = (() => {
     if (weekendActive) return 'weekend' as const;
+    if ((clientPolicy.operationalHoursStart !== null || clientPolicy.operationalHoursEnd !== null) && quietHoursActive) {
+      return 'client_window' as const;
+    }
     if (quietHoursActive) return 'quiet_hours' as const;
     if (clientPolicy.blockedTools.includes(toolNameNormalized) || clientPolicy.blockedChannels.includes(channel)) {
       return 'client_policy' as const;
@@ -503,7 +556,11 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
     clientPolicy,
     policyFlags,
     blockedReason,
-    nextAllowedAt: blockedReason ? nextOperationalWindowIso() : null,
+    nextAllowedAt: blockedReason ? nextOperationalWindowIso({
+      startHour: effectiveStartHour,
+      endHour: effectiveEndHour,
+      allowWeekendActions: clientPolicy.allowWeekendActions,
+    }) : null,
   };
 }
 
@@ -572,6 +629,15 @@ export async function enforceJarvisToolGovernance(
     return {
       policy: { ...policy, executed: false },
       error: `Política do Jarvis: ${toolName} está bloqueado${platformLabel} porque essa plataforma está desativada no perfil do cliente.`,
+    };
+  }
+  if (policy.policy?.blockedReason === 'client_window') {
+    const nextAllowed = policy.policy?.nextAllowedAt
+      ? ` Próxima janela: ${policy.policy.nextAllowedAt}.`
+      : '';
+    return {
+      policy: { ...policy, executed: false },
+      error: `Política do Jarvis: ${toolName} está fora da janela operacional definida para este cliente.${nextAllowed} Use override_quiet_hours=true apenas com aprovação humana explícita.`,
     };
   }
   if (policy.level === 'confirm' && !policy.confirmed) {
