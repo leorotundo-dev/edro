@@ -53,6 +53,7 @@ export type JarvisToolGovernance = {
       blockedWeekdays: number[];
       allowedDates: string[];
       blockedDates: string[];
+      blockOfficialHolidays: boolean;
       operationalHoursStart: number | null;
       operationalHoursEnd: number | null;
       allowWeekendActions: boolean;
@@ -113,6 +114,7 @@ type ClientPolicyContext = {
   blockedWeekdays: number[];
   allowedDates: string[];
   blockedDates: string[];
+  blockOfficialHolidays: boolean;
   operationalHoursStart: number | null;
   operationalHoursEnd: number | null;
   allowWeekendActions: boolean;
@@ -455,6 +457,14 @@ function isDateAllowed(
   return true;
 }
 
+function mergeDateLists(...lists: Array<string[] | null | undefined>) {
+  return Array.from(
+    new Set(
+      lists.flatMap((list) => Array.isArray(list) ? list : []),
+    ),
+  ).sort();
+}
+
 function isWeekdayAllowed(
   weekday: number,
   options?: {
@@ -489,6 +499,7 @@ async function resolveClientPolicyContext(
       blockedWeekdays: [],
       allowedDates: [],
       blockedDates: [],
+      blockOfficialHolidays: false,
       operationalHoursStart: null,
       operationalHoursEnd: null,
       allowWeekendActions: false,
@@ -540,6 +551,35 @@ async function resolveClientPolicyContext(
   )
     ? requestedPlatform
     : null;
+  const blockOfficialHolidays = normalizeBooleanFlag(
+    jarvisPolicy.block_official_holidays
+    ?? jarvisPolicy.blockOfficialHolidays
+    ?? jarvisPolicy.respect_official_holidays
+    ?? jarvisPolicy.respectOfficialHolidays,
+  );
+  const explicitAllowedDates = normalizeDateList(jarvisPolicy.allowed_dates ?? jarvisPolicy.allowedDates);
+  const explicitBlockedDates = normalizeDateList(jarvisPolicy.blocked_dates ?? jarvisPolicy.blockedDates);
+  const holidayBlockedDates = blockOfficialHolidays
+    ? (
+      await query<{ date: string }>(
+        `SELECT DISTINCT date
+           FROM events
+          WHERE (tenant_id = $1 OR tenant_id IS NULL)
+            AND status = 'approved'
+            AND date IS NOT NULL
+            AND length(date) = 10
+            AND date >= $2
+            AND date <= $3
+            AND categories @> ARRAY['oficial']::text[]
+          ORDER BY date ASC`,
+        [
+          context.tenantId,
+          getDateKeyFromParts(getSaoPauloDateParts()),
+          getDateKeyFromParts(getSaoPauloDateParts(new Date(Date.now() + (31 * 24 * 60 * 60 * 1000)))),
+        ],
+      ).then((res) => res.rows.map((row) => row.date)).catch(() => [])
+    )
+    : [];
 
   return {
     riskTolerance,
@@ -548,8 +588,9 @@ async function resolveClientPolicyContext(
     blockedChannels: normalizeStringList(jarvisPolicy.blocked_channels ?? jarvisPolicy.blockedChannels),
     allowedWeekdays: normalizeWeekdayList(jarvisPolicy.allowed_weekdays ?? jarvisPolicy.allowedWeekdays),
     blockedWeekdays: normalizeWeekdayList(jarvisPolicy.blocked_weekdays ?? jarvisPolicy.blockedWeekdays),
-    allowedDates: normalizeDateList(jarvisPolicy.allowed_dates ?? jarvisPolicy.allowedDates),
-    blockedDates: normalizeDateList(jarvisPolicy.blocked_dates ?? jarvisPolicy.blockedDates),
+    allowedDates: explicitAllowedDates,
+    blockedDates: mergeDateLists(explicitBlockedDates, holidayBlockedDates),
+    blockOfficialHolidays,
     operationalHoursStart: normalizeHourValue(jarvisPolicy.operational_hours_start ?? jarvisPolicy.operationalHoursStart),
     operationalHoursEnd: normalizeHourValue(jarvisPolicy.operational_hours_end ?? jarvisPolicy.operationalHoursEnd),
     allowWeekendActions: normalizeBooleanFlag(jarvisPolicy.allow_weekend_actions ?? jarvisPolicy.allowWeekendActions),
@@ -619,6 +660,7 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   if (clientPolicy.blockedWeekdays.length > 0) policyFlags.push(`client_blocked_weekdays:${clientPolicy.blockedWeekdays.join(',')}`);
   if (clientPolicy.allowedDates.length > 0) policyFlags.push(`client_allowed_dates:${clientPolicy.allowedDates.join(',')}`);
   if (clientPolicy.blockedDates.length > 0) policyFlags.push(`client_blocked_dates:${clientPolicy.blockedDates.join(',')}`);
+  if (clientPolicy.blockOfficialHolidays) policyFlags.push('client_block_official_holidays');
   if (clientPolicy.operationalHoursStart !== null || clientPolicy.operationalHoursEnd !== null) {
     policyFlags.push(`client_operational_window:${effectiveStartHour}-${effectiveEndHour}`);
   }
