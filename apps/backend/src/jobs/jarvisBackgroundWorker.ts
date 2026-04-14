@@ -132,6 +132,36 @@ async function syncWorkflowBackgroundQueuedRetry(params: {
   ).catch(() => {});
 }
 
+function buildWorkflowDeadLetter(params: {
+  kind?: string;
+  failureData?: Record<string, any> | null;
+  fallbackError?: string | null;
+}) {
+  if (params.kind !== 'execute_multi_step_workflow') return null;
+
+  const failureData = params.failureData || {};
+  const recommendedNextAction = String(failureData.recommended_next_action || '').trim();
+  const requiresManualFollowup = failureData.requires_manual_followup === true;
+  if (recommendedNextAction === 'retry' && !requiresManualFollowup) return null;
+
+  let deadLetterReason = String(failureData.failure_resolution_hint || params.fallbackError || '').trim();
+  if (!deadLetterReason) {
+    deadLetterReason = requiresManualFollowup
+      ? 'Workflow exige intervenção manual antes de qualquer nova tentativa.'
+      : recommendedNextAction === 'fix_permissions'
+      ? 'Workflow falhou por permissão e foi movido para a fila morta.'
+      : recommendedNextAction === 'fix_input'
+      ? 'Workflow falhou por regra de negócio e exige correção antes de repetir.'
+      : 'Workflow movido para a fila morta do Jarvis.';
+  }
+
+  return {
+    deadLetteredAt: new Date().toISOString(),
+    deadLetterReason,
+    deadLetterCategory: String(failureData.failure_class || '').trim() || (requiresManualFollowup ? 'manual_followup' : 'worker_failure'),
+  };
+}
+
 export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
   if (running) return;
   running = true;
@@ -167,6 +197,10 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
 
       try {
         if (!payload.context || !['create_post_pipeline', 'execute_multi_step_workflow'].includes(String(payload.kind || ''))) {
+          const deadLetter = buildWorkflowDeadLetter({
+            kind: String(payload.kind || ''),
+            fallbackError: 'Unsupported Jarvis background job',
+          });
           await syncWorkflowBackgroundFailure({
             tenantId: job.tenant_id,
             workflowId,
@@ -174,7 +208,15 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             workflowJson,
             backgroundJobId: job.id,
             errorMessage: 'Unsupported Jarvis background job',
+            deadLetteredAt: deadLetter?.deadLetteredAt || null,
+            deadLetterReason: deadLetter?.deadLetterReason || null,
+            deadLetterCategory: deadLetter?.deadLetterCategory || null,
           });
+          await mergeJobPayload(job.id, {
+            dead_lettered_at: deadLetter?.deadLetteredAt || null,
+            dead_letter_reason: deadLetter?.deadLetterReason || null,
+            dead_letter_category: deadLetter?.deadLetterCategory || null,
+          }).catch(() => {});
           await markJob(job.id, 'failed', 'Unsupported Jarvis background job');
           continue;
         }
@@ -234,10 +276,18 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             }
             continue;
           }
+          const deadLetter = buildWorkflowDeadLetter({
+            kind: String(payload.kind || ''),
+            failureData,
+            fallbackError: result.error || 'Falha desconhecida',
+          });
           await mergeJobPayload(job.id, {
             result: failureData,
             result_error: result.error || 'Falha desconhecida',
             failed_at: new Date().toISOString(),
+            dead_lettered_at: deadLetter?.deadLetteredAt || null,
+            dead_letter_reason: deadLetter?.deadLetterReason || null,
+            dead_letter_category: deadLetter?.deadLetterCategory || null,
           });
           await syncWorkflowBackgroundFailure({
             tenantId: job.tenant_id,
@@ -246,7 +296,17 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             workflowJson,
             backgroundJobId: job.id,
             errorMessage: result.error || 'Falha desconhecida',
+            deadLetteredAt: deadLetter?.deadLetteredAt || null,
+            deadLetterReason: deadLetter?.deadLetterReason || null,
+            deadLetterCategory: deadLetter?.deadLetterCategory || null,
           });
+          const failedArtifact = {
+            ...failureArtifact,
+            is_dead_letter: Boolean(deadLetter?.deadLetteredAt),
+            dead_lettered_at: deadLetter?.deadLetteredAt || null,
+            dead_letter_reason: deadLetter?.deadLetterReason || null,
+            dead_letter_category: deadLetter?.deadLetterCategory || null,
+          };
           if (conversationId) {
             await updateUnifiedConversationArtifact({
               route,
@@ -254,7 +314,7 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
               conversationId,
               edroClientId,
               backgroundJobId: job.id,
-              artifact: failureArtifact,
+              artifact: failedArtifact,
             }).catch(() => {});
           }
           await notifyWorkflowOutcome({
@@ -264,7 +324,7 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             workflowId,
             backgroundJobId: job.id,
             outcome: 'failed',
-            artifact: failureArtifact,
+            artifact: failedArtifact,
           });
           await markJob(job.id, 'failed', result.error || 'Falha desconhecida');
           continue;
@@ -310,18 +370,29 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
         const failureMessage = payload.kind === 'execute_multi_step_workflow'
           ? 'O Jarvis não conseguiu concluir o workflow em background.'
           : 'O Jarvis não conseguiu concluir o pipeline criativo.';
+        const deadLetter = buildWorkflowDeadLetter({
+          kind: String(payload.kind || ''),
+          fallbackError: error?.message || 'Falha desconhecida',
+        });
         const failureArtifact = {
           ...(buildJarvisBackgroundArtifact(await getJobById(job.id, job.tenant_id)) || {
             type: artifactType,
             background_job_id: job.id,
           }),
           job_status: 'failed',
+          is_dead_letter: Boolean(deadLetter?.deadLetteredAt),
+          dead_lettered_at: deadLetter?.deadLetteredAt || null,
+          dead_letter_reason: deadLetter?.deadLetterReason || null,
+          dead_letter_category: deadLetter?.deadLetterCategory || null,
           message: failureMessage,
           error: error?.message || 'Falha desconhecida',
         };
         await mergeJobPayload(job.id, {
           result_error: error?.message || 'Falha desconhecida',
           failed_at: new Date().toISOString(),
+          dead_lettered_at: deadLetter?.deadLetteredAt || null,
+          dead_letter_reason: deadLetter?.deadLetterReason || null,
+          dead_letter_category: deadLetter?.deadLetterCategory || null,
         }).catch(() => {});
         await syncWorkflowBackgroundFailure({
           tenantId: job.tenant_id,
@@ -330,6 +401,9 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
           workflowJson,
           backgroundJobId: job.id,
           errorMessage: error?.message || 'Falha desconhecida',
+          deadLetteredAt: deadLetter?.deadLetteredAt || null,
+          deadLetterReason: deadLetter?.deadLetterReason || null,
+          deadLetterCategory: deadLetter?.deadLetterCategory || null,
         });
         await markJob(job.id, 'failed', error?.message || 'Falha desconhecida');
         if (conversationId) {

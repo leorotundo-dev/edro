@@ -1727,6 +1727,10 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           failure_action_items: Array.isArray(row.metadata?.failure_action_items) ? row.metadata.failure_action_items.slice(0, 3) : [],
           retry_after_at: row.metadata?.retry_after_at || null,
           retry_attempts_remaining: row.metadata?.retry_attempts_remaining == null ? null : Number(row.metadata.retry_attempts_remaining),
+          is_dead_letter: row.metadata?.is_dead_letter === true,
+          dead_lettered_at: row.metadata?.dead_lettered_at || null,
+          dead_letter_reason: row.metadata?.dead_letter_reason || null,
+          dead_letter_category: row.metadata?.dead_letter_category || null,
           rollback_status: row.metadata?.rollback_status || null,
           rollback_total: Number(row.metadata?.rollback_total || 0),
           rollback_completed: Number(row.metadata?.rollback_completed || 0),
@@ -1738,6 +1742,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           finished_at: row.metadata?.finished_at || null,
         }))
       : [];
+    const deadLetterWorkflows = recentWorkflows
+      .filter((workflow: any) => workflow.is_dead_letter === true)
+      .slice(0, 5);
     const manualFollowups = recentWorkflows
       .filter((workflow: any) => workflow.requires_manual_followup === true)
       .slice(0, 5);
@@ -1786,6 +1793,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       auto_briefings: autoBriefings,
       proposals,
       opportunities,
+      dead_letter_workflows: deadLetterWorkflows,
       manual_followups: manualFollowups,
       recent_workflows: recentWorkflows,
       recent_repairs: recentRepairs,

@@ -77,6 +77,10 @@ type WorkflowFeedItem = {
   retry_attempts_remaining?: number | null;
   can_retry_now?: boolean;
   retry_block_reason?: string | null;
+  is_dead_letter?: boolean;
+  dead_lettered_at?: string | null;
+  dead_letter_reason?: string | null;
+  dead_letter_category?: string | null;
   rollback_status?: string | null;
   rollback_total?: number;
   rollback_completed?: number;
@@ -114,6 +118,7 @@ type JarvisFeed = {
   auto_briefings: any[];
   proposals: any[];
   opportunities: any[];
+  dead_letter_workflows: WorkflowFeedItem[];
   manual_followups: WorkflowFeedItem[];
   recent_workflows: WorkflowFeedItem[];
   recent_repairs: Array<{
@@ -601,17 +606,17 @@ export default function JarvisHomeSection() {
           </Box>
         )}
 
-        {(loading || (Array.isArray(feed?.manual_followups) && feed!.manual_followups.length > 0)) && (
+        {(loading || (Array.isArray(feed?.dead_letter_workflows) && feed!.dead_letter_workflows.length > 0)) && (
           <Box sx={{ mb: 2 }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
               <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>
-                Pendências manuais do Jarvis
+                Fila morta do Jarvis
               </Typography>
             </Stack>
             <Stack spacing={0.5}>
               {loading
                 ? [1, 2].map((i) => <Skeleton key={`manual-${i}`} height={40} sx={{ borderRadius: 1.5 }} />)
-                : (feed?.manual_followups || []).slice(0, 3).map((workflow) => (
+                : (feed?.dead_letter_workflows || []).slice(0, 3).map((workflow) => (
                     <Box
                       key={`manual-${workflow.id}`}
                       sx={{
@@ -643,6 +648,11 @@ export default function JarvisHomeSection() {
                             {workflow.last_error}
                           </Typography>
                         ) : null}
+                        {workflow.dead_letter_reason ? (
+                          <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                            {workflow.dead_letter_reason}
+                          </Typography>
+                        ) : null}
                         {Array.isArray(workflow.manual_followup) && workflow.manual_followup.length > 0 ? (
                           <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
                             Manual: {workflow.manual_followup.join(' · ')}
@@ -650,7 +660,7 @@ export default function JarvisHomeSection() {
                         ) : null}
                       </Box>
                       <Chip
-                        label="Manual"
+                        label={workflow.dead_letter_category || 'dead-letter'}
                         size="small"
                         sx={{
                           height: 20,

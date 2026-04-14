@@ -63,6 +63,9 @@ export async function syncWorkflowBackgroundFailure(params: {
   workflowJson?: string | null;
   backgroundJobId: string;
   errorMessage: string;
+  deadLetteredAt?: string | null;
+  deadLetterReason?: string | null;
+  deadLetterCategory?: string | null;
 }) {
   const workflowId = String(params.workflowId || '').trim();
   const workflowStateVersion = Math.max(0, Number(params.workflowStateVersion || 0));
@@ -84,6 +87,10 @@ export async function syncWorkflowBackgroundFailure(params: {
       status: 'failed',
       workflow_status: 'failed',
       last_error: params.errorMessage,
+      is_dead_letter: Boolean(params.deadLetteredAt),
+      dead_lettered_at: params.deadLetteredAt || null,
+      dead_letter_reason: params.deadLetterReason || null,
+      dead_letter_category: params.deadLetterCategory || null,
       finished_at: new Date().toISOString(),
       last_activity_at: new Date().toISOString(),
       can_retry_now: false,
