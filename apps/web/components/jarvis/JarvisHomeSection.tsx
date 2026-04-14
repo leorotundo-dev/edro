@@ -77,6 +77,7 @@ type WorkflowFeedItem = {
   retry_attempts_remaining?: number | null;
   can_retry_now?: boolean;
   retry_block_reason?: string | null;
+  requeue_tool_args?: Record<string, unknown> | null;
   is_dead_letter?: boolean;
   dead_lettered_at?: string | null;
   dead_letter_reason?: string | null;
@@ -399,8 +400,12 @@ export default function JarvisHomeSection() {
     }, 100);
   };
 
-  const triggerWorkflowAction = (workflow: WorkflowFeedItem, mode: 'retry' | 'confirm') => {
-    const toolArgs = mode === 'confirm' ? workflow.confirm_tool_args : workflow.retry_tool_args;
+  const triggerWorkflowAction = (workflow: WorkflowFeedItem, mode: 'retry' | 'confirm' | 'requeue') => {
+    const toolArgs = mode === 'confirm'
+      ? workflow.confirm_tool_args
+      : mode === 'requeue'
+      ? workflow.requeue_tool_args
+      : workflow.retry_tool_args;
     const workflowJson = String(workflow.workflow_json || '').trim();
     if (!toolArgs && !workflowJson) return;
     setConversationId(null);
@@ -410,6 +415,8 @@ export default function JarvisHomeSection() {
         detail: {
           message: mode === 'confirm'
             ? 'Confirmo a execução deste workflow em lote.'
+            : mode === 'requeue'
+            ? 'Confirmo o reenfileiramento manual deste workflow.'
             : 'Tente novamente executar este workflow em lote.',
           clientAction: {
             type: 'confirm_tool_call',
@@ -418,7 +425,8 @@ export default function JarvisHomeSection() {
               workflow_json: workflowJson,
               workflow_id: workflow.workflow_id || undefined,
               workflow_state_version: Number(workflow.workflow_state_version || 0) || undefined,
-              resume_from_step: mode === 'retry'
+              manual_requeue: mode === 'requeue' ? true : undefined,
+              resume_from_step: mode === 'retry' || mode === 'requeue'
                 ? Number(workflow.resume_from_step || (workflow.completed_steps || 0) + 1)
                 : 1,
             },
@@ -659,19 +667,30 @@ export default function JarvisHomeSection() {
                           </Typography>
                         ) : null}
                       </Box>
-                      <Chip
-                        label={workflow.dead_letter_category || 'dead-letter'}
-                        size="small"
-                        sx={{
-                          height: 20,
-                          fontSize: '0.62rem',
-                          fontWeight: 600,
-                          bgcolor: alpha('#EF4444', 0.12),
-                          color: '#EF4444',
-                          flexShrink: 0,
-                          '& .MuiChip-label': { px: 0.75 },
-                        }}
-                      />
+                      {workflow.requeue_tool_args || workflow.workflow_json ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => triggerWorkflowAction(workflow, 'requeue')}
+                          sx={{ minHeight: 26, fontSize: '0.62rem', flexShrink: 0 }}
+                        >
+                          Reenfileirar
+                        </Button>
+                      ) : (
+                        <Chip
+                          label={workflow.dead_letter_category || 'dead-letter'}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.62rem',
+                            fontWeight: 600,
+                            bgcolor: alpha('#EF4444', 0.12),
+                            color: '#EF4444',
+                            flexShrink: 0,
+                            '& .MuiChip-label': { px: 0.75 },
+                          }}
+                        />
+                      )}
                     </Box>
                   ))}
             </Stack>

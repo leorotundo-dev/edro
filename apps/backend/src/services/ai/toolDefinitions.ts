@@ -1121,6 +1121,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     parameters: {
       workflow_json: { type: 'string', description: 'JSON string com array de steps: [{"tool":"change_job_status","args":{...}}, ...].' },
       confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar a execução do lote.' },
+      manual_requeue: { type: 'boolean', description: 'Use true somente quando um humano confirmar o reenfileiramento manual de um workflow que caiu na fila morta.' },
     },
     required: ['workflow_json', 'confirmed'],
     category: 'action',

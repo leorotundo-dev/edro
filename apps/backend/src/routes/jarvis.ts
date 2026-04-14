@@ -1702,6 +1702,15 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                     resume_from_step: Number(row.metadata?.resume_from_step || 1),
                   }
                 : null,
+              requeue_tool_args: row.metadata?.is_dead_letter === true
+                ? {
+                    workflow_json: row.metadata?.workflow_json || null,
+                    workflow_id: row.metadata?.workflow_id || null,
+                    workflow_state_version: Number(row.metadata?.workflow_state_version || 0),
+                    resume_from_step: Number(row.metadata?.resume_from_step || 1),
+                    manual_requeue: true,
+                  }
+                : null,
             };
           })(),
           id: row.id,

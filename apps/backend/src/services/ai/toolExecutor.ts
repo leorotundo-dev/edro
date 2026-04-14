@@ -5901,6 +5901,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   const attemptCount = Math.max(0, Number(existingMetadata?.attempt_count || 0));
   let currentWorkflowStateVersion = Math.max(0, Number(existingMetadata?.workflow_state_version || 0));
   const providedWorkflowStateVersion = Math.max(0, Number(args.workflow_state_version || 0));
+  const manualRequeue = args.manual_requeue === true;
   const lastActivityRaw = String(
     existingMetadata?.last_activity_at
       || existingMetadata?.last_attempt_at
@@ -5933,7 +5934,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     if ((existingStatus === 'running' || existingStatus === 'rolling_back') && !isStaleRunningWorkflow) {
       return { success: false, error: 'Este workflow já está em execução. Aguarde a conclusão antes de tentar novamente.' };
     }
-    if (existingMetadata?.requires_manual_followup === true) {
+    if (existingMetadata?.requires_manual_followup === true && !manualRequeue) {
       return {
         success: false,
         error: 'Este workflow exige follow-up manual antes de qualquer nova tentativa.',
@@ -5947,7 +5948,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     }
     if (existingStatus === 'failed') {
       const persistedResume = Math.max(1, Number(existingMetadata?.resume_from_step || 1));
-      if (resumeFromStep !== persistedResume) {
+      if (resumeFromStep !== persistedResume && !manualRequeue) {
         return { success: false, error: `resume_from_step inválido para retomada. O próximo passo seguro é ${persistedResume}.` };
       }
       const retryAfterRaw = String(existingMetadata?.retry_after_at || '').trim();
@@ -6104,6 +6105,12 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
         workflow_json: String(args.workflow_json || '[]'),
         status: 'queued',
         background_job_id: backgroundJob.id,
+        is_dead_letter: false,
+        dead_lettered_at: null,
+        dead_letter_reason: null,
+        dead_letter_category: null,
+        requires_manual_followup: false,
+        manual_followup: [],
         steps_total: steps.length,
         completed_steps: startIndex,
         attempt_count: attemptCount,
@@ -6128,14 +6135,14 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
             WHERE tenant_id = $1::uuid
               AND trigger_key = $2
               AND COALESCE(metadata->>'status', '') NOT IN ('queued', 'running', 'rolling_back', 'completed')
-              AND COALESCE((metadata->>'requires_manual_followup')::boolean, false) = false
+              AND ($6::boolean = true OR COALESCE((metadata->>'requires_manual_followup')::boolean, false) = false)
               AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $5
               AND (
                 COALESCE(metadata->>'status', '') <> 'failed'
                 OR COALESCE((metadata->>'resume_from_step')::int, 1) = $4
               )
             RETURNING id`,
-          [ctx.tenantId, workflowTriggerKey, JSON.stringify(queuedMetadata), resumeFromStep, currentWorkflowStateVersion],
+          [ctx.tenantId, workflowTriggerKey, JSON.stringify(queuedMetadata), resumeFromStep, currentWorkflowStateVersion, manualRequeue],
         );
         if (!queueRes.rowCount) {
           await queuedClient.query('ROLLBACK');

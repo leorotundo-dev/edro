@@ -118,6 +118,9 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
   const retryToolArgs = artifact.retry_tool_args && typeof artifact.retry_tool_args === 'object'
     ? artifact.retry_tool_args
     : null;
+  const requeueToolArgs = artifact.requeue_tool_args && typeof artifact.requeue_tool_args === 'object'
+    ? artifact.requeue_tool_args
+    : null;
 
   const href = artifact.post_url
     ? artifact.post_url
@@ -203,6 +206,26 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
             workflow_json: workflowJson,
             workflow_id: artifact.workflow_id || undefined,
             workflow_state_version: Number(artifact.workflow_state_version || 0) || undefined,
+            resume_from_step: Number(artifact.resume_from_step || (artifact.completed_steps || 0) + 1),
+          },
+        },
+        pageData: artifactPageData,
+      })
+    : null;
+  const requeueWorkflowAction = artifact.type === 'execute_multi_step_workflow'
+    && artifact.is_dead_letter === true
+    && onRunClientAction
+    && (requeueToolArgs || workflowJson)
+    ? () => onRunClientAction({
+        message: 'Confirmo o reenfileiramento manual deste workflow.',
+        clientAction: {
+          type: 'confirm_tool_call',
+          tool_name: 'execute_multi_step_workflow',
+          tool_args: requeueToolArgs || {
+            workflow_json: workflowJson,
+            workflow_id: artifact.workflow_id || undefined,
+            workflow_state_version: Number(artifact.workflow_state_version || 0) || undefined,
+            manual_requeue: true,
             resume_from_step: Number(artifact.resume_from_step || (artifact.completed_steps || 0) + 1),
           },
         },
@@ -665,6 +688,11 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 Retry: {artifact.retry_block_reason}
               </Typography>
             ) : null}
+            {artifact.is_dead_letter === true && artifact.dead_letter_reason ? (
+              <Typography variant="caption" color="error.main" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Fila morta: {artifact.dead_letter_reason}
+              </Typography>
+            ) : null}
             {artifact.rollback_status && artifact.rollback_status !== 'not_needed' ? (
               <Typography
                 variant="caption"
@@ -770,7 +798,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
               </Button>
             ))}
           </Box>
-        ) : retryWorkflowAction || repairSystemAction ? (
+        ) : retryWorkflowAction || requeueWorkflowAction || repairSystemAction ? (
           <Box sx={{ mt: 0.9, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
             {retryWorkflowAction ? (
               <Button
@@ -780,6 +808,16 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 sx={{ minHeight: 28, fontSize: '0.68rem' }}
               >
                 Retomar do ponto de falha
+              </Button>
+            ) : null}
+            {requeueWorkflowAction ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={requeueWorkflowAction}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                Reenfileirar
               </Button>
             ) : null}
             {repairSystemAction ? (
