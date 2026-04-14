@@ -48,3 +48,28 @@ export async function enqueueOutbox(
     );
   }
 }
+
+export async function reviveDeadOutboxItems(tenantId: string, limit = 50) {
+  const { rows } = await query<{ id: string }>(
+    `UPDATE trello_outbox
+        SET status = 'pending',
+            attempts = 0,
+            next_retry_at = now(),
+            updated_at = now()
+      WHERE id IN (
+        SELECT id
+          FROM trello_outbox
+         WHERE tenant_id = $1
+           AND status = 'dead'
+         ORDER BY updated_at ASC
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id`,
+    [tenantId, Math.max(1, Math.min(limit, 200))],
+  );
+
+  return {
+    revived: rows.length,
+  };
+}

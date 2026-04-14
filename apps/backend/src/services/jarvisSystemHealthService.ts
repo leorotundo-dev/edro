@@ -2,6 +2,7 @@ import { query } from '../db';
 import { watchCalendar } from './integrations/googleCalendarService';
 import { processPendingRetries } from './webhookRetryService';
 import { runTrelloOutboxWorkerOnce } from '../jobs/trelloOutboxWorker';
+import { reviveDeadOutboxItems } from './trelloOutboxService';
 import { syncGmailInboxFallback, watchGmailInbox } from './integrations/gmailService';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { runJarvisAlertEngine } from './jarvisAlertEngine';
@@ -16,6 +17,7 @@ export type SystemRepairType =
   | 'auto_repair'
   | 'process_webhook_retries'
   | 'flush_trello_outbox'
+  | 'revive_dead_trello_outbox'
   | 'ensure_trello_webhooks'
   | 'reconcile_trello_dark_boards'
   | 'recover_jarvis_background_jobs'
@@ -75,6 +77,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
   auto_repair: 'Auto-reparo seguro',
   process_webhook_retries: 'Processar retries de webhook',
   flush_trello_outbox: 'Destravar fila do Trello',
+  revive_dead_trello_outbox: 'Reenfileirar falhas permanentes do Trello',
   ensure_trello_webhooks: 'Garantir webhooks do Trello',
   reconcile_trello_dark_boards: 'Reconciliar boards dark do Trello',
   recover_jarvis_background_jobs: 'Recuperar workflows do Jarvis',
@@ -218,13 +221,22 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       repair_type: 'process_webhook_retries',
     });
   }
-  if (Number(trello.backlog || 0) || Number(trello.dead || 0)) {
+  if (Number(trello.backlog || 0)) {
     issues.push({
       key: 'trello_outbox',
-      severity: Number(trello.dead || 0) > 0 ? 'critical' : 'warning',
+      severity: 'warning',
       title: 'Fila do Trello acumulada',
-      message: `${Number(trello.backlog || 0)} item(ns) pendentes e ${Number(trello.dead || 0)} falha(s) permanentes.`,
+      message: `${Number(trello.backlog || 0)} item(ns) pendentes aguardando envio.`,
       repair_type: 'flush_trello_outbox',
+    });
+  }
+  if (Number(trello.dead || 0)) {
+    issues.push({
+      key: 'trello_outbox_dead',
+      severity: 'critical',
+      title: 'Fila do Trello com falhas permanentes',
+      message: `${Number(trello.dead || 0)} operação(ões) do Trello caíram em falha permanente e exigem reenfileiramento explícito.`,
+      repair_type: 'revive_dead_trello_outbox',
     });
   }
   if (Number(trelloWebhooks.boards_without_webhook || 0) > 0) {
@@ -361,6 +373,19 @@ export async function runSystemRepair(
           backlog_before: beforeOutbox.backlog,
           backlog_after: outboxAfter.components.trello_outbox.backlog,
           dead_after: outboxAfter.components.trello_outbox.dead,
+        });
+        break;
+      }
+      case 'revive_dead_trello_outbox': {
+        const beforeOutbox = before.components.trello_outbox;
+        const revived = await reviveDeadOutboxItems(tenantId);
+        const outboxAfter = await buildSystemHealthSnapshot(tenantId);
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          dead_before: beforeOutbox.dead,
+          revived: revived.revived,
+          dead_after: outboxAfter.components.trello_outbox.dead,
+          backlog_after: outboxAfter.components.trello_outbox.backlog,
         });
         break;
       }
