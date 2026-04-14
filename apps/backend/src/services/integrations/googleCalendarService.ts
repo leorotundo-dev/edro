@@ -21,6 +21,7 @@ import { query } from '../../db';
 import { enqueueJob } from '../../jobs/jobQueue';
 import { ensureInternalClient } from '../../repos/clientsRepo';
 import { syncMeetingParticipantsFromCalendarPayload } from '../../repos/meetingParticipantsRepo';
+import { updateMeetingState } from '../meetingService';
 import { env } from '../../env';
 import { logActivity } from '../integrationMonitor';
 
@@ -316,6 +317,7 @@ export async function processCalendarNotification(channelId: string, resourceSta
         timeMax: tomorrow48.toISOString(),
         singleEvents: 'true',
         orderBy: 'startTime',
+        showDeleted: 'true',
       }),
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
@@ -366,6 +368,11 @@ async function processCalendarEvent(tenantId: string, event: any) {
   const eventId = event.id as string;
   if (!eventId) return;
 
+  if (event.status === 'cancelled') {
+    await syncCancelledCalendarEvent(tenantId, eventId);
+    return;
+  }
+
   const videoLink = extractVideoLink(event);
   if (!videoLink) return; // Not a video meeting, skip
 
@@ -411,6 +418,16 @@ async function processCalendarEvent(tenantId: string, event: any) {
   const linkedMeetingId = autoJoin.meetingId ?? existing[0]?.meeting_id ?? null;
   const linkedClientId = autoJoin.clientId ?? existing[0]?.client_id ?? null;
   if (linkedMeetingId && linkedClientId) {
+    await syncLinkedMeetingFromCalendarEvent({
+      tenantId,
+      meetingId: linkedMeetingId,
+      clientId: linkedClientId,
+      eventId,
+      title: event.summary ?? 'Reunião',
+      videoLink,
+      scheduledAt,
+    }).catch((err) => console.error('[googleCalendarService] syncLinkedMeeting failed:', err?.message));
+
     await syncMeetingParticipantsFromCalendarPayload({
       meetingId: linkedMeetingId,
       tenantId,
@@ -448,6 +465,125 @@ async function processCalendarEvent(tenantId: string, event: any) {
     client,
   )
     .catch(err => console.error('[googleCalendarService] enqueueMeetBot failed:', err?.message));
+}
+
+async function syncLinkedMeetingFromCalendarEvent(params: {
+  tenantId: string;
+  meetingId: string;
+  clientId: string;
+  eventId: string;
+  title: string;
+  videoLink: string;
+  scheduledAt: Date;
+}) {
+  await updateMeetingState({
+    meetingId: params.meetingId,
+    tenantId: params.tenantId,
+    changes: {
+      title: params.title,
+      meeting_url: params.videoLink,
+      recorded_at: params.scheduledAt,
+    },
+    event: {
+      eventType: 'meeting.synced_from_calendar',
+      stage: 'meeting',
+      status: 'scheduled',
+      message: 'Reunião sincronizada a partir do Google Calendar.',
+      actorType: 'system',
+      actorId: 'google_calendar',
+      payload: {
+        calendar_event_id: params.eventId,
+        scheduled_at: params.scheduledAt.toISOString(),
+      },
+    },
+  }).catch(() => null);
+
+  await query(
+    `UPDATE calendar_auto_joins
+        SET event_title = $1,
+            video_url = $2,
+            scheduled_at = $3,
+            status = CASE WHEN status = 'cancelled' THEN 'queued' ELSE status END,
+            last_error = NULL,
+            updated_at = now()
+      WHERE tenant_id = $4
+        AND calendar_event_id = $5`,
+    [params.title, params.videoLink, params.scheduledAt, params.tenantId, params.eventId],
+  ).catch(() => null);
+}
+
+async function syncCancelledCalendarEvent(tenantId: string, eventId: string) {
+  const { rows } = await query<{
+    meeting_id: string;
+    client_id: string;
+    status: string | null;
+  }>(
+    `SELECT DISTINCT
+        m.id::text AS meeting_id,
+        m.client_id,
+        m.status
+       FROM meetings m
+       LEFT JOIN calendar_auto_joins caj
+         ON caj.meeting_id = m.id
+      WHERE m.tenant_id = $1
+        AND (
+          m.source_ref_id = $2
+          OR caj.calendar_event_id = $2
+        )`,
+    [tenantId, eventId],
+  ).catch(() => ({ rows: [] as Array<{ meeting_id: string; client_id: string; status: string | null }> }));
+
+  await query(
+    `UPDATE calendar_auto_joins
+        SET status = 'cancelled',
+            last_error = 'cancelled_in_google_calendar',
+            updated_at = now()
+      WHERE tenant_id = $1
+        AND calendar_event_id = $2`,
+    [tenantId, eventId],
+  ).catch(() => null);
+
+  for (const row of rows) {
+    if (!row.client_id || ['completed', 'archived'].includes(String(row.status || '').toLowerCase())) {
+      continue;
+    }
+
+    await updateMeetingState({
+      meetingId: row.meeting_id,
+      tenantId,
+      changes: {
+        status: 'archived',
+        failed_stage: 'calendar_detect',
+        failed_reason: 'cancelled_in_google_calendar',
+        completed_at: new Date(),
+        last_processed_at: new Date(),
+      },
+      event: {
+        eventType: 'meeting.cancelled_in_calendar',
+        stage: 'meeting',
+        status: 'archived',
+        message: 'Reunião cancelada diretamente no Google Calendar.',
+        actorType: 'system',
+        actorId: 'google_calendar',
+        payload: {
+          calendar_event_id: eventId,
+        },
+      },
+    }).catch(() => null);
+
+    await query(
+      `UPDATE job_queue
+          SET status = 'failed',
+              error_message = 'meeting_cancelled_in_google_calendar',
+              payload = COALESCE(payload, '{}'::jsonb) || $3::jsonb,
+              updated_at = NOW()
+        WHERE tenant_id = $1::uuid
+          AND type = 'meet-bot'
+          AND status = 'queued'
+          AND (payload->>'meetingId' = $2 OR payload->>'meeting_id' = $2)`,
+      [tenantId, row.meeting_id, JSON.stringify({ cancelled_in_google_calendar: true, calendar_event_id: eventId })],
+    ).catch(() => null);
+  }
 }
 
 async function buildInternalCalendarClient(tenantId: string): Promise<ResolvedCalendarClient> {
