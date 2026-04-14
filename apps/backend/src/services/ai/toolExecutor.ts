@@ -68,6 +68,7 @@ import {
   createCalendarMeeting,
   updateCalendarMeeting,
   deleteCalendarEvent,
+  findCalendarConflicts,
 } from '../integrations/googleCalendarService';
 import { createMeeting, getMeeting, updateMeetingState } from '../meetingService';
 import {
@@ -1033,6 +1034,7 @@ async function detectMeetingConflicts(params: {
   startAt: Date;
   durationMinutes: number;
   excludeMeetingId?: string | null;
+  excludeCalendarEventId?: string | null;
 }) {
   const endAt = new Date(params.startAt.getTime() + params.durationMinutes * 60_000);
   const values: any[] = [params.tenantId, params.startAt, endAt];
@@ -1062,7 +1064,17 @@ async function detectMeetingConflicts(params: {
     values,
   ).catch(() => ({ rows: [] as Array<{ id: string; title: string; recorded_at: string | null; status: string }> }));
 
-  return rows;
+  const external = await findCalendarConflicts({
+    tenantId: params.tenantId,
+    startAt: params.startAt,
+    endAt,
+    excludeEventId: params.excludeCalendarEventId,
+  }).catch(() => []);
+
+  return {
+    local: rows,
+    external,
+  };
 }
 
 async function toolScheduleMeeting(args: any, ctx: ToolContext): Promise<ToolResult> {
@@ -1084,8 +1096,11 @@ async function toolScheduleMeeting(args: any, ctx: ToolContext): Promise<ToolRes
     startAt: scheduledAt,
     durationMinutes,
   });
-  if (conflicts.length) {
-    const labels = conflicts.map((item) => `${item.title} (${String(item.recorded_at || '').slice(0, 16)})`).join(', ');
+  if (conflicts.local.length || conflicts.external.length) {
+    const labels = [
+      ...conflicts.local.map((item) => `${item.title} (${String(item.recorded_at || '').slice(0, 16)})`),
+      ...conflicts.external.map((item) => `${item.title} (${String(item.startAt || '').slice(0, 16)})`),
+    ].join(', ');
     return { success: false, error: `Conflito de agenda detectado com: ${labels}.` };
   }
   const external = await createCalendarMeeting({
@@ -1197,9 +1212,13 @@ async function toolRescheduleMeeting(args: any, ctx: ToolContext): Promise<ToolR
     startAt: scheduledAt,
     durationMinutes,
     excludeMeetingId: meeting.id,
+    excludeCalendarEventId: meeting.source_ref_id || null,
   });
-  if (conflicts.length) {
-    const labels = conflicts.map((item) => `${item.title} (${String(item.recorded_at || '').slice(0, 16)})`).join(', ');
+  if (conflicts.local.length || conflicts.external.length) {
+    const labels = [
+      ...conflicts.local.map((item) => `${item.title} (${String(item.recorded_at || '').slice(0, 16)})`),
+      ...conflicts.external.map((item) => `${item.title} (${String(item.startAt || '').slice(0, 16)})`),
+    ].join(', ');
     return { success: false, error: `Conflito de agenda detectado com: ${labels}.` };
   }
   const attendeeEmails = normalizeAttendeeEmails(args.attendee_emails);

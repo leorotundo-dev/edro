@@ -747,6 +747,47 @@ export async function deleteCalendarEvent(params: {
   }
 }
 
+export async function findCalendarConflicts(params: {
+  tenantId: string;
+  startAt: Date;
+  endAt: Date;
+  excludeEventId?: string | null;
+}): Promise<Array<{ eventId: string; title: string; startAt: string | null }>> {
+  const accessToken = await getCalendarAccessToken(params.tenantId);
+  const excludeEventId = String(params.excludeEventId || '').trim();
+
+  const res = await fetch(
+    `${CALENDAR_API}/calendars/primary/events?` + new URLSearchParams({
+      timeMin: params.startAt.toISOString(),
+      timeMax: params.endAt.toISOString(),
+      singleEvents: 'true',
+      orderBy: 'startTime',
+    }),
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Google Calendar listEvents failed (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as { items?: any[] };
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items
+    .filter((item) => item?.status !== 'cancelled')
+    .filter((item) => String(item?.id || '').trim() !== excludeEventId)
+    .map((item) => ({
+      eventId: String(item?.id || '').trim(),
+      title: String(item?.summary || 'Evento no Google Calendar').trim() || 'Evento no Google Calendar',
+      startAt: item?.start?.dateTime || item?.start?.date || null,
+    }))
+    .slice(0, 5);
+}
+
 async function upsertAutoJoin(params: {
   tenantId: string;
   eventId: string;
