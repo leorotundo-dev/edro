@@ -74,6 +74,7 @@ export type SystemHealthSnapshot = {
       failed: number;
       recoverable_failed: number;
       stale_without_job: number;
+      stale_processing_jobs: number;
       next_stale_scheduled_at: string | null;
     };
     gmail: null | {
@@ -323,6 +324,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       failed: 0,
       recoverable_failed: 0,
       stale_without_job: 0,
+      stale_processing_jobs: 0,
       next_stale_scheduled_at: null,
     })),
     query<any>(
@@ -467,9 +469,13 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
   if (Number(calendarAutoJoins.stale_without_job || 0) > 0 || Number(calendarAutoJoins.recoverable_failed || 0) > 0) {
     issues.push({
       key: 'calendar_auto_joins',
-      severity: Number(calendarAutoJoins.stale_without_job || 0) > 0 ? 'critical' : 'warning',
+      severity:
+        Number(calendarAutoJoins.stale_without_job || 0) > 0 ||
+        Number(calendarAutoJoins.stale_processing_jobs || 0) > 0
+          ? 'critical'
+          : 'warning',
       title: 'Fila de reuniões com bot do Google Calendar precisa recuperação',
-      message: `${Number(calendarAutoJoins.stale_without_job || 0)} auto-join(ns) sem job vivo e ${Number(calendarAutoJoins.recoverable_failed || 0)} falha(s) recuperáveis do meet-bot.`,
+      message: `${Number(calendarAutoJoins.stale_without_job || 0)} auto-join(ns) sem job vivo, ${Number(calendarAutoJoins.stale_processing_jobs || 0)} job(s) stale do meet-bot e ${Number(calendarAutoJoins.recoverable_failed || 0)} falha(s) recuperáveis.`,
       repair_type: 'recover_calendar_auto_joins',
     });
   }
@@ -668,6 +674,7 @@ export async function runSystemRepair(
         executedRepairs.push({
           repair_type: plannedRepair,
           scanned: recovery.scanned,
+          recovered_stale_jobs: recovery.recovered_stale_jobs,
           recovered: recovery.recovered,
           skipped_too_close: recovery.skipped_too_close,
           failed: recovery.failed,

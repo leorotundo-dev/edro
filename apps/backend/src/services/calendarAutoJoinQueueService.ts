@@ -21,6 +21,7 @@ export type CalendarAutoJoinQueueHealth = {
   failed: number;
   recoverable_failed: number;
   stale_without_job: number;
+  stale_processing_jobs: number;
   next_stale_scheduled_at: string | null;
 };
 
@@ -117,6 +118,32 @@ async function enqueueRecoveredAutoJoin(tenantId: string, item: CalendarAutoJoin
   };
 }
 
+async function recoverStaleMeetBotJobs(tenantId: string, limit = 20) {
+  const { rows } = await query<{ id: string }>(
+    `UPDATE job_queue
+        SET status = 'failed',
+            error_message = COALESCE(NULLIF(error_message, ''), 'meet_bot_processing_stale'),
+            updated_at = now()
+      WHERE id IN (
+        SELECT jq.id
+          FROM job_queue jq
+         WHERE jq.tenant_id = $1::uuid
+           AND jq.type IN ('meet-bot', 'meet-bot.finalize')
+           AND jq.status = 'processing'
+           AND jq.updated_at < now() - interval '20 minutes'
+         ORDER BY jq.updated_at ASC
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id`,
+    [tenantId, Math.max(1, Math.min(limit, 100))],
+  ).catch(() => ({ rows: [] as Array<{ id: string }> }));
+
+  return {
+    recovered: rows.length,
+  };
+}
+
 export async function getCalendarAutoJoinQueueHealth(tenantId: string): Promise<CalendarAutoJoinQueueHealth> {
   const { rows } = await query<CalendarAutoJoinQueueHealth>(
     `SELECT COUNT(*) FILTER (WHERE caj.status = 'queued')::int AS queued,
@@ -147,6 +174,14 @@ export async function getCalendarAutoJoinQueueHealth(tenantId: string): Promise<
                      AND COALESCE(jq.payload->>'autoJoinId', jq.payload->>'auto_join_id') = caj.id::text
                 )
             )::int AS stale_without_job,
+            (
+              SELECT COUNT(*)::int
+                FROM job_queue jq
+               WHERE jq.tenant_id = caj.tenant_id::uuid
+                 AND jq.type IN ('meet-bot', 'meet-bot.finalize')
+                 AND jq.status = 'processing'
+                 AND jq.updated_at < now() - interval '20 minutes'
+            ) AS stale_processing_jobs,
             MIN(caj.scheduled_at)::text FILTER (
               WHERE caj.status IN ('queued', 'processing')
                 AND caj.video_url IS NOT NULL
@@ -175,6 +210,7 @@ export async function getCalendarAutoJoinQueueHealth(tenantId: string): Promise<
       failed: 0,
       recoverable_failed: 0,
       stale_without_job: 0,
+      stale_processing_jobs: 0,
       next_stale_scheduled_at: null,
     }],
   }));
@@ -185,6 +221,7 @@ export async function getCalendarAutoJoinQueueHealth(tenantId: string): Promise<
     failed: 0,
     recoverable_failed: 0,
     stale_without_job: 0,
+    stale_processing_jobs: 0,
     next_stale_scheduled_at: null,
   };
 }
@@ -199,6 +236,7 @@ export async function requeueCalendarAutoJoinById(tenantId: string, autoJoinId: 
 
 export async function recoverCalendarAutoJoins(params: { tenantId: string; limit?: number }) {
   const limit = Math.max(1, Math.min(50, Number(params.limit || 20)));
+  const staleJobs = await recoverStaleMeetBotJobs(params.tenantId, limit);
   const { rows } = await query<CalendarAutoJoinQueueRow>(
     `SELECT caj.id,
             caj.event_title,
@@ -246,6 +284,7 @@ export async function recoverCalendarAutoJoins(params: { tenantId: string; limit
 
   const result = {
     scanned: rows.length,
+    recovered_stale_jobs: staleJobs.recovered,
     recovered: 0,
     skipped_too_close: 0,
     failed: 0,
