@@ -129,6 +129,19 @@ export const TOOLS: ToolDefinition[] = [
     category: 'write',
   },
   {
+    name: 'schedule_meeting',
+    description: 'Agenda uma reunião do cliente no Google Calendar/Meet e cria o registro operacional no sistema. Use quando o usuário pedir para marcar ou criar uma reunião.',
+    parameters: {
+      title: { type: 'string', description: 'Título da reunião' },
+      scheduled_at: { type: 'string', description: 'Data/hora ISO da reunião' },
+      duration_minutes: { type: 'number', description: 'Duração em minutos (default 60)' },
+      description: { type: 'string', description: 'Descrição ou contexto da reunião' },
+      attendee_emails: { type: 'array', description: 'Lista opcional de emails para convidar', items: { type: 'string' } },
+    },
+    required: ['title', 'scheduled_at'],
+    category: 'write',
+  },
+  {
     name: 'reschedule_meeting',
     description: 'Remarca uma reunião existente do cliente e sincroniza Google Calendar/Meet quando houver vínculo externo.',
     parameters: {

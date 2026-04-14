@@ -65,10 +65,11 @@ import { getTrelloCredentials } from '../trelloSyncService';
 import { buildDailyDigest } from '../agencyDigestService';
 import {
   createCalendarEvent,
+  createCalendarMeeting,
   updateCalendarMeeting,
   deleteCalendarEvent,
 } from '../integrations/googleCalendarService';
-import { getMeeting, updateMeetingState } from '../meetingService';
+import { createMeeting, getMeeting, updateMeetingState } from '../meetingService';
 import {
   buildSystemHealthSnapshot,
   resolveSystemRepairPlan,
@@ -223,6 +224,7 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'add_calendar_event',
   ], { systemPerm: 'calendars:write', clientPerm: 'write' }),
   ...buildRequirementMap([
+    'schedule_meeting',
     'reschedule_meeting',
     'cancel_meeting',
     'schedule_briefing',
@@ -583,6 +585,7 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   search_events: toolSearchEvents,
   get_event_relevance: toolGetEventRelevance,
   add_calendar_event: toolAddCalendarEvent,
+  schedule_meeting: toolScheduleMeeting,
   reschedule_meeting: toolRescheduleMeeting,
   cancel_meeting: toolCancelMeeting,
   create_campaign: toolCreateCampaign,
@@ -1023,6 +1026,106 @@ async function patchQueuedMeetBotJobs(tenantId: string, meetingId: string, patch
         AND (payload->>'meetingId' = $2 OR payload->>'meeting_id' = $2)`,
     [tenantId, meetingId, JSON.stringify(patch)],
   ).catch(() => null);
+}
+
+async function toolScheduleMeeting(args: any, ctx: ToolContext): Promise<ToolResult> {
+  if (!ctx.edroClientId) return { success: false, error: 'Client not found in edro_clients' };
+
+  const title = String(args.title || '').trim();
+  const scheduledAt = new Date(String(args.scheduled_at || '').trim());
+  if (!title || Number.isNaN(scheduledAt.getTime())) {
+    return { success: false, error: 'title e scheduled_at válidos são obrigatórios.' };
+  }
+
+  const client = await getClientById(ctx.tenantId, ctx.clientId);
+  if (!client) return { success: false, error: 'Cliente não encontrado.' };
+
+  const attendeeEmails = normalizeAttendeeEmails(args.attendee_emails);
+  const durationMinutes = Math.min(Math.max(Number(args.duration_minutes || 60), 15), 480);
+  const external = await createCalendarMeeting({
+    tenantId: ctx.tenantId,
+    title,
+    startAt: scheduledAt,
+    durationMinutes,
+    attendeeEmails,
+    description: args.description || null,
+    clientId: ctx.clientId,
+    clientName: client.name || null,
+  });
+
+  const meeting = await createMeeting({
+    tenantId: ctx.tenantId,
+    clientId: ctx.edroClientId,
+    title,
+    platform: 'meet',
+    meetingUrl: external.meetUrl,
+    createdBy: ctx.userEmail || 'jarvis',
+    source: 'calendar',
+    sourceRefId: external.eventId,
+    status: 'scheduled',
+    recordedAt: scheduledAt,
+  });
+
+  const { rows: autoJoinRows } = await query<{ id: string }>(
+    `INSERT INTO calendar_auto_joins
+       (tenant_id, calendar_event_id, event_title, video_url, video_platform, organizer_email, organizer_name, attendees, scheduled_at, meeting_id, client_id, status)
+     VALUES ($1, $2, $3, $4, 'meet', $5, $6, $7::jsonb, $8, $9, $10, 'queued')
+     ON CONFLICT (calendar_event_id) DO UPDATE
+       SET event_title = EXCLUDED.event_title,
+           video_url = EXCLUDED.video_url,
+           attendees = EXCLUDED.attendees,
+           scheduled_at = EXCLUDED.scheduled_at,
+           meeting_id = EXCLUDED.meeting_id,
+           client_id = EXCLUDED.client_id,
+           status = EXCLUDED.status,
+           job_enqueued_at = now(),
+           updated_at = now()
+     RETURNING id`,
+    [
+      ctx.tenantId,
+      external.eventId,
+      title,
+      external.meetUrl,
+      ctx.userEmail || null,
+      ctx.userEmail || null,
+      JSON.stringify(attendeeEmails.map((email) => ({ email }))),
+      scheduledAt,
+      meeting.id,
+      ctx.edroClientId,
+    ],
+  ).catch(() => ({ rows: [] as { id: string }[] }));
+
+  const autoJoinId = autoJoinRows[0]?.id ?? null;
+  await enqueueJob(ctx.tenantId, 'meet-bot', {
+    meetingId: meeting.id,
+    videoUrl: external.meetUrl,
+    scheduledAt: scheduledAt.toISOString(),
+    autoJoinId,
+    clientId: ctx.edroClientId,
+    clientName: client.name,
+    eventTitle: title,
+    meeting_url: external.meetUrl,
+    scheduled_at: scheduledAt.toISOString(),
+    client_id: ctx.edroClientId,
+    title,
+    platform: 'meet',
+    client_name: client.name,
+    source: 'calendar',
+  }).catch(() => null);
+
+  return {
+    success: true,
+    data: {
+      meeting_id: meeting.id,
+      title,
+      scheduled_at: scheduledAt.toISOString(),
+      duration_minutes: durationMinutes,
+      meeting_url: external.meetUrl,
+      calendar_event_id: external.eventId,
+      html_link: external.htmlLink,
+      attendee_emails: attendeeEmails,
+    },
+  };
 }
 
 async function toolRescheduleMeeting(args: any, ctx: ToolContext): Promise<ToolResult> {
@@ -6729,7 +6832,7 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     const stepArgs = step?.args && typeof step.args === 'object' ? step.args : {};
     const stepStartedAt = Date.now();
     let result: ToolResult;
-    if (toolName === 'create_briefing' || toolName === 'add_calendar_event') {
+    if (toolName === 'create_briefing' || toolName === 'add_calendar_event' || toolName === 'schedule_meeting') {
       const clientId = contextualString(stepArgs.client_id) || contextualString((ctx as any).clientId);
       if (!clientId) return { success: false, error: `${toolName} exige client_id no workflow.` };
       const { rows: edroRows } = await query<{ id: string }>(
