@@ -487,7 +487,11 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       repair_type: 'recover_jarvis_background_jobs',
     });
   }
-  if (Number(calendarAutoJoins.stale_without_job || 0) > 0 || Number(calendarAutoJoins.recoverable_failed || 0) > 0) {
+  if (
+    Number(calendarAutoJoins.stale_without_job || 0) > 0 ||
+    Number(calendarAutoJoins.stale_processing_jobs || 0) > 0 ||
+    Number(calendarAutoJoins.recoverable_failed || 0) > 0
+  ) {
     issues.push({
       key: 'calendar_auto_joins',
       severity:
