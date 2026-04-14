@@ -1738,6 +1738,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           finished_at: row.metadata?.finished_at || null,
         }))
       : [];
+    const manualFollowups = recentWorkflows
+      .filter((workflow: any) => workflow.requires_manual_followup === true)
+      .slice(0, 5);
     const recentRepairs = recentRepairsRes.status === 'fulfilled'
       ? recentRepairsRes.value.rows.map((row: any) => ({
           id: row.id,
@@ -1783,6 +1786,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       auto_briefings: autoBriefings,
       proposals,
       opportunities,
+      manual_followups: manualFollowups,
       recent_workflows: recentWorkflows,
       recent_repairs: recentRepairs,
       total_actions,

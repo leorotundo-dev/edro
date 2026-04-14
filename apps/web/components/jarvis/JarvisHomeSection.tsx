@@ -49,6 +49,53 @@ type FeedItem = {
   repairActions?: Array<{ repair_type: string; label: string }>;
 };
 
+type WorkflowFeedItem = {
+  id: string;
+  fired_at: string;
+  workflow_id?: string | null;
+  workflow_state_version?: number;
+  workflow_json?: string | null;
+  auto_retry_pending?: boolean;
+  confirm_tool_args?: Record<string, unknown> | null;
+  retry_tool_args?: Record<string, unknown> | null;
+  status: string;
+  completed_steps: number;
+  steps_total: number;
+  attempt_count?: number;
+  resume_from_step?: number;
+  last_step?: string | null;
+  failed_step?: string | null;
+  last_error?: string | null;
+  failed_step_args_preview?: string | null;
+  failed_step_duration_ms?: number;
+  failure_class?: string | null;
+  recommended_next_action?: string | null;
+  recommended_next_label?: string | null;
+  failure_resolution_hint?: string | null;
+  failure_action_items?: string[];
+  retry_after_at?: string | null;
+  retry_attempts_remaining?: number | null;
+  can_retry_now?: boolean;
+  retry_block_reason?: string | null;
+  rollback_status?: string | null;
+  rollback_total?: number;
+  rollback_completed?: number;
+  rollback_failures?: number;
+  requires_manual_followup?: boolean;
+  manual_followup?: string[];
+  steps_preview?: Array<{ tool: string; success: boolean; error?: string | null; summary?: string | null }>;
+  steps_history?: Array<{
+    index?: number;
+    tool: string;
+    success: boolean;
+    error?: string | null;
+    summary?: string | null;
+    args_preview?: string | null;
+    duration_ms?: number | null;
+  }>;
+  finished_at?: string | null;
+};
+
 type JarvisFeed = {
   daily_brief?: {
     active_jobs_total: number;
@@ -67,52 +114,8 @@ type JarvisFeed = {
   auto_briefings: any[];
   proposals: any[];
   opportunities: any[];
-  recent_workflows: Array<{
-    id: string;
-    fired_at: string;
-    workflow_id?: string | null;
-    workflow_state_version?: number;
-    workflow_json?: string | null;
-    auto_retry_pending?: boolean;
-    confirm_tool_args?: Record<string, unknown> | null;
-    retry_tool_args?: Record<string, unknown> | null;
-    status: string;
-    completed_steps: number;
-    steps_total: number;
-    attempt_count?: number;
-    resume_from_step?: number;
-    last_step?: string | null;
-    failed_step?: string | null;
-    last_error?: string | null;
-    failed_step_args_preview?: string | null;
-    failed_step_duration_ms?: number;
-    failure_class?: string | null;
-    recommended_next_action?: string | null;
-    recommended_next_label?: string | null;
-    failure_resolution_hint?: string | null;
-    failure_action_items?: string[];
-    retry_after_at?: string | null;
-    retry_attempts_remaining?: number | null;
-    can_retry_now?: boolean;
-    retry_block_reason?: string | null;
-    rollback_status?: string | null;
-    rollback_total?: number;
-    rollback_completed?: number;
-    rollback_failures?: number;
-    requires_manual_followup?: boolean;
-    manual_followup?: string[];
-    steps_preview?: Array<{ tool: string; success: boolean; error?: string | null; summary?: string | null }>;
-    steps_history?: Array<{
-      index?: number;
-      tool: string;
-      success: boolean;
-      error?: string | null;
-      summary?: string | null;
-      args_preview?: string | null;
-      duration_ms?: number | null;
-    }>;
-    finished_at?: string | null;
-  }>;
+  manual_followups: WorkflowFeedItem[];
+  recent_workflows: WorkflowFeedItem[];
   recent_repairs: Array<{
     id: string;
     fired_at: string;
@@ -391,7 +394,7 @@ export default function JarvisHomeSection() {
     }, 100);
   };
 
-  const triggerWorkflowAction = (workflow: JarvisFeed['recent_workflows'][number], mode: 'retry' | 'confirm') => {
+  const triggerWorkflowAction = (workflow: WorkflowFeedItem, mode: 'retry' | 'confirm') => {
     const toolArgs = mode === 'confirm' ? workflow.confirm_tool_args : workflow.retry_tool_args;
     const workflowJson = String(workflow.workflow_json || '').trim();
     if (!toolArgs && !workflowJson) return;
@@ -595,6 +598,73 @@ export default function JarvisHomeSection() {
             <Typography variant="body2" sx={{ fontSize: '0.78rem', color: 'success.main', fontWeight: 600 }}>
               Tudo em dia — nenhuma decisão pendente.
             </Typography>
+          </Box>
+        )}
+
+        {(loading || (Array.isArray(feed?.manual_followups) && feed!.manual_followups.length > 0)) && (
+          <Box sx={{ mb: 2 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="overline" color="text.disabled" sx={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>
+                Pendências manuais do Jarvis
+              </Typography>
+            </Stack>
+            <Stack spacing={0.5}>
+              {loading
+                ? [1, 2].map((i) => <Skeleton key={`manual-${i}`} height={40} sx={{ borderRadius: 1.5 }} />)
+                : (feed?.manual_followups || []).slice(0, 3).map((workflow) => (
+                    <Box
+                      key={`manual-${workflow.id}`}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 1.25,
+                        py: 0.75,
+                        borderRadius: 1.5,
+                        border: `1px solid ${alpha('#EF4444', 0.18)}`,
+                        bgcolor: alpha('#EF4444', 0.05),
+                      }}
+                    >
+                      <Box sx={{ color: '#EF4444', display: 'flex', flexShrink: 0 }}>
+                        <IconAlertTriangle size={14} />
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }} noWrap>
+                          {workflow.workflow_id ? `Workflow ${String(workflow.workflow_id).slice(0, 8)}` : 'Workflow exige ação manual'}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }} noWrap>
+                          {workflow.failed_step ? `Falhou em ${workflow.failed_step}` : 'Falha com intervenção manual'}
+                          {workflow.failure_class ? ` · ${workflow.failure_class}` : ''}
+                          {' · '}
+                          {relativeTime(workflow.finished_at || workflow.fired_at)}
+                        </Typography>
+                        {workflow.last_error ? (
+                          <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                            {workflow.last_error}
+                          </Typography>
+                        ) : null}
+                        {Array.isArray(workflow.manual_followup) && workflow.manual_followup.length > 0 ? (
+                          <Typography variant="caption" color="error.main" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                            Manual: {workflow.manual_followup.join(' · ')}
+                          </Typography>
+                        ) : null}
+                      </Box>
+                      <Chip
+                        label="Manual"
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.62rem',
+                          fontWeight: 600,
+                          bgcolor: alpha('#EF4444', 0.12),
+                          color: '#EF4444',
+                          flexShrink: 0,
+                          '& .MuiChip-label': { px: 0.75 },
+                        }}
+                      />
+                    </Box>
+                  ))}
+            </Stack>
           </Box>
         )}
 
