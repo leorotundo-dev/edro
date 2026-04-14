@@ -51,6 +51,8 @@ export type JarvisToolGovernance = {
       blockedChannels: string[];
       allowedWeekdays: number[];
       blockedWeekdays: number[];
+      allowedDates: string[];
+      blockedDates: string[];
       operationalHoursStart: number | null;
       operationalHoursEnd: number | null;
       allowWeekendActions: boolean;
@@ -109,6 +111,8 @@ type ClientPolicyContext = {
   blockedChannels: string[];
   allowedWeekdays: number[];
   blockedWeekdays: number[];
+  allowedDates: string[];
+  blockedDates: string[];
   operationalHoursStart: number | null;
   operationalHoursEnd: number | null;
   allowWeekendActions: boolean;
@@ -325,29 +329,40 @@ function nextOperationalWindowIso(options?: {
   allowWeekendActions?: boolean;
   allowedWeekdays?: number[];
   blockedWeekdays?: number[];
+  allowedDates?: string[];
+  blockedDates?: string[];
 }) {
   const now = new Date();
   const parts = getSaoPauloDateParts();
+  const todayKey = getDateKeyFromParts(parts);
   const startHour = normalizeHourValue(options?.startHour) ?? 7;
   const endHour = normalizeHourValue(options?.endHour) ?? 20;
   const allowWeekendActions = options?.allowWeekendActions === true;
   const allowedWeekdays = options?.allowedWeekdays ?? [];
   const blockedWeekdays = options?.blockedWeekdays ?? [];
+  const allowedDates = options?.allowedDates ?? [];
+  const blockedDates = options?.blockedDates ?? [];
 
   if (
     isWeekdayAllowed(parts.weekday, { allowWeekendActions, allowedWeekdays, blockedWeekdays })
+    && isDateAllowed(todayKey, { allowedDates, blockedDates })
     && !isOutsideOperationalWindow(parts.hour, startHour, endHour)
   ) {
     return null;
   }
 
-  for (let daysToAdd = 0; daysToAdd <= 7; daysToAdd += 1) {
+  const maxDaysToScan = allowedDates.length > 0 || blockedDates.length > 0 ? 31 : 7;
+  for (let daysToAdd = 0; daysToAdd <= maxDaysToScan; daysToAdd += 1) {
     const candidate = new Date(now);
     candidate.setUTCDate(candidate.getUTCDate() + daysToAdd);
     candidate.setUTCHours(startHour + 3, 0, 0, 0); // America/Sao_Paulo ~= UTC-3
 
     const candidateParts = getSaoPauloDateParts(candidate);
+    const candidateDateKey = getDateKeyFromParts(candidateParts);
     if (!isWeekdayAllowed(candidateParts.weekday, { allowWeekendActions, allowedWeekdays, blockedWeekdays })) {
+      continue;
+    }
+    if (!isDateAllowed(candidateDateKey, { allowedDates, blockedDates })) {
       continue;
     }
 
@@ -404,6 +419,42 @@ function normalizeWeekdayList(value: unknown) {
   );
 }
 
+function normalizeDateValue(value: unknown) {
+  const normalized = String(value ?? '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function normalizeDateList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => normalizeDateValue(item))
+        .filter((item): item is string => item !== null),
+    ),
+  ).sort();
+}
+
+function getDateKeyFromParts(parts: { year: number; month: number; day: number }) {
+  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+function isDateAllowed(
+  dateKey: string,
+  options?: {
+    allowedDates?: string[];
+    blockedDates?: string[];
+  },
+) {
+  if (Array.isArray(options?.allowedDates) && options.allowedDates.length > 0 && !options.allowedDates.includes(dateKey)) {
+    return false;
+  }
+  if (Array.isArray(options?.blockedDates) && options.blockedDates.includes(dateKey)) {
+    return false;
+  }
+  return true;
+}
+
 function isWeekdayAllowed(
   weekday: number,
   options?: {
@@ -436,6 +487,8 @@ async function resolveClientPolicyContext(
       blockedChannels: [],
       allowedWeekdays: [],
       blockedWeekdays: [],
+      allowedDates: [],
+      blockedDates: [],
       operationalHoursStart: null,
       operationalHoursEnd: null,
       allowWeekendActions: false,
@@ -495,6 +548,8 @@ async function resolveClientPolicyContext(
     blockedChannels: normalizeStringList(jarvisPolicy.blocked_channels ?? jarvisPolicy.blockedChannels),
     allowedWeekdays: normalizeWeekdayList(jarvisPolicy.allowed_weekdays ?? jarvisPolicy.allowedWeekdays),
     blockedWeekdays: normalizeWeekdayList(jarvisPolicy.blocked_weekdays ?? jarvisPolicy.blockedWeekdays),
+    allowedDates: normalizeDateList(jarvisPolicy.allowed_dates ?? jarvisPolicy.allowedDates),
+    blockedDates: normalizeDateList(jarvisPolicy.blocked_dates ?? jarvisPolicy.blockedDates),
     operationalHoursStart: normalizeHourValue(jarvisPolicy.operational_hours_start ?? jarvisPolicy.operationalHoursStart),
     operationalHoursEnd: normalizeHourValue(jarvisPolicy.operational_hours_end ?? jarvisPolicy.operationalHoursEnd),
     allowWeekendActions: normalizeBooleanFlag(jarvisPolicy.allow_weekend_actions ?? jarvisPolicy.allowWeekendActions),
@@ -539,10 +594,15 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   const effectiveStartHour = clientPolicy.operationalHoursStart ?? 7;
   const effectiveEndHour = clientPolicy.operationalHoursEnd ?? 20;
   const quietHoursActive = isOutsideOperationalWindow(dateParts.hour, effectiveStartHour, effectiveEndHour);
+  const currentDateKey = getDateKeyFromParts(dateParts);
   const weekdayAllowed = isWeekdayAllowed(dateParts.weekday, {
     allowWeekendActions: clientPolicy.allowWeekendActions,
     allowedWeekdays: clientPolicy.allowedWeekdays,
     blockedWeekdays: clientPolicy.blockedWeekdays,
+  });
+  const dateAllowed = isDateAllowed(currentDateKey, {
+    allowedDates: clientPolicy.allowedDates,
+    blockedDates: clientPolicy.blockedDates,
   });
   const weekendActive = (dateParts.weekday === 0 || dateParts.weekday === 6) && !clientPolicy.allowWeekendActions;
   const riskTolerance = clientPolicy.riskTolerance;
@@ -557,6 +617,8 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   if (clientPolicy.blockedChannels.includes(channel)) policyFlags.push(`client_channel_blocked:${channel}`);
   if (clientPolicy.allowedWeekdays.length > 0) policyFlags.push(`client_allowed_weekdays:${clientPolicy.allowedWeekdays.join(',')}`);
   if (clientPolicy.blockedWeekdays.length > 0) policyFlags.push(`client_blocked_weekdays:${clientPolicy.blockedWeekdays.join(',')}`);
+  if (clientPolicy.allowedDates.length > 0) policyFlags.push(`client_allowed_dates:${clientPolicy.allowedDates.join(',')}`);
+  if (clientPolicy.blockedDates.length > 0) policyFlags.push(`client_blocked_dates:${clientPolicy.blockedDates.join(',')}`);
   if (clientPolicy.operationalHoursStart !== null || clientPolicy.operationalHoursEnd !== null) {
     policyFlags.push(`client_operational_window:${effectiveStartHour}-${effectiveEndHour}`);
   }
@@ -573,6 +635,7 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
     if ((clientPolicy.operationalHoursStart !== null || clientPolicy.operationalHoursEnd !== null) && quietHoursActive) {
       return 'client_window' as const;
     }
+    if (!dateAllowed) return 'client_window' as const;
     if (!weekdayAllowed) return 'client_window' as const;
     if (quietHoursActive) return 'quiet_hours' as const;
     if (clientPolicy.blockedTools.includes(toolNameNormalized) || clientPolicy.blockedChannels.includes(channel)) {
@@ -622,6 +685,8 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
       allowWeekendActions: clientPolicy.allowWeekendActions,
       allowedWeekdays: clientPolicy.allowedWeekdays,
       blockedWeekdays: clientPolicy.blockedWeekdays,
+      allowedDates: clientPolicy.allowedDates,
+      blockedDates: clientPolicy.blockedDates,
     }) : null,
   };
 }
@@ -699,7 +764,7 @@ export async function enforceJarvisToolGovernance(
       : '';
     return {
       policy: { ...policy, executed: false },
-      error: `Política do Jarvis: ${toolName} está fora da janela ou dos dias operacionais definidos para este cliente.${nextAllowed} Use override_quiet_hours=true apenas com aprovação humana explícita.`,
+      error: `Política do Jarvis: ${toolName} está fora da janela, dos dias ou das datas operacionais definidas para este cliente.${nextAllowed} Use override_quiet_hours=true apenas com aprovação humana explícita.`,
     };
   }
   if (policy.level === 'confirm' && !policy.confirmed) {
