@@ -1176,7 +1176,7 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
       repair_type: {
         type: 'string',
         description: 'Tipo de reparo a executar.',
-          enum: ['auto_repair', 'process_webhook_retries', 'flush_trello_outbox', 'revive_dead_trello_outbox', 'ensure_trello_webhooks', 'reconcile_trello_dark_boards', 'recover_jarvis_background_jobs', 'recover_calendar_auto_joins', 'renew_google_watches', 'run_gmail_fallback', 'refresh_client_intelligence', 'refresh_jarvis_alerts'],
+          enum: ['auto_repair', 'process_webhook_retries', 'flush_trello_outbox', 'revive_dead_trello_outbox', 'ensure_trello_webhooks', 'replay_trello_webhook_events', 'reconcile_trello_dark_boards', 'recover_jarvis_background_jobs', 'recover_calendar_auto_joins', 'renew_google_watches', 'run_gmail_fallback', 'refresh_client_intelligence', 'refresh_jarvis_alerts'],
         },
       confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar o reparo.' },
     },

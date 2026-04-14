@@ -8,6 +8,7 @@ import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { runJarvisAlertEngine } from './jarvisAlertEngine';
 import { ensureAllWebhooksForTenant } from './trelloWebhookService';
 import { reconcileDarkTrelloBoardsForTenant } from '../jobs/trelloSyncWorker';
+import { processWebhookAction, type TrelloWebhookAction } from './trelloProjectorService';
 import {
   getJarvisBackgroundQueueHealth,
   recoverStaleJarvisBackgroundJobs,
@@ -23,6 +24,7 @@ export type SystemRepairType =
   | 'flush_trello_outbox'
   | 'revive_dead_trello_outbox'
   | 'ensure_trello_webhooks'
+  | 'replay_trello_webhook_events'
   | 'reconcile_trello_dark_boards'
   | 'recover_jarvis_background_jobs'
   | 'recover_calendar_auto_joins'
@@ -49,6 +51,7 @@ export type SystemHealthSnapshot = {
     webhook_retry: Array<{ source: string; due: number; processing: number; failed: number }>;
     trello_outbox: { backlog: number; processing: number; dead: number };
     trello_webhooks: { total: number; active: number; boards_without_webhook: number; last_seen_at: string | null };
+    trello_webhook_events: { pending: number; failed: number; oldest_pending_at: string | null };
     jarvis_background: {
       queued: number;
       processing: number;
@@ -92,6 +95,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
   flush_trello_outbox: 'Destravar fila do Trello',
   revive_dead_trello_outbox: 'Reenfileirar falhas permanentes do Trello',
   ensure_trello_webhooks: 'Garantir webhooks do Trello',
+  replay_trello_webhook_events: 'Reprocessar eventos inbound do Trello',
   reconcile_trello_dark_boards: 'Reconciliar boards dark do Trello',
   recover_jarvis_background_jobs: 'Recuperar workflows do Jarvis',
   recover_calendar_auto_joins: 'Recuperar fila de reuniões do Google Calendar',
@@ -105,6 +109,7 @@ const AUTO_REPAIRABLE_TYPES = new Set<Exclude<SystemRepairType, 'auto_repair'>>(
   'process_webhook_retries',
   'flush_trello_outbox',
   'ensure_trello_webhooks',
+  'replay_trello_webhook_events',
   'reconcile_trello_dark_boards',
   'recover_jarvis_background_jobs',
   'recover_calendar_auto_joins',
@@ -127,8 +132,93 @@ export function resolveAutoRepairPlan(snapshot: SystemHealthSnapshot) {
     .filter((repairType) => AUTO_REPAIRABLE_TYPES.has(repairType));
 }
 
+async function replayTrelloWebhookEvents(tenantId: string, limit = 50) {
+  const claimRes = await query<{
+    id: string;
+    trello_board_id: string | null;
+    payload: { action?: TrelloWebhookAction } | null;
+  }>(
+    `WITH claimed AS (
+       SELECT id
+         FROM trello_webhook_events
+        WHERE tenant_id = $1
+          AND status IN ('pending', 'error')
+        ORDER BY created_at ASC
+        LIMIT $2
+        FOR UPDATE SKIP LOCKED
+     )
+     UPDATE trello_webhook_events twe
+        SET status = 'processing',
+            error_message = NULL
+       FROM claimed
+      WHERE twe.id = claimed.id
+      RETURNING twe.id, twe.trello_board_id, twe.payload`,
+    [tenantId, Math.max(1, Math.min(limit, 200))],
+  );
+
+  let processed = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const row of claimRes.rows) {
+    const action = row.payload?.action;
+    if (!action?.id || !action?.type) {
+      skipped += 1;
+      await query(
+        `UPDATE trello_webhook_events
+            SET status = 'skipped',
+                processed_at = now(),
+                error_message = NULL
+          WHERE id = $1`,
+        [row.id],
+      ).catch(() => undefined);
+      continue;
+    }
+
+    try {
+      const handled = await processWebhookAction(tenantId, action);
+      await query(
+        `UPDATE trello_webhook_events
+            SET status = $1,
+                processed_at = now(),
+                error_message = NULL
+          WHERE id = $2`,
+        [handled ? 'processed' : 'skipped', row.id],
+      );
+      if (row.trello_board_id) {
+        await query(
+          `UPDATE trello_webhooks
+              SET last_seen_at = now(),
+                  last_error = NULL
+            WHERE tenant_id = $1
+              AND trello_board_id = $2`,
+          [tenantId, row.trello_board_id],
+        ).catch(() => undefined);
+      }
+      if (handled) processed += 1;
+      else skipped += 1;
+    } catch (error: any) {
+      failed += 1;
+      await query(
+        `UPDATE trello_webhook_events
+            SET status = 'error',
+                error_message = $2
+          WHERE id = $1`,
+        [row.id, error?.message ?? 'trello_webhook_replay_failed'],
+      ).catch(() => undefined);
+    }
+  }
+
+  return {
+    scanned: claimRes.rows.length,
+    processed,
+    skipped,
+    failed,
+  };
+}
+
 export async function buildSystemHealthSnapshot(tenantId: string): Promise<SystemHealthSnapshot> {
-  const [retryRes, trelloRes, trelloWebhookRes, jarvisBackground, calendarAutoJoins, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
+  const [retryRes, trelloRes, trelloWebhookRes, trelloWebhookEventsRes, jarvisBackground, calendarAutoJoins, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
     query<any>(
       `SELECT source,
               COUNT(*) FILTER (WHERE status = 'pending' AND next_retry_at <= now())::int AS due,
@@ -168,6 +258,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
        WHERE tw.tenant_id = $1`,
       [tenantId],
     ).catch(() => ({ rows: [{ total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 }] as any[] })),
+    query<any>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+         COUNT(*) FILTER (WHERE status = 'error')::int AS failed,
+         MIN(created_at) FILTER (WHERE status = 'pending')::text AS oldest_pending_at
+       FROM trello_webhook_events
+      WHERE tenant_id = $1`,
+      [tenantId],
+    ).catch(() => ({ rows: [{ pending: 0, failed: 0, oldest_pending_at: null }] as any[] })),
     getJarvisBackgroundQueueHealth(tenantId).catch(() => ({
       queued: 0,
       processing: 0,
@@ -222,6 +321,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
   const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; failed: number }>;
   const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, dead: 0 };
   const trelloWebhooks = trelloWebhookRes.rows[0] ?? { total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 };
+  const trelloWebhookEvents = trelloWebhookEventsRes.rows[0] ?? { pending: 0, failed: 0, oldest_pending_at: null };
   const gmail = gmailRes.rows[0] ?? null;
   const calendar = calendarRes.rows[0] ?? null;
   const intelligence = intelligenceRes.rows[0] ?? { total_clients: 0, stale_clients: 0 };
@@ -278,6 +378,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       title: 'Realtime do Trello está silencioso',
       message: 'Nenhum webhook do Trello recebeu evento nas últimas 2 horas. Reconciliar boards dark reduz drift de contexto.',
       repair_type: 'reconcile_trello_dark_boards',
+    });
+  }
+  if (Number(trelloWebhookEvents.pending || 0) > 0 || Number(trelloWebhookEvents.failed || 0) > 0) {
+    issues.push({
+      key: 'trello_webhook_events',
+      severity: Number(trelloWebhookEvents.failed || 0) > 0 ? 'critical' : 'warning',
+      title: 'Eventos inbound do Trello presos',
+      message: `${Number(trelloWebhookEvents.pending || 0)} evento(s) pendentes e ${Number(trelloWebhookEvents.failed || 0)} falha(s) no projector do Trello.`,
+      repair_type: 'replay_trello_webhook_events',
     });
   }
   if (Number(jarvisBackground.stale_processing || 0) > 0) {
@@ -339,6 +448,11 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
         active: Number(trelloWebhooks.active || 0),
         boards_without_webhook: Number(trelloWebhooks.boards_without_webhook || 0),
         last_seen_at: trelloWebhooks.last_seen_at || null,
+      },
+      trello_webhook_events: {
+        pending: Number(trelloWebhookEvents.pending || 0),
+        failed: Number(trelloWebhookEvents.failed || 0),
+        oldest_pending_at: trelloWebhookEvents.oldest_pending_at || null,
       },
       jarvis_background: jarvisBackground,
       calendar_auto_joins: calendarAutoJoins,
@@ -431,6 +545,17 @@ export async function runSystemRepair(
           boards_without_webhook_before: beforeWebhooks.boards_without_webhook,
           boards_without_webhook_after: afterWebhooks.boards_without_webhook,
           active_after: afterWebhooks.active,
+        });
+        break;
+      }
+      case 'replay_trello_webhook_events': {
+        const replay = await replayTrelloWebhookEvents(tenantId);
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          scanned: replay.scanned,
+          processed: replay.processed,
+          skipped: replay.skipped,
+          failed: replay.failed,
         });
         break;
       }
