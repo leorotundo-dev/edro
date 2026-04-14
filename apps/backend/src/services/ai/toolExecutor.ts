@@ -1028,6 +1028,43 @@ async function patchQueuedMeetBotJobs(tenantId: string, meetingId: string, patch
   ).catch(() => null);
 }
 
+async function detectMeetingConflicts(params: {
+  tenantId: string;
+  startAt: Date;
+  durationMinutes: number;
+  excludeMeetingId?: string | null;
+}) {
+  const endAt = new Date(params.startAt.getTime() + params.durationMinutes * 60_000);
+  const values: any[] = [params.tenantId, params.startAt, endAt];
+  const excludeClause = params.excludeMeetingId
+    ? `AND m.id <> $4`
+    : '';
+  if (params.excludeMeetingId) {
+    values.push(params.excludeMeetingId);
+  }
+
+  const { rows } = await query<{
+    id: string;
+    title: string;
+    recorded_at: string | null;
+    status: string;
+  }>(
+    `SELECT m.id, m.title, m.recorded_at::text, m.status
+       FROM meetings m
+      WHERE m.tenant_id = $1
+        AND m.status NOT IN ('archived', 'completed')
+        AND m.recorded_at IS NOT NULL
+        AND m.recorded_at < $3::timestamptz
+        AND (m.recorded_at + make_interval(secs => GREATEST(COALESCE(m.duration_secs, 3600), 900)::int)) > $2::timestamptz
+        ${excludeClause}
+      ORDER BY m.recorded_at ASC
+      LIMIT 5`,
+    values,
+  ).catch(() => ({ rows: [] as Array<{ id: string; title: string; recorded_at: string | null; status: string }> }));
+
+  return rows;
+}
+
 async function toolScheduleMeeting(args: any, ctx: ToolContext): Promise<ToolResult> {
   if (!ctx.edroClientId) return { success: false, error: 'Client not found in edro_clients' };
 
@@ -1042,6 +1079,15 @@ async function toolScheduleMeeting(args: any, ctx: ToolContext): Promise<ToolRes
 
   const attendeeEmails = normalizeAttendeeEmails(args.attendee_emails);
   const durationMinutes = Math.min(Math.max(Number(args.duration_minutes || 60), 15), 480);
+  const conflicts = await detectMeetingConflicts({
+    tenantId: ctx.tenantId,
+    startAt: scheduledAt,
+    durationMinutes,
+  });
+  if (conflicts.length) {
+    const labels = conflicts.map((item) => `${item.title} (${String(item.recorded_at || '').slice(0, 16)})`).join(', ');
+    return { success: false, error: `Conflito de agenda detectado com: ${labels}.` };
+  }
   const external = await createCalendarMeeting({
     tenantId: ctx.tenantId,
     title,
@@ -1146,6 +1192,16 @@ async function toolRescheduleMeeting(args: any, ctx: ToolContext): Promise<ToolR
 
   const title = String(args.title || meeting.title || '').trim() || 'Reunião';
   const durationMinutes = Math.min(Math.max(Number(args.duration_minutes || 60), 15), 480);
+  const conflicts = await detectMeetingConflicts({
+    tenantId: ctx.tenantId,
+    startAt: scheduledAt,
+    durationMinutes,
+    excludeMeetingId: meeting.id,
+  });
+  if (conflicts.length) {
+    const labels = conflicts.map((item) => `${item.title} (${String(item.recorded_at || '').slice(0, 16)})`).join(', ');
+    return { success: false, error: `Conflito de agenda detectado com: ${labels}.` };
+  }
   const attendeeEmails = normalizeAttendeeEmails(args.attendee_emails);
   const external = meeting.source_ref_id
     ? await updateCalendarMeeting({
