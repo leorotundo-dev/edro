@@ -19,6 +19,7 @@ import {
   updateTaskStatus,
 } from '../../repositories/edroBriefingRepository';
 import { getClientById } from '../../repos/clientsRepo';
+import { syncMeetingParticipantsFromCalendarPayload } from '../../repos/meetingParticipantsRepo';
 import { generateCopy } from './copyService';
 import { listClientDocuments, listClientSources, getLatestClientInsight } from '../../repos/clientIntelligenceRepo';
 import { tavilySearch, tavilyExtract, isTavilyConfigured } from '../tavilyService';
@@ -1127,6 +1128,16 @@ async function toolScheduleMeeting(args: any, ctx: ToolContext): Promise<ToolRes
     recordedAt: scheduledAt,
   });
 
+  await syncMeetingParticipantsFromCalendarPayload({
+    meetingId: meeting.id,
+    tenantId: ctx.tenantId,
+    clientId: ctx.edroClientId,
+    organizerEmail: external.organizerEmail,
+    organizerName: external.organizerName,
+    attendees: external.attendees,
+    calendarEventId: external.eventId,
+  }).catch(() => null);
+
   const { rows: autoJoinRows } = await query<{ id: string }>(
     `INSERT INTO calendar_auto_joins
        (tenant_id, calendar_event_id, event_title, video_url, video_platform, organizer_email, organizer_name, attendees, scheduled_at, meeting_id, client_id, status)
@@ -1287,6 +1298,18 @@ async function toolRescheduleMeeting(args: any, ctx: ToolContext): Promise<ToolR
     title,
     attendee_emails: attendeeEmails,
   });
+
+  if (meeting.client_id) {
+    await syncMeetingParticipantsFromCalendarPayload({
+      meetingId: meeting.id,
+      tenantId: ctx.tenantId,
+      clientId: meeting.client_id,
+      organizerEmail: external?.organizerEmail || null,
+      organizerName: external?.organizerName || null,
+      attendees: external?.attendees || [],
+      calendarEventId: meeting.source_ref_id || null,
+    }).catch(() => null);
+  }
 
   return {
     success: true,

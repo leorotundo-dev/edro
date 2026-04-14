@@ -581,7 +581,15 @@ export async function createCalendarMeeting(params: {
   description?: string;
   clientId?: string | null;
   clientName?: string | null;
-}): Promise<{ eventId: string; meetUrl: string; htmlLink: string; endAt: Date }> {
+}): Promise<{
+  eventId: string;
+  meetUrl: string;
+  htmlLink: string;
+  endAt: Date;
+  organizerEmail: string | null;
+  organizerName: string | null;
+  attendees: Array<{ email?: string; displayName?: string; responseStatus?: string }>;
+}> {
   const accessToken = await getCalendarAccessToken(params.tenantId);
 
   const durationMs = (params.durationMinutes ?? 60) * 60_000;
@@ -633,7 +641,21 @@ export async function createCalendarMeeting(params: {
     throw new Error('Google Meet link não foi gerado. Verifique se o Google Meet está habilitado na conta.');
   }
 
-  return { eventId: event.id, meetUrl, htmlLink: event.htmlLink ?? '', endAt };
+  return {
+    eventId: event.id,
+    meetUrl,
+    htmlLink: event.htmlLink ?? '',
+    endAt,
+    organizerEmail: event.organizer?.email ?? null,
+    organizerName: event.organizer?.displayName ?? null,
+    attendees: Array.isArray(event.attendees)
+      ? event.attendees.map((attendee: any) => ({
+          email: attendee?.email ?? null,
+          displayName: attendee?.displayName ?? null,
+          responseStatus: attendee?.responseStatus ?? null,
+        }))
+      : [],
+  };
 }
 
 export async function createCalendarEvent(params: {
@@ -686,7 +708,15 @@ export async function updateCalendarMeeting(params: {
   durationMinutes?: number;
   description?: string | null;
   attendeeEmails?: string[];
-}): Promise<{ eventId: string; meetUrl: string | null; htmlLink: string; endAt: Date }> {
+}): Promise<{
+  eventId: string;
+  meetUrl: string | null;
+  htmlLink: string;
+  endAt: Date;
+  organizerEmail: string | null;
+  organizerName: string | null;
+  attendees: Array<{ email?: string; displayName?: string; responseStatus?: string }>;
+}> {
   const accessToken = await getCalendarAccessToken(params.tenantId);
   const durationMs = (params.durationMinutes ?? 60) * 60_000;
   const endAt = new Date(params.startAt.getTime() + durationMs);
@@ -723,6 +753,15 @@ export async function updateCalendarMeeting(params: {
     meetUrl: event.hangoutLink ?? null,
     htmlLink: event.htmlLink ?? '',
     endAt,
+    organizerEmail: event.organizer?.email ?? null,
+    organizerName: event.organizer?.displayName ?? null,
+    attendees: Array.isArray(event.attendees)
+      ? event.attendees.map((attendee: any) => ({
+          email: attendee?.email ?? null,
+          displayName: attendee?.displayName ?? null,
+          responseStatus: attendee?.responseStatus ?? null,
+        }))
+      : [],
   };
 }
 
