@@ -695,7 +695,10 @@ export async function executeTool(
         metadata: access.metadata,
       };
     }
-    const governance = enforceJarvisToolGovernance(toolName, effectiveArgs);
+    const governance = await enforceJarvisToolGovernance(toolName, effectiveArgs, {
+      tenantId: ctx.tenantId,
+      edroClientId: (ctx as any).edroClientId ?? null,
+    });
     if ('error' in governance) {
       return {
         success: false,
@@ -4626,7 +4629,10 @@ export async function executeOperationsTool(
         metadata: access.metadata,
       };
     }
-    const governance = enforceJarvisToolGovernance(toolName, effectiveArgs);
+    const governance = await enforceJarvisToolGovernance(toolName, effectiveArgs, {
+      tenantId: ctx.tenantId,
+      edroClientId: (ctx as any).edroClientId ?? null,
+    });
     if ('error' in governance) {
       return {
         success: false,

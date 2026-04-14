@@ -39,8 +39,11 @@ export type JarvisToolGovernance = {
     quietHoursActive: boolean;
     weekendActive: boolean;
     overrideQuietHours: boolean;
+    overrideRiskGuard: boolean;
     riskBand: 'low' | 'medium' | 'high';
-    blockedReason: 'quiet_hours' | 'weekend' | null;
+    riskTolerance: 'low' | 'medium' | 'high' | null;
+    policyFlags: string[];
+    blockedReason: 'quiet_hours' | 'weekend' | 'client_risk' | null;
     nextAllowedAt: string | null;
   };
   confirmed: boolean;
@@ -77,6 +80,10 @@ export type JarvisObservability = {
 };
 
 type ToolPolicyDraft = Omit<JarvisToolGovernance, 'confirmed' | 'executed'>;
+type GovernanceContext = {
+  tenantId?: string;
+  edroClientId?: string | null;
+};
 
 const CONFIRMATION_PHRASES = [
   'sim',
@@ -295,11 +302,33 @@ function nextOperationalWindowIso() {
   return candidate.toISOString();
 }
 
-function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null) {
+async function resolveClientRiskTolerance(
+  args?: Record<string, any> | null,
+  context?: GovernanceContext,
+): Promise<'low' | 'medium' | 'high' | null> {
+  const explicitClientId = String(args?.client_id || context?.edroClientId || '').trim();
+  if (!explicitClientId || !context?.tenantId) return null;
+
+  const { rows } = await query<{ risk_tolerance: string | null }>(
+    `SELECT NULLIF(COALESCE(profile->>'risk_tolerance', 'medium'), '') AS risk_tolerance
+       FROM clients
+      WHERE id = $1
+        AND tenant_id = $2
+      LIMIT 1`,
+    [explicitClientId, context.tenantId],
+  ).catch(() => ({ rows: [] as Array<{ risk_tolerance: string | null }> }));
+
+  const value = String(rows[0]?.risk_tolerance || '').toLowerCase();
+  if (value === 'low' || value === 'medium' || value === 'high') return value;
+  return null;
+}
+
+async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null, context?: GovernanceContext) {
   const dateParts = getSaoPauloDateParts();
   const quietHoursActive = dateParts.hour < 7 || dateParts.hour >= 20;
   const weekendActive = dateParts.weekday === 0 || dateParts.weekday === 6;
   const overrideQuietHours = args?.override_quiet_hours === true;
+  const overrideRiskGuard = args?.override_risk_guard === true;
 
   const channel: JarvisToolGovernance['policy']['channel'] = (() => {
     if (['send_whatsapp_message', 'send_email'].includes(toolName)) return 'external_communication' as const;
@@ -316,9 +345,23 @@ function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null
     return 'low' as const;
   })();
 
+  const riskTolerance = await resolveClientRiskTolerance(args, context);
+  const policyFlags: string[] = [];
+  if (quietHoursActive) policyFlags.push('quiet_hours');
+  if (weekendActive) policyFlags.push('weekend');
+  if (riskTolerance === 'low') policyFlags.push('client_low_risk_tolerance');
+  if (riskTolerance === 'medium') policyFlags.push('client_medium_risk_tolerance');
+
   const blockedReason = (() => {
     if (weekendActive) return 'weekend' as const;
     if (quietHoursActive) return 'quiet_hours' as const;
+    if (
+      riskTolerance === 'low'
+      && ['external_communication', 'publishing'].includes(channel)
+      && !overrideRiskGuard
+    ) {
+      return 'client_risk' as const;
+    }
     return null;
   })();
 
@@ -327,16 +370,23 @@ function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null
     quietHoursActive,
     weekendActive,
     overrideQuietHours,
+    overrideRiskGuard,
     riskBand,
+    riskTolerance,
+    policyFlags,
     blockedReason,
     nextAllowedAt: blockedReason ? nextOperationalWindowIso() : null,
   };
 }
 
-export function buildJarvisToolGovernance(toolName: string, args?: Record<string, any> | null): JarvisToolGovernance {
+export async function buildJarvisToolGovernance(
+  toolName: string,
+  args?: Record<string, any> | null,
+  context?: GovernanceContext,
+): Promise<JarvisToolGovernance> {
   const draft = toolPolicyDraft(toolName, args);
   const confirmed = args?.confirmed === true;
-  const policy = buildToolPolicyMeta(toolName, args);
+  const policy = await buildToolPolicyMeta(toolName, args, context);
   return {
     ...draft,
     policy,
@@ -345,8 +395,12 @@ export function buildJarvisToolGovernance(toolName: string, args?: Record<string
   };
 }
 
-export function enforceJarvisToolGovernance(toolName: string, args?: Record<string, any> | null) {
-  const policy = buildJarvisToolGovernance(toolName, args);
+export async function enforceJarvisToolGovernance(
+  toolName: string,
+  args?: Record<string, any> | null,
+  context?: GovernanceContext,
+) {
+  const policy = await buildJarvisToolGovernance(toolName, args, context);
   if (
     (policy.policy?.quietHoursActive || policy.policy?.weekendActive)
     && policy.policy?.overrideQuietHours !== true
@@ -361,6 +415,12 @@ export function enforceJarvisToolGovernance(toolName: string, args?: Record<stri
     return {
       policy: { ...policy, executed: false },
       error: `Política do Jarvis: ${toolName} está bloqueado ${reason}.${nextAllowed} Confirme com override_quiet_hours=true para seguir fora do horário operacional.`,
+    };
+  }
+  if (policy.policy?.blockedReason === 'client_risk') {
+    return {
+      policy: { ...policy, executed: false },
+      error: `Política do Jarvis: ${toolName} está bloqueado para cliente com tolerância a risco baixa. Confirme com override_risk_guard=true para seguir com ação externa/publicação.`,
     };
   }
   if (policy.level === 'confirm' && !policy.confirmed) {
