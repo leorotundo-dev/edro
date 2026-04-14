@@ -87,6 +87,32 @@ export async function rescheduleJob(
   return rows.length > 0;
 }
 
+export async function cancelQueuedJob(
+  id: string,
+  tenantId: string,
+  error: string,
+  patch?: Record<string, any>,
+) {
+  const normalizedError = String(error || 'cancelled_by_user').slice(0, 500);
+  const { rows } = await query<any>(
+    `UPDATE job_queue
+     SET status='failed',
+         error_message=$3,
+         payload = CASE
+           WHEN $4::jsonb IS NULL THEN payload
+           ELSE COALESCE(payload, '{}'::jsonb) || $4::jsonb
+         END,
+         updated_at=NOW()
+     WHERE id = $1
+       AND tenant_id = $2
+       AND status = 'queued'
+     RETURNING *`,
+    [id, tenantId, normalizedError, patch ? JSON.stringify(patch) : null],
+  );
+
+  return rows[0] ?? null;
+}
+
 export async function markJob(id: string, status: 'processing' | 'done' | 'failed', error?: string): Promise<boolean> {
   if (status === 'processing') {
     // Accept both 'queued' and 'processing' so fetchJobs (which already marks atomically)

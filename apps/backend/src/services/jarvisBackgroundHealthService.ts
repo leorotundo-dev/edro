@@ -99,6 +99,50 @@ export async function syncWorkflowBackgroundFailure(params: {
   ).catch(() => {});
 }
 
+export async function syncWorkflowBackgroundCancelled(params: {
+  tenantId: string;
+  workflowId?: string | null;
+  workflowStateVersion?: number | null;
+  workflowJson?: string | null;
+  backgroundJobId: string;
+  errorMessage: string;
+}) {
+  const workflowId = String(params.workflowId || '').trim();
+  const workflowStateVersion = Math.max(0, Number(params.workflowStateVersion || 0));
+  if (!workflowId || workflowStateVersion <= 0) return;
+
+  await query(
+    `UPDATE agent_action_log
+        SET fired_at = now(),
+            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+      WHERE tenant_id = $1::uuid
+        AND trigger_key = $2
+        AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $4
+        AND COALESCE(metadata->>'status', '') = 'queued'`,
+    [params.tenantId, `jarvis_workflow:${workflowId}`, JSON.stringify({
+      workflow_id: workflowId,
+      workflow_state_version: workflowStateVersion,
+      workflow_json: params.workflowJson || null,
+      background_job_id: params.backgroundJobId,
+      status: 'cancelled',
+      workflow_status: 'cancelled',
+      last_error: params.errorMessage,
+      finished_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString(),
+      recommended_next_action: null,
+      recommended_next_label: 'Cancelado',
+      can_retry_now: false,
+      retry_block_reason: 'Workflow cancelado manualmente antes da execução.',
+      is_dead_letter: false,
+      dead_lettered_at: null,
+      dead_letter_reason: null,
+      dead_letter_category: null,
+      requires_manual_followup: false,
+      manual_followup: [],
+    }), workflowStateVersion],
+  ).catch(() => {});
+}
+
 export async function recoverStaleJarvisBackgroundJobs(options?: { tenantId?: string | null }) {
   const staleSeconds = Math.max(60, Math.floor(JARVIS_BACKGROUND_STALE_MS / 1000));
   const tenantFilter = String(options?.tenantId || '').trim();

@@ -87,9 +87,10 @@ type Props = {
   artifact: Artifact;
   clientId?: string | null;
   onRunClientAction?: (action: JarvisArtifactAction) => void;
+  onCancelBackgroundJob?: (jobId: string) => void;
 };
 
-export default function ArtifactCard({ artifact, clientId, onRunClientAction }: Props) {
+export default function ArtifactCard({ artifact, clientId, onRunClientAction, onCancelBackgroundJob }: Props) {
   const meta = ARTIFACT_MAP[artifact.type];
   if (!meta) return null;
 
@@ -248,6 +249,12 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
   const repairActions = artifact.type === 'get_system_health' && onRunClientAction
     ? (Array.isArray(artifact.repair_actions) ? artifact.repair_actions.slice(0, 3) : [])
     : [];
+  const cancelBackgroundJobAction = artifact.type === 'execute_multi_step_workflow'
+    && String(artifact.job_status || '').trim().toLowerCase() === 'queued'
+    && String(artifact.background_job_id || '').trim()
+    && onCancelBackgroundJob
+    ? () => onCancelBackgroundJob(String(artifact.background_job_id))
+    : null;
   const runSpecificRepairAction = (repairType: string, label?: string | null) => onRunClientAction?.({
     message: `Confirma o reparo ${label || repairType} no sistema.`,
     clientAction: {
@@ -798,7 +805,7 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
               </Button>
             ))}
           </Box>
-        ) : retryWorkflowAction || requeueWorkflowAction || repairSystemAction ? (
+        ) : retryWorkflowAction || requeueWorkflowAction || repairSystemAction || cancelBackgroundJobAction ? (
           <Box sx={{ mt: 0.9, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
             {retryWorkflowAction ? (
               <Button
@@ -808,6 +815,17 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction }: 
                 sx={{ minHeight: 28, fontSize: '0.68rem' }}
               >
                 Retomar do ponto de falha
+              </Button>
+            ) : null}
+            {cancelBackgroundJobAction ? (
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                onClick={cancelBackgroundJobAction}
+                sx={{ minHeight: 28, fontSize: '0.68rem' }}
+              >
+                Cancelar
               </Button>
             ) : null}
             {requeueWorkflowAction ? (

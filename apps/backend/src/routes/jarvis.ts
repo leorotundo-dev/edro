@@ -29,7 +29,7 @@ import {
   type ClientMemoryGovernanceAnalysis,
 } from '../services/clientMemoryGovernanceService';
 import { buildClientState, processAlerts } from '../services/jarvisDecisionEngine';
-import { getJobById } from '../jobs/jobQueue';
+import { cancelQueuedJob, getJobById } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import { buildDailyDigest } from '../services/agencyDigestService';
 import {
@@ -42,6 +42,7 @@ import {
   saveUnifiedConversation,
   summarizeJarvisToolGovernance,
 } from '../services/jarvisPolicyService';
+import { syncWorkflowBackgroundCancelled } from '../services/jarvisBackgroundHealthService';
 import crypto from 'crypto';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -1449,6 +1450,57 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     });
   });
 
+  app.post('/jarvis/background-jobs/:jobId/cancel', { preHandler: [authGuard] }, async (request: any, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const userId = request.user?.id as string | undefined;
+    const userEmail = request.user?.email as string | undefined;
+    const { jobId } = request.params as { jobId: string };
+    const job = await getJobById(jobId, tenantId);
+    if (!job || job.type !== 'jarvis_background') {
+      return reply.status(404).send({ success: false, error: 'Job não encontrado.' });
+    }
+    if (job.status !== 'queued') {
+      return reply.status(409).send({ success: false, error: 'Só é possível cancelar workflows que ainda estão na fila.' });
+    }
+
+    const payload = (job.payload || {}) as { args?: Record<string, any> };
+    const workflowId = String(payload.args?.workflow_id || '').trim();
+    const workflowStateVersion = Number(payload.args?.workflow_state_version || 0) || 0;
+    const workflowJson = String(payload.args?.workflow_json || '');
+    const cancelledAt = new Date().toISOString();
+    const errorMessage = 'Workflow cancelado manualmente antes da execução.';
+
+    const cancelledJob = await cancelQueuedJob(job.id, tenantId, 'cancelled_by_user', {
+      cancelled_at: cancelledAt,
+      cancelled_by_user_id: String(userId || '').trim() || null,
+      cancelled_by_user_email: String(userEmail || '').trim() || null,
+      cancel_reason: 'cancelled_by_user',
+      result_error: errorMessage,
+    });
+    if (!cancelledJob) {
+      return reply.status(409).send({ success: false, error: 'O workflow saiu da fila antes de ser cancelado.' });
+    }
+
+    await syncWorkflowBackgroundCancelled({
+      tenantId,
+      workflowId,
+      workflowStateVersion,
+      workflowJson,
+      backgroundJobId: job.id,
+      errorMessage,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        id: cancelledJob.id,
+        status: cancelledJob.status,
+        error: cancelledJob.error_message || null,
+        artifact: buildJarvisBackgroundArtifact(cancelledJob),
+      },
+    });
+  });
+
   // GET /jarvis/alerts — alertas abertos do tenant (opcionalmente filtrado por client_id)
   app.get('/jarvis/alerts', { preHandler: [authGuard] }, async (request: any, reply) => {
     const tenantId = request.user?.tenant_id as string;
@@ -1711,11 +1763,13 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                     manual_requeue: true,
                   }
                 : null,
+              can_cancel: row.metadata?.status === 'queued' && Boolean(row.metadata?.background_job_id),
             };
           })(),
           id: row.id,
           fired_at: row.fired_at,
           workflow_id: row.metadata?.workflow_id || null,
+          background_job_id: row.metadata?.background_job_id || null,
           workflow_state_version: Number(row.metadata?.workflow_state_version || 0),
           workflow_json: row.metadata?.workflow_json || null,
           status: row.metadata?.status || 'running',

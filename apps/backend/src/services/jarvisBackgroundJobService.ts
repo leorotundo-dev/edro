@@ -121,15 +121,24 @@ export function buildJarvisBackgroundArtifact(job: JobQueueRecord | null | undef
   }
 
   if (job.status === 'failed') {
+    const cancelledAt = String(job.payload?.cancelled_at || '').trim();
+    const cancelled = !!cancelledAt;
     const failedArtifact = {
       ...base,
       ...(job.payload?.result && typeof job.payload.result === 'object' ? job.payload.result : {}),
-      job_status: 'failed',
-      message: kind === 'execute_multi_step_workflow'
+      job_status: cancelled ? 'cancelled' : 'failed',
+      workflow_status: cancelled && kind === 'execute_multi_step_workflow' ? 'cancelled' : (base as any).workflow_status,
+      message: cancelled
+        ? 'O Jarvis cancelou este workflow antes da execução.'
+        : kind === 'execute_multi_step_workflow'
         ? 'O Jarvis não conseguiu concluir o workflow em background.'
         : 'O Jarvis não conseguiu concluir o pipeline criativo.',
-      error: job.error_message || String(job.payload?.result_error || 'Falha desconhecida'),
-      next_step: kind === 'execute_multi_step_workflow'
+      error: cancelled
+        ? 'Workflow cancelado manualmente antes da execução.'
+        : job.error_message || String(job.payload?.result_error || 'Falha desconhecida'),
+      next_step: cancelled
+        ? 'Se precisar, reexecute o workflow a partir do Jarvis.'
+        : kind === 'execute_multi_step_workflow'
         ? 'Revise a falha do workflow e siga a próxima ação sugerida.'
         : 'Ajuste o pedido e tente novamente.',
     };

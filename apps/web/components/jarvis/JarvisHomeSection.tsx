@@ -53,6 +53,7 @@ type WorkflowFeedItem = {
   id: string;
   fired_at: string;
   workflow_id?: string | null;
+  background_job_id?: string | null;
   workflow_state_version?: number;
   workflow_json?: string | null;
   auto_retry_pending?: boolean;
@@ -78,6 +79,7 @@ type WorkflowFeedItem = {
   can_retry_now?: boolean;
   retry_block_reason?: string | null;
   requeue_tool_args?: Record<string, unknown> | null;
+  can_cancel?: boolean;
   is_dead_letter?: boolean;
   dead_lettered_at?: string | null;
   dead_letter_reason?: string | null;
@@ -434,6 +436,16 @@ export default function JarvisHomeSection() {
         },
       }));
     }, 100);
+  };
+
+  const cancelQueuedWorkflow = async (workflow: WorkflowFeedItem) => {
+    const jobId = String(workflow.background_job_id || '').trim();
+    if (!jobId) return;
+    try {
+      await apiPost(`/jarvis/background-jobs/${jobId}/cancel`, {});
+      await loadFeed(true);
+      window.dispatchEvent(new CustomEvent('jarvis-feed-refresh'));
+    } catch {}
   };
 
   return (
@@ -852,6 +864,16 @@ export default function JarvisHomeSection() {
                             sx={{ minHeight: 26, fontSize: '0.62rem', flexShrink: 0 }}
                           >
                             Retomar
+                          </Button>
+                        ) : workflow.status === 'queued' && workflow.can_cancel === true ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="inherit"
+                            onClick={() => void cancelQueuedWorkflow(workflow)}
+                            sx={{ minHeight: 26, fontSize: '0.62rem', flexShrink: 0 }}
+                          >
+                            Cancelar
                           </Button>
                         ) : workflow.status === 'pending_confirmation' && workflow.workflow_json ? (
                           <Button

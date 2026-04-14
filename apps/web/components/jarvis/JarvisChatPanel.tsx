@@ -501,6 +501,16 @@ export default function JarvisChatPanel() {
     void sendMessage(action.message, clientIdRef.current ?? undefined, action.clientAction, action.pageData ?? undefined);
   }, [sendMessage]);
 
+  const handleCancelBackgroundJob = useCallback(async (jobId: string) => {
+    const normalizedJobId = String(jobId || '').trim();
+    if (!normalizedJobId) return;
+    const response = await apiPost<{ data?: { artifact?: Artifact | null } }>(`/jarvis/background-jobs/${normalizedJobId}/cancel`, {}).catch(() => null);
+    const artifact = response?.data?.artifact;
+    if (!artifact) return;
+    setMessages((prev) => mergeBackgroundArtifactUpdate(prev, artifact));
+    window.dispatchEvent(new CustomEvent('jarvis-feed-refresh'));
+  }, []);
+
   const noClient = !clientId;
   const quickActions = getQuickActions(pathname ?? '', !noClient);
 
@@ -566,7 +576,13 @@ export default function JarvisChatPanel() {
               </Box>
               {msg.role === 'assistant' ? <JarvisResponseTrace observability={msg.observability} /> : null}
               {msg.artifacts?.map((artifact, ai) => (
-                <ArtifactCard key={ai} artifact={artifact} clientId={clientId} onRunClientAction={handleArtifactAction} />
+                <ArtifactCard
+                  key={ai}
+                  artifact={artifact}
+                  clientId={clientId}
+                  onRunClientAction={handleArtifactAction}
+                  onCancelBackgroundJob={handleCancelBackgroundJob}
+                />
               ))}
             </Box>
           </Box>
