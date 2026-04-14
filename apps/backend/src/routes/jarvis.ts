@@ -1710,6 +1710,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           workflow_state_version: Number(row.metadata?.workflow_state_version || 0),
           workflow_json: row.metadata?.workflow_json || null,
           status: row.metadata?.status || 'running',
+          auto_retry_pending: row.metadata?.auto_retry_pending === true,
           completed_steps: Number(row.metadata?.completed_steps || 0),
           steps_total: Number(row.metadata?.steps_total || 0),
           attempt_count: Number(row.metadata?.attempt_count || 0),

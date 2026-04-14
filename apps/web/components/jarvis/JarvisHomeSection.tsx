@@ -73,6 +73,7 @@ type JarvisFeed = {
     workflow_id?: string | null;
     workflow_state_version?: number;
     workflow_json?: string | null;
+    auto_retry_pending?: boolean;
     confirm_tool_args?: Record<string, unknown> | null;
     retry_tool_args?: Record<string, unknown> | null;
     status: string;
@@ -625,6 +626,8 @@ export default function JarvisHomeSection() {
                       ? 'Workflow falhou com compensação parcial'
                       : workflow.status === 'failed'
                       ? `Workflow falhou em ${workflow.failed_step || 'uma etapa'}`
+                      : workflow.status === 'queued' && workflow.auto_retry_pending
+                      ? 'Workflow aguardando retry automático'
                       : workflow.status === 'completed'
                       ? 'Workflow concluído'
                       : workflow.status === 'queued'
@@ -661,6 +664,12 @@ export default function JarvisHomeSection() {
                             {' · '}
                             {relativeTime(workflow.finished_at || workflow.fired_at)}
                           </Typography>
+                          {workflow.status === 'queued' && workflow.auto_retry_pending && workflow.retry_after_at ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              Retry automático após {relativeTime(workflow.retry_after_at)}
+                              {workflow.last_error ? ` · ${workflow.last_error}` : ''}
+                            </Typography>
+                          ) : null}
                           {workflow.last_step ? (
                             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
                               Última etapa: {workflow.last_step}
