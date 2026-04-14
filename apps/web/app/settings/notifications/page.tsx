@@ -41,6 +41,8 @@ export default function NotificationPreferencesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [browserPermission, setBrowserPermission] = useState<string>('unsupported');
+  const [browserEnabled, setBrowserEnabled] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +69,15 @@ export default function NotificationPreferencesPage() {
         setLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      setBrowserPermission('unsupported');
+      return;
+    }
+    setBrowserPermission(Notification.permission);
+    setBrowserEnabled(window.localStorage.getItem('edro_browser_notifications_enabled') !== 'false');
   }, []);
 
   const toggle = (eventType: string, channel: string) => {
@@ -104,6 +115,21 @@ export default function NotificationPreferencesPage() {
     }
   };
 
+  const handleEnableBrowserNotifications = async () => {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+    const permission = await Notification.requestPermission();
+    setBrowserPermission(permission);
+    const enabled = permission === 'granted';
+    window.localStorage.setItem('edro_browser_notifications_enabled', enabled ? 'true' : 'false');
+    setBrowserEnabled(enabled);
+  };
+
+  const handleDisableBrowserNotifications = () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('edro_browser_notifications_enabled', 'false');
+    setBrowserEnabled(false);
+  };
+
   return (
     <AppShell title="System Admin">
       <Box>
@@ -128,6 +154,37 @@ export default function NotificationPreferencesPage() {
           </Box>
         ) : (
           <>
+            <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                Alertas do navegador
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                Mostra notificação nativa quando a aba da Edro estiver em segundo plano.
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Status: {browserPermission === 'granted'
+                  ? browserEnabled ? 'ativo' : 'desativado'
+                  : browserPermission === 'denied'
+                  ? 'bloqueado no navegador'
+                  : browserPermission === 'default'
+                  ? 'aguardando permissão'
+                  : 'não suportado'}
+              </Typography>
+              {browserPermission !== 'granted' ? (
+                <Button variant="outlined" onClick={handleEnableBrowserNotifications}>
+                  Ativar alertas do navegador
+                </Button>
+              ) : browserEnabled ? (
+                <Button variant="outlined" color="inherit" onClick={handleDisableBrowserNotifications}>
+                  Desativar alertas do navegador
+                </Button>
+              ) : (
+                <Button variant="outlined" onClick={handleEnableBrowserNotifications}>
+                  Reativar alertas do navegador
+                </Button>
+              )}
+            </Paper>
+
             <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
               <Table>
                 <TableHead>
