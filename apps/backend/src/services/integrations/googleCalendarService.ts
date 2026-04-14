@@ -1071,6 +1071,55 @@ export async function findCalendarConflicts(params: {
     .slice(0, 5);
 }
 
+export async function findAttendeeBusyConflicts(params: {
+  tenantId: string;
+  startAt: Date;
+  endAt: Date;
+  attendeeEmails: string[];
+}): Promise<Array<{ email: string; startAt: string | null; endAt: string | null }>> {
+  const attendeeEmails = Array.from(new Set(
+    params.attendeeEmails
+      .map((email) => String(email || '').trim().toLowerCase())
+      .filter(Boolean),
+  )).slice(0, 10);
+  if (!attendeeEmails.length) return [];
+
+  const accessToken = await getCalendarAccessToken(params.tenantId);
+  const res = await fetch(`${CALENDAR_API}/freeBusy`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      timeMin: params.startAt.toISOString(),
+      timeMax: params.endAt.toISOString(),
+      items: attendeeEmails.map((email) => ({ id: email })),
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Google Calendar freeBusy failed (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as {
+    calendars?: Record<string, { busy?: Array<{ start?: string; end?: string }> }>;
+  };
+  const calendars = data.calendars ?? {};
+
+  return attendeeEmails.flatMap((email) => {
+    const busySlots = Array.isArray(calendars[email]?.busy) ? calendars[email]!.busy! : [];
+    if (!busySlots.length) return [];
+    const firstBusy = busySlots[0];
+    return [{
+      email,
+      startAt: firstBusy?.start ?? null,
+      endAt: firstBusy?.end ?? null,
+    }];
+  }).slice(0, 5);
+}
+
 async function upsertAutoJoin(params: {
   tenantId: string;
   eventId: string;
