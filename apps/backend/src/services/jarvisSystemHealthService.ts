@@ -51,7 +51,13 @@ export type SystemHealthSnapshot = {
   components: {
     webhook_retry: Array<{ source: string; due: number; processing: number; stale_processing: number; failed: number }>;
     trello_outbox: { backlog: number; processing: number; stale_processing: number; dead: number; oldest_processing_at: string | null };
-    trello_webhooks: { total: number; active: number; boards_without_webhook: number; last_seen_at: string | null };
+    trello_webhooks: {
+      total: number;
+      active: number;
+      dark_boards: number;
+      boards_without_webhook: number;
+      last_seen_at: string | null;
+    };
     trello_webhook_events: {
       pending: number;
       processing: number;
@@ -294,11 +300,21 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
                 AND tw2.trello_board_id = pb2.trello_board_id
                 AND tw2.is_active = true
             )
-         ) as boards_without_webhook
+         ) as boards_without_webhook,
+         (SELECT COUNT(*)::int FROM project_boards pb3
+          LEFT JOIN trello_webhooks tw3
+            ON tw3.tenant_id = pb3.tenant_id
+           AND tw3.trello_board_id = pb3.trello_board_id
+          WHERE pb3.tenant_id = $1
+            AND pb3.is_archived = false
+            AND pb3.trello_board_id IS NOT NULL
+            AND tw3.is_active = true
+            AND (tw3.last_seen_at IS NULL OR tw3.last_seen_at <= now() - interval '2 hours')
+         ) as dark_boards
        FROM trello_webhooks tw
        WHERE tw.tenant_id = $1`,
       [tenantId],
-    ).catch(() => ({ rows: [{ total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 }] as any[] })),
+    ).catch(() => ({ rows: [{ total: 0, active: 0, dark_boards: 0, last_seen_at: null, boards_without_webhook: 0 }] as any[] })),
     query<any>(
       `SELECT
          COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
@@ -368,7 +384,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
   const now = Date.now();
   const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; stale_processing: number; failed: number }>;
   const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, stale_processing: 0, oldest_processing_at: null, dead: 0 };
-  const trelloWebhooks = trelloWebhookRes.rows[0] ?? { total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 };
+  const trelloWebhooks = trelloWebhookRes.rows[0] ?? { total: 0, active: 0, dark_boards: 0, last_seen_at: null, boards_without_webhook: 0 };
   const trelloWebhookEvents = trelloWebhookEventsRes.rows[0] ?? {
     pending: 0,
     processing: 0,
@@ -436,12 +452,12 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       repair_type: 'ensure_trello_webhooks',
     });
   }
-  if (Number(trelloWebhooks.active || 0) === 0 && Number(trelloWebhooks.total || 0) > 0) {
+  if (Number(trelloWebhooks.dark_boards || 0) > 0) {
     issues.push({
       key: 'trello_dark_boards',
       severity: 'warning',
       title: 'Realtime do Trello está silencioso',
-      message: 'Nenhum webhook do Trello recebeu evento nas últimas 2 horas. Reconciliar boards dark reduz drift de contexto.',
+      message: `${Number(trelloWebhooks.dark_boards || 0)} board(s) do Trello estão sem evento recente nas últimas 2 horas. Reconciliar boards dark reduz drift de contexto.`,
       repair_type: 'reconcile_trello_dark_boards',
     });
   }
@@ -525,6 +541,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       trello_webhooks: {
         total: Number(trelloWebhooks.total || 0),
         active: Number(trelloWebhooks.active || 0),
+        dark_boards: Number(trelloWebhooks.dark_boards || 0),
         boards_without_webhook: Number(trelloWebhooks.boards_without_webhook || 0),
         last_seen_at: trelloWebhooks.last_seen_at || null,
       },
