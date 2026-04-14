@@ -133,6 +133,7 @@ const AUTO_REPAIRABLE_TYPES = new Set<Exclude<SystemRepairType, 'auto_repair'>>(
   'recover_calendar_auto_joins',
   'renew_google_watches',
   'run_gmail_fallback',
+  'refresh_client_intelligence',
   'refresh_jarvis_alerts',
 ]);
 
