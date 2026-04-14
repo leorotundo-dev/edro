@@ -34,6 +34,12 @@ export type JarvisToolGovernance = {
   level: JarvisAutonomyLevel;
   category: 'read' | 'write' | 'external' | 'destructive' | 'publishing' | 'operations';
   reason: string;
+  policy?: {
+    channel: 'read' | 'internal_write' | 'external_communication' | 'meeting' | 'publishing' | 'system';
+    quietHoursActive: boolean;
+    overrideQuietHours: boolean;
+    riskBand: 'low' | 'medium' | 'high';
+  };
   confirmed: boolean;
   executed: boolean;
 };
@@ -223,11 +229,53 @@ function levelWeight(level: JarvisAutonomyLevel) {
   }
 }
 
+function getSaoPauloHour() {
+  const hour = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    hour12: false,
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date());
+  const parsed = Number(hour);
+  return Number.isFinite(parsed) ? parsed : 12;
+}
+
+function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null) {
+  const quietHoursActive = (() => {
+    const hour = getSaoPauloHour();
+    return hour < 7 || hour >= 20;
+  })();
+  const overrideQuietHours = args?.override_quiet_hours === true;
+
+  const channel: JarvisToolGovernance['policy']['channel'] = (() => {
+    if (['send_whatsapp_message', 'send_email'].includes(toolName)) return 'external_communication' as const;
+    if (['schedule_meeting', 'reschedule_meeting', 'cancel_meeting'].includes(toolName)) return 'meeting' as const;
+    if (['publish_studio_post', 'schedule_post_publication'].includes(toolName)) return 'publishing' as const;
+    if (toolName === 'run_system_repair') return 'system' as const;
+    const draft = toolPolicyDraft(toolName, args);
+    return draft.category === 'read' ? 'read' : 'internal_write';
+  })();
+
+  const riskBand = (() => {
+    if (['external_communication', 'meeting', 'publishing'].includes(channel)) return 'high' as const;
+    if (channel === 'system' || channel === 'internal_write') return 'medium' as const;
+    return 'low' as const;
+  })();
+
+  return {
+    channel,
+    quietHoursActive,
+    overrideQuietHours,
+    riskBand,
+  };
+}
+
 export function buildJarvisToolGovernance(toolName: string, args?: Record<string, any> | null): JarvisToolGovernance {
   const draft = toolPolicyDraft(toolName, args);
   const confirmed = args?.confirmed === true;
+  const policy = buildToolPolicyMeta(toolName, args);
   return {
     ...draft,
+    policy,
     confirmed,
     executed: draft.level !== 'confirm' || confirmed,
   };
@@ -235,6 +283,16 @@ export function buildJarvisToolGovernance(toolName: string, args?: Record<string
 
 export function enforceJarvisToolGovernance(toolName: string, args?: Record<string, any> | null) {
   const policy = buildJarvisToolGovernance(toolName, args);
+  if (
+    policy.policy?.quietHoursActive
+    && policy.policy?.overrideQuietHours !== true
+    && ['external_communication', 'meeting', 'publishing'].includes(policy.policy.channel)
+  ) {
+    return {
+      policy: { ...policy, executed: false },
+      error: `Política do Jarvis: ${toolName} está bloqueado em quiet hours. Confirme com override_quiet_hours=true para seguir fora do horário operacional.`,
+    };
+  }
   if (policy.level === 'confirm' && !policy.confirmed) {
     return {
       policy: { ...policy, executed: false },
