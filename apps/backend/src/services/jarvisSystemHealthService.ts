@@ -12,6 +12,10 @@ import {
   getJarvisBackgroundQueueHealth,
   recoverStaleJarvisBackgroundJobs,
 } from './jarvisBackgroundHealthService';
+import {
+  getCalendarAutoJoinQueueHealth,
+  recoverCalendarAutoJoins,
+} from './calendarAutoJoinQueueService';
 
 export type SystemRepairType =
   | 'auto_repair'
@@ -21,6 +25,7 @@ export type SystemRepairType =
   | 'ensure_trello_webhooks'
   | 'reconcile_trello_dark_boards'
   | 'recover_jarvis_background_jobs'
+  | 'recover_calendar_auto_joins'
   | 'renew_google_watches'
   | 'run_gmail_fallback'
   | 'refresh_client_intelligence'
@@ -52,6 +57,14 @@ export type SystemHealthSnapshot = {
       failed_recent: number;
       last_failed_at: string | null;
     };
+    calendar_auto_joins: {
+      queued: number;
+      processing: number;
+      failed: number;
+      recoverable_failed: number;
+      stale_without_job: number;
+      next_stale_scheduled_at: string | null;
+    };
     gmail: null | {
       email_address: string | null;
       watch_expiry: string | null;
@@ -81,6 +94,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
   ensure_trello_webhooks: 'Garantir webhooks do Trello',
   reconcile_trello_dark_boards: 'Reconciliar boards dark do Trello',
   recover_jarvis_background_jobs: 'Recuperar workflows do Jarvis',
+  recover_calendar_auto_joins: 'Recuperar fila de reuniões do Google Calendar',
   renew_google_watches: 'Renovar watches do Google',
   run_gmail_fallback: 'Rodar fallback do Gmail',
   refresh_client_intelligence: 'Atualizar inteligência dos clientes',
@@ -93,6 +107,7 @@ const AUTO_REPAIRABLE_TYPES = new Set<Exclude<SystemRepairType, 'auto_repair'>>(
   'ensure_trello_webhooks',
   'reconcile_trello_dark_boards',
   'recover_jarvis_background_jobs',
+  'recover_calendar_auto_joins',
   'renew_google_watches',
   'refresh_jarvis_alerts',
 ]);
@@ -113,7 +128,7 @@ export function resolveAutoRepairPlan(snapshot: SystemHealthSnapshot) {
 }
 
 export async function buildSystemHealthSnapshot(tenantId: string): Promise<SystemHealthSnapshot> {
-  const [retryRes, trelloRes, trelloWebhookRes, jarvisBackground, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
+  const [retryRes, trelloRes, trelloWebhookRes, jarvisBackground, calendarAutoJoins, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
     query<any>(
       `SELECT source,
               COUNT(*) FILTER (WHERE status = 'pending' AND next_retry_at <= now())::int AS due,
@@ -160,6 +175,14 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       auto_retry_pending: 0,
       failed_recent: 0,
       last_failed_at: null,
+    })),
+    getCalendarAutoJoinQueueHealth(tenantId).catch(() => ({
+      queued: 0,
+      processing: 0,
+      failed: 0,
+      recoverable_failed: 0,
+      stale_without_job: 0,
+      next_stale_scheduled_at: null,
     })),
     query<any>(
       `SELECT email_address, watch_expiry, last_sync_at, last_error
@@ -266,6 +289,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       repair_type: 'recover_jarvis_background_jobs',
     });
   }
+  if (Number(calendarAutoJoins.stale_without_job || 0) > 0 || Number(calendarAutoJoins.recoverable_failed || 0) > 0) {
+    issues.push({
+      key: 'calendar_auto_joins',
+      severity: Number(calendarAutoJoins.stale_without_job || 0) > 0 ? 'critical' : 'warning',
+      title: 'Fila de reuniões com bot do Google Calendar precisa recuperação',
+      message: `${Number(calendarAutoJoins.stale_without_job || 0)} auto-join(ns) sem job vivo e ${Number(calendarAutoJoins.recoverable_failed || 0)} falha(s) recuperáveis do meet-bot.`,
+      repair_type: 'recover_calendar_auto_joins',
+    });
+  }
   if (gmailNeedsAttention || calendarNeedsAttention) {
     issues.push({
       key: 'google_watches',
@@ -309,6 +341,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
         last_seen_at: trelloWebhooks.last_seen_at || null,
       },
       jarvis_background: jarvisBackground,
+      calendar_auto_joins: calendarAutoJoins,
       gmail: gmail ? {
         email_address: gmail.email_address,
         watch_expiry: gmail.watch_expiry,
@@ -417,6 +450,17 @@ export async function runSystemRepair(
           repair_type: plannedRepair,
           scanned: recovery.scanned,
           recovered: recovery.recovered,
+        });
+        break;
+      }
+      case 'recover_calendar_auto_joins': {
+        const recovery = await recoverCalendarAutoJoins({ tenantId });
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          scanned: recovery.scanned,
+          recovered: recovery.recovered,
+          skipped_too_close: recovery.skipped_too_close,
+          failed: recovery.failed,
         });
         break;
       }

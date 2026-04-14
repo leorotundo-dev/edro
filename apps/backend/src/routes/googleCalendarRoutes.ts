@@ -14,14 +14,16 @@ import { authGuard } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { requirePerm } from '../auth/rbac';
 import { query } from '../db';
-import { enqueueJob } from '../jobs/jobQueue';
-import { ensureInternalClient, isInternalClientId } from '../repos/clientsRepo';
 import {
   calendarOAuthUrl,
   disconnectCalendar,
   exchangeCalendarCode,
   watchCalendar,
 } from '../services/integrations/googleCalendarService';
+import {
+  CalendarAutoJoinQueueError,
+  requeueCalendarAutoJoinById,
+} from '../services/calendarAutoJoinQueueService';
 import { env } from '../env';
 
 function getIntegrationsRedirectUrl(query: string) {
@@ -151,95 +153,17 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any).tenant_id;
     const { autoJoinId } = request.params;
 
-    const { rows } = await query<{
-      id: string;
-      event_title: string | null;
-      video_url: string | null;
-      video_platform: string | null;
-      scheduled_at: string | null;
-      status: string;
-      bot_id: string | null;
-      meeting_id: string | null;
-      resolved_client_id: string | null;
-      resolved_client_name: string | null;
-    }>(
-      `SELECT caj.id,
-              caj.event_title,
-              caj.video_url,
-              caj.video_platform,
-              caj.scheduled_at,
-              caj.status,
-              COALESCE(caj.bot_id, m.bot_id) AS bot_id,
-              COALESCE(caj.meeting_id, m.id) AS meeting_id,
-              COALESCE(caj.client_id, m.client_id, 'edro-internal') AS resolved_client_id,
-              COALESCE(c.name,
-                       CASE WHEN COALESCE(caj.client_id, m.client_id, 'edro-internal') = 'edro-internal'
-                            THEN 'Reunião Interna Edro'
-                            ELSE NULL END) AS resolved_client_name
-         FROM calendar_auto_joins caj
-         LEFT JOIN meetings m
-           ON m.id = caj.meeting_id
-          AND m.tenant_id = caj.tenant_id
-         LEFT JOIN clients c
-           ON c.id = COALESCE(caj.client_id, m.client_id)
-          AND c.tenant_id = caj.tenant_id
-        WHERE caj.id = $1
-          AND caj.tenant_id = $2
-        LIMIT 1`,
-      [autoJoinId, tenantId],
-    );
-
-    const item = rows[0];
-    if (!item) return reply.code(404).send({ error: 'auto_join_not_found' });
-    if (!item.video_url || !item.scheduled_at) {
-      return reply.code(422).send({ error: 'auto_join_without_video_or_schedule' });
+    try {
+      return reply.send(await requeueCalendarAutoJoinById(tenantId, autoJoinId));
+    } catch (error: any) {
+      if (error instanceof CalendarAutoJoinQueueError) {
+        return reply.code(error.statusCode).send({ error: error.message });
+      }
+      if (typeof error?.message === 'string' && error.message.includes('Janela insuficiente')) {
+        return reply.code(422).send({ error: error.message });
+      }
+      throw error;
     }
-
-    const scheduledAt = new Date(item.scheduled_at);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return reply.code(422).send({ error: 'auto_join_with_invalid_schedule' });
-    }
-
-    if (!item.bot_id && scheduledAt.getTime() < Date.now() + 11 * 60 * 1000) {
-      return reply.code(422).send({
-        error: 'Janela insuficiente para reagendar um novo bot. Use Meeting Ops para reprocessamento ou upload manual.',
-      });
-    }
-
-    const internalClient = (!item.resolved_client_id || isInternalClientId(item.resolved_client_id))
-      ? await ensureInternalClient(tenantId)
-      : null;
-    const clientId = internalClient?.id || item.resolved_client_id!;
-    const clientName = internalClient?.name || item.resolved_client_name || 'Reunião Interna Edro';
-
-    const job = await enqueueJob(tenantId, 'meet-bot', {
-      videoUrl: item.video_url,
-      eventTitle: item.event_title || 'Reunião',
-      scheduledAt: scheduledAt.toISOString(),
-      autoJoinId: item.id,
-      source: 'google_calendar',
-      platform: item.video_platform || 'other',
-      clientId,
-      clientName,
-      meetingId: item.meeting_id || undefined,
-    });
-
-    await query(
-      `UPDATE calendar_auto_joins
-          SET status = 'queued',
-              job_enqueued_at = now(),
-              last_error = null,
-              updated_at = now()
-        WHERE id = $1
-          AND tenant_id = $2`,
-      [item.id, tenantId],
-    );
-
-    return reply.send({
-      ok: true,
-      job_id: job.id,
-      mode: item.bot_id ? 'resume_existing_bot' : 'schedule_bot',
-    });
   });
 
   // ── Disconnect ──────────────────────────────────────────────────────────
