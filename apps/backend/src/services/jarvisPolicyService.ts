@@ -45,13 +45,14 @@ export type JarvisToolGovernance = {
     actorRole: Role;
     riskBand: 'low' | 'medium' | 'high';
     riskTolerance: 'low' | 'medium' | 'high' | null;
+    blockedPlatform: string | null;
     clientPolicy: {
       externalRequiresPrivilegedRole: boolean;
       meetingRequiresPrivilegedRole: boolean;
       publishingRequiresPrivilegedRole: boolean;
     };
     policyFlags: string[];
-    blockedReason: 'quiet_hours' | 'weekend' | 'client_risk' | 'client_policy' | null;
+    blockedReason: 'quiet_hours' | 'weekend' | 'client_risk' | 'client_policy' | 'client_platform' | null;
     nextAllowedAt: string | null;
   };
   confirmed: boolean;
@@ -96,6 +97,7 @@ type GovernanceContext = {
 
 type ClientPolicyContext = {
   riskTolerance: 'low' | 'medium' | 'high' | null;
+  blockedPublishingPlatform: string | null;
   externalRequiresPrivilegedRole: boolean;
   meetingRequiresPrivilegedRole: boolean;
   publishingRequiresPrivilegedRole: boolean;
@@ -332,6 +334,7 @@ async function resolveClientPolicyContext(
   if (!explicitClientId || !context?.tenantId) {
     return {
       riskTolerance: null,
+      blockedPublishingPlatform: null,
       externalRequiresPrivilegedRole: false,
       meetingRequiresPrivilegedRole: false,
       publishingRequiresPrivilegedRole: false,
@@ -362,9 +365,28 @@ async function resolveClientPolicyContext(
   const riskTolerance = riskValue === 'low' || riskValue === 'medium' || riskValue === 'high'
     ? riskValue
     : null;
+  const requestedPlatform = String(args?.channel || args?.platform || '').trim().toLowerCase();
+  const platformPrefs = (
+    profile.platform_preferences
+    && typeof profile.platform_preferences === 'object'
+    && !Array.isArray(profile.platform_preferences)
+  ) ? profile.platform_preferences : {};
+  const selectedPlatformPref = requestedPlatform
+    && platformPrefs[requestedPlatform]
+    && typeof platformPrefs[requestedPlatform] === 'object'
+    && !Array.isArray(platformPrefs[requestedPlatform])
+    ? platformPrefs[requestedPlatform]
+    : null;
+  const blockedPublishingPlatform = requestedPlatform && (
+    selectedPlatformPref?.enabled === false
+    || normalizeBooleanFlag(selectedPlatformPref?.disabled)
+  )
+    ? requestedPlatform
+    : null;
 
   return {
     riskTolerance,
+    blockedPublishingPlatform,
     externalRequiresPrivilegedRole: normalizeBooleanFlag(
       jarvisPolicy.external_requires_privileged_role
       ?? jarvisPolicy.strict_external_actions,
@@ -411,6 +433,7 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   if (weekendActive) policyFlags.push('weekend');
   if (riskTolerance === 'low') policyFlags.push('client_low_risk_tolerance');
   if (riskTolerance === 'medium') policyFlags.push('client_medium_risk_tolerance');
+  if (clientPolicy.blockedPublishingPlatform) policyFlags.push(`client_platform_disabled:${clientPolicy.blockedPublishingPlatform}`);
   if (clientPolicy.externalRequiresPrivilegedRole) policyFlags.push('client_policy_external_requires_privileged_role');
   if (clientPolicy.meetingRequiresPrivilegedRole) policyFlags.push('client_policy_meeting_requires_privileged_role');
   if (clientPolicy.publishingRequiresPrivilegedRole) policyFlags.push('client_policy_publishing_requires_privileged_role');
@@ -421,6 +444,9 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   const blockedReason = (() => {
     if (weekendActive) return 'weekend' as const;
     if (quietHoursActive) return 'quiet_hours' as const;
+    if (channel === 'publishing' && clientPolicy.blockedPublishingPlatform) {
+      return 'client_platform' as const;
+    }
     if (
       actorRole !== 'admin'
       && actorRole !== 'manager'
@@ -452,6 +478,7 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
     actorRole,
     riskBand,
     riskTolerance,
+    blockedPlatform: clientPolicy.blockedPublishingPlatform,
     clientPolicy,
     policyFlags,
     blockedReason,
@@ -517,6 +544,13 @@ export async function enforceJarvisToolGovernance(
     return {
       policy: { ...policy, executed: false },
       error: `Política do Jarvis: ${toolName} está bloqueado pela política operacional do cliente. Somente admin/manager pode executar esta ação para essa conta.`,
+    };
+  }
+  if (policy.policy?.blockedReason === 'client_platform') {
+    const platformLabel = policy.policy?.blockedPlatform ? ` em ${policy.policy.blockedPlatform}` : '';
+    return {
+      policy: { ...policy, executed: false },
+      error: `Política do Jarvis: ${toolName} está bloqueado${platformLabel} porque essa plataforma está desativada no perfil do cliente.`,
     };
   }
   if (policy.level === 'confirm' && !policy.confirmed) {
