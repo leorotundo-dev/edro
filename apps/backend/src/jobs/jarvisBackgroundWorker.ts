@@ -70,6 +70,49 @@ async function syncWorkflowBackgroundFailure(params: {
   ).catch(() => {});
 }
 
+async function syncWorkflowBackgroundQueuedRetry(params: {
+  tenantId: string;
+  workflowId?: string | null;
+  workflowStateVersion?: number | null;
+  workflowJson?: string | null;
+  backgroundJobId: string;
+  failureData: Record<string, any>;
+}) {
+  const workflowId = String(params.workflowId || '').trim();
+  const workflowStateVersion = Math.max(0, Number(params.workflowStateVersion || 0));
+  if (!workflowId || workflowStateVersion <= 0) return;
+
+  await query(
+    `UPDATE agent_action_log
+        SET fired_at = now(),
+            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+      WHERE tenant_id = $1::uuid
+        AND trigger_key = $2
+        AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $4`,
+    [params.tenantId, `jarvis_workflow:${workflowId}`, JSON.stringify({
+      workflow_id: workflowId,
+      workflow_state_version: workflowStateVersion,
+      workflow_json: params.workflowJson || null,
+      background_job_id: params.backgroundJobId,
+      status: 'queued',
+      workflow_status: 'queued',
+      auto_retry_pending: true,
+      retry_after_at: params.failureData.retry_after_at || null,
+      retry_attempts_remaining: params.failureData.retry_attempts_remaining ?? null,
+      recommended_next_action: params.failureData.recommended_next_action || 'retry',
+      recommended_next_label: 'Retry automático agendado',
+      can_retry_now: false,
+      retry_block_reason: 'O Jarvis vai retomar este workflow automaticamente após o cooldown.',
+      last_error: params.failureData.last_error || null,
+      last_activity_at: new Date().toISOString(),
+      resume_from_step: params.failureData.resume_from_step ?? null,
+      completed_steps: params.failureData.completed_steps ?? null,
+      steps_preview: Array.isArray(params.failureData.steps_preview) ? params.failureData.steps_preview : undefined,
+      steps_history: Array.isArray(params.failureData.steps_history) ? params.failureData.steps_history : undefined,
+    }), workflowStateVersion],
+  ).catch(() => {});
+}
+
 async function failStaleJarvisBackgroundJobs() {
   const staleSeconds = Math.max(60, Math.floor(JARVIS_BACKGROUND_STALE_MS / 1000));
   const { rows } = await query<any>(
@@ -190,6 +233,14 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             error: result.error || 'Falha desconhecida',
           };
           if (retryScheduled) {
+            await syncWorkflowBackgroundQueuedRetry({
+              tenantId: job.tenant_id,
+              workflowId,
+              workflowStateVersion: Number(failureData?.workflow_state_version || workflowStateVersion) || workflowStateVersion,
+              workflowJson: String(failureData?.workflow_json || workflowJson || ''),
+              backgroundJobId: job.id,
+              failureData: failureData || {},
+            });
             if (conversationId) {
               await updateUnifiedConversationArtifact({
                 route,
