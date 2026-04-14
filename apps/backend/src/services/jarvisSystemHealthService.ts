@@ -49,7 +49,7 @@ export type SystemHealthSnapshot = {
     critical_issues: number;
   };
   components: {
-    webhook_retry: Array<{ source: string; due: number; processing: number; failed: number }>;
+    webhook_retry: Array<{ source: string; due: number; processing: number; stale_processing: number; failed: number }>;
     trello_outbox: { backlog: number; processing: number; stale_processing: number; dead: number; oldest_processing_at: string | null };
     trello_webhooks: { total: number; active: number; boards_without_webhook: number; last_seen_at: string | null };
     trello_webhook_events: {
@@ -255,6 +255,10 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       `SELECT source,
               COUNT(*) FILTER (WHERE status = 'pending' AND next_retry_at <= now())::int AS due,
               COUNT(*) FILTER (WHERE status = 'processing')::int AS processing,
+              COUNT(*) FILTER (
+                WHERE status = 'processing'
+                  AND updated_at < now() - interval '15 minutes'
+              )::int AS stale_processing,
               COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
          FROM webhook_retry_queue
         WHERE tenant_id = $1
@@ -362,7 +366,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
   ]);
 
   const now = Date.now();
-  const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; failed: number }>;
+  const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; stale_processing: number; failed: number }>;
   const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, stale_processing: 0, oldest_processing_at: null, dead: 0 };
   const trelloWebhooks = trelloWebhookRes.rows[0] ?? { total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 };
   const trelloWebhookEvents = trelloWebhookEventsRes.rows[0] ?? {
@@ -384,14 +388,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
 
   const issues: SystemHealthIssue[] = [];
   const dueRetries = retry.reduce((sum, row) => sum + Number(row.due || 0), 0);
+  const staleRetries = retry.reduce((sum, row) => sum + Number(row.stale_processing || 0), 0);
   const failedRetries = retry.reduce((sum, row) => sum + Number(row.failed || 0), 0);
 
-  if (dueRetries || failedRetries) {
+  if (dueRetries || staleRetries || failedRetries) {
     issues.push({
       key: 'webhook_retry_queue',
-      severity: failedRetries > 0 ? 'critical' : 'warning',
+      severity: failedRetries > 0 || staleRetries > 0 ? 'critical' : 'warning',
       title: 'Fila de webhook com eventos pendentes',
-      message: `${dueRetries} retry(s) de webhook vencidos e ${failedRetries} falha(s) permanentes.`,
+      message: `${dueRetries} retry(s) vencidos, ${staleRetries} processamento(s) stale e ${failedRetries} falha(s) permanentes.`,
       repair_type: 'process_webhook_retries',
     });
   }

@@ -15,6 +15,7 @@ import { query } from '../db/db';
 export type WebhookRetrySource = 'whatsapp' | 'instagram' | 'recall';
 
 const BACKOFF_MINUTES = [1, 5, 15];
+const WEBHOOK_RETRY_STALE_MINUTES = 15;
 
 export async function enqueueWebhookRetry(
   source: WebhookRetrySource,
@@ -59,8 +60,27 @@ export async function ensureRetryTable(): Promise<void> {
   `).catch(() => {});
 }
 
-export async function processPendingRetries(): Promise<{ processed: number; failed: number }> {
+export async function processPendingRetries(): Promise<{ recovered_stale: number; processed: number; failed: number }> {
   await ensureRetryTable();
+
+  const staleRecovery = await query<{ id: string }>(
+    `UPDATE webhook_retry_queue
+        SET status = 'pending',
+            last_error = COALESCE(NULLIF(last_error, ''), 'webhook_retry_processing_stale'),
+            next_retry_at = now(),
+            updated_at = now()
+      WHERE id IN (
+        SELECT id
+          FROM webhook_retry_queue
+         WHERE status = 'processing'
+           AND updated_at < now() - make_interval(mins => $1::int)
+         ORDER BY updated_at ASC
+         LIMIT 20
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id`,
+    [WEBHOOK_RETRY_STALE_MINUTES],
+  ).catch(() => ({ rows: [] as Array<{ id: string }> }));
 
   // Claim up to 20 due items atomically
   const { rows } = await query<RetryRow>(
@@ -76,7 +96,7 @@ export async function processPendingRetries(): Promise<{ processed: number; fail
      RETURNING id, source, tenant_id, payload, attempt_count, max_attempts, last_error`,
   );
 
-  if (!rows.length) return { processed: 0, failed: 0 };
+  if (!rows.length) return { recovered_stale: staleRecovery.rows.length, processed: 0, failed: 0 };
 
   let processed = 0;
   let failed = 0;
@@ -120,7 +140,7 @@ export async function processPendingRetries(): Promise<{ processed: number; fail
     }
   }
 
-  return { processed, failed };
+  return { recovered_stale: staleRecovery.rows.length, processed, failed };
 }
 
 // ── Source dispatchers ────────────────────────────────────────────────────────
