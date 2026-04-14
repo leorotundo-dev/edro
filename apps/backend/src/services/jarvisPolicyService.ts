@@ -509,16 +509,26 @@ async function resolveClientPolicyContext(
     };
   }
 
-  const { rows } = await query<{ profile: Record<string, any> | null }>(
-    `SELECT profile
+  type ClientPolicyRow = {
+    profile: Record<string, any> | null;
+    country: string | null;
+    uf: string | null;
+    city: string | null;
+  };
+
+  const { rows } = await query<ClientPolicyRow>(
+    `SELECT profile, country, uf, city
        FROM clients
       WHERE id = $1
         AND tenant_id = $2
       LIMIT 1`,
     [explicitClientId, context.tenantId],
-  ).catch(() => ({ rows: [] as Array<{ profile: Record<string, any> | null }> }));
+  ).catch(() => ({ rows: [] as ClientPolicyRow[] }));
 
   const profile = rows[0]?.profile || {};
+  const clientCountry = String(rows[0]?.country || '').trim().toUpperCase() || 'BR';
+  const clientUf = String(rows[0]?.uf || '').trim().toUpperCase();
+  const clientCity = String(rows[0]?.city || '').trim().toLowerCase();
   const jarvisPolicy = (
     profile.jarvis_policy
     && typeof profile.jarvis_policy === 'object'
@@ -571,11 +581,19 @@ async function resolveClientPolicyContext(
             AND date >= $2
             AND date <= $3
             AND categories @> ARRAY['oficial']::text[]
+            AND (
+              scope = 'BR'
+              OR (scope = 'UF' AND COALESCE(country, 'BR') = $4 AND UPPER(COALESCE(uf, '')) = $5)
+              OR (scope = 'CITY' AND COALESCE(country, 'BR') = $4 AND UPPER(COALESCE(uf, '')) = $5 AND LOWER(COALESCE(city, '')) = $6)
+            )
           ORDER BY date ASC`,
         [
           context.tenantId,
           getDateKeyFromParts(getSaoPauloDateParts()),
           getDateKeyFromParts(getSaoPauloDateParts(new Date(Date.now() + (31 * 24 * 60 * 60 * 1000)))),
+          clientCountry,
+          clientUf,
+          clientCity,
         ],
       ).then((res) => res.rows.map((row) => row.date)).catch(() => [])
     )
