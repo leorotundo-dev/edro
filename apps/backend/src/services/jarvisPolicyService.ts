@@ -47,6 +47,8 @@ export type JarvisToolGovernance = {
     riskTolerance: 'low' | 'medium' | 'high' | null;
     blockedPlatform: string | null;
     clientPolicy: {
+      blockedTools: string[];
+      blockedChannels: string[];
       externalRequiresPrivilegedRole: boolean;
       meetingRequiresPrivilegedRole: boolean;
       publishingRequiresPrivilegedRole: boolean;
@@ -98,6 +100,8 @@ type GovernanceContext = {
 type ClientPolicyContext = {
   riskTolerance: 'low' | 'medium' | 'high' | null;
   blockedPublishingPlatform: string | null;
+  blockedTools: string[];
+  blockedChannels: string[];
   externalRequiresPrivilegedRole: boolean;
   meetingRequiresPrivilegedRole: boolean;
   publishingRequiresPrivilegedRole: boolean;
@@ -326,6 +330,13 @@ function normalizeBooleanFlag(value: unknown) {
   return text === 'true' || text === '1' || text === 'yes' || text === 'sim';
 }
 
+function normalizeStringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
 async function resolveClientPolicyContext(
   args?: Record<string, any> | null,
   context?: GovernanceContext,
@@ -335,6 +346,8 @@ async function resolveClientPolicyContext(
     return {
       riskTolerance: null,
       blockedPublishingPlatform: null,
+      blockedTools: [],
+      blockedChannels: [],
       externalRequiresPrivilegedRole: false,
       meetingRequiresPrivilegedRole: false,
       publishingRequiresPrivilegedRole: false,
@@ -387,6 +400,8 @@ async function resolveClientPolicyContext(
   return {
     riskTolerance,
     blockedPublishingPlatform,
+    blockedTools: normalizeStringList(jarvisPolicy.blocked_tools ?? jarvisPolicy.blockedTools),
+    blockedChannels: normalizeStringList(jarvisPolicy.blocked_channels ?? jarvisPolicy.blockedChannels),
     externalRequiresPrivilegedRole: normalizeBooleanFlag(
       jarvisPolicy.external_requires_privileged_role
       ?? jarvisPolicy.strict_external_actions,
@@ -428,12 +443,15 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
 
   const clientPolicy = await resolveClientPolicyContext(args, context);
   const riskTolerance = clientPolicy.riskTolerance;
+  const toolNameNormalized = String(toolName || '').trim().toLowerCase();
   const policyFlags: string[] = [];
   if (quietHoursActive) policyFlags.push('quiet_hours');
   if (weekendActive) policyFlags.push('weekend');
   if (riskTolerance === 'low') policyFlags.push('client_low_risk_tolerance');
   if (riskTolerance === 'medium') policyFlags.push('client_medium_risk_tolerance');
   if (clientPolicy.blockedPublishingPlatform) policyFlags.push(`client_platform_disabled:${clientPolicy.blockedPublishingPlatform}`);
+  if (clientPolicy.blockedTools.includes(toolNameNormalized)) policyFlags.push(`client_tool_blocked:${toolNameNormalized}`);
+  if (clientPolicy.blockedChannels.includes(channel)) policyFlags.push(`client_channel_blocked:${channel}`);
   if (clientPolicy.externalRequiresPrivilegedRole) policyFlags.push('client_policy_external_requires_privileged_role');
   if (clientPolicy.meetingRequiresPrivilegedRole) policyFlags.push('client_policy_meeting_requires_privileged_role');
   if (clientPolicy.publishingRequiresPrivilegedRole) policyFlags.push('client_policy_publishing_requires_privileged_role');
@@ -444,6 +462,9 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   const blockedReason = (() => {
     if (weekendActive) return 'weekend' as const;
     if (quietHoursActive) return 'quiet_hours' as const;
+    if (clientPolicy.blockedTools.includes(toolNameNormalized) || clientPolicy.blockedChannels.includes(channel)) {
+      return 'client_policy' as const;
+    }
     if (channel === 'publishing' && clientPolicy.blockedPublishingPlatform) {
       return 'client_platform' as const;
     }
@@ -543,7 +564,7 @@ export async function enforceJarvisToolGovernance(
   if (policy.policy?.blockedReason === 'client_policy') {
     return {
       policy: { ...policy, executed: false },
-      error: `Política do Jarvis: ${toolName} está bloqueado pela política operacional do cliente. Somente admin/manager pode executar esta ação para essa conta.`,
+      error: `Política do Jarvis: ${toolName} está bloqueado pela política operacional do cliente. Revise blocked_tools/blocked_channels no perfil da conta ou execute com papel privilegiado quando isso fizer sentido.`,
     };
   }
   if (policy.policy?.blockedReason === 'client_platform') {
