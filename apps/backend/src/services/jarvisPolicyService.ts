@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { query } from '../db';
 import type { LoopMessage } from './ai/toolUseLoop';
+import { normalizeRole, type Role } from '../auth/rbac';
 
 export type JarvisIntent =
   | 'operations_control'
@@ -40,6 +41,8 @@ export type JarvisToolGovernance = {
     weekendActive: boolean;
     overrideQuietHours: boolean;
     overrideRiskGuard: boolean;
+    overrideAllowed: boolean;
+    actorRole: Role;
     riskBand: 'low' | 'medium' | 'high';
     riskTolerance: 'low' | 'medium' | 'high' | null;
     policyFlags: string[];
@@ -83,6 +86,7 @@ type ToolPolicyDraft = Omit<JarvisToolGovernance, 'confirmed' | 'executed'>;
 type GovernanceContext = {
   tenantId?: string;
   edroClientId?: string | null;
+  role?: string | null;
 };
 
 const CONFIRMATION_PHRASES = [
@@ -329,6 +333,8 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   const weekendActive = dateParts.weekday === 0 || dateParts.weekday === 6;
   const overrideQuietHours = args?.override_quiet_hours === true;
   const overrideRiskGuard = args?.override_risk_guard === true;
+  const actorRole = normalizeRole(context?.role);
+  const overrideAllowed = actorRole === 'admin' || actorRole === 'manager';
 
   const channel: JarvisToolGovernance['policy']['channel'] = (() => {
     if (['send_whatsapp_message', 'send_email'].includes(toolName)) return 'external_communication' as const;
@@ -351,6 +357,9 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   if (weekendActive) policyFlags.push('weekend');
   if (riskTolerance === 'low') policyFlags.push('client_low_risk_tolerance');
   if (riskTolerance === 'medium') policyFlags.push('client_medium_risk_tolerance');
+  if ((overrideQuietHours || overrideRiskGuard) && !overrideAllowed) {
+    policyFlags.push('override_requires_privileged_role');
+  }
 
   const blockedReason = (() => {
     if (weekendActive) return 'weekend' as const;
@@ -371,6 +380,8 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
     weekendActive,
     overrideQuietHours,
     overrideRiskGuard,
+    overrideAllowed,
+    actorRole,
     riskBand,
     riskTolerance,
     policyFlags,
@@ -401,6 +412,16 @@ export async function enforceJarvisToolGovernance(
   context?: GovernanceContext,
 ) {
   const policy = await buildJarvisToolGovernance(toolName, args, context);
+  if (
+    (policy.policy?.overrideQuietHours || policy.policy?.overrideRiskGuard)
+    && policy.policy?.overrideAllowed !== true
+    && ['external_communication', 'meeting', 'publishing'].includes(policy.policy?.channel || '')
+  ) {
+    return {
+      policy: { ...policy, executed: false },
+      error: `Política do Jarvis: override para ${toolName} exige papel privilegiado (admin/manager).`,
+    };
+  }
   if (
     (policy.policy?.quietHoursActive || policy.policy?.weekendActive)
     && policy.policy?.overrideQuietHours !== true

@@ -698,6 +698,7 @@ export async function executeTool(
     const governance = await enforceJarvisToolGovernance(toolName, effectiveArgs, {
       tenantId: ctx.tenantId,
       edroClientId: (ctx as any).edroClientId ?? null,
+      role: ctx.role ?? null,
     });
     if ('error' in governance) {
       return {
@@ -4632,6 +4633,7 @@ export async function executeOperationsTool(
     const governance = await enforceJarvisToolGovernance(toolName, effectiveArgs, {
       tenantId: ctx.tenantId,
       edroClientId: (ctx as any).edroClientId ?? null,
+      role: ctx.role ?? null,
     });
     if ('error' in governance) {
       return {
