@@ -45,8 +45,13 @@ export type JarvisToolGovernance = {
     actorRole: Role;
     riskBand: 'low' | 'medium' | 'high';
     riskTolerance: 'low' | 'medium' | 'high' | null;
+    clientPolicy: {
+      externalRequiresPrivilegedRole: boolean;
+      meetingRequiresPrivilegedRole: boolean;
+      publishingRequiresPrivilegedRole: boolean;
+    };
     policyFlags: string[];
-    blockedReason: 'quiet_hours' | 'weekend' | 'client_risk' | null;
+    blockedReason: 'quiet_hours' | 'weekend' | 'client_risk' | 'client_policy' | null;
     nextAllowedAt: string | null;
   };
   confirmed: boolean;
@@ -87,6 +92,13 @@ type GovernanceContext = {
   tenantId?: string;
   edroClientId?: string | null;
   role?: string | null;
+};
+
+type ClientPolicyContext = {
+  riskTolerance: 'low' | 'medium' | 'high' | null;
+  externalRequiresPrivilegedRole: boolean;
+  meetingRequiresPrivilegedRole: boolean;
+  publishingRequiresPrivilegedRole: boolean;
 };
 
 const CONFIRMATION_PHRASES = [
@@ -306,25 +318,66 @@ function nextOperationalWindowIso() {
   return candidate.toISOString();
 }
 
-async function resolveClientRiskTolerance(
+function normalizeBooleanFlag(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  const text = String(value ?? '').trim().toLowerCase();
+  return text === 'true' || text === '1' || text === 'yes' || text === 'sim';
+}
+
+async function resolveClientPolicyContext(
   args?: Record<string, any> | null,
   context?: GovernanceContext,
-): Promise<'low' | 'medium' | 'high' | null> {
+): Promise<ClientPolicyContext> {
   const explicitClientId = String(args?.client_id || context?.edroClientId || '').trim();
-  if (!explicitClientId || !context?.tenantId) return null;
+  if (!explicitClientId || !context?.tenantId) {
+    return {
+      riskTolerance: null,
+      externalRequiresPrivilegedRole: false,
+      meetingRequiresPrivilegedRole: false,
+      publishingRequiresPrivilegedRole: false,
+    };
+  }
 
-  const { rows } = await query<{ risk_tolerance: string | null }>(
-    `SELECT NULLIF(COALESCE(profile->>'risk_tolerance', 'medium'), '') AS risk_tolerance
+  const { rows } = await query<{ profile: Record<string, any> | null }>(
+    `SELECT profile
        FROM clients
       WHERE id = $1
         AND tenant_id = $2
       LIMIT 1`,
     [explicitClientId, context.tenantId],
-  ).catch(() => ({ rows: [] as Array<{ risk_tolerance: string | null }> }));
+  ).catch(() => ({ rows: [] as Array<{ profile: Record<string, any> | null }> }));
 
-  const value = String(rows[0]?.risk_tolerance || '').toLowerCase();
-  if (value === 'low' || value === 'medium' || value === 'high') return value;
-  return null;
+  const profile = rows[0]?.profile || {};
+  const jarvisPolicy = (
+    profile.jarvis_policy
+    && typeof profile.jarvis_policy === 'object'
+    && !Array.isArray(profile.jarvis_policy)
+  ) ? profile.jarvis_policy : (
+    profile.jarvisPolicy
+    && typeof profile.jarvisPolicy === 'object'
+    && !Array.isArray(profile.jarvisPolicy)
+  ) ? profile.jarvisPolicy : {};
+
+  const riskValue = String(profile.risk_tolerance || '').toLowerCase();
+  const riskTolerance = riskValue === 'low' || riskValue === 'medium' || riskValue === 'high'
+    ? riskValue
+    : null;
+
+  return {
+    riskTolerance,
+    externalRequiresPrivilegedRole: normalizeBooleanFlag(
+      jarvisPolicy.external_requires_privileged_role
+      ?? jarvisPolicy.strict_external_actions,
+    ),
+    meetingRequiresPrivilegedRole: normalizeBooleanFlag(
+      jarvisPolicy.meeting_requires_privileged_role
+      ?? jarvisPolicy.strict_meeting_actions,
+    ),
+    publishingRequiresPrivilegedRole: normalizeBooleanFlag(
+      jarvisPolicy.publishing_requires_privileged_role
+      ?? jarvisPolicy.strict_publishing_actions,
+    ),
+  };
 }
 
 async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null, context?: GovernanceContext) {
@@ -351,12 +404,16 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
     return 'low' as const;
   })();
 
-  const riskTolerance = await resolveClientRiskTolerance(args, context);
+  const clientPolicy = await resolveClientPolicyContext(args, context);
+  const riskTolerance = clientPolicy.riskTolerance;
   const policyFlags: string[] = [];
   if (quietHoursActive) policyFlags.push('quiet_hours');
   if (weekendActive) policyFlags.push('weekend');
   if (riskTolerance === 'low') policyFlags.push('client_low_risk_tolerance');
   if (riskTolerance === 'medium') policyFlags.push('client_medium_risk_tolerance');
+  if (clientPolicy.externalRequiresPrivilegedRole) policyFlags.push('client_policy_external_requires_privileged_role');
+  if (clientPolicy.meetingRequiresPrivilegedRole) policyFlags.push('client_policy_meeting_requires_privileged_role');
+  if (clientPolicy.publishingRequiresPrivilegedRole) policyFlags.push('client_policy_publishing_requires_privileged_role');
   if ((overrideQuietHours || overrideRiskGuard) && !overrideAllowed) {
     policyFlags.push('override_requires_privileged_role');
   }
@@ -364,6 +421,17 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
   const blockedReason = (() => {
     if (weekendActive) return 'weekend' as const;
     if (quietHoursActive) return 'quiet_hours' as const;
+    if (
+      actorRole !== 'admin'
+      && actorRole !== 'manager'
+      && (
+        (channel === 'external_communication' && clientPolicy.externalRequiresPrivilegedRole)
+        || (channel === 'meeting' && clientPolicy.meetingRequiresPrivilegedRole)
+        || (channel === 'publishing' && clientPolicy.publishingRequiresPrivilegedRole)
+      )
+    ) {
+      return 'client_policy' as const;
+    }
     if (
       riskTolerance === 'low'
       && ['external_communication', 'publishing'].includes(channel)
@@ -384,6 +452,7 @@ async function buildToolPolicyMeta(toolName: string, args?: Record<string, any> 
     actorRole,
     riskBand,
     riskTolerance,
+    clientPolicy,
     policyFlags,
     blockedReason,
     nextAllowedAt: blockedReason ? nextOperationalWindowIso() : null,
@@ -442,6 +511,12 @@ export async function enforceJarvisToolGovernance(
     return {
       policy: { ...policy, executed: false },
       error: `Política do Jarvis: ${toolName} está bloqueado para cliente com tolerância a risco baixa. Confirme com override_risk_guard=true para seguir com ação externa/publicação.`,
+    };
+  }
+  if (policy.policy?.blockedReason === 'client_policy') {
+    return {
+      policy: { ...policy, executed: false },
+      error: `Política do Jarvis: ${toolName} está bloqueado pela política operacional do cliente. Somente admin/manager pode executar esta ação para essa conta.`,
     };
   }
   if (policy.level === 'confirm' && !policy.confirmed) {
