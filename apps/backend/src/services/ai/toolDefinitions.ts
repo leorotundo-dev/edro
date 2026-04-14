@@ -1165,12 +1165,12 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'run_system_repair',
-      description: 'Executa um reparo operacional seguro no tenant atual. Pode processar retries de webhook, flush da fila do Trello, garantir webhooks do Trello, recuperar workflows presos do Jarvis, renovar watches do Google, rodar fallback do Gmail, refresh da inteligência ou auto-reparar os gargalos detectados. Exige confirmação explícita.',
+      description: 'Executa um reparo operacional seguro no tenant atual. Pode processar retries de webhook, flush da fila do Trello, garantir webhooks do Trello, reconciliar boards dark do Trello, recuperar workflows presos do Jarvis, renovar watches do Google, rodar fallback do Gmail, refresh da inteligência ou auto-reparar os gargalos detectados. Exige confirmação explícita.',
     parameters: {
       repair_type: {
         type: 'string',
         description: 'Tipo de reparo a executar.',
-          enum: ['auto_repair', 'process_webhook_retries', 'flush_trello_outbox', 'ensure_trello_webhooks', 'recover_jarvis_background_jobs', 'renew_google_watches', 'run_gmail_fallback', 'refresh_client_intelligence', 'refresh_jarvis_alerts'],
+          enum: ['auto_repair', 'process_webhook_retries', 'flush_trello_outbox', 'ensure_trello_webhooks', 'reconcile_trello_dark_boards', 'recover_jarvis_background_jobs', 'renew_google_watches', 'run_gmail_fallback', 'refresh_client_intelligence', 'refresh_jarvis_alerts'],
         },
       confirmed: { type: 'boolean', description: 'Deve ser true somente quando o usuário confirmar o reparo.' },
     },

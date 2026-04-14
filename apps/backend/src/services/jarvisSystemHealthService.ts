@@ -6,6 +6,7 @@ import { syncGmailInboxFallback, watchGmailInbox } from './integrations/gmailSer
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { runJarvisAlertEngine } from './jarvisAlertEngine';
 import { ensureAllWebhooksForTenant } from './trelloWebhookService';
+import { reconcileDarkTrelloBoardsForTenant } from '../jobs/trelloSyncWorker';
 import {
   getJarvisBackgroundQueueHealth,
   recoverStaleJarvisBackgroundJobs,
@@ -16,6 +17,7 @@ export type SystemRepairType =
   | 'process_webhook_retries'
   | 'flush_trello_outbox'
   | 'ensure_trello_webhooks'
+  | 'reconcile_trello_dark_boards'
   | 'recover_jarvis_background_jobs'
   | 'renew_google_watches'
   | 'run_gmail_fallback'
@@ -74,6 +76,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
   process_webhook_retries: 'Processar retries de webhook',
   flush_trello_outbox: 'Destravar fila do Trello',
   ensure_trello_webhooks: 'Garantir webhooks do Trello',
+  reconcile_trello_dark_boards: 'Reconciliar boards dark do Trello',
   recover_jarvis_background_jobs: 'Recuperar workflows do Jarvis',
   renew_google_watches: 'Renovar watches do Google',
   run_gmail_fallback: 'Rodar fallback do Gmail',
@@ -85,6 +88,7 @@ const AUTO_REPAIRABLE_TYPES = new Set<Exclude<SystemRepairType, 'auto_repair'>>(
   'process_webhook_retries',
   'flush_trello_outbox',
   'ensure_trello_webhooks',
+  'reconcile_trello_dark_boards',
   'recover_jarvis_background_jobs',
   'renew_google_watches',
   'refresh_jarvis_alerts',
@@ -232,6 +236,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       repair_type: 'ensure_trello_webhooks',
     });
   }
+  if (Number(trelloWebhooks.active || 0) === 0 && Number(trelloWebhooks.total || 0) > 0) {
+    issues.push({
+      key: 'trello_dark_boards',
+      severity: 'warning',
+      title: 'Realtime do Trello está silencioso',
+      message: 'Nenhum webhook do Trello recebeu evento nas últimas 2 horas. Reconciliar boards dark reduz drift de contexto.',
+      repair_type: 'reconcile_trello_dark_boards',
+    });
+  }
   if (Number(jarvisBackground.stale_processing || 0) > 0) {
     issues.push({
       key: 'jarvis_background_queue',
@@ -360,6 +373,16 @@ export async function runSystemRepair(
           boards_without_webhook_before: beforeWebhooks.boards_without_webhook,
           boards_without_webhook_after: afterWebhooks.boards_without_webhook,
           active_after: afterWebhooks.active,
+        });
+        break;
+      }
+      case 'reconcile_trello_dark_boards': {
+        const result = await reconcileDarkTrelloBoardsForTenant(tenantId);
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          scanned: result.scanned,
+          reconciled: result.reconciled,
+          skipped_live: result.skipped_live,
         });
         break;
       }
