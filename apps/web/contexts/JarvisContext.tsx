@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { apiGet } from '@/lib/api';
 import { subscribeToNotificationStream } from '@/lib/notificationStream';
@@ -37,6 +37,9 @@ type JarvisContextValue = {
 type InAppNotification = {
   id: string;
   event_type: string;
+  title?: string;
+  body?: string;
+  link?: string;
   read_at: string | null;
 };
 
@@ -68,6 +71,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [pageData, setPageData] = useState<Record<string, any> | null>(null);
+  const seenBrowserNotificationIds = useRef<Set<string>>(new Set());
+  const browserNotificationsInitialized = useRef(false);
   const [pageContext, setPageContext] = useState<{ type: 'client' | 'job' | 'global'; id: string | null; label: string | null }>(
     { type: 'global', id: null, label: null }
   );
@@ -124,10 +129,45 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       try {
         const data = await apiGet<{ notifications?: InAppNotification[] }>('/notifications');
         if (cancelled) return;
-        const total = (data.notifications || []).filter((item) =>
-          !item.read_at && String(item.event_type || '').startsWith('jarvis_')
-        ).length;
+        const jarvisNotifications = (data.notifications || []).filter((item) =>
+          String(item.event_type || '').startsWith('jarvis_')
+        );
+        const unreadJarvisNotifications = jarvisNotifications.filter((item) => !item.read_at);
+        const total = unreadJarvisNotifications.length;
         setNotificationUnreadCount(total);
+
+        if (!browserNotificationsInitialized.current) {
+          unreadJarvisNotifications.forEach((item) => seenBrowserNotificationIds.current.add(item.id));
+          browserNotificationsInitialized.current = true;
+          return;
+        }
+
+        const browserEnabled = window.localStorage.getItem('edro_browser_notifications_enabled') !== 'false';
+        const canNotify =
+          browserEnabled &&
+          typeof Notification !== 'undefined' &&
+          Notification.permission === 'granted' &&
+          document.visibilityState === 'hidden';
+        if (!canNotify) {
+          unreadJarvisNotifications.forEach((item) => seenBrowserNotificationIds.current.add(item.id));
+          return;
+        }
+
+        unreadJarvisNotifications
+          .filter((item) => !seenBrowserNotificationIds.current.has(item.id))
+          .forEach((item) => {
+            seenBrowserNotificationIds.current.add(item.id);
+            const notification = new Notification(item.title || 'Jarvis', {
+              body: item.body || 'Há uma atualização nova do Jarvis.',
+              tag: `jarvis-${item.id}`,
+            });
+            if (item.link) {
+              notification.onclick = () => {
+                window.focus();
+                window.location.href = item.link as string;
+              };
+            }
+          });
       } catch {
         if (!cancelled) setNotificationUnreadCount(0);
       }
