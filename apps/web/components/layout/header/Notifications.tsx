@@ -35,6 +35,11 @@ type InAppNotification = {
 };
 
 const EVENT_ICONS: Record<string, { icon: any; color: string; bgColor: string }> = {
+  jarvis_alert: { icon: IconRobot, color: '#7C3AED', bgColor: '#F3E8FF' },
+  jarvis_auto_repair: { icon: IconRobot, color: '#10B981', bgColor: '#ECFDF5' },
+  jarvis_workflow_completed: { icon: IconRobot, color: '#10B981', bgColor: '#ECFDF5' },
+  jarvis_workflow_failed: { icon: IconRobot, color: '#E85219', bgColor: '#FDEEE8' },
+  jarvis_workflow_attention: { icon: IconRobot, color: '#D97706', bgColor: '#FEF3C7' },
   stage_change: { icon: IconClipboardCheck, color: '#13DEB9', bgColor: '#E6FFFA' },
   briefing_deadline: { icon: IconCalendarEvent, color: '#FFAE1F', bgColor: '#FEF5E5' },
   task_assigned: { icon: IconMessage2, color: '#E85219', bgColor: '#fdeee8' },
@@ -49,6 +54,13 @@ const EVENT_ICONS: Record<string, { icon: any; color: string; bgColor: string }>
 const DEFAULT_ICON = { icon: IconAlertCircle, color: '#E85219', bgColor: '#fdeee8' };
 
 function getEventBadge(eventType: string) {
+  if (eventType.startsWith('jarvis_')) {
+    return {
+      label: 'Jarvis',
+      color: '#7C3AED',
+      bg: 'rgba(124,58,237,0.10)',
+    };
+  }
   if (eventType.startsWith('bedel_')) {
     return {
       label: 'Bedel',

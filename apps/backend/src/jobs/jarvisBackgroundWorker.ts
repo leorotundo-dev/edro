@@ -4,8 +4,63 @@ import { runCreatePostPipelineNow, runExecuteMultiStepWorkflowNow, type ToolCont
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import { updateUnifiedConversationArtifact } from '../services/jarvisPolicyService';
 import { recoverStaleJarvisBackgroundJobs, syncWorkflowBackgroundFailure } from '../services/jarvisBackgroundHealthService';
+import { notifyEvent } from '../services/notificationService';
 
 let running = false;
+
+async function notifyWorkflowOutcome(params: {
+  tenantId: string;
+  userId?: string | null;
+  userEmail?: string | null;
+  workflowId?: string | null;
+  backgroundJobId: string;
+  outcome: 'completed' | 'failed';
+  artifact?: Record<string, any> | null;
+}) {
+  const userId = String(params.userId || '').trim();
+  if (!userId) return;
+
+  const workflowShort = String(params.workflowId || '').trim().slice(0, 8) || params.backgroundJobId.slice(0, 8);
+  const requiresManualFollowup = params.artifact?.requires_manual_followup === true;
+  const failureClass = String(params.artifact?.failure_class || '').trim();
+  const recommendedNextLabel = String(params.artifact?.recommended_next_label || '').trim();
+  const lastError = String(params.artifact?.last_error || params.artifact?.error || '').trim();
+  const title = params.outcome === 'completed'
+    ? `Jarvis concluiu o workflow ${workflowShort}`
+    : requiresManualFollowup
+    ? `Jarvis exige follow-up no workflow ${workflowShort}`
+    : `Jarvis falhou no workflow ${workflowShort}`;
+  const body = params.outcome === 'completed'
+    ? `${Number(params.artifact?.completed_steps || 0)} etapa(s) concluídas com sucesso.`
+    : [
+        requiresManualFollowup ? 'Ação manual necessária.' : null,
+        recommendedNextLabel ? `Próxima ação: ${recommendedNextLabel}.` : null,
+        failureClass ? `Classe: ${failureClass}.` : null,
+        lastError || null,
+      ].filter(Boolean).join(' ');
+
+  await notifyEvent({
+    event: params.outcome === 'completed'
+      ? 'jarvis_workflow_completed'
+      : requiresManualFollowup
+      ? 'jarvis_workflow_attention'
+      : 'jarvis_workflow_failed',
+    tenantId: params.tenantId,
+    userId,
+    title,
+    body,
+    link: '/jarvis',
+    recipientEmail: params.userEmail || undefined,
+    defaultChannels: ['in_app'],
+    payload: {
+      workflow_id: params.workflowId || null,
+      background_job_id: params.backgroundJobId,
+      outcome: params.outcome,
+      failure_class: failureClass || null,
+      recommended_next_label: recommendedNextLabel || null,
+    },
+  }).catch(() => {});
+}
 
 async function scheduleWorkflowBackgroundRetry(params: {
   jobId: string;
@@ -104,6 +159,8 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
       const route = payload.conversation?.route === 'operations' ? 'operations' : 'planning';
       const conversationId = payload.conversation?.conversationId || null;
       const edroClientId = payload.conversation?.edroClientId || payload.context?.edroClientId || null;
+      const initiatedByUserId = String((payload.context as any)?.userId || '').trim() || null;
+      const initiatedByUserEmail = String((payload.context as any)?.userEmail || '').trim() || null;
       const workflowId = String(payload.args?.workflow_id || '').trim();
       const workflowStateVersion = Number(payload.args?.workflow_state_version || 0) || 0;
       const workflowJson = String(payload.args?.workflow_json || '');
@@ -200,6 +257,15 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
               artifact: failureArtifact,
             }).catch(() => {});
           }
+          await notifyWorkflowOutcome({
+            tenantId: job.tenant_id,
+            userId: initiatedByUserId,
+            userEmail: initiatedByUserEmail,
+            workflowId,
+            backgroundJobId: job.id,
+            outcome: 'failed',
+            artifact: failureArtifact,
+          });
           await markJob(job.id, 'failed', result.error || 'Falha desconhecida');
           continue;
         }
@@ -228,6 +294,15 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             artifact: completedArtifact,
           }).catch(() => {});
         }
+        await notifyWorkflowOutcome({
+          tenantId: job.tenant_id,
+          userId: initiatedByUserId,
+          userEmail: initiatedByUserEmail,
+          workflowId,
+          backgroundJobId: job.id,
+          outcome: 'completed',
+          artifact: completedArtifact,
+        });
       } catch (error: any) {
         const artifactType = payload.kind === 'execute_multi_step_workflow'
           ? 'execute_multi_step_workflow'
@@ -267,6 +342,15 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
             artifact: failureArtifact,
           }).catch(() => {});
         }
+        await notifyWorkflowOutcome({
+          tenantId: job.tenant_id,
+          userId: initiatedByUserId,
+          userEmail: initiatedByUserEmail,
+          workflowId,
+          backgroundJobId: job.id,
+          outcome: 'failed',
+          artifact: failureArtifact,
+        });
       }
     }
   } finally {

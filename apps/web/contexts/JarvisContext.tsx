@@ -33,6 +33,12 @@ type JarvisContextValue = {
   setPageData: (data: Record<string, any> | null) => void;
 };
 
+type InAppNotification = {
+  id: string;
+  event_type: string;
+  read_at: string | null;
+};
+
 const JarvisContext = createContext<JarvisContextValue | null>(null);
 
 export function useJarvis() {
@@ -58,7 +64,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const [clientId, setClientIdState] = useState<string | null>(null);
   const [clientName, setClientName] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [pageData, setPageData] = useState<Record<string, any> | null>(null);
   const [pageContext, setPageContext] = useState<{ type: 'client' | 'job' | 'global'; id: string | null; label: string | null }>(
     { type: 'global', id: null, label: null }
@@ -110,6 +117,29 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, [pageContext.type, pageContext.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadJarvisNotificationCount = async () => {
+      try {
+        const data = await apiGet<{ notifications?: InAppNotification[] }>('/notifications');
+        if (cancelled) return;
+        const total = (data.notifications || []).filter((item) =>
+          !item.read_at && String(item.event_type || '').startsWith('jarvis_')
+        ).length;
+        setNotificationUnreadCount(total);
+      } catch {
+        if (!cancelled) setNotificationUnreadCount(0);
+      }
+    };
+
+    void loadJarvisNotificationCount();
+    const interval = window.setInterval(() => void loadJarvisNotificationCount(), 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   // Ctrl+J / Cmd+J — opens command palette (or toggles drawer if palette already open)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -139,14 +169,14 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     if (id) setClientIdState(id);
     setIsPaletteOpen(false);
     setIsOpen(true);
-    setUnreadCount(0);
+    setMessageUnreadCount(0);
   }, []);
 
   const close = useCallback(() => setIsOpen(false), []);
 
   const toggle = useCallback(() => {
     setIsOpen(prev => {
-      if (!prev) setUnreadCount(0);
+      if (!prev) setMessageUnreadCount(0);
       return !prev;
     });
   }, []);
@@ -158,7 +188,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     setIsPaletteOpen(false);
     setPendingMessage(message);
     setIsOpen(true);
-    setUnreadCount(0);
+    setMessageUnreadCount(0);
   }, []);
 
   const clearPendingMessage = useCallback(() => setPendingMessage(null), []);
@@ -168,8 +198,9 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem('edro_active_client_id', id); } catch { /* ignore */ }
   }, []);
 
-  const bump = useCallback(() => setUnreadCount(prev => prev + 1), []);
-  const clearUnread = useCallback(() => setUnreadCount(0), []);
+  const bump = useCallback(() => setMessageUnreadCount(prev => prev + 1), []);
+  const clearUnread = useCallback(() => setMessageUnreadCount(0), []);
+  const unreadCount = messageUnreadCount + notificationUnreadCount;
 
   return (
     <JarvisContext.Provider value={{
