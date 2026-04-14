@@ -95,6 +95,7 @@ export type SystemHealthSnapshot = {
       expires_at: string | null;
       watch_status: string | null;
       last_watch_error: string | null;
+      last_notification_at: string | null;
       needs_attention: boolean;
     };
     client_intelligence: { total_clients: number; stale_clients: number };
@@ -355,7 +356,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       [tenantId],
     ).catch(() => ({ rows: [] as any[] })),
     query<any>(
-      `SELECT email_address, expires_at, watch_status, last_watch_error
+      `SELECT email_address, expires_at, watch_status, last_watch_error, last_notification_at
          FROM google_calendar_channels
         WHERE tenant_id = $1
         LIMIT 1`,
@@ -399,8 +400,19 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
   const alerts = alertsRes.rows[0] ?? { open_alerts: 0, last_open_alert_at: null };
   const gmailExpiryMs = gmail?.watch_expiry ? new Date(gmail.watch_expiry).getTime() : null;
   const calendarExpiryMs = calendar?.expires_at ? new Date(calendar.expires_at).getTime() : null;
+  const gmailLastSyncMs = gmail?.last_sync_at ? new Date(gmail.last_sync_at).getTime() : null;
+  const calendarLastNotificationMs = calendar?.last_notification_at ? new Date(calendar.last_notification_at).getTime() : null;
   const gmailNeedsAttention = Boolean(gmail?.last_error) || (gmailExpiryMs !== null && gmailExpiryMs < now + 48 * 3_600_000);
   const calendarNeedsAttention = Boolean(calendar?.last_watch_error) || (calendarExpiryMs !== null && calendarExpiryMs < now + 48 * 3_600_000);
+  const gmailSilent = Boolean(gmail?.email_address)
+    && !gmail?.last_error
+    && (gmailExpiryMs === null || gmailExpiryMs > now + 60 * 60 * 1000)
+    && (gmailLastSyncMs === null || gmailLastSyncMs < now - 15 * 60 * 1000);
+  const calendarSilent = Boolean(calendar?.email_address)
+    && calendar?.watch_status === 'active'
+    && !calendar?.last_watch_error
+    && (calendarExpiryMs === null || calendarExpiryMs > now + 60 * 60 * 1000)
+    && (calendarLastNotificationMs === null || calendarLastNotificationMs < now - 6 * 60 * 60 * 1000);
 
   const issues: SystemHealthIssue[] = [];
   const dueRetries = retry.reduce((sum, row) => sum + Number(row.due || 0), 0);
@@ -516,6 +528,24 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       repair_type: 'renew_google_watches',
     });
   }
+  if (gmailSilent) {
+    issues.push({
+      key: 'gmail_silent',
+      severity: 'warning',
+      title: 'Inbox do Gmail sem atividade recente',
+      message: `Gmail ${gmail?.email_address || ''}`.trim() + ' está sem sync recente apesar do watch ainda parecer válido.',
+      repair_type: 'run_gmail_fallback',
+    });
+  }
+  if (calendarSilent) {
+    issues.push({
+      key: 'google_calendar_silent',
+      severity: 'warning',
+      title: 'Watch do Google Calendar sem atividade recente',
+      message: `Calendar ${calendar?.email_address || ''}`.trim() + ' está ativo, mas sem notificações recentes.',
+      repair_type: 'renew_google_watches',
+    });
+  }
   if (Number(intelligence.stale_clients || 0) > 0) {
     issues.push({
       key: 'client_intelligence',
@@ -571,6 +601,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
         expires_at: calendar.expires_at,
         watch_status: calendar.watch_status,
         last_watch_error: calendar.last_watch_error,
+        last_notification_at: calendar.last_notification_at,
         needs_attention: calendarNeedsAttention,
       } : null,
       client_intelligence: {
