@@ -5,11 +5,16 @@ import { runTrelloOutboxWorkerOnce } from '../jobs/trelloOutboxWorker';
 import { syncGmailInboxFallback, watchGmailInbox } from './integrations/gmailService';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { runJarvisAlertEngine } from './jarvisAlertEngine';
+import {
+  getJarvisBackgroundQueueHealth,
+  recoverStaleJarvisBackgroundJobs,
+} from './jarvisBackgroundHealthService';
 
 export type SystemRepairType =
   | 'auto_repair'
   | 'process_webhook_retries'
   | 'flush_trello_outbox'
+  | 'recover_jarvis_background_jobs'
   | 'renew_google_watches'
   | 'run_gmail_fallback'
   | 'refresh_client_intelligence'
@@ -32,6 +37,14 @@ export type SystemHealthSnapshot = {
   components: {
     webhook_retry: Array<{ source: string; due: number; processing: number; failed: number }>;
     trello_outbox: { backlog: number; processing: number; dead: number };
+    jarvis_background: {
+      queued: number;
+      processing: number;
+      stale_processing: number;
+      auto_retry_pending: number;
+      failed_recent: number;
+      last_failed_at: string | null;
+    };
     gmail: null | {
       email_address: string | null;
       watch_expiry: string | null;
@@ -57,6 +70,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
   auto_repair: 'Auto-reparo seguro',
   process_webhook_retries: 'Processar retries de webhook',
   flush_trello_outbox: 'Destravar fila do Trello',
+  recover_jarvis_background_jobs: 'Recuperar workflows do Jarvis',
   renew_google_watches: 'Renovar watches do Google',
   run_gmail_fallback: 'Rodar fallback do Gmail',
   refresh_client_intelligence: 'Atualizar inteligência dos clientes',
@@ -66,6 +80,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
 const AUTO_REPAIRABLE_TYPES = new Set<Exclude<SystemRepairType, 'auto_repair'>>([
   'process_webhook_retries',
   'flush_trello_outbox',
+  'recover_jarvis_background_jobs',
   'renew_google_watches',
   'refresh_jarvis_alerts',
 ]);
@@ -86,7 +101,7 @@ export function resolveAutoRepairPlan(snapshot: SystemHealthSnapshot) {
 }
 
 export async function buildSystemHealthSnapshot(tenantId: string): Promise<SystemHealthSnapshot> {
-  const [retryRes, trelloRes, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
+  const [retryRes, trelloRes, jarvisBackground, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
     query<any>(
       `SELECT source,
               COUNT(*) FILTER (WHERE status = 'pending' AND next_retry_at <= now())::int AS due,
@@ -106,6 +121,14 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
         WHERE tenant_id = $1`,
       [tenantId],
     ).catch(() => ({ rows: [{ backlog: 0, processing: 0, dead: 0 }] as any[] })),
+    getJarvisBackgroundQueueHealth(tenantId).catch(() => ({
+      queued: 0,
+      processing: 0,
+      stale_processing: 0,
+      auto_retry_pending: 0,
+      failed_recent: 0,
+      last_failed_at: null,
+    })),
     query<any>(
       `SELECT email_address, watch_expiry, last_sync_at, last_error
          FROM gmail_connections
@@ -174,6 +197,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       repair_type: 'flush_trello_outbox',
     });
   }
+  if (Number(jarvisBackground.stale_processing || 0) > 0) {
+    issues.push({
+      key: 'jarvis_background_queue',
+      severity: 'critical',
+      title: 'Workflow do Jarvis preso em background',
+      message: `${Number(jarvisBackground.stale_processing || 0)} workflow(s) do Jarvis ficaram travados em processamento.`,
+      repair_type: 'recover_jarvis_background_jobs',
+    });
+  }
   if (gmailNeedsAttention || calendarNeedsAttention) {
     issues.push({
       key: 'google_watches',
@@ -210,6 +242,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
         processing: Number(trello.processing || 0),
         dead: Number(trello.dead || 0),
       },
+      jarvis_background: jarvisBackground,
       gmail: gmail ? {
         email_address: gmail.email_address,
         watch_expiry: gmail.watch_expiry,
@@ -274,6 +307,15 @@ export async function runSystemRepair(
           backlog_before: beforeOutbox.backlog,
           backlog_after: outboxAfter.components.trello_outbox.backlog,
           dead_after: outboxAfter.components.trello_outbox.dead,
+        });
+        break;
+      }
+      case 'recover_jarvis_background_jobs': {
+        const recovery = await recoverStaleJarvisBackgroundJobs({ tenantId });
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          scanned: recovery.scanned,
+          recovered: recovery.recovered,
         });
         break;
       }

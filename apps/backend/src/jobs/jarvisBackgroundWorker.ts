@@ -3,9 +3,9 @@ import { fetchJobs, getJobById, markJob, mergeJobPayload, rescheduleJob } from '
 import { runCreatePostPipelineNow, runExecuteMultiStepWorkflowNow, type ToolContext } from '../services/ai/toolExecutor';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import { updateUnifiedConversationArtifact } from '../services/jarvisPolicyService';
+import { recoverStaleJarvisBackgroundJobs, syncWorkflowBackgroundFailure } from '../services/jarvisBackgroundHealthService';
 
 let running = false;
-const JARVIS_BACKGROUND_STALE_MS = 45 * 60 * 1000;
 
 async function scheduleWorkflowBackgroundRetry(params: {
   jobId: string;
@@ -32,42 +32,6 @@ async function scheduleWorkflowBackgroundRetry(params: {
     last_failure_error: String(params.failureData.last_error || 'Falha transitória').trim() || 'Falha transitória',
     auto_retry_pending: true,
   });
-}
-
-async function syncWorkflowBackgroundFailure(params: {
-  tenantId: string;
-  workflowId?: string | null;
-  workflowStateVersion?: number | null;
-  workflowJson?: string | null;
-  backgroundJobId: string;
-  errorMessage: string;
-}) {
-  const workflowId = String(params.workflowId || '').trim();
-  const workflowStateVersion = Math.max(0, Number(params.workflowStateVersion || 0));
-  if (!workflowId || workflowStateVersion <= 0) return;
-
-  await query(
-    `UPDATE agent_action_log
-        SET fired_at = now(),
-            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
-      WHERE tenant_id = $1::uuid
-        AND trigger_key = $2
-        AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $4
-        AND COALESCE(metadata->>'status', '') IN ('queued', 'running')`,
-    [params.tenantId, `jarvis_workflow:${workflowId}`, JSON.stringify({
-      workflow_id: workflowId,
-      workflow_state_version: workflowStateVersion,
-      workflow_json: params.workflowJson || null,
-      background_job_id: params.backgroundJobId,
-      status: 'failed',
-      workflow_status: 'failed',
-      last_error: params.errorMessage,
-      finished_at: new Date().toISOString(),
-      last_activity_at: new Date().toISOString(),
-      can_retry_now: false,
-      retry_block_reason: 'Workflow falhou no worker antes de concluir a execução.',
-    }), workflowStateVersion],
-  ).catch(() => {});
 }
 
 async function syncWorkflowBackgroundQueuedRetry(params: {
@@ -113,52 +77,12 @@ async function syncWorkflowBackgroundQueuedRetry(params: {
   ).catch(() => {});
 }
 
-async function failStaleJarvisBackgroundJobs() {
-  const staleSeconds = Math.max(60, Math.floor(JARVIS_BACKGROUND_STALE_MS / 1000));
-  const { rows } = await query<any>(
-    `SELECT id, tenant_id, payload
-       FROM job_queue
-      WHERE type = 'jarvis_background'
-        AND status = 'processing'
-        AND updated_at < NOW() - ($1 || ' seconds')::interval
-      ORDER BY updated_at ASC
-      LIMIT 5`,
-    [String(staleSeconds)],
-  );
-
-  for (const job of rows) {
-    const payload = (job.payload || {}) as {
-      args?: Record<string, any>;
-    };
-    const workflowId = String(payload.args?.workflow_id || '').trim();
-    const workflowStateVersion = Number(payload.args?.workflow_state_version || 0) || 0;
-    const workflowJson = String(payload.args?.workflow_json || '');
-    const errorMessage = 'Jarvis background job expirou sem concluir a execução.';
-    const failedAt = new Date().toISOString();
-
-    await mergeJobPayload(job.id, {
-      result_error: errorMessage,
-      failed_at: failedAt,
-      stale_failed_at: failedAt,
-    }).catch(() => {});
-    await syncWorkflowBackgroundFailure({
-      tenantId: job.tenant_id,
-      workflowId,
-      workflowStateVersion,
-      workflowJson,
-      backgroundJobId: job.id,
-      errorMessage,
-    });
-    await markJob(job.id, 'failed', errorMessage).catch(() => {});
-  }
-}
-
 export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
   if (running) return;
   running = true;
 
   try {
-    await failStaleJarvisBackgroundJobs();
+    await recoverStaleJarvisBackgroundJobs();
     const jobs = await fetchJobs('jarvis_background', 2);
     if (!jobs.length) return;
 
