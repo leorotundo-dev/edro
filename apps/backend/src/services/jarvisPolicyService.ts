@@ -37,8 +37,11 @@ export type JarvisToolGovernance = {
   policy?: {
     channel: 'read' | 'internal_write' | 'external_communication' | 'meeting' | 'publishing' | 'system';
     quietHoursActive: boolean;
+    weekendActive: boolean;
     overrideQuietHours: boolean;
     riskBand: 'low' | 'medium' | 'high';
+    blockedReason: 'quiet_hours' | 'weekend' | null;
+    nextAllowedAt: string | null;
   };
   confirmed: boolean;
   executed: boolean;
@@ -229,21 +232,73 @@ function levelWeight(level: JarvisAutonomyLevel) {
   }
 }
 
-function getSaoPauloHour() {
-  const hour = new Intl.DateTimeFormat('en-US', {
+function getSaoPauloDateParts() {
+  const parts = new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
     hour12: false,
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     timeZone: 'America/Sao_Paulo',
-  }).format(new Date());
-  const parsed = Number(hour);
-  return Number.isFinite(parsed) ? parsed : 12;
+  }).formatToParts(new Date());
+
+  const record = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const hour = Number(record.hour);
+  const weekdayRaw = String(record.weekday || '').toLowerCase();
+  const weekday = weekdayRaw.startsWith('sun')
+    ? 0
+    : weekdayRaw.startsWith('mon')
+      ? 1
+      : weekdayRaw.startsWith('tue')
+        ? 2
+        : weekdayRaw.startsWith('wed')
+          ? 3
+          : weekdayRaw.startsWith('thu')
+            ? 4
+            : weekdayRaw.startsWith('fri')
+              ? 5
+              : 6;
+
+  return {
+    hour: Number.isFinite(hour) ? hour : 12,
+    year: Number(record.year),
+    month: Number(record.month),
+    day: Number(record.day),
+    weekday,
+  };
+}
+
+function nextOperationalWindowIso() {
+  const now = new Date();
+  const parts = getSaoPauloDateParts();
+  const candidate = new Date(now);
+
+  const setNextBusinessMorning = (daysToAdd: number) => {
+    candidate.setUTCDate(candidate.getUTCDate() + daysToAdd);
+    candidate.setUTCHours(10, 0, 0, 0); // 07:00 America/Sao_Paulo ~= 10:00 UTC without DST
+  };
+
+  if (parts.weekday === 6) {
+    setNextBusinessMorning(2);
+  } else if (parts.weekday === 0) {
+    setNextBusinessMorning(1);
+  } else if (parts.hour < 7) {
+    candidate.setUTCHours(10, 0, 0, 0);
+  } else if (parts.hour >= 20) {
+    if (parts.weekday === 5) setNextBusinessMorning(3);
+    else setNextBusinessMorning(1);
+  } else {
+    return null;
+  }
+
+  return candidate.toISOString();
 }
 
 function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null) {
-  const quietHoursActive = (() => {
-    const hour = getSaoPauloHour();
-    return hour < 7 || hour >= 20;
-  })();
+  const dateParts = getSaoPauloDateParts();
+  const quietHoursActive = dateParts.hour < 7 || dateParts.hour >= 20;
+  const weekendActive = dateParts.weekday === 0 || dateParts.weekday === 6;
   const overrideQuietHours = args?.override_quiet_hours === true;
 
   const channel: JarvisToolGovernance['policy']['channel'] = (() => {
@@ -261,11 +316,20 @@ function buildToolPolicyMeta(toolName: string, args?: Record<string, any> | null
     return 'low' as const;
   })();
 
+  const blockedReason = (() => {
+    if (weekendActive) return 'weekend' as const;
+    if (quietHoursActive) return 'quiet_hours' as const;
+    return null;
+  })();
+
   return {
     channel,
     quietHoursActive,
+    weekendActive,
     overrideQuietHours,
     riskBand,
+    blockedReason,
+    nextAllowedAt: blockedReason ? nextOperationalWindowIso() : null,
   };
 }
 
@@ -284,13 +348,19 @@ export function buildJarvisToolGovernance(toolName: string, args?: Record<string
 export function enforceJarvisToolGovernance(toolName: string, args?: Record<string, any> | null) {
   const policy = buildJarvisToolGovernance(toolName, args);
   if (
-    policy.policy?.quietHoursActive
+    (policy.policy?.quietHoursActive || policy.policy?.weekendActive)
     && policy.policy?.overrideQuietHours !== true
     && ['external_communication', 'meeting', 'publishing'].includes(policy.policy.channel)
   ) {
+    const reason = policy.policy?.blockedReason === 'weekend'
+      ? 'fora da janela operacional de fim de semana'
+      : 'em quiet hours';
+    const nextAllowed = policy.policy?.nextAllowedAt
+      ? ` Próxima janela: ${policy.policy.nextAllowedAt}.`
+      : '';
     return {
       policy: { ...policy, executed: false },
-      error: `Política do Jarvis: ${toolName} está bloqueado em quiet hours. Confirme com override_quiet_hours=true para seguir fora do horário operacional.`,
+      error: `Política do Jarvis: ${toolName} está bloqueado ${reason}.${nextAllowed} Confirme com override_quiet_hours=true para seguir fora do horário operacional.`,
     };
   }
   if (policy.level === 'confirm' && !policy.confirmed) {
