@@ -3,6 +3,7 @@ import { sendWhatsAppText } from './whatsappService';
 import { sendDirectMessage as sendEvolutionDirectMessage, isConfigured as isEvolutionConfigured } from './integrations/evolutionApiService';
 import { updateNotificationStatus, createNotification } from '../repositories/edroBriefingRepository';
 import { query } from '../db/db';
+import { publishInAppNotification } from './inAppRealtimeService';
 
 export type DispatchNotificationInput = {
   id: string;
@@ -170,9 +171,12 @@ export async function createInAppNotification(input: CreateInAppInput) {
   const { rows } = await query(
     `INSERT INTO in_app_notifications (tenant_id, user_id, event_type, title, body, link)
      VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id`,
+     RETURNING id, tenant_id, user_id, event_type, title, body, link, read_at, created_at`,
     [input.tenantId, input.userId, input.eventType, input.title, input.body || null, input.link || null]
   );
+  if (rows[0]) {
+    publishInAppNotification(input.userId, rows[0]);
+  }
   return rows[0];
 }
 

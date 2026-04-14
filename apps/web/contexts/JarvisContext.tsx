@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { apiGet } from '@/lib/api';
+import { subscribeToNotificationStream } from '@/lib/notificationStream';
 
 type JarvisContextValue = {
   isOpen: boolean;
@@ -133,9 +134,14 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     };
 
     void loadJarvisNotificationCount();
+    const unsubscribe = subscribeToNotificationStream((payload) => {
+      if (!String(payload.event_type || '').startsWith('jarvis_')) return;
+      void loadJarvisNotificationCount();
+    });
     const interval = window.setInterval(() => void loadJarvisNotificationCount(), 30000);
     return () => {
       cancelled = true;
+      unsubscribe();
       window.clearInterval(interval);
     };
   }, []);

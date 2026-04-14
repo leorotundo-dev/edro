@@ -8,6 +8,7 @@ import {
   getNotificationPreferences,
   upsertNotificationPreferences,
 } from '../services/notificationService';
+import { subscribeToInAppNotifications } from '../services/inAppRealtimeService';
 
 export default async function notificationsRoutes(app: FastifyInstance) {
   // List in-app notifications for the current user
@@ -18,6 +19,41 @@ export default async function notificationsRoutes(app: FastifyInstance) {
     const notifications = await getInAppNotifications(userId, 20);
     const unreadCount = notifications.filter((n: any) => !n.read_at).length;
     return { notifications, unreadCount };
+  });
+
+  app.get('/notifications/stream', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any, reply) => {
+    const userId = request.user.sub;
+
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    reply.raw.flushHeaders?.();
+
+    const send = (payload: Record<string, any>) => {
+      if (reply.raw.destroyed || reply.raw.writableEnded) return;
+      reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    const unsubscribe = subscribeToInAppNotifications(userId, send);
+    const keepAlive = setInterval(() => {
+      if (reply.raw.destroyed || reply.raw.writableEnded) return;
+      reply.raw.write(': keepalive\n\n');
+    }, 25000);
+
+    const cleanup = () => {
+      clearInterval(keepAlive);
+      unsubscribe();
+    };
+
+    request.raw.on('close', cleanup);
+    request.raw.on('end', cleanup);
+    send({ type: 'connected', user_id: userId, connected_at: new Date().toISOString() });
   });
 
   // Mark one notification as read

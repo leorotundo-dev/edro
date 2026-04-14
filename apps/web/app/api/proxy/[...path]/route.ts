@@ -40,6 +40,11 @@ function buildProxyErrorResponse(error: unknown) {
   return NextResponse.json({ error: 'Proxy request failed' }, { status: 500 });
 }
 
+function isEventStreamRequest(request: NextRequest, path: string) {
+  const accept = request.headers.get('accept') || '';
+  return accept.includes('text/event-stream') || path === '/notifications/stream';
+}
+
 function buildHeaders(request: NextRequest, accessToken?: string | null, bodyLength?: number) {
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
@@ -91,9 +96,9 @@ async function readRequestBody(request: NextRequest) {
   return buffer.byteLength ? Buffer.from(buffer) : undefined;
 }
 
-async function proxyFetch(init: RequestInit, path: string, query = '') {
+async function proxyFetch(init: RequestInit, path: string, query = '', timeoutMs = PROXY_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+  const timeoutId = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
     const response = await fetch(`${buildBackendApiUrl(path)}${query}`, {
       ...init,
@@ -101,7 +106,7 @@ async function proxyFetch(init: RequestInit, path: string, query = '') {
     });
     return response;
   } finally {
-    clearTimeout(timeoutId);
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -120,6 +125,7 @@ async function executeProxy(
     ? `?${request.nextUrl.searchParams.toString()}`
     : '';
   const body = await readRequestBody(request);
+  const timeoutMs = isEventStreamRequest(request, path) ? 0 : PROXY_TIMEOUT_MS;
 
   const accessToken = request.cookies.get(EDRO_SESSION_COOKIE)?.value ?? null;
   const refreshToken = request.cookies.get(EDRO_REFRESH_COOKIE)?.value ?? null;
@@ -133,6 +139,7 @@ async function executeProxy(
       },
       path,
       query,
+      timeoutMs,
     );
 
   try {

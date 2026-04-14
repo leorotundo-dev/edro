@@ -23,6 +23,7 @@ import {
   IconSos,
 } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
+import { subscribeToNotificationStream } from '@/lib/notificationStream';
 
 type InAppNotification = {
   id: string;
@@ -108,8 +109,14 @@ export default function Notifications() {
 
   useEffect(() => {
     loadNotifications();
+    const unsubscribe = subscribeToNotificationStream(() => {
+      void loadNotifications();
+    });
     const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
   }, [loadNotifications]);
 
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
