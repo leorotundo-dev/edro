@@ -83,6 +83,20 @@ function buildQueuedWorkflowArtifact(job: JobQueueRecord) {
   };
 }
 
+function buildWorkflowActionArgs(artifact: Record<string, any>) {
+  const workflowJson = String(artifact.workflow_json || '').trim();
+  const workflowId = String(artifact.workflow_id || '').trim();
+  const workflowStateVersion = Number(artifact.workflow_state_version || 0) || 0;
+  if (!workflowJson || !workflowId || workflowStateVersion <= 0) return null;
+
+  return {
+    workflow_json: workflowJson,
+    workflow_id: workflowId,
+    workflow_state_version: workflowStateVersion,
+    resume_from_step: Math.max(1, Number(artifact.resume_from_step || (artifact.completed_steps || 0) + 1)),
+  };
+}
+
 export function buildJarvisBackgroundArtifact(job: JobQueueRecord | null | undefined) {
   if (!job || job.type !== 'jarvis_background') return null;
 
@@ -107,7 +121,7 @@ export function buildJarvisBackgroundArtifact(job: JobQueueRecord | null | undef
   }
 
   if (job.status === 'failed') {
-    return {
+    const failedArtifact = {
       ...base,
       ...(job.payload?.result && typeof job.payload.result === 'object' ? job.payload.result : {}),
       job_status: 'failed',
@@ -118,6 +132,23 @@ export function buildJarvisBackgroundArtifact(job: JobQueueRecord | null | undef
       next_step: kind === 'execute_multi_step_workflow'
         ? 'Revise a falha do workflow e siga a próxima ação sugerida.'
         : 'Ajuste o pedido e tente novamente.',
+    };
+    const workflowActionArgs = kind === 'execute_multi_step_workflow'
+      ? buildWorkflowActionArgs(failedArtifact)
+      : null;
+
+    return {
+      ...failedArtifact,
+      retry_tool_args: failedArtifact.retry_tool_args || (
+        failedArtifact.can_retry_now === true
+          ? workflowActionArgs
+          : null
+      ),
+      requeue_tool_args: failedArtifact.requeue_tool_args || (
+        failedArtifact.is_dead_letter === true && workflowActionArgs
+          ? { ...workflowActionArgs, manual_requeue: true }
+          : null
+      ),
     };
   }
 
