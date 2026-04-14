@@ -57,6 +57,36 @@ export async function mergeJobPayload(id: string, patch: Record<string, any>): P
   return rows.length > 0;
 }
 
+export async function rescheduleJob(
+  id: string,
+  scheduledFor: Date | string,
+  patch?: Record<string, any>,
+): Promise<boolean> {
+  const scheduledAt =
+    scheduledFor instanceof Date
+      ? scheduledFor.toISOString()
+      : String(scheduledFor || '').trim();
+  if (!scheduledAt) return false;
+
+  const { rows } = await query<{ id: string }>(
+    `UPDATE job_queue
+     SET status='queued',
+         error_message=NULL,
+         scheduled_for=$2::timestamptz,
+         payload = CASE
+           WHEN $3::jsonb IS NULL THEN payload
+           ELSE COALESCE(payload, '{}'::jsonb) || $3::jsonb
+         END,
+         updated_at=NOW()
+     WHERE id = $1
+       AND status='processing'
+     RETURNING id`,
+    [id, scheduledAt, patch ? JSON.stringify(patch) : null],
+  );
+
+  return rows.length > 0;
+}
+
 export async function markJob(id: string, status: 'processing' | 'done' | 'failed', error?: string): Promise<boolean> {
   if (status === 'processing') {
     // Accept both 'queued' and 'processing' so fetchJobs (which already marks atomically)

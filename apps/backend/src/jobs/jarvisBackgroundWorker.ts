@@ -1,11 +1,38 @@
 import { query } from '../db';
-import { fetchJobs, getJobById, markJob, mergeJobPayload } from './jobQueue';
+import { fetchJobs, getJobById, markJob, mergeJobPayload, rescheduleJob } from './jobQueue';
 import { runCreatePostPipelineNow, runExecuteMultiStepWorkflowNow, type ToolContext } from '../services/ai/toolExecutor';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import { updateUnifiedConversationArtifact } from '../services/jarvisPolicyService';
 
 let running = false;
 const JARVIS_BACKGROUND_STALE_MS = 45 * 60 * 1000;
+
+async function scheduleWorkflowBackgroundRetry(params: {
+  jobId: string;
+  workflowId: string;
+  workflowStateVersion: number;
+  workflowJson: string;
+  failureData: Record<string, any>;
+}) {
+  const retryAfterAt = String(params.failureData.retry_after_at || '').trim();
+  const recommendedNextAction = String(params.failureData.recommended_next_action || '').trim();
+  if (!retryAfterAt || recommendedNextAction !== 'retry') return false;
+
+  const retryArgs = {
+    workflow_json: String(params.failureData.workflow_json || params.workflowJson || '[]'),
+    workflow_id: String(params.failureData.workflow_id || params.workflowId || '').trim(),
+    workflow_state_version: Number(params.failureData.workflow_state_version || params.workflowStateVersion) || 0,
+    resume_from_step: Math.max(1, Number(params.failureData.resume_from_step || 1)),
+  };
+  if (!retryArgs.workflow_id || retryArgs.workflow_state_version <= 0) return false;
+
+  return rescheduleJob(params.jobId, retryAfterAt, {
+    args: retryArgs,
+    retry_scheduled_for: retryAfterAt,
+    last_failure_error: String(params.failureData.last_error || 'Falha transitória').trim() || 'Falha transitória',
+    auto_retry_pending: true,
+  });
+}
 
 async function syncWorkflowBackgroundFailure(params: {
   tenantId: string;
@@ -140,18 +167,43 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
           ? 'O Jarvis não conseguiu concluir o workflow em background.'
           : 'O Jarvis não conseguiu concluir o pipeline criativo.';
         if (!result.success) {
+          const failureData = result.data && typeof result.data === 'object' ? result.data : null;
+          const retryScheduled = payload.kind === 'execute_multi_step_workflow'
+            ? await scheduleWorkflowBackgroundRetry({
+                jobId: job.id,
+                workflowId,
+                workflowStateVersion,
+                workflowJson,
+                failureData: failureData || {},
+              })
+            : false;
           const failureArtifact = {
             ...(buildJarvisBackgroundArtifact(await getJobById(job.id, job.tenant_id)) || {
               type: artifactType,
               background_job_id: job.id,
             }),
-            job_status: 'failed',
-            ...(result.data && typeof result.data === 'object' ? result.data : {}),
-            message: failureMessage,
+            job_status: retryScheduled ? 'queued' : 'failed',
+            ...(failureData || {}),
+            message: retryScheduled
+              ? 'O Jarvis reagendou este workflow automaticamente após o cooldown.'
+              : failureMessage,
             error: result.error || 'Falha desconhecida',
           };
+          if (retryScheduled) {
+            if (conversationId) {
+              await updateUnifiedConversationArtifact({
+                route,
+                tenantId: job.tenant_id,
+                conversationId,
+                edroClientId,
+                backgroundJobId: job.id,
+                artifact: failureArtifact,
+              }).catch(() => {});
+            }
+            continue;
+          }
           await mergeJobPayload(job.id, {
-            result: result.data && typeof result.data === 'object' ? result.data : null,
+            result: failureData,
             result_error: result.error || 'Falha desconhecida',
             failed_at: new Date().toISOString(),
           });

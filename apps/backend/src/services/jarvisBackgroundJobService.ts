@@ -53,6 +53,9 @@ function buildQueuedWorkflowArtifact(job: JobQueueRecord) {
   const workflowJson = String(args.workflow_json || '');
   const steps = parseWorkflowSteps(workflowJson);
   const resumeFromStep = Math.max(1, Number(args.resume_from_step || 1));
+  const retryScheduledFor = String(payload.retry_scheduled_for || '').trim();
+  const retryError = String(payload.last_failure_error || '').trim();
+  const queuedForRetry = job.status === 'queued' && !!retryScheduledFor;
 
   return {
     type: 'execute_multi_step_workflow',
@@ -67,10 +70,16 @@ function buildQueuedWorkflowArtifact(job: JobQueueRecord) {
     resume_from_step: resumeFromStep,
     message: job.status === 'processing'
       ? 'O Jarvis está executando o workflow em background.'
+      : queuedForRetry
+      ? 'O Jarvis vai tentar novamente este workflow automaticamente em background.'
       : 'Workflow enfileirado para execução em background.',
     next_step: job.status === 'processing'
       ? 'Assim que o workflow terminar, este artifact troca sozinho para o resultado final.'
+      : queuedForRetry
+      ? 'Assim que o cooldown terminar, o Jarvis retoma o workflow sozinho.'
       : 'O Jarvis vai executar o fluxo em background e atualizar este card sozinho.',
+    retry_after_at: retryScheduledFor || null,
+    last_error: retryError || null,
   };
 }
 
