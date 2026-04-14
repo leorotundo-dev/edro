@@ -393,7 +393,7 @@ async function processCalendarEvent(tenantId: string, event: any) {
   }));
 
   const { rows: existing } = await query(
-    `SELECT id, job_enqueued_at, meeting_id, client_id, status
+    `SELECT id, job_enqueued_at, meeting_id, client_id, status, attendees
        FROM calendar_auto_joins
       WHERE calendar_event_id = $1`,
     [eventId],
@@ -418,6 +418,8 @@ async function processCalendarEvent(tenantId: string, event: any) {
   const linkedMeetingId = autoJoin.meetingId ?? existing[0]?.meeting_id ?? null;
   const linkedClientId = autoJoin.clientId ?? existing[0]?.client_id ?? null;
   if (linkedMeetingId && linkedClientId) {
+    const attendeeChanges = collectAttendeeResponseChanges(existing[0]?.attendees, attendees);
+
     await syncLinkedMeetingFromCalendarEvent({
       tenantId,
       meetingId: linkedMeetingId,
@@ -437,6 +439,16 @@ async function processCalendarEvent(tenantId: string, event: any) {
       attendees,
       calendarEventId: eventId,
     }).catch((err) => console.error('[googleCalendarService] syncMeetingParticipants failed:', err?.message));
+
+    if (attendeeChanges.length) {
+      await notifyMeetingAttendanceChanges({
+        tenantId,
+        clientId: linkedClientId,
+        meetingId: linkedMeetingId,
+        title: event.summary ?? 'Reunião',
+        changes: attendeeChanges,
+      }).catch((err) => console.error('[googleCalendarService] notifyMeetingAttendanceChanges failed:', err?.message));
+    }
   }
 
   console.log(`[googleCalendarService] Detected video meeting: "${event.summary}" at ${scheduledAt.toISOString()} — ${platform} — ${videoLink}`);
@@ -584,6 +596,102 @@ async function syncCancelledCalendarEvent(tenantId: string, eventId: string) {
       [tenantId, row.meeting_id, JSON.stringify({ cancelled_in_google_calendar: true, calendar_event_id: eventId })],
     ).catch(() => null);
   }
+}
+
+type AttendeeResponseChange = {
+  email: string;
+  displayName: string | null;
+  previous: string;
+  next: string;
+};
+
+function normalizeResponseStatus(value?: string | null) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || 'needsaction';
+}
+
+function collectAttendeeResponseChanges(
+  previousAttendees: Array<{ email?: string; displayName?: string; responseStatus?: string }> | null | undefined,
+  nextAttendees: Array<{ email?: string; displayName?: string; responseStatus?: string }>,
+): AttendeeResponseChange[] {
+  const previousMap = new Map(
+    (Array.isArray(previousAttendees) ? previousAttendees : [])
+      .map((attendee) => [String(attendee?.email || '').trim().toLowerCase(), attendee] as const)
+      .filter(([email]) => Boolean(email)),
+  );
+
+  return nextAttendees
+    .map((attendee) => {
+      const email = String(attendee?.email || '').trim().toLowerCase();
+      if (!email) return null;
+      const previous = previousMap.get(email);
+      const previousStatus = normalizeResponseStatus(previous?.responseStatus);
+      const nextStatus = normalizeResponseStatus(attendee?.responseStatus);
+      if (previousStatus === nextStatus) return null;
+      return {
+        email,
+        displayName: attendee?.displayName?.trim() || previous?.displayName?.trim() || null,
+        previous: previousStatus,
+        next: nextStatus,
+      } satisfies AttendeeResponseChange;
+    })
+    .filter((item): item is AttendeeResponseChange => Boolean(item))
+    .slice(0, 5);
+}
+
+function describeResponseStatus(value: string) {
+  switch (normalizeResponseStatus(value)) {
+    case 'accepted': return 'aceitou';
+    case 'declined': return 'recusou';
+    case 'tentative': return 'ficou como talvez';
+    default: return 'ainda não respondeu';
+  }
+}
+
+async function notifyMeetingAttendanceChanges(params: {
+  tenantId: string;
+  clientId: string;
+  meetingId: string;
+  title: string;
+  changes: AttendeeResponseChange[];
+}) {
+  if (!params.changes.length) return;
+
+  const { notifyEvent } = await import('../notificationService');
+  const { rows: admins } = await query<{ id: string; email: string }>(
+    `SELECT eu.id::text AS id, eu.email
+       FROM edro_users eu
+       JOIN tenant_users tu ON tu.user_id = eu.id
+      WHERE tu.tenant_id = $1
+        AND tu.role IN ('admin', 'owner')
+      LIMIT 5`,
+    [params.tenantId],
+  ).catch(() => ({ rows: [] as Array<{ id: string; email: string }> }));
+
+  if (!admins.length) return;
+
+  const body = params.changes
+    .map((change) => `${change.displayName || change.email} ${describeResponseStatus(change.next)}`)
+    .join(' · ');
+
+  await Promise.allSettled(
+    admins.map((admin) =>
+      notifyEvent({
+        event: 'jarvis_meeting_rsvp_changed',
+        tenantId: params.tenantId,
+        userId: admin.id,
+        recipientEmail: admin.email,
+        title: `RSVP mudou: ${params.title}`,
+        body,
+        link: `/clients/${params.clientId}/meetings`,
+        payload: {
+          meeting_id: params.meetingId,
+          changes: params.changes,
+        },
+        defaultChannels: ['in_app'],
+      }),
+    ),
+  );
 }
 
 async function buildInternalCalendarClient(tenantId: string): Promise<ResolvedCalendarClient> {
