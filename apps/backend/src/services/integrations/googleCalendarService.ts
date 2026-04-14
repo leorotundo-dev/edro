@@ -678,6 +678,75 @@ export async function createCalendarEvent(params: {
   return { eventId: event.id, htmlLink: event.htmlLink ?? '' };
 }
 
+export async function updateCalendarMeeting(params: {
+  tenantId: string;
+  eventId: string;
+  title: string;
+  startAt: Date;
+  durationMinutes?: number;
+  description?: string | null;
+  attendeeEmails?: string[];
+}): Promise<{ eventId: string; meetUrl: string | null; htmlLink: string; endAt: Date }> {
+  const accessToken = await getCalendarAccessToken(params.tenantId);
+  const durationMs = (params.durationMinutes ?? 60) * 60_000;
+  const endAt = new Date(params.startAt.getTime() + durationMs);
+  const body: Record<string, unknown> = {
+    summary: params.title,
+    description: params.description ?? '',
+    start: { dateTime: params.startAt.toISOString() },
+    end: { dateTime: endAt.toISOString() },
+  };
+  if (params.attendeeEmails) {
+    body.attendees = params.attendeeEmails.map((email) => ({ email }));
+  }
+
+  const res = await fetch(
+    `${CALENDAR_API}/calendars/primary/events/${encodeURIComponent(params.eventId)}?sendUpdates=all`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Google Calendar updateMeeting failed (${res.status}): ${err.slice(0, 300)}`);
+  }
+
+  const event = await res.json() as any;
+  return {
+    eventId: event.id,
+    meetUrl: event.hangoutLink ?? null,
+    htmlLink: event.htmlLink ?? '',
+    endAt,
+  };
+}
+
+export async function deleteCalendarEvent(params: {
+  tenantId: string;
+  eventId: string;
+}): Promise<void> {
+  const accessToken = await getCalendarAccessToken(params.tenantId);
+  const res = await fetch(
+    `${CALENDAR_API}/calendars/primary/events/${encodeURIComponent(params.eventId)}?sendUpdates=all`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!res.ok && res.status !== 404) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Google Calendar deleteEvent failed (${res.status}): ${err.slice(0, 300)}`);
+  }
+}
+
 async function upsertAutoJoin(params: {
   tenantId: string;
   eventId: string;

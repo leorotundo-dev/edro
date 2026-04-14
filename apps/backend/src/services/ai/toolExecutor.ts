@@ -63,7 +63,12 @@ import { buildBriefingDiagnostics } from '../briefingDiagnosticService';
 import { buildReporteiSemanticSummary } from '../reporteiSemanticService';
 import { getTrelloCredentials } from '../trelloSyncService';
 import { buildDailyDigest } from '../agencyDigestService';
-import { createCalendarEvent } from '../integrations/googleCalendarService';
+import {
+  createCalendarEvent,
+  updateCalendarMeeting,
+  deleteCalendarEvent,
+} from '../integrations/googleCalendarService';
+import { getMeeting, updateMeetingState } from '../meetingService';
 import {
   buildSystemHealthSnapshot,
   resolveSystemRepairPlan,
@@ -216,8 +221,12 @@ const TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
   ], { systemPerm: 'clipping:write', clientPerm: 'write' }),
   ...buildRequirementMap([
     'add_calendar_event',
-    'schedule_briefing',
   ], { systemPerm: 'calendars:write', clientPerm: 'write' }),
+  ...buildRequirementMap([
+    'reschedule_meeting',
+    'cancel_meeting',
+    'schedule_briefing',
+  ], { systemPerm: 'meetings:write', clientPerm: 'write' }),
   ...buildRequirementMap([
     'generate_approval_link',
     'prepare_post_approval',
@@ -574,6 +583,8 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   search_events: toolSearchEvents,
   get_event_relevance: toolGetEventRelevance,
   add_calendar_event: toolAddCalendarEvent,
+  reschedule_meeting: toolRescheduleMeeting,
+  cancel_meeting: toolCancelMeeting,
   create_campaign: toolCreateCampaign,
   generate_campaign_strategy: toolGenerateCampaignStrategy,
   generate_behavioral_copy: toolGenerateBehavioralCopy,
@@ -974,6 +985,218 @@ async function toolAddCalendarEvent(args: any, ctx: ToolContext): Promise<ToolRe
       event: rows[0],
       type: 'custom',
       google_calendar: googleCalendar,
+    },
+  };
+}
+
+function normalizeAttendeeEmails(value: unknown) {
+  const emails = Array.isArray(value) ? value : [];
+  return Array.from(new Set(
+    emails
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
+  ));
+}
+
+async function hasActiveMeetBotRun(tenantId: string, meetingId: string) {
+  const { rows } = await query<{ id: string }>(
+    `SELECT id
+       FROM job_queue
+      WHERE tenant_id = $1::uuid
+        AND type = 'meet-bot'
+        AND status = 'processing'
+        AND (payload->>'meetingId' = $2 OR payload->>'meeting_id' = $2)
+      LIMIT 1`,
+    [tenantId, meetingId],
+  ).catch(() => ({ rows: [] as { id: string }[] }));
+  return Boolean(rows[0]);
+}
+
+async function patchQueuedMeetBotJobs(tenantId: string, meetingId: string, patch: Record<string, unknown>) {
+  await query(
+    `UPDATE job_queue
+        SET payload = COALESCE(payload, '{}'::jsonb) || $3::jsonb,
+            updated_at = NOW()
+      WHERE tenant_id = $1::uuid
+        AND type = 'meet-bot'
+        AND status = 'queued'
+        AND (payload->>'meetingId' = $2 OR payload->>'meeting_id' = $2)`,
+    [tenantId, meetingId, JSON.stringify(patch)],
+  ).catch(() => null);
+}
+
+async function toolRescheduleMeeting(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const meetingId = String(args.meeting_id || '').trim();
+  const scheduledAt = new Date(String(args.scheduled_at || '').trim());
+  if (!meetingId || Number.isNaN(scheduledAt.getTime())) {
+    return { success: false, error: 'meeting_id e scheduled_at válidos são obrigatórios.' };
+  }
+
+  const meeting = await getMeeting(ctx.tenantId, meetingId);
+  if (!meeting) return { success: false, error: 'Reunião não encontrada.' };
+  if (ctx.edroClientId && meeting.client_id !== ctx.edroClientId) {
+    return { success: false, error: 'Reunião não pertence ao cliente atual.' };
+  }
+  if (await hasActiveMeetBotRun(ctx.tenantId, meeting.id)) {
+    return { success: false, error: 'Há um meet-bot em processamento para esta reunião. Remarcação segura indisponível agora.' };
+  }
+
+  const title = String(args.title || meeting.title || '').trim() || 'Reunião';
+  const durationMinutes = Math.min(Math.max(Number(args.duration_minutes || 60), 15), 480);
+  const attendeeEmails = normalizeAttendeeEmails(args.attendee_emails);
+  const external = meeting.source_ref_id
+    ? await updateCalendarMeeting({
+        tenantId: ctx.tenantId,
+        eventId: String(meeting.source_ref_id),
+        title,
+        startAt: scheduledAt,
+        durationMinutes,
+        description: args.description || null,
+        attendeeEmails: attendeeEmails.length ? attendeeEmails : undefined,
+      })
+    : null;
+
+  const nextMeetingUrl = external?.meetUrl || meeting.meeting_url || null;
+  await updateMeetingState({
+    meetingId: meeting.id,
+    tenantId: ctx.tenantId,
+    changes: {
+      title,
+      recorded_at: scheduledAt,
+      meeting_url: nextMeetingUrl,
+      status: 'scheduled',
+      failed_stage: null,
+      failed_reason: null,
+      completed_at: null,
+    },
+    event: {
+      eventType: 'meeting.rescheduled',
+      stage: 'meeting',
+      status: 'scheduled',
+      message: 'Reunião remarcada pelo Jarvis.',
+      actorType: 'system',
+      actorId: 'jarvis',
+      payload: {
+        previous_scheduled_at: meeting.recorded_at,
+        scheduled_at: scheduledAt.toISOString(),
+      },
+    },
+  });
+
+  await query(
+    `UPDATE calendar_auto_joins
+        SET event_title = $1,
+            video_url = COALESCE($2, video_url),
+            attendees = CASE WHEN $3::jsonb IS NULL THEN attendees ELSE $3::jsonb END,
+            scheduled_at = $4,
+            updated_at = now()
+      WHERE meeting_id = $5`,
+    [
+      title,
+      nextMeetingUrl,
+      attendeeEmails.length ? JSON.stringify(attendeeEmails.map((email) => ({ email }))) : null,
+      scheduledAt,
+      meeting.id,
+    ],
+  ).catch(() => null);
+
+  await patchQueuedMeetBotJobs(ctx.tenantId, meeting.id, {
+    videoUrl: nextMeetingUrl,
+    meeting_url: nextMeetingUrl,
+    scheduledAt: scheduledAt.toISOString(),
+    scheduled_at: scheduledAt.toISOString(),
+    eventTitle: title,
+    title,
+    attendee_emails: attendeeEmails,
+  });
+
+  return {
+    success: true,
+    data: {
+      meeting_id: meeting.id,
+      title,
+      scheduled_at: scheduledAt.toISOString(),
+      duration_minutes: durationMinutes,
+      meeting_url: nextMeetingUrl,
+      calendar_event_id: meeting.source_ref_id || null,
+      attendee_emails: attendeeEmails,
+      google_calendar: external ? { synced: true, html_link: external.htmlLink } : { synced: false, reason: 'meeting_without_google_event' },
+    },
+  };
+}
+
+async function toolCancelMeeting(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const meetingId = String(args.meeting_id || '').trim();
+  if (!meetingId) return { success: false, error: 'meeting_id é obrigatório.' };
+
+  const meeting = await getMeeting(ctx.tenantId, meetingId);
+  if (!meeting) return { success: false, error: 'Reunião não encontrada.' };
+  if (ctx.edroClientId && meeting.client_id !== ctx.edroClientId) {
+    return { success: false, error: 'Reunião não pertence ao cliente atual.' };
+  }
+  if (await hasActiveMeetBotRun(ctx.tenantId, meeting.id)) {
+    return { success: false, error: 'Há um meet-bot em processamento para esta reunião. Cancelamento seguro indisponível agora.' };
+  }
+
+  const reason = String(args.reason || '').trim() || 'cancelled_by_jarvis';
+  if (meeting.source_ref_id) {
+    await deleteCalendarEvent({
+      tenantId: ctx.tenantId,
+      eventId: String(meeting.source_ref_id),
+    });
+  }
+
+  await updateMeetingState({
+    meetingId: meeting.id,
+    tenantId: ctx.tenantId,
+    changes: {
+      status: 'archived',
+      failed_stage: 'calendar_detect',
+      failed_reason: reason,
+      completed_at: new Date(),
+      last_processed_at: new Date(),
+    },
+    event: {
+      eventType: 'meeting.cancelled',
+      stage: 'meeting',
+      status: 'archived',
+      message: 'Reunião cancelada pelo Jarvis.',
+      actorType: 'system',
+      actorId: 'jarvis',
+      payload: { reason },
+    },
+  });
+
+  await query(
+    `UPDATE calendar_auto_joins
+        SET status = 'cancelled',
+            last_error = $1,
+            updated_at = now()
+      WHERE meeting_id = $2`,
+    [reason, meeting.id],
+  ).catch(() => null);
+
+  await query(
+    `UPDATE job_queue
+        SET status = 'failed',
+            error_message = 'meeting_cancelled',
+            payload = COALESCE(payload, '{}'::jsonb) || $3::jsonb,
+            updated_at = NOW()
+      WHERE tenant_id = $1::uuid
+        AND type = 'meet-bot'
+        AND status = 'queued'
+        AND (payload->>'meetingId' = $2 OR payload->>'meeting_id' = $2)`,
+    [ctx.tenantId, meeting.id, JSON.stringify({ cancelled_by_jarvis: true, cancelled_reason: reason })],
+  ).catch(() => null);
+
+  return {
+    success: true,
+    data: {
+      meeting_id: meeting.id,
+      status: 'archived',
+      cancelled: true,
+      reason,
+      calendar_event_id: meeting.source_ref_id || null,
     },
   };
 }

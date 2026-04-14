@@ -102,6 +102,7 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
     case 'send_email':
     case 'execute_multi_step_workflow':
     case 'run_system_repair':
+    case 'reschedule_meeting':
       return {
         toolName,
         level: 'confirm',
@@ -109,12 +110,23 @@ function toolPolicyDraft(toolName: string, args?: Record<string, any> | null): T
           ? 'publishing'
           : toolName === 'run_system_repair'
             ? 'operations'
+          : toolName === 'reschedule_meeting'
+            ? 'operations'
             : 'external',
         reason: toolName === 'publish_studio_post'
           ? 'Publica em canal real e precisa confirmação explícita.'
           : toolName === 'run_system_repair'
             ? 'Reexecuta rotinas operacionais do sistema e exige confirmação explícita.'
+          : toolName === 'reschedule_meeting'
+            ? 'Move agenda real do cliente e exige confirmação explícita.'
           : 'Dispara comunicação ou lote de ações reais e exige confirmação explícita.',
+      };
+    case 'cancel_meeting':
+      return {
+        toolName,
+        level: 'confirm',
+        category: 'destructive',
+        reason: 'Cancela uma reunião real e exige confirmação explícita.',
       };
     case 'schedule_post_publication':
     case 'prepare_post_approval':

@@ -128,6 +128,30 @@ export const TOOLS: ToolDefinition[] = [
     required: ['title', 'event_date'],
     category: 'write',
   },
+  {
+    name: 'reschedule_meeting',
+    description: 'Remarca uma reunião existente do cliente e sincroniza Google Calendar/Meet quando houver vínculo externo.',
+    parameters: {
+      meeting_id: { type: 'string', description: 'UUID da reunião' },
+      scheduled_at: { type: 'string', description: 'Nova data/hora ISO da reunião' },
+      duration_minutes: { type: 'number', description: 'Nova duração em minutos (default 60)' },
+      title: { type: 'string', description: 'Novo título opcional da reunião' },
+      description: { type: 'string', description: 'Nova descrição opcional da reunião' },
+      attendee_emails: { type: 'array', description: 'Lista opcional de emails atualizada', items: { type: 'string' } },
+    },
+    required: ['meeting_id', 'scheduled_at'],
+    category: 'write',
+  },
+  {
+    name: 'cancel_meeting',
+    description: 'Cancela uma reunião existente, remove do Google Calendar quando houver vínculo e atualiza o status local.',
+    parameters: {
+      meeting_id: { type: 'string', description: 'UUID da reunião' },
+      reason: { type: 'string', description: 'Motivo opcional do cancelamento' },
+    },
+    required: ['meeting_id'],
+    category: 'write',
+  },
 
   // ── Campanhas ──
   {
