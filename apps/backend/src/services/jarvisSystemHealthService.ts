@@ -5,6 +5,7 @@ import { runTrelloOutboxWorkerOnce } from '../jobs/trelloOutboxWorker';
 import { syncGmailInboxFallback, watchGmailInbox } from './integrations/gmailService';
 import { refreshAllClientsForTenant } from '../clientIntelligence/worker';
 import { runJarvisAlertEngine } from './jarvisAlertEngine';
+import { ensureAllWebhooksForTenant } from './trelloWebhookService';
 import {
   getJarvisBackgroundQueueHealth,
   recoverStaleJarvisBackgroundJobs,
@@ -14,6 +15,7 @@ export type SystemRepairType =
   | 'auto_repair'
   | 'process_webhook_retries'
   | 'flush_trello_outbox'
+  | 'ensure_trello_webhooks'
   | 'recover_jarvis_background_jobs'
   | 'renew_google_watches'
   | 'run_gmail_fallback'
@@ -37,6 +39,7 @@ export type SystemHealthSnapshot = {
   components: {
     webhook_retry: Array<{ source: string; due: number; processing: number; failed: number }>;
     trello_outbox: { backlog: number; processing: number; dead: number };
+    trello_webhooks: { total: number; active: number; boards_without_webhook: number; last_seen_at: string | null };
     jarvis_background: {
       queued: number;
       processing: number;
@@ -70,6 +73,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
   auto_repair: 'Auto-reparo seguro',
   process_webhook_retries: 'Processar retries de webhook',
   flush_trello_outbox: 'Destravar fila do Trello',
+  ensure_trello_webhooks: 'Garantir webhooks do Trello',
   recover_jarvis_background_jobs: 'Recuperar workflows do Jarvis',
   renew_google_watches: 'Renovar watches do Google',
   run_gmail_fallback: 'Rodar fallback do Gmail',
@@ -80,6 +84,7 @@ export const SYSTEM_REPAIR_LABELS: Record<SystemRepairType, string> = {
 const AUTO_REPAIRABLE_TYPES = new Set<Exclude<SystemRepairType, 'auto_repair'>>([
   'process_webhook_retries',
   'flush_trello_outbox',
+  'ensure_trello_webhooks',
   'recover_jarvis_background_jobs',
   'renew_google_watches',
   'refresh_jarvis_alerts',
@@ -101,7 +106,7 @@ export function resolveAutoRepairPlan(snapshot: SystemHealthSnapshot) {
 }
 
 export async function buildSystemHealthSnapshot(tenantId: string): Promise<SystemHealthSnapshot> {
-  const [retryRes, trelloRes, jarvisBackground, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
+  const [retryRes, trelloRes, trelloWebhookRes, jarvisBackground, gmailRes, calendarRes, intelligenceRes, alertsRes] = await Promise.all([
     query<any>(
       `SELECT source,
               COUNT(*) FILTER (WHERE status = 'pending' AND next_retry_at <= now())::int AS due,
@@ -121,6 +126,26 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
         WHERE tenant_id = $1`,
       [tenantId],
     ).catch(() => ({ rows: [{ backlog: 0, processing: 0, dead: 0 }] as any[] })),
+    query<any>(
+      `SELECT
+         COUNT(tw.id)::int as total,
+         COUNT(tw.id) FILTER (WHERE tw.is_active = true AND tw.last_seen_at > now() - interval '2 hours')::int as active,
+         MAX(tw.last_seen_at)::text as last_seen_at,
+         (SELECT COUNT(*)::int FROM project_boards pb2
+          WHERE pb2.tenant_id = $1
+            AND pb2.is_archived = false
+            AND pb2.trello_board_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM trello_webhooks tw2
+              WHERE tw2.tenant_id = pb2.tenant_id
+                AND tw2.trello_board_id = pb2.trello_board_id
+                AND tw2.is_active = true
+            )
+         ) as boards_without_webhook
+       FROM trello_webhooks tw
+       WHERE tw.tenant_id = $1`,
+      [tenantId],
+    ).catch(() => ({ rows: [{ total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 }] as any[] })),
     getJarvisBackgroundQueueHealth(tenantId).catch(() => ({
       queued: 0,
       processing: 0,
@@ -166,6 +191,7 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
   const now = Date.now();
   const retry = retryRes.rows as Array<{ source: string; due: number; processing: number; failed: number }>;
   const trello = trelloRes.rows[0] ?? { backlog: 0, processing: 0, dead: 0 };
+  const trelloWebhooks = trelloWebhookRes.rows[0] ?? { total: 0, active: 0, last_seen_at: null, boards_without_webhook: 0 };
   const gmail = gmailRes.rows[0] ?? null;
   const calendar = calendarRes.rows[0] ?? null;
   const intelligence = intelligenceRes.rows[0] ?? { total_clients: 0, stale_clients: 0 };
@@ -195,6 +221,15 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
       title: 'Fila do Trello acumulada',
       message: `${Number(trello.backlog || 0)} item(ns) pendentes e ${Number(trello.dead || 0)} falha(s) permanentes.`,
       repair_type: 'flush_trello_outbox',
+    });
+  }
+  if (Number(trelloWebhooks.boards_without_webhook || 0) > 0) {
+    issues.push({
+      key: 'trello_webhooks',
+      severity: 'warning',
+      title: 'Boards do Trello sem webhook ativo',
+      message: `${Number(trelloWebhooks.boards_without_webhook || 0)} board(s) estão sem webhook ativo para sync em tempo real.`,
+      repair_type: 'ensure_trello_webhooks',
     });
   }
   if (Number(jarvisBackground.stale_processing || 0) > 0) {
@@ -241,6 +276,12 @@ export async function buildSystemHealthSnapshot(tenantId: string): Promise<Syste
         backlog: Number(trello.backlog || 0),
         processing: Number(trello.processing || 0),
         dead: Number(trello.dead || 0),
+      },
+      trello_webhooks: {
+        total: Number(trelloWebhooks.total || 0),
+        active: Number(trelloWebhooks.active || 0),
+        boards_without_webhook: Number(trelloWebhooks.boards_without_webhook || 0),
+        last_seen_at: trelloWebhooks.last_seen_at || null,
       },
       jarvis_background: jarvisBackground,
       gmail: gmail ? {
@@ -307,6 +348,18 @@ export async function runSystemRepair(
           backlog_before: beforeOutbox.backlog,
           backlog_after: outboxAfter.components.trello_outbox.backlog,
           dead_after: outboxAfter.components.trello_outbox.dead,
+        });
+        break;
+      }
+      case 'ensure_trello_webhooks': {
+        const beforeWebhooks = before.components.trello_webhooks;
+        await ensureAllWebhooksForTenant(tenantId);
+        const afterWebhooks = (await buildSystemHealthSnapshot(tenantId)).components.trello_webhooks;
+        executedRepairs.push({
+          repair_type: plannedRepair,
+          boards_without_webhook_before: beforeWebhooks.boards_without_webhook,
+          boards_without_webhook_after: afterWebhooks.boards_without_webhook,
+          active_after: afterWebhooks.active,
         });
         break;
       }
