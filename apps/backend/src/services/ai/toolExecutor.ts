@@ -6234,6 +6234,67 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
     args_preview: item.args_preview || null,
     duration_ms: item.duration_ms || null,
   }));
+  const backgroundJobId = String(args.background_job_id || '').trim();
+  const getCancelRequest = async () => {
+    if (!backgroundJobId) return null;
+    const { rows } = await query<{ payload: Record<string, any> | null }>(
+      `SELECT payload
+         FROM job_queue
+        WHERE id = $1
+          AND tenant_id = $2
+          AND type = 'jarvis_background'
+        LIMIT 1`,
+      [backgroundJobId, ctx.tenantId],
+    ).catch(() => ({ rows: [] as Array<{ payload: Record<string, any> | null }> }));
+    const payload = rows[0]?.payload && typeof rows[0].payload === 'object' ? rows[0].payload : null;
+    return payload?.cancel_requested === true
+      ? {
+          requested_at: String(payload?.cancel_requested_at || '').trim() || new Date().toISOString(),
+          requested_by_email: String(payload?.cancelled_by_user_email || '').trim() || null,
+        }
+      : null;
+  };
+  const buildCancelledResult = async (reason: string) => {
+    const cancelledAt = new Date().toISOString();
+    const requiresManualFollowup = executed.length > 0;
+    const manualFollowup = requiresManualFollowup
+      ? ['Workflow cancelado entre etapas. Revise os efeitos já aplicados antes de repetir.']
+      : [];
+    const data = {
+      workflow_id: workflowId,
+      workflow_state_version: runningWorkflowStateVersion,
+      workflow_status: 'cancelled',
+      workflow_json: String(args.workflow_json || '[]'),
+      background_job_id: backgroundJobId || null,
+      completed_steps: startIndex + executed.length,
+      attempt_count: nextAttemptCount,
+      resume_from_step: null,
+      cancel_requested: true,
+      cancelled_at: cancelledAt,
+      last_error: reason,
+      steps_history: buildExecutedHistory(),
+      steps_preview: buildExecutedPreview(),
+      requires_manual_followup: requiresManualFollowup,
+      manual_followup: manualFollowup,
+      can_retry_now: false,
+      retry_block_reason: 'Workflow cancelado manualmente durante a execução.',
+      recommended_next_action: requiresManualFollowup ? 'manual_followup' : null,
+      recommended_next_label: requiresManualFollowup ? 'Revisar efeitos parciais' : 'Cancelado',
+      failure_class: requiresManualFollowup ? 'irreversible' : null,
+    };
+    await query(
+      `UPDATE agent_action_log
+          SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+        WHERE tenant_id = $1::uuid AND trigger_key = $2`,
+      [ctx.tenantId, workflowTriggerKey, JSON.stringify({
+        ...data,
+        status: 'cancelled',
+        finished_at: cancelledAt,
+        last_activity_at: cancelledAt,
+      })],
+    ).catch(() => null);
+    return { success: false, error: reason, data };
+  };
   const classifyWorkflowFailure = (errorMessage: string | null | undefined, rollbackSummary?: { requires_manual_followup?: boolean }) => {
     const text = String(errorMessage || '').toLowerCase();
     if (rollbackSummary?.requires_manual_followup) return 'irreversible';
@@ -6435,6 +6496,11 @@ async function opsExecuteMultiStepWorkflow(args: any, ctx: OperationsToolContext
   }
 
   for (let stepIndex = startIndex; stepIndex < steps.length; stepIndex += 1) {
+    const cancelRequest = await getCancelRequest();
+    if (cancelRequest) {
+      const requestedBy = cancelRequest.requested_by_email ? ` por ${cancelRequest.requested_by_email}` : '';
+      return buildCancelledResult(`Workflow cancelado manualmente${requestedBy}.`);
+    }
     const step = steps[stepIndex];
     const toolName = String(step?.tool || '').trim();
     const stepArgs = step?.args && typeof step.args === 'object' ? step.args : {};

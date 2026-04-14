@@ -143,6 +143,43 @@ export async function syncWorkflowBackgroundCancelled(params: {
   ).catch(() => {});
 }
 
+export async function syncWorkflowBackgroundCancelRequested(params: {
+  tenantId: string;
+  workflowId?: string | null;
+  workflowStateVersion?: number | null;
+  workflowJson?: string | null;
+  backgroundJobId: string;
+  errorMessage: string;
+}) {
+  const workflowId = String(params.workflowId || '').trim();
+  const workflowStateVersion = Math.max(0, Number(params.workflowStateVersion || 0));
+  if (!workflowId || workflowStateVersion <= 0) return;
+
+  await query(
+    `UPDATE agent_action_log
+        SET fired_at = now(),
+            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+      WHERE tenant_id = $1::uuid
+        AND trigger_key = $2
+        AND COALESCE((metadata->>'workflow_state_version')::int, 0) = $4
+        AND COALESCE(metadata->>'status', '') IN ('running', 'queued')`,
+    [params.tenantId, `jarvis_workflow:${workflowId}`, JSON.stringify({
+      workflow_id: workflowId,
+      workflow_state_version: workflowStateVersion,
+      workflow_json: params.workflowJson || null,
+      background_job_id: params.backgroundJobId,
+      status: 'cancelling',
+      workflow_status: 'cancelling',
+      cancel_requested: true,
+      cancel_requested_at: new Date().toISOString(),
+      last_error: params.errorMessage,
+      last_activity_at: new Date().toISOString(),
+      can_retry_now: false,
+      retry_block_reason: 'Cancelamento solicitado. O Jarvis vai parar este workflow entre as próximas etapas.',
+    }), workflowStateVersion],
+  ).catch(() => {});
+}
+
 export async function recoverStaleJarvisBackgroundJobs(options?: { tenantId?: string | null }) {
   const staleSeconds = Math.max(60, Math.floor(JARVIS_BACKGROUND_STALE_MS / 1000));
   const tenantFilter = String(options?.tenantId || '').trim();

@@ -80,6 +80,7 @@ type WorkflowFeedItem = {
   retry_block_reason?: string | null;
   requeue_tool_args?: Record<string, unknown> | null;
   can_cancel?: boolean;
+  cancel_requested?: boolean;
   is_dead_letter?: boolean;
   dead_lettered_at?: string | null;
   dead_letter_reason?: string | null;
@@ -722,6 +723,8 @@ export default function JarvisHomeSection() {
                 : (feed?.recent_workflows || []).slice(0, 3).map((workflow) => {
                     const statusColor = workflow.status === 'completed'
                       ? '#13DEB9'
+                      : workflow.status === 'cancelling'
+                      ? '#D97706'
                       : workflow.status === 'queued'
                       ? EDRO_ORANGE
                       : workflow.status === 'rolling_back'
@@ -733,6 +736,8 @@ export default function JarvisHomeSection() {
                       : '#5D87FF';
                     const title = workflow.status === 'rolling_back'
                       ? 'Workflow compensando falha'
+                      : workflow.status === 'cancelling'
+                      ? 'Workflow em cancelamento'
                       : workflow.status === 'failed' && workflow.rollback_status === 'partial_failure'
                       ? 'Workflow falhou com compensação parcial'
                       : workflow.status === 'failed'
@@ -787,6 +792,11 @@ export default function JarvisHomeSection() {
                               {workflow.status === 'running' && workflow.resume_from_step
                                 ? ` · próxima ${workflow.resume_from_step}/${workflow.steps_total || 0}`
                                 : ''}
+                            </Typography>
+                          ) : null}
+                          {workflow.status === 'cancelling' ? (
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', lineHeight: 1.2 }} noWrap>
+                              Cancelamento solicitado. O Jarvis vai parar no próximo ponto seguro entre etapas.
                             </Typography>
                           ) : null}
                           {workflow.status === 'failed' && workflow.last_error ? (
@@ -865,7 +875,7 @@ export default function JarvisHomeSection() {
                           >
                             Retomar
                           </Button>
-                        ) : workflow.status === 'queued' && workflow.can_cancel === true ? (
+                        ) : (workflow.status === 'queued' || workflow.status === 'running') && workflow.can_cancel === true ? (
                           <Button
                             size="small"
                             variant="outlined"

@@ -29,7 +29,7 @@ import {
   type ClientMemoryGovernanceAnalysis,
 } from '../services/clientMemoryGovernanceService';
 import { buildClientState, processAlerts } from '../services/jarvisDecisionEngine';
-import { cancelQueuedJob, getJobById } from '../jobs/jobQueue';
+import { cancelQueuedJob, getJobById, requestCancelProcessingJob } from '../jobs/jobQueue';
 import { buildJarvisBackgroundArtifact } from '../services/jarvisBackgroundJobService';
 import { buildDailyDigest } from '../services/agencyDigestService';
 import {
@@ -42,7 +42,7 @@ import {
   saveUnifiedConversation,
   summarizeJarvisToolGovernance,
 } from '../services/jarvisPolicyService';
-import { syncWorkflowBackgroundCancelled } from '../services/jarvisBackgroundHealthService';
+import { syncWorkflowBackgroundCancelled, syncWorkflowBackgroundCancelRequested } from '../services/jarvisBackgroundHealthService';
 import crypto from 'crypto';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -1459,8 +1459,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     if (!job || job.type !== 'jarvis_background') {
       return reply.status(404).send({ success: false, error: 'Job não encontrado.' });
     }
-    if (job.status !== 'queued') {
-      return reply.status(409).send({ success: false, error: 'Só é possível cancelar workflows que ainda estão na fila.' });
+    if (job.status !== 'queued' && job.status !== 'processing') {
+      return reply.status(409).send({ success: false, error: 'Só é possível cancelar workflows queued ou processing.' });
     }
 
     const payload = (job.payload || {}) as { args?: Record<string, any> };
@@ -1470,18 +1470,50 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const cancelledAt = new Date().toISOString();
     const errorMessage = 'Workflow cancelado manualmente antes da execução.';
 
-    const cancelledJob = await cancelQueuedJob(job.id, tenantId, 'cancelled_by_user', {
-      cancelled_at: cancelledAt,
+    if (job.status === 'queued') {
+      const cancelledJob = await cancelQueuedJob(job.id, tenantId, 'cancelled_by_user', {
+        cancelled_at: cancelledAt,
+        cancelled_by_user_id: String(userId || '').trim() || null,
+        cancelled_by_user_email: String(userEmail || '').trim() || null,
+        cancel_reason: 'cancelled_by_user',
+        result_error: errorMessage,
+      });
+      if (!cancelledJob) {
+        return reply.status(409).send({ success: false, error: 'O workflow saiu da fila antes de ser cancelado.' });
+      }
+
+      await syncWorkflowBackgroundCancelled({
+        tenantId,
+        workflowId,
+        workflowStateVersion,
+        workflowJson,
+        backgroundJobId: job.id,
+        errorMessage,
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          id: cancelledJob.id,
+          status: cancelledJob.status,
+          error: cancelledJob.error_message || null,
+          artifact: buildJarvisBackgroundArtifact(cancelledJob),
+        },
+      });
+    }
+
+    const cancelRequestedJob = await requestCancelProcessingJob(job.id, tenantId, {
+      cancel_requested: true,
+      cancel_requested_at: cancelledAt,
       cancelled_by_user_id: String(userId || '').trim() || null,
       cancelled_by_user_email: String(userEmail || '').trim() || null,
       cancel_reason: 'cancelled_by_user',
-      result_error: errorMessage,
     });
-    if (!cancelledJob) {
-      return reply.status(409).send({ success: false, error: 'O workflow saiu da fila antes de ser cancelado.' });
+    if (!cancelRequestedJob) {
+      return reply.status(409).send({ success: false, error: 'O workflow mudou de estado antes de registrar o cancelamento.' });
     }
 
-    await syncWorkflowBackgroundCancelled({
+    await syncWorkflowBackgroundCancelRequested({
       tenantId,
       workflowId,
       workflowStateVersion,
@@ -1493,10 +1525,10 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: {
-        id: cancelledJob.id,
-        status: cancelledJob.status,
-        error: cancelledJob.error_message || null,
-        artifact: buildJarvisBackgroundArtifact(cancelledJob),
+        id: cancelRequestedJob.id,
+        status: cancelRequestedJob.status,
+        error: cancelRequestedJob.error_message || null,
+        artifact: buildJarvisBackgroundArtifact(cancelRequestedJob),
       },
     });
   });
@@ -1763,7 +1795,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                     manual_requeue: true,
                   }
                 : null,
-              can_cancel: row.metadata?.status === 'queued' && Boolean(row.metadata?.background_job_id),
+              can_cancel: (row.metadata?.status === 'queued' || row.metadata?.status === 'running')
+                && row.metadata?.cancel_requested !== true
+                && Boolean(row.metadata?.background_job_id),
             };
           })(),
           id: row.id,
@@ -1773,6 +1807,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           workflow_state_version: Number(row.metadata?.workflow_state_version || 0),
           workflow_json: row.metadata?.workflow_json || null,
           status: row.metadata?.status || 'running',
+          cancel_requested: row.metadata?.cancel_requested === true,
           auto_retry_pending: row.metadata?.auto_retry_pending === true,
           completed_steps: Number(row.metadata?.completed_steps || 0),
           steps_total: Number(row.metadata?.steps_total || 0),

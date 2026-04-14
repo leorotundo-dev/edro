@@ -14,7 +14,7 @@ async function notifyWorkflowOutcome(params: {
   userEmail?: string | null;
   workflowId?: string | null;
   backgroundJobId: string;
-  outcome: 'completed' | 'failed';
+  outcome: 'completed' | 'failed' | 'cancelled';
   artifact?: Record<string, any> | null;
 }) {
   const userId = String(params.userId || '').trim();
@@ -27,11 +27,15 @@ async function notifyWorkflowOutcome(params: {
   const lastError = String(params.artifact?.last_error || params.artifact?.error || '').trim();
   const title = params.outcome === 'completed'
     ? `Jarvis concluiu o workflow ${workflowShort}`
+    : params.outcome === 'cancelled'
+    ? `Jarvis cancelou o workflow ${workflowShort}`
     : requiresManualFollowup
     ? `Jarvis exige follow-up no workflow ${workflowShort}`
     : `Jarvis falhou no workflow ${workflowShort}`;
   const body = params.outcome === 'completed'
     ? `${Number(params.artifact?.completed_steps || 0)} etapa(s) concluídas com sucesso.`
+    : params.outcome === 'cancelled'
+    ? lastError || 'Workflow cancelado manualmente antes da próxima etapa.'
     : [
         requiresManualFollowup ? 'Ação manual necessária.' : null,
         recommendedNextLabel ? `Próxima ação: ${recommendedNextLabel}.` : null,
@@ -42,6 +46,8 @@ async function notifyWorkflowOutcome(params: {
   await notifyEvent({
     event: params.outcome === 'completed'
       ? 'jarvis_workflow_completed'
+      : params.outcome === 'cancelled'
+      ? 'jarvis_workflow_attention'
       : requiresManualFollowup
       ? 'jarvis_workflow_attention'
       : 'jarvis_workflow_failed',
@@ -224,7 +230,7 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
         await mergeJobPayload(job.id, { started_at: new Date().toISOString() });
 
         const result = payload.kind === 'execute_multi_step_workflow'
-          ? await runExecuteMultiStepWorkflowNow(payload.args || {}, payload.context)
+          ? await runExecuteMultiStepWorkflowNow({ ...(payload.args || {}), background_job_id: job.id }, payload.context)
           : await runCreatePostPipelineNow(payload.args || {}, payload.context);
         const artifactType = payload.kind === 'execute_multi_step_workflow'
           ? 'execute_multi_step_workflow'
@@ -234,6 +240,41 @@ export async function runJarvisBackgroundWorkerOnce(): Promise<void> {
           : 'O Jarvis não conseguiu concluir o pipeline criativo.';
         if (!result.success) {
           const failureData = result.data && typeof result.data === 'object' ? result.data : null;
+          const cancelled = failureData?.workflow_status === 'cancelled';
+          if (cancelled) {
+            await mergeJobPayload(job.id, {
+              result: failureData,
+              result_error: result.error || 'Workflow cancelado manualmente.',
+              cancelled_at: failureData?.cancelled_at || new Date().toISOString(),
+            }).catch(() => {});
+            await markJob(job.id, 'failed', 'cancelled_by_user');
+            const cancelledArtifact = buildJarvisBackgroundArtifact(await getJobById(job.id, job.tenant_id)) || {
+              type: artifactType,
+              background_job_id: job.id,
+              job_status: 'cancelled',
+              ...(failureData || {}),
+            };
+            if (conversationId) {
+              await updateUnifiedConversationArtifact({
+                route,
+                tenantId: job.tenant_id,
+                conversationId,
+                edroClientId,
+                backgroundJobId: job.id,
+                artifact: cancelledArtifact,
+              }).catch(() => {});
+            }
+            await notifyWorkflowOutcome({
+              tenantId: job.tenant_id,
+              userId: initiatedByUserId,
+              userEmail: initiatedByUserEmail,
+              workflowId,
+              backgroundJobId: job.id,
+              outcome: 'cancelled',
+              artifact: cancelledArtifact,
+            });
+            continue;
+          }
           const retryScheduled = payload.kind === 'execute_multi_step_workflow'
             ? await scheduleWorkflowBackgroundRetry({
                 jobId: job.id,

@@ -250,7 +250,8 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction, on
     ? (Array.isArray(artifact.repair_actions) ? artifact.repair_actions.slice(0, 3) : [])
     : [];
   const cancelBackgroundJobAction = artifact.type === 'execute_multi_step_workflow'
-    && String(artifact.job_status || '').trim().toLowerCase() === 'queued'
+    && ['queued', 'processing'].includes(String(artifact.job_status || '').trim().toLowerCase())
+    && artifact.cancel_requested !== true
     && String(artifact.background_job_id || '').trim()
     && onCancelBackgroundJob
     ? () => onCancelBackgroundJob(String(artifact.background_job_id))
@@ -693,6 +694,11 @@ export default function ArtifactCard({ artifact, clientId, onRunClientAction, on
             {artifact.retry_block_reason ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
                 Retry: {artifact.retry_block_reason}
+              </Typography>
+            ) : null}
+            {artifact.workflow_status === 'cancelling' || artifact.cancel_requested === true ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35, fontSize: '0.68rem' }}>
+                Cancelamento solicitado. O Jarvis vai parar este workflow no próximo ponto seguro.
               </Typography>
             ) : null}
             {artifact.is_dead_letter === true && artifact.dead_letter_reason ? (

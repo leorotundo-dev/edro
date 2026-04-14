@@ -113,6 +113,26 @@ export async function cancelQueuedJob(
   return rows[0] ?? null;
 }
 
+export async function requestCancelProcessingJob(
+  id: string,
+  tenantId: string,
+  patch?: Record<string, any>,
+) {
+  const { rows } = await query<any>(
+    `UPDATE job_queue
+     SET payload = COALESCE(payload, '{}'::jsonb) || $3::jsonb,
+         updated_at=NOW()
+     WHERE id = $1
+       AND tenant_id = $2
+       AND status = 'processing'
+       AND COALESCE((payload->>'cancel_requested')::boolean, false) = false
+     RETURNING *`,
+    [id, tenantId, patch ? JSON.stringify(patch) : JSON.stringify({ cancel_requested: true })],
+  );
+
+  return rows[0] ?? null;
+}
+
 export async function markJob(id: string, status: 'processing' | 'done' | 'failed', error?: string): Promise<boolean> {
   if (status === 'processing') {
     // Accept both 'queued' and 'processing' so fetchJobs (which already marks atomically)

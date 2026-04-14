@@ -56,6 +56,7 @@ function buildQueuedWorkflowArtifact(job: JobQueueRecord) {
   const retryScheduledFor = String(payload.retry_scheduled_for || '').trim();
   const retryError = String(payload.last_failure_error || '').trim();
   const queuedForRetry = job.status === 'queued' && !!retryScheduledFor;
+  const cancelRequested = payload.cancel_requested === true;
 
   return {
     type: 'execute_multi_step_workflow',
@@ -63,18 +64,25 @@ function buildQueuedWorkflowArtifact(job: JobQueueRecord) {
     job_status: job.status === 'processing' ? 'processing' : 'queued',
     workflow_id: String(args.workflow_id || '').trim() || null,
     workflow_state_version: Number(args.workflow_state_version || 0) || 0,
-    workflow_status: job.status === 'processing' ? 'running' : 'queued',
+    workflow_status: job.status === 'processing'
+      ? (cancelRequested ? 'cancelling' : 'running')
+      : 'queued',
     workflow_json: workflowJson || null,
     steps_total: steps.length,
     completed_steps: Math.max(0, resumeFromStep - 1),
     resume_from_step: resumeFromStep,
+    cancel_requested: cancelRequested,
     message: job.status === 'processing'
-      ? 'O Jarvis está executando o workflow em background.'
+      ? cancelRequested
+        ? 'O Jarvis recebeu o pedido de cancelamento e vai parar o workflow entre as próximas etapas.'
+        : 'O Jarvis está executando o workflow em background.'
       : queuedForRetry
       ? 'O Jarvis vai tentar novamente este workflow automaticamente em background.'
       : 'Workflow enfileirado para execução em background.',
     next_step: job.status === 'processing'
-      ? 'Assim que o workflow terminar, este artifact troca sozinho para o resultado final.'
+      ? cancelRequested
+        ? 'O Jarvis vai encerrar este workflow no próximo ponto seguro entre steps.'
+        : 'Assim que o workflow terminar, este artifact troca sozinho para o resultado final.'
       : queuedForRetry
       ? 'Assim que o cooldown terminar, o Jarvis retoma o workflow sozinho.'
       : 'O Jarvis vai executar o fluxo em background e atualizar este card sozinho.',
