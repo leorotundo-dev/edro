@@ -57,6 +57,7 @@ import { sendWhatsAppText } from '../whatsappService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
+import { buildClientKnowledgeBase } from '../clientKnowledgeBaseService';
 import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFactsService';
 import { analyzeClientMemoryGovernance, applyClientMemoryGovernanceAction } from '../clientMemoryGovernanceService';
 import { buildClientState, processAlerts } from '../jarvisDecisionEngine';
@@ -637,6 +638,7 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   list_opportunities: toolListOpportunities,
   action_opportunity: toolActionOpportunity,
   get_client_profile: toolGetClientProfile,
+  get_client_knowledge_base: toolGetClientKnowledgeBase,
   get_client_living_memory: toolGetClientLivingMemory,
   get_client_memory_facts: toolGetClientMemoryFacts,
   get_client_memory_governance: toolGetClientMemoryGovernance,
@@ -2243,6 +2245,28 @@ async function toolGetClientLivingMemory(args: any, ctx: ToolContext): Promise<T
     },
     metadata: {
       row_count: livingMemory.directives.length + livingMemory.evidence.length + livingMemory.pendingActions.length,
+    },
+  };
+}
+
+async function toolGetClientKnowledgeBase(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const snapshot = await buildClientKnowledgeBase({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    question: contextualString(args.question),
+    daysBack: Math.min(args.days_back ?? 60, 180),
+    limitDocuments: Math.min(args.limit_documents ?? 6, 12),
+  });
+
+  return {
+    success: true,
+    data: snapshot,
+    metadata: {
+      row_count:
+        snapshot.directives.length
+        + snapshot.commitments.length
+        + snapshot.evidence.length
+        + snapshot.recent_documents.length,
     },
   };
 }

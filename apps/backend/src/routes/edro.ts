@@ -95,6 +95,7 @@ import {
   recordArtDirectionFeedbackEvent,
   resolveArtDirectionCreativeContext,
 } from '../services/ai/artDirectionMemoryService';
+import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 
 const DEFAULT_TRAFFIC_CHANNELS = ['whatsapp', 'email', 'portal'];
 const DEFAULT_DESIGN_CHANNELS = ['whatsapp', 'email'];
@@ -2268,6 +2269,15 @@ export default async function edroRoutes(app: FastifyInstance) {
             evidence_by_source: {},
           },
         };
+    const clientKnowledgeBase = selectedClientId && tenantId
+      ? await buildClientKnowledgeBase({
+          tenantId,
+          clientId: selectedClientId,
+          question: [briefing.title, body.instructions, (briefing.payload as any)?.objective ?? (briefing.payload as any)?.objetivo].filter(Boolean).join(' '),
+          daysBack: 60,
+          limitDocuments: 6,
+        }).catch(() => null)
+      : null;
     const memoryGovernance = selectedClientId
       ? await analyzeClientMemoryGovernance({
           tenantId,
@@ -2371,8 +2381,11 @@ export default async function edroRoutes(app: FastifyInstance) {
           maxTokens: 1500,
         };
         const taskType = (body.task_type as TaskType | undefined) ?? 'social_post';
-        knowledgeBlock = clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '';
-        livingMemoryBlock = livingMemory.block ? `\n\n${livingMemory.block}` : '';
+        knowledgeBlock = [
+          clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '',
+          clientKnowledgeBase?.knowledge_base_block || '',
+        ].filter(Boolean).join('\n\n');
+        livingMemoryBlock = clientKnowledgeBase ? '' : (livingMemory.block ? `\n\n${livingMemory.block}` : '');
         const diagnosticsBlock = briefingDiagnostics.block ? `\n\n${briefingDiagnostics.block}` : '';
         const usageCtx = tenantId ? { tenant_id: tenantId, feature: 'copy_studio' } : undefined;
 
@@ -4767,6 +4780,27 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
 
     const preferences = await rebuildClientPreferences({ tenant_id: tenantId, client_id: clientId });
     return reply.send({ success: true, data: preferences });
+  });
+
+  app.get('/edro/clients/:clientId/knowledge-base', async (request, reply) => {
+    const { clientId } = z.object({ clientId: z.string() }).parse(request.params);
+    const querySchema = z.object({
+      question: z.string().optional(),
+      days_back: z.coerce.number().int().min(7).max(180).optional(),
+      limit_documents: z.coerce.number().int().min(1).max(12).optional(),
+    });
+    const q = querySchema.parse(request.query || {});
+    const tenantId = (request.user as any)?.tenant_id;
+    if (!tenantId) return reply.status(400).send({ success: false, error: 'tenant_id required' });
+
+    const snapshot = await buildClientKnowledgeBase({
+      tenantId,
+      clientId,
+      question: q.question ?? null,
+      daysBack: q.days_back,
+      limitDocuments: q.limit_documents,
+    });
+    return reply.send({ success: true, data: snapshot });
   });
 
   // ── A/B Testing Endpoints ──────────────────────────────────────
