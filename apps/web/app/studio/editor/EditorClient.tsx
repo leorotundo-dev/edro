@@ -549,6 +549,7 @@ export default function EditorClient() {
   const [quickRefineLoading, setQuickRefineLoading] = useState(false);
   const [comparisonMode, setComparisonMode] = useState(true);
   const [regenerationCount, setRegenerationCount] = useState(0);
+  const [jobAdvanced, setJobAdvanced] = useState(false);
   const [videoScript, setVideoScript] = useState<{ hook: string; corpo: string; cta: string }>({ hook: '', corpo: '', cta: '' });
   const [qualityScore, setQualityScore] = useState<{ overall: number; brand_dna_match: number; platform_fit: number; cta_clarity: number; needs_revision: boolean } | null>(null);
   const [qualityScores, setQualityScores] = useState<Array<{ variation_index: number; scores: { brand_dna_match: number; platform_fit: number; cta_clarity: number }; overall: number; pass: boolean; issues: string[] }>>([]);
@@ -1479,6 +1480,12 @@ export default function EditorClient() {
       }
     }
     setSuccess('Todas as peças do inventário foram concluídas!');
+
+    // Non-blocking: advance the linked job to "awaiting_approval" when all inventory is done
+    if (workflowContext.jobId && !jobAdvanced) {
+      setJobAdvanced(true);
+      apiPost(`/trello/ops-cards/${workflowContext.jobId}/status`, { status: 'awaiting_approval' }).catch(() => {});
+    }
   };
 
   const handleCopySelected = async (selectedIdx: number) => {
