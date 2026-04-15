@@ -24,7 +24,7 @@ import {
   isFreelancerVisibleBriefingStatus,
   syncBriefingExecutionSnapshot,
 } from '../services/briefingExecutionService';
-import { generateEdroAvatarForFreelancer, saveDirectAvatarForFreelancer } from '../services/avatarGenerationService';
+import { generateEdroAvatarForFreelancer, getEdroAvatarPromptConfig, saveDirectAvatarForFreelancer } from '../services/avatarGenerationService';
 import { isFalConfigured } from '../services/ai/falAiService';
 import { isConfigured as isEvolutionConfigured } from '../services/integrations/evolutionApiService';
 
@@ -1515,6 +1515,20 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     }
 
     return reply.status(404).send({ error: 'Avatar not found' });
+  });
+
+  app.get('/freelancers/portal/me/avatar/config', async (request: any, reply) => {
+    const userId = (request.user as any)?.sub as string | undefined;
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!userId || !tenantId) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const config = getEdroAvatarPromptConfig();
+    return reply.send({
+      ok: true,
+      avatar_prompt: config.prompt,
+      avatar_negative_prompt: config.negativePrompt,
+      avatar_prompt_version: config.promptVersion,
+    });
   });
 
   app.post('/freelancers/portal/me/avatar', async (request: any, reply) => {

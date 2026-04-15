@@ -5,7 +5,7 @@ import { env } from '../env';
 import { buildKey, saveFile } from '../library/storage';
 import { generateGeminiFlashEditMultiWithFal, generateImageWithFal, generateImg2ImgWithFal, generateInstantCharacterWithFal, generateNanoBananaEditMultiWithFal, isFalConfigured } from './ai/falAiService';
 
-export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v11';
+export const EDRO_AVATAR_PROMPT_VERSION = 'edro-avatar-v12';
 
 const AVATAR_STYLE_REFERENCE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-reference.png');
 const AVATAR_STYLE_BRIDGE_PATH = path.join(__dirname, '..', 'data', 'avatar-style-bridge.jpg');
@@ -13,20 +13,83 @@ let avatarStyleReferenceDataUrlPromise: Promise<string> | null = null;
 let avatarStyleBridgeDataUrlPromise: Promise<string> | null = null;
 
 const EDRO_AVATAR_BASE_PROMPT = `
-transform photo 1 into a highly detailed, stylized 3d caricature avatar for a freelancer profile.
+Use the provided portrait photo as the identity reference and follow this exact fixed transformation ritual for the Edro freelancer avatar system.
 
-photo 1 is the identity source of truth. preserve the exact same person: same facial structure, face width, jawline, nose, eyes, eyebrows, mouth, hairline, hairstyle, beard, skin tone, age range, and gender presentation. if there is any conflict, always follow photo 1 and never invent a prettier, younger, more feminine, or more generic face.
+Photo 1 is the real identity source of truth and must define who the person is.
+Photo 2 is only a caricature bridge reference to move the result away from photorealism.
+Photo 3 is the approved final style-family reference and must lock the final collection aesthetic.
 
-photo 2 is only a caricature bridge to push the face away from realism. photo 3 is the final style reference and must lock the visual family. the final result must still look like the same real person from photo 1, but translated into the same polished pixar and dreamworks style 3d world and same turma visual as photo 3.
+MANDATORY VISUAL RITUAL:
+Step 1: analyze the person’s real facial identity from photo 1.
+Step 2: convert the person into a premium iconographic portrait.
+Step 3: convert that iconographic portrait into a premium 3D toy character.
+Step 4: apply the exact same solid flat brand-orange background.
+Step 5: keep the final result centered, clean, and part of the same visual collection.
 
-make it more stylized, more graphic, and more caricatured than a realistic portrait, but still unmistakably recognizable. preserve the real haircut, facial hair, neckline, shoulders, and overall presentation. do not swap long hair for short hair, do not remove the beard, and do not change the identity of the person.
+IDENTITY RULES:
+- Preserve the person’s recognizable identity.
+- Preserve face shape, face width, jawline, nose, eyes, eyebrows, mouth, hairline, hairstyle, beard or facial hair, skin tone, age impression, and gender presentation.
+- Do not beautify the person.
+- Do not make the face generic.
+- Do not invent new features.
+- Do not change the hairstyle arbitrarily.
+- Keep the clothing simple and based on the original photo.
 
-render one character only in a clean bust portrait from the upper chest upward, slightly turned to the right. use smooth studio lighting, sharp focus, matte polished materials, vivid shapes, a vivid solid edro orange background, and a premium cinematic finish. aim for a highly detailed animated-feature look, 8k quality feel, octane rendering quality, unreal engine 5 quality. no props, no text, no extra characters, no realistic environment.
+ICONOGRAPHIC STAGE RULES:
+- Premium vector-style iconographic portrait.
+- Clean contours.
+- Smooth controlled shading.
+- Simplified but faithful facial features.
+- Centralized subject.
+- Frontal or near-frontal composition.
+- Minimal, polished, modern brand-avatar aesthetic.
+- No scene elements.
+- No environmental details.
+- No text or logos.
+- No painterly texture.
+- No exaggerated caricature distortion.
+
+3D TOY STAGE RULES:
+- Transform the iconographic portrait into a premium designer-toy character.
+- Large head, small body.
+- Rounded proportions.
+- Clean frontal neutral pose.
+- Matte vinyl or soft-touch collectible material.
+- Soft studio lighting.
+- Minimal and polished finish.
+- Stylized but still recognizable.
+- No props.
+- No dramatic action pose.
+- No exaggerated facial expression.
+
+BACKGROUND RULES:
+- Always use the exact same solid flat background color.
+- Exact brand orange: #F75A1B.
+- No gradient.
+- No texture.
+- No vignette.
+- No environmental background.
+
+CONSISTENCY RULES:
+- Every generated character must look like part of the same collection.
+- Apply the same simplification logic to every face.
+- Apply the same lighting logic to every toy.
+- Apply the same composition logic to every portrait.
+- Keep the same exact flat orange background in hex #F75A1B.
+- Keep the same premium, clean, modern visual family across all outputs.
 `.trim();
 
 const EDRO_AVATAR_NEGATIVE_PROMPT = `
-generic face, different person, identity drift, face swap, gender swap, younger face, older face, beauty filter face, handsome toy face, cute mascot face, glam face, doll face, front-facing portrait, symmetrical face, round baby head, chibi, funko style, vinyl toy style, sparkly eyes, glossy materials, realistic photo rendering, realistic environment, white background, gray background, detailed background, text, watermark, multiple characters, props
+photorealism, realistic portrait, generic face, different person, identity drift, face swap, gender swap, younger face, older face, beauty filter face, anime, comic-book style, painterly brushwork, chibi, funko style, glossy toy, glam face, doll face, dramatic action pose, exaggerated facial expression, random accessories, props, scenery, environmental background, multiple characters, text, watermark, gradient background, textured background, shadowy backdrop, vignette, background color other than #F75A1B
 `.trim();
+
+export function getEdroAvatarPromptConfig() {
+  return {
+    prompt: EDRO_AVATAR_BASE_PROMPT,
+    negativePrompt: EDRO_AVATAR_NEGATIVE_PROMPT,
+    promptVersion: EDRO_AVATAR_PROMPT_VERSION,
+  };
+}
 
 function buildAvatarPrompt(customPrompt?: string) {
   const extra = customPrompt?.trim();
