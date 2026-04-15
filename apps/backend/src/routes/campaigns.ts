@@ -1286,6 +1286,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
     '/campaigns/:id/behavioral-copy',
     { preHandler: [requirePerm('clients:write'), requireCampaignPerm('write')] },
     async (request: any, reply) => {
+      const AMD_VARIANTS = ['salvar', 'compartilhar', 'clicar', 'responder', 'pedir_proposta'] as const;
       const tenantId = (request.user as any).tenant_id as string;
       const campaignId = request.params?.id as string;
 
@@ -1405,8 +1406,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
         if (parts.length) copyIntelBlock = '\n\nCONTEXTO ATUAL DO CLIENTE:\n' + parts.join('\n');
       } catch { /* non-blocking */ }
 
-      // 7. AgentWriter — generates DraftContent (enriched with learning rules + live client intel)
-      const draft = await generateBehavioralDraft({
+      const writerInput = {
         platform: body.platform,
         format: body.format,
         persona,
@@ -1415,22 +1415,125 @@ export default async function campaignRoutes(app: FastifyInstance) {
         clientName: client?.name,
         clientSegment: client?.segment_primary,
         knowledgeBlock: ((clientProfile.knowledge_block || '') + rulesBlock + copyIntelBlock).trim() || undefined,
-      });
+      };
 
-      // 8. AgentAuditor — validates and optionally revises
-      const audit = await auditDraftContent({
-        draft,
-        persona,
-        behaviorIntent,
-        clientName: client?.name,
-        phaseName: phase?.name,
-      });
+      type BehavioralCandidate = {
+        draft: Awaited<ReturnType<typeof generateBehavioralDraft>>;
+        audit: Awaited<ReturnType<typeof auditDraftContent>>;
+        amd: string;
+      };
+      const amdVariants = Array.from(
+        new Set(
+          [behaviorIntent.amd, ...AMD_VARIANTS]
+            .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+            .map((value) => value.trim())
+        )
+      );
+      const behavioralCandidates: BehavioralCandidate[] = [];
+
+      await Promise.allSettled(
+        amdVariants.map(async (amdVariant) => {
+          try {
+            const variantBehaviorIntent = { ...behaviorIntent, amd: amdVariant };
+            const variantDraft = await generateBehavioralDraft({
+              ...writerInput,
+              behaviorIntent: variantBehaviorIntent,
+            });
+            const variantAudit = await auditDraftContent({
+              draft: variantDraft,
+              persona,
+              behaviorIntent: variantBehaviorIntent,
+              clientName: client?.name,
+              phaseName: phase?.name,
+            });
+            if (variantAudit.approval_status !== 'blocked') {
+              behavioralCandidates.push({
+                draft: variantDraft,
+                audit: variantAudit,
+                amd: amdVariant,
+              });
+            }
+          } catch {
+            // Alguns AMDs são incompatíveis com a plataforma/objetivo. Ignorar silenciosamente.
+          }
+        })
+      );
+
+      if (!behavioralCandidates.length) {
+        const fallbackDraft = await generateBehavioralDraft(writerInput);
+        const fallbackAudit = await auditDraftContent({
+          draft: fallbackDraft,
+          persona,
+          behaviorIntent,
+          clientName: client?.name,
+          phaseName: phase?.name,
+        });
+        behavioralCandidates.push({
+          draft: fallbackDraft,
+          audit: fallbackAudit,
+          amd: behaviorIntent.amd || 'default',
+        });
+      }
+
+      let winningIndex = 0;
+      let simulationMeta: Record<string, any> | null = null;
+
+      try {
+        const { runSimulation } = await import('../services/campaignSimulator/simulationReport');
+        const simReport = await runSimulation({
+          tenantId,
+          clientId: campaign.client_id || undefined,
+          platform: body.platform || undefined,
+          variants: behavioralCandidates.map((candidate, index) => ({
+            index,
+            text: [candidate.draft.hook_text, candidate.draft.content_text, candidate.draft.cta_text].filter(Boolean).join('\n\n'),
+            amd: candidate.amd || undefined,
+            triggers:
+              Array.isArray(candidate.audit.behavior_tags?.triggers) && candidate.audit.behavior_tags.triggers.length
+                ? candidate.audit.behavior_tags.triggers
+                : behaviorIntent.triggers || [],
+            fogg_motivation: candidate.audit.fogg_score?.motivation,
+            fogg_ability: candidate.audit.fogg_score?.ability,
+            fogg_prompt: candidate.audit.fogg_score?.prompt,
+          })),
+        });
+        winningIndex = simReport.winner_index ?? 0;
+        const winningVariant = simReport.variants?.[winningIndex];
+        simulationMeta = {
+          simulation_id: simReport.id,
+          winner_index: winningIndex,
+          winner_resonance: simReport.winner_resonance ?? winningVariant?.aggregate_resonance ?? null,
+          prediction_confidence_label: simReport.prediction_confidence_label ?? null,
+          predicted_save_rate: winningVariant?.predicted_save_rate ?? null,
+          predicted_click_rate: winningVariant?.predicted_click_rate ?? null,
+          candidate_count: behavioralCandidates.length,
+        };
+      } catch (err: any) {
+        console.warn('[behavioral-copy] Simulator fallback:', err?.message || err);
+      }
+
+      const winner = behavioralCandidates[winningIndex] ?? behavioralCandidates[0];
+      const draft = winner.draft;
+      const audit = winner.audit;
 
       // 9. AgentTagger — enriches with behavioral metadata (fire-and-forget tagging)
       let behavioralTags: any = null;
       try {
         behavioralTags = await tagCopy(audit.approved_text, body.platform);
       } catch { /* non-blocking */ }
+
+      const behavioralTagsPayload = (() => {
+        const base =
+          behavioralTags && typeof behavioralTags === 'object' && !Array.isArray(behavioralTags)
+            ? { ...behavioralTags }
+            : behavioralTags
+              ? { tagging_output: behavioralTags }
+              : {};
+        if (simulationMeta) {
+          (base as Record<string, any>).simulation_meta = simulationMeta;
+        }
+        return Object.keys(base).length ? JSON.stringify(base) : null;
+      })();
 
       // 10. Persist result to campaign_behavioral_copies for history + LearningEngine correlation
       let savedCopyId: string | null = null;
@@ -1463,7 +1566,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
             audit.fogg_score?.prompt ?? null,
             audit.behavior_tags?.emotional_tone ?? null,
             JSON.stringify(audit.policy_flags ?? []),
-            behavioralTags ? JSON.stringify(behavioralTags) : null,
+            behavioralTagsPayload,
           ]
         );
         savedCopyId = savedCopy?.id ?? null;
@@ -1478,6 +1581,9 @@ export default async function campaignRoutes(app: FastifyInstance) {
           draft,
           audit,
           behavioral_tags: behavioralTags,
+          simulation: simulationMeta,
+          tested_variants: behavioralCandidates.length,
+          winner_amd: winner.amd,
           behavior_intent: intent,
           persona_used: persona.name,
           phase: phase?.name,
