@@ -14,8 +14,8 @@ import { IconClockHour4, IconRestore, IconX } from '@tabler/icons-react';
 export type CopyVersionDrawerItem = {
   id: string;
   output: string;
-  status: 'draft' | 'approved' | 'rejected' | null;
-  score: number | null;
+  status?: 'draft' | 'approved' | 'rejected' | null;
+  score?: number | null;
   feedback?: string | null;
   created_at?: string | null;
   model?: string | null;

@@ -129,7 +129,9 @@ export default function InlineTextFeedback({ copyId, text, onFeedbackSaved }: Pr
 
     const parts: React.ReactNode[] = [];
     let cursor = 0;
-    for (const [index, segment] of [...visibleSegments].sort((a, b) => a.char_start - b.char_start).entries()) {
+    const _sortedSegs = [...visibleSegments].sort((a, b) => a.char_start - b.char_start);
+    for (let index = 0; index < _sortedSegs.length; index++) {
+      const segment = _sortedSegs[index];
       if (segment.char_start > cursor) {
         parts.push(text.slice(cursor, segment.char_start));
       }
