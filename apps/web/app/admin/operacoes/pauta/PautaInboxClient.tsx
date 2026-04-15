@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -315,12 +316,14 @@ function SuggestionRow({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PautaInboxClient() {
+  const router = useRouter();
   const [items, setItems] = useState<PautaSuggestion[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [approvedBriefingId, setApprovedBriefingId] = useState<string | null>(null);
 
   // Manual generation dialog
   const [genOpen, setGenOpen] = useState(false);
@@ -368,7 +371,8 @@ export default function PautaInboxClient() {
   }, []);
 
   const handleApprove = async (id: string, approach: 'A' | 'B') => {
-    await apiPost(`/pauta-inbox/${id}/approve`, { approach });
+    const res = await apiPost<{ ok: boolean; briefing_id?: string }>(`/pauta-inbox/${id}/approve`, { approach });
+    if (res?.briefing_id) setApprovedBriefingId(res.briefing_id);
     await load();
   };
 
@@ -458,6 +462,31 @@ export default function PautaInboxClient() {
             </TextField>
           )}
         </Stack>
+
+        {/* Approval success banner */}
+        {approvedBriefingId && (
+          <Alert
+            severity="success"
+            sx={{ mb: 2 }}
+            action={
+              <Stack direction="row" spacing={1}>
+                <Button
+                  size="small"
+                  color="inherit"
+                  variant="outlined"
+                  onClick={() => router.push(`/studio?briefing_id=${approvedBriefingId}`)}
+                >
+                  Abrir no Studio
+                </Button>
+                <Button size="small" color="inherit" onClick={() => setApprovedBriefingId(null)}>
+                  Fechar
+                </Button>
+              </Stack>
+            }
+          >
+            Pauta aprovada! Briefing criado e pronto para produção.
+          </Alert>
+        )}
 
         {/* Content */}
         {loading && (
