@@ -61,7 +61,7 @@ async function notifyClientApprovalNeeded(
   });
 }
 
-/** Look up owner's WhatsApp JID + email, then fire job_assigned notification. */
+/** Look up owner's WhatsApp JID + email, then fire job.assigned notification. */
 async function notifyOwnerAssigned(
   tenantId: string,
   ownerId: string,
@@ -86,12 +86,12 @@ async function notifyOwnerAssigned(
   ].filter(Boolean).join('\n');
 
   await notifyEvent({
-    event: 'job_assigned',
+    event: 'job.assigned',
     tenantId,
     userId: ownerId,
-    title: `Novo escopo: ${jobTitle}`,
+    title: `📋 Nova demanda atribuída: ${jobTitle}`,
     body,
-    link: '/jobs',
+    link: '/meu-trabalho',
     recipientEmail: owner.email ?? undefined,
     recipientPhone: owner.whatsapp_jid ?? undefined,
   });
@@ -1694,6 +1694,18 @@ export default async function jobsRoutes(app: FastifyInstance) {
       [jobId, tenantId, feedback.trim()],
     );
     if (!rows.length) return reply.status(404).send({ error: 'Job não encontrado ou não está em revisão' });
+
+    // Notify freelancer that their delivery was sent back for adjustment
+    if (rows[0].owner_id) {
+      notifyEvent({
+        event: 'job.blocked',
+        tenantId,
+        userId: rows[0].owner_id,
+        title: `🔄 Ajuste solicitado: ${rows[0].title}`,
+        body: `Feedback: ${feedback.trim().slice(0, 200)}`,
+        link: '/meu-trabalho',
+      }).catch(() => {});
+    }
 
     const creativeContext = await resolveArtDirectionCreativeContext({ tenantId, jobId }).catch(() => null);
     const daMetadata = buildArtDirectionFeedbackMetadata({
