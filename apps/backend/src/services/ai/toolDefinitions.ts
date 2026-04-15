@@ -450,6 +450,17 @@ export const TOOLS: ToolDefinition[] = [
     category: 'read',
   },
   {
+    name: 'get_client_knowledge_base',
+    description: 'Retorna a base de conhecimento viva do cliente em formato canônico: radar de comunicação, insight consolidado, diretivas, compromissos, evidências e um bloco pronto para contexto do Jarvis.',
+    parameters: {
+      question: { type: 'string', description: 'Pergunta ou contexto para ranquear melhor a memória viva dentro da base de conhecimento' },
+      days_back: { type: 'number', description: 'Janela em dias para o radar e fatos (padrão 60, máximo 180)' },
+      limit_documents: { type: 'number', description: 'Máximo de documentos recentes anexados ao snapshot (padrão 6, máximo 12)' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
     name: 'get_client_memory_facts',
     description: 'Retorna os fatos persistidos da memória viva do cliente, já tipados como directive, evidence ou commitment. Use quando precisar inspecionar o que está realmente consolidado para esse cliente, com rastreabilidade operacional.',
     parameters: {
