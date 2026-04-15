@@ -84,7 +84,35 @@ export async function notifyJobAssigned(
   await notifyEvent({ event: 'job.assigned', tenantId, userId: owner.id, title, body, link, recipientEmail: owner.email }).catch(() => {});
 }
 
-/* ── 3. Scanner de overdue ────────────────────────────────── */
+/* ── 3. Job pronto para revisão (awaiting_approval) ──────────── */
+
+export async function notifyJobReadyForReview(
+  tenantId: string,
+  job: { id: string; title: string; client_name?: string | null; owner_id?: string | null }
+) {
+  const managers = await getAdminsAndManagers(tenantId);
+  const link = `/admin/operacoes/jobs?highlight=${job.id}`;
+  const title = `✅ Pronto para revisão: ${job.title}`;
+  const body = [
+    job.client_name ? `Cliente: ${job.client_name}` : null,
+    'Acesse a Central para aprovar ou solicitar ajuste.',
+  ].filter(Boolean).join(' · ');
+
+  for (const m of managers) {
+    await notifyEvent({
+      event: 'job.ready_for_review',
+      tenantId,
+      userId: m.id,
+      title,
+      body,
+      link,
+      recipientEmail: m.email,
+      defaultChannels: ['in_app', 'whatsapp'],
+    }).catch(() => {});
+  }
+}
+
+/* ── 4. Scanner de overdue ────────────────────────────────── */
 
 export async function scanOverdueJobs(tenantId: string) {
   // Find jobs that passed their deadline in the last 2h (to avoid re-notifying every run)

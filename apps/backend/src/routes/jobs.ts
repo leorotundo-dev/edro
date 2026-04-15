@@ -13,7 +13,7 @@ import { notifyEvent } from '../services/notificationService';
 import { sendWhatsAppText } from '../services/whatsappService';
 import { proposeAllocations, updateFreelancerScores } from '../services/allocationService';
 import { generateCalibrationReport, getCalibratedEstimate } from '../services/jobs/calibrationService';
-import { notifyJobBlocked, notifyJobAssigned } from '../services/jobs/opsNotificationService';
+import { notifyJobBlocked, notifyJobAssigned, notifyJobReadyForReview } from '../services/jobs/opsNotificationService';
 import { audit } from '../audit/audit';
 import { createBillingEntryForJob, consumeCapacitySlot, releaseCapacitySlot } from '../services/daBillingService';
 import {
@@ -940,6 +940,9 @@ export default async function jobsRoutes(app: FastifyInstance) {
     if (body.status === 'awaiting_approval' && current.client_id) {
       notifyClientApprovalNeeded(tenantId, current.client_id, current.title, current.deadline_at)
         .catch((e: any) => console.error('[jobs] notify client approval failed:', e?.message));
+      // Also notify internal managers that the job is ready for their review
+      notifyJobReadyForReview(tenantId, { id: jobId, title: current.title, client_name: current.client_name, owner_id: current.owner_id })
+        .catch((e: any) => console.error('[jobs] notify ready-for-review failed:', e?.message));
     }
 
     // ── Notify team when job is blocked ──
