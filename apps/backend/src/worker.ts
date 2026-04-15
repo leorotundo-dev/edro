@@ -13,6 +13,8 @@ const healthServer = http.createServer((req, res) => {
 });
 
 async function main() {
+  process.env.EDRO_PROCESS_KIND = process.env.EDRO_PROCESS_KIND || 'worker';
+
   // Migrations are optional in worker mode — the HTTP instance runs them on startup.
   // Set RUN_MIGRATIONS=true on the worker service only if you need a standalone worker deployment.
   if (process.env.RUN_MIGRATIONS === 'true' && env.DATABASE_URL && !env.DATABASE_URL.includes('host:')) {

@@ -57,6 +57,7 @@ import { runClientLivingMemoryWorkerOnce } from './clientLivingMemoryWorker';
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
   if (!enabled) return;
+  const processKind = process.env.EDRO_PROCESS_KIND || 'backend';
 
   const defaultIntervalMs = Number(process.env.JOBS_RUNNER_INTERVAL_MS || 5000);
   const warnMs = Number(process.env.JOBS_RUNNER_WARN_MS || 30_000);
@@ -167,7 +168,11 @@ export function startJobsRunner() {
   // AI Account Manager — proactive churn/upsell alerts per client (max 5 clients/tick)
   startWorkerLoop('accountManager', runAccountManagerWorkerOnce, 10500, 120_000, 60_000);
   // Recall meet-bot scheduler/finalizer for Google Calendar auto-join meetings
-  startWorkerLoop('meetBot', runMeetBotWorkerOnce, 11000, 120_000, 60_000);
+  if (processKind === 'backend') {
+    startWorkerLoop('meetBot', runMeetBotWorkerOnce, 11000, 120_000, 60_000);
+  } else {
+    console.log('[jobs] meetBot loop disabled on worker process; backend is the canonical consumer');
+  }
   // Gmail fallback sync — keeps inbox ingestion alive if Pub/Sub push stalls
   startWorkerLoop('gmailFallback', runGmailFallbackWorkerOnce, 11250, 60_000, 60_000);
   // Gmail + Calendar watch auto-renewal — runs 1×/day, prevents silent expiry after 6-7 days

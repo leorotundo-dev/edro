@@ -7,6 +7,8 @@ import { configureWebhook } from './services/integrations/evolutionApiService';
 import { query } from './db';
 
 async function main() {
+  process.env.EDRO_PROCESS_KIND = process.env.EDRO_PROCESS_KIND || 'backend';
+
   if (env.DATABASE_URL && !env.DATABASE_URL.includes('host:')) {
     try {
       await runMigrations();
