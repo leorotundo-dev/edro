@@ -545,6 +545,7 @@ async function runCreativeExecutionCapability(params: {
         question: [briefing?.title, briefingPayload.objective, briefingPayload.context].filter(Boolean).join(' '),
         daysBack: 60,
         limitDocuments: 4,
+        intent: 'ops',
       }).then(knowledgeBaseToLivingMemoryPreflight).catch(() => null)
     : null;
   const memoryGovernancePreflight = target.clientId
@@ -1221,6 +1222,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                 question: [body.message, body.context_page, body.studio_context].filter(Boolean).join('\n'),
                 daysBack: 60,
                 limitDocuments: 5,
+                intent: 'ops',
               }).then(knowledgeBaseToLivingMemoryPreflight).catch(() => emptyLivingMemoryPreflight()),
             ]),
             new Promise<[string, string, string, ReturnType<typeof emptyLivingMemoryPreflight>]>((resolve) => setTimeout(() => resolve([

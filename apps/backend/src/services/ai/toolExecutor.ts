@@ -2256,6 +2256,7 @@ async function toolGetClientKnowledgeBase(args: any, ctx: ToolContext): Promise<
     question: contextualString(args.question),
     daysBack: Math.min(args.days_back ?? 60, 180),
     limitDocuments: Math.min(args.limit_documents ?? 6, 12),
+    intent: contextualString(args.intent) as any || 'general',
   });
 
   return {
@@ -2430,6 +2431,7 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
       question: briefing ? [briefing.title, briefingPayload.objective, briefingPayload.context].filter(Boolean).join(' ') : null,
       daysBack: 60,
       limitDocuments: 6,
+      intent: 'ops',
     }),
     buildClientLivingMemory({
       tenantId: ctx.tenantId,

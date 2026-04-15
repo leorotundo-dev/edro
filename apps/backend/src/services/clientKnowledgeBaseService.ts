@@ -23,10 +23,19 @@ type CommunicationRadar = {
   active_directives: number;
 };
 
+export type ClientKnowledgeBaseIntent =
+  | 'general'
+  | 'copy'
+  | 'creative'
+  | 'strategy'
+  | 'ops'
+  | 'relationship';
+
 export type ClientKnowledgeBaseSnapshot = {
   client_id: string;
   client_name: string | null;
   generated_at: string;
+  intent_profile: ClientKnowledgeBaseIntent;
   radar: CommunicationRadar;
   living_memory_summary: Record<string, any>;
   latest_insight: Record<string, any> | null;
@@ -42,6 +51,15 @@ export type ClientKnowledgeBaseSnapshot = {
   }>;
   memory_block: string;
   knowledge_base_block: string;
+};
+
+const INTENT_SOURCE_PRIORITY: Record<ClientKnowledgeBaseIntent, string[]> = {
+  general: ['meeting', 'whatsapp_insight', 'whatsapp_message', 'meeting_chat', 'gmail_message'],
+  copy: ['whatsapp_insight', 'meeting', 'whatsapp_message', 'meeting_chat', 'social'],
+  creative: ['meeting', 'whatsapp_insight', 'social', 'meeting_chat', 'whatsapp_message'],
+  strategy: ['meeting', 'whatsapp_insight', 'gmail_message', 'whatsapp_message', 'meeting_chat'],
+  ops: ['meeting_action', 'meeting', 'whatsapp_insight', 'whatsapp_message', 'meeting_chat'],
+  relationship: ['whatsapp_message', 'whatsapp_insight', 'meeting_chat', 'meeting', 'gmail_message'],
 };
 
 function shortText(value: unknown, max = 220) {
@@ -78,6 +96,7 @@ function toFact(item: any): KnowledgeBaseFact {
 }
 
 function buildKnowledgeBaseBlock(input: {
+  intent: ClientKnowledgeBaseIntent;
   clientName: string | null;
   radar: CommunicationRadar;
   latestInsightSummary: string;
@@ -104,7 +123,7 @@ function buildKnowledgeBaseBlock(input: {
   }
   if (input.evidence.length) {
     parts.push('Sinais e evidencias recentes:');
-    input.evidence.slice(0, 5).forEach((item) => parts.push(`- ${shortText(item.summary || item.fact_text, 180)}`));
+    input.evidence.slice(0, input.intent === 'ops' ? 4 : 5).forEach((item) => parts.push(`- ${shortText(item.summary || item.fact_text, 180)}`));
   }
   if (input.recentDocuments.length) {
     parts.push('Documentos recentes:');
@@ -113,13 +132,39 @@ function buildKnowledgeBaseBlock(input: {
   return parts.join('\n');
 }
 
+function rankSource(intent: ClientKnowledgeBaseIntent, sourceType: string | null | undefined) {
+  const list = INTENT_SOURCE_PRIORITY[intent];
+  const idx = list.indexOf(String(sourceType || ''));
+  return idx >= 0 ? idx : list.length + 1;
+}
+
+function sortFacts(intent: ClientKnowledgeBaseIntent, items: KnowledgeBaseFact[]) {
+  return [...items].sort((a, b) => {
+    const sourceDelta = rankSource(intent, a.source_type) - rankSource(intent, b.source_type);
+    if (sourceDelta !== 0) return sourceDelta;
+    const confidenceDelta = Number(b.confidence_score || 0) - Number(a.confidence_score || 0);
+    if (confidenceDelta !== 0) return confidenceDelta;
+    return String(b.related_at || '').localeCompare(String(a.related_at || ''));
+  });
+}
+
+function sortDocuments(intent: ClientKnowledgeBaseIntent, items: ClientKnowledgeBaseSnapshot['recent_documents']) {
+  return [...items].sort((a, b) => {
+    const sourceDelta = rankSource(intent, a.source_type) - rankSource(intent, b.source_type);
+    if (sourceDelta !== 0) return sourceDelta;
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  });
+}
+
 export async function buildClientKnowledgeBase(params: {
   tenantId: string;
   clientId: string;
   question?: string | null;
   daysBack?: number;
   limitDocuments?: number;
+  intent?: ClientKnowledgeBaseIntent;
 }) {
+  const intent = params.intent ?? 'general';
   const daysBack = Math.min(params.daysBack ?? 60, 180);
   const limitDocuments = Math.min(params.limitDocuments ?? 6, 12);
   const question = String(params.question || '').trim();
@@ -178,16 +223,16 @@ export async function buildClientKnowledgeBase(params: {
   ]);
 
   const factRows = facts || [];
-  const directives = factRows.filter((item) => item.fact_type === 'directive').map(toFact);
-  const commitments = factRows.filter((item) => item.fact_type === 'commitment').map(toFact);
-  const evidence = factRows.filter((item) => item.fact_type === 'evidence').map(toFact);
-  const recentDocuments = documents.map((item) => ({
+  const directives = sortFacts(intent, factRows.filter((item) => item.fact_type === 'directive').map(toFact));
+  const commitments = sortFacts(intent, factRows.filter((item) => item.fact_type === 'commitment').map(toFact));
+  const evidence = sortFacts(intent, factRows.filter((item) => item.fact_type === 'evidence').map(toFact));
+  const recentDocuments = sortDocuments(intent, documents.map((item) => ({
     id: item.id,
     source_type: item.source_type || null,
     title: item.title || null,
     excerpt: item.content_excerpt || shortText(item.content_text, 200) || null,
     created_at: item.created_at || null,
-  }));
+  })));
 
   const latestInsightSummary = summarizeInsight((latestInsight?.summary || null) as Record<string, any> | null);
   const radarRow = radarResult.rows[0] || {
@@ -209,6 +254,7 @@ export async function buildClientKnowledgeBase(params: {
     client_id: params.clientId,
     client_name: clientResult.rows[0]?.name || null,
     generated_at: new Date().toISOString(),
+    intent_profile: intent,
     radar,
     living_memory_summary: livingMemory.snapshot,
     latest_insight: (latestInsight?.summary || null) as Record<string, any> | null,
@@ -218,6 +264,7 @@ export async function buildClientKnowledgeBase(params: {
     recent_documents: recentDocuments,
     memory_block: livingMemory.block,
     knowledge_base_block: buildKnowledgeBaseBlock({
+      intent,
       clientName: clientResult.rows[0]?.name || null,
       radar,
       latestInsightSummary,
