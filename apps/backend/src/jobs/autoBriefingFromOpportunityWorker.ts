@@ -13,8 +13,7 @@
  */
 
 import { query } from '../db';
-import { generateBehavioralDraft } from '../services/ai/agentWriter';
-import { runSimulation } from '../services/campaignSimulator/simulationReport';
+import { generateAndSelectBestCopy } from '../services/ai/copyService';
 import { notifyEvent } from '../services/notificationService';
 
 const CONFIDENCE_THRESHOLD = 75;
@@ -89,6 +88,27 @@ async function loadAccountManager(tenantId: string) {
   return res.rows[0] ?? null;
 }
 
+function splitDraftCopy(text: string) {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return { hook_text: '', content_text: '', cta_text: '' };
+  }
+
+  if (lines.length === 1) {
+    return { hook_text: lines[0], content_text: '', cta_text: '' };
+  }
+
+  const hook_text = lines[0];
+  const cta_text = lines.length >= 3 ? lines[lines.length - 1] : '';
+  const content_text = lines.slice(1, cta_text ? -1 : undefined).join('\n\n');
+
+  return { hook_text, content_text, cta_text };
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
@@ -134,51 +154,28 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
 
       const amd = inferAmd(opp);
       const triggers = inferTriggers(opp);
-
-      // 1. Generate copy draft
-      const draft = await generateBehavioralDraft({
+      const opportunityPrompt = [
+        `Crie a melhor copy possível para aproveitar esta oportunidade detectada automaticamente.`,
+        `Título da oportunidade: ${opp.title}`,
+        `Descrição: ${opp.description ?? 'não informada'}`,
+        `Ação sugerida: ${opp.suggested_action ?? 'não informada'}`,
+        `Cliente: ${client.name}`,
+        `Segmento: ${client.segment ?? 'não informado'}`,
+        client.keywords?.length ? `Palavras-chave do cliente: ${client.keywords.slice(0, 12).join(', ')}` : '',
+      ].filter(Boolean).join('\n');
+      const smartResult = await generateAndSelectBestCopy({
+        prompt: opportunityPrompt,
+        tenantId: opp.tenant_id,
+        clientId: opp.client_id,
         platform: 'instagram',
-        persona: {
-          name: client.name,
-          role: client.segment ?? 'profissional',
-          pain_points: [],
-          objection_patterns: [],
-        },
-        behaviorIntent: {
-          amd,
-          momento: 'problema',
-          triggers,
-          target_behavior: opp.suggested_action ?? opp.title,
-        },
-        campaignObjective: opp.title,
-        clientName: client.name,
-        clientSegment: client.segment ?? '',
+        amd,
+        triggers,
         knowledgeBlock: opp.description ?? '',
       });
 
-      const copyText = [draft.hook_text, draft.content_text, draft.cta_text].filter(Boolean).join('\n\n');
-
-      // 2. Run simulation
-      let simulationId: string | null = null;
-      try {
-        const report = await runSimulation({
-          tenantId: opp.tenant_id,
-          clientId: opp.client_id,
-          platform: 'instagram',
-          variants: [{
-            index: 0,
-            text: copyText,
-            amd,
-            triggers,
-            fogg_motivation: 7,
-            fogg_ability: 7,
-            fogg_prompt: 7,
-          }],
-        });
-        simulationId = report.id;
-      } catch {
-        // simulation failure doesn't block briefing creation
-      }
+      const copyText = smartResult.output;
+      const draft = splitDraftCopy(copyText);
+      const simulationId = smartResult.simulation_id;
 
       // 3. Create briefing
       const briefingTitle = `[Auto] ${opp.title}`;
@@ -195,6 +192,7 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
           triggers,
         },
         simulation_result_id: simulationId,
+        smart_copy_meta: smartResult.payload ?? null,
         platform: 'instagram',
       };
 
@@ -222,8 +220,8 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
       if (briefingId) {
         await query(
           `INSERT INTO edro_copy_versions (briefing_id, language, model, output, created_by)
-           VALUES ($1, 'pt', 'auto_agent_writer', $2, 'system')`,
-          [briefingId, copyText],
+           VALUES ($1, 'pt', $2, $3, 'system')`,
+          [briefingId, smartResult.model || 'smart_copy_pipeline', copyText],
         );
       }
 
