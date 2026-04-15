@@ -4,6 +4,7 @@ import { sendDirectMessage as sendEvolutionDirectMessage, isConfigured as isEvol
 import { updateNotificationStatus, createNotification } from '../repositories/edroBriefingRepository';
 import { query } from '../db/db';
 import { publishInAppNotification } from './inAppRealtimeService';
+import { sendWebPushNotification } from './webPushService';
 
 export type DispatchNotificationInput = {
   id: string;
@@ -312,19 +313,31 @@ export type NotifyEventInput = {
   recipientEmail?: string;
   recipientPhone?: string;
   payload?: Record<string, any>;
-  defaultChannels?: Array<'email' | 'in_app' | 'whatsapp'>;
+  defaultChannels?: Array<'email' | 'in_app' | 'whatsapp' | 'push'>;
 };
 
 export async function notifyEvent(input: NotifyEventInput) {
+  const eventCandidates = input.event.startsWith('jarvis_')
+    ? [input.event, 'jarvis_ops']
+    : [input.event];
+
   // Get user preferences for this event
   const { rows: prefs } = await query(
-    `SELECT channel, enabled FROM notification_preferences WHERE user_id = $1 AND event_type = $2`,
-    [input.userId, input.event]
+    `SELECT event_type, channel, enabled
+       FROM notification_preferences
+      WHERE user_id = $1
+        AND event_type = ANY($2::text[])`,
+    [input.userId, eventCandidates]
   );
+  const exactPrefs = prefs.filter((p: any) => p.event_type === input.event);
+  const fallbackPrefs = exactPrefs.length === 0 && input.event.startsWith('jarvis_')
+    ? prefs.filter((p: any) => p.event_type === 'jarvis_ops')
+    : [];
+  const effectivePrefs = exactPrefs.length ? exactPrefs : fallbackPrefs;
 
   // Default channels if no preferences set
-  const enabledChannels = prefs.length > 0
-    ? prefs.filter((p: any) => p.enabled).map((p: any) => p.channel)
+  const enabledChannels = effectivePrefs.length > 0
+    ? effectivePrefs.filter((p: any) => p.enabled).map((p: any) => p.channel)
     : (input.defaultChannels?.length ? input.defaultChannels : ['email', 'in_app']);
 
   let resolvedEmail = input.recipientEmail ?? null;
@@ -341,7 +354,7 @@ export async function notifyEvent(input: NotifyEventInput) {
   }
 
   // Always create in-app notification
-  if (enabledChannels.includes('in_app') || prefs.length === 0) {
+  if (enabledChannels.includes('in_app') || effectivePrefs.length === 0) {
     try {
       await createInAppNotification({
         tenantId: input.tenantId,
@@ -401,6 +414,21 @@ export async function notifyEvent(input: NotifyEventInput) {
       });
     } catch (err) {
       console.error('[notifyEvent] whatsapp error:', err);
+    }
+  }
+
+  if (enabledChannels.includes('push')) {
+    try {
+      await sendWebPushNotification({
+        userId: input.userId,
+        title: input.title,
+        body: input.body,
+        link: input.link,
+        eventType: input.event,
+        payload: input.payload || null,
+      });
+    } catch (err) {
+      console.error('[notifyEvent] push error:', err);
     }
   }
 }

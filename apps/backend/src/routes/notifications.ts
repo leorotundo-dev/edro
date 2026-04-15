@@ -9,6 +9,11 @@ import {
   upsertNotificationPreferences,
 } from '../services/notificationService';
 import { subscribeToInAppNotifications } from '../services/inAppRealtimeService';
+import {
+  deactivateWebPushSubscription,
+  getWebPushPublicConfig,
+  upsertWebPushSubscription,
+} from '../services/webPushService';
 
 export default async function notificationsRoutes(app: FastifyInstance) {
   // List in-app notifications for the current user
@@ -115,6 +120,74 @@ export default async function notificationsRoutes(app: FastifyInstance) {
       preferences: { event_type: string; channel: string; enabled: boolean }[];
     };
     await upsertNotificationPreferences(userId, preferences);
+    return { success: true };
+  });
+
+  app.get('/notifications/push/config', {
+    preHandler: [authGuard, tenantGuard()],
+  }, async (request: any) => {
+    const userId = request.user.sub;
+    return getWebPushPublicConfig(userId);
+  });
+
+  app.post('/notifications/push/subscribe', {
+    preHandler: [authGuard, tenantGuard()],
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['subscription'],
+        properties: {
+          subscription: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['endpoint', 'keys'],
+            properties: {
+              endpoint: { type: 'string', minLength: 1 },
+              expirationTime: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+              keys: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['p256dh', 'auth'],
+                properties: {
+                  p256dh: { type: 'string', minLength: 1 },
+                  auth: { type: 'string', minLength: 1 },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request: any) => {
+    const userId = request.user.sub;
+    const tenantId = request.user.tenant_id;
+    const userAgent = String(request.headers['user-agent'] || '').trim() || null;
+    const { subscription } = request.body as { subscription: any };
+    return upsertWebPushSubscription({
+      tenantId,
+      userId,
+      subscription,
+      userAgent,
+    });
+  });
+
+  app.post('/notifications/push/unsubscribe', {
+    preHandler: [authGuard, tenantGuard()],
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['endpoint'],
+        properties: {
+          endpoint: { type: 'string', minLength: 1 },
+        },
+      },
+    },
+  }, async (request: any) => {
+    const userId = request.user.sub;
+    const { endpoint } = request.body as { endpoint: string };
+    await deactivateWebPushSubscription({ userId, endpoint });
     return { success: true };
   });
 }

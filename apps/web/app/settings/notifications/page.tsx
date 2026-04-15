@@ -17,7 +17,7 @@ import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import { IconBellCog } from '@tabler/icons-react';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPost, apiPut } from '@/lib/api';
 
 const EVENT_TYPES = [
   { id: 'stage_change', label: 'Mudanca de Etapa', description: 'Quando um briefing muda de etapa no workflow' },
@@ -25,15 +25,25 @@ const EVENT_TYPES = [
   { id: 'task_assigned', label: 'Tarefa Atribuída', description: 'Quando uma tarefa é atribuída a você' },
   { id: 'copy_approved', label: 'Copy Aprovada', description: 'Quando uma copy gerada é aprovada' },
   { id: 'weekly_digest', label: 'Resumo Semanal', description: 'Resumo semanal de atividades e métricas' },
+  { id: 'jarvis_ops', label: 'Jarvis', description: 'Conclusão, falha e follow-up dos workflows do Jarvis' },
 ] as const;
 
 const CHANNELS = [
   { id: 'in_app', label: 'In-App' },
   { id: 'email', label: 'Email' },
   { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'push', label: 'Web Push' },
 ] as const;
 
 type PrefMap = Record<string, Record<string, boolean>>;
+type PushConfigResponse = { supported: boolean; publicKey: string | null; subscribed: boolean };
+
+function base64UrlToUint8Array(value: string) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  const raw = window.atob(padded);
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+}
 
 export default function NotificationPreferencesPage() {
   const [prefs, setPrefs] = useState<PrefMap>({});
@@ -43,18 +53,25 @@ export default function NotificationPreferencesPage() {
   const [success, setSuccess] = useState('');
   const [browserPermission, setBrowserPermission] = useState<string>('unsupported');
   const [browserEnabled, setBrowserEnabled] = useState(false);
+  const [pushConfig, setPushConfig] = useState<PushConfigResponse>({ supported: false, publicKey: null, subscribed: false });
+
+  const pushSupported = typeof window !== 'undefined'
+    && typeof Notification !== 'undefined'
+    && 'serviceWorker' in navigator
+    && 'PushManager' in window;
 
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiGet<{ preferences: { event_type: string; channel: string; enabled: boolean }[] }>(
-          '/notifications/preferences'
-        );
+        const [data, push] = await Promise.all([
+          apiGet<{ preferences: { event_type: string; channel: string; enabled: boolean }[] }>('/notifications/preferences'),
+          apiGet<PushConfigResponse>('/notifications/push/config').catch(() => ({ supported: false, publicKey: null, subscribed: false })),
+        ]);
         const map: PrefMap = {};
         for (const et of EVENT_TYPES) {
           map[et.id] = {};
           for (const ch of CHANNELS) {
-            map[et.id][ch.id] = true; // default enabled
+            map[et.id][ch.id] = ch.id === 'push' ? false : true;
           }
         }
         for (const p of data.preferences || []) {
@@ -63,6 +80,7 @@ export default function NotificationPreferencesPage() {
           }
         }
         setPrefs(map);
+        setPushConfig(push);
       } catch (err: any) {
         setError(err?.message || 'Erro ao carregar preferencias.');
       } finally {
@@ -90,6 +108,56 @@ export default function NotificationPreferencesPage() {
     }));
   };
 
+  const syncWebPushSubscription = async (enabled: boolean) => {
+    if (!pushSupported) {
+      if (enabled) {
+        throw new Error('Este navegador não suporta web push.');
+      }
+      return;
+    }
+
+    if (!enabled) {
+      const registration = await navigator.serviceWorker.getRegistration().catch(() => null);
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription?.endpoint) {
+        await apiPost('/notifications/push/unsubscribe', { endpoint: subscription.endpoint }).catch(() => {});
+        await subscription.unsubscribe().catch(() => {});
+      }
+      setPushConfig((prev) => ({ ...prev, subscribed: false }));
+      return;
+    }
+
+    const nextConfig = pushConfig.publicKey
+      ? pushConfig
+      : await apiGet<PushConfigResponse>('/notifications/push/config');
+    if (!nextConfig.publicKey) {
+      throw new Error('Chave pública de web push indisponível.');
+    }
+
+    const permission = Notification.permission === 'default'
+      ? await Notification.requestPermission()
+      : Notification.permission;
+    setBrowserPermission(permission);
+    if (permission !== 'granted') {
+      throw new Error('Permissão de notificação não concedida no navegador.');
+    }
+
+    await navigator.serviceWorker.register('/edro-push-sw.js');
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToUint8Array(nextConfig.publicKey),
+      });
+    }
+
+    await apiPost('/notifications/push/subscribe', {
+      subscription: subscription.toJSON(),
+    });
+    setPushConfig({ ...nextConfig, subscribed: true });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError('');
@@ -105,7 +173,9 @@ export default function NotificationPreferencesPage() {
           });
         }
       }
-      await apiPatch('/notifications/preferences', { preferences });
+      await apiPut('/notifications/preferences', { preferences });
+      const pushEnabled = preferences.some((item) => item.channel === 'push' && item.enabled);
+      await syncWebPushSubscription(pushEnabled);
       setSuccess('Preferencias salvas com sucesso.');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -170,6 +240,9 @@ export default function NotificationPreferencesPage() {
                   ? 'aguardando permissão'
                   : 'não suportado'}
               </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Web push persistido: {pushConfig.subscribed ? 'ativo' : pushSupported ? 'inativo' : 'não suportado'}
+              </Typography>
               {browserPermission !== 'granted' ? (
                 <Button variant="outlined" onClick={handleEnableBrowserNotifications}>
                   Ativar alertas do navegador
@@ -208,6 +281,7 @@ export default function NotificationPreferencesPage() {
                             checked={prefs[et.id]?.[ch.id] ?? true}
                             onChange={() => toggle(et.id, ch.id)}
                             size="small"
+                            disabled={ch.id === 'push' && !pushSupported}
                           />
                         </TableCell>
                       ))}
