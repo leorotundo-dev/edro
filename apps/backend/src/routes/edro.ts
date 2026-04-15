@@ -4703,6 +4703,23 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
 
   // ── A/B Testing Endpoints ──────────────────────────────────────
 
+  const formatABVariantOutput = (option: {
+    title?: string;
+    body?: string;
+    cta?: string;
+    legenda?: string;
+    hashtags?: string;
+  }) =>
+    [
+      option.title ? `Título: ${option.title}` : '',
+      option.body ? `Texto: ${option.body}` : '',
+      option.cta ? `CTA: ${option.cta}` : '',
+      option.legenda ? `Legenda: ${option.legenda}` : '',
+      option.hashtags ? `Hashtags: ${option.hashtags}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
   app.post('/edro/briefings/:id/ab-test', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z.object({
@@ -4713,6 +4730,86 @@ Reescreva corrigindo os problemas. Mantenha estrutura e idioma. Retorne apenas o
 
     const test = await createABTest({ briefing_id: id, variant_a_id: body.variant_a_id, variant_b_id: body.variant_b_id, metric: body.metric });
     return reply.send({ success: true, data: test });
+  });
+
+  app.post('/edro/briefings/:id/ab-test-from-options', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      source_copy_version_id: z.string().uuid().optional(),
+      metric: z.enum(['engagement', 'clicks', 'conversions', 'score']).default('engagement'),
+      variant_a: z.object({
+        title: z.string().optional(),
+        body: z.string().optional(),
+        cta: z.string().optional(),
+        legenda: z.string().optional(),
+        hashtags: z.string().optional(),
+      }),
+      variant_b: z.object({
+        title: z.string().optional(),
+        body: z.string().optional(),
+        cta: z.string().optional(),
+        legenda: z.string().optional(),
+        hashtags: z.string().optional(),
+      }),
+    }).parse(request.body);
+
+    const actor = resolveUser(request);
+    const sourceCopy = body.source_copy_version_id
+      ? (await query<any>(
+          `SELECT * FROM edro_copy_versions WHERE id = $1 AND briefing_id = $2 LIMIT 1`,
+          [body.source_copy_version_id, id]
+        )).rows[0] || null
+      : null;
+
+    const [variantA, variantB] = await Promise.all([
+      createCopyVersion({
+        briefingId: id,
+        language: sourceCopy?.language || 'pt-BR',
+        model: sourceCopy?.model || null,
+        prompt: sourceCopy?.prompt || null,
+        output: formatABVariantOutput(body.variant_a),
+        payload: {
+          ...(sourceCopy?.payload || {}),
+          structured: body.variant_a,
+          ab_test_variant: true,
+          materialized_from_pipeline_option: true,
+          source_copy_version_id: body.source_copy_version_id || null,
+          option_label: 'A',
+        },
+        createdBy: actor.email || actor.id || null,
+      }),
+      createCopyVersion({
+        briefingId: id,
+        language: sourceCopy?.language || 'pt-BR',
+        model: sourceCopy?.model || null,
+        prompt: sourceCopy?.prompt || null,
+        output: formatABVariantOutput(body.variant_b),
+        payload: {
+          ...(sourceCopy?.payload || {}),
+          structured: body.variant_b,
+          ab_test_variant: true,
+          materialized_from_pipeline_option: true,
+          source_copy_version_id: body.source_copy_version_id || null,
+          option_label: 'B',
+        },
+        createdBy: actor.email || actor.id || null,
+      }),
+    ]);
+
+    const test = await createABTest({
+      briefing_id: id,
+      variant_a_id: variantA.id,
+      variant_b_id: variantB.id,
+      metric: body.metric,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        ...test,
+        variants: [variantA, variantB],
+      },
+    });
   });
 
   app.get('/edro/briefings/:id/ab-tests', async (request, reply) => {

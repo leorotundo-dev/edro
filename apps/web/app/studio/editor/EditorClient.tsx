@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
+import ABTestResultPanel from '@/components/studio/ABTestResultPanel';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
 import ModelComparePanel from '@/components/studio/ModelComparePanel';
@@ -96,6 +97,15 @@ type CopyVersion = {
   model?: string | null;
   payload?: Record<string, any> | null;
   created_at?: string | null;
+};
+
+type ABTest = {
+  id: string;
+  variant_a_id: string;
+  variant_b_id: string;
+  winner_id?: string | null;
+  metric: string;
+  status: string;
 };
 
 type BriefingResponse = {
@@ -474,6 +484,7 @@ export default function EditorClient() {
   const [creativeContext, setCreativeContext] = useState<CreativeSessionContextDto | null>(null);
   const [briefing, setBriefing] = useState<BriefingResponse['briefing'] | null>(null);
   const [copies, setCopies] = useState<CopyVersion[]>([]);
+  const [activeAbTest, setActiveAbTest] = useState<ABTest | null>(null);
   const [orchestrator, setOrchestrator] = useState<OrchestratorInfo | null>(null);
   const [catalogItem, setCatalogItem] = useState<CatalogItem | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -730,6 +741,12 @@ export default function EditorClient() {
       if (!data?.briefing) throw new Error('Briefing não encontrado.');
       setBriefing(data.briefing);
       setCopies(data.copies || []);
+      apiGet<{ success: boolean; data: ABTest[] }>(`/edro/briefings/${resolvedBriefingId}/ab-tests`)
+        .then((res) => {
+          const tests = Array.isArray(res?.data) ? res.data : [];
+          setActiveAbTest(tests.find((item) => item.status === 'running') || tests[0] || null);
+        })
+        .catch(() => setActiveAbTest(null));
       if (data.copies?.length) {
         const latest = data.copies[0];
         setOutput(latest.output || '');
@@ -2107,6 +2124,13 @@ export default function EditorClient() {
 
         {error ? <Alert severity="error">{error}</Alert> : null}
         {success ? <Alert severity="success">{success}</Alert> : null}
+        {activeAbTest ? (
+          <Alert severity={activeAbTest.status === 'completed' ? 'success' : 'info'}>
+            {activeAbTest.status === 'completed'
+              ? `Teste A/B concluído para esta peça · métrica ${activeAbTest.metric}`
+              : `Teste A/B ativo para esta peça · métrica ${activeAbTest.metric}`}
+          </Alert>
+        ) : null}
 
         {/* AMD Result — registrar se o comportamento mínimo desejado foi alcançado */}
         {success && briefing?.payload?.amd && (() => {
@@ -2426,6 +2450,13 @@ export default function EditorClient() {
                       {reporteiLabel ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{reporteiLabel}</Typography> : null}
                       {reporteiKpisLine ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{reporteiKpisLine}</Typography> : null}
                       {reporteiInsightsLine ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{reporteiInsightsLine}</Typography> : null}
+                      {activeAbTest ? (
+                        <ABTestResultPanel
+                          test={activeAbTest}
+                          copies={copies}
+                          onChanged={(test) => setActiveAbTest(test)}
+                        />
+                      ) : null}
 
                       {!generating && pipeline === 'collaborative' && options.length > 0 && (
                         <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center" sx={{ mt: 1.5 }}>
