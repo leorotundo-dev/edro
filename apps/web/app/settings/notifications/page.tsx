@@ -20,9 +20,16 @@ import { IconBellCog } from '@tabler/icons-react';
 import { apiGet, apiPost, apiPut } from '@/lib/api';
 
 const EVENT_TYPES = [
-  { id: 'stage_change', label: 'Mudanca de Etapa', description: 'Quando um briefing muda de etapa no workflow' },
+  { id: 'briefing_request.new', label: 'Nova solicitação do cliente', description: 'Quando um cliente envia um pedido de job pelo portal' },
+  { id: 'job.assigned', label: 'Job atribuído a você', description: 'Quando um job é colocado no seu nome pela operação ou pelo Bedel' },
+  { id: 'job.ready_for_review', label: 'Job pronto para revisão', description: 'Quando um job entra em awaiting_approval — o criativo entregou e aguarda aprovação' },
+  { id: 'job.blocked', label: 'Job bloqueado', description: 'Quando um job fica travado e precisa de intervenção' },
+  { id: 'job.overdue', label: 'Job atrasado', description: 'Quando um job ultrapassa o prazo sem entrega' },
+  { id: 'bedel_allocation', label: 'Sugestão do Bedel', description: 'Quando o Bedel propõe ou faz uma alocação automática de freelancer' },
+  { id: 'bedel_monitor', label: 'Alerta do Bedel', description: 'Quando o Bedel detecta risco de atraso ou job parado' },
+  { id: 'pauta.auto_generated', label: 'Novas pautas geradas', description: 'Quando o Motor gera sugestões de pauta a partir do clipping' },
+  { id: 'stage_change', label: 'Mudança de Etapa (briefing)', description: 'Quando um briefing muda de etapa no workflow' },
   { id: 'briefing_deadline', label: 'Prazo Próximo', description: 'Alerta quando um briefing está perto do prazo' },
-  { id: 'task_assigned', label: 'Tarefa Atribuída', description: 'Quando uma tarefa é atribuída a você' },
   { id: 'copy_approved', label: 'Copy Aprovada', description: 'Quando uma copy gerada é aprovada' },
   { id: 'weekly_digest', label: 'Resumo Semanal', description: 'Resumo semanal de atividades e métricas' },
   { id: 'jarvis_ops', label: 'Jarvis', description: 'Conclusão, falha e follow-up dos workflows do Jarvis' },
