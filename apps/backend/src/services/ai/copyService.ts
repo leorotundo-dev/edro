@@ -39,6 +39,23 @@ type CopyPipelineResult = {
   payload: Record<string, any>;
 };
 
+function parseCollaborativeOptions(output: string): string[] {
+  const blocks = output
+    .split(/OPCA[OÃ]O\s+\d+[:.\-]?\s*/i)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 20);
+  if (blocks.length >= 2) return blocks;
+
+  const fallback = output
+    .split(/\n{3,}/)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 20);
+  if (fallback.length >= 2) return fallback;
+
+  const trimmed = output.trim();
+  return trimmed ? [trimmed] : [];
+}
+
 const buildValidationPrompt = (params: { prompt: string; creativeOutput: string }) => [
   'Você é um revisor técnico de copy.',
   'Valide o texto abaixo preservando o formato OPCAO N com Arte-Titulo, Arte-Corpo, Legenda e CTA.',
@@ -406,6 +423,117 @@ export async function generateCollaborativeCopy(params: {
       usageContext: params.usageContext,
     });
   }
+}
+
+export async function generateAndSelectBestCopy(params: {
+  prompt: string;
+  knowledgeBlock?: string;
+  reporteiHint?: string;
+  clientName?: string;
+  instructions?: string;
+  tenantId: string;
+  clientId?: string | null;
+  platform?: string | null;
+  amd?: string | null;
+  triggers?: string[] | null;
+  usageContext?: UsageContext;
+}): Promise<CopyPipelineResult & {
+  simulation_id: string | null;
+  winner_index: number;
+  winner_resonance: number;
+  prediction_confidence_label: string;
+  predicted_save_rate: number | null;
+  predicted_click_rate: number | null;
+  total_variants_tested: number;
+}> {
+  const collaborative = await generateCollaborativeCopy({
+    prompt: params.prompt,
+    count: 10,
+    knowledgeBlock: params.knowledgeBlock,
+    reporteiHint: params.reporteiHint,
+    clientName: params.clientName,
+    instructions: params.instructions,
+    usageContext: params.usageContext,
+  });
+
+  const options = parseCollaborativeOptions(collaborative.output);
+  const safeOptions = options.length > 0 ? options : [collaborative.output.trim()].filter(Boolean);
+  const variantInputs = safeOptions.map((text, index) => ({
+    index,
+    text,
+    amd: params.amd || undefined,
+    triggers: params.triggers?.length ? params.triggers : undefined,
+  }));
+
+  let winnerIndex = 0;
+  let simulationId: string | null = null;
+  let winnerResonance = 0;
+  let predictionConfidenceLabel = 'Sem dados';
+  let predictedSaveRate: number | null = null;
+  let predictedClickRate: number | null = null;
+  let winnerRiskFlags: unknown[] = [];
+  let winnerFatigueDays: number | null = null;
+  let winnerTopCluster: string | null = null;
+  let allResonanceScores: Array<{ index: number; resonance: number; top_cluster: string }> = [];
+
+  try {
+    const { runSimulation } = await import('../campaignSimulator/simulationReport');
+    const simReport = await runSimulation({
+      tenantId: params.tenantId,
+      clientId: params.clientId || undefined,
+      platform: params.platform || undefined,
+      variants: variantInputs,
+    });
+
+    simulationId = simReport.id;
+    winnerIndex = simReport.winner_index ?? 0;
+    winnerResonance = simReport.winner_resonance ?? 0;
+    predictionConfidenceLabel = simReport.prediction_confidence_label ?? 'Sem dados';
+
+    const winnerVariant = simReport.variants?.[winnerIndex];
+    predictedSaveRate = winnerVariant?.predicted_save_rate ?? null;
+    predictedClickRate = winnerVariant?.predicted_click_rate ?? null;
+    winnerRiskFlags = winnerVariant?.risk_flags ?? [];
+    winnerFatigueDays = winnerVariant?.fatigue_days ?? null;
+    winnerTopCluster = winnerVariant?.top_cluster ?? null;
+    allResonanceScores = simReport.variants?.map((variant) => ({
+      index: variant.index,
+      resonance: variant.aggregate_resonance,
+      top_cluster: variant.top_cluster,
+    })) ?? [];
+  } catch (err: any) {
+    console.warn('[generateAndSelectBestCopy] Simulator fallback:', err?.message || err);
+    winnerIndex = 0;
+  }
+
+  const winnerText = safeOptions[winnerIndex] ?? safeOptions[0] ?? collaborative.output;
+
+  return {
+    output: winnerText,
+    model: collaborative.model,
+    payload: {
+      ...(collaborative.payload || {}),
+      pipeline: 'smart',
+      total_variants_tested: safeOptions.length,
+      simulation_id: simulationId,
+      winner_index: winnerIndex,
+      winner_resonance: winnerResonance,
+      prediction_confidence_label: predictionConfidenceLabel,
+      predicted_save_rate: predictedSaveRate,
+      predicted_click_rate: predictedClickRate,
+      winner_risk_flags: winnerRiskFlags,
+      winner_fatigue_days: winnerFatigueDays,
+      winner_top_cluster: winnerTopCluster,
+      all_resonance_scores: allResonanceScores,
+    },
+    simulation_id: simulationId,
+    winner_index: winnerIndex,
+    winner_resonance: winnerResonance,
+    prediction_confidence_label: predictionConfidenceLabel,
+    predicted_save_rate: predictedSaveRate,
+    predicted_click_rate: predictedClickRate,
+    total_variants_tested: safeOptions.length,
+  };
 }
 
 /**

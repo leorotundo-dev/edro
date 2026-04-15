@@ -5,9 +5,8 @@ import path from 'path';
 import { z } from 'zod';
 import {
   generateCopy,
-  generateCollaborativeCopy,
+  generateAndSelectBestCopy,
   generateCollaborativeCopyWithLoop,
-  generateCopyWithValidation,
   generatePremiumCopy,
   generateAdversarialCopy,
   getOrchestratorInfo,
@@ -2096,7 +2095,8 @@ export default async function edroRoutes(app: FastifyInstance) {
         });
 
       try {
-        const pipeline = body.pipeline ?? 'standard';
+        const requestedPipeline = body.pipeline ?? 'standard';
+        const executionPipeline = requestedPipeline === 'standard' ? 'smart' : requestedPipeline;
         const baseParams = {
           prompt,
           temperature: 0.6,
@@ -2303,7 +2303,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
         // Camada universal de engenharia de decisão (neurociência, PNL, heurísticas, vetos)
         // AMD sobrepõe taskType na seleção do gatilho dominante quando presente
-        const promptDNABlock = buildPromptDNABlock(body.task_type ?? body.pipeline ?? undefined, payloadAmd);
+        const promptDNABlock = buildPromptDNABlock(taskType, payloadAmd);
 
         // ── Web research (3 buscas paralelas, timeout 10s) ───────────────────
         // CS1: contexto + dados/stats + ganchos da plataforma
@@ -2349,7 +2349,7 @@ export default async function edroRoutes(app: FastifyInstance) {
 
             const callCount = [ctxRes, statsRes, hooksRes, examplesRes].filter(Boolean).length;
             if (callCount > 0) {
-              logTavilyUsage({ tenant_id: tenantId || 'system', operation: 'search-basic', unit_count: callCount, feature: 'copy_studio_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id, pipeline, segment: clientSegment || undefined } });
+              logTavilyUsage({ tenant_id: tenantId || 'system', operation: 'search-basic', unit_count: callCount, feature: 'copy_studio_research', duration_ms: Date.now() - t0, metadata: { briefing_id: briefing.id, pipeline: executionPipeline, segment: clientSegment || undefined } });
             }
 
             const ctxLines = ctxRes?.results?.slice(0, 2).map((r: any) => `- ${r.title}: ${r.snippet?.slice(0, 300)}`).join('\n');
@@ -2394,9 +2394,15 @@ export default async function edroRoutes(app: FastifyInstance) {
         // Para pipelines não-colaborativos, o bloco de preferências vai direto no prompt
         const reporteiHintBlock = mergeReporteiPromptBlocks(reporteiContext?.promptBlock, reporteiSemanticBlock);
         const enrichedPrompt = `${prompt}${livingMemoryBlock}${diagnosticsBlock}${brandVoiceBlock}${behaviorProfileBlock}${learningRulesBlock}${calendarEventsBlock}${contentGapsBlock}${preferenceBlock}${learnedBlock}${personaBlock}${amdBlock}${behaviorIntentBlock}${platformBlock}${temporalBlock}${promptDNABlock}${reporteiHintBlock ? `\n\n${reporteiHintBlock}` : ''}${webResearchBlock}`;
+        const briefingTriggers =
+          Array.isArray(briefingPayload.triggers)
+            ? briefingPayload.triggers.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+            : Array.isArray((briefingPayload as any)?.behavior_intent?.triggers)
+              ? (briefingPayload as any).behavior_intent.triggers.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+              : [];
 
         let result;
-        if (pipeline === 'adversarial') {
+        if (requestedPipeline === 'adversarial') {
           const adversarialResult = await generateAdversarialCopy({
             prompt: prompt!,
             knowledgeBlock: enrichedKnowledgeBlock || undefined,
@@ -2407,18 +2413,18 @@ export default async function edroRoutes(app: FastifyInstance) {
             model: 'adversarial',
             payload: adversarialResult.payload,
           };
-        } else if (pipeline === 'collaborative') {
+        } else if (requestedPipeline === 'collaborative') {
           result = await generateCollaborativeCopyWithLoop({
             prompt: prompt!,
             count,
             knowledgeBlock: enrichedKnowledgeBlock || undefined,
-            reporteiHint: reporteiContext?.promptBlock || undefined,
+            reporteiHint: reporteiHintBlock || undefined,
             clientName: briefing.client_name || metadata.client_name || undefined,
             instructions: body.instructions || undefined,
             maxLoops: 2,
             usageContext: usageCtx,
           });
-        } else if (pipeline === 'simple') {
+        } else if (requestedPipeline === 'simple') {
           result = await generateCopy({
             ...baseParams,
             prompt: enrichedPrompt!,
@@ -2426,10 +2432,22 @@ export default async function edroRoutes(app: FastifyInstance) {
             forceProvider: body.force_provider,
             usageContext: usageCtx,
           });
-        } else if (pipeline === 'premium') {
+        } else if (requestedPipeline === 'premium') {
           result = await generatePremiumCopy({ ...baseParams, prompt: enrichedPrompt!, usageContext: usageCtx });
         } else {
-          result = await generateCopyWithValidation({ ...baseParams, prompt: enrichedPrompt!, usageContext: usageCtx });
+          result = await generateAndSelectBestCopy({
+            prompt: prompt!,
+            knowledgeBlock: enrichedKnowledgeBlock || undefined,
+            reporteiHint: reporteiHintBlock || undefined,
+            clientName: briefing.client_name || metadata.client_name || undefined,
+            instructions: body.instructions || undefined,
+            tenantId: tenantId || 'system',
+            clientId: selectedClientId || undefined,
+            platform: selectedPlatform || undefined,
+            amd: typeof payloadAmd === 'string' ? payloadAmd : null,
+            triggers: briefingTriggers,
+            usageContext: usageCtx,
+          });
         }
         output = result.output;
         model = result.model;
