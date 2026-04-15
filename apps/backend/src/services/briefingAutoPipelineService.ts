@@ -98,12 +98,21 @@ type BriefingBoardTarget = {
 async function resolveAgencyNotificationPhones(tenantId: string): Promise<string[]> {
   const { rows } = await pool.query<{ phone: string | null }>(
     `WITH recipients AS (
+       -- 1. tenant_users.whatsapp_jid: registered via profile settings (any internal user)
+       SELECT tu.whatsapp_jid AS phone
+         FROM tenant_users tu
+        WHERE tu.tenant_id::text = $1::text
+          AND tu.role IN ('admin', 'manager', 'gestor')
+          AND tu.whatsapp_jid IS NOT NULL
+       UNION
+       -- 2. freelancer_profiles.whatsapp_jid: for admins who are also freelancers
        SELECT fp.whatsapp_jid AS phone
          FROM tenant_users tu
          LEFT JOIN freelancer_profiles fp ON fp.user_id = tu.user_id
         WHERE tu.tenant_id::text = $1::text
           AND tu.role IN ('admin', 'manager', 'gestor')
        UNION
+       -- 3. person_identities: unified people directory fallback
        SELECT pi.identity_value AS phone
          FROM tenant_users tu
          JOIN person_identities pi

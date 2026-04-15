@@ -24,7 +24,7 @@ import { issueRefreshToken, rotateRefreshToken, revokeAllRefresh } from '../auth
 import { ensureTenantForDomain, ensureTenantMembership, getPrimaryTenantForUser, mapRoleToTenantRole } from '../repos/tenantRepo';
 import { authGuard, shouldEnforcePrivilegedMfa } from '../auth/rbac';
 import { sendEmail } from '../services/emailService';
-import { pool } from '../db';
+import { pool, query } from '../db';
 import { allowUnsafeLocalAuthHelpers, env } from '../env';
 import { securityLog } from '../audit/securityLog';
 
@@ -103,11 +103,16 @@ export default async function authRoutes(app: FastifyInstance) {
       const { rows } = await pool.query<{
         name: string | null;
         avatar_url: string | null;
+        whatsapp_jid: string | null;
       }>(
         `SELECT COALESCE(fp.display_name, eu.name, split_part(eu.email, '@', 1)) AS name,
-                fp.avatar_url AS avatar_url
+                fp.avatar_url AS avatar_url,
+                tu.whatsapp_jid AS whatsapp_jid
            FROM edro_users eu
            LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+           LEFT JOIN tenant_users tu
+             ON tu.user_id::text = eu.id::text
+            AND tu.tenant_id::text = $2::text
           WHERE eu.id = $1
           LIMIT 1`,
         [params.userId, params.tenantId ?? null],
@@ -120,6 +125,7 @@ export default async function authRoutes(app: FastifyInstance) {
         tenant_id: params.tenantId ?? null,
         name: rows[0]?.name ?? params.email.split('@')[0],
         avatar_url: rows[0]?.avatar_url ?? null,
+        whatsapp_jid: rows[0]?.whatsapp_jid ?? null,
       };
     } catch {
       return {
@@ -129,6 +135,7 @@ export default async function authRoutes(app: FastifyInstance) {
         tenant_id: params.tenantId ?? null,
         name: params.email.split('@')[0],
         avatar_url: null,
+        whatsapp_jid: null,
       };
     }
   };
@@ -356,6 +363,36 @@ export default async function authRoutes(app: FastifyInstance) {
 
   app.get('/auth/me', handleMe);
   app.get('/me', handleMe);
+
+  /** PATCH /me — update own profile fields (currently: whatsapp_jid) */
+  app.patch('/me', { preHandler: [authGuard] }, async (request, reply) => {
+    const bodySchema = z.object({
+      whatsapp_jid: z.string().max(64).nullable().optional(),
+    });
+    const body = bodySchema.parse(request.body);
+    const userPayload = request.user as { email?: string; tenant_id?: string | null };
+
+    if (!userPayload?.email) {
+      return reply.status(401).send({ error: 'Não autorizado.' });
+    }
+
+    const user = await findUserByEmail(userPayload.email);
+    if (!user) return reply.status(404).send({ error: 'Usuário não encontrado.' });
+
+    const tenantId = userPayload.tenant_id;
+
+    if ('whatsapp_jid' in body && tenantId) {
+      await query(
+        `UPDATE tenant_users
+            SET whatsapp_jid = $1
+          WHERE user_id::text = $2::text
+            AND tenant_id::text = $3::text`,
+        [body.whatsapp_jid ?? null, user.id, tenantId],
+      );
+    }
+
+    return reply.send({ success: true });
+  });
 
   app.post('/auth/refresh', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const bodySchema = z.object({

@@ -245,10 +245,14 @@ async function resolveUserNotificationChannels(
     `WITH base AS (
        SELECT eu.id,
               eu.email,
-              fp.whatsapp_jid AS profile_whatsapp,
-              fp.person_id AS freelancer_person_id
+              fp.whatsapp_jid   AS profile_whatsapp,
+              fp.person_id      AS freelancer_person_id,
+              tu.whatsapp_jid   AS tenant_user_whatsapp
          FROM edro_users eu
          LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+         LEFT JOIN tenant_users tu
+           ON tu.user_id::text = eu.id::text
+          AND tu.tenant_id::text = $2::text
         WHERE eu.id = $1
         LIMIT 1
      ),
@@ -273,7 +277,11 @@ async function resolveUserNotificationChannels(
      )
      SELECT (SELECT email FROM base) AS email,
             COALESCE(
+              -- 1. tenant_users.whatsapp_jid: set via profile settings (any internal user)
+              NULLIF((SELECT tenant_user_whatsapp FROM base), ''),
+              -- 2. freelancer_profiles.whatsapp_jid: freelancer-specific field
               NULLIF((SELECT profile_whatsapp FROM base), ''),
+              -- 3. person_identities whatsapp_jid: unified people directory
               (
                 SELECT pi.identity_value
                   FROM person_identities pi
@@ -283,6 +291,7 @@ async function resolveUserNotificationChannels(
                  ORDER BY pi.is_primary DESC, pi.updated_at DESC
                  LIMIT 1
               ),
+              -- 4. person_identities phone_e164: last resort
               (
                 SELECT pi.identity_value
                   FROM person_identities pi

@@ -61,6 +61,21 @@ function normalizePhoneRecipient(value: string | null | undefined) {
   return value.split('@')[0]?.replace(/\D/g, '') || null;
 }
 
+/**
+ * Converts any phone string to WhatsApp JID format (used by Evolution API).
+ * "+55 (11) 99999-9999" → "5511999999999@s.whatsapp.net"
+ * Already-formatted JIDs are returned as-is.
+ */
+function phoneToWhatsappJid(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  if (phone.includes('@')) return phone; // already a JID
+  const digits = phone.replace(/\D/g, '');
+  if (!digits || digits.length < 10) return null;
+  // Ensure Brazil country code (55) prefix
+  const normalized = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`;
+  return `${normalized}@s.whatsapp.net`;
+}
+
 function displayPhoneRecipient(value: string | null | undefined) {
   if (!value) return null;
   const base = value.split('@')[0]?.trim();
@@ -2744,6 +2759,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         portfolio_url = $21, weekly_capacity = $22,
         skills = COALESCE($23::text[], skills),
         phone = COALESCE($24, phone),
+        whatsapp_jid = COALESCE($33, whatsapp_jid),
         skills_json = $25::jsonb,
         experience_level = COALESCE($26, experience_level),
         platform_expertise = COALESCE($27::text[], platform_expertise),
@@ -2788,6 +2804,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
         availableDays,
         body.available_hours_start ?? null,
         body.available_hours_end ?? null,
+        phoneToWhatsappJid(body.phone),   // $33 — whatsapp_jid derived from phone
       ],
     );
 

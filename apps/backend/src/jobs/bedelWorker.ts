@@ -65,12 +65,22 @@ type RecipientChannel = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Returns admin/manager recipients for a tenant with their contact channels */
+/** Returns admin/manager recipients for a tenant with their contact channels.
+ *
+ * Priority for whatsapp_jid:
+ *  1. tenant_users.whatsapp_jid  — set via profile settings (any internal user)
+ *  2. freelancer_profiles.whatsapp_jid — legacy / freelancer-admins
+ *
+ * notifyEvent will further fall back to person_identities when phone is still null.
+ */
 async function getAdminRecipients(tenantId: string): Promise<AdminRecipient[]> {
   const { rows } = await query<AdminRecipient>(
     `SELECT tu.user_id,
             u.email,
-            fp.whatsapp_jid
+            COALESCE(
+              NULLIF(tu.whatsapp_jid, ''),
+              NULLIF(fp.whatsapp_jid, '')
+            ) AS whatsapp_jid
        FROM tenant_users tu
        LEFT JOIN edro_users u ON u.id = tu.user_id
        LEFT JOIN freelancer_profiles fp ON fp.user_id = tu.user_id
@@ -202,16 +212,8 @@ async function runAllocationPhase(): Promise<void> {
             deadline2 ? `Prazo: ${deadline2}` : 'Sem prazo definido',
           ].filter(Boolean).join('\n');
 
-          const { rows: freelancerRows } = await query<{ email: string | null; whatsapp_jid: string | null }>(
-            `SELECT u.email, fp.whatsapp_jid
-               FROM edro_users u
-               LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
-              WHERE u.id::text = $1::text
-              LIMIT 1`,
-            [best.freelancerId],
-          );
-          const freelancer = freelancerRows[0];
-
+          // Let notifyEvent resolve email + phone via resolveUserNotificationChannels
+          // (handles freelancer_profiles, person_identities, tenant_users in one pass)
           await notifyEvent({
             event: 'job_assigned',
             tenantId: job.tenant_id,
@@ -219,8 +221,6 @@ async function runAllocationPhase(): Promise<void> {
             title: `Novo escopo: ${job.title}`,
             body: frelaBody,
             link: '/jobs',
-            recipientEmail: freelancer?.email ?? undefined,
-            recipientPhone: freelancer?.whatsapp_jid ?? undefined,
             defaultChannels: ['in_app', 'whatsapp', 'email'],
             payload: {
               source: 'bedel',

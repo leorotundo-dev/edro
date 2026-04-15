@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import AdminSubmenu from '@/components/admin/AdminSubmenu';
 import WorkspaceHero from '@/components/shared/WorkspaceHero';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import DashboardCard from '@/components/shared/DashboardCard';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -18,6 +18,9 @@ import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
+import Divider from '@mui/material/Divider';
+import InputAdornment from '@mui/material/InputAdornment';
+import TextField from '@mui/material/TextField';
 import {
   IconShield,
   IconAlertTriangle,
@@ -26,6 +29,8 @@ import {
   IconEye,
   IconStethoscope,
   IconFlag,
+  IconBrandWhatsapp,
+  IconCheck,
 } from '@tabler/icons-react';
 
 type SecurityDashboard = {
@@ -63,6 +68,31 @@ function formatNumber(value?: number | null) {
   return new Intl.NumberFormat('pt-BR').format(Number(value));
 }
 
+type MeProfile = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  whatsapp_jid: string | null;
+};
+
+/** Strip non-digits, ensure Brazil country code, add @s.whatsapp.net */
+function phoneToJid(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return raw;
+  const normalized = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`;
+  return `${normalized}@s.whatsapp.net`;
+}
+
+/** Display-friendly: "5511999999999@s.whatsapp.net" → "+55 (11) 9 9999-9999" */
+function jidToDisplay(jid: string | null): string {
+  if (!jid) return '';
+  const digits = jid.split('@')[0];
+  if (!digits || digits.length < 12) return jid;
+  // 55 11 9 9999-9999
+  return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 5)} ${digits.slice(5, 9)}-${digits.slice(9)}`;
+}
+
 export default function SettingsClient() {
   const [security, setSecurity] = useState<SecurityDashboard | null>(null);
   const [flags, setFlags] = useState<FlagRow[]>([]);
@@ -71,6 +101,38 @@ export default function SettingsClient() {
   const [loading, setLoading] = useState(true);
   const [diagnostics, setDiagnostics] = useState<DiagnosticResult[]>([]);
   const [diagnosticRunning, setDiagnosticRunning] = useState(false);
+
+  // ── Perfil / WhatsApp ──
+  const [profile, setProfile] = useState<MeProfile | null>(null);
+  const [whatsappInput, setWhatsappInput] = useState('');
+  const [whatsappSaving, setWhatsappSaving] = useState(false);
+  const [whatsappSaved, setWhatsappSaved] = useState(false);
+  const [whatsappError, setWhatsappError] = useState('');
+
+  useEffect(() => {
+    apiGet<MeProfile>('/me').then((data) => {
+      setProfile(data);
+      setWhatsappInput(jidToDisplay(data?.whatsapp_jid ?? null));
+    }).catch(() => {});
+  }, []);
+
+  const handleSaveWhatsapp = async () => {
+    setWhatsappSaving(true);
+    setWhatsappError('');
+    setWhatsappSaved(false);
+    try {
+      const jid = whatsappInput.trim() ? phoneToJid(whatsappInput.trim()) : null;
+      await apiPatch('/me', { whatsapp_jid: jid });
+      setProfile((prev) => prev ? { ...prev, whatsapp_jid: jid } : prev);
+      setWhatsappInput(jidToDisplay(jid));
+      setWhatsappSaved(true);
+      setTimeout(() => setWhatsappSaved(false), 3000);
+    } catch (err: any) {
+      setWhatsappError(err?.message || 'Falha ao salvar.');
+    } finally {
+      setWhatsappSaving(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -177,6 +239,66 @@ export default function SettingsClient() {
         </Box>
 
         <AdminSubmenu value="configuracoes" />
+
+        {/* ── Meu Perfil ───────────────────────────────────────────────── */}
+        <Card variant="outlined" sx={{ borderRadius: 3, mb: 3 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+              <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: 'success.50', display: 'grid', placeItems: 'center', color: 'success.main' }}>
+                <IconBrandWhatsapp size={20} />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700} lineHeight={1.2}>Meu perfil</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {profile?.email ?? '—'} · {profile?.role ?? ''}
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Divider sx={{ mb: 2 }} />
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+              <TextField
+                label="WhatsApp / Celular"
+                placeholder="+55 (11) 9 9999-9999"
+                helperText="Usado pelo Bedel para notificações de jobs e alertas de atraso"
+                value={whatsappInput}
+                onChange={(e) => setWhatsappInput(e.target.value)}
+                disabled={whatsappSaving}
+                size="small"
+                sx={{ minWidth: 260 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <IconBrandWhatsapp size={16} color="#25D366" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Button
+                variant="contained"
+                size="small"
+                onClick={handleSaveWhatsapp}
+                disabled={whatsappSaving}
+                startIcon={whatsappSaved ? <IconCheck size={15} /> : undefined}
+                color={whatsappSaved ? 'success' : 'primary'}
+                sx={{ mt: { xs: 0, sm: 0.5 }, whiteSpace: 'nowrap' }}
+              >
+                {whatsappSaving ? 'Salvando...' : whatsappSaved ? 'Salvo!' : 'Salvar'}
+              </Button>
+            </Stack>
+
+            {whatsappError && (
+              <Alert severity="error" sx={{ mt: 1.5 }}>{whatsappError}</Alert>
+            )}
+
+            {profile?.whatsapp_jid && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                JID atual: <code style={{ fontSize: 11 }}>{profile.whatsapp_jid}</code>
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
 
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
 
