@@ -32,6 +32,10 @@ export type LearnedPreferences = {
     top_angles: { angle: string; avg_score: number; sample_size: number }[];
     linked_posts: number;
   };
+  segment_feedback: {
+    liked_patterns: { text: string; count: number }[];
+    disliked_patterns: { text: string; count: number }[];
+  };
   directives: {
     boost: string[];
     avoid: string[];
@@ -72,6 +76,7 @@ export async function getClientPreferences(params: {
       copy_feedback: { top_angles: [], preferred_formats: [], anti_patterns: [], overall_avg_score: 0, total_scored_copies: 0 },
       amd_performance: [],
       post_level_performance: { top_formats: [], top_angles: [], linked_posts: 0 },
+      segment_feedback: { liked_patterns: [], disliked_patterns: [] },
       reportei_performance: { top_formats: [], top_tags: [], editorial_insights: [] },
       directives: { boost: humanBoost, avoid: humanAvoid },
     };
@@ -90,15 +95,16 @@ export async function rebuildClientPreferences(params: {
   tenant_id: string;
   client_id: string;
 }): Promise<LearnedPreferences> {
-  const [copyFeedback, reporteiPerf, amdPerf, postLevelPerf, regenerationPatterns] = await Promise.all([
+  const [copyFeedback, reporteiPerf, amdPerf, postLevelPerf, segmentFeedback, regenerationPatterns] = await Promise.all([
     aggregateCopyFeedback(params.client_id),
     aggregateReporteiPerformance(params.tenant_id, params.client_id),
     aggregateAmdPerformance(params.client_id),
     aggregatePostLevelPerformance(params.tenant_id, params.client_id),
+    aggregateSegmentPatterns(params.tenant_id, params.client_id),
     aggregateRegenerationPatterns(params.tenant_id, params.client_id),
   ]);
 
-  const directives = generateDirectives(copyFeedback, reporteiPerf, amdPerf, postLevelPerf, regenerationPatterns);
+  const directives = generateDirectives(copyFeedback, reporteiPerf, amdPerf, postLevelPerf, segmentFeedback, regenerationPatterns);
 
   const preferences: LearnedPreferences = {
     version: 1,
@@ -107,6 +113,7 @@ export async function rebuildClientPreferences(params: {
     reportei_performance: reporteiPerf,
     amd_performance: amdPerf,
     post_level_performance: postLevelPerf,
+    segment_feedback: segmentFeedback,
     directives,
   };
 
@@ -437,6 +444,39 @@ async function aggregatePostLevelPerformance(
   };
 }
 
+async function aggregateSegmentPatterns(
+  tenantId: string,
+  clientId: string,
+): Promise<LearnedPreferences['segment_feedback']> {
+  const loadBySentiment = async (sentiment: 'like' | 'dislike') => {
+    const { rows } = await query<{ segment_text: string; count: number }>(
+      `SELECT csf.segment_text, COUNT(*)::int AS count
+       FROM copy_segment_feedback csf
+       JOIN edro_briefings eb ON eb.id = csf.briefing_id
+       WHERE csf.tenant_id = $1
+         AND COALESCE(eb.main_client_id::text, eb.client_id::text) = $2
+         AND csf.sentiment = $3
+         AND csf.created_at > NOW() - INTERVAL '90 days'
+       GROUP BY csf.segment_text
+       HAVING COUNT(*) >= 2
+       ORDER BY count DESC
+       LIMIT 8`,
+      [tenantId, clientId, sentiment],
+    );
+    return rows.map((row) => ({ text: row.segment_text, count: Number(row.count || 0) }));
+  };
+
+  const [likedPatterns, dislikedPatterns] = await Promise.all([
+    loadBySentiment('like'),
+    loadBySentiment('dislike'),
+  ]);
+
+  return {
+    liked_patterns: likedPatterns,
+    disliked_patterns: dislikedPatterns,
+  };
+}
+
 // ── Directive Generation ───────────────────────────────────────────
 
 function generateDirectives(
@@ -444,6 +484,7 @@ function generateDirectives(
   reporteiPerf: ReporteiPerformanceAggregation,
   amdPerf: AmdPerformanceRow[] = [],
   postLevelPerf: LearnedPreferences['post_level_performance'],
+  segmentFeedback: LearnedPreferences['segment_feedback'],
   regenerationPatterns: string[] = [],
 ): { boost: string[]; avoid: string[] } {
   const boost: string[] = [];
@@ -487,6 +528,13 @@ function generateDirectives(
     boost.push(
       `Ângulo com performance real positiva: "${angle.angle}" (score ${angle.avg_score}, ${angle.sample_size} posts)`
     );
+  }
+
+  for (const pattern of segmentFeedback.liked_patterns.slice(0, 2)) {
+    boost.push(`Trecho marcado positivamente pelo cliente: "${pattern.text}" (${pattern.count}x)`);
+  }
+  for (const pattern of segmentFeedback.disliked_patterns.slice(0, 3)) {
+    avoid.push(`Evitar trecho recorrente reprovado: "${pattern.text}" (${pattern.count}x)`);
   }
 
   for (const pattern of regenerationPatterns.slice(0, 3)) {

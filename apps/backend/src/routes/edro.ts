@@ -1993,6 +1993,74 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post('/edro/copies/:copyId/segments/feedback', async (request, reply) => {
+    const { copyId } = z.object({ copyId: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      segment_text: z.string().min(1).max(500),
+      char_start: z.number().int().min(0),
+      char_end: z.number().int().min(1),
+      sentiment: z.enum(['like', 'dislike', 'neutral']),
+      note: z.string().max(1000).optional(),
+      suggested_fix: z.string().max(1000).optional(),
+    }).parse(request.body);
+    const tenantId = (request.user as any).tenant_id as string;
+    const user = resolveUser(request);
+
+    const { rows: copyRows } = await query<{ briefing_id: string }>(
+      `SELECT briefing_id FROM edro_copy_versions WHERE id = $1 LIMIT 1`,
+      [copyId],
+    );
+    const copyRow = copyRows[0];
+    if (!copyRow) {
+      return reply.status(404).send({ success: false, error: 'Copy não encontrada.' });
+    }
+
+    await query(
+      `INSERT INTO copy_segment_feedback
+         (copy_id, briefing_id, tenant_id, segment_text, char_start, char_end, sentiment, note, suggested_fix, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        copyId,
+        copyRow.briefing_id,
+        tenantId,
+        body.segment_text,
+        body.char_start,
+        body.char_end,
+        body.sentiment,
+        body.note ?? null,
+        body.suggested_fix ?? null,
+        user.email || user.id || null,
+      ],
+    );
+
+    getBriefingById(copyRow.briefing_id)
+      .then((briefing) => {
+        const clientId = (briefing as any)?.main_client_id || briefing?.client_id || null;
+        if (clientId) {
+          rebuildClientPreferences({ tenant_id: tenantId, client_id: clientId }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
+    return reply.send({ success: true });
+  });
+
+  app.get('/edro/copies/:copyId/segments/feedback', async (request, reply) => {
+    const { copyId } = z.object({ copyId: z.string().uuid() }).parse(request.params);
+    const tenantId = (request.user as any).tenant_id as string;
+
+    const { rows } = await query(
+      `SELECT id, segment_text, char_start, char_end, sentiment, note, suggested_fix, created_at
+       FROM copy_segment_feedback
+       WHERE copy_id = $1
+         AND tenant_id = $2
+       ORDER BY char_start ASC`,
+      [copyId, tenantId],
+    );
+
+    return reply.send({ success: true, segments: rows });
+  });
+
   // ── AMD Result — registrar se o comportamento mínimo desejado foi alcançado ─
   app.patch('/edro/copies/:copyId/amd-result', async (request, reply) => {
     const { copyId } = z.object({ copyId: z.string().uuid() }).parse(request.params);

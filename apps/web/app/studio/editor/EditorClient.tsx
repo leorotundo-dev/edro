@@ -7,6 +7,7 @@ import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
 import ABTestResultPanel from '@/components/studio/ABTestResultPanel';
 import CopyVersionDrawer, { CopyVersionDrawerItem } from '@/components/studio/CopyVersionDrawer';
+import InlineTextFeedback from '@/components/studio/InlineTextFeedback';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
 import ModelComparePanel from '@/components/studio/ModelComparePanel';
@@ -2994,6 +2995,17 @@ export default function EditorClient() {
                                   InputProps={{ sx: { fontSize: 13, alignItems: 'flex-start' } }}
                                   sx={{ flexGrow: 1, '& .MuiInputBase-root': { height: '100%' }, '& textarea': { flexGrow: 1 } }}
                                 />
+                                {resolveActiveCopyId() && selectedOptionData && (
+                                  <Box sx={{ p: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'block', mb: 1 }}>
+                                      Feedback inline por trecho
+                                    </Typography>
+                                    <InlineTextFeedback
+                                      copyId={resolveActiveCopyId()}
+                                      text={optionToText(selectedOptionData)}
+                                    />
+                                  </Box>
+                                )}
                               </Stack>
                               {options.length > 1 && (
                                 <Box sx={{ mt: 2 }}>
