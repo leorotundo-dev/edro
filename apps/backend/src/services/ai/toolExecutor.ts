@@ -20,7 +20,7 @@ import {
 } from '../../repositories/edroBriefingRepository';
 import { getClientById } from '../../repos/clientsRepo';
 import { syncMeetingParticipantsFromCalendarPayload } from '../../repos/meetingParticipantsRepo';
-import { generateCopy } from './copyService';
+import { generateAndSelectBestCopy, generateCopy } from './copyService';
 import { listClientDocuments, listClientSources, getLatestClientInsight } from '../../repos/clientIntelligenceRepo';
 import { tavilySearch, tavilyExtract, isTavilyConfigured } from '../tavilyService';
 import { logTavilyUsage } from './aiUsageLogger';
@@ -845,23 +845,41 @@ async function toolGenerateCopy(args: any, ctx: ToolContext): Promise<ToolResult
   const count = Math.min(args.count || 3, 5);
   const language = args.language || 'pt';
   const payload = (briefing as any).payload || {};
+  const platform = payload.platform || null;
+  const amd =
+    typeof payload?.amd === 'string'
+      ? payload.amd
+      : typeof payload?.amd_type === 'string'
+        ? payload.amd_type
+        : typeof payload?.behavior_intent?.amd === 'string'
+          ? payload.behavior_intent.amd
+          : null;
+  const triggers = Array.isArray(payload?.triggers)
+    ? payload.triggers.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+    : Array.isArray(payload?.behavior_intent?.triggers)
+      ? payload.behavior_intent.triggers.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
 
   const promptLines = [
     `Cliente: ${client?.name || 'Cliente'}`,
     client?.segment_primary ? `Segmento: ${client.segment_primary}` : null,
     `Briefing: ${(briefing as any).title}`,
     payload.objective ? `Objetivo: ${payload.objective}` : null,
-    payload.platform ? `Plataforma: ${payload.platform}` : null,
+    platform ? `Plataforma: ${platform}` : null,
     payload.format ? `Formato: ${payload.format}` : null,
     args.instructions ? `Instruções: ${args.instructions}` : null,
-    `Gere ${count} opções completas de copy.`,
-    `Cada opção deve conter: Headline, Corpo e CTA.`,
+    `Explore internamente pelo menos ${count} ângulos antes de selecionar a melhor copy.`,
+    `Entregue somente a opção vencedora, já consolidada com Headline, Corpo e CTA.`,
     `Idioma: ${language}.`,
   ].filter(Boolean) as string[];
 
-  const copyResult = await generateCopy({
+  const copyResult = await generateAndSelectBestCopy({
     prompt: promptLines.join('\n'),
-    taskType: 'social_post',
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId || undefined,
+    platform,
+    amd,
+    triggers,
   });
 
   const copyVersion = await createCopyVersion({

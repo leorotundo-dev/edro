@@ -72,7 +72,7 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'generate_copy_for_briefing',
-    description: 'Gera opções de copy (texto criativo) para um briefing usando o pipeline de IA. Retorna preview do copy gerado.',
+    description: 'Gera copy otimizado para um briefing usando 3 IAs em sequência (Gemini → GPT → Claude) e seleciona a variante com maior potencial de performance pelo Simulador de Sucesso. Retorna somente o melhor resultado.',
     parameters: {
       briefing_id: { type: 'string', description: 'UUID do briefing' },
       count: { type: 'number', description: 'Número de opções a gerar (default 3, max 5)' },
