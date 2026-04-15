@@ -2,6 +2,7 @@ import { query } from '../db';
 import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { listClientMemoryFacts } from './clientMemoryFactsService';
+import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
 
 type KnowledgeBaseFact = {
   title: string;
@@ -42,6 +43,16 @@ export type ClientKnowledgeBaseSnapshot = {
   directives: KnowledgeBaseFact[];
   commitments: KnowledgeBaseFact[];
   evidence: KnowledgeBaseFact[];
+  governance: {
+    governance_pressure: 'low' | 'medium' | 'high';
+    active_conflicts: number;
+    stale_facts: number;
+    stale_directives: number;
+    stale_commitments: number;
+    archive_candidates: number;
+    replace_candidates: number;
+    suppressed_facts: number;
+  };
   recent_documents: Array<{
     id: string;
     source_type: string | null;
@@ -104,6 +115,7 @@ function buildKnowledgeBaseBlock(input: {
   commitments: KnowledgeBaseFact[];
   evidence: KnowledgeBaseFact[];
   recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
+  governance: ClientKnowledgeBaseSnapshot['governance'];
 }) {
   const parts: string[] = ['BASE DE CONHECIMENTO DO CLIENTE:'];
   if (input.clientName) parts.push(`Cliente: ${input.clientName}`);
@@ -112,6 +124,11 @@ function buildKnowledgeBaseBlock(input: {
   );
   if (input.latestInsightSummary) {
     parts.push(`Insight consolidado: ${input.latestInsightSummary}`);
+  }
+  if (input.governance.governance_pressure !== 'low') {
+    parts.push(
+      `Governanca da memoria: pressao ${input.governance.governance_pressure}, conflitos ativos ${input.governance.active_conflicts}, fatos suprimidos ${input.governance.suppressed_facts}.`,
+    );
   }
   if (input.directives.length) {
     parts.push('Diretivas ativas:');
@@ -156,6 +173,15 @@ function sortDocuments(intent: ClientKnowledgeBaseIntent, items: ClientKnowledge
   });
 }
 
+function shouldSuppressFact(fact: KnowledgeBaseFact, suggestion: { severity: string; action: string; staleness_score: number } | undefined) {
+  if (!suggestion) return false;
+  if (suggestion.severity === 'high') return true;
+  if (suggestion.action === 'replace') return true;
+  if (fact.source_type === 'meeting_action' && suggestion.staleness_score >= 60) return true;
+  if (fact.metadata?.directive_type && suggestion.staleness_score >= 60) return true;
+  return false;
+}
+
 export async function buildClientKnowledgeBase(params: {
   tenantId: string;
   clientId: string;
@@ -169,7 +195,7 @@ export async function buildClientKnowledgeBase(params: {
   const limitDocuments = Math.min(params.limitDocuments ?? 6, 12);
   const question = String(params.question || '').trim();
 
-  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents] = await Promise.all([
+  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance] = await Promise.all([
     query<{ name: string | null }>(
       `SELECT name FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [params.tenantId, params.clientId],
@@ -220,12 +246,44 @@ export async function buildClientKnowledgeBase(params: {
     }),
     getLatestClientInsight({ tenantId: params.tenantId, clientId: params.clientId }).catch(() => null),
     listClientDocuments({ tenantId: params.tenantId, clientId: params.clientId, limit: limitDocuments }).catch(() => []),
+    analyzeClientMemoryGovernance({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      daysBack: Math.min(daysBack * 2, 365),
+      limit: 80,
+    }).catch(() => ({
+      summary: {
+        active_facts: 0,
+        archive_candidates: 0,
+        replace_candidates: 0,
+        high_severity: 0,
+        stale_facts: 0,
+        stale_directives: 0,
+        stale_commitments: 0,
+        active_conflicts: 0,
+        governance_pressure: 'low' as const,
+      },
+      suggestions: [],
+      conflicts: [],
+    })),
   ]);
 
   const factRows = facts || [];
-  const directives = sortFacts(intent, factRows.filter((item) => item.fact_type === 'directive').map(toFact));
-  const commitments = sortFacts(intent, factRows.filter((item) => item.fact_type === 'commitment').map(toFact));
-  const evidence = sortFacts(intent, factRows.filter((item) => item.fact_type === 'evidence').map(toFact));
+  const suppressedFingerprints = new Set(
+    (governance?.suggestions || [])
+      .filter((item) => item?.target?.fingerprint)
+      .map((item) => [item.target.fingerprint, item] as const)
+      .filter(([fingerprint, suggestion]) => {
+        const row = factRows.find((fact) => String(fact.fingerprint || '') === fingerprint);
+        return row ? shouldSuppressFact(toFact(row), suggestion) : false;
+      })
+      .map(([fingerprint]) => fingerprint),
+  );
+
+  const activeFactRows = factRows.filter((item) => !suppressedFingerprints.has(String(item.fingerprint || '')));
+  const directives = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'directive').map(toFact));
+  const commitments = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'commitment').map(toFact));
+  const evidence = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'evidence').map(toFact));
   const recentDocuments = sortDocuments(intent, documents.map((item) => ({
     id: item.id,
     source_type: item.source_type || null,
@@ -261,6 +319,16 @@ export async function buildClientKnowledgeBase(params: {
     directives,
     commitments,
     evidence,
+    governance: {
+      governance_pressure: governance.summary.governance_pressure,
+      active_conflicts: governance.summary.active_conflicts,
+      stale_facts: governance.summary.stale_facts,
+      stale_directives: governance.summary.stale_directives,
+      stale_commitments: governance.summary.stale_commitments,
+      archive_candidates: governance.summary.archive_candidates,
+      replace_candidates: governance.summary.replace_candidates,
+      suppressed_facts: suppressedFingerprints.size,
+    },
     recent_documents: recentDocuments,
     memory_block: livingMemory.block,
     knowledge_base_block: buildKnowledgeBaseBlock({
@@ -272,6 +340,16 @@ export async function buildClientKnowledgeBase(params: {
       commitments,
       evidence,
       recentDocuments,
+      governance: {
+        governance_pressure: governance.summary.governance_pressure,
+        active_conflicts: governance.summary.active_conflicts,
+        stale_facts: governance.summary.stale_facts,
+        stale_directives: governance.summary.stale_directives,
+        stale_commitments: governance.summary.stale_commitments,
+        archive_candidates: governance.summary.archive_candidates,
+        replace_candidates: governance.summary.replace_candidates,
+        suppressed_facts: suppressedFingerprints.size,
+      },
     }),
   } satisfies ClientKnowledgeBaseSnapshot;
 }
