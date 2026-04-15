@@ -11,6 +11,7 @@ type KnowledgeBaseFact = {
   source_id: string | null;
   related_at: string | null;
   confidence_score: number;
+  metadata?: Record<string, any>;
 };
 
 type CommunicationRadar = {
@@ -72,6 +73,7 @@ function toFact(item: any): KnowledgeBaseFact {
     source_id: item.source_id || null,
     related_at: item.related_at || null,
     confidence_score: Number(item.confidence_score ?? 0),
+    metadata: item.metadata || {},
   };
 }
 

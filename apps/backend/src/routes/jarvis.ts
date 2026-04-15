@@ -21,6 +21,7 @@ import {
 import { buildOperationsSystemPrompt } from './operations';
 import { buildJarvisMemoryBlocks, formatJarvisMemoryBlocks } from '../services/jarvisMemoryFabricService';
 import { buildClientLivingMemory } from '../services/clientLivingMemoryService';
+import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 import { buildBriefingDiagnostics, type BriefingConflict, type BriefingDiagnostics } from '../services/briefingDiagnosticService';
 import { buildReporteiSemanticPromptBlock, buildReporteiSemanticSummary, type ReporteiSemanticSummary } from '../services/reporteiSemanticService';
 import {
@@ -189,6 +190,45 @@ function emptyLivingMemoryPreflight() {
       pending_commitments: 0,
       evidence_by_source: {},
     },
+  };
+}
+
+function knowledgeBaseToLivingMemoryPreflight(snapshot: any) {
+  if (!snapshot) return emptyLivingMemoryPreflight();
+  return {
+    block: snapshot.knowledge_base_block || snapshot.memory_block || '',
+    directives: Array.isArray(snapshot.directives)
+      ? snapshot.directives.map((item: any) => ({
+          directive_type: item?.metadata?.directive_type === 'avoid' ? 'avoid' : 'boost',
+          directive: String(item?.title || ''),
+          source: String(item?.source_type || 'knowledge_base'),
+          source_id: item?.source_id || null,
+          created_at: item?.related_at || null,
+        }))
+      : [],
+    evidence: Array.isArray(snapshot.evidence)
+      ? snapshot.evidence.map((item: any) => ({
+          source_type: String(item?.source_type || 'knowledge_base'),
+          source_id: item?.source_id || null,
+          title: item?.title || null,
+          excerpt: String(item?.summary || item?.fact_text || ''),
+          occurred_at: item?.related_at || null,
+          score: Number(item?.metadata?.source_score ?? item?.confidence_score ?? 0),
+          semantic_type: item?.metadata?.semantic_type || 'context',
+        }))
+      : [],
+    pendingActions: Array.isArray(snapshot.commitments)
+      ? snapshot.commitments.map((item: any) => ({
+          action_id: item?.source_id || null,
+          title: String(item?.title || ''),
+          description: item?.summary || null,
+          responsible: item?.metadata?.responsible || null,
+          deadline: item?.metadata?.deadline || item?.related_at || null,
+          priority: item?.metadata?.priority || null,
+          meeting_title: item?.metadata?.meeting_title || null,
+        }))
+      : [],
+    snapshot: snapshot.living_memory_summary || emptyLivingMemoryPreflight().snapshot,
   };
 }
 
@@ -499,18 +539,13 @@ async function runCreativeExecutionCapability(params: {
   const briefing = await getBriefingById(target.briefingId, params.tenantId).catch(() => null);
   const briefingPayload = (briefing?.payload || {}) as Record<string, any>;
   const livingMemoryPreflight = target.clientId
-    ? await buildClientLivingMemory({
+    ? await buildClientKnowledgeBase({
         tenantId: params.tenantId,
         clientId: target.clientId,
-        briefing: {
-          title: briefing?.title ?? '',
-          objective: briefingPayload.objective ?? briefingPayload.objetivo ?? '',
-          context: briefingPayload.context ?? briefingPayload.notes ?? briefingPayload.additional_notes ?? null,
-          payload: briefingPayload,
-        },
-        maxEvidence: 5,
-        maxActions: 4,
-      }).catch(() => null)
+        question: [briefing?.title, briefingPayload.objective, briefingPayload.context].filter(Boolean).join(' '),
+        daysBack: 60,
+        limitDocuments: 4,
+      }).then(knowledgeBaseToLivingMemoryPreflight).catch(() => null)
     : null;
   const memoryGovernancePreflight = target.clientId
     ? await analyzeClientMemoryGovernance({
@@ -1180,20 +1215,13 @@ export default async function jarvisRoutes(app: FastifyInstance) {
               buildClientContext(tenantId, clientId!),
               loadPsychContext(tenantId, clientId!),
               loadPerformanceContext(clientId!),
-              buildClientLivingMemory({
+              buildClientKnowledgeBase({
                 tenantId,
                 clientId: clientId!,
-                briefing: {
-                  title: body.message,
-                  objective: body.message,
-                  context: [body.context_page, body.studio_context].filter(Boolean).join('\n'),
-                  payload: body.page_data ? { page_data: body.page_data } : null,
-                },
+                question: [body.message, body.context_page, body.studio_context].filter(Boolean).join('\n'),
                 daysBack: 60,
-                maxDirectives: 8,
-                maxEvidence: 5,
-                maxActions: 4,
-              }).catch(() => emptyLivingMemoryPreflight()),
+                limitDocuments: 5,
+              }).then(knowledgeBaseToLivingMemoryPreflight).catch(() => emptyLivingMemoryPreflight()),
             ]),
             new Promise<[string, string, string, ReturnType<typeof emptyLivingMemoryPreflight>]>((resolve) => setTimeout(() => resolve([
               '',
