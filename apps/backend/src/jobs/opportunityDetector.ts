@@ -1,10 +1,10 @@
 import { query } from '../db';
 import { generateWithProvider } from '../services/ai/copyOrchestrator';
 import crypto from 'crypto';
-import { listClientDocuments } from '../repos/clientIntelligenceRepo';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
 import { queryGoogleTrends, isTrendsConfigured } from '../services/googleTrendsService';
+import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 
 type OpportunitySource = {
   type: 'clipping' | 'social' | 'calendar' | 'web' | 'google_trends';
@@ -217,12 +217,19 @@ export async function detectOpportunitiesForClient(params: {
   // Fetch recent client content to avoid suggesting already-covered topics
   let recentContentBlock = '';
   try {
-    const recentDocs = await listClientDocuments({ tenantId: params.tenant_id, clientId: params.client_id, limit: 20 });
-    const socialPosts = recentDocs.filter((d) => d.source_type === 'social').slice(0, 12);
+    const knowledgeBase = await buildClientKnowledgeBase({
+      tenantId: params.tenant_id,
+      clientId: params.client_id,
+      daysBack: 90,
+      limitDocuments: 20,
+      intent: 'strategy',
+    });
+    const socialPosts = knowledgeBase.recent_documents.filter((d) => d.source_type === 'social').slice(0, 12);
     if (socialPosts.length > 0) {
       const postLines = socialPosts.map((d) => {
-        const date = d.published_at ? new Date(d.published_at).toLocaleDateString('pt-BR') : '';
-        return `- [${d.platform || ''}] ${date}: ${(d.content_excerpt || d.content_text || '').slice(0, 100)}`;
+        const publishedAt = d.published_at || d.created_at;
+        const date = publishedAt ? new Date(publishedAt).toLocaleDateString('pt-BR') : '';
+        return `- [${d.platform || ''}] ${date}: ${String(d.excerpt || '').slice(0, 100)}`;
       });
       recentContentBlock = `\n\nCONTEUDO JA PUBLICADO PELO CLIENTE (evite sugerir temas ja cobertos):\n${postLines.join('\n')}`;
     }

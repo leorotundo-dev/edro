@@ -1,9 +1,9 @@
 import { query } from '../db';
 import { buildContextPack } from '../library/contextPack';
-import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { getClientPreferences, type LearnedPreferences } from './learningLoopService';
 import { formatTimeSlot } from './predictiveService';
 import { tavilySearch, isTavilyConfigured } from './tavilyService';
+import { buildClientKnowledgeBase } from './clientKnowledgeBaseService';
 
 export type IntelligenceContext = {
   client: {
@@ -124,8 +124,7 @@ export async function buildIntelligenceContext(params: {
     opportunitiesData,
     briefingsData,
     copiesData,
-    clientDocumentsData,
-    clientInsightData,
+    knowledgeBaseData,
     learnedPrefsData,
     predictiveTimesData,
     groupInsightsData,
@@ -239,17 +238,13 @@ export async function buildIntelligenceContext(params: {
       LIMIT 50
     `, [params.client_id]),
 
-    // Client documents (posts + website pages, últimos 90 dias)
-    listClientDocuments({
+    // Canonical client knowledge base (docs + insight + radar)
+    buildClientKnowledgeBase({
       tenantId: params.tenant_id,
       clientId: params.client_id,
-      limit: 30,
-    }),
-
-    // Latest client insight (AI-generated summary)
-    getLatestClientInsight({
-      tenantId: params.tenant_id,
-      clientId: params.client_id,
+      daysBack: 90,
+      limitDocuments: 30,
+      intent: 'strategy',
     }),
 
     // Learned preferences (learning loop)
@@ -336,8 +331,9 @@ export async function buildIntelligenceContext(params: {
   const opportunities = opportunitiesData.status === 'fulfilled' ? opportunitiesData.value.rows : [];
   const briefings = briefingsData.status === 'fulfilled' ? briefingsData.value.rows : [];
   const copies = copiesData.status === 'fulfilled' ? copiesData.value.rows : [];
-  const clientDocuments = clientDocumentsData.status === 'fulfilled' ? clientDocumentsData.value : [];
-  const latestInsight = clientInsightData.status === 'fulfilled' ? clientInsightData.value : null;
+  const knowledgeBase = knowledgeBaseData.status === 'fulfilled' ? knowledgeBaseData.value : null;
+  const clientDocuments = knowledgeBase?.recent_documents || [];
+  const latestInsight = knowledgeBase?.latest_insight || null;
   const learnedPrefs: LearnedPreferences | null = learnedPrefsData.status === 'fulfilled' ? learnedPrefsData.value : null;
   const predictiveTimes = predictiveTimesData.status === 'fulfilled' ? predictiveTimesData.value.rows : [];
   const groupInsights = groupInsightsData.status === 'fulfilled' ? groupInsightsData.value.rows : [];

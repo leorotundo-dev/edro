@@ -58,6 +58,9 @@ export type ClientKnowledgeBaseSnapshot = {
     source_type: string | null;
     title: string | null;
     excerpt: string | null;
+    platform: string | null;
+    url: string | null;
+    published_at: string | null;
     created_at: string | null;
   }>;
   memory_block: string;
@@ -289,6 +292,9 @@ export async function buildClientKnowledgeBase(params: {
     source_type: item.source_type || null,
     title: item.title || null,
     excerpt: item.content_excerpt || shortText(item.content_text, 200) || null,
+    platform: item.platform || null,
+    url: item.url || null,
+    published_at: item.published_at || null,
     created_at: item.created_at || null,
   })));
 

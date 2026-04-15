@@ -8,7 +8,7 @@ import { createClient, getClientById, updateClient, deleteClient, listClients } 
 import { ClientIntelligenceService } from '../services/clientIntelligence';
 import { syncReporteiInsightsForClient } from '../services/reporteiInsights';
 import { syncRejectionPatternsToProfile } from '../services/rejectionPatternService';
-import { getLatestClientInsight, listClientDocuments, listClientSources } from '../repos/clientIntelligenceRepo';
+import { getLatestClientInsight, listClientSources } from '../repos/clientIntelligenceRepo';
 import { extractText } from '../library/extract';
 import { saveFile, readFile } from '../library/storage';
 import { OpenAIService } from '../services/ai/openaiService';
@@ -35,6 +35,7 @@ import {
 import { syncClientContactPerson } from '../repos/peopleRepo';
 import { env, portalLoginSecret } from '../env';
 import { audit } from '../audit/audit';
+import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 
 type PlanExtraction = {
   name?: string;
@@ -711,24 +712,26 @@ export default async function clientsRoutes(app: FastifyInstance) {
       const params = paramsSchema.parse(request.params);
       const tenantId = (request.user as any).tenant_id;
 
-      const insight = await getLatestClientInsight({ tenantId, clientId: params.id });
-      const sources = await listClientSources({ tenantId, clientId: params.id });
-      const memories = (await listClientDocuments({
+      const knowledgeBase = await buildClientKnowledgeBase({
         tenantId,
         clientId: params.id,
-        limit: 24,
-      }))
+        daysBack: 90,
+        limitDocuments: 12,
+        intent: 'relationship',
+      });
+      const sources = await listClientSources({ tenantId, clientId: params.id });
+      const memories = knowledgeBase.recent_documents
         .filter((doc) => ['gmail_message', 'whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'].includes(String(doc.source_type || '')))
         .slice(0, 12)
         .map((doc) => ({
           id: doc.id,
           source_type: doc.source_type || 'memory',
           title: doc.title || '',
-          excerpt: doc.content_excerpt || doc.content_text || '',
+          excerpt: doc.excerpt || '',
           published_at: doc.published_at || doc.created_at || null,
-          metadata: doc.metadata || {},
+          metadata: {},
         }));
-      return reply.send({ insight, sources, memories });
+      return reply.send({ insight: knowledgeBase.latest_insight, sources, memories });
     }
   );
 
@@ -741,31 +744,42 @@ export default async function clientsRoutes(app: FastifyInstance) {
       const params = paramsSchema.parse(request.params);
       const tenantId = (request.user as any).tenant_id;
 
-      const allDocs = await listClientDocuments({ tenantId, clientId: params.id, limit: 50 });
-
+      const knowledgeBase = await buildClientKnowledgeBase({
+        tenantId,
+        clientId: params.id,
+        daysBack: 90,
+        limitDocuments: 20,
+        intent: 'ops',
+      });
       const bySourceType: Record<string, number> = {};
-      for (const doc of allDocs) {
+      for (const doc of knowledgeBase.recent_documents) {
         const t = String(doc.source_type || 'unknown');
         bySourceType[t] = (bySourceType[t] || 0) + 1;
       }
 
       const memoryTypes = ['gmail_message', 'whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat'];
-      const conversationMemories = allDocs
+      const conversationMemories = knowledgeBase.recent_documents
         .filter((d) => memoryTypes.includes(String(d.source_type || '')))
         .slice(0, 20)
         .map((d) => ({
           id: d.id,
           source_type: d.source_type || 'memory',
           title: d.title || '',
-          excerpt: (String(d.content_excerpt || d.content_text || '')).slice(0, 300),
-          created_at: d.created_at || null,
+          excerpt: String(d.excerpt || '').slice(0, 300),
+          created_at: d.published_at || d.created_at || null,
         }));
 
       const lastMemoryAt = conversationMemories[0]?.created_at ?? null;
 
       return reply.send({
-        totalDocuments: allDocs.length,
+        totalDocuments:
+          knowledgeBase.recent_documents.length
+          + knowledgeBase.directives.length
+          + knowledgeBase.commitments.length
+          + knowledgeBase.evidence.length,
         bySourceType,
+        communicationRadar: knowledgeBase.radar,
+        governance: knowledgeBase.governance,
         conversationMemories,
         lastMemoryAt,
       });

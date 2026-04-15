@@ -28,11 +28,12 @@ import {
 } from '../repositories/edroBriefingRepository';
 import { buildContextPack } from '../library/contextPack';
 import { detectRepetition } from '../services/antiRepetitionEngine';
-import { listClientDocuments, listClientSources, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
+import { listClientSources } from '../repos/clientIntelligenceRepo';
 import { detectOpportunitiesForClient } from '../jobs/opportunityDetector';
 import { getAllToolDefinitions, getOperationsToolDefinitions } from '../services/ai/toolDefinitions';
 import { runToolUseLoop, LoopMessage } from '../services/ai/toolUseLoop';
 import { executeOperationsTool, OperationsToolContext, ToolContext } from '../services/ai/toolExecutor';
+import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 import {
   buildClientContext,
   loadPerformanceContext,
@@ -879,14 +880,21 @@ export default async function planningRoutes(app: FastifyInstance) {
             // Fetch recent posts for anti-repetition in copy prompt
             let recentPostLines: string[] | undefined;
             try {
-              const recentDocs = await listClientDocuments({ tenantId, clientId, limit: 10 });
-              if (recentDocs.length > 0) {
-                recentPostLines = recentDocs
+              const knowledgeBase = await buildClientKnowledgeBase({
+                tenantId,
+                clientId,
+                daysBack: 90,
+                limitDocuments: 10,
+                intent: 'copy',
+              });
+              if (knowledgeBase.recent_documents.length > 0) {
+                recentPostLines = knowledgeBase.recent_documents
                   .filter((d) => d.source_type === 'social')
                   .slice(0, 8)
                   .map((d) => {
-                    const date = d.published_at ? new Date(d.published_at).toLocaleDateString('pt-BR') : '';
-                    return `[${d.platform || ''}] ${date}: ${(d.content_excerpt || d.content_text || '').slice(0, 120)}`;
+                    const publishedAt = d.published_at || d.created_at;
+                    const date = publishedAt ? new Date(publishedAt).toLocaleDateString('pt-BR') : '';
+                    return `[${d.platform || ''}] ${date}: ${String(d.excerpt || '').slice(0, 120)}`;
                   });
               }
             } catch (err: any) { console.warn('[planning] recent posts fetch failed:', err?.message); }
@@ -2098,8 +2106,14 @@ Return as JSON array with keys: title, description, source, suggestedAction, pri
       const { clientId } = request.params;
       const tenantId = (request.user as any)?.tenant_id || 'default';
 
-      const insight = await getLatestClientInsight({ tenantId, clientId });
-      return reply.send({ success: true, data: insight });
+      const knowledgeBase = await buildClientKnowledgeBase({
+        tenantId,
+        clientId,
+        daysBack: 90,
+        limitDocuments: 8,
+        intent: 'strategy',
+      });
+      return reply.send({ success: true, data: knowledgeBase.latest_insight });
     },
   );
 
