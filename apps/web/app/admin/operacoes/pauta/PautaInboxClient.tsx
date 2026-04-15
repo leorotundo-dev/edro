@@ -8,6 +8,10 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
@@ -21,6 +25,7 @@ import {
   IconFilter,
   IconInbox,
   IconLayoutColumns,
+  IconPlus,
   IconRefresh,
   IconX,
 } from '@tabler/icons-react';
@@ -317,6 +322,17 @@ export default function PautaInboxClient() {
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
 
+  // Manual generation dialog
+  const [genOpen, setGenOpen] = useState(false);
+  const [genClient, setGenClient] = useState('');
+  const [genTitle, setGenTitle] = useState('');
+  const [genText, setGenText] = useState('');
+  const [genLoading, setGenLoading] = useState(false);
+  const [genSuccess, setGenSuccess] = useState(false);
+
+  // All clients for the "generate pauta" dropdown (pulled once on mount)
+  const [allClients, setAllClients] = useState<ClientOption[]>([]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -341,6 +357,16 @@ export default function PautaInboxClient() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Load full client list once (for "Gerar Pauta" dialog)
+  useEffect(() => {
+    apiGet<Array<{ id: string; name: string }>>('/clients')
+      .then((r) => {
+        const list = Array.isArray(r) ? r : [];
+        setAllClients(list.map((c) => ({ id: c.id, name: c.name })).sort((a, b) => a.name.localeCompare(b.name)));
+      })
+      .catch(() => {});
+  }, []);
+
   const handleApprove = async (id: string, approach: 'A' | 'B') => {
     await apiPost(`/pauta-inbox/${id}/approve`, { approach });
     await load();
@@ -349,6 +375,28 @@ export default function PautaInboxClient() {
   const handleReject = async (id: string) => {
     await apiPost(`/pauta-inbox/${id}/reject`, {});
     await load();
+  };
+
+  const handleGenerate = async () => {
+    if (!genClient || !genTitle.trim()) return;
+    setGenLoading(true);
+    setGenSuccess(false);
+    try {
+      await apiPost('/pauta-inbox/generate', {
+        client_id: genClient,
+        title: genTitle.trim(),
+        source_type: 'manual',
+        source_text: genText.trim() || undefined,
+      });
+      setGenSuccess(true);
+      setGenTitle('');
+      setGenText('');
+      setTimeout(() => { setGenOpen(false); setGenSuccess(false); void load(); }, 1500);
+    } catch {
+      // keep dialog open on error
+    } finally {
+      setGenLoading(false);
+    }
   };
 
   const pending = items.filter((i) => i.status === 'pending').length;
@@ -364,6 +412,14 @@ export default function PautaInboxClient() {
             <Chip label={`${pending} pendente${pending > 1 ? 's' : ''}`} color="warning" size="small" sx={{ fontWeight: 700 }} />
           )}
           <Box sx={{ flex: 1 }} />
+          <Button
+            size="small"
+            startIcon={<IconPlus size={16} />}
+            variant="contained"
+            onClick={() => setGenOpen(true)}
+          >
+            Gerar pauta
+          </Button>
           <Button size="small" startIcon={<IconRefresh size={16} />} variant="outlined" onClick={load} disabled={loading}>
             Atualizar
           </Button>
@@ -446,6 +502,69 @@ export default function PautaInboxClient() {
           </Box>
         )}
       </Box>
+      {/* ── Manual generation dialog ────────────────────────────────────── */}
+      <Dialog open={genOpen} onClose={() => setGenOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle fontWeight={800} sx={{ pb: 1 }}>
+          Gerar sugestão de pauta
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Informe o tema e o cliente. O Motor gera duas abordagens A/B com IA para revisão.
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
+              select
+              label="Cliente"
+              value={genClient}
+              onChange={(e) => setGenClient(e.target.value)}
+              size="small"
+              fullWidth
+            >
+              {(allClients.length ? allClients : clients).map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Tema / assunto"
+              value={genTitle}
+              onChange={(e) => setGenTitle(e.target.value)}
+              size="small"
+              fullWidth
+              placeholder="Ex: Nova lei do mercado X impacta o setor"
+            />
+            <TextField
+              label="Contexto adicional (opcional)"
+              value={genText}
+              onChange={(e) => setGenText(e.target.value)}
+              size="small"
+              fullWidth
+              multiline
+              rows={3}
+              placeholder="Cole aqui o trecho do artigo, nota de imprensa ou contexto relevante..."
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setGenOpen(false)} color="inherit" disabled={genLoading}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleGenerate}
+            disabled={genLoading || !genClient || !genTitle.trim()}
+            startIcon={
+              genSuccess
+                ? <IconCheck size={15} />
+                : genLoading
+                  ? <CircularProgress size={14} color="inherit" />
+                  : <IconBulb size={15} />
+            }
+            color={genSuccess ? 'success' : 'primary'}
+          >
+            {genSuccess ? 'Pauta enviada para análise!' : 'Gerar com IA'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </OperationsShell>
   );
 }
