@@ -1839,12 +1839,11 @@ export default async function edroRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string | undefined;
     const results: { briefingId: string; ok: boolean; copies?: number; error?: string }[] = [];
 
-    for (const briefingId of body.briefingIds) {
+    const processBriefing = async (briefingId: string) => {
       try {
         const briefing = await getBriefingById(briefingId);
         if (!briefing) {
-          results.push({ briefingId, ok: false, error: 'not_found' });
-          continue;
+          return { briefingId, ok: false, error: 'not_found' } as const;
         }
 
         const batchClientId =
@@ -1860,13 +1859,28 @@ export default async function edroRoutes(app: FastifyInstance) {
         const platforms = String(payload.channels || 'instagram').split(',').map((c: string) => c.trim());
         const platform = platforms[0] || 'instagram';
         const platformProfile = getPlatformProfile(platform as any);
+        const amd =
+          typeof (payload as any)?.amd === 'string'
+            ? (payload as any).amd
+            : typeof (payload as any)?.amd_type === 'string'
+              ? (payload as any).amd_type
+              : null;
+        const triggers = Array.isArray((payload as any)?.triggers)
+          ? (payload as any).triggers.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+          : Array.isArray((payload as any)?.behavior_intent?.triggers)
+            ? (payload as any).behavior_intent.triggers.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+            : [];
 
         const platformRules = platformProfile ? `\nPlataforma: ${platform}\n${JSON.stringify(platformProfile)}` : '';
         const knowledgeSection = knowledgeBlock ? `\n\nCONHECIMENTO DO CLIENTE:\n${knowledgeBlock}` : '';
-        const bulkPrompt = `Gere ${body.count || 1} opção(ões) de copy para a seguinte campanha:\n\nCampanha: ${briefing.title}\nObjetivo: ${payload.objective || 'engajamento'}\nPúblico: ${payload.target_audience || 'público geral'}\nObservações: ${payload.additional_notes || ''}${platformRules}${knowledgeSection}`;
-        const generated = await generateCopy({
+        const bulkPrompt = `Crie a melhor copy possível para a seguinte campanha:\n\nCampanha: ${briefing.title}\nObjetivo: ${payload.objective || 'engajamento'}\nPúblico: ${payload.target_audience || 'público geral'}\nObservações: ${payload.additional_notes || ''}${platformRules}${knowledgeSection}`;
+        const generated = await generateAndSelectBestCopy({
           prompt: bulkPrompt,
-          taskType: 'social_post',
+          tenantId: tenantId ?? 'system',
+          clientId: batchClientId || undefined,
+          platform,
+          amd,
+          triggers,
           usageContext: { tenant_id: tenantId ?? 'system', feature: 'bulk_generate' },
         });
 
@@ -1878,16 +1892,22 @@ export default async function edroRoutes(app: FastifyInstance) {
             model: generated.model || null,
             prompt: null,
             output: generated.output,
-            payload: { bulk: true, platform },
+            payload: { bulk: true, platform, requested_count: body.count, ...(generated.payload || {}) },
             createdBy: (request as any).user?.email || null,
           });
           copyCount++;
         }
 
-        results.push({ briefingId, ok: true, copies: copyCount });
+        return { briefingId, ok: true, copies: copyCount } as const;
       } catch (err: any) {
-        results.push({ briefingId, ok: false, error: err.message });
+        return { briefingId, ok: false, error: err.message } as const;
       }
+    };
+
+    for (let index = 0; index < body.briefingIds.length; index += 3) {
+      const chunk = body.briefingIds.slice(index, index + 3);
+      const chunkResults = await Promise.all(chunk.map((briefingId) => processBriefing(briefingId)));
+      results.push(...chunkResults);
     }
 
     return reply.send({ success: true, data: results });
