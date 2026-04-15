@@ -1,3 +1,4 @@
+import { query } from '../db';
 import { fetchDue, markProcessing, markPublished, markFailed } from '../repos/publishRepo';
 import { tavilySearch, isTavilyConfigured } from '../services/tavilyService';
 import { logTavilyUsage } from '../services/ai/aiUsageLogger';
@@ -38,7 +39,24 @@ async function publishToGateway(job: any): Promise<'gateway' | 'local'> {
 
 // ── Direct publishing via platform services ────────────────────────────────
 
-async function publishDirectly(job: any): Promise<void> {
+type PublishArtifacts = {
+  platformPostId: string | null;
+  platformPostUrl: string | null;
+};
+
+async function persistPublishArtifacts(jobId: string, artifacts: PublishArtifacts): Promise<void> {
+  if (!artifacts.platformPostId && !artifacts.platformPostUrl) return;
+  await query(
+    `UPDATE publish_queue
+        SET platform_post_id = COALESCE($2, platform_post_id),
+            platform_post_url = COALESCE($3, platform_post_url),
+            updated_at = now()
+      WHERE id = $1`,
+    [jobId, artifacts.platformPostId, artifacts.platformPostUrl],
+  );
+}
+
+async function publishDirectly(job: any): Promise<PublishArtifacts> {
   const channel   = (job.channel as string | undefined) ?? '';
   const payload   = (job.payload ?? {}) as Record<string, any>;
   const tenantId  = (job.tenant_id ?? payload.tenant_id ?? '') as string;
@@ -46,25 +64,28 @@ async function publishDirectly(job: any): Promise<void> {
 
   if (!tenantId || !clientId) {
     console.log(`[publishWorker] job=${job.id} no tenant/client — marking published without posting`);
-    return;
+    return { platformPostId: null, platformPostUrl: null };
   }
 
   const ch = channel.toLowerCase();
 
   if (ch === 'linkedin') {
-    await publishLinkedInPost(tenantId, clientId, {
+    const result = await publishLinkedInPost(tenantId, clientId, {
       caption:  payload.copy_text ?? payload.content ?? '',
       imageUrl: payload.image_url ?? '',
       title:    payload.title,
     });
     console.log(`[publishWorker] LinkedIn published job=${job.id}`);
-    return;
+    return {
+      platformPostId: result.postId || null,
+      platformPostUrl: result.postUrl || null,
+    };
   }
 
   if (ch === 'tiktok') {
     const videoUrl = payload.video_url as string | undefined;
     if (!videoUrl) throw new Error('tiktok_publish: video_url required');
-    await publishTikTokVideo(tenantId, clientId, {
+    const result = await publishTikTokVideo(tenantId, clientId, {
       videoUrl,
       caption:        payload.copy_text ?? payload.content ?? '',
       privacy:        payload.privacy,
@@ -73,18 +94,22 @@ async function publishDirectly(job: any): Promise<void> {
       disableComment: payload.disable_comment,
     });
     console.log(`[publishWorker] TikTok published job=${job.id}`);
-    return;
+    return {
+      platformPostId: result.publishId || null,
+      platformPostUrl: result.shareUrl || null,
+    };
   }
 
   if (ch === 'instagram' || ch === 'facebook' || ch === 'meta') {
     // Meta publishing is handled via PUBLISHER_GATEWAY_URL in production.
     // In dev/local mode, log and mark published without posting.
     console.log(`[publishWorker] Meta/Instagram job=${job.id} — no local gateway, marking done`);
-    return;
+    return { platformPostId: null, platformPostUrl: null };
   }
 
   // Unknown channel — mark published to avoid stuck jobs
   console.log(`[publishWorker] Unknown channel="${channel}" job=${job.id} — marking published`);
+  return { platformPostId: null, platformPostUrl: null };
 }
 
 export async function runPublishWorkerOnce() {
@@ -109,7 +134,8 @@ export async function runPublishWorkerOnce() {
 
       const mode = await publishToGateway(job);
       if (mode === 'local') {
-        await publishDirectly(job);
+        const artifacts = await publishDirectly(job);
+        await persistPublishArtifacts(job.id, artifacts);
         await markPublished(job.id);
       }
     } catch (error: any) {

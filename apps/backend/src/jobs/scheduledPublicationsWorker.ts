@@ -80,15 +80,21 @@ export async function runScheduledPublicationsOnce(): Promise<void> {
         const connector = await loadLinkedInConnector(tenantId, clientId);
 
         if (connector) {
-          await publishLinkedInPost(tenantId, clientId, {
+          const result = await publishLinkedInPost(tenantId, clientId, {
             caption:  pub.copy_text ?? '',
             imageUrl: pub.image_url ?? '',
             title:    pub.briefing_title ?? '',
           });
 
           await query(
-            `UPDATE scheduled_publications SET status = 'published', published_at = NOW(), updated_at = NOW() WHERE id = $1`,
-            [pub.id],
+            `UPDATE scheduled_publications
+                SET status = 'published',
+                    published_at = NOW(),
+                    platform_post_id = $2,
+                    platform_post_url = $3,
+                    updated_at = NOW()
+              WHERE id = $1`,
+            [pub.id, result.postId || null, result.postUrl || null],
           );
           console.log(`[scheduledPublications] Published to LinkedIn: pub=${pub.id} client=${clientId}`);
           continue;

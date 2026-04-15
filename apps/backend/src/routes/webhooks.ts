@@ -8,6 +8,13 @@ import {
 } from '../services/integrations/webhookSecurityService';
 import { securityLog } from '../audit/securityLog';
 
+function pickFirstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 export default async function webhooksRoutes(app: FastifyInstance) {
   registerRawBodyCapture(app, ['/api/webhooks/whatsapp']);
 
@@ -60,9 +67,46 @@ export default async function webhooksRoutes(app: FastifyInstance) {
     }
 
     if (status === 'published') {
+      const resultPayload = result && typeof result === 'object' ? result as Record<string, any> : {};
+      const bodyPayload = request.body && typeof request.body === 'object' ? request.body as Record<string, any> : {};
+      const platformPostId = pickFirstString(
+        resultPayload.post_id,
+        resultPayload.postId,
+        resultPayload.media_id,
+        resultPayload.mediaId,
+        resultPayload.item_id,
+        resultPayload.itemId,
+        resultPayload.publishId,
+        resultPayload.publish_id,
+        bodyPayload.post_id,
+        bodyPayload.postId,
+        bodyPayload.media_id,
+        bodyPayload.mediaId,
+        bodyPayload.item_id,
+        bodyPayload.itemId,
+        bodyPayload.publishId,
+        bodyPayload.publish_id,
+      );
+      const platformPostUrl = pickFirstString(
+        resultPayload.post_url,
+        resultPayload.postUrl,
+        resultPayload.share_url,
+        resultPayload.shareUrl,
+        bodyPayload.post_url,
+        bodyPayload.postUrl,
+        bodyPayload.share_url,
+        bodyPayload.shareUrl,
+      );
+
       await query(
-        `UPDATE publish_queue SET status='published', updated_at=now(), error_message=NULL WHERE id=$1`,
-        [jobId]
+        `UPDATE publish_queue
+            SET status='published',
+                updated_at=now(),
+                error_message=NULL,
+                platform_post_id = COALESCE($2, platform_post_id),
+                platform_post_url = COALESCE($3, platform_post_url)
+          WHERE id=$1`,
+        [jobId, platformPostId, platformPostUrl]
       );
       const { rows } = await query<{ post_asset_id: string; tenant_id: string }>(
         `SELECT post_asset_id, tenant_id FROM publish_queue WHERE id=$1`,
@@ -72,8 +116,13 @@ export default async function webhooksRoutes(app: FastifyInstance) {
       const tenantId = rows[0]?.tenant_id;
       if (postId && tenantId) {
         await query(
-          `UPDATE post_assets SET status='published', published_at=now(), updated_at=now() WHERE id=$1 AND tenant_id=$2`,
-          [postId, tenantId]
+          `UPDATE post_assets
+              SET status='published',
+                  published_at=now(),
+                  updated_at=now(),
+                  external_post_id = COALESCE($3, external_post_id)
+            WHERE id=$1 AND tenant_id=$2`,
+          [postId, tenantId, platformPostId]
         );
       }
     } else {
