@@ -75,6 +75,16 @@ export type CopyVariant = {
 };
 
 export type AgentRedatorResult = {
+  final_text: string;
+  structured: {
+    title: string;
+    body: string;
+    cta: string;
+    legenda: string;
+    hashtags: string[];
+  };
+  score: number;
+  issues: string[];
   brandVoice: BrandVoiceContext;
   strategy: HookStrategy;
   variants: CopyVariant[];
@@ -550,5 +560,29 @@ export async function runAgentRedator(params: AgentRedatorParams): Promise<Agent
     )
   );
 
-  return { brandVoice, strategy, variants, pluginTimings: timings };
+  const bestVariant =
+    [...variants]
+      .sort((left, right) => {
+        const leftApproved = left.audit?.approved ? 1 : 0;
+        const rightApproved = right.audit?.approved ? 1 : 0;
+        if (rightApproved !== leftApproved) return rightApproved - leftApproved;
+        return (right.audit?.score ?? 0) - (left.audit?.score ?? 0);
+      })[0] ?? null;
+
+  return {
+    final_text: bestVariant?.audit?.final_text ?? bestVariant?.body ?? '',
+    structured: {
+      title: bestVariant?.title ?? '',
+      body: bestVariant?.body ?? '',
+      cta: bestVariant?.cta ?? '',
+      legenda: bestVariant?.legenda ?? '',
+      hashtags: bestVariant?.hashtags ?? [],
+    },
+    score: bestVariant?.audit?.score ?? 0,
+    issues: bestVariant?.audit?.issues ?? [],
+    brandVoice,
+    strategy,
+    variants,
+    pluginTimings: timings,
+  };
 }

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PostVersionHistory from '@/components/PostVersionHistory';
 import LiveMockupPreview from '@/components/mockups/LiveMockupPreview';
 import ABTestResultPanel from '@/components/studio/ABTestResultPanel';
+import CopyVersionDrawer, { CopyVersionDrawerItem } from '@/components/studio/CopyVersionDrawer';
 import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
 import ModelComparePanel from '@/components/studio/ModelComparePanel';
@@ -26,6 +27,7 @@ import {
   IconBrain,
   IconBulb,
   IconCheck,
+  IconClockHour4,
   IconCopy,
   IconMinus,
   IconPlus,
@@ -91,12 +93,25 @@ type CreativeConcept = {
   rationale: string;
 };
 
+type StructuredCopyFields = {
+  title: string;
+  body: string;
+  cta: string;
+  legenda: string;
+  hashtags: string[];
+};
+
 type CopyVersion = {
   id: string;
   output: string;
   model?: string | null;
-  payload?: Record<string, any> | null;
+  payload?: (Record<string, any> & {
+    structured?: StructuredCopyFields | null;
+  }) | null;
   created_at?: string | null;
+  status?: 'draft' | 'approved' | 'rejected' | null;
+  score?: number | null;
+  feedback?: string | null;
 };
 
 type ABTest = {
@@ -445,6 +460,22 @@ function parseOptions(text: string): ParsedOption[] {
   return chunks.map(parseOptionChunk);
 }
 
+function copyToOptions(copy?: CopyVersion | null): ParsedOption[] {
+  if (!copy) return [];
+  const structured = copy.payload?.structured;
+  if (structured) {
+    return [{
+      title: structured.title || '',
+      body: structured.body || '',
+      cta: structured.cta || '',
+      legenda: structured.legenda || '',
+      hashtags: Array.isArray(structured.hashtags) ? structured.hashtags.join(' ') : '',
+      raw: copy.output || '',
+    }];
+  }
+  return parseOptions(copy.output || '');
+}
+
 const extractCopyMeta = (copy?: CopyVersion | null): CopyMeta | null => {
   if (!copy) return null;
   const payload = copy.payload || {};
@@ -508,6 +539,7 @@ export default function EditorClient() {
   const [success, setSuccess] = useState('');
   const [copyProgressTick, setCopyProgressTick] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [quickRefineOpen, setQuickRefineOpen] = useState(false);
@@ -668,7 +700,16 @@ export default function EditorClient() {
       const payload = context.selected_copy_version.payload;
       const text = String(payload.output || payload.text || '').trim();
       if (text) {
-        const parsed = parseOptions(text);
+        const parsed = payload.structured
+          ? [{
+              title: payload.structured.title || '',
+              body: payload.structured.body || '',
+              cta: payload.structured.cta || '',
+              legenda: payload.structured.legenda || '',
+              hashtags: Array.isArray(payload.structured.hashtags) ? payload.structured.hashtags.join(' ') : '',
+              raw: text,
+            }]
+          : parseOptions(text);
         setOutput(text);
         setOptions(parsed);
         setSelectedOption(0);
@@ -750,7 +791,7 @@ export default function EditorClient() {
       if (data.copies?.length) {
         const latest = data.copies[0];
         setOutput(latest.output || '');
-        const parsed = parseOptions(latest.output || '');
+        const parsed = copyToOptions(latest);
         setOptions(parsed);
         setSelectedOption(0);
         setActiveCopyMeta(extractCopyMeta(latest));
@@ -1261,7 +1302,7 @@ export default function EditorClient() {
 
         if (typeof window !== 'undefined' && activeFormat?.platform && activeFormat?.format) {
           const key = `${activeFormat.platform}::${activeFormat.format}`;
-          const parsed = parseOptions(created.output || '');
+          const parsed = copyToOptions(created);
           persistCopyMaps(key, created.output || '', parsed, created, client?.id);
           setCopyProgressTick((prev) => prev + 1);
         }
@@ -1269,7 +1310,7 @@ export default function EditorClient() {
 
       if (primaryCopy) {
         setOutput(primaryCopy.output || '');
-        const parsed = parseOptions(primaryCopy.output || '');
+        const parsed = copyToOptions(primaryCopy);
         setOptions(parsed);
         setSelectedOption(0);
         setComparisonMode(true);
@@ -1339,7 +1380,7 @@ export default function EditorClient() {
 
   const handleSelectVersion = (copy: CopyVersion) => {
     setOutput(copy.output || '');
-    const parsed = parseOptions(copy.output || '');
+    const parsed = copyToOptions(copy);
     setOptions(parsed);
     setSelectedOption(0);
     setActiveCopyMeta(extractCopyMeta(copy));
@@ -1357,7 +1398,6 @@ export default function EditorClient() {
       window.localStorage.setItem('edro_copy_version_id', copy.id);
       if (activeFormat?.platform && activeFormat?.format) {
         const key = `${activeFormat.platform}::${activeFormat.format}`;
-        const parsed = parseOptions(copy.output || '');
         const activeClient = resolveActiveClient();
         persistCopyMaps(key, copy.output || '', parsed, copy, activeClient?.id);
       }
@@ -1464,8 +1504,14 @@ export default function EditorClient() {
 
   const resolveActiveCopyId = () => {
     if (typeof window === 'undefined') return '';
-    return window.localStorage.getItem('edro_copy_version_id') || '';
+    return window.localStorage.getItem('edro_copy_version_id') || copies[0]?.id || '';
   };
+
+  const handleRestoreVersion = useCallback((version: CopyVersionDrawerItem) => {
+    handleSelectVersion(version);
+    setComparisonMode(false);
+    setVersionDrawerOpen(false);
+  }, [handleSelectVersion]);
 
   const resolveBriefingId = () => {
     if (briefing?.id) return briefing.id;
@@ -3012,6 +3058,20 @@ export default function EditorClient() {
 
                           {options.length ? (
                             <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                              {copies.length > 1 && (
+                                <Tooltip title="Histórico de versões">
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="inherit"
+                                    startIcon={<IconClockHour4 size={15} />}
+                                    onClick={() => setVersionDrawerOpen(true)}
+                                    sx={{ fontSize: 12 }}
+                                  >
+                                    {copies.length} versões
+                                  </Button>
+                                </Tooltip>
+                              )}
                               <Button
                                 size="small"
                                 variant="contained"
@@ -3608,6 +3668,14 @@ export default function EditorClient() {
         onClose={() => setRejectOpen(false)}
         onSubmit={handleRejectOption}
         onRegenerate={handleRegenerateWithInstruction}
+      />
+
+      <CopyVersionDrawer
+        open={versionDrawerOpen}
+        onClose={() => setVersionDrawerOpen(false)}
+        versions={copies}
+        activeId={resolveActiveCopyId()}
+        onRestore={handleRestoreVersion}
       />
 
       <Dialog

@@ -40,6 +40,14 @@ type CopyPipelineResult = {
   payload: Record<string, any>;
 };
 
+type StructuredCopy = {
+  title: string;
+  body: string;
+  cta: string;
+  legenda: string;
+  hashtags: string[];
+};
+
 function parseCollaborativeOptions(output: string): string[] {
   const blocks = output
     .split(/OPCA[OÃ]O\s+\d+[:.\-]?\s*/i)
@@ -55,6 +63,53 @@ function parseCollaborativeOptions(output: string): string[] {
 
   const trimmed = output.trim();
   return trimmed ? [trimmed] : [];
+}
+
+function parseStructuredCopy(text: string): StructuredCopy | null {
+  const lines = text.split('\n');
+  const fields: Record<string, string> = {};
+  let currentField = '';
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (/^OPCA[OÃ]O\s+\d+/i.test(line)) {
+      currentField = '';
+      continue;
+    }
+
+    const title = line.match(/^arte\s*[-–]\s*t[ií]tulo\s*[:\-]\s*(.+)/i);
+    const body = line.match(/^arte\s*[-–]\s*corpo\s*[:\-]\s*(.+)/i);
+    const legenda = line.match(/^legenda\s*[:\-]\s*(.*)/i);
+    const cta = line.match(/^cta\s*[:\-]\s*(.+)/i);
+    const hashtags = line.match(/^hashtags?\s*[:\-]\s*(.+)/i);
+
+    if (title) { currentField = 'title'; fields.title = title[1].trim(); continue; }
+    if (body) { currentField = 'body'; fields.body = body[1].trim(); continue; }
+    if (legenda) { currentField = 'legenda'; fields.legenda = (legenda[1] || '').trim(); continue; }
+    if (cta) { currentField = 'cta'; fields.cta = cta[1].trim(); continue; }
+    if (hashtags) { currentField = 'hashtags'; fields.hashtags = hashtags[1].trim(); continue; }
+
+    if (currentField) {
+      fields[currentField] = fields[currentField]
+        ? `${fields[currentField]}\n${line}`
+        : line;
+    }
+  }
+
+  if (!fields.title && !fields.body && !fields.legenda && !fields.cta && !fields.hashtags) {
+    return null;
+  }
+
+  return {
+    title: fields.title || '',
+    body: fields.body || '',
+    cta: fields.cta || '',
+    legenda: fields.legenda || '',
+    hashtags: fields.hashtags
+      ? fields.hashtags.split(/\s+/).map((token) => token.trim()).filter(Boolean)
+      : [],
+  };
 }
 
 const buildValidationPrompt = (params: { prompt: string; creativeOutput: string }) => [
@@ -512,6 +567,7 @@ export async function generateAndSelectBestCopy(params: {
   }
 
   const winnerText = safeOptions[winnerIndex] ?? safeOptions[0] ?? collaborative.output;
+  const winnerStructured = parseStructuredCopy(winnerText);
 
   return {
     output: winnerText,
@@ -530,6 +586,7 @@ export async function generateAndSelectBestCopy(params: {
       winner_fatigue_days: winnerFatigueDays,
       winner_top_cluster: winnerTopCluster,
       all_resonance_scores: allResonanceScores,
+      structured: winnerStructured,
     },
     simulation_id: simulationId,
     winner_index: winnerIndex,
