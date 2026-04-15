@@ -1,9 +1,8 @@
 import { query } from '../db';
 import { getClientById } from '../repos/clientsRepo';
-import { listClientDocuments, getLatestClientInsight } from '../repos/clientIntelligenceRepo';
 import { loadBehaviorProfiles } from './behaviorClusteringService';
 import { loadLearningRules } from './learningEngine';
-import { buildClientLivingMemory } from './clientLivingMemoryService';
+import { buildClientKnowledgeBase } from './clientKnowledgeBaseService';
 
 /**
  * Resolve clients.id (TEXT like "banco-bbc-digital") → edro_clients.id (UUID).
@@ -40,43 +39,32 @@ export async function buildClientContext(tenantId: string, clientId: string): Pr
   if (knowledge.pillars?.length) parts.push(`Content Pillars: ${knowledge.pillars.join(', ')}`);
 
   try {
-    const [docs, insight, livingMemory] = await Promise.all([
-      listClientDocuments({ tenantId, clientId, limit: 15 }),
-      getLatestClientInsight({ tenantId, clientId }),
-      buildClientLivingMemory({ tenantId, clientId, maxEvidence: 5, maxActions: 4 }).catch(() => ({ block: '', directives: [], evidence: [], pendingActions: [] })),
-    ]);
-    const memorySourceTypes = new Set(['gmail_message', 'whatsapp_message', 'whatsapp_insight', 'whatsapp_digest', 'meeting', 'meeting_chat']);
+    const snapshot = await buildClientKnowledgeBase({
+      tenantId,
+      clientId,
+      daysBack: 60,
+      limitDocuments: 8,
+      intent: 'relationship',
+    }).catch(() => null);
 
-    if (insight?.summary) {
-      const s = insight.summary;
+    if (snapshot?.latest_insight) {
+      const s = snapshot.latest_insight;
       if (s.summary_text) parts.push(`\nINTELIGENCIA DO CLIENTE:\n${s.summary_text}`);
       if (s.positioning) parts.push(`Posicionamento: ${s.positioning}`);
       if (s.tone) parts.push(`Tom de voz: ${s.tone}`);
       if (s.industry) parts.push(`Industria: ${s.industry}`);
     }
 
-    if (livingMemory.block) {
-      parts.push(`\n${livingMemory.block}`);
+    if (snapshot?.knowledge_base_block) {
+      parts.push(`\n${snapshot.knowledge_base_block}`);
     }
 
-    if (docs.length > 0) {
-      const socialPosts = docs.filter((d) => d.source_type === 'social').slice(0, 8);
-      const webPages = docs.filter((d) => d.source_type !== 'social' && !memorySourceTypes.has(String(d.source_type || ''))).slice(0, 5);
-
+    if (snapshot?.recent_documents?.length) {
+      const socialPosts = snapshot.recent_documents.filter((d) => d.source_type === 'social').slice(0, 5);
       if (socialPosts.length > 0) {
         parts.push(`\nCONTEUDO RECENTE DO CLIENTE (${socialPosts.length} posts):`);
         socialPosts.forEach((d) => {
-          const date = d.published_at ? new Date(d.published_at).toLocaleDateString('pt-BR') : '';
-          const excerpt = (d.content_excerpt || d.content_text || '').slice(0, 150);
-          parts.push(`- [${d.platform || ''}] ${date}: ${excerpt}`);
-        });
-      }
-
-      if (webPages.length > 0) {
-        parts.push(`\nPAGINAS DO SITE DO CLIENTE (${webPages.length}):`);
-        webPages.forEach((d) => {
-          const excerpt = (d.content_excerpt || d.content_text || '').slice(0, 120);
-          parts.push(`- ${d.title || d.url || ''}: ${excerpt}`);
+          parts.push(`- ${d.title || 'Sem titulo'}: ${(d.excerpt || '').slice(0, 150)}`);
         });
       }
     }

@@ -149,8 +149,10 @@ export default function HomologacaoPage() {
 
   const load = useCallback(async () => {
     try {
-      const res: any = await apiGet('/jobs?status=in_review&source=ops_job&limit=100');
-      setJobs((res?.jobs ?? []).filter((j: any) => j.status === 'in_review'));
+      const res: any = await apiGet('/jobs?status=in_review&limit=100');
+      // API returns { data: [...] } — filter to in_review just in case
+      const list = res?.data ?? res?.jobs ?? [];
+      setJobs(list.filter((j: any) => j.status === 'in_review'));
     } catch { /* silent */ } finally { setIsLoading(false); }
   }, []);
 

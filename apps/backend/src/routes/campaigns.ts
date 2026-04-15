@@ -13,6 +13,7 @@ import { auditDraftContent } from '../services/ai/agentAuditor';
 import { tagCopy } from '../services/ai/agentTagger';
 import { loadBehaviorProfiles, recomputeClientBehaviorProfiles } from '../services/behaviorClusteringService';
 import { loadLearningRules, recomputeClientLearningRules } from '../services/learningEngine';
+import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 
 type CatalogFormat = {
   production_type: string;
@@ -1366,44 +1367,18 @@ export default async function campaignRoutes(app: FastifyInstance) {
           }\nINSTRUCAO: A copy deve refletir os padrões de AMD e gatilhos com uplift comprovado para esta audiência.`
         : '';
 
-      // 6b. Load live client intelligence (meetings + WhatsApp) for copy context
+      // 6b. Load canonical client knowledge base for copy context
       let copyIntelBlock = '';
       try {
-        const [actionsRes, whatsappRes] = await Promise.all([
-          pool.query(
-            `SELECT ma.title, ma.type, ma.priority, ma.deadline, ma.description
-               FROM meeting_actions ma
-              WHERE ma.client_id=$1 AND ma.tenant_id=$2 AND ma.status='pending'
-                AND ma.created_at > NOW() - INTERVAL '60 days'
-              ORDER BY CASE ma.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, ma.created_at DESC
-              LIMIT 5`,
-            [campaign.client_id, tenantId]
-          ),
-          pool.query(
-            `SELECT insight_type, summary, urgency
-               FROM whatsapp_message_insights
-              WHERE client_id=$1 AND tenant_id=$2 AND actioned=false
-                AND created_at > NOW() - INTERVAL '30 days'
-              ORDER BY CASE urgency WHEN 'urgent' THEN 0 ELSE 1 END, created_at DESC
-              LIMIT 4`,
-            [campaign.client_id, tenantId]
-          ),
-        ]);
-        const parts: string[] = [];
-        if (actionsRes.rows.length) {
-          parts.push('AÇÕES PENDENTES DE REUNIÕES:');
-          for (const a of actionsRes.rows) {
-            const dl = a.deadline ? ` (prazo ${new Date(a.deadline).toLocaleDateString('pt-BR')})` : '';
-            parts.push(`- [${a.type}] ${a.title}${dl}`);
-          }
-        }
-        if (whatsappRes.rows.length) {
-          parts.push('SINAIS DO CLIENTE VIA WHATSAPP:');
-          for (const i of whatsappRes.rows) {
-            parts.push(`- [${i.insight_type}${i.urgency === 'urgent' ? ' URGENTE' : ''}] ${i.summary}`);
-          }
-        }
-        if (parts.length) copyIntelBlock = '\n\nCONTEXTO ATUAL DO CLIENTE:\n' + parts.join('\n');
+        const snapshot = await buildClientKnowledgeBase({
+          tenantId,
+          clientId: campaign.client_id,
+          question: [campaign.objective, intent.momento, intent.amd, intent.target_behavior].filter(Boolean).join(' '),
+          daysBack: 60,
+          limitDocuments: 4,
+          intent: 'strategy',
+        });
+        if (snapshot.knowledge_base_block) copyIntelBlock = `\n\n${snapshot.knowledge_base_block}`;
       } catch { /* non-blocking */ }
 
       const writerInput = {

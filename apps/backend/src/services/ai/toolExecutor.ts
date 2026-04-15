@@ -57,6 +57,7 @@ import { sendWhatsAppText } from '../whatsappService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
+import { buildClientKnowledgeBase } from '../clientKnowledgeBaseService';
 import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFactsService';
 import { analyzeClientMemoryGovernance, applyClientMemoryGovernanceAction } from '../clientMemoryGovernanceService';
 import { buildClientState, processAlerts } from '../jarvisDecisionEngine';
@@ -637,6 +638,7 @@ const TOOL_MAP: Record<string, (args: any, ctx: ToolContext) => Promise<ToolResu
   list_opportunities: toolListOpportunities,
   action_opportunity: toolActionOpportunity,
   get_client_profile: toolGetClientProfile,
+  get_client_knowledge_base: toolGetClientKnowledgeBase,
   get_client_living_memory: toolGetClientLivingMemory,
   get_client_memory_facts: toolGetClientMemoryFacts,
   get_client_memory_governance: toolGetClientMemoryGovernance,
@@ -2169,13 +2171,11 @@ async function toolGetClientProfile(args: any, ctx: ToolContext): Promise<ToolRe
 
   const profile = client.profile || {};
   const knowledge = profile.knowledge_base || {};
-  const livingMemory = await buildClientLivingMemory({
+  const knowledgeBase = await buildClientKnowledgeBase({
     tenantId: ctx.tenantId,
     clientId: ctx.clientId,
     daysBack: 45,
-    maxDirectives: 6,
-    maxEvidence: 3,
-    maxActions: 3,
+    limitDocuments: 4,
   }).catch(() => null);
 
   return {
@@ -2197,14 +2197,16 @@ async function toolGetClientProfile(args: any, ctx: ToolContext): Promise<ToolRe
         tone_of_voice: knowledge.tone_of_voice,
         competitors: knowledge.competitors,
       },
-      living_memory_summary: livingMemory?.snapshot || {
+      living_memory_summary: knowledgeBase?.living_memory_summary || {
         active_directives: 0,
         evidence_signals: 0,
         fresh_signals_7d: 0,
         pending_commitments: 0,
         evidence_by_source: {},
       },
-      active_directives: livingMemory?.directives || [],
+      active_directives: knowledgeBase?.directives || [],
+      knowledge_base_block: knowledgeBase?.knowledge_base_block || '',
+      communication_radar: knowledgeBase?.radar || null,
     },
   };
 }
@@ -2243,6 +2245,29 @@ async function toolGetClientLivingMemory(args: any, ctx: ToolContext): Promise<T
     },
     metadata: {
       row_count: livingMemory.directives.length + livingMemory.evidence.length + livingMemory.pendingActions.length,
+    },
+  };
+}
+
+async function toolGetClientKnowledgeBase(args: any, ctx: ToolContext): Promise<ToolResult> {
+  const snapshot = await buildClientKnowledgeBase({
+    tenantId: ctx.tenantId,
+    clientId: ctx.clientId,
+    question: contextualString(args.question),
+    daysBack: Math.min(args.days_back ?? 60, 180),
+    limitDocuments: Math.min(args.limit_documents ?? 6, 12),
+    intent: contextualString(args.intent) as any || 'general',
+  });
+
+  return {
+    success: true,
+    data: snapshot,
+    metadata: {
+      row_count:
+        snapshot.directives.length
+        + snapshot.commitments.length
+        + snapshot.evidence.length
+        + snapshot.recent_documents.length,
     },
   };
 }
@@ -2398,8 +2423,16 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
   const briefing = briefingId ? await getBriefingById(briefingId, ctx.tenantId) : null;
   const briefingPayload = (briefing?.payload || {}) as Record<string, any>;
 
-  const [clientState, livingMemory, memoryGovernance, reporteiSummary] = await Promise.all([
+  const [clientState, knowledgeBase, livingMemory, memoryGovernance, reporteiSummary] = await Promise.all([
     buildClientState(ctx.tenantId, ctx.clientId),
+    buildClientKnowledgeBase({
+      tenantId: ctx.tenantId,
+      clientId: ctx.clientId,
+      question: briefing ? [briefing.title, briefingPayload.objective, briefingPayload.context].filter(Boolean).join(' ') : null,
+      daysBack: 60,
+      limitDocuments: 6,
+      intent: 'ops',
+    }),
     buildClientLivingMemory({
       tenantId: ctx.tenantId,
       clientId: ctx.clientId,
@@ -2446,11 +2479,12 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
   const packetSummary = [
     'CONTEXT PACKET:',
     `- Alertas abertos: ${clientState.open_alerts}`,
-    `- Diretivas ativas: ${livingMemory.snapshot.active_directives}`,
-    `- Sinais vivos 7d: ${livingMemory.snapshot.fresh_signals_7d}`,
-    livingMemory.snapshot.decision_signals ? `- Decisões recentes: ${livingMemory.snapshot.decision_signals}` : null,
-    livingMemory.snapshot.objection_signals ? `- Objeções recentes: ${livingMemory.snapshot.objection_signals}` : null,
-    `- Compromissos pendentes: ${livingMemory.snapshot.pending_commitments}`,
+    `- Diretivas ativas: ${knowledgeBase.living_memory_summary.active_directives ?? livingMemory.snapshot.active_directives}`,
+    `- Sinais vivos 7d: ${knowledgeBase.living_memory_summary.fresh_signals_7d ?? livingMemory.snapshot.fresh_signals_7d}`,
+    knowledgeBase.living_memory_summary.decision_signals ? `- Decisões recentes: ${knowledgeBase.living_memory_summary.decision_signals}` : null,
+    knowledgeBase.living_memory_summary.objection_signals ? `- Objeções recentes: ${knowledgeBase.living_memory_summary.objection_signals}` : null,
+    `- Compromissos pendentes: ${knowledgeBase.living_memory_summary.pending_commitments ?? livingMemory.snapshot.pending_commitments}`,
+    `- Radar de comunicação: ${knowledgeBase.radar.meetings} reuniões, ${knowledgeBase.radar.whatsapp_messages} mensagens WhatsApp, ${knowledgeBase.radar.whatsapp_group_messages} mensagens de grupo`,
     memoryGovernance.summary.stale_facts ? `- Fatos envelhecidos: ${memoryGovernance.summary.stale_facts}` : null,
     memoryGovernance.summary.active_conflicts ? `- Conflitos internos na memória: ${memoryGovernance.summary.active_conflicts}` : null,
     memoryGovernance.summary.governance_pressure !== 'low' ? `- Pressão de governança: ${memoryGovernance.summary.governance_pressure}` : null,
@@ -2466,6 +2500,7 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
     success: true,
     data: {
       client_state: clientState,
+      knowledge_base: knowledgeBase,
       living_memory: {
         summary: livingMemory.snapshot,
         directives: livingMemory.directives,

@@ -22,6 +22,7 @@ import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { buildBriefingDiagnostics } from './briefingDiagnosticService';
 import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
 import { buildReporteiSemanticPromptBlock, buildReporteiSemanticSummary } from './reporteiSemanticService';
+import { buildClientKnowledgeBase } from './clientKnowledgeBaseService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,16 @@ export async function assembleCreativeContext(params: {
   const artDirRow = artDirRes.status === 'fulfilled' ? artDirRes.value.rows[0] : null;
 
   const kb = clientRow?.knowledge_base ?? {};
+  const clientKnowledgeBase = resolvedClientId
+    ? await buildClientKnowledgeBase({
+        tenantId,
+        clientId: resolvedClientId,
+        question: [briefingRow.title, briefingRow.payload?.objective, briefingRow.payload?.context].filter(Boolean).join(' '),
+        daysBack: 60,
+        limitDocuments: 6,
+        intent: 'creative',
+      }).catch(() => null)
+    : null;
   const livingMemory = resolvedClientId
     ? await buildClientLivingMemory({
         tenantId,
@@ -300,7 +311,7 @@ export async function assembleCreativeContext(params: {
     cultura,
     memoria: {
       copiesAnteriores: copiesRows.map((r) => r.copy_text).filter(Boolean),
-      contextoVivo: [livingMemory.block, reporteiBlock].filter(Boolean).join('\n\n') || null,
+      contextoVivo: [clientKnowledgeBase?.knowledge_base_block, reporteiBlock].filter(Boolean).join('\n\n') || livingMemory.block || null,
       diagnosticoBriefing: briefingDiagnostics.block || null,
       quantitativo: reporteiBlock || null,
     },
@@ -320,6 +331,7 @@ export async function assembleCreativeContext(params: {
       formato: briefingRow.payload?.format ?? briefingRow.payload?.formato ?? briefingRow.payload?.creative_format ?? null,
       payload: {
         ...(briefingRow.payload ?? {}),
+        client_knowledge_base_snapshot: clientKnowledgeBase ?? undefined,
         briefing_diagnostics: briefingDiagnostics.block || undefined,
         briefing_diagnostics_structured: briefingDiagnostics,
         memory_governance_summary: memoryGovernance?.summary ?? undefined,

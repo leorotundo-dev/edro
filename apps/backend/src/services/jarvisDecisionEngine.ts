@@ -19,7 +19,7 @@
  */
 
 import { query } from '../db';
-import { buildClientLivingMemory } from './clientLivingMemoryService';
+import { buildClientKnowledgeBase } from './clientKnowledgeBaseService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -287,13 +287,12 @@ export async function buildClientState(
          WHERE j.client_id = $1 AND j.tenant_id = $2`,
         [clientId, tenantId],
       ),
-      buildClientLivingMemory({
+      buildClientKnowledgeBase({
         tenantId,
         clientId,
         daysBack: 30,
-        maxDirectives: 6,
-        maxEvidence: 6,
-        maxActions: 4,
+        limitDocuments: 6,
+        intent: 'ops',
       }),
     ]);
 
@@ -316,7 +315,7 @@ export async function buildClientState(
   const waRow = whatsapp.status === 'fulfilled' ? whatsapp.value.rows[0] : null;
   const financialRow = financial.status === 'fulfilled' ? financial.value.rows[0] : null;
   const livingMemorySnapshot = livingMemory.status === 'fulfilled'
-    ? livingMemory.value.snapshot
+    ? livingMemory.value.living_memory_summary
     : {
       active_directives: 0,
       evidence_signals: 0,
@@ -325,17 +324,17 @@ export async function buildClientState(
     };
   const livingMemoryPreview = livingMemory.status === 'fulfilled'
     ? {
-      directives: livingMemory.value.directives.map((item) => item.directive),
+      directives: livingMemory.value.directives.map((item) => item.title),
       evidence: livingMemory.value.evidence.map((item) => ({
-        source_type: item.source_type,
+        source_type: item.source_type || 'memory',
         title: item.title,
-        excerpt: item.excerpt,
-        occurred_at: item.occurred_at,
+        excerpt: item.summary || item.fact_text,
+        occurred_at: item.related_at,
       })),
-      pending_commitments: livingMemory.value.pendingActions.map((item) => ({
+      pending_commitments: livingMemory.value.commitments.map((item) => ({
         title: item.title,
-        responsible: item.responsible,
-        deadline: item.deadline,
+        responsible: null,
+        deadline: item.related_at,
       })),
     }
     : {
