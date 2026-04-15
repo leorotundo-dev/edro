@@ -235,8 +235,8 @@ async function generatePautaPayload(params: {
     ? parsed
     : fallbackApproaches(source, client);
 
-  const approachA = { ...(data.approach_a || {}) };
-  const approachB = { ...(data.approach_b || {}) };
+  const approachA: Record<string, any> = { ...(data.approach_a || {}) };
+  const approachB: Record<string, any> = { ...(data.approach_b || {}) };
   let aiScore = source.score ?? 7.0;
 
   try {
