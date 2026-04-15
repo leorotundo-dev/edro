@@ -253,6 +253,10 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'get_art_direction',
   ], { systemPerm: 'clients:read' }),
   ...buildRequirementMap([
+    'list_recipes',
+    'get_recipe',
+  ], { systemPerm: 'library:read' }),
+  ...buildRequirementMap([
     'send_whatsapp_message',
     'send_email',
     'create_trello_card',
@@ -262,6 +266,11 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'iterate_image',
     'approve_image',
   ], { systemPerm: 'clients:write' }),
+  ...buildRequirementMap([
+    'create_recipe',
+    'delete_recipe',
+  ], { systemPerm: 'library:write' }),
+  apply_recipe: { systemPerm: 'clients:write' },
   get_system_health: { systemPerm: 'portfolio:read' },
   run_system_repair: { systemPerm: 'admin:jobs' },
   ...buildRequirementMap([
@@ -4694,6 +4703,286 @@ function buildStoredImageArtDirection(params: {
   };
 }
 
+async function resolveOpsStudioClientScope(
+  tenantId: string,
+  ctx: OperationsToolContext,
+  rawClientId?: string | null,
+) {
+  const requestedId =
+    contextualString(rawClientId)
+    || contextualString((ctx as any).edroClientId)
+    || contextualString((ctx as any).clientId);
+
+  if (!requestedId) {
+    return {
+      requestedId: null,
+      edroClientId: null as string | null,
+      mainClientId: null as string | null,
+      clientName: null as string | null,
+    };
+  }
+
+  const { rows: edroRows } = await query<any>(
+    `SELECT id, client_id, name
+       FROM edro_clients
+      WHERE tenant_id = $1
+        AND (id::text = $2 OR client_id = $2)
+      LIMIT 1`,
+    [tenantId, requestedId],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  if (edroRows.length) {
+    return {
+      requestedId,
+      edroClientId: contextualString(edroRows[0].id),
+      mainClientId: contextualString(edroRows[0].client_id),
+      clientName: contextualString(edroRows[0].name),
+    };
+  }
+
+  const { rows: clientRows } = await query<any>(
+    `SELECT id, name
+       FROM clients
+      WHERE tenant_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [tenantId, requestedId],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  if (clientRows.length) {
+    return {
+      requestedId,
+      edroClientId: null,
+      mainClientId: contextualString(clientRows[0].id),
+      clientName: contextualString(clientRows[0].name),
+    };
+  }
+
+  return { error: 'Cliente não encontrado.' };
+}
+
+async function opsListRecipes(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const clientScope = await resolveOpsStudioClientScope(ctx.tenantId, ctx, contextualString(args.client_id));
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+
+  const platform = contextualString(args.platform);
+  const objective = contextualString(args.objective);
+  const limit = Math.min(Number(args.limit) || 20, 50);
+  const params: any[] = [ctx.tenantId];
+  const conditions = ['tenant_id = $1'];
+
+  if (clientScope.edroClientId) {
+    params.push(clientScope.edroClientId);
+    conditions.push(`(client_id IS NULL OR client_id = $${params.length}::uuid)`);
+  }
+  if (platform) {
+    params.push(`%${platform}%`);
+    conditions.push(`platform ILIKE $${params.length}`);
+  }
+  if (objective) {
+    params.push(`%${objective}%`);
+    conditions.push(`objective ILIKE $${params.length}`);
+  }
+  params.push(limit);
+
+  const { rows } = await query<any>(
+    `SELECT id, name, client_id, objective, platform, format, pipeline_type,
+            trigger_id, provider, model, tone_notes, use_count, last_used_at, created_at
+       FROM creative_recipes
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY use_count DESC, last_used_at DESC NULLS LAST, created_at DESC
+      LIMIT $${params.length}`,
+    params,
+  );
+
+  return {
+    success: true,
+    data: { recipes: rows, client_scope: clientScope.edroClientId || null },
+    metadata: { row_count: rows.length },
+  };
+}
+
+async function opsGetRecipe(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const recipeId = String(args.recipe_id || '').trim();
+  if (!recipeId) return { success: false, error: 'recipe_id é obrigatório.' };
+
+  const { rows } = await query<any>(
+    `SELECT *
+       FROM creative_recipes
+      WHERE id::text = $1
+        AND tenant_id = $2
+      LIMIT 1`,
+    [recipeId, ctx.tenantId],
+  );
+  if (!rows.length) return { success: false, error: 'Receita não encontrada.' };
+
+  return { success: true, data: rows[0] };
+}
+
+async function opsCreateRecipe(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const name = String(args.name || '').trim();
+  if (!name) return { success: false, error: 'O campo name é obrigatório.' };
+
+  const clientScope = await resolveOpsStudioClientScope(ctx.tenantId, ctx, contextualString(args.client_id));
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+
+  const { rows } = await query<any>(
+    `INSERT INTO creative_recipes
+       (tenant_id, client_id, name, objective, platform, format,
+        pipeline_type, trigger_id, provider, model, tone_notes, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+     RETURNING id, name, client_id`,
+    [
+      ctx.tenantId,
+      clientScope.edroClientId || null,
+      name,
+      contextualString(args.objective),
+      contextualString(args.platform),
+      contextualString(args.format),
+      contextualString(args.pipeline_type) || 'standard',
+      contextualString(args.trigger_id),
+      contextualString(args.provider),
+      contextualString(args.model),
+      contextualString(args.tone_notes),
+    ],
+  );
+
+  return {
+    success: true,
+    data: {
+      recipe_id: rows[0].id,
+      name: rows[0].name,
+      client_id: rows[0].client_id,
+      message: 'Receita criada com sucesso.',
+    },
+  };
+}
+
+async function opsApplyRecipe(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const recipeId = contextualString(args.recipe_id);
+  const templateId = contextualString(args.template_id);
+  if (!recipeId && !templateId) {
+    return { success: false, error: 'Informe recipe_id ou template_id.' };
+  }
+
+  let sourceName = 'Template';
+  let recipeData: Record<string, any> = {};
+
+  if (recipeId) {
+    const { rows } = await query<any>(
+      `SELECT *
+         FROM creative_recipes
+        WHERE id::text = $1
+          AND tenant_id = $2
+        LIMIT 1`,
+      [recipeId, ctx.tenantId],
+    );
+    if (!rows.length) return { success: false, error: 'Receita não encontrada.' };
+    recipeData = rows[0];
+    sourceName = rows[0].name || 'Receita';
+    await query(
+      `UPDATE creative_recipes
+          SET use_count = use_count + 1,
+              last_used_at = NOW(),
+              updated_at = NOW()
+        WHERE id = $1`,
+      [rows[0].id],
+    ).catch(() => null);
+  } else if (templateId) {
+    const { rows } = await query<any>(
+      `SELECT *
+         FROM edro_briefing_templates
+        WHERE id = $1
+          AND (tenant_id = $2::uuid OR tenant_id = '00000000-0000-0000-0000-000000000000'::uuid OR is_system = true)
+        LIMIT 1`,
+      [templateId, ctx.tenantId],
+    );
+    if (!rows.length) return { success: false, error: 'Template não encontrado.' };
+    recipeData = {
+      name: rows[0].name,
+      objective: rows[0].objective,
+      platform: Array.isArray(rows[0].channels) ? rows[0].channels[0] || null : null,
+      format: null,
+      pipeline_type: 'standard',
+      trigger_id: null,
+      tone_notes: rows[0].additional_notes,
+      channels: rows[0].channels || [],
+      platform_config: rows[0].platform_config || {},
+      template_category: rows[0].category || null,
+      target_audience: rows[0].target_audience || null,
+    };
+    sourceName = rows[0].name || 'Template';
+  }
+
+  const recipeClientId = contextualString(recipeData.client_id);
+  const clientScope = await resolveOpsStudioClientScope(
+    ctx.tenantId,
+    ctx,
+    contextualString(args.client_id) || recipeClientId,
+  );
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+
+  const title = contextualString(args.title) || recipeData.name || 'Novo Briefing';
+  const noteBlocks = [
+    contextualString(recipeData.tone_notes),
+    contextualString(args.additional_notes),
+  ].filter(Boolean);
+
+  const briefing = await createBriefing({
+    clientId: clientScope.edroClientId ?? undefined,
+    mainClientId: clientScope.mainClientId ?? undefined,
+    title,
+    payload: {
+      objective: recipeData.objective ?? null,
+      platform: recipeData.platform ?? null,
+      format: recipeData.format ?? null,
+      pipeline_type: recipeData.pipeline_type ?? 'standard',
+      trigger_id: recipeData.trigger_id ?? null,
+      notes: noteBlocks.join('\n\n') || null,
+      channels: Array.isArray(recipeData.channels) ? recipeData.channels : null,
+      platform_config: recipeData.platform_config ?? null,
+      template_category: recipeData.template_category ?? null,
+      target_audience: recipeData.target_audience ?? null,
+      recipe_id: recipeId,
+      template_id: templateId,
+      source: 'jarvis_apply_recipe',
+    },
+    createdBy: ctx.userEmail ?? null,
+    source: 'jarvis_apply_recipe',
+  });
+  await createBriefingStages(briefing.id, ctx.userEmail ?? null).catch(() => {});
+
+  return {
+    success: true,
+    data: {
+      briefing_id: briefing.id,
+      title: briefing.title,
+      studio_url: `/edro/${briefing.id}`,
+      client_id: clientScope.mainClientId,
+      edro_client_id: clientScope.edroClientId,
+      message: `Briefing criado a partir de "${sourceName}".`,
+    },
+  };
+}
+
+async function opsDeleteRecipe(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const recipeId = String(args.recipe_id || '').trim();
+  if (!recipeId) return { success: false, error: 'recipe_id é obrigatório.' };
+
+  const { rowCount } = await query(
+    `DELETE FROM creative_recipes
+      WHERE id::text = $1
+        AND tenant_id = $2`,
+    [recipeId, ctx.tenantId],
+  );
+  if (!rowCount) return { success: false, error: 'Receita não encontrada ou sem permissão.' };
+
+  return {
+    success: true,
+    data: { message: 'Receita removida com sucesso.' },
+  };
+}
+
 async function opsGetArtDirection(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const target = await resolveCreativeDraftTarget(
     ctx.tenantId,
@@ -5139,6 +5428,11 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   send_whatsapp_message: opsSendWhatsAppMessage,
   send_email: opsSendEmail,
   create_trello_card: opsCreateTrelloCard,
+  list_recipes: opsListRecipes,
+  get_recipe: opsGetRecipe,
+  create_recipe: opsCreateRecipe,
+  apply_recipe: opsApplyRecipe,
+  delete_recipe: opsDeleteRecipe,
   get_art_direction: opsGetArtDirection,
   generate_art_direction: opsGenerateArtDirection,
   generate_image: opsGenerateImage,

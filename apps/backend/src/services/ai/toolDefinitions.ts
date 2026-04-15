@@ -1376,6 +1376,67 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'action',
   },
   {
+    name: 'list_recipes',
+    description: 'Lista receitas criativas salvas. Inclui receitas globais do tenant e, quando houver contexto de cliente, também as receitas desse cliente.',
+    parameters: {
+      client_id: { type: 'string', description: 'ID do cliente para filtrar receitas. Aceita clients.id legado ou edro_clients.id' },
+      platform: { type: 'string', description: 'Filtrar por plataforma (instagram, linkedin, etc)' },
+      objective: { type: 'string', description: 'Filtrar por objetivo (awareness, conversion, engagement)' },
+      limit: { type: 'number', description: 'Máximo de resultados. Padrão: 20, limite: 50' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_recipe',
+    description: 'Retorna os detalhes completos de uma receita criativa pelo ID.',
+    parameters: {
+      recipe_id: { type: 'string', description: 'UUID da receita criativa' },
+    },
+    required: ['recipe_id'],
+    category: 'read',
+  },
+  {
+    name: 'create_recipe',
+    description: 'Salva uma nova receita criativa reutilizável com configurações de pipeline, plataforma, formato, gatilho e notas de tom.',
+    parameters: {
+      name: { type: 'string', description: 'Nome descritivo da receita' },
+      client_id: { type: 'string', description: 'ID do cliente. Aceita clients.id legado ou edro_clients.id. Se omitido, a receita fica global no tenant' },
+      objective: { type: 'string', description: 'Objetivo da receita. Ex.: awareness, conversion, engagement, retention' },
+      platform: { type: 'string', description: 'Plataforma alvo. Ex.: instagram, linkedin, facebook, tiktok' },
+      format: { type: 'string', description: 'Formato principal. Ex.: Feed, Reels, Carrossel, Stories' },
+      pipeline_type: { type: 'string', description: 'Tipo do pipeline. Ex.: standard, premium, adversarial' },
+      trigger_id: { type: 'string', description: 'Gatilho persuasivo principal. Ex.: G01, G02, G03...' },
+      provider: { type: 'string', description: 'Provedor principal de imagem. Ex.: fal, gemini, leonardo' },
+      model: { type: 'string', description: 'Modelo específico do provedor' },
+      tone_notes: { type: 'string', description: 'Notas de tom e voz para esta receita' },
+    },
+    required: ['name'],
+    category: 'action',
+  },
+  {
+    name: 'apply_recipe',
+    description: 'Aplica uma receita ou template criativo para criar um novo briefing pré-configurado no Studio.',
+    parameters: {
+      recipe_id: { type: 'string', description: 'UUID da receita criativa' },
+      template_id: { type: 'string', description: 'ID do template de briefing (edro_briefing_templates)' },
+      client_id: { type: 'string', description: 'ID do cliente para o novo briefing. Aceita clients.id legado ou edro_clients.id' },
+      title: { type: 'string', description: 'Título do novo briefing. Se omitido, usa o nome da receita/template' },
+      additional_notes: { type: 'string', description: 'Notas extras a incluir no briefing criado' },
+    },
+    required: [],
+    category: 'action',
+  },
+  {
+    name: 'delete_recipe',
+    description: 'Remove uma receita criativa salva. Não afeta briefings já criados a partir dela.',
+    parameters: {
+      recipe_id: { type: 'string', description: 'UUID da receita a remover' },
+    },
+    required: ['recipe_id'],
+    category: 'action',
+  },
+  {
     name: 'navigate_to_view',
     description: 'Navega o usuário para uma tela específica do sistema. Use quando o usuário pedir "me leva até", "abrir", "ir para", "mostrar a tela de", etc.',
     parameters: {
