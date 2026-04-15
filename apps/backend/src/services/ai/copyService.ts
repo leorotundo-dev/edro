@@ -1,5 +1,6 @@
 import { env } from '../../env';
 import { CopyOrchestrator, TaskType, CopyProvider, UsageContext, VariationQualityScore, generateWithProvider } from './copyOrchestrator';
+import { MOMENTO_COPY_DIRECTION } from './agentRedator';
 
 export { CopyProvider, TaskType };
 
@@ -436,6 +437,7 @@ export async function generateAndSelectBestCopy(params: {
   platform?: string | null;
   amd?: string | null;
   triggers?: string[] | null;
+  momento?: 'problema' | 'solucao' | 'decisao' | null;
   usageContext?: UsageContext;
 }): Promise<CopyPipelineResult & {
   simulation_id: string | null;
@@ -446,8 +448,11 @@ export async function generateAndSelectBestCopy(params: {
   predicted_click_rate: number | null;
   total_variants_tested: number;
 }> {
+  const momentoBlock = params.momento
+    ? `ESTÁGIO DE CONSCIÊNCIA DO COPY: ${params.momento.toUpperCase()}\n${MOMENTO_COPY_DIRECTION[params.momento] || ''}\n`
+    : '';
   const collaborative = await generateCollaborativeCopy({
-    prompt: params.prompt,
+    prompt: `${momentoBlock}${params.prompt}`.trim(),
     count: 10,
     knowledgeBlock: params.knowledgeBlock,
     reporteiHint: params.reporteiHint,

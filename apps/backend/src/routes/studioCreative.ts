@@ -1064,6 +1064,7 @@ Retorne SOMENTE um JSON válido:
         trigger:       body.trigger,
         tone:          body.tone,
         amd:           body.amd,
+        momento:       body.briefing?.payload?.momento_consciencia || null,
         platform:      body.platform,
         format:        body.format,
         taskType:      body.taskType,

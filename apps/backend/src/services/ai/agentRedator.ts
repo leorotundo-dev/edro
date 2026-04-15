@@ -13,6 +13,36 @@ import { generateCompletion } from './claudeService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export const MOMENTO_COPY_DIRECTION: Record<string, string> = {
+  problema: `
+ESTÁGIO DE CONSCIÊNCIA: DESCOBERTA (problema)
+A audiência ainda não sabe que tem esse problema ou está em negação.
+REGRAS CRÍTICAS:
+- NÃO mencione o produto/serviço diretamente
+- NÃO use CTAs de venda
+- Use linguagem de empatia e reconhecimento
+- Objetivo: fazer a pessoa se identificar com o problema
+`,
+  solucao: `
+ESTÁGIO DE CONSCIÊNCIA: AVALIANDO (solucao)
+A audiência conhece o problema e está comparando soluções.
+REGRAS CRÍTICAS:
+- Compare com alternativas genéricas ou status quo
+- Use dados, provas e diferenciais específicos
+- Responda objeções comuns implicitamente
+- CTA aceitável: ver como funciona, comparar, baixar caso
+`,
+  decisao: `
+ESTÁGIO DE CONSCIÊNCIA: PRONTO PARA AGIR (decisao)
+A audiência está perto de escolher e precisa do empurrão final.
+REGRAS CRÍTICAS:
+- Elimine a última objeção
+- Use prova social específica e urgência genuína
+- CTA direto, sem ambiguidade
+- Tom de confiança total
+`,
+};
+
 export type BrandVoiceContext = {
   tom: string;
   palavras_proibidas: string[];
@@ -57,6 +87,7 @@ export type AgentRedatorParams = {
   trigger?: string | null;
   tone?: string | null;
   amd?: string | null;
+  momento?: 'problema' | 'solucao' | 'decisao' | null;
   platform?: string | null;
   format?: string | null;
   taskType?: string | null;
@@ -115,6 +146,7 @@ async function plugin2Strategist(
   params: AgentRedatorParams,
   bv: BrandVoiceContext,
 ): Promise<HookStrategy> {
+  const momentoDirection = params.momento ? MOMENTO_COPY_DIRECTION[params.momento] || '' : '';
   const livingMemoryBlock = String(
     params.briefing?.payload?.living_memory_context
       ?? params.clientProfile?.__livingMemoryBlock
@@ -154,6 +186,7 @@ CONTEXTO:
 - Plataforma: ${params.platform ?? 'não definida'}
 - Briefing: ${params.briefing?.title ?? 'não informado'}
 - Objetivo do briefing: ${params.briefing?.payload?.objective ?? 'não informado'}
+${momentoDirection}
 ${livingMemoryBlock ? `\nMEMÓRIA VIVA DO CLIENTE (respeite decisões, promessas e restrições):\n${livingMemoryBlock.slice(0, 1200)}` : ''}
 ${briefingDiagnostics ? `\nDIAGNÓSTICO DO BRIEFING (compense lacunas e evite conflitos):\n${briefingDiagnostics.slice(0, 900)}` : ''}
 
@@ -188,6 +221,7 @@ async function plugin3Generator(
   appeal: 'dor' | 'logica' | 'prova_social',
   rejectionFeedback?: string,
 ): Promise<Omit<CopyVariant, 'audit' | 'flagged'>> {
+  const momentoDirection = params.momento ? MOMENTO_COPY_DIRECTION[params.momento] || '' : '';
   const livingMemoryBlock = String(
     params.briefing?.payload?.living_memory_context
       ?? params.clientProfile?.__livingMemoryBlock
@@ -242,6 +276,7 @@ ESTRATÉGIA:
 - Gancho de abertura: "${hook}"
 - Ângulo deste texto: ${appealInstructions[appeal]}
 - Tensão central: ${strategy.key_tension}
+${momentoDirection}
 
 CONTEXTO:
 - Plataforma: ${params.platform ?? 'Instagram'} (limite: ${charLimits[platform] ?? 'adapte ao contexto'})

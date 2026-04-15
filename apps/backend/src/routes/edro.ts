@@ -1949,6 +1949,7 @@ export default async function edroRoutes(app: FastifyInstance) {
         clientId: selectedClientId || undefined,
         platform,
         amd: payloadAmd,
+        momento: (briefing.payload as any)?.momento_consciencia ?? null,
         triggers,
         usageContext: tenantId ? { tenant_id: tenantId, feature: 'copy_refine' } : undefined,
       });
@@ -2644,6 +2645,7 @@ export default async function edroRoutes(app: FastifyInstance) {
             clientId: selectedClientId || undefined,
             platform: selectedPlatform || undefined,
             amd: typeof payloadAmd === 'string' ? payloadAmd : null,
+            momento: payloadMomento,
             triggers: briefingTriggers,
             usageContext: usageCtx,
           });
