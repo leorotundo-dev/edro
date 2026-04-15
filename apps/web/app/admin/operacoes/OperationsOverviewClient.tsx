@@ -85,6 +85,7 @@ export default function OperationsOverviewClient() {
   const [latestDailyDigest, setLatestDailyDigest] = useState<LatestDigest | null>(null);
   const [bedelNotifications, setBedelNotifications] = useState<InAppNotification[]>([]);
   const [jarvisAlerts, setJarvisAlerts] = useState<JarvisAlert[]>([]);
+  const [pendingPautas, setPendingPautas] = useState(0);
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('edit');
   const [createComposerPath, setCreateComposerPath] = useState<'briefing' | 'job' | 'adjustment' | 'client_request'>('client_request');
 
@@ -207,6 +208,9 @@ export default function OperationsOverviewClient() {
     void loadCommandDesk();
     apiGet<{ requests: typeof pendingRequests }>('/admin/briefing-requests?status=submitted&limit=20')
       .then(r => setPendingRequests(r?.requests ?? []))
+      .catch(() => {});
+    apiGet<{ items: any[] }>('/pauta-inbox?status=pending')
+      .then(r => setPendingPautas(r?.items?.length ?? 0))
       .catch(() => {});
   }, [loadCommandDesk, loadOverviewRuntime, loadSignalStats, loading]);
 
@@ -379,8 +383,19 @@ export default function OperationsOverviewClient() {
       });
     }
 
+    if (pendingPautas > 0) {
+      banners.push({
+        key: 'pauta_inbox',
+        severity: 'info',
+        title: `${pendingPautas} sugestão${pendingPautas !== 1 ? 'ões' : ''} de pauta esperando revisão`,
+        body: 'O Motor gerou novas abordagens A/B a partir do clipping. Aprove ou descarte antes do prazo sugerido.',
+        href: '/admin/operacoes/pauta',
+        actionLabel: 'Abrir Pauta Inbox',
+      });
+    }
+
     return banners;
-  }, [pendingRequests, syncHealth, topJarvisAlert]);
+  }, [pendingPautas, pendingRequests, syncHealth, topJarvisAlert]);
 
   return (
     <OperationsShell
