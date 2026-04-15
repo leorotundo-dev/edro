@@ -1798,7 +1798,7 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     // Fire-and-forget: rebuild preferences if score was provided
-    if (body.score && copyRow?.briefing_id) {
+    if ((body.score || body.regeneration_instruction) && copyRow?.briefing_id) {
       if (tenantId) {
         getBriefingById(copyRow.briefing_id).then((b) => {
           // Usa main_client_id (clients.id TEXT) se disponível, fallback para edro_clients.id (UUID)
@@ -1811,6 +1811,185 @@ export default async function edroRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ success: true, data: rows[0] });
+  });
+
+  app.post('/edro/copies/:copyId/regenerate', async (request, reply) => {
+    const { copyId } = z.object({ copyId: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      instruction: z.string().min(1).max(1000),
+      platform: z.string().optional(),
+    }).parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+
+    const { rows: copyRows } = await query<any>(
+      `SELECT ecv.*, eb.tenant_id
+       FROM edro_copy_versions ecv
+       JOIN edro_briefings eb ON eb.id = ecv.briefing_id
+       WHERE ecv.id = $1
+         AND eb.tenant_id = $2
+       LIMIT 1`,
+      [copyId, tenantId],
+    );
+
+    const copyRow = copyRows[0];
+    if (!copyRow) {
+      return reply.status(404).send({ success: false, error: 'Copy não encontrada.' });
+    }
+
+    const briefing = await getBriefingById(copyRow.briefing_id);
+    if (!briefing) {
+      return reply.status(404).send({ success: false, error: 'Briefing não encontrado.' });
+    }
+
+    const selectedClientId =
+      (briefing as any).main_client_id ||
+      resolveClientIdFromPayload((briefing.payload as Record<string, any>) || {}) ||
+      null;
+    const platform =
+      body.platform ||
+      (copyRow.payload as any)?.platform ||
+      (briefing.payload as any)?.platform ||
+      null;
+    const format =
+      (copyRow.payload as any)?.format ||
+      (briefing.payload as any)?.format ||
+      null;
+    const payloadAmd =
+      typeof (briefing.payload as any)?.amd === 'string'
+        ? (briefing.payload as any).amd
+        : typeof (briefing.payload as any)?.amd_type === 'string'
+          ? (briefing.payload as any).amd_type
+          : null;
+    const triggers = Array.isArray((briefing.payload as any)?.triggers)
+      ? (briefing.payload as any).triggers.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+      : Array.isArray((briefing.payload as any)?.behavior_intent?.triggers)
+        ? (briefing.payload as any).behavior_intent.triggers.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+        : [];
+    const clientKnowledge = await loadClientKnowledge(tenantId, briefing);
+    const reporteiHint = platform ? await fetchPerformanceHint(tenantId, selectedClientId, platform) : null;
+    const reporteiContext = buildReporteiCopyContext({
+      payload: reporteiHint?.payload,
+      selectedFormat: format,
+      selectedPlatform: platform,
+    });
+
+    if (tenantId && selectedClientId) {
+      const feedbackRes = await query<{ id: string; regeneration_count: number }>(
+        `UPDATE preference_feedback
+         SET regeneration_instruction = $1,
+             regeneration_count = COALESCE(regeneration_count, 0) + 1
+         WHERE id = (
+           SELECT id
+           FROM preference_feedback
+           WHERE tenant_id = $2
+             AND client_id = $3
+             AND feedback_type = 'copy'
+             AND copy_briefing_id = $4
+           ORDER BY created_at DESC
+           LIMIT 1
+         )
+         RETURNING id, regeneration_count`,
+        [body.instruction, tenantId, selectedClientId, briefing.id],
+      );
+
+      if (!feedbackRes.rows.length) {
+        const user = resolveUser(request);
+        await recordPreferenceFeedback({
+          tenantId,
+          clientId: selectedClientId,
+          payload: {
+            feedback_type: 'copy',
+            action: 'rejected',
+            copy_briefing_id: briefing.id,
+            copy_platform: platform,
+            copy_format: format,
+            copy_pipeline: (copyRow.payload as any)?.pipeline || null,
+            copy_task_type: (copyRow.payload as any)?.taskType || null,
+            copy_tone: (copyRow.payload as any)?.tone || null,
+            copy_rejected_text: copyRow.output || null,
+            rejection_reason: 'Refinada no Creative Studio',
+            regeneration_instruction: body.instruction,
+            regeneration_count: 1,
+            created_by: user.email || user.id || null,
+            persona_id: (briefing.payload as any)?.persona_id ?? null,
+            momento_consciencia: (briefing.payload as any)?.momento_consciencia ?? null,
+            amd: payloadAmd,
+          },
+        });
+      }
+
+      rebuildClientPreferences({ tenant_id: tenantId, client_id: selectedClientId }).catch(() => {});
+    }
+
+    const fallbackPrompt = buildCopyPrompt({
+      briefing,
+      language: copyRow.language || 'pt',
+      count: 10,
+      instructions: null,
+      clientKnowledge,
+      reporteiHint: reporteiContext?.promptBlock || null,
+    });
+    const refinementBlock = [
+      '## Instrução de refinamento',
+      'O usuário pediu o seguinte ajuste para a próxima versão:',
+      `"${body.instruction}"`,
+      '',
+      '## Copy anterior (use apenas como contexto do que precisa melhorar)',
+      copyRow.output || '',
+    ].join('\n');
+
+    try {
+      const generated = await generateAndSelectBestCopy({
+        prompt: copyRow.prompt || fallbackPrompt,
+        knowledgeBlock: clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : undefined,
+        reporteiHint: reporteiContext?.promptBlock || undefined,
+        clientName: briefing.client_name || undefined,
+        instructions: refinementBlock,
+        tenantId: tenantId || 'system',
+        clientId: selectedClientId || undefined,
+        platform,
+        amd: payloadAmd,
+        triggers,
+        usageContext: tenantId ? { tenant_id: tenantId, feature: 'copy_refine' } : undefined,
+      });
+
+      const regeneratedCopy = await createCopyVersion({
+        briefingId: briefing.id,
+        language: copyRow.language || 'pt',
+        model: generated.model || null,
+        prompt: copyRow.prompt || fallbackPrompt,
+        output: generated.output,
+        payload: {
+          ...(generated.payload || {}),
+          platform,
+          format,
+          regeneration: {
+            instruction: body.instruction,
+            previous_copy_id: copyId,
+          },
+        },
+        createdBy: copyRow.created_by || resolveUser(request).email || null,
+      });
+
+      return reply.send({
+        success: true,
+        copy_id: regeneratedCopy.id,
+        copy_text: regeneratedCopy.output,
+        winner_resonance: generated.winner_resonance,
+        simulation_id: generated.simulation_id,
+        data: {
+          copy: regeneratedCopy,
+          winner_resonance: generated.winner_resonance,
+          simulation_id: generated.simulation_id,
+        },
+      });
+    } catch (error: any) {
+      request.log?.error({ err: error, copyId }, 'copy_regeneration_failed');
+      return reply.status(500).send({
+        success: false,
+        error: 'Falha ao regenerar copy.',
+      });
+    }
   });
 
   // ── AMD Result — registrar se o comportamento mínimo desejado foi alcançado ─

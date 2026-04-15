@@ -84,13 +84,14 @@ export async function rebuildClientPreferences(params: {
   tenant_id: string;
   client_id: string;
 }): Promise<LearnedPreferences> {
-  const [copyFeedback, reporteiPerf, amdPerf] = await Promise.all([
+  const [copyFeedback, reporteiPerf, amdPerf, regenerationPatterns] = await Promise.all([
     aggregateCopyFeedback(params.client_id),
     aggregateReporteiPerformance(params.tenant_id, params.client_id),
     aggregateAmdPerformance(params.client_id),
+    aggregateRegenerationPatterns(params.tenant_id, params.client_id),
   ]);
 
-  const directives = generateDirectives(copyFeedback, reporteiPerf, amdPerf);
+  const directives = generateDirectives(copyFeedback, reporteiPerf, amdPerf, regenerationPatterns);
 
   const preferences: LearnedPreferences = {
     version: 1,
@@ -294,12 +295,36 @@ async function aggregateAmdPerformance(clientId: string): Promise<AmdPerformance
   }));
 }
 
+async function aggregateRegenerationPatterns(
+  tenantId: string,
+  clientId: string,
+): Promise<string[]> {
+  const { rows } = await query<{ instruction: string }>(
+    `SELECT BTRIM(regeneration_instruction) AS instruction
+     FROM preference_feedback
+     WHERE tenant_id = $1
+       AND client_id = $2
+       AND regeneration_instruction IS NOT NULL
+       AND BTRIM(regeneration_instruction) <> ''
+       AND created_at > NOW() - INTERVAL '90 days'
+     GROUP BY BTRIM(regeneration_instruction)
+     ORDER BY COUNT(*) DESC, MAX(created_at) DESC
+     LIMIT 5`,
+    [tenantId, clientId],
+  );
+
+  return rows
+    .map((row) => row.instruction?.trim())
+    .filter((instruction): instruction is string => Boolean(instruction));
+}
+
 // ── Directive Generation ───────────────────────────────────────────
 
 function generateDirectives(
   copyFeedback: CopyFeedbackAggregation,
   reporteiPerf: ReporteiPerformanceAggregation,
   amdPerf: AmdPerformanceRow[] = [],
+  regenerationPatterns: string[] = [],
 ): { boost: string[]; avoid: string[] } {
   const boost: string[] = [];
   const avoid: string[] = [];
@@ -331,6 +356,10 @@ function generateDirectives(
   // AMD performance directives — AMD com alta taxa de conversão
   for (const a of amdPerf.filter((r) => r.rate >= 70 && r.tracked >= 3).slice(0, 3)) {
     boost.push(`AMD "${a.amd}" no momento "${a.momento}" atinge ${a.rate}% de sucesso (${a.tracked} amostras)`);
+  }
+
+  for (const pattern of regenerationPatterns.slice(0, 3)) {
+    boost.push(`Ajuste frequente pedido pelo cliente: "${pattern}"`);
   }
 
   return {

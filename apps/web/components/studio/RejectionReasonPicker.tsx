@@ -10,13 +10,15 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Divider from '@mui/material/Divider';
 
 type Props = {
   open: boolean;
   type: 'copy' | 'pauta';
   loading?: boolean;
   onClose: () => void;
-  onSubmit: (tags: string[], reason: string) => Promise<void> | void;
+  onSubmit: (tags: string[], reason: string, instruction: string) => Promise<void> | void;
+  onRegenerate?: (tags: string[], reason: string, instruction: string) => Promise<void> | void;
 };
 
 const COPY_TAGS = [
@@ -43,8 +45,10 @@ export default function RejectionReasonPicker({
   loading = false,
   onClose,
   onSubmit,
+  onRegenerate,
 }: Props) {
   const [reason, setReason] = useState('');
+  const [instruction, setInstruction] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const tags = useMemo(() => (type === 'copy' ? COPY_TAGS : PAUTA_TAGS), [type]);
 
@@ -53,18 +57,23 @@ export default function RejectionReasonPicker({
       prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
     );
   };
+  const resetState = () => { setReason(''); setInstruction(''); setSelectedTags([]); };
 
   const handleClose = () => {
     if (loading) return;
-    setReason('');
-    setSelectedTags([]);
+    resetState();
     onClose();
   };
 
   const handleSubmit = async () => {
-    await onSubmit(selectedTags, reason.trim());
-    setReason('');
-    setSelectedTags([]);
+    await onSubmit(selectedTags, reason.trim(), instruction.trim());
+    resetState();
+  };
+
+  const handleRegenerate = async () => {
+    if (!onRegenerate) return;
+    await onRegenerate(selectedTags, reason.trim(), instruction.trim());
+    resetState();
   };
 
   return (
@@ -96,16 +105,42 @@ export default function RejectionReasonPicker({
           value={reason}
           onChange={(event) => setReason(event.target.value)}
         />
+        {type === 'copy' && onRegenerate ? (
+          <>
+            <Divider sx={{ my: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Próxima versão
+              </Typography>
+            </Divider>
+            <TextField
+              fullWidth
+              multiline
+              minRows={2}
+              label="Como deve ser regenerada?"
+              placeholder="ex.: mais curta, CTA direto, tom mais urgente"
+              value={instruction}
+              onChange={(event) => setInstruction(event.target.value)}
+            />
+          </>
+        ) : null}
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ gap: 1, px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={loading}>
           Cancelar
         </Button>
-        <Button variant="contained" onClick={handleSubmit} disabled={loading}>
-          {loading ? 'Salvando...' : 'Salvar feedback'}
+        <Button variant="outlined" onClick={handleSubmit} disabled={loading}>
+          {loading ? 'Salvando...' : 'Só salvar feedback'}
         </Button>
+        {type === 'copy' && onRegenerate ? (
+          <Button
+            variant="contained"
+            onClick={handleRegenerate}
+            disabled={loading || !instruction.trim()}
+          >
+            {loading ? 'Regerando...' : '↺ Regerar com instrução'}
+          </Button>
+        ) : null}
       </DialogActions>
     </Dialog>
   );
 }
-
