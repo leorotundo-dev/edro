@@ -79,10 +79,10 @@ const MenuItems: MenuGroupType[] = [
         href: '/studio',
       },
       {
-        id: 'minha-area',
-        title: 'Minha Área',
+        id: 'meu-trabalho',
+        title: 'Meu Trabalho',
         icon: IconUserCircle,
-        href: '/minha-area',
+        href: '/meu-trabalho',
       },
     ],
   },
