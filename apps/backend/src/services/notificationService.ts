@@ -37,13 +37,17 @@ function buildEmailText(payload?: Record<string, any> | null) {
   }
 
   if (payload.message) {
-    lines.push('Mensagem:');
     lines.push(String(payload.message));
   }
 
   if (copy?.output) {
     lines.push('Copy sugerida:');
     lines.push(String(copy.output));
+  }
+
+  // Append actionable link when available (makes WhatsApp messages clickable)
+  if (payload._link_url) {
+    lines.push(`🔗 ${payload._link_url}`);
   }
 
   return lines.join('\n');
@@ -325,6 +329,14 @@ export type NotifyEventInput = {
   defaultChannels?: Array<'email' | 'in_app' | 'whatsapp' | 'push'>;
 };
 
+/** Builds an absolute URL from a relative path using WEB_URL env var */
+function toAbsoluteUrl(link?: string | null): string | null {
+  if (!link) return null;
+  if (link.startsWith('http')) return link;
+  const base = (process.env.WEB_URL || '').replace(/\/$/, '');
+  return base ? `${base}${link}` : null;
+}
+
 export async function notifyEvent(input: NotifyEventInput) {
   const eventCandidates = input.event.startsWith('jarvis_')
     ? [input.event, 'jarvis_ops']
@@ -404,6 +416,7 @@ export async function notifyEvent(input: NotifyEventInput) {
   // Send WhatsApp if enabled and phone available
   if (enabledChannels.includes('whatsapp') && resolvedPhone) {
     try {
+      const absoluteLink = toAbsoluteUrl(input.link);
       const notif = await createNotification({
         channel: 'whatsapp',
         recipient: resolvedPhone,
@@ -411,6 +424,8 @@ export async function notifyEvent(input: NotifyEventInput) {
           message: input.body || input.title,
           title: input.title,
           body: input.body || null,
+          // _link_url is picked up by buildEmailText to append a clickable link
+          ...(absoluteLink ? { _link_url: absoluteLink } : {}),
           ...input.payload,
         },
       });

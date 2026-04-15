@@ -74,7 +74,7 @@ export async function notifyJobAssigned(
   const owner = await getUserById(newOwnerId);
   if (!owner) return;
 
-  const link = `/admin/operacoes/jobs`;
+  const link = `/meu-trabalho`;
   const title = `📋 Nova demanda atribuída: ${job.title}`;
   const body = [
     job.client_name ? `Cliente: ${job.client_name}` : null,
