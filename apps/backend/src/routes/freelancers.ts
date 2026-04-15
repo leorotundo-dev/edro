@@ -15,7 +15,7 @@ import { env } from '../env';
 import { logActivity } from '../services/integrationMonitor';
 import { securityLog } from '../audit/securityLog';
 import { isWhatsAppConfigured, sendWhatsAppText } from '../services/whatsappService';
-import { dispatchNotification, upsertNotificationPreferences } from '../services/notificationService';
+import { dispatchNotification, upsertNotificationPreferences, notifyEvent } from '../services/notificationService';
 import { issuePortalLoginCode } from '../services/authService';
 import { sendEmail } from '../services/emailService';
 import { enqueueOutbox } from '../services/trelloOutboxService';
@@ -3089,6 +3089,39 @@ export default async function freelancersRoutes(app: FastifyInstance) {
     if (!rows.length) {
       return reply.status(409).send({ error: 'Escopo não disponível — pode ter sido aceito por outro fornecedor.' });
     }
+
+    // Notify admins/managers that a freelancer claimed this pool job
+    const job = rows[0];
+    const { rows: freelancerInfo } = await pool.query(
+      `SELECT COALESCE(NULLIF(display_name, ''), COALESCE(NULLIF(fp.name, ''), split_part(eu.email, '@', 1))) AS name
+         FROM freelancer_profiles fp
+         JOIN edro_users eu ON eu.id = fp.user_id
+        WHERE fp.user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    const freelancerName = freelancerInfo[0]?.name ?? 'Freelancer';
+    const { rows: adminRows } = await pool.query(
+      `SELECT tu.user_id, u.email
+         FROM tenant_users tu
+         JOIN edro_users u ON u.id = tu.user_id
+        WHERE tu.tenant_id = $1 AND tu.role IN ('admin', 'manager', 'gestor')`,
+      [tenant_id],
+    );
+    for (const admin of adminRows) {
+      notifyEvent({
+        event: 'bedel_allocation',
+        tenantId: tenant_id,
+        userId: admin.user_id,
+        title: `👤 ${freelancerName} aceitou: ${job.title}`,
+        body: job.deadline_at
+          ? `Prazo: ${new Date(job.deadline_at).toLocaleDateString('pt-BR')} · Fee: R$${Number(job.fee_brl || 0).toFixed(0)}`
+          : `Fee: R$${Number(job.fee_brl || 0).toFixed(0)}`,
+        link: '/admin/operacoes/jobs',
+        recipientEmail: admin.email,
+        defaultChannels: ['in_app'],
+      }).catch(() => {});
+    }
+
     return reply.send({ ok: true, job: rows[0] });
   });
 
@@ -3150,7 +3183,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Escopo não encontrado ou não elegível para entrega' });
     }
 
-    await pool.query(
+    const { rows: deliveredJob } = await pool.query(
       `UPDATE jobs
           SET status          = 'in_review',
               delivered_at    = now(),
@@ -3158,9 +3191,38 @@ export default async function freelancersRoutes(app: FastifyInstance) {
               delivery_notes  = $2,
               sla_paused_at   = now(),
               updated_at      = now()
-        WHERE id = $3::uuid`,
+        WHERE id = $3::uuid
+        RETURNING id, title, tenant_id, client_id,
+          (SELECT name FROM clients c WHERE c.id = client_id LIMIT 1) AS client_name`,
       [delivered_link.trim(), delivery_notes?.trim() ?? null, id],
     );
+
+    // Notify admins/managers that a delivery is awaiting homologação
+    if (deliveredJob.length) {
+      const dj = deliveredJob[0];
+      const { rows: adminRows2 } = await pool.query(
+        `SELECT tu.user_id, u.email
+           FROM tenant_users tu
+           JOIN edro_users u ON u.id = tu.user_id
+          WHERE tu.tenant_id = $1 AND tu.role IN ('admin', 'manager', 'gestor')`,
+        [dj.tenant_id],
+      );
+      for (const admin of adminRows2) {
+        notifyEvent({
+          event: 'job.ready_for_review',
+          tenantId: dj.tenant_id,
+          userId: admin.user_id,
+          title: `📦 Entrega para homologação: ${dj.title}`,
+          body: [
+            dj.client_name ? `Cliente: ${dj.client_name}` : null,
+            'Acesse a fila de homologação para aprovar ou solicitar ajuste.',
+          ].filter(Boolean).join(' · '),
+          link: '/admin/operacoes/homologacao',
+          recipientEmail: admin.email,
+          defaultChannels: ['in_app', 'whatsapp'],
+        }).catch(() => {});
+      }
+    }
 
     return reply.send({ ok: true });
   });
