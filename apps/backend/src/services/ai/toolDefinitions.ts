@@ -1437,6 +1437,40 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'action',
   },
   {
+    name: 'list_platform_connections',
+    description: 'Lista as plataformas conectadas de um cliente no Studio, incluindo status de conexão e último sync conhecido.',
+    parameters: {
+      client_id: { type: 'string', description: 'ID do cliente. Aceita clients.id legado ou edro_clients.id. Se omitido, usa o cliente em contexto.' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'get_platform_recommendations',
+    description: 'Recomenda as melhores plataformas para publicar com base nas conexões do cliente, formato do conteúdo e performance recente de posts próprios.',
+    parameters: {
+      client_id: { type: 'string', description: 'ID do cliente. Aceita clients.id legado ou edro_clients.id. Se omitido, usa o cliente em contexto.' },
+      format: { type: 'string', description: 'Formato do conteúdo: feed, reels, carrossel, stories.' },
+      objective: { type: 'string', description: 'Objetivo principal: awareness, conversion, engagement.' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'schedule_to_platforms',
+    description: 'Agenda um briefing/copy aprovado em múltiplas plataformas de uma vez, reaproveitando a fila de publicação já existente.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing a publicar' },
+      copy_id: { type: 'string', description: 'UUID da copy aprovada. Se omitido, tenta usar a última selected/approved do briefing' },
+      client_id: { type: 'string', description: 'ID do cliente para validar conexões. Aceita clients.id legado ou edro_clients.id' },
+      platforms: { type: 'array', description: 'Lista de plataformas alvo. Ex.: [meta, linkedin, tiktok]', items: { type: 'string' } },
+      scheduled_for: { type: 'string', description: 'Data/hora ISO 8601. Se omitido, usa o próximo dia útil às 10h BRT.' },
+      confirmed: { type: 'boolean', description: 'true quando o usuário confirmar o agendamento' },
+    },
+    required: ['briefing_id'],
+    category: 'action',
+  },
+  {
     name: 'navigate_to_view',
     description: 'Navega o usuário para uma tela específica do sistema. Use quando o usuário pedir "me leva até", "abrir", "ir para", "mostrar a tela de", etc.',
     parameters: {

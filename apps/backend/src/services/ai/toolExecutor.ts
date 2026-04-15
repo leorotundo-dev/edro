@@ -251,6 +251,8 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'get_client_weekly_summary',
     'get_operations_daily_brief',
     'get_art_direction',
+    'list_platform_connections',
+    'get_platform_recommendations',
   ], { systemPerm: 'clients:read' }),
   ...buildRequirementMap([
     'list_recipes',
@@ -271,6 +273,7 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'delete_recipe',
   ], { systemPerm: 'library:write' }),
   apply_recipe: { systemPerm: 'clients:write' },
+  schedule_to_platforms: { systemPerm: 'posts:review' },
   get_system_health: { systemPerm: 'portfolio:read' },
   run_system_repair: { systemPerm: 'admin:jobs' },
   ...buildRequirementMap([
@@ -4761,6 +4764,75 @@ async function resolveOpsStudioClientScope(
   return { error: 'Cliente não encontrado.' };
 }
 
+const OPS_STUDIO_PLATFORMS = ['meta', 'linkedin', 'tiktok', 'google'] as const;
+
+function normalizeOpsStudioPlatform(value: unknown) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return null;
+  if (['meta', 'instagram', 'facebook'].includes(normalized)) return 'meta';
+  if (normalized.startsWith('linkedin')) return 'linkedin';
+  if (normalized.startsWith('tiktok')) return 'tiktok';
+  if (normalized.startsWith('google')) return 'google';
+  return normalized;
+}
+
+function getOpsPlatformBestTime(provider: string) {
+  switch (provider) {
+    case 'meta':
+      return '18:00 - 21:00 BRT (terça a quinta)';
+    case 'linkedin':
+      return '08:00 - 10:00 BRT (terça e quarta)';
+    case 'tiktok':
+      return '19:00 - 23:00 BRT (qualquer dia)';
+    case 'google':
+      return '09:00 - 12:00 BRT (dias úteis)';
+    default:
+      return '10:00 BRT';
+  }
+}
+
+async function listOpsPlatformConnectionsForClient(tenantId: string, mainClientId: string) {
+  const { rows } = await query<any>(
+    `SELECT provider, payload, created_at, updated_at, posts_synced_at, last_sync_ok, last_sync_at, last_error
+       FROM connectors
+      WHERE tenant_id = $1
+        AND client_id = $2
+      ORDER BY provider ASC, created_at DESC`,
+    [tenantId, mainClientId],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  const deduped = new Map<string, any>();
+  for (const row of rows) {
+    const provider = normalizeOpsStudioPlatform(row.provider);
+    if (!provider || deduped.has(provider)) continue;
+    const payload = typeof row.payload === 'string'
+      ? JSON.parse(row.payload)
+      : (row.payload || {});
+    deduped.set(provider, {
+      provider,
+      connected: true,
+      instagram_business_id: contextualString(payload.instagram_business_id),
+      page_id: contextualString(payload.page_id),
+      person_id: contextualString(payload.person_id),
+      organization_id: contextualString(payload.organization_id),
+      open_id: contextualString(payload.open_id),
+      connected_at: row.created_at ?? null,
+      updated_at: row.updated_at ?? null,
+      last_sync: row.posts_synced_at ?? row.last_sync_at ?? null,
+      last_sync_ok: typeof row.last_sync_ok === 'boolean' ? row.last_sync_ok : null,
+      last_error: contextualString(row.last_error),
+    });
+  }
+
+  return OPS_STUDIO_PLATFORMS.map((provider) => deduped.get(provider) || ({
+    provider,
+    connected: false,
+    last_sync: null,
+    last_sync_ok: null,
+    last_error: null,
+  }));
+}
+
 async function opsListRecipes(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const clientScope = await resolveOpsStudioClientScope(ctx.tenantId, ctx, contextualString(args.client_id));
   if ('error' in clientScope) return { success: false, error: clientScope.error };
@@ -4980,6 +5052,269 @@ async function opsDeleteRecipe(args: any, ctx: OperationsToolContext): Promise<T
   return {
     success: true,
     data: { message: 'Receita removida com sucesso.' },
+  };
+}
+
+async function opsListPlatformConnections(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const clientScope = await resolveOpsStudioClientScope(ctx.tenantId, ctx, contextualString(args.client_id));
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+  if (!clientScope.mainClientId) {
+    return { success: false, error: 'Informe client_id ou acesse a tool via contexto de cliente.' };
+  }
+
+  const connections = await listOpsPlatformConnectionsForClient(ctx.tenantId, clientScope.mainClientId);
+  const connectedCount = connections.filter((item) => item.connected).length;
+
+  return {
+    success: true,
+    data: {
+      client_id: clientScope.mainClientId,
+      edro_client_id: clientScope.edroClientId,
+      client_name: clientScope.clientName,
+      connections,
+      summary: `${connectedCount} de ${OPS_STUDIO_PLATFORMS.length} plataformas conectadas.`,
+    },
+    metadata: { row_count: connectedCount },
+  };
+}
+
+async function opsGetPlatformRecommendations(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const clientScope = await resolveOpsStudioClientScope(ctx.tenantId, ctx, contextualString(args.client_id));
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+  if (!clientScope.mainClientId) {
+    return { success: false, error: 'Informe client_id ou acesse a tool via contexto de cliente.' };
+  }
+
+  const format = String(contextualString(args.format) || 'feed').trim().toLowerCase();
+  const objective = String(contextualString(args.objective) || 'engagement').trim().toLowerCase();
+  const connections = await listOpsPlatformConnectionsForClient(ctx.tenantId, clientScope.mainClientId);
+  const connectedProviders = connections.filter((item) => item.connected).map((item) => item.provider);
+
+  const { rows: metrics } = await query<any>(
+    `SELECT
+        CASE
+          WHEN lower(platform) IN ('instagram', 'facebook', 'meta') THEN 'meta'
+          WHEN lower(platform) LIKE 'linkedin%' THEN 'linkedin'
+          WHEN lower(platform) LIKE 'tiktok%' THEN 'tiktok'
+          WHEN lower(platform) LIKE 'google%' THEN 'google'
+          ELSE lower(platform)
+        END AS provider,
+        ROUND(AVG(engagement_rate)::numeric, 2) AS avg_engagement,
+        COUNT(*)::int AS post_count
+       FROM client_posts
+      WHERE tenant_id = $1
+        AND client_id = $2
+        AND published_at > NOW() - INTERVAL '90 days'
+      GROUP BY 1`,
+    [ctx.tenantId, clientScope.mainClientId],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  const metricMap = new Map(
+    metrics.map((row) => [normalizeOpsStudioPlatform(row.provider) || String(row.provider), row]),
+  );
+  const formatMap: Record<string, string[]> = {
+    reels: ['meta', 'tiktok'],
+    carrossel: ['meta', 'linkedin'],
+    stories: ['meta'],
+    feed: ['meta', 'linkedin'],
+  };
+  const objectiveBoost: Record<string, string[]> = {
+    awareness: ['meta', 'tiktok', 'linkedin'],
+    conversion: ['google', 'linkedin', 'meta'],
+    engagement: ['meta', 'linkedin', 'tiktok'],
+  };
+
+  const preferredForFormat = formatMap[format] || ['meta', 'linkedin'];
+  const candidates = connectedProviders.filter((provider) => preferredForFormat.includes(provider));
+  const providersToRank = (candidates.length ? candidates : connectedProviders).slice();
+  providersToRank.sort((left, right) => {
+    const leftMetric = metricMap.get(left);
+    const rightMetric = metricMap.get(right);
+    const leftScore =
+      (preferredForFormat.includes(left) ? 2 : 0)
+      + ((objectiveBoost[objective] || []).includes(left) ? 1 : 0)
+      + (Number(leftMetric?.avg_engagement || 0) / 100)
+      + (Math.min(Number(leftMetric?.post_count || 0), 20) / 1000);
+    const rightScore =
+      (preferredForFormat.includes(right) ? 2 : 0)
+      + ((objectiveBoost[objective] || []).includes(right) ? 1 : 0)
+      + (Number(rightMetric?.avg_engagement || 0) / 100)
+      + (Math.min(Number(rightMetric?.post_count || 0), 20) / 1000);
+    return rightScore - leftScore;
+  });
+
+  const recommendedPlatforms = providersToRank.map((provider) => {
+    const metric = metricMap.get(provider);
+    return {
+      provider,
+      best_time: getOpsPlatformBestTime(provider),
+      avg_engagement: metric?.avg_engagement ?? null,
+      post_count_90d: Number(metric?.post_count || 0),
+      connected: true,
+    };
+  });
+
+  return {
+    success: true,
+    data: {
+      client_id: clientScope.mainClientId,
+      edro_client_id: clientScope.edroClientId,
+      format,
+      objective,
+      connected_platforms: connectedProviders,
+      recommended_platforms: recommendedPlatforms,
+      tip: recommendedPlatforms.length
+        ? `Melhor plataforma para ${format}: ${recommendedPlatforms[0].provider} (${recommendedPlatforms[0].best_time}).`
+        : 'Nenhuma plataforma compatível conectada para este formato.',
+    },
+  };
+}
+
+async function opsScheduleToPlatforms(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const briefingId = String(args.briefing_id || '').trim();
+  if (!briefingId) return { success: false, error: 'briefing_id é obrigatório.' };
+
+  const { rows: briefingRows } = await query<any>(
+    `SELECT id::text AS id, client_id::text AS client_id, main_client_id, payload
+       FROM edro_briefings
+      WHERE id::text = $1
+      LIMIT 1`,
+    [briefingId],
+  );
+  if (!briefingRows.length) return { success: false, error: 'Briefing não encontrado.' };
+
+  const briefing = briefingRows[0];
+  const clientScope = await resolveOpsStudioClientScope(
+    ctx.tenantId,
+    ctx,
+    contextualString(args.client_id)
+      || contextualString(briefing.main_client_id)
+      || contextualString(briefing.client_id),
+  );
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+
+  const requestedPlatforms = Array.isArray(args.platforms) ? args.platforms : [];
+  const platforms = Array.from(
+    new Set(
+      (requestedPlatforms.length ? requestedPlatforms : ['meta'])
+        .map((value) => normalizeOpsStudioPlatform(value))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+  if (!platforms.length) {
+    return { success: false, error: 'Informe ao menos uma plataforma válida.' };
+  }
+
+  const scheduledFor = contextualString(args.scheduled_for) || computeDefaultScheduledForIso();
+  if (ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para agendar publicação em múltiplas plataformas.', {
+      briefing_id: briefingId,
+      copy_id: contextualString(args.copy_id),
+      platforms,
+      scheduled_for: scheduledFor,
+      tool_name: 'schedule_to_platforms',
+      tool_args: {
+        briefing_id: briefingId,
+        copy_id: contextualString(args.copy_id),
+        client_id: clientScope.mainClientId,
+        platforms,
+        scheduled_for: scheduledFor,
+      },
+      confirmation_prompt: `Confirmo o agendamento em ${platforms.join(', ')} para ${scheduledFor}.`,
+    });
+  }
+
+  let resolvedCopyId = contextualString(args.copy_id);
+  if (!resolvedCopyId) {
+    const { rows: copyRows } = await query<any>(
+      `SELECT id
+         FROM edro_copy_versions
+        WHERE briefing_id::text = $1
+          AND status IN ('selected', 'approved')
+        ORDER BY CASE status WHEN 'selected' THEN 0 ELSE 1 END, created_at DESC
+        LIMIT 1`,
+      [briefingId],
+    ).catch(() => ({ rows: [] as any[] }));
+    resolvedCopyId = contextualString(copyRows[0]?.id);
+  }
+  if (!resolvedCopyId) {
+    const { rows: fallbackCopyRows } = await query<any>(
+      `SELECT id
+         FROM edro_copy_versions
+        WHERE briefing_id::text = $1
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [briefingId],
+    ).catch(() => ({ rows: [] as any[] }));
+    resolvedCopyId = contextualString(fallbackCopyRows[0]?.id);
+  }
+  if (!resolvedCopyId) {
+    return { success: false, error: 'Não encontrei uma copy para este briefing. Gere ou selecione uma copy antes de agendar.' };
+  }
+
+  const channelMap: Record<string, string> = {
+    meta: 'instagram',
+    linkedin: 'linkedin',
+    tiktok: 'tiktok',
+    google: 'google',
+  };
+  const connectedPlatforms = clientScope.mainClientId
+    ? (await listOpsPlatformConnectionsForClient(ctx.tenantId, clientScope.mainClientId))
+        .filter((item) => item.connected)
+        .map((item) => item.provider)
+    : [];
+
+  const scheduleCtx: ToolContext = {
+    tenantId: ctx.tenantId,
+    clientId: clientScope.mainClientId || '',
+    edroClientId: clientScope.edroClientId || null,
+    userId: ctx.userId,
+    userEmail: ctx.userEmail,
+    role: ctx.role,
+    explicitConfirmation: true,
+  };
+
+  const scheduled: Array<{ platform: string; channel: string; schedule_id: string | null }> = [];
+  const failed: Array<{ platform: string; error: string }> = [];
+
+  for (const platform of platforms) {
+    if (connectedPlatforms.length && !connectedPlatforms.includes(platform)) {
+      failed.push({ platform, error: 'Plataforma não conectada para este cliente.' });
+      continue;
+    }
+    const channel = channelMap[platform] || platform;
+    const scheduleResult = await toolScheduleBriefing({
+      briefing_id: briefingId,
+      copy_id: resolvedCopyId,
+      channel,
+      scheduled_for: scheduledFor,
+    }, scheduleCtx);
+
+    if (!scheduleResult.success) {
+      failed.push({ platform, error: scheduleResult.error || 'Falha ao criar agendamento.' });
+      continue;
+    }
+
+    scheduled.push({
+      platform,
+      channel,
+      schedule_id: contextualString(scheduleResult.data?.scheduleId),
+    });
+  }
+
+  return {
+    success: scheduled.length > 0,
+    data: {
+      briefing_id: briefingId,
+      copy_id: resolvedCopyId,
+      scheduled_for: scheduledFor,
+      client_id: clientScope.mainClientId,
+      edro_client_id: clientScope.edroClientId,
+      connected_platforms: connectedPlatforms,
+      scheduled,
+      failed,
+      message: `Agendado em ${scheduled.length} plataforma(s).${failed.length ? ` Falhou em: ${failed.map((item) => item.platform).join(', ')}.` : ''}`,
+    },
   };
 }
 
@@ -5433,6 +5768,9 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   create_recipe: opsCreateRecipe,
   apply_recipe: opsApplyRecipe,
   delete_recipe: opsDeleteRecipe,
+  list_platform_connections: opsListPlatformConnections,
+  get_platform_recommendations: opsGetPlatformRecommendations,
+  schedule_to_platforms: opsScheduleToPlatforms,
   get_art_direction: opsGetArtDirection,
   generate_art_direction: opsGenerateArtDirection,
   generate_image: opsGenerateImage,
