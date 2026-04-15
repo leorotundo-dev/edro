@@ -17,6 +17,7 @@
 
 import { query } from '../db';
 import { generatePautaSuggestions } from '../services/pautaSuggestionService';
+import { notifyEvent } from '../services/notificationService';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,37 @@ export async function runPautaAutoGenWorkerOnce(): Promise<void> {
 
     if (generated > 0) {
       console.log(`[pautaAutoGen] generated ${generated} pauta suggestion(s) from clipping`);
+
+      // Notify all admins/managers across tenants that processed new pautas
+      try {
+        const { rows: tenantAdmins } = await query<{ user_id: string; tenant_id: string; email: string }>(
+          `SELECT DISTINCT ON (tu.user_id) tu.user_id, tu.tenant_id, u.email
+             FROM tenant_users tu
+             JOIN edro_users u ON u.id = tu.user_id
+            WHERE tu.role IN ('admin', 'manager', 'gestor')
+              AND tu.tenant_id IN (
+                SELECT DISTINCT tenant_id FROM pauta_suggestions
+                 WHERE status = 'pending'
+                   AND generated_at > NOW() - INTERVAL '5 minutes'
+              )`,
+          [],
+        );
+
+        for (const admin of tenantAdmins) {
+          await notifyEvent({
+            event: 'pauta.auto_generated',
+            tenantId: admin.tenant_id,
+            userId: admin.user_id,
+            title: `📋 ${generated} nova${generated !== 1 ? 's' : ''} sugestão${generated !== 1 ? 'ões' : ''} de pauta`,
+            body: 'O Motor gerou novas abordagens A/B a partir do clipping. Acesse a Pauta Inbox para revisar.',
+            link: '/admin/operacoes/pauta',
+            recipientEmail: admin.email,
+            defaultChannels: ['in_app', 'whatsapp'],
+          }).catch(() => {});
+        }
+      } catch {
+        // non-blocking — don't fail the worker if notifications error
+      }
     }
   } catch (err: any) {
     console.error(`[pautaAutoGen] outer error: ${err?.message}`);
