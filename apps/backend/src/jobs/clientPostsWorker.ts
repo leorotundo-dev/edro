@@ -11,6 +11,7 @@
 
 import { query } from '../db';
 import { syncClientPosts } from '../services/integrations/clientPostsService';
+import { linkPublishedPostsToMetrics } from '../services/performanceLinkService';
 
 const MAX_PER_TICK = 8;
 const COOLDOWN_HOURS = 12;
@@ -57,9 +58,12 @@ export async function runClientPostsWorkerOnce(): Promise<void> {
         [row.connector_id]
       );
 
-      if (result.instagram > 0 || result.facebook > 0) {
+      const linkedMetrics = await linkPublishedPostsToMetrics(row.tenant_id, row.client_id)
+        .catch(() => ({ scanned: 0, linked: 0 }));
+
+      if (result.instagram > 0 || result.facebook > 0 || linkedMetrics.linked > 0) {
         console.log(
-          `[clientPosts] ${row.client_name}: ig=${result.instagram} fb=${result.facebook}`
+          `[clientPosts] ${row.client_name}: ig=${result.instagram} fb=${result.facebook} linked=${linkedMetrics.linked}/${linkedMetrics.scanned}`
         );
       }
     } catch (err: any) {
