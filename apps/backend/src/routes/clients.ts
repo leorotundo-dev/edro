@@ -36,6 +36,7 @@ import { syncClientContactPerson } from '../repos/peopleRepo';
 import { env, portalLoginSecret } from '../env';
 import { audit } from '../audit/audit';
 import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
+import { buildClientCopyQualityScorecard } from '../services/copyQualityScorecardService';
 
 type PlanExtraction = {
   name?: string;
@@ -979,6 +980,30 @@ export default async function clientsRoutes(app: FastifyInstance) {
 
       const context = await getClientPreferenceContext(params.id, tenantId);
       return reply.send(context);
+    }
+  );
+
+  app.get(
+    '/clients/:id/copy-quality',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const querySchema = z.object({ days_back: z.coerce.number().int().min(7).max(365).optional() });
+
+      const params = paramsSchema.parse(request.params);
+      const queryParams = querySchema.parse(request.query || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const client = await getClientById(tenantId, params.id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const scorecard = await buildClientCopyQualityScorecard({
+        tenantId,
+        clientId: params.id,
+        daysBack: queryParams.days_back ?? 90,
+      });
+
+      return reply.send({ ok: true, scorecard });
     }
   );
 

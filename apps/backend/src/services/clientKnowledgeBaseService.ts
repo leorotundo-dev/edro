@@ -3,6 +3,7 @@ import { listClientDocuments, getLatestClientInsight } from '../repos/clientInte
 import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { listClientMemoryFacts } from './clientMemoryFactsService';
 import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
+import { buildClientCopyQualityScorecard, type ClientCopyQualityScorecard } from './copyQualityScorecardService';
 
 type KnowledgeBaseFact = {
   title: string;
@@ -53,6 +54,8 @@ type ClientCopyPolicy = {
   task_focus: string[];
   cta_mode: string | null;
   format_guardrails: string[];
+  winning_patterns: string[];
+  quality_state: string | null;
 };
 
 export type ClientKnowledgeBaseIntent =
@@ -84,6 +87,7 @@ export type ClientKnowledgeBaseSnapshot = {
     replace_candidates: number;
     suppressed_facts: number;
   };
+  copy_quality_scorecard: ClientCopyQualityScorecard | null;
   copy_policy: ClientCopyPolicy;
   copy_policy_block: string;
   compaction: {
@@ -193,6 +197,7 @@ function buildKnowledgeBaseBlock(input: {
   recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
   governance: ClientKnowledgeBaseSnapshot['governance'];
   copyPolicyBlock: string;
+  copyQualitySummary?: ClientCopyQualityScorecard['summary'] | null;
   compaction: ClientKnowledgeBaseSnapshot['compaction'];
 }) {
   const parts: string[] = ['BASE DE CONHECIMENTO DO CLIENTE:'];
@@ -202,6 +207,11 @@ function buildKnowledgeBaseBlock(input: {
   );
   if (input.latestInsightSummary) {
     parts.push(`Insight consolidado: ${input.latestInsightSummary}`);
+  }
+  if (input.copyQualitySummary) {
+    parts.push(
+      `Qualidade de copy (${input.radar.window_days}d): estado ${input.copyQualitySummary.overall_state}, aprovação ${Math.round((input.copyQualitySummary.approval_rate || 0) * 100)}%, critic ${input.copyQualitySummary.critic_gate_avg ?? 'n/a'}.`,
+    );
   }
   if (input.copyPolicyBlock) {
     parts.push(input.copyPolicyBlock);
@@ -343,6 +353,7 @@ function buildClientCopyPolicy(params: {
   recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
   compaction: ClientKnowledgeBaseSnapshot['compaction'];
   governance: ClientKnowledgeBaseSnapshot['governance'];
+  scorecard?: ClientCopyQualityScorecard | null;
   taskContext?: {
     platform?: string | null;
     objective?: string | null;
@@ -384,6 +395,10 @@ function buildClientCopyPolicy(params: {
     format.includes('linkedin') ? 'mais densidade argumentativa e autoridade concreta' : '',
     platform === 'instagram' ? 'texto mais escaneável, com ritmo visual e sem jargão pesado' : '',
   ], 5);
+  const winningPatterns = listify([
+    ...(params.scorecard?.leaderboard.top_angles || []).map((item) => item.angle),
+    ...(params.scorecard?.policy_signals.boost || []),
+  ], 5);
   const copyPolicy = {
     tone: firstMeaningful(knowledge.tone_of_voice, brandVoice.personality, profile.tone, params.latestInsight?.tone_of_voice),
     target_audience: firstMeaningful(knowledge.audience, params.latestInsight?.audience, profile.audience),
@@ -409,12 +424,17 @@ function buildClientCopyPolicy(params: {
     preferred_platforms: listify(params.recentDocuments.map((item) => item.platform).filter(Boolean), 4),
     active_restrictions: listify([
       ...avoidDirectives,
+      ...((params.scorecard?.policy_signals.avoid || []).slice(0, 3)),
+      ...((params.scorecard?.policy_signals.disliked_patterns || []).slice(0, 2).map((item) => item.text)),
       params.governance.active_conflicts ? `${params.governance.active_conflicts} conflito(s) ativos na memória` : '',
       params.governance.governance_pressure !== 'low' ? `pressão de governança ${params.governance.governance_pressure}` : '',
+      params.scorecard?.summary.overall_state === 'fragile' ? 'qualidade recente instável; manter copy mais disciplinada e menos experimental' : '',
     ], 6),
     task_focus: taskFocus,
     cta_mode: ctaMode,
     format_guardrails: formatGuardrails,
+    winning_patterns: winningPatterns,
+    quality_state: params.scorecard?.summary.overall_state || null,
   } satisfies ClientCopyPolicy;
 
   const parts = ['POLITICA DE COPY CANONICA:'];
@@ -430,6 +450,8 @@ function buildClientCopyPolicy(params: {
   if (copyPolicy.task_focus.length) parts.push(`- Foco desta tarefa: ${copyPolicy.task_focus.join(' | ')}`);
   if (copyPolicy.cta_mode) parts.push(`- Regra de CTA: ${copyPolicy.cta_mode}`);
   if (copyPolicy.format_guardrails.length) parts.push(`- Guardrails de formato: ${copyPolicy.format_guardrails.join(' | ')}`);
+  if (copyPolicy.winning_patterns.length) parts.push(`- Padrões vencedores recentes: ${copyPolicy.winning_patterns.join(' | ')}`);
+  if (copyPolicy.quality_state) parts.push(`- Estado atual de qualidade: ${copyPolicy.quality_state}`);
 
   return {
     copyPolicy,
@@ -454,7 +476,7 @@ export async function buildClientKnowledgeBase(params: {
   const limitDocuments = Math.min(params.limitDocuments ?? 6, 12);
   const question = String(params.question || '').trim();
 
-  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance] = await Promise.all([
+  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance, copyQualityScorecard] = await Promise.all([
     query<{ name: string | null; profile: Record<string, any> | null }>(
       `SELECT name, profile FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [params.tenantId, params.clientId],
@@ -525,6 +547,11 @@ export async function buildClientKnowledgeBase(params: {
       suggestions: [],
       conflicts: [],
     })),
+    buildClientCopyQualityScorecard({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      daysBack,
+    }).catch(() => null),
   ]);
 
   const factRows = facts || [];
@@ -612,6 +639,7 @@ export async function buildClientKnowledgeBase(params: {
       replace_candidates: governance.summary.replace_candidates,
       suppressed_facts: suppressedFingerprints.size,
     },
+    scorecard: copyQualityScorecard,
     taskContext: {
       platform: params.platform,
       objective: params.objective,
@@ -657,6 +685,7 @@ export async function buildClientKnowledgeBase(params: {
       replace_candidates: governance.summary.replace_candidates,
       suppressed_facts: suppressedFingerprints.size,
     },
+    copy_quality_scorecard: copyQualityScorecard,
     copy_policy: copyPolicy,
     copy_policy_block: copyPolicyBlock,
     compaction,
@@ -682,6 +711,7 @@ export async function buildClientKnowledgeBase(params: {
         suppressed_facts: suppressedFingerprints.size,
       },
       copyPolicyBlock,
+      copyQualitySummary: copyQualityScorecard?.summary || null,
       compaction,
     }),
   } satisfies ClientKnowledgeBaseSnapshot;
