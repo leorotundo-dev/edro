@@ -1317,6 +1317,65 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'action',
   },
   {
+    name: 'get_art_direction',
+    description: 'Recupera a direção de arte atual de um job ou briefing: estratégia visual, layout proposto e prompt de imagem positivo/negativo.',
+    parameters: {
+      job_id: { type: 'string', description: 'UUID do job de operações' },
+      briefing_id: { type: 'string', description: 'UUID do briefing do job' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'generate_art_direction',
+    description: 'Executa o orquestrador de direção de arte: gera estratégia visual, layout e prompt de imagem a partir do copy aprovado.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing do job' },
+      job_id: { type: 'string', description: 'UUID do job de operações' },
+      copy: { type: 'string', description: 'Copy aprovado que servirá de base para a direção de arte' },
+      platform: { type: 'string', description: 'Plataforma alvo (instagram, linkedin, facebook, etc)' },
+      format: { type: 'string', description: 'Formato (feed, reels, stories, carrossel, etc)' },
+    },
+    required: ['copy'],
+    category: 'action',
+  },
+  {
+    name: 'generate_image',
+    description: 'Gera uma imagem usando Fal.ai a partir de um prompt. Pode salvar o resultado no draft do job/briefing.',
+    parameters: {
+      prompt: { type: 'string', description: 'Prompt positivo para geração da imagem' },
+      negative_prompt: { type: 'string', description: 'Elementos que devem ser evitados na imagem' },
+      job_id: { type: 'string', description: 'UUID do job para salvar o resultado' },
+      briefing_id: { type: 'string', description: 'UUID do briefing para salvar o resultado' },
+      aspect_ratio: { type: 'string', description: 'Proporção da imagem. Ex.: 1:1, 9:16, 4:5, 16:9' },
+      model: { type: 'string', description: 'Modelo Fal.ai. Ex.: flux-pro, flux-realism, recraft-v3, ideogram-v2' },
+      confirmed: { type: 'boolean', description: 'true quando o usuário confirmar a geração da imagem' },
+    },
+    required: ['prompt'],
+    category: 'action',
+  },
+  {
+    name: 'iterate_image',
+    description: 'Refina uma imagem já gerada aplicando novas instruções ao prompt original e cria uma nova variação do draft.',
+    parameters: {
+      draft_id: { type: 'string', description: 'UUID do draft de imagem a refinar' },
+      instructions: { type: 'string', description: 'Instruções adicionais para a nova geração. Ex.: mais contraste, fundo mais escuro' },
+      confirmed: { type: 'boolean', description: 'true quando o usuário confirmar a nova geração' },
+    },
+    required: ['draft_id', 'instructions'],
+    category: 'action',
+  },
+  {
+    name: 'approve_image',
+    description: 'Aprova um draft de imagem gerado pela IA e marca o ativo como aprovado no pipeline do job.',
+    parameters: {
+      draft_id: { type: 'string', description: 'UUID do draft de imagem a aprovar' },
+      notes: { type: 'string', description: 'Observações opcionais sobre a aprovação da imagem' },
+    },
+    required: ['draft_id'],
+    category: 'action',
+  },
+  {
     name: 'navigate_to_view',
     description: 'Navega o usuário para uma tela específica do sistema. Use quando o usuário pedir "me leva até", "abrir", "ir para", "mostrar a tela de", etc.',
     parameters: {

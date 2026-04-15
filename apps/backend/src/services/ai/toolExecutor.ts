@@ -250,12 +250,17 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
   ...buildRequirementMap([
     'get_client_weekly_summary',
     'get_operations_daily_brief',
+    'get_art_direction',
   ], { systemPerm: 'clients:read' }),
   ...buildRequirementMap([
     'send_whatsapp_message',
     'send_email',
     'create_trello_card',
     'execute_multi_step_workflow',
+    'generate_art_direction',
+    'generate_image',
+    'iterate_image',
+    'approve_image',
   ], { systemPerm: 'clients:write' }),
   get_system_health: { systemPerm: 'portfolio:read' },
   run_system_repair: { systemPerm: 'admin:jobs' },
@@ -4576,6 +4581,541 @@ async function opsNavigateTo(args: any, _ctx: OperationsToolContext): Promise<To
   };
 }
 
+async function resolveCreativeDraftTarget(
+  tenantId: string,
+  rawJobId?: string | null,
+  rawBriefingId?: string | null,
+) {
+  const jobId = contextualString(rawJobId);
+  const briefingId = contextualString(rawBriefingId);
+  let record: any = null;
+
+  if (jobId) {
+    const { rows } = await query<any>(
+      `SELECT
+         j.id AS job_id,
+         jb.id AS briefing_id,
+         j.client_id,
+         c.name AS client_name,
+         c.segment_primary,
+         c.profile
+       FROM jobs j
+       LEFT JOIN job_briefings jb
+         ON jb.job_id = j.id
+        AND jb.tenant_id = j.tenant_id
+       LEFT JOIN clients c
+         ON c.id = j.client_id
+        AND c.tenant_id = j.tenant_id
+      WHERE j.tenant_id = $1
+        AND j.id = $2
+      LIMIT 1`,
+      [tenantId, jobId],
+    );
+    if (!rows.length) return { error: 'Job não encontrado.' };
+    record = rows[0];
+  } else if (briefingId) {
+    const { rows } = await query<any>(
+      `SELECT
+         jb.job_id,
+         jb.id AS briefing_id,
+         jb.client_id,
+         c.name AS client_name,
+         c.segment_primary,
+         c.profile
+       FROM job_briefings jb
+       LEFT JOIN clients c
+         ON c.id = jb.client_id
+        AND c.tenant_id = jb.tenant_id
+      WHERE jb.tenant_id = $1
+        AND jb.id = $2
+      LIMIT 1`,
+      [tenantId, briefingId],
+    );
+    if (!rows.length) return { error: 'Briefing não encontrado.' };
+    record = rows[0];
+  }
+
+  const profile = record?.profile && typeof record.profile === 'object' ? record.profile : {};
+  const brandColors = Array.isArray(profile.brand_colors) ? profile.brand_colors : [];
+  const clientId = contextualString(record?.client_id);
+
+  let edroClientId: string | null = null;
+  let brandTokens: Record<string, any> | null = null;
+  if (clientId) {
+    const { rows } = await query<any>(
+      `SELECT id, brand_tokens
+         FROM edro_clients
+        WHERE tenant_id = $1
+          AND client_id = $2
+        LIMIT 1`,
+      [tenantId, clientId],
+    ).catch(() => ({ rows: [] as any[] }));
+    edroClientId = rows[0]?.id || null;
+    brandTokens = rows[0]?.brand_tokens || null;
+  }
+
+  const brand: Record<string, any> = {};
+  if (record?.client_name) brand.name = record.client_name;
+  if (record?.segment_primary) brand.segment = record.segment_primary;
+  if (contextualString(brandColors[0])) brand.primaryColor = contextualString(brandColors[0]);
+  else if (contextualString(profile.brand_primary_color)) brand.primaryColor = contextualString(profile.brand_primary_color);
+
+  return {
+    jobId: contextualString(record?.job_id) || jobId,
+    briefingId: contextualString(record?.briefing_id) || briefingId,
+    clientId,
+    edroClientId,
+    brandTokens,
+    brand,
+  };
+}
+
+function buildStoredImageArtDirection(params: {
+  platform?: string | null;
+  format?: string | null;
+  layout?: Record<string, any> | null;
+  visualStrategy?: Record<string, any> | null;
+  positivePrompt?: string | null;
+  negativePrompt?: string | null;
+  aspectRatio?: string | null;
+  extra?: Record<string, any> | null;
+}) {
+  return {
+    ...(params.extra || {}),
+    platform: params.platform || null,
+    format: params.format || null,
+    layout: params.layout || null,
+    visual_strategy: params.visualStrategy || null,
+    img_prompt: {
+      positive: params.positivePrompt || null,
+      negative: params.negativePrompt || null,
+      aspectRatio: params.aspectRatio || null,
+    },
+  };
+}
+
+async function opsGetArtDirection(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const target = await resolveCreativeDraftTarget(
+    ctx.tenantId,
+    contextualString(args.job_id),
+    contextualString(args.briefing_id),
+  );
+  if ('error' in target) return { success: false, error: target.error };
+  if (!target.jobId && !target.briefingId) {
+    return { success: false, error: 'Informe job_id ou briefing_id.' };
+  }
+
+  const { rows } = await query<any>(
+    `SELECT
+       id,
+       job_id,
+       briefing_id,
+       image_url,
+       image_urls,
+       layout,
+       art_direction,
+       prompt_used,
+       model_used,
+       status,
+       approval_status,
+       draft_approved_at,
+       created_at,
+       generated_at
+     FROM job_creative_drafts
+    WHERE tenant_id = $1
+      AND draft_type = 'image'
+      AND ($2::text IS NULL OR job_id::text = $2)
+      AND ($3::text IS NULL OR briefing_id::text = $3)
+    ORDER BY COALESCE(generated_at, created_at) DESC
+    LIMIT 5`,
+    [ctx.tenantId, target.jobId || null, target.briefingId || null],
+  );
+
+  if (!rows.length) {
+    return {
+      success: true,
+      data: { message: 'Nenhuma direção de arte gerada ainda para este job/briefing.', drafts: [] },
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      drafts: rows.map((row) => {
+        const artDirection = row.art_direction && typeof row.art_direction === 'object' ? row.art_direction : {};
+        const imgPrompt = artDirection.img_prompt && typeof artDirection.img_prompt === 'object'
+          ? artDirection.img_prompt
+          : {};
+        return {
+          id: row.id,
+          job_id: row.job_id,
+          briefing_id: row.briefing_id,
+          status: row.approval_status || (row.draft_approved_at ? 'approved' : row.status),
+          image_url: row.image_url,
+          image_urls: row.image_urls || [],
+          image_prompt: imgPrompt.positive || row.prompt_used || null,
+          negative_prompt: imgPrompt.negative || null,
+          aspect_ratio: imgPrompt.aspectRatio || null,
+          layout: row.layout || artDirection.layout || null,
+          visual_strategy: artDirection.visual_strategy || artDirection.visualStrategy || null,
+          model: row.model_used,
+          created_at: row.created_at,
+        };
+      }),
+    },
+    metadata: { row_count: rows.length },
+  };
+}
+
+async function opsGenerateArtDirection(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const copy = String(args.copy || '').trim();
+  if (!copy) return { success: false, error: 'O campo copy é obrigatório.' };
+
+  const target = await resolveCreativeDraftTarget(
+    ctx.tenantId,
+    contextualString(args.job_id),
+    contextualString(args.briefing_id),
+  );
+  if ('error' in target) return { success: false, error: target.error };
+
+  const platform = normalizeCreativePlatform(contextualString(args.platform) || 'instagram');
+  const format = normalizeCreativeFormat(contextualString(args.format) || 'feed');
+  const brand = Object.keys(target.brand || {}).length ? target.brand : undefined;
+
+  const result = await orchestrateCreative({
+    copy,
+    platform,
+    format,
+    tenantId: ctx.tenantId,
+    clientId: target.clientId || null,
+    brand,
+    brandTokens: target.brandTokens,
+  });
+
+  let draftId: string | null = null;
+  if (target.jobId) {
+    const artDirection = buildStoredImageArtDirection({
+      platform,
+      format,
+      layout: result.layout,
+      visualStrategy: result.visualStrategy || null,
+      positivePrompt: result.imgPrompt.positive,
+      negativePrompt: result.imgPrompt.negative,
+      aspectRatio: result.imgPrompt.aspectRatio,
+      extra: {
+        source: 'jarvis_generate_art_direction',
+        copy,
+        edro_client_id: target.edroClientId,
+      },
+    });
+    const { rows } = await query<any>(
+      `INSERT INTO job_creative_drafts (
+         tenant_id, job_id, briefing_id, draft_type, status,
+         layout, art_direction, prompt_used, model_used, generated_at
+       ) VALUES (
+         $1, $2, $3, 'image', 'done',
+         $4::jsonb, $5::jsonb, $6, $7, now()
+       )
+       RETURNING id`,
+      [
+        ctx.tenantId,
+        target.jobId,
+        target.briefingId || null,
+        JSON.stringify(result.layout),
+        JSON.stringify(artDirection),
+        result.imgPrompt.positive,
+        'art_director_orchestrator',
+      ],
+    );
+    draftId = rows[0]?.id || null;
+  }
+
+  return {
+    success: true,
+    data: {
+      draft_id: draftId,
+      job_id: target.jobId,
+      briefing_id: target.briefingId,
+      layout: result.layout,
+      image_prompt: result.imgPrompt.positive,
+      negative_prompt: result.imgPrompt.negative,
+      aspect_ratio: result.imgPrompt.aspectRatio,
+      visual_strategy: result.visualStrategy || null,
+      message: 'Direção de arte gerada. Use generate_image com o image_prompt para renderizar.',
+    },
+  };
+}
+
+async function opsGenerateImage(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const prompt = String(args.prompt || '').trim();
+  if (!prompt) return { success: false, error: 'O campo prompt é obrigatório.' };
+
+  const target = await resolveCreativeDraftTarget(
+    ctx.tenantId,
+    contextualString(args.job_id),
+    contextualString(args.briefing_id),
+  );
+  if ('error' in target) return { success: false, error: target.error };
+
+  const negativePrompt = contextualString(args.negative_prompt);
+  const aspectRatio = contextualString(args.aspect_ratio) || '1:1';
+  const model = contextualString(args.model) || 'flux-pro';
+
+  if (args.confirmed !== true && ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para gerar imagem.', {
+      preview_prompt: prompt.slice(0, 200),
+      aspect_ratio: aspectRatio,
+      model,
+      tool_name: 'generate_image',
+      tool_args: {
+        prompt,
+        negative_prompt: negativePrompt,
+        job_id: target.jobId,
+        briefing_id: target.briefingId,
+        aspect_ratio: aspectRatio,
+        model,
+      },
+      confirmation_prompt: `Confirmo a geração de imagem (${model}, ${aspectRatio}).`,
+    });
+  }
+
+  const { generateImageWithFal, isFalConfigured } = await import('./falAiService');
+  if (!isFalConfigured()) return { success: false, error: 'FAL_API_KEY não configurada.' };
+
+  const result = await generateImageWithFal({
+    prompt,
+    negativePrompt: negativePrompt || undefined,
+    aspectRatio,
+    model,
+    numImages: 1,
+  });
+
+  let draftId: string | null = null;
+  if (target.jobId) {
+    const artDirection = buildStoredImageArtDirection({
+      positivePrompt: prompt,
+      negativePrompt,
+      aspectRatio,
+      extra: {
+        source: 'jarvis_generate_image',
+        briefing_id: target.briefingId,
+      },
+    });
+    const { rows } = await query<any>(
+      `INSERT INTO job_creative_drafts (
+         tenant_id, job_id, briefing_id, draft_type, status,
+         image_url, image_urls, art_direction, prompt_used, model_used, generated_at
+       ) VALUES (
+         $1, $2, $3, 'image', 'done',
+         $4, $5, $6::jsonb, $7, $8, now()
+       )
+       RETURNING id`,
+      [
+        ctx.tenantId,
+        target.jobId,
+        target.briefingId || null,
+        result.imageUrl,
+        result.imageUrls,
+        JSON.stringify(artDirection),
+        prompt,
+        model,
+      ],
+    );
+    draftId = rows[0]?.id || null;
+  }
+
+  return {
+    success: true,
+    data: {
+      image_url: result.imageUrl,
+      image_urls: result.imageUrls,
+      draft_id: draftId,
+      job_id: target.jobId,
+      briefing_id: target.briefingId,
+      model_used: model,
+      aspect_ratio: aspectRatio,
+      message: 'Imagem gerada. Use approve_image para aprovar ou iterate_image para refinar.',
+    },
+  };
+}
+
+async function opsIterateImage(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const draftId = String(args.draft_id || '').trim();
+  const instructions = String(args.instructions || '').trim();
+  if (!draftId || !instructions) {
+    return { success: false, error: 'draft_id e instructions são obrigatórios.' };
+  }
+
+  const { rows } = await query<any>(
+    `SELECT id, job_id, briefing_id, prompt_used, model_used, layout, art_direction
+       FROM job_creative_drafts
+      WHERE tenant_id = $1
+        AND id::text = $2
+        AND draft_type = 'image'
+      LIMIT 1`,
+    [ctx.tenantId, draftId],
+  );
+  if (!rows.length) return { success: false, error: 'Draft não encontrado.' };
+
+  const draft = rows[0];
+  const artDirection = draft.art_direction && typeof draft.art_direction === 'object' ? draft.art_direction : {};
+  const imgPrompt = artDirection.img_prompt && typeof artDirection.img_prompt === 'object'
+    ? artDirection.img_prompt
+    : {};
+  const originalPrompt = contextualString(draft.prompt_used) || contextualString(imgPrompt.positive);
+  if (!originalPrompt) {
+    return { success: false, error: 'Draft sem prompt original para iteração.' };
+  }
+
+  if (args.confirmed !== true && ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para refinar imagem.', {
+      draft_id: draftId,
+      instructions,
+      original_prompt: originalPrompt.slice(0, 200),
+      tool_name: 'iterate_image',
+      tool_args: { draft_id: draftId, instructions },
+      confirmation_prompt: `Confirmo a geração de variação com: "${instructions}".`,
+    });
+  }
+
+  const { generateImageWithFal, isFalConfigured } = await import('./falAiService');
+  if (!isFalConfigured()) return { success: false, error: 'FAL_API_KEY não configurada.' };
+
+  const aspectRatio = contextualString(imgPrompt.aspectRatio) || '1:1';
+  const negativePrompt = contextualString(imgPrompt.negative);
+  const newPrompt = `${originalPrompt}\n\nAjustes adicionais: ${instructions}`;
+  const modelUsed = contextualString(draft.model_used) || 'flux-pro';
+
+  const result = await generateImageWithFal({
+    prompt: newPrompt,
+    negativePrompt: negativePrompt || undefined,
+    aspectRatio,
+    model: modelUsed,
+    numImages: 1,
+  });
+
+  const nextArtDirection = buildStoredImageArtDirection({
+    platform: artDirection.platform || null,
+    format: artDirection.format || null,
+    layout: draft.layout || artDirection.layout || null,
+    visualStrategy: artDirection.visual_strategy || null,
+    positivePrompt: newPrompt,
+    negativePrompt,
+    aspectRatio,
+    extra: {
+      ...artDirection,
+      parent_draft_id: draftId,
+      iteration_instructions: instructions,
+    },
+  });
+
+  const { rows: inserted } = await query<any>(
+    `INSERT INTO job_creative_drafts (
+       tenant_id, job_id, briefing_id, draft_type, status,
+       image_url, image_urls, layout, art_direction, prompt_used, model_used, generated_at
+     ) VALUES (
+       $1, $2, $3, 'image', 'done',
+       $4, $5, $6::jsonb, $7::jsonb, $8, $9, now()
+     )
+     RETURNING id`,
+    [
+      ctx.tenantId,
+      draft.job_id,
+      draft.briefing_id || null,
+      result.imageUrl,
+      result.imageUrls,
+      draft.layout ? JSON.stringify(draft.layout) : null,
+      JSON.stringify(nextArtDirection),
+      newPrompt,
+      modelUsed,
+    ],
+  );
+
+  return {
+    success: true,
+    data: {
+      image_url: result.imageUrl,
+      image_urls: result.imageUrls,
+      new_draft_id: inserted[0]?.id || null,
+      parent_draft_id: draftId,
+      message: 'Nova variação gerada. Use approve_image para aprovar.',
+    },
+  };
+}
+
+async function opsApproveImage(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const draftId = String(args.draft_id || '').trim();
+  const notes = contextualString(args.notes);
+  if (!draftId) return { success: false, error: 'draft_id é obrigatório.' };
+
+  const { rows } = await query<any>(
+    `UPDATE job_creative_drafts
+        SET status = 'done',
+            draft_approved_by = $3::uuid,
+            draft_approved_at = now(),
+            approval_status = 'approved',
+            art_direction = CASE
+              WHEN COALESCE($4::text, '') = '' THEN art_direction
+              ELSE COALESCE(art_direction, '{}'::jsonb) || jsonb_build_object('approval_notes', $4)
+            END
+      WHERE tenant_id = $1
+        AND id::text = $2
+        AND draft_type = 'image'
+      RETURNING id, job_id, briefing_id, image_url, approval_status, draft_approved_at`,
+    [ctx.tenantId, draftId, ctx.userId ?? null, notes],
+  );
+  if (!rows.length) return { success: false, error: 'Draft não encontrado.' };
+
+  const draft = rows[0];
+  if (draft.job_id) {
+    const { rows: jobRows } = await query<any>(
+      `SELECT status, automation_status
+         FROM jobs
+        WHERE tenant_id = $1
+          AND id = $2
+        LIMIT 1`,
+      [ctx.tenantId, draft.job_id],
+    );
+    const job = jobRows[0];
+    if (job?.status === 'in_review') {
+      await query(
+        `UPDATE jobs
+            SET status = 'approved',
+                automation_status = CASE
+                  WHEN automation_status IN ('image_pending', 'ready_for_review') THEN 'image_done'
+                  ELSE automation_status
+                END,
+                updated_at = now()
+          WHERE tenant_id = $1
+            AND id = $2`,
+        [ctx.tenantId, draft.job_id],
+      );
+    } else if (job?.automation_status === 'image_pending' || job?.automation_status === 'ready_for_review') {
+      await query(
+        `UPDATE jobs
+            SET automation_status = 'image_done',
+                updated_at = now()
+          WHERE tenant_id = $1
+            AND id = $2`,
+        [ctx.tenantId, draft.job_id],
+      );
+    }
+    await syncOperationalRuntimeForJob(ctx.tenantId, draft.job_id).catch(() => null);
+  }
+
+  return {
+    success: true,
+    data: {
+      draft_id: draft.id,
+      image_url: draft.image_url,
+      job_id: draft.job_id,
+      briefing_id: draft.briefing_id,
+      approved_at: draft.draft_approved_at,
+      message: 'Imagem aprovada com sucesso.',
+    },
+  };
+}
+
 const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Promise<ToolResult>> = {
   get_client_weekly_summary: opsGetClientWeeklySummary,
   get_operations_daily_brief: opsGetOperationsDailyBrief,
@@ -4599,6 +5139,11 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   send_whatsapp_message: opsSendWhatsAppMessage,
   send_email: opsSendEmail,
   create_trello_card: opsCreateTrelloCard,
+  get_art_direction: opsGetArtDirection,
+  generate_art_direction: opsGenerateArtDirection,
+  generate_image: opsGenerateImage,
+  iterate_image: opsIterateImage,
+  approve_image: opsApproveImage,
   run_system_repair: opsRunSystemRepair,
   create_operations_job: opsCreateJob,
   update_operations_job: opsUpdateJob,
