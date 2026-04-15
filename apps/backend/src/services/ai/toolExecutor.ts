@@ -2481,10 +2481,16 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
     `- Alertas abertos: ${clientState.open_alerts}`,
     `- Diretivas ativas: ${knowledgeBase.living_memory_summary.active_directives ?? livingMemory.snapshot.active_directives}`,
     `- Sinais vivos 7d: ${knowledgeBase.living_memory_summary.fresh_signals_7d ?? livingMemory.snapshot.fresh_signals_7d}`,
+    knowledgeBase.compaction?.last_7_days?.top_themes?.length
+      ? `- Temas vivos 7d: ${knowledgeBase.compaction.last_7_days.top_themes.join(', ')}`
+      : null,
     knowledgeBase.living_memory_summary.decision_signals ? `- Decisões recentes: ${knowledgeBase.living_memory_summary.decision_signals}` : null,
     knowledgeBase.living_memory_summary.objection_signals ? `- Objeções recentes: ${knowledgeBase.living_memory_summary.objection_signals}` : null,
     `- Compromissos pendentes: ${knowledgeBase.living_memory_summary.pending_commitments ?? livingMemory.snapshot.pending_commitments}`,
     `- Radar de comunicação: ${knowledgeBase.radar.meetings} reuniões, ${knowledgeBase.radar.whatsapp_messages} mensagens WhatsApp, ${knowledgeBase.radar.whatsapp_group_messages} mensagens de grupo`,
+    knowledgeBase.compaction?.recent_changes?.length
+      ? `- Mudanças recentes: ${knowledgeBase.compaction.recent_changes.slice(0, 2).map((item: any) => item.title).join(' | ')}`
+      : null,
     memoryGovernance.summary.stale_facts ? `- Fatos envelhecidos: ${memoryGovernance.summary.stale_facts}` : null,
     memoryGovernance.summary.active_conflicts ? `- Conflitos internos na memória: ${memoryGovernance.summary.active_conflicts}` : null,
     memoryGovernance.summary.governance_pressure !== 'low' ? `- Pressão de governança: ${memoryGovernance.summary.governance_pressure}` : null,

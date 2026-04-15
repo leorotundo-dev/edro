@@ -24,6 +24,22 @@ type CommunicationRadar = {
   active_directives: number;
 };
 
+type KnowledgeBaseCompactionWindow = {
+  window_days: number;
+  item_count: number;
+  top_themes: string[];
+  top_sources: Array<{ source_type: string; count: number }>;
+  summary: string;
+};
+
+type KnowledgeBaseChangeItem = {
+  kind: 'directive' | 'commitment' | 'evidence' | 'document';
+  title: string;
+  source_type: string | null;
+  related_at: string | null;
+  summary: string | null;
+};
+
 export type ClientKnowledgeBaseIntent =
   | 'general'
   | 'copy'
@@ -53,6 +69,12 @@ export type ClientKnowledgeBaseSnapshot = {
     replace_candidates: number;
     suppressed_facts: number;
   };
+  compaction: {
+    last_7_days: KnowledgeBaseCompactionWindow;
+    last_30_days: KnowledgeBaseCompactionWindow;
+    recent_changes: KnowledgeBaseChangeItem[];
+    compacted_memory_block: string;
+  };
   recent_documents: Array<{
     id: string;
     source_type: string | null;
@@ -76,10 +98,25 @@ const INTENT_SOURCE_PRIORITY: Record<ClientKnowledgeBaseIntent, string[]> = {
   relationship: ['whatsapp_message', 'whatsapp_insight', 'meeting_chat', 'meeting', 'gmail_message'],
 };
 
+const COMPACTION_STOPWORDS = new Set([
+  'cliente', 'clientes', 'briefing', 'campanha', 'copy', 'copies', 'post', 'posts', 'conteudo',
+  'reuniao', 'reunioes', 'whatsapp', 'grupo', 'grupos', 'origem', 'fonte', 'sobre', 'mais',
+  'menos', 'muito', 'para', 'com', 'sem', 'uma', 'umas', 'uns', 'esse', 'essa', 'isso', 'esta',
+  'este', 'pela', 'pelo', 'pelos', 'pelas', 'entre', 'depois', 'antes', 'hoje', 'ontem',
+]);
+
 function shortText(value: unknown, max = 220) {
   const normalized = String(value || '').replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
   return normalized.length > max ? `${normalized.slice(0, max - 1)}...` : normalized;
+}
+
+function tokenizeForCompaction(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .match(/[a-z0-9]{4,}/g)?.filter((token) => !COMPACTION_STOPWORDS.has(token)) || [];
 }
 
 function summarizeInsight(summary: Record<string, any> | null) {
@@ -119,6 +156,7 @@ function buildKnowledgeBaseBlock(input: {
   evidence: KnowledgeBaseFact[];
   recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
   governance: ClientKnowledgeBaseSnapshot['governance'];
+  compaction: ClientKnowledgeBaseSnapshot['compaction'];
 }) {
   const parts: string[] = ['BASE DE CONHECIMENTO DO CLIENTE:'];
   if (input.clientName) parts.push(`Cliente: ${input.clientName}`);
@@ -127,6 +165,9 @@ function buildKnowledgeBaseBlock(input: {
   );
   if (input.latestInsightSummary) {
     parts.push(`Insight consolidado: ${input.latestInsightSummary}`);
+  }
+  if (input.compaction.compacted_memory_block) {
+    parts.push(input.compaction.compacted_memory_block);
   }
   if (input.governance.governance_pressure !== 'low') {
     parts.push(
@@ -183,6 +224,76 @@ function shouldSuppressFact(fact: KnowledgeBaseFact, suggestion: { severity: str
   if (fact.source_type === 'meeting_action' && suggestion.staleness_score >= 60) return true;
   if (fact.metadata?.directive_type && suggestion.staleness_score >= 60) return true;
   return false;
+}
+
+function parseTime(value: string | null | undefined) {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function buildCompactionWindow(params: {
+  windowDays: number;
+  items: KnowledgeBaseChangeItem[];
+}) {
+  const cutoff = Date.now() - params.windowDays * 86400000;
+  const filtered = params.items.filter((item) => {
+    const timestamp = parseTime(item.related_at);
+    return timestamp !== null && timestamp >= cutoff;
+  });
+  const themeCounts = new Map<string, number>();
+  const sourceCounts = new Map<string, number>();
+  for (const item of filtered) {
+    for (const token of tokenizeForCompaction(`${item.title} ${item.summary || ''}`)) {
+      themeCounts.set(token, (themeCounts.get(token) || 0) + 1);
+    }
+    const sourceType = item.source_type || item.kind;
+    sourceCounts.set(sourceType, (sourceCounts.get(sourceType) || 0) + 1);
+  }
+  const topThemes = [...themeCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 4)
+    .map(([token]) => token);
+  const topSources = [...sourceCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 3)
+    .map(([source_type, count]) => ({ source_type, count }));
+  const summaryParts: string[] = [];
+  if (filtered.length) {
+    summaryParts.push(`${filtered.length} sinal(is) consolidados`);
+    if (topSources.length) {
+      summaryParts.push(`fontes dominantes: ${topSources.map((item) => `${item.source_type} (${item.count})`).join(', ')}`);
+    }
+    if (topThemes.length) {
+      summaryParts.push(`temas: ${topThemes.join(', ')}`);
+    }
+  } else {
+    summaryParts.push('sem sinais relevantes');
+  }
+  return {
+    window_days: params.windowDays,
+    item_count: filtered.length,
+    top_themes: topThemes,
+    top_sources: topSources,
+    summary: summaryParts.join(' | '),
+  } satisfies KnowledgeBaseCompactionWindow;
+}
+
+function buildCompactionBlock(params: {
+  last7Days: KnowledgeBaseCompactionWindow;
+  last30Days: KnowledgeBaseCompactionWindow;
+  recentChanges: KnowledgeBaseChangeItem[];
+}) {
+  const parts: string[] = ['MEMORIA COMPACTADA:'];
+  parts.push(`- Resumo 7d: ${params.last7Days.summary}.`);
+  parts.push(`- Resumo 30d: ${params.last30Days.summary}.`);
+  if (params.recentChanges.length) {
+    parts.push('Mudancas recentes:');
+    params.recentChanges.slice(0, 4).forEach((item) => {
+      parts.push(`- [${item.kind}] ${item.title}`);
+    });
+  }
+  return parts.join('\n');
 }
 
 export async function buildClientKnowledgeBase(params: {
@@ -297,6 +408,49 @@ export async function buildClientKnowledgeBase(params: {
     published_at: item.published_at || null,
     created_at: item.created_at || null,
   })));
+  const compactionItems = [
+    ...directives.map((item) => ({
+      kind: 'directive' as const,
+      title: item.title,
+      source_type: item.source_type,
+      related_at: item.related_at,
+      summary: item.summary || item.fact_text,
+    })),
+    ...commitments.map((item) => ({
+      kind: 'commitment' as const,
+      title: item.title,
+      source_type: item.source_type,
+      related_at: item.related_at,
+      summary: item.summary || item.fact_text,
+    })),
+    ...evidence.map((item) => ({
+      kind: 'evidence' as const,
+      title: item.title,
+      source_type: item.source_type,
+      related_at: item.related_at,
+      summary: item.summary || item.fact_text,
+    })),
+    ...recentDocuments.map((item) => ({
+      kind: 'document' as const,
+      title: item.title || 'Sem titulo',
+      source_type: item.source_type,
+      related_at: item.published_at || item.created_at,
+      summary: item.excerpt || null,
+    })),
+  ].sort((a, b) => String(b.related_at || '').localeCompare(String(a.related_at || '')));
+  const recentChanges = compactionItems.slice(0, 6);
+  const last7Days = buildCompactionWindow({ windowDays: 7, items: compactionItems });
+  const last30Days = buildCompactionWindow({ windowDays: 30, items: compactionItems });
+  const compaction = {
+    last_7_days: last7Days,
+    last_30_days: last30Days,
+    recent_changes: recentChanges,
+    compacted_memory_block: buildCompactionBlock({
+      last7Days,
+      last30Days,
+      recentChanges,
+    }),
+  };
 
   const latestInsightSummary = summarizeInsight((latestInsight?.summary || null) as Record<string, any> | null);
   const radarRow = radarResult.rows[0] || {
@@ -335,6 +489,7 @@ export async function buildClientKnowledgeBase(params: {
       replace_candidates: governance.summary.replace_candidates,
       suppressed_facts: suppressedFingerprints.size,
     },
+    compaction,
     recent_documents: recentDocuments,
     memory_block: livingMemory.block,
     knowledge_base_block: buildKnowledgeBaseBlock({
@@ -356,6 +511,7 @@ export async function buildClientKnowledgeBase(params: {
         replace_candidates: governance.summary.replace_candidates,
         suppressed_facts: suppressedFingerprints.size,
       },
+      compaction,
     }),
   } satisfies ClientKnowledgeBaseSnapshot;
 }
