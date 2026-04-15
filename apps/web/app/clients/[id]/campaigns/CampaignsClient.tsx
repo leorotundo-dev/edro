@@ -20,6 +20,7 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import InputLabel from '@mui/material/InputLabel';
 import LinearProgress from '@mui/material/LinearProgress';
+import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
@@ -60,6 +61,7 @@ import {
   IconUsersGroup,
   IconEye,
   IconZoomQuestion,
+  IconChevronDown,
 } from '@tabler/icons-react';
 import { apiDelete } from '@/lib/api';
 import CampaignCanvasView from '@/app/studio/canvas/components/CampaignCanvasView';
@@ -685,6 +687,22 @@ function CampaignDetail({
   const [biPlatform, setBiPlatform] = useState<Record<string, string>>({});
   const [expandedBiCopy, setExpandedBiCopy] = useState<string | null>(null);
 
+  // Campaign status menu
+  const [statusMenuAnchor, setStatusMenuAnchor] = useState<HTMLElement | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+
+  const handleStatusChange = async (newStatus: string) => {
+    setStatusMenuAnchor(null);
+    if (newStatus === campaign.status) return;
+    setStatusUpdating(true);
+    try {
+      await apiPatch(`/campaigns/${campaign.id}`, { status: newStatus });
+      onRefresh();
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
   // Jobs linked to this campaign
   const [linkedJobs, setLinkedJobs] = useState<Array<{
     id: string; title: string; status: string; due_date: string | null;
@@ -1030,7 +1048,14 @@ function CampaignDetail({
               <Typography variant="h6" sx={{ fontWeight: 700 }}>{campaign.name}</Typography>
               <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} flexWrap="wrap">
                 <Chip size="small" label={objectiveLabel(campaign.objective)} color="primary" variant="outlined" />
-                <Chip size="small" label={campaign.status} color={statusColor(campaign.status)} />
+                <Chip
+                  size="small"
+                  label={statusUpdating ? '…' : campaign.status}
+                  color={statusColor(campaign.status)}
+                  icon={<IconChevronDown size={12} />}
+                  onClick={(e) => setStatusMenuAnchor(e.currentTarget)}
+                  sx={{ cursor: 'pointer', '& .MuiChip-icon': { order: 1, mr: '4px', ml: '-2px' } }}
+                />
               </Stack>
             </Box>
             <Stack spacing={0.5} alignItems="flex-end">
@@ -1044,6 +1069,26 @@ function CampaignDetail({
           </Stack>
         </CardContent>
       </Card>
+
+      {/* Campaign status change menu */}
+      <Menu
+        anchorEl={statusMenuAnchor}
+        open={Boolean(statusMenuAnchor)}
+        onClose={() => setStatusMenuAnchor(null)}
+        transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
+      >
+        {['draft', 'active', 'paused', 'completed', 'cancelled'].map((s) => (
+          <MenuItem
+            key={s}
+            selected={s === campaign.status}
+            onClick={() => handleStatusChange(s)}
+            sx={{ fontSize: '0.85rem', fontWeight: s === campaign.status ? 700 : 400 }}
+          >
+            {s === 'draft' ? 'Rascunho' : s === 'active' ? 'Ativo' : s === 'paused' ? 'Pausado' : s === 'completed' ? 'Concluído' : 'Cancelado'}
+          </MenuItem>
+        ))}
+      </Menu>
 
       {/* ── Phases Timeline ───────────────────────────────────────────── */}
       <Box sx={{ mb: 2 }}>
