@@ -15,6 +15,7 @@
 
 import { query } from '../db';
 import { generateBehavioralDraft } from '../services/ai/agentWriter';
+import { auditDraftContent } from '../services/ai/agentAuditor';
 import { notifyEvent } from '../services/notificationService';
 
 const FATIGUE_THRESHOLD = 0.25;  // 25% drop
@@ -141,28 +142,69 @@ export async function runContentFatigueMonitorOnce(): Promise<void> {
 
       const amd = fmt.amd ?? 'salvar';
       const dropPct = Math.round(fmt.drop_pct * 100);
+      const persona = {
+        name: client.name,
+        role: client.segment ?? 'profissional',
+        pain_points: [],
+        objection_patterns: [],
+      };
+      const behaviorIntent = {
+        amd,
+        momento: 'solucao',
+        triggers: ['especificidade', 'prova_social', 'autoridade'],
+        target_behavior: `Renovar engajamento após fadiga de copy em ${fmt.platform}`,
+      };
 
       // Generate substitute copy
       const draft = await generateBehavioralDraft({
         platform: fmt.platform ?? 'instagram',
-        persona: {
-          name: client.name,
-          role: client.segment ?? 'profissional',
-          pain_points: [],
-          objection_patterns: [],
-        },
-        behaviorIntent: {
-          amd,
-          momento: 'solucao',
-          triggers: ['especificidade', 'prova_social', 'autoridade'],
-          target_behavior: `Renovar engajamento após fadiga de copy em ${fmt.platform}`,
-        },
+        persona,
+        behaviorIntent,
         clientName: client.name,
         clientSegment: client.segment ?? '',
         knowledgeBlock: `Esta copy substitui um formato com queda de ${dropPct}% de engajamento. Usar abordagem diferente da anterior.`,
       });
+      const audit = await auditDraftContent({
+        draft,
+        persona,
+        behaviorIntent,
+        clientName: client.name,
+      });
 
       const copyText = [draft.hook_text, draft.content_text, draft.cta_text].filter(Boolean).join('\n\n');
+      let simulationMeta: Record<string, any> | null = null;
+      try {
+        const { runSimulation } = await import('../services/campaignSimulator/simulationReport');
+        const simReport = await runSimulation({
+          tenantId: fmt.tenant_id,
+          clientId: fmt.client_id,
+          platform: fmt.platform || undefined,
+          variants: [{
+            index: 0,
+            text: copyText,
+            amd,
+            triggers: behaviorIntent.triggers,
+            fogg_motivation: audit.fogg_score?.motivation,
+            fogg_ability: audit.fogg_score?.ability,
+            fogg_prompt: audit.fogg_score?.prompt,
+          }],
+        });
+        const winner = simReport.variants?.[0];
+        const resonance = winner?.aggregate_resonance ?? 100;
+        simulationMeta = {
+          simulation_id: simReport.id,
+          winner_resonance: resonance,
+          prediction_confidence_label: simReport.prediction_confidence_label ?? null,
+          predicted_save_rate: winner?.predicted_save_rate ?? null,
+          predicted_click_rate: winner?.predicted_click_rate ?? null,
+        };
+        if (resonance < 40) {
+          console.warn('[fatigue-worker] Draft gerado com resonance baixo, pulando.');
+          continue;
+        }
+      } catch {
+        // continuar mesmo sem simulação
+      }
 
       // Create briefing
       const briefingPayload = {
@@ -181,6 +223,8 @@ export async function runContentFatigueMonitorOnce(): Promise<void> {
           cta_text: draft.cta_text,
           amd,
         },
+        simulation_result_id: simulationMeta?.simulation_id ?? null,
+        smart_copy_meta: simulationMeta,
       };
 
       const briefingRes = await query<{ id: string }>(
