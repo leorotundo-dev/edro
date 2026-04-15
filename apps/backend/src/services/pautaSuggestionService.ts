@@ -20,6 +20,14 @@ type ClientRow = {
   profile?: Record<string, any> | null;
 };
 
+type PautaSuggestionPayload = {
+  topic_category: string | null;
+  suggested_deadline: string | null;
+  approach_a: Record<string, any>;
+  approach_b: Record<string, any>;
+  ai_score: number | null;
+};
+
 function safeParseJson(text: string): any {
   try {
     const start = text.indexOf('{');
@@ -49,6 +57,219 @@ function fallbackApproaches(source: PautaSource, client: ClientRow) {
       platforms: ['Instagram Story', 'Instagram Feed'],
       why: 'Abordagem que engaja e gera shares orgânicos.',
     },
+  };
+}
+
+function isValidSuggestionPayload(parsed: any): parsed is {
+  topic_category?: string;
+  suggested_deadline?: string;
+  approach_a: Record<string, any>;
+  approach_b: Record<string, any>;
+} {
+  return Boolean(parsed?.approach_a && parsed?.approach_b);
+}
+
+function buildPautaAnalysisPrompt(params: {
+  client: ClientRow;
+  source: PautaSource;
+  preferenceBlock: string;
+  directivesBlock: string;
+}) {
+  const { client, source, preferenceBlock, directivesBlock } = params;
+  const profile = client.profile || {};
+  return `Você é um estrategista de conteúdo. Com base na oportunidade abaixo, crie DUAS abordagens distintas de pauta para a empresa.
+
+As abordagens devem ser diferentes em ângulo e execução — não variações do mesmo tema.
+
+Retorne APENAS JSON válido:
+{
+  "topic_category": "categoria do tema (ex: Logística, Inovação, Institucional)",
+  "suggested_deadline": "YYYY-MM-DD",
+  "approach_a": {
+    "angle": "nome do ângulo (ex: Protagonismo, Thought Leadership, Notícia)",
+    "title": "título da pauta",
+    "message": "mensagem principal em 1-2 frases",
+    "tone": "tom sugerido",
+    "platforms": ["plataforma1", "plataforma2"],
+    "why": "por que este ângulo faz sentido"
+  },
+  "approach_b": {
+    "angle": "nome do ângulo alternativo",
+    "title": "título alternativo",
+    "message": "mensagem alternativa",
+    "tone": "tom alternativo",
+    "platforms": ["plataforma1"],
+    "why": "por que este ângulo alternativo faz sentido"
+  }
+}
+
+EMPRESA: ${client.name}
+SEGMENTO: ${client.segment_primary || 'não informado'}
+PILARES: ${(profile.pillars || []).join(', ') || 'não informados'}
+
+OPORTUNIDADE:
+Fonte: ${source.domain || source.type}
+Título: ${source.title}
+Resumo: ${source.summary}
+${source.date ? `Data do evento: ${source.date}` : ''}
+
+${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}${directivesBlock}`;
+}
+
+function buildPautaExpansionPrompt(analysisOutput: string, client: ClientRow, source: PautaSource) {
+  return `Você é um estrategista criativo. Expanda a análise abaixo em duas abordagens editoriais mais fortes, específicas e publicáveis.
+
+REGRAS:
+- manter somente 2 abordagens
+- deixar os títulos mais concretos
+- tornar a mensagem mais acionável
+- sugerir plataformas coerentes com o tipo de pauta
+- sem texto genérico
+
+CLIENTE: ${client.name}
+SEGMENTO: ${client.segment_primary || 'não informado'}
+OPORTUNIDADE: ${source.title}
+RESUMO: ${source.summary}
+
+ANÁLISE BASE:
+${analysisOutput}
+
+Retorne APENAS JSON no mesmo formato da análise original.`;
+}
+
+function buildPautaRefinementPrompt(analysisOutput: string, expansionOutput: string) {
+  return `Você é um editor-chefe. Escolha e refine as melhores duas abordagens abaixo em formato final pronto para pauta.
+
+REGRAS:
+- manter exatamente 2 abordagens: approach_a e approach_b
+- garantir que sejam realmente diferentes entre si
+- títulos curtos e fortes
+- messages objetivas
+- platforms plausíveis
+- why com justificativa curta e concreta
+- sem markdown
+
+ANÁLISE ESTRATÉGICA:
+${analysisOutput}
+
+EXPANSÃO CRIATIVA:
+${expansionOutput}
+
+Retorne APENAS JSON válido:
+{
+  "topic_category": "categoria do tema",
+  "suggested_deadline": "YYYY-MM-DD",
+  "approach_a": {
+    "angle": "ângulo",
+    "title": "título",
+    "message": "mensagem",
+    "tone": "tom",
+    "platforms": ["plataforma1"],
+    "why": "justificativa"
+  },
+  "approach_b": {
+    "angle": "ângulo",
+    "title": "título",
+    "message": "mensagem",
+    "tone": "tom",
+    "platforms": ["plataforma1"],
+    "why": "justificativa"
+  }
+}`;
+}
+
+function buildPautaVariantText(approach: Record<string, any>) {
+  return [
+    approach?.title,
+    approach?.message,
+    approach?.why,
+    Array.isArray(approach?.platforms) ? `Plataformas: ${approach.platforms.join(', ')}` : null,
+  ].filter(Boolean).join('\n');
+}
+
+async function generatePautaPayload(params: {
+  client: ClientRow;
+  client_id: string;
+  tenant_id: string;
+  source: PautaSource;
+  preferenceBlock: string;
+  directivesBlock: string;
+}): Promise<PautaSuggestionPayload> {
+  const { client, client_id, tenant_id, source, preferenceBlock, directivesBlock } = params;
+  const analysisPrompt = buildPautaAnalysisPrompt({ client, source, preferenceBlock, directivesBlock });
+
+  let parsed: any = null;
+  let analysisOutput = '';
+  let expansionOutput = '';
+
+  try {
+    const geminiAnalysis = await generateWithProvider('gemini', {
+      prompt: analysisPrompt,
+      temperature: 0.4,
+      maxTokens: 800,
+    });
+    analysisOutput = geminiAnalysis.output;
+
+    const gptExpansion = await generateWithProvider('openai', {
+      prompt: buildPautaExpansionPrompt(analysisOutput, client, source),
+      temperature: 0.7,
+      maxTokens: 1200,
+    });
+    expansionOutput = gptExpansion.output;
+
+    const claudeRefinement = await generateWithProvider('claude', {
+      prompt: buildPautaRefinementPrompt(analysisOutput, expansionOutput),
+      temperature: 0.3,
+      maxTokens: 1000,
+    });
+
+    parsed =
+      safeParseJson(claudeRefinement.output) ||
+      safeParseJson(gptExpansion.output) ||
+      safeParseJson(geminiAnalysis.output);
+  } catch {
+    parsed = null;
+  }
+
+  const data = isValidSuggestionPayload(parsed)
+    ? parsed
+    : fallbackApproaches(source, client);
+
+  const approachA = { ...(data.approach_a || {}) };
+  const approachB = { ...(data.approach_b || {}) };
+  let aiScore = source.score ?? 7.0;
+
+  try {
+    const { runSimulation } = await import('./campaignSimulator/simulationReport');
+    const simReport = await runSimulation({
+      tenantId: tenant_id,
+      clientId: client_id,
+      variants: [
+        { index: 0, text: buildPautaVariantText(approachA) },
+        { index: 1, text: buildPautaVariantText(approachB) },
+      ],
+    });
+    const winnerIndex = simReport.winner_index ?? 0;
+    const winner = simReport.variants?.[winnerIndex];
+    aiScore = winner?.aggregate_resonance ?? simReport.winner_resonance ?? aiScore;
+    approachA.simulation = {
+      recommended: winnerIndex === 0,
+      resonance: simReport.variants?.[0]?.aggregate_resonance ?? null,
+    };
+    approachB.simulation = {
+      recommended: winnerIndex === 1,
+      resonance: simReport.variants?.[1]?.aggregate_resonance ?? null,
+    };
+  } catch {
+    // fallback silencioso: pauta continua mesmo sem simulador
+  }
+
+  return {
+    topic_category: data.topic_category || null,
+    suggested_deadline: data.suggested_deadline || null,
+    approach_a: approachA,
+    approach_b: approachB,
+    ai_score: aiScore,
   };
 }
 
@@ -95,57 +316,14 @@ export async function generateSinglePautaSuggestion(params: {
     return block;
   })();
 
-  let parsed: any = null;
-  try {
-    const result = await generateWithProvider('gemini', {
-      prompt: `Você é um estrategista de conteúdo. Com base na oportunidade abaixo, crie DUAS abordagens distintas de pauta para a empresa.
-
-As abordagens devem ser diferentes em ângulo e execução — não variações do mesmo tema.
-
-Retorne APENAS JSON válido:
-{
-  "topic_category": "categoria do tema (ex: Logística, Inovação, Institucional)",
-  "suggested_deadline": "YYYY-MM-DD",
-  "approach_a": {
-    "angle": "nome do ângulo (ex: Protagonismo, Thought Leadership, Notícia)",
-    "title": "título da pauta",
-    "message": "mensagem principal em 1-2 frases",
-    "tone": "tom sugerido",
-    "platforms": ["plataforma1", "plataforma2"],
-    "why": "por que este ângulo faz sentido"
-  },
-  "approach_b": {
-    "angle": "nome do ângulo alternativo",
-    "title": "título alternativo",
-    "message": "mensagem alternativa",
-    "tone": "tom alternativo",
-    "platforms": ["plataforma1"],
-    "why": "por que este ângulo alternativo faz sentido"
-  }
-}
-
-EMPRESA: ${client.name}
-SEGMENTO: ${client.segment_primary || 'não informado'}
-PILARES: ${(profile.pillars || []).join(', ') || 'não informados'}
-
-OPORTUNIDADE:
-Fonte: ${source.domain || source.type}
-Título: ${source.title}
-Resumo: ${source.summary}
-${source.date ? `Data do evento: ${source.date}` : ''}
-
-${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}${directivesBlock}`,
-      temperature: 0.4,
-      maxTokens: 700,
-    });
-    parsed = safeParseJson(result.output);
-  } catch {
-    parsed = null;
-  }
-
-  const data = parsed && parsed.approach_a && parsed.approach_b
-    ? parsed
-    : fallbackApproaches(source, client);
+  const data = await generatePautaPayload({
+    client,
+    client_id,
+    tenant_id,
+    source,
+    preferenceBlock,
+    directivesBlock,
+  });
 
   const platforms = [
     ...(data.approach_a?.platforms || []),
@@ -173,7 +351,7 @@ ${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}${di
         source.id,
         source.domain || null,
         source.summary,
-        source.score ?? 7.0,
+        data.ai_score,
         data.topic_category || null,
         data.suggested_deadline || null,
         JSON.stringify(platforms),
@@ -273,57 +451,14 @@ export async function generatePautaSuggestions(params: {
     );
     if (existing.rows.length > 0) continue;
 
-    let parsed: any = null;
-    try {
-      const result = await generateWithProvider('gemini', {
-        prompt: `Você é um estrategista de conteúdo. Com base na oportunidade abaixo, crie DUAS abordagens distintas de pauta para a empresa.
-
-As abordagens devem ser diferentes em ângulo e execução — não variações do mesmo tema.
-
-Retorne APENAS JSON válido:
-{
-  "topic_category": "categoria do tema (ex: Logística, Inovação, Institucional)",
-  "suggested_deadline": "YYYY-MM-DD",
-  "approach_a": {
-    "angle": "nome do ângulo (ex: Protagonismo, Thought Leadership, Notícia)",
-    "title": "título da pauta",
-    "message": "mensagem principal em 1-2 frases",
-    "tone": "tom sugerido",
-    "platforms": ["plataforma1", "plataforma2"],
-    "why": "por que este ângulo faz sentido"
-  },
-  "approach_b": {
-    "angle": "nome do ângulo alternativo",
-    "title": "título alternativo",
-    "message": "mensagem alternativa",
-    "tone": "tom alternativo",
-    "platforms": ["plataforma1"],
-    "why": "por que este ângulo alternativo faz sentido"
-  }
-}
-
-EMPRESA: ${client.name}
-SEGMENTO: ${client.segment_primary || 'não informado'}
-PILARES: ${(profile.pillars || []).join(', ') || 'não informados'}
-
-OPORTUNIDADE:
-Fonte: ${source.domain || source.type}
-Título: ${source.title}
-Resumo: ${source.summary}
-${source.date ? `Data do evento: ${source.date}` : ''}
-
-${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}${directivesBlock}`,
-        temperature: 0.4,
-        maxTokens: 700,
-      });
-      parsed = safeParseJson(result.output);
-    } catch {
-      parsed = null;
-    }
-
-    const data = parsed && parsed.approach_a && parsed.approach_b
-      ? parsed
-      : fallbackApproaches(source, client);
+    const data = await generatePautaPayload({
+      client,
+      client_id,
+      tenant_id,
+      source,
+      preferenceBlock,
+      directivesBlock,
+    });
 
     try {
       await query(
@@ -346,7 +481,7 @@ ${preferenceBlock ? `HISTÓRICO DE PREFERÊNCIAS:\n${preferenceBlock}` : ''}${di
           source.id,
           source.domain || null,
           source.summary,
-          source.score ?? 7.0,
+          data.ai_score,
           data.topic_category || null,
           data.suggested_deadline || null,
           JSON.stringify([
