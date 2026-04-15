@@ -254,6 +254,8 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'list_platform_connections',
     'get_platform_recommendations',
     'compare_variants',
+    'list_scheduled_posts',
+    'export_post_assets',
   ], { systemPerm: 'clients:read' }),
   ...buildRequirementMap([
     'list_recipes',
@@ -278,6 +280,8 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
   apply_recipe: { systemPerm: 'clients:write' },
   schedule_to_platforms: { systemPerm: 'posts:review' },
   bulk_approve_drafts: { systemPerm: 'posts:review' },
+  cancel_scheduled_post: { systemPerm: 'posts:review' },
+  create_share_link: { systemPerm: 'posts:review' },
   get_system_health: { systemPerm: 'portfolio:read' },
   run_system_repair: { systemPerm: 'admin:jobs' },
   ...buildRequirementMap([
@@ -5649,6 +5653,267 @@ async function opsCloneBriefing(args: any, ctx: OperationsToolContext): Promise<
   };
 }
 
+async function opsListScheduledPosts(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const requestedStatus = String(contextualString(args.status) || 'scheduled').trim().toLowerCase();
+  const daysAhead = Math.min(Number(args.days_ahead) || 14, 60);
+  const clientScope = await resolveOpsStudioClientScope(ctx.tenantId, ctx, contextualString(args.client_id));
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+
+  const params: any[] = [ctx.tenantId, daysAhead];
+  const conditions = [
+    `b.tenant_id = $1`,
+    `ps.scheduled_for <= NOW() + ($2 || ' days')::interval`,
+  ];
+
+  if (requestedStatus === 'scheduled') {
+    conditions.push(`ps.status IN ('scheduled', 'pending')`);
+  } else {
+    params.push(requestedStatus);
+    conditions.push(`ps.status = $${params.length}`);
+  }
+
+  if (clientScope.mainClientId) {
+    params.push(clientScope.mainClientId);
+    conditions.push(`b.main_client_id = $${params.length}`);
+  } else if (clientScope.edroClientId) {
+    params.push(clientScope.edroClientId);
+    conditions.push(`b.client_id::text = $${params.length}`);
+  }
+
+  const { rows } = await query<any>(
+    `SELECT
+        ps.id::text AS id,
+        ps.briefing_id::text AS briefing_id,
+        ps.channel,
+        ps.scheduled_for,
+        ps.status,
+        ps.published_at,
+        ps.error_message,
+        ps.created_at,
+        b.title AS briefing_title,
+        b.main_client_id,
+        b.client_id::text AS edro_client_id
+       FROM edro_publish_schedule ps
+       JOIN edro_briefings b ON b.id = ps.briefing_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY ps.scheduled_for ASC
+      LIMIT 30`,
+    params,
+  );
+
+  return {
+    success: true,
+    data: {
+      posts: rows.map((row) => ({
+        schedule_id: row.id,
+        briefing_id: row.briefing_id,
+        briefing_title: row.briefing_title,
+        client_id: row.main_client_id,
+        edro_client_id: row.edro_client_id,
+        channel: row.channel,
+        scheduled_for: row.scheduled_for,
+        status: row.status === 'pending' ? 'scheduled' : row.status,
+        raw_status: row.status,
+        published_at: row.published_at,
+        error: row.error_message,
+      })),
+      count: rows.length,
+    },
+    metadata: { row_count: rows.length },
+  };
+}
+
+async function opsCancelScheduledPost(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const scheduleIds = Array.isArray(args.schedule_ids)
+    ? args.schedule_ids.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+    : [];
+  if (!scheduleIds.length) return { success: false, error: 'Informe ao menos um schedule_id.' };
+
+  if (ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para cancelar agendamento(s).', {
+      count: scheduleIds.length,
+      schedule_ids: scheduleIds,
+      tool_name: 'cancel_scheduled_post',
+      tool_args: { schedule_ids: scheduleIds },
+      confirmation_prompt: `Confirmo o cancelamento de ${scheduleIds.length} agendamento(s).`,
+    });
+  }
+
+  const { rows } = await query<any>(
+    `UPDATE edro_publish_schedule ps
+        SET status = 'cancelled',
+            updated_at = NOW()
+       FROM edro_briefings b
+      WHERE b.id = ps.briefing_id
+        AND b.tenant_id = $2
+        AND ps.id::text = ANY($1::text[])
+        AND ps.status IN ('scheduled', 'pending')
+      RETURNING ps.id::text AS id, ps.channel, ps.scheduled_for`,
+    [scheduleIds, ctx.tenantId],
+  );
+
+  const cancelled = rows.map((row) => ({
+    schedule_id: row.id,
+    channel: row.channel,
+    was_scheduled_for: row.scheduled_for,
+  }));
+  const cancelledIds = new Set(cancelled.map((row) => row.schedule_id));
+  const notCancelled = scheduleIds.filter((id) => !cancelledIds.has(id));
+
+  return {
+    success: true,
+    data: {
+      cancelled,
+      not_cancelled: notCancelled,
+      message: `${cancelled.length} agendamento(s) cancelado(s).${notCancelled.length ? ` ${notCancelled.length} não encontrado(s) ou já publicado(s).` : ''}`,
+    },
+  };
+}
+
+async function opsExportPostAssets(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const statusFilter = String(contextualString(args.status_filter) || 'approved').trim().toLowerCase();
+  let briefingId = contextualString(args.briefing_id);
+  const jobId = contextualString(args.job_id);
+  if (!jobId && !briefingId) return { success: false, error: 'Informe job_id ou briefing_id.' };
+
+  if (!briefingId && jobId) {
+    const { rows } = await query<any>(
+      `SELECT briefing_id::text AS briefing_id
+         FROM job_creative_drafts
+        WHERE tenant_id = $1
+          AND job_id::text = $2
+          AND briefing_id IS NOT NULL
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [ctx.tenantId, jobId],
+    ).catch(() => ({ rows: [] as any[] }));
+    briefingId = contextualString(rows[0]?.briefing_id);
+  }
+
+  const draftConditions = ['tenant_id = $1', '($2::text IS NULL OR job_id::text = $2)', '($3::text IS NULL OR briefing_id::text = $3)'];
+  if (statusFilter === 'approved') {
+    draftConditions.push(`(approval_status = 'approved' OR draft_approved_at IS NOT NULL OR status = 'approved')`);
+  } else if (statusFilter === 'pending_approval') {
+    draftConditions.push(`COALESCE(approval_status, status) IN ('pending_approval', 'pending', 'draft')`);
+  }
+
+  const { rows: drafts } = await query<any>(
+    `SELECT
+        id::text AS id,
+        draft_type,
+        status,
+        approval_status,
+        hook_text,
+        content_text,
+        cta_text,
+        image_url,
+        image_urls,
+        model_used,
+        created_at,
+        draft_approved_at
+       FROM job_creative_drafts
+      WHERE ${draftConditions.join(' AND ')}
+      ORDER BY created_at DESC`,
+    [ctx.tenantId, jobId || null, briefingId || null],
+  );
+
+  const copyConditions = ['b.tenant_id = $1', '($2::text IS NULL OR cv.briefing_id::text = $2)'];
+  if (statusFilter === 'approved') {
+    copyConditions.push(`cv.status IN ('approved', 'selected')`);
+  } else if (statusFilter === 'pending_approval') {
+    copyConditions.push(`COALESCE(cv.status, 'draft') IN ('draft', 'pending', 'needs_revision')`);
+  }
+
+  const { rows: copyVersions } = await query<any>(
+    `SELECT
+        cv.id::text AS id,
+        cv.output,
+        cv.model,
+        cv.created_at,
+        cv.status,
+        cv.payload
+       FROM edro_copy_versions cv
+       JOIN edro_briefings b ON b.id = cv.briefing_id
+      WHERE ${copyConditions.join(' AND ')}
+      ORDER BY cv.created_at DESC
+      LIMIT 10`,
+    [ctx.tenantId, briefingId || null],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  const assets = drafts.map((draft) => ({
+    draft_id: draft.id,
+    type: draft.draft_type || 'unknown',
+    status: draft.approval_status || (draft.draft_approved_at ? 'approved' : draft.status),
+    approved_at: draft.draft_approved_at,
+    copy_text: [draft.hook_text, draft.content_text, draft.cta_text].filter(Boolean).join('\n\n') || null,
+    image_url: draft.image_url || (Array.isArray(draft.image_urls) ? draft.image_urls[0] : null) || null,
+    all_image_urls: Array.isArray(draft.image_urls)
+      ? draft.image_urls
+      : (draft.image_url ? [draft.image_url] : []),
+    model: draft.model_used,
+    created_at: draft.created_at,
+  }));
+
+  return {
+    success: true,
+    data: {
+      job_id: jobId,
+      briefing_id: briefingId,
+      assets,
+      copy_versions: copyVersions.map((version) => {
+        const payload = version.payload && typeof version.payload === 'object' ? version.payload : {};
+        return {
+          copy_id: version.id,
+          status: version.status || null,
+          appeal: contextualString(payload.appeal),
+          preview: String(version.output || '').slice(0, 500),
+          model: version.model,
+          created_at: version.created_at,
+        };
+      }),
+      total_assets: assets.length,
+      message: assets.length || copyVersions.length
+        ? `${assets.length} asset(s) e ${copyVersions.length} versão(ões) de copy encontradas.`
+        : 'Nenhum asset encontrado para este filtro.',
+    },
+    metadata: { row_count: assets.length + copyVersions.length },
+  };
+}
+
+async function opsCreateShareLink(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const briefingId = String(args.briefing_id || '').trim();
+  if (!briefingId) return { success: false, error: 'briefing_id é obrigatório.' };
+
+  const toolCtx: ToolContext = {
+    tenantId: ctx.tenantId,
+    clientId: '',
+    edroClientId: null,
+    userId: ctx.userId,
+    userEmail: ctx.userEmail,
+    role: ctx.role,
+    explicitConfirmation: true,
+  };
+  const linkResult = await toolGenerateApprovalLink({
+    briefing_id: briefingId,
+    client_name: contextualString(args.client_name),
+    expires_in_days: Math.min(Math.max(Number(args.expires_in_days) || 7, 1), 30),
+  }, toolCtx);
+  if (!linkResult.success) return linkResult;
+
+  return {
+    success: true,
+    data: {
+      briefing_id: briefingId,
+      approval_url: linkResult.data?.approvalUrl || null,
+      token: linkResult.data?.token || null,
+      expires_at: linkResult.data?.expiresAt || null,
+      expires_in_days: linkResult.data?.expires_in_days || null,
+      client_name: contextualString(args.client_name),
+      message: `Link de aprovação gerado. Válido por ${linkResult.data?.expires_in_days || 7} dia(s).`,
+    },
+  };
+}
+
 async function opsGetArtDirection(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const target = await resolveCreativeDraftTarget(
     ctx.tenantId,
@@ -6106,6 +6371,10 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   compare_variants: opsCompareVariants,
   bulk_approve_drafts: opsBulkApproveDrafts,
   clone_briefing: opsCloneBriefing,
+  list_scheduled_posts: opsListScheduledPosts,
+  cancel_scheduled_post: opsCancelScheduledPost,
+  export_post_assets: opsExportPostAssets,
+  create_share_link: opsCreateShareLink,
   get_art_direction: opsGetArtDirection,
   generate_art_direction: opsGenerateArtDirection,
   generate_image: opsGenerateImage,

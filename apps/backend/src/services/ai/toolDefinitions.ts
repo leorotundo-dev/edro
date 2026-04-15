@@ -1514,6 +1514,49 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'action',
   },
   {
+    name: 'list_scheduled_posts',
+    description: 'Lista posts agendados do Studio com status, plataforma e data/hora de publicação.',
+    parameters: {
+      client_id: { type: 'string', description: 'Filtrar por cliente. Aceita clients.id legado ou edro_clients.id' },
+      status: { type: 'string', description: 'Status desejado: scheduled, published, failed, cancelled ou pending. Padrão: scheduled' },
+      days_ahead: { type: 'number', description: 'Quantos dias à frente incluir. Padrão: 14, limite: 60' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'cancel_scheduled_post',
+    description: 'Cancela um ou mais posts agendados que ainda não foram publicados.',
+    parameters: {
+      schedule_ids: { type: 'array', description: 'Lista de IDs de agendamentos a cancelar', items: { type: 'string' } },
+      confirmed: { type: 'boolean', description: 'true quando o usuário confirmar o cancelamento' },
+    },
+    required: ['schedule_ids'],
+    category: 'action',
+  },
+  {
+    name: 'export_post_assets',
+    description: 'Retorna os assets finais de um job ou briefing, incluindo copy e imagem, prontos para baixar ou compartilhar.',
+    parameters: {
+      job_id: { type: 'string', description: 'ID do job' },
+      briefing_id: { type: 'string', description: 'ID do briefing (alternativa ao job_id)' },
+      status_filter: { type: 'string', description: 'Filtrar por status: approved, pending_approval ou all. Padrão: approved' },
+    },
+    required: [],
+    category: 'read',
+  },
+  {
+    name: 'create_share_link',
+    description: 'Cria um link de aprovação externa para compartilhar um briefing com o cliente sem exigir login.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing a compartilhar' },
+      client_name: { type: 'string', description: 'Nome do cliente para personalizar a página de aprovação' },
+      expires_in_days: { type: 'number', description: 'Dias até o link expirar: 1 a 30. Padrão: 7' },
+    },
+    required: ['briefing_id'],
+    category: 'action',
+  },
+  {
     name: 'navigate_to_view',
     description: 'Navega o usuário para uma tela específica do sistema. Use quando o usuário pedir "me leva até", "abrir", "ir para", "mostrar a tela de", etc.',
     parameters: {
