@@ -1940,9 +1940,22 @@ export default async function edroRoutes(app: FastifyInstance) {
     ].join('\n');
 
     try {
+      const canonicalKnowledge = selectedClientId && tenantId
+        ? await buildClientKnowledgeBase({
+          tenantId,
+          clientId: selectedClientId,
+          question: [briefing.title, (briefing.payload as any)?.objective, body.instruction].filter(Boolean).join(' '),
+          daysBack: 60,
+          limitDocuments: 4,
+          intent: 'copy',
+        }).catch(() => null)
+        : null;
       const generated = await generateAndSelectBestCopy({
         prompt: copyRow.prompt || fallbackPrompt,
-        knowledgeBlock: clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : undefined,
+        knowledgeBlock: [
+          clientKnowledge ? buildClientKnowledgeBlock(clientKnowledge) : '',
+          canonicalKnowledge?.knowledge_base_block || '',
+        ].filter(Boolean).join('\n\n') || undefined,
         reporteiHint: reporteiContext?.promptBlock || undefined,
         clientName: briefing.client_name || undefined,
         instructions: refinementBlock,
@@ -2102,7 +2115,20 @@ export default async function edroRoutes(app: FastifyInstance) {
           ? await getClientById(tenantId ?? '', batchClientId).catch(() => null)
           : null;
         const knowledge = buildClientKnowledgeFromRow(clientRow);
-        const knowledgeBlock = buildClientKnowledgeBlock(knowledge);
+        const canonicalKnowledge = batchClientId && tenantId
+          ? await buildClientKnowledgeBase({
+            tenantId,
+            clientId: batchClientId,
+            question: [briefing.title, (briefing.payload as any)?.objective, (briefing.payload as any)?.target_audience].filter(Boolean).join(' '),
+            daysBack: 60,
+            limitDocuments: 4,
+            intent: 'copy',
+          }).catch(() => null)
+          : null;
+        const knowledgeBlock = [
+          buildClientKnowledgeBlock(knowledge),
+          canonicalKnowledge?.knowledge_base_block || '',
+        ].filter(Boolean).join('\n\n');
 
         const payload = briefing.payload || {};
         const platforms = String(payload.channels || 'instagram').split(',').map((c: string) => c.trim());

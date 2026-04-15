@@ -40,6 +40,18 @@ type KnowledgeBaseChangeItem = {
   summary: string | null;
 };
 
+type ClientCopyPolicy = {
+  tone: string | null;
+  target_audience: string | null;
+  brand_promise: string | null;
+  mandatory_terms: string[];
+  forbidden_terms: string[];
+  preferred_themes: string[];
+  repeated_topics_to_avoid: string[];
+  preferred_platforms: string[];
+  active_restrictions: string[];
+};
+
 export type ClientKnowledgeBaseIntent =
   | 'general'
   | 'copy'
@@ -69,6 +81,8 @@ export type ClientKnowledgeBaseSnapshot = {
     replace_candidates: number;
     suppressed_facts: number;
   };
+  copy_policy: ClientCopyPolicy;
+  copy_policy_block: string;
   compaction: {
     last_7_days: KnowledgeBaseCompactionWindow;
     last_30_days: KnowledgeBaseCompactionWindow;
@@ -109,6 +123,25 @@ function shortText(value: unknown, max = 220) {
   const normalized = String(value || '').replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
   return normalized.length > max ? `${normalized.slice(0, max - 1)}...` : normalized;
+}
+
+function firstMeaningful(...values: Array<unknown>) {
+  for (const value of values) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (text) return text;
+  }
+  return null;
+}
+
+function listify(value: unknown, limit = 8) {
+  const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[|,;\n]/) : [];
+  return Array.from(
+    new Set(
+      raw
+        .map((item) => String(item || '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, limit);
 }
 
 function tokenizeForCompaction(value: string) {
@@ -156,6 +189,7 @@ function buildKnowledgeBaseBlock(input: {
   evidence: KnowledgeBaseFact[];
   recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
   governance: ClientKnowledgeBaseSnapshot['governance'];
+  copyPolicyBlock: string;
   compaction: ClientKnowledgeBaseSnapshot['compaction'];
 }) {
   const parts: string[] = ['BASE DE CONHECIMENTO DO CLIENTE:'];
@@ -165,6 +199,9 @@ function buildKnowledgeBaseBlock(input: {
   );
   if (input.latestInsightSummary) {
     parts.push(`Insight consolidado: ${input.latestInsightSummary}`);
+  }
+  if (input.copyPolicyBlock) {
+    parts.push(input.copyPolicyBlock);
   }
   if (input.compaction.compacted_memory_block) {
     parts.push(input.compaction.compacted_memory_block);
@@ -296,6 +333,68 @@ function buildCompactionBlock(params: {
   return parts.join('\n');
 }
 
+function buildClientCopyPolicy(params: {
+  profile: Record<string, any>;
+  latestInsight: Record<string, any> | null;
+  directives: KnowledgeBaseFact[];
+  recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
+  compaction: ClientKnowledgeBaseSnapshot['compaction'];
+  governance: ClientKnowledgeBaseSnapshot['governance'];
+}) {
+  const profile = params.profile || {};
+  const knowledge = profile.knowledge_base || {};
+  const brandVoice = profile.brand_voice || profile.brandVoice || {};
+  const forbiddenClaims = listify(knowledge.forbidden_claims || knowledge.banned_words || [], 6);
+  const avoidDirectives = params.directives
+    .filter((item) => item.metadata?.directive_type === 'avoid')
+    .map((item) => item.title);
+  const copyPolicy = {
+    tone: firstMeaningful(knowledge.tone_of_voice, brandVoice.personality, profile.tone, params.latestInsight?.tone_of_voice),
+    target_audience: firstMeaningful(knowledge.audience, params.latestInsight?.audience, profile.audience),
+    brand_promise: firstMeaningful(knowledge.brand_promise, params.latestInsight?.brand_promise, params.latestInsight?.positioning),
+    mandatory_terms: listify([
+      ...(brandVoice.must_mentions || []),
+      ...(knowledge.keywords || []),
+      ...(knowledge.pillars || []),
+    ], 8),
+    forbidden_terms: listify([
+      ...(brandVoice.donts || []),
+      ...(profile.forbidden_terms || []),
+      ...forbiddenClaims,
+    ], 10),
+    preferred_themes: listify([
+      ...(params.compaction.last_30_days.top_themes || []),
+      ...(knowledge.pillars || []),
+    ], 6),
+    repeated_topics_to_avoid: params.recentDocuments
+      .slice(0, 3)
+      .map((item) => shortText(item.title || item.excerpt || '', 90))
+      .filter(Boolean),
+    preferred_platforms: listify(params.recentDocuments.map((item) => item.platform).filter(Boolean), 4),
+    active_restrictions: listify([
+      ...avoidDirectives,
+      params.governance.active_conflicts ? `${params.governance.active_conflicts} conflito(s) ativos na memória` : '',
+      params.governance.governance_pressure !== 'low' ? `pressão de governança ${params.governance.governance_pressure}` : '',
+    ], 6),
+  } satisfies ClientCopyPolicy;
+
+  const parts = ['POLITICA DE COPY CANONICA:'];
+  if (copyPolicy.tone) parts.push(`- Tom obrigatório: ${copyPolicy.tone}`);
+  if (copyPolicy.target_audience) parts.push(`- Público prioritário: ${copyPolicy.target_audience}`);
+  if (copyPolicy.brand_promise) parts.push(`- Promessa central: ${copyPolicy.brand_promise}`);
+  if (copyPolicy.mandatory_terms.length) parts.push(`- Must mention / vocabulário prioritário: ${copyPolicy.mandatory_terms.join(' | ')}`);
+  if (copyPolicy.forbidden_terms.length) parts.push(`- Termos e claims proibidos: ${copyPolicy.forbidden_terms.join(' | ')}`);
+  if (copyPolicy.preferred_themes.length) parts.push(`- Temas que mais conectam: ${copyPolicy.preferred_themes.join(' | ')}`);
+  if (copyPolicy.preferred_platforms.length) parts.push(`- Plataformas com histórico recente: ${copyPolicy.preferred_platforms.join(' | ')}`);
+  if (copyPolicy.repeated_topics_to_avoid.length) parts.push(`- Evitar repetir agora: ${copyPolicy.repeated_topics_to_avoid.join(' | ')}`);
+  if (copyPolicy.active_restrictions.length) parts.push(`- Restrições ativas: ${copyPolicy.active_restrictions.join(' | ')}`);
+
+  return {
+    copyPolicy,
+    copyPolicyBlock: parts.join('\n'),
+  };
+}
+
 export async function buildClientKnowledgeBase(params: {
   tenantId: string;
   clientId: string;
@@ -310,8 +409,8 @@ export async function buildClientKnowledgeBase(params: {
   const question = String(params.question || '').trim();
 
   const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance] = await Promise.all([
-    query<{ name: string | null }>(
-      `SELECT name FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+    query<{ name: string | null; profile: Record<string, any> | null }>(
+      `SELECT name, profile FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [params.tenantId, params.clientId],
     ),
     query<{
@@ -451,6 +550,23 @@ export async function buildClientKnowledgeBase(params: {
       recentChanges,
     }),
   };
+  const { copyPolicy, copyPolicyBlock } = buildClientCopyPolicy({
+    profile: clientResult.rows[0]?.profile || {},
+    latestInsight: (latestInsight?.summary || null) as Record<string, any> | null,
+    directives,
+    recentDocuments,
+    compaction,
+    governance: {
+      governance_pressure: governance.summary.governance_pressure,
+      active_conflicts: governance.summary.active_conflicts,
+      stale_facts: governance.summary.stale_facts,
+      stale_directives: governance.summary.stale_directives,
+      stale_commitments: governance.summary.stale_commitments,
+      archive_candidates: governance.summary.archive_candidates,
+      replace_candidates: governance.summary.replace_candidates,
+      suppressed_facts: suppressedFingerprints.size,
+    },
+  });
 
   const latestInsightSummary = summarizeInsight((latestInsight?.summary || null) as Record<string, any> | null);
   const radarRow = radarResult.rows[0] || {
@@ -489,6 +605,8 @@ export async function buildClientKnowledgeBase(params: {
       replace_candidates: governance.summary.replace_candidates,
       suppressed_facts: suppressedFingerprints.size,
     },
+    copy_policy: copyPolicy,
+    copy_policy_block: copyPolicyBlock,
     compaction,
     recent_documents: recentDocuments,
     memory_block: livingMemory.block,
@@ -511,6 +629,7 @@ export async function buildClientKnowledgeBase(params: {
         replace_candidates: governance.summary.replace_candidates,
         suppressed_facts: suppressedFingerprints.size,
       },
+      copyPolicyBlock,
       compaction,
     }),
   } satisfies ClientKnowledgeBaseSnapshot;
