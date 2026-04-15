@@ -1,0 +1,26 @@
+[
+  {
+    "label": "Instagram topo de funil",
+    "prompt": "Criar uma copy para Instagram que desperte curiosidade sobre gestão de processos para pequenas empresas.",
+    "platform": "instagram",
+    "objective": "engajamento",
+    "format": "carrossel",
+    "momento": "problema"
+  },
+  {
+    "label": "LinkedIn meio de funil",
+    "prompt": "Criar uma copy para LinkedIn mostrando como a operação organizada reduz retrabalho e melhora a previsibilidade.",
+    "platform": "linkedin",
+    "objective": "consideracao",
+    "format": "post",
+    "momento": "solucao"
+  },
+  {
+    "label": "Instagram fundo de funil",
+    "prompt": "Criar uma copy com CTA claro para marcar uma conversa comercial sobre melhoria de rotina operacional.",
+    "platform": "instagram",
+    "objective": "conversao",
+    "format": "reel",
+    "momento": "decisao"
+  }
+]
