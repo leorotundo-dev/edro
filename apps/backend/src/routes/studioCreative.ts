@@ -1056,6 +1056,7 @@ Retorne SOMENTE um JSON válido:
   app.post('/studio/creative/copy-chain', async (request: any, reply) => {
     const body = copyChainSchema.parse(request.body);
     try {
+      const tenantId = (request.user as any)?.tenant_id as string | undefined;
       const { runAgentRedator, AgentRedatorParams } = await import('../services/ai/agentRedator') as any;
       const params = {
         briefing:      body.briefing,
@@ -1072,7 +1073,60 @@ Retorne SOMENTE um JSON válido:
         appealsOverride:    body.appealsOverride,
       };
       const result = await runAgentRedator(params);
-      return reply.send({ success: true, data: result });
+
+      let variants = Array.isArray(result?.variants) ? [...result.variants] : [];
+      let simulation: Record<string, any> | null = null;
+
+      if (tenantId && variants.length > 1) {
+        try {
+          const { runSimulation } = await import('../services/campaignSimulator/simulationReport');
+          const simReport = await runSimulation({
+            tenantId,
+            clientId:
+              body.clientProfile?.edroClientId ||
+              body.clientProfile?.main_client_id ||
+              body.clientProfile?.client_id ||
+              body.briefing?.payload?.main_client_id ||
+              body.briefing?.payload?.client_id ||
+              undefined,
+            platform: body.platform || undefined,
+            variants: variants.map((variant: any, index: number) => ({
+              index,
+              text: variant.audit?.final_text || [variant.title, variant.body, variant.cta].filter(Boolean).join('\n\n'),
+              amd: body.amd || undefined,
+              triggers: body.trigger ? [body.trigger] : undefined,
+            })),
+          });
+
+          const winnerOriginalIndex = simReport.winner_index ?? 0;
+          const winnerVariant = variants[winnerOriginalIndex];
+          if (winnerVariant) {
+            variants = [winnerVariant, ...variants.filter((_: unknown, index: number) => index !== winnerOriginalIndex)];
+          }
+
+          const simWinner = simReport.variants?.[winnerOriginalIndex];
+          simulation = {
+            simulation_id: simReport.id,
+            winner_index_original: winnerOriginalIndex,
+            winner_resonance: simReport.winner_resonance ?? simWinner?.aggregate_resonance ?? null,
+            prediction_confidence_label: simReport.prediction_confidence_label ?? null,
+            predicted_save_rate: simWinner?.predicted_save_rate ?? null,
+            predicted_click_rate: simWinner?.predicted_click_rate ?? null,
+            tested_variants: variants.length,
+          };
+        } catch (err: any) {
+          console.warn('[copy-chain] Simulator fallback:', err?.message || err);
+        }
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          ...result,
+          variants,
+          simulation,
+        },
+      });
     } catch (e: any) {
       return reply.status(500).send({ success: false, error: e?.message });
     }
