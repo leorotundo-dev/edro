@@ -11,6 +11,7 @@ import RejectionReasonPicker from '@/components/studio/RejectionReasonPicker';
 import CollaborativeInsights from '@/components/studio/CollaborativeInsights';
 import ModelComparePanel from '@/components/studio/ModelComparePanel';
 import PipelineProgressNodes from '@/components/studio/PipelineProgressNodes';
+import StudioLearningPanel from '@/components/studio/StudioLearningPanel';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { matchPlatformRule } from '@/lib/platformRules';
 import Box from '@mui/material/Box';
@@ -679,6 +680,24 @@ export default function EditorClient() {
     });
     return { done, total: inventory.length, items };
   }, [inventory, copyProgressTick]);
+
+  const studioClientContext = useMemo(() => {
+    const activeClient = resolveActiveClient();
+    const payload = briefing?.payload as Record<string, any> | undefined;
+    return {
+      id:
+        payload?.main_client_id ||
+        payload?.client_id ||
+        payload?.clientId ||
+        activeClient?.id ||
+        null,
+      name:
+        briefing?.client_name ||
+        payload?.clientName ||
+        activeClient?.name ||
+        undefined,
+    };
+  }, [briefing?.client_name, briefing?.payload]);
 
   const applyCreativeContext = useCallback((context: CreativeSessionContextDto | null) => {
     if (!context) return;
@@ -2269,6 +2288,12 @@ export default function EditorClient() {
                     ))}
                   </Box>
                 </Box>
+              )}
+              {studioClientContext.id && (
+                <StudioLearningPanel
+                  clientId={studioClientContext.id}
+                  clientName={studioClientContext.name}
+                />
               )}
               <Card sx={{ overflow: 'hidden' }}>
                 {/* ── Workflow step bar ── */}
