@@ -128,6 +128,39 @@ export default async function trelloRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /trello/cleanup-stale — marca como arquivados os cards antigos/concluídos já no banco
+  // Útil para limpar sujeira acumulada antes de habilitar os filtros no próximo sync.
+  app.post('/trello/cleanup-stale', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const staleThresholdDays = 90;
+    const ignoredFragments = [
+      'feito', 'done', 'concluido', 'concluido',
+      'entregue', 'publicado', 'arquivo', 'arquivado',
+      'encerrado', 'cancelado', 'faturado', 'finalizado',
+    ];
+    // Build SQL ILIKE conditions for each fragment (accent-insensitive via unaccent if available, otherwise ILIKE)
+    const listConditions = ignoredFragments.map((_, i) => `unaccent(pl.name) ILIKE unaccent($${i + 2})`).join(' OR ');
+    const listParams: string[] = ignoredFragments.map((f) => `%${f}%`);
+
+    const result = await query(
+      `UPDATE project_cards pc
+          SET is_archived = true, updated_at = now()
+         FROM project_lists pl
+        WHERE pc.list_id = pl.id
+          AND pc.tenant_id = $1
+          AND pc.is_archived = false
+          AND pc.trello_card_id IS NOT NULL
+          AND (
+            pc.due_complete = true
+            OR pc.last_activity_at < now() - ($${ignoredFragments.length + 2} || ' days')::interval
+            OR (${listConditions})
+          )
+        RETURNING pc.id`,
+      [tenantId, ...listParams, String(staleThresholdDays)],
+    );
+    return reply.send({ ok: true, archived: result.rows.length });
+  });
+
   // GET /trello/sync-log — últimas sincronizações
   app.get('/trello/sync-log', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;

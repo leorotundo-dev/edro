@@ -89,6 +89,7 @@ import {
 } from '@/components/operations/model';
 import { useOperationsData } from '@/components/operations/useOperationsData';
 import { OPS_COPY } from '@/components/operations/copy';
+import InlineDateChip from '@/components/operations/InlineDateChip';
 
 const STAGE_ORDER = ['intake', 'planned', 'ready', 'allocated', 'in_progress', 'in_review', 'awaiting_approval', 'approved', 'scheduled', 'published', 'done', 'blocked'];
 
@@ -1140,9 +1141,16 @@ export default function OperationsJobsClient() {
                             }}
                           />
 
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: delivery.color, justifySelf: 'start' }}>
-                            {formatJobDate(job.deadline_at)}
-                          </Typography>
+                          <Box onClick={(e) => e.stopPropagation()}>
+                            <InlineDateChip
+                              value={job.deadline_at ?? null}
+                              color={delivery.color}
+                              onChange={async (date) => {
+                                await updateJob(job.id, { deadline_at: date });
+                                await refresh();
+                              }}
+                            />
+                          </Box>
 
                           <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
                             {job.owner_name ? (

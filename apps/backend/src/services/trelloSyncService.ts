@@ -12,6 +12,45 @@ import { logActivity } from './integrationMonitor';
 
 const TRELLO_BASE = 'https://api.trello.com/1';
 
+// ─── Sync filters ─────────────────────────────────────────────────────────────
+
+/**
+ * List names that indicate a card is done/archived in the agency workflow.
+ * Cards in these lists are imported with is_archived=true so they don't pollute
+ * the active demand queue. Matching is accent-insensitive and prefix-based.
+ */
+const IGNORED_LIST_NAME_FRAGMENTS = [
+  'feito', 'done', 'concluido', 'concluído',
+  'entregue', 'publicado', 'arquivo', 'arquivado',
+  'encerrado', 'cancelado', 'faturado', 'finalizado',
+];
+
+/** Days without Trello activity before a card is treated as stale/archived. */
+const STALE_THRESHOLD_DAYS = 90;
+
+/** Normalize string: strip accents, lower-case, remove separators */
+function normalizeForMatch(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s\-_]+/g, '');
+}
+
+/** Returns true if the list name matches any ignored fragment */
+function isIgnoredList(listName: string): boolean {
+  const n = normalizeForMatch(listName);
+  return IGNORED_LIST_NAME_FRAGMENTS.some((f) => n.includes(normalizeForMatch(f)));
+}
+
+/** Returns true if the card should be stored as archived (not in active queue) */
+function isCardStaleOrDone(card: { dueComplete: boolean; dateLastActivity: string | null; closed: boolean }, listName: string): boolean {
+  if (card.closed) return true;
+  if (card.dueComplete) return true;
+  if (isIgnoredList(listName)) return true;
+  if (card.dateLastActivity) {
+    const diffDays = (Date.now() - new Date(card.dateLastActivity).getTime()) / 86_400_000;
+    if (diffDays > STALE_THRESHOLD_DAYS) return true;
+  }
+  return false;
+}
+
 interface TrelloCredentials {
   apiKey: string;
   apiToken: string;
@@ -269,7 +308,7 @@ export async function syncTrelloBoard(
          ON CONFLICT (board_id, trello_list_id)
          DO UPDATE SET name = $3, position = $4, is_archived = $5, updated_at = now()
          RETURNING id`,
-        [boardId, tenantId, list.name, list.pos, list.closed, list.id],
+        [boardId, tenantId, list.name, list.pos, list.closed || isIgnoredList(list.name), list.id],
       );
       listIdMap[list.id] = listRes.rows[0].id;
     }
@@ -298,6 +337,10 @@ export async function syncTrelloBoard(
     // Helper: normalize for prefix matching (strip accents, spaces, case)
     const normalizeName = (s: string) =>
       s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s\-_]/g, '');
+
+    // Pre-build trello list id → name map (used for ignored-list detection per card)
+    const trelloListNameForCard: Record<string, string> = {};
+    for (const list of lists) trelloListNameForCard[list.id] = list.name;
 
     // 3. Upsert cards
     const cardIdMap: Record<string, string> = {};
@@ -356,7 +399,8 @@ export async function syncTrelloBoard(
           })(), card.dueComplete,
           JSON.stringify(card.labels ?? []), card.cover?.color ?? null,
           coverUrl, card.dateLastActivity ?? null, JSON.stringify(card.attachments ?? []),
-          card.closed, card.id, card.url, card.shortLink,
+          isCardStaleOrDone(card, trelloListNameForCard[card.idList] ?? ''),
+          card.id, card.url, card.shortLink,
         ],
       );
       cardIdMap[card.id] = cardRes.rows[0].id;

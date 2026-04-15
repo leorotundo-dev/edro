@@ -177,6 +177,17 @@ export default function TrelloAdminClient() {
     setTimeout(loadProjectBoards, 3000);
   }
 
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+  async function handleCleanupStale() {
+    setCleanupResult(null);
+    try {
+      const res = await apiPost<{ ok: boolean; archived: number }>('/trello/cleanup-stale', {});
+      setCleanupResult(`✓ ${res.archived} card(s) marcados como arquivados.`);
+    } catch (err: any) {
+      setCleanupResult(`Erro: ${err?.message}`);
+    }
+  }
+
   async function handleAssignProjectBoard(boardId: string, fallbackClientId: string | null) {
     setSavingBoardId(boardId);
     setImportResult((prev) => ({ ...prev, [boardId]: '' }));
@@ -243,7 +254,7 @@ export default function TrelloAdminClient() {
                 <Typography variant="body2" color="text.secondary">
                   Conector ativo · última sync: {fmtDate(connector?.last_synced_at)}
                 </Typography>
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Button
                     size="small"
                     startIcon={<IconRefresh size={16} />}
@@ -252,6 +263,17 @@ export default function TrelloAdminClient() {
                   >
                     Sincronizar agora
                   </Button>
+                  <Tooltip title="Marca como arquivados os cards de listas concluídas (Feito, Done, Publicado…) ou sem atividade há mais de 90 dias">
+                    <Button
+                      size="small"
+                      startIcon={<IconTrash size={16} />}
+                      variant="outlined"
+                      color="warning"
+                      onClick={handleCleanupStale}
+                    >
+                      Limpar sujeira antiga
+                    </Button>
+                  </Tooltip>
                   <Button
                     size="small"
                     color="error"
@@ -262,6 +284,11 @@ export default function TrelloAdminClient() {
                     Desconectar
                   </Button>
                 </Stack>
+                {cleanupResult && (
+                  <Typography variant="caption" color={cleanupResult.startsWith('✓') ? 'success.main' : 'error.main'} mt={0.5}>
+                    {cleanupResult}
+                  </Typography>
+                )}
               </Stack>
             ) : (
               <Stack spacing={2}>
