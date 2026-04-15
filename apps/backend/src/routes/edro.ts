@@ -1948,6 +1948,10 @@ export default async function edroRoutes(app: FastifyInstance) {
           daysBack: 60,
           limitDocuments: 4,
           intent: 'copy',
+          platform,
+          objective: (briefing.payload as any)?.objective ?? null,
+          format,
+          momento: (briefing.payload as any)?.momento_consciencia ?? null,
         }).catch(() => null)
         : null;
       const generated = await generateAndSelectBestCopy({
@@ -2123,6 +2127,12 @@ export default async function edroRoutes(app: FastifyInstance) {
             daysBack: 60,
             limitDocuments: 4,
             intent: 'copy',
+            platform: Array.isArray((briefing.payload as any)?.channels)
+              ? String((briefing.payload as any).channels[0] || '')
+              : String((briefing.payload as any)?.channels || 'instagram'),
+            objective: (briefing.payload as any)?.objective ?? null,
+            format: (briefing.payload as any)?.format ?? null,
+            momento: (briefing.payload as any)?.momento_consciencia ?? null,
           }).catch(() => null)
           : null;
         const knowledgeBlock = [
@@ -2303,6 +2313,10 @@ export default async function edroRoutes(app: FastifyInstance) {
           daysBack: 60,
           limitDocuments: 6,
           intent: 'copy',
+          platform: selectedPlatform,
+          objective: (briefing.payload as any)?.objective ?? (briefing.payload as any)?.objetivo ?? null,
+          format: selectedFormat,
+          momento: payloadMomento,
         }).catch(() => null)
       : null;
     const memoryGovernance = selectedClientId

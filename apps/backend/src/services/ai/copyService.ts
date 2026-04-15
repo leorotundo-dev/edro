@@ -48,6 +48,21 @@ type StructuredCopy = {
   hashtags: string[];
 };
 
+type CriticGateAssessment = {
+  scores: {
+    brand_dna_match: number;
+    funnel_fit: number;
+    cta_strength: number;
+    clarity: number;
+    novelty: number;
+    compliance: number;
+  };
+  overall: number;
+  pass: boolean;
+  issues: string[];
+  revised_copy: string;
+};
+
 function parseCollaborativeOptions(output: string): string[] {
   const blocks = output
     .split(/OPCA[OÃ]O\s+\d+[:.\-]?\s*/i)
@@ -110,6 +125,100 @@ function parseStructuredCopy(text: string): StructuredCopy | null {
       ? fields.hashtags.split(/\s+/).map((token) => token.trim()).filter(Boolean)
       : [],
   };
+}
+
+function parseCriticGate(text: string): CriticGateAssessment | null {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return null;
+  try {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    const parsed = JSON.parse(trimmed.slice(start, end + 1));
+    const scores = parsed?.scores || {};
+    return {
+      scores: {
+        brand_dna_match: Number(scores.brand_dna_match ?? 7),
+        funnel_fit: Number(scores.funnel_fit ?? 7),
+        cta_strength: Number(scores.cta_strength ?? 7),
+        clarity: Number(scores.clarity ?? 7),
+        novelty: Number(scores.novelty ?? 7),
+        compliance: Number(scores.compliance ?? 7),
+      },
+      overall: Number(parsed?.overall ?? 7),
+      pass: parsed?.pass === true,
+      issues: Array.isArray(parsed?.issues) ? parsed.issues.map((item: unknown) => String(item || '').trim()).filter(Boolean) : [],
+      revised_copy: String(parsed?.revised_copy || '').trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildCriticGatePrompt(params: {
+  winnerText: string;
+  platform?: string | null;
+  amd?: string | null;
+  momento?: 'problema' | 'solucao' | 'decisao' | null;
+  instructions?: string;
+  knowledgeBlock?: string;
+}) {
+  return [
+    'Você é o crítico final de copy da Edro.',
+    'Avalie a copy candidata abaixo contra a política do cliente e a tarefa atual.',
+    'Se a peça falhar, reescreva a própria peça mantendo a mesma intenção central, mas corrigindo os problemas.',
+    'Retorne APENAS JSON válido com esta estrutura:',
+    '{',
+    '  "scores": {',
+    '    "brand_dna_match": 0,',
+    '    "funnel_fit": 0,',
+    '    "cta_strength": 0,',
+    '    "clarity": 0,',
+    '    "novelty": 0,',
+    '    "compliance": 0',
+    '  },',
+    '  "overall": 0,',
+    '  "pass": true,',
+    '  "issues": [],',
+    '  "revised_copy": "texto final completo"',
+    '}',
+    '',
+    'Regra de aprovação: overall >= 7.8, nenhuma dimensão abaixo de 6.5 e zero violação crítica de compliance.',
+    params.platform ? `Plataforma: ${params.platform}` : '',
+    params.amd ? `AMD prioritário: ${params.amd}` : '',
+    params.momento ? `Momento do funil: ${params.momento}` : '',
+    params.instructions ? `Instruções adicionais: ${params.instructions}` : '',
+    params.knowledgeBlock ? `\nBASE CANÔNICA DO CLIENTE:\n${params.knowledgeBlock}` : '',
+    '\nCOPY CANDIDATA:\n',
+    params.winnerText,
+  ].filter(Boolean).join('\n');
+}
+
+async function runCopyCriticGate(params: {
+  winnerText: string;
+  knowledgeBlock?: string;
+  platform?: string | null;
+  amd?: string | null;
+  momento?: 'problema' | 'solucao' | 'decisao' | null;
+  instructions?: string;
+  usageContext?: UsageContext;
+}) {
+  try {
+    const response = await generateWithProvider('claude', {
+      prompt: buildCriticGatePrompt(params),
+      temperature: 0.2,
+      maxTokens: 2200,
+    }, params.usageContext);
+    const parsed = parseCriticGate(response.output);
+    if (!parsed) return null;
+    return {
+      assessment: parsed,
+      model: response.model,
+      provider: response.provider,
+    };
+  } catch {
+    return null;
+  }
 }
 
 const buildValidationPrompt = (params: { prompt: string; creativeOutput: string }) => [
@@ -567,10 +676,25 @@ export async function generateAndSelectBestCopy(params: {
   }
 
   const winnerText = safeOptions[winnerIndex] ?? safeOptions[0] ?? collaborative.output;
-  const winnerStructured = parseStructuredCopy(winnerText);
+  const criticGate = await runCopyCriticGate({
+    winnerText,
+    knowledgeBlock: params.knowledgeBlock,
+    platform: params.platform,
+    amd: params.amd,
+    momento: params.momento,
+    instructions: params.instructions,
+    usageContext: params.usageContext,
+  });
+  const finalText =
+    criticGate?.assessment?.pass === false
+      && criticGate.assessment.revised_copy
+      && criticGate.assessment.revised_copy !== winnerText
+      ? criticGate.assessment.revised_copy
+      : winnerText;
+  const winnerStructured = parseStructuredCopy(finalText);
 
   return {
-    output: winnerText,
+    output: finalText,
     model: collaborative.model,
     payload: {
       ...(collaborative.payload || {}),
@@ -586,6 +710,14 @@ export async function generateAndSelectBestCopy(params: {
       winner_fatigue_days: winnerFatigueDays,
       winner_top_cluster: winnerTopCluster,
       all_resonance_scores: allResonanceScores,
+      critic_gate: criticGate?.assessment
+        ? {
+            ...criticGate.assessment,
+            model: criticGate.model,
+            provider: criticGate.provider,
+            revised_applied: finalText !== winnerText,
+          }
+        : null,
       structured: winnerStructured,
     },
     simulation_id: simulationId,

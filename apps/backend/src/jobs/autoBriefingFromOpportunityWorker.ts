@@ -14,6 +14,7 @@
 
 import { query } from '../db';
 import { generateAndSelectBestCopy } from '../services/ai/copyService';
+import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 import { notifyEvent } from '../services/notificationService';
 
 const CONFIDENCE_THRESHOLD = 75;
@@ -163,6 +164,16 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
         `Segmento: ${client.segment ?? 'não informado'}`,
         client.keywords?.length ? `Palavras-chave do cliente: ${client.keywords.slice(0, 12).join(', ')}` : '',
       ].filter(Boolean).join('\n');
+      const canonicalKnowledge = await buildClientKnowledgeBase({
+        tenantId: opp.tenant_id,
+        clientId: opp.client_id,
+        question: [opp.title, opp.description, opp.suggested_action].filter(Boolean).join(' '),
+        daysBack: 60,
+        limitDocuments: 4,
+        intent: 'copy',
+        platform: 'instagram',
+        objective: typeof opp.suggested_action === 'string' ? opp.suggested_action : null,
+      }).catch(() => null);
       const smartResult = await generateAndSelectBestCopy({
         prompt: opportunityPrompt,
         tenantId: opp.tenant_id,
@@ -170,7 +181,7 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
         platform: 'instagram',
         amd,
         triggers,
-        knowledgeBlock: opp.description ?? '',
+        knowledgeBlock: [canonicalKnowledge?.knowledge_base_block || '', opp.description ?? ''].filter(Boolean).join('\n\n') || undefined,
       });
 
       const copyText = smartResult.output;

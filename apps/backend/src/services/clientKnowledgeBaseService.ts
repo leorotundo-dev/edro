@@ -50,6 +50,9 @@ type ClientCopyPolicy = {
   repeated_topics_to_avoid: string[];
   preferred_platforms: string[];
   active_restrictions: string[];
+  task_focus: string[];
+  cta_mode: string | null;
+  format_guardrails: string[];
 };
 
 export type ClientKnowledgeBaseIntent =
@@ -340,6 +343,12 @@ function buildClientCopyPolicy(params: {
   recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
   compaction: ClientKnowledgeBaseSnapshot['compaction'];
   governance: ClientKnowledgeBaseSnapshot['governance'];
+  taskContext?: {
+    platform?: string | null;
+    objective?: string | null;
+    format?: string | null;
+    momento?: string | null;
+  };
 }) {
   const profile = params.profile || {};
   const knowledge = profile.knowledge_base || {};
@@ -348,6 +357,33 @@ function buildClientCopyPolicy(params: {
   const avoidDirectives = params.directives
     .filter((item) => item.metadata?.directive_type === 'avoid')
     .map((item) => item.title);
+  const platform = String(params.taskContext?.platform || '').trim().toLowerCase();
+  const objective = String(params.taskContext?.objective || '').trim();
+  const format = String(params.taskContext?.format || '').trim().toLowerCase();
+  const momento = String(params.taskContext?.momento || '').trim().toLowerCase();
+  const taskFocus = listify([
+    objective,
+    format ? `adaptar ao formato ${format}` : '',
+    platform ? `respeitar a linguagem nativa de ${platform}` : '',
+    momento === 'problema' ? 'abrir com dor latente e urgência concreta' : '',
+    momento === 'solucao' ? 'mostrar mecanismo, clareza e prova de solução' : '',
+    momento === 'decisao' ? 'reduzir fricção, reforçar prova e CTA forte' : '',
+  ], 6);
+  const ctaMode = (() => {
+    if (momento === 'decisao') return 'CTA direto, específico e orientado a ação imediata.';
+    if (momento === 'solucao') return 'CTA para avanço claro, sem agressividade artificial.';
+    if (momento === 'problema') return 'CTA leve, orientado a descoberta ou conversa.';
+    if (/lead|venda|convers/i.test(objective)) return 'CTA de conversão com próximo passo explícito.';
+    if (/engaj|alcance|awareness|topo/i.test(objective)) return 'CTA de interação, comentário ou salvamento.';
+    return null;
+  })();
+  const formatGuardrails = listify([
+    format.includes('story') ? 'frases curtas, leitura instantânea e uma ideia por bloco' : '',
+    format.includes('carrossel') ? 'headline sequencial e progressão de narrativa entre slides' : '',
+    format.includes('reel') || format.includes('video') ? 'gancho imediato nos primeiros segundos e ritmo oral' : '',
+    format.includes('linkedin') ? 'mais densidade argumentativa e autoridade concreta' : '',
+    platform === 'instagram' ? 'texto mais escaneável, com ritmo visual e sem jargão pesado' : '',
+  ], 5);
   const copyPolicy = {
     tone: firstMeaningful(knowledge.tone_of_voice, brandVoice.personality, profile.tone, params.latestInsight?.tone_of_voice),
     target_audience: firstMeaningful(knowledge.audience, params.latestInsight?.audience, profile.audience),
@@ -376,6 +412,9 @@ function buildClientCopyPolicy(params: {
       params.governance.active_conflicts ? `${params.governance.active_conflicts} conflito(s) ativos na memória` : '',
       params.governance.governance_pressure !== 'low' ? `pressão de governança ${params.governance.governance_pressure}` : '',
     ], 6),
+    task_focus: taskFocus,
+    cta_mode: ctaMode,
+    format_guardrails: formatGuardrails,
   } satisfies ClientCopyPolicy;
 
   const parts = ['POLITICA DE COPY CANONICA:'];
@@ -388,6 +427,9 @@ function buildClientCopyPolicy(params: {
   if (copyPolicy.preferred_platforms.length) parts.push(`- Plataformas com histórico recente: ${copyPolicy.preferred_platforms.join(' | ')}`);
   if (copyPolicy.repeated_topics_to_avoid.length) parts.push(`- Evitar repetir agora: ${copyPolicy.repeated_topics_to_avoid.join(' | ')}`);
   if (copyPolicy.active_restrictions.length) parts.push(`- Restrições ativas: ${copyPolicy.active_restrictions.join(' | ')}`);
+  if (copyPolicy.task_focus.length) parts.push(`- Foco desta tarefa: ${copyPolicy.task_focus.join(' | ')}`);
+  if (copyPolicy.cta_mode) parts.push(`- Regra de CTA: ${copyPolicy.cta_mode}`);
+  if (copyPolicy.format_guardrails.length) parts.push(`- Guardrails de formato: ${copyPolicy.format_guardrails.join(' | ')}`);
 
   return {
     copyPolicy,
@@ -402,6 +444,10 @@ export async function buildClientKnowledgeBase(params: {
   daysBack?: number;
   limitDocuments?: number;
   intent?: ClientKnowledgeBaseIntent;
+  platform?: string | null;
+  objective?: string | null;
+  format?: string | null;
+  momento?: string | null;
 }) {
   const intent = params.intent ?? 'general';
   const daysBack = Math.min(params.daysBack ?? 60, 180);
@@ -565,6 +611,12 @@ export async function buildClientKnowledgeBase(params: {
       archive_candidates: governance.summary.archive_candidates,
       replace_candidates: governance.summary.replace_candidates,
       suppressed_facts: suppressedFingerprints.size,
+    },
+    taskContext: {
+      platform: params.platform,
+      objective: params.objective,
+      format: params.format,
+      momento: params.momento,
     },
   });
 

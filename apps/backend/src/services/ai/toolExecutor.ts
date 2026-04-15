@@ -874,9 +874,24 @@ async function toolGenerateCopy(args: any, ctx: ToolContext): Promise<ToolResult
     `Entregue somente a opção vencedora, já consolidada com Headline, Corpo e CTA.`,
     `Idioma: ${language}.`,
   ].filter(Boolean) as string[];
+  const canonicalKnowledge = ctx.clientId
+    ? await buildClientKnowledgeBase({
+        tenantId: ctx.tenantId,
+        clientId: ctx.clientId,
+        question: [String((briefing as any).title || ''), String(payload.objective || ''), String(args.instructions || '')].filter(Boolean).join(' '),
+        daysBack: 60,
+        limitDocuments: 4,
+        intent: 'copy',
+        platform,
+        objective: typeof payload.objective === 'string' ? payload.objective : null,
+        format: typeof payload.format === 'string' ? payload.format : null,
+        momento: typeof payload?.momento_consciencia === 'string' ? payload.momento_consciencia : null,
+      }).catch(() => null)
+    : null;
 
   const copyResult = await generateAndSelectBestCopy({
     prompt: promptLines.join('\n'),
+    knowledgeBlock: canonicalKnowledge?.knowledge_base_block || undefined,
     tenantId: ctx.tenantId,
     clientId: ctx.clientId || undefined,
     platform,
