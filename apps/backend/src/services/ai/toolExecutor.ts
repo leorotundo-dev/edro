@@ -5240,7 +5240,7 @@ async function opsScheduleToPlatforms(args: any, ctx: OperationsToolContext): Pr
   if ('error' in clientScope) return { success: false, error: clientScope.error };
 
   const requestedPlatforms = Array.isArray(args.platforms) ? args.platforms : [];
-  const platforms = Array.from(
+  const platforms: string[] = Array.from(
     new Set(
       (requestedPlatforms.length ? requestedPlatforms : ['meta'])
         .map((value) => normalizeOpsStudioPlatform(value))
@@ -5304,7 +5304,7 @@ async function opsScheduleToPlatforms(args: any, ctx: OperationsToolContext): Pr
     tiktok: 'tiktok',
     google: 'google',
   };
-  const connectedPlatforms = clientScope.mainClientId
+  const connectedPlatforms: string[] = clientScope.mainClientId
     ? (await listOpsPlatformConnectionsForClient(ctx.tenantId, clientScope.mainClientId))
         .filter((item) => item.connected)
         .map((item) => item.provider)
@@ -5324,11 +5324,12 @@ async function opsScheduleToPlatforms(args: any, ctx: OperationsToolContext): Pr
   const failed: Array<{ platform: string; error: string }> = [];
 
   for (const platform of platforms) {
-    if (connectedPlatforms.length && !connectedPlatforms.includes(platform)) {
-      failed.push({ platform, error: 'Plataforma não conectada para este cliente.' });
+    const platformName = String(platform);
+    if (connectedPlatforms.length && !connectedPlatforms.includes(platformName)) {
+      failed.push({ platform: platformName, error: 'Plataforma não conectada para este cliente.' });
       continue;
     }
-    const channel = channelMap[platform] || platform;
+    const channel = channelMap[platformName] || platformName;
     const scheduleResult = await toolScheduleBriefing({
       briefing_id: briefingId,
       copy_id: resolvedCopyId,
@@ -5337,12 +5338,12 @@ async function opsScheduleToPlatforms(args: any, ctx: OperationsToolContext): Pr
     }, scheduleCtx);
 
     if (!scheduleResult.success) {
-      failed.push({ platform, error: scheduleResult.error || 'Falha ao criar agendamento.' });
+      failed.push({ platform: platformName, error: contextualString(scheduleResult.error) || 'Falha ao criar agendamento.' });
       continue;
     }
 
     scheduled.push({
-      platform,
+      platform: platformName,
       channel,
       schedule_id: contextualString(scheduleResult.data?.scheduleId),
     });
