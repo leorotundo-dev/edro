@@ -1376,6 +1376,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
           question: [campaign.objective, intent.momento, intent.amd, intent.target_behavior].filter(Boolean).join(' '),
           daysBack: 60,
           limitDocuments: 4,
+          intent: 'strategy',
         });
         if (snapshot.knowledge_base_block) copyIntelBlock = `\n\n${snapshot.knowledge_base_block}`;
       } catch { /* non-blocking */ }

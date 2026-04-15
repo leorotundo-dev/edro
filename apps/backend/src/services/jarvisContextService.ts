@@ -44,6 +44,7 @@ export async function buildClientContext(tenantId: string, clientId: string): Pr
       clientId,
       daysBack: 60,
       limitDocuments: 8,
+      intent: 'relationship',
     }).catch(() => null);
 
     if (snapshot?.latest_insight) {

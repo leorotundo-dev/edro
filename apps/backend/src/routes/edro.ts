@@ -2276,6 +2276,7 @@ export default async function edroRoutes(app: FastifyInstance) {
           question: [briefing.title, body.instructions, (briefing.payload as any)?.objective ?? (briefing.payload as any)?.objetivo].filter(Boolean).join(' '),
           daysBack: 60,
           limitDocuments: 6,
+          intent: 'copy',
         }).catch(() => null)
       : null;
     const memoryGovernance = selectedClientId

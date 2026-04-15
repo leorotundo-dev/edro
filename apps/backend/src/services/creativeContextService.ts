@@ -200,6 +200,7 @@ export async function assembleCreativeContext(params: {
         question: [briefingRow.title, briefingRow.payload?.objective, briefingRow.payload?.context].filter(Boolean).join(' '),
         daysBack: 60,
         limitDocuments: 6,
+        intent: 'creative',
       }).catch(() => null)
     : null;
   const livingMemory = resolvedClientId

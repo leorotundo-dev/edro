@@ -292,6 +292,7 @@ export async function buildClientState(
         clientId,
         daysBack: 30,
         limitDocuments: 6,
+        intent: 'ops',
       }),
     ]);
 
