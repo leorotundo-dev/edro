@@ -1,5 +1,6 @@
 import { query } from '../db';
 import { listClientMemoryFacts, syncClientMemoryFacts, type ClientMemoryFactRow } from './clientMemoryFactsService';
+import { syncClientMemoryGovernanceState } from './clientMemoryGovernanceService';
 
 const MEMORY_SOURCE_TYPES = [
   'gmail_message',
@@ -426,6 +427,12 @@ export async function buildClientLivingMemory(params: {
   });
 
   if (factsAvailable) {
+    await syncClientMemoryGovernanceState({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      daysBack: Math.min(daysBack * 2, 365),
+      limit: 80,
+    }).catch(() => null);
     const facts = await listClientMemoryFacts({
       tenantId: params.tenantId,
       clientId: params.clientId,

@@ -1,3 +1,4 @@
+import { query } from '../db';
 import {
   getClientMemoryFactByFingerprint,
   listClientMemoryFacts,
@@ -45,6 +46,15 @@ export type ClientMemoryGovernanceConflict = {
 };
 
 type GovernancePressure = 'low' | 'medium' | 'high';
+
+function isMissingConflictTableError(error: unknown) {
+  const candidate = error as { code?: string; message?: string };
+  return candidate?.code === '42P01' || /client_memory_fact_conflicts/i.test(String(candidate?.message || ''));
+}
+
+function buildConflictKey(primaryFingerprint: string, conflictingFingerprint: string) {
+  return [primaryFingerprint, conflictingFingerprint].sort().join('::');
+}
 
 export type ClientMemoryGovernanceAnalysis = {
   summary: {
@@ -370,6 +380,85 @@ export async function analyzeClientMemoryGovernance(params: {
   };
 }
 
+export async function syncClientMemoryGovernanceState(params: {
+  tenantId: string;
+  clientId: string;
+  daysBack?: number;
+  limit?: number;
+}): Promise<ClientMemoryGovernanceAnalysis> {
+  const analysis = await analyzeClientMemoryGovernance(params);
+
+  try {
+    const activeConflictKeys = analysis.conflicts.map((item) =>
+      buildConflictKey(item.primary.fingerprint, item.conflicting.fingerprint),
+    );
+
+    for (const conflict of analysis.conflicts) {
+      const conflictKey = buildConflictKey(conflict.primary.fingerprint, conflict.conflicting.fingerprint);
+      await query(
+        `INSERT INTO client_memory_fact_conflicts (
+           tenant_id, client_id, conflict_key, primary_fingerprint, conflicting_fingerprint,
+           severity, reason, status, resolved_at, metadata
+         )
+         VALUES (
+           $1, $2, $3, $4, $5,
+           $6, $7, 'active', NULL, $8::jsonb
+         )
+         ON CONFLICT (tenant_id, client_id, conflict_key)
+         DO UPDATE SET
+           primary_fingerprint = EXCLUDED.primary_fingerprint,
+           conflicting_fingerprint = EXCLUDED.conflicting_fingerprint,
+           severity = EXCLUDED.severity,
+           reason = EXCLUDED.reason,
+           status = 'active',
+           resolved_at = NULL,
+           metadata = EXCLUDED.metadata,
+           detected_at = now()`,
+        [
+          params.tenantId,
+          params.clientId,
+          conflictKey,
+          conflict.primary.fingerprint,
+          conflict.conflicting.fingerprint,
+          conflict.severity,
+          conflict.reason,
+          JSON.stringify({
+            primary: conflict.primary,
+            conflicting: conflict.conflicting,
+          }),
+        ],
+      );
+    }
+
+    if (activeConflictKeys.length > 0) {
+      await query(
+        `UPDATE client_memory_fact_conflicts
+            SET status = 'resolved',
+                resolved_at = now()
+          WHERE tenant_id = $1
+            AND client_id = $2
+            AND status = 'active'
+            AND NOT (conflict_key = ANY($3::text[]))`,
+        [params.tenantId, params.clientId, activeConflictKeys],
+      );
+    } else {
+      await query(
+        `UPDATE client_memory_fact_conflicts
+            SET status = 'resolved',
+                resolved_at = now()
+          WHERE tenant_id = $1
+            AND client_id = $2
+            AND status = 'active'`,
+        [params.tenantId, params.clientId],
+      );
+    }
+  } catch (error) {
+    if (!isMissingConflictTableError(error)) throw error;
+  }
+
+  return analysis;
+}
+
 export async function applyClientMemoryGovernanceAction(params: {
   tenantId: string;
   clientId: string;
@@ -438,6 +527,7 @@ export async function applyClientMemoryGovernanceAction(params: {
     clientId: params.clientId,
     fingerprint: params.targetFingerprint,
     nextStatus: 'archived',
+    expiresAt: new Date().toISOString(),
     sourceNote: params.reason || (params.action === 'replace' ? 'substituído por fato mais atual' : 'arquivado por governança do Jarvis'),
     confirmedBy: params.confirmedBy || null,
     supersededByFingerprint: replacement?.fingerprint || null,

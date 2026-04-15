@@ -39,8 +39,10 @@ export type ClientMemoryFactRow = {
   fact_text: string;
   related_at: string | null;
   deadline: string | null;
+  expires_at?: string | null;
   priority: string | null;
   confidence_score: number;
+  superseded_by_fingerprint?: string | null;
   updated_at?: string | null;
   metadata: Record<string, any>;
 };
@@ -64,12 +66,12 @@ async function upsertFact(tenantId: string, clientId: string, fact: ClientMemory
     `INSERT INTO client_memory_facts (
        tenant_id, client_id, fact_type, status, fingerprint,
        source_type, source_id, title, summary, fact_text,
-       related_at, deadline, priority, confidence_score, metadata
+       related_at, deadline, expires_at, priority, confidence_score, superseded_by_fingerprint, metadata
      )
      VALUES (
        $1, $2, $3, $4, $5,
        $6, $7, $8, $9, $10,
-       $11::timestamptz, $12::date, $13, $14, $15::jsonb
+       $11::timestamptz, $12::date, $13::timestamptz, $14, $15, $16, $17::jsonb
      )
      ON CONFLICT (tenant_id, client_id, fingerprint)
      DO UPDATE SET
@@ -82,8 +84,10 @@ async function upsertFact(tenantId: string, clientId: string, fact: ClientMemory
        fact_text = EXCLUDED.fact_text,
        related_at = EXCLUDED.related_at,
        deadline = EXCLUDED.deadline,
+       expires_at = EXCLUDED.expires_at,
        priority = EXCLUDED.priority,
        confidence_score = EXCLUDED.confidence_score,
+       superseded_by_fingerprint = EXCLUDED.superseded_by_fingerprint,
        metadata = EXCLUDED.metadata,
        updated_at = now()`,
     [
@@ -99,11 +103,20 @@ async function upsertFact(tenantId: string, clientId: string, fact: ClientMemory
       fact.fact_text,
       fact.related_at,
       fact.deadline,
+      fact.expires_at || null,
       fact.priority,
       fact.confidence_score,
+      fact.superseded_by_fingerprint || null,
       JSON.stringify(fact.metadata || {}),
     ],
   );
+}
+
+function computeExpiryTimestamp(baseValue: string | null | undefined, days: number) {
+  const base = baseValue ? new Date(baseValue) : new Date();
+  const timestamp = base.getTime();
+  if (Number.isNaN(timestamp)) return null;
+  return new Date(timestamp + days * 86400000).toISOString();
 }
 
 async function deactivateMissingFacts(params: {
@@ -161,8 +174,10 @@ export async function syncClientMemoryFacts(params: {
       fact_text: item.directive,
       related_at: item.created_at || null,
       deadline: null,
+      expires_at: computeExpiryTimestamp(item.created_at, 365),
       priority: null,
       confidence_score: 0.95,
+      superseded_by_fingerprint: null,
       metadata: {
         origin: 'auto_materialized',
         directive_type: item.directive_type,
@@ -188,8 +203,10 @@ export async function syncClientMemoryFacts(params: {
       fact_text: `${item.title || 'Sem titulo'}\n${item.excerpt}`,
       related_at: item.occurred_at || null,
       deadline: null,
+      expires_at: computeExpiryTimestamp(item.occurred_at, 120),
       priority: null,
       confidence_score: Math.max(0.5, Math.min(0.99, 0.55 + (item.score / 10))),
+      superseded_by_fingerprint: null,
       metadata: {
         origin: 'auto_materialized',
         source_score: item.score,
@@ -213,8 +230,10 @@ export async function syncClientMemoryFacts(params: {
       fact_text: [item.title, item.description, item.meeting_title].filter(Boolean).join('\n'),
       related_at: item.deadline || null,
       deadline: item.deadline || null,
+      expires_at: computeExpiryTimestamp(item.deadline, 45),
       priority: item.priority || null,
       confidence_score: 0.9,
+      superseded_by_fingerprint: null,
       metadata: {
         origin: 'auto_materialized',
         responsible: item.responsible || null,
@@ -278,14 +297,18 @@ export async function listClientMemoryFacts(params: {
               fact_text,
               related_at::text,
               deadline::text,
+              expires_at::text,
               priority,
               confidence_score::float,
+              superseded_by_fingerprint,
               updated_at::text,
               metadata
          FROM client_memory_facts
         WHERE tenant_id = $1
           AND client_id = $2
           AND status = 'active'
+          AND superseded_by_fingerprint IS NULL
+          AND (expires_at IS NULL OR expires_at > NOW())
           AND ($4::text[] IS NULL OR fact_type = ANY($4::text[]))
           AND (
             fact_type <> 'evidence'
@@ -329,8 +352,10 @@ export async function getClientMemoryFactByFingerprint(params: {
               fact_text,
               related_at::text,
               deadline::text,
+              expires_at::text,
               priority,
               confidence_score::float,
+              superseded_by_fingerprint,
               updated_at::text,
               metadata
          FROM client_memory_facts
@@ -354,6 +379,7 @@ export async function updateClientMemoryFactStatus(params: {
   nextStatus: ClientMemoryFactRow['status'];
   sourceNote?: string | null;
   confirmedBy?: string | null;
+  expiresAt?: string | null;
   supersededByFingerprint?: string | null;
 }) {
   try {
@@ -368,7 +394,9 @@ export async function updateClientMemoryFactStatus(params: {
     const { rows } = await query<ClientMemoryFactRow>(
       `UPDATE client_memory_facts
           SET status = $4,
-              metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
+              expires_at = COALESCE($5::timestamptz, expires_at),
+              superseded_by_fingerprint = COALESCE($6, superseded_by_fingerprint),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $7::jsonb,
               updated_at = now()
         WHERE tenant_id = $1
           AND client_id = $2
@@ -383,8 +411,10 @@ export async function updateClientMemoryFactStatus(params: {
                 fact_text,
                 related_at::text,
                 deadline::text,
+                expires_at::text,
                 priority,
                 confidence_score::float,
+                superseded_by_fingerprint,
                 updated_at::text,
                 metadata`,
       [
@@ -392,6 +422,8 @@ export async function updateClientMemoryFactStatus(params: {
         params.clientId,
         params.fingerprint,
         params.nextStatus,
+        params.expiresAt || null,
+        params.supersededByFingerprint || null,
         JSON.stringify(metadataPatch),
       ],
     );
@@ -438,6 +470,7 @@ export async function recordClientMemoryFact(params: {
   sourceNote?: string | null;
   confidenceScore?: number | null;
   confirmedBy?: string | null;
+  expiresAt?: string | null;
 }) {
   const normalizedTitle = String(params.title || '').trim();
   const normalizedFactText = String(params.factText || '').trim();
@@ -466,8 +499,10 @@ export async function recordClientMemoryFact(params: {
       fact_text: normalizedFactText,
       related_at: params.relatedAt || null,
       deadline: params.deadline || null,
+      expires_at: params.expiresAt || null,
       priority: params.priority || null,
       confidence_score: Math.max(0.5, Math.min(0.99, params.confidenceScore ?? 0.88)),
+      superseded_by_fingerprint: null,
       metadata: {
         origin: 'jarvis_writeback',
         directive_type: params.directiveType || null,
@@ -519,6 +554,7 @@ export async function upsertCanonicalClientMemoryFact(params: {
   deadline?: string | null;
   priority?: string | null;
   confidenceScore?: number | null;
+  expiresAt?: string | null;
   metadata?: Record<string, any>;
 }) {
   const normalizedTitle = String(params.title || '').trim();
@@ -548,8 +584,10 @@ export async function upsertCanonicalClientMemoryFact(params: {
       fact_text: normalizedFactText,
       related_at: params.relatedAt || null,
       deadline: params.deadline || null,
+      expires_at: params.expiresAt || null,
       priority: params.priority || null,
       confidence_score: Math.max(0.5, Math.min(0.99, params.confidenceScore ?? 0.85)),
+      superseded_by_fingerprint: null,
       metadata: {
         origin: 'canonical_extraction',
         ...(params.metadata || {}),
