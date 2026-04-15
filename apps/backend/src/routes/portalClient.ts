@@ -30,6 +30,7 @@ import { authGuard, requirePerm } from '../auth/rbac';
 import { tenantGuard } from '../auth/tenantGuard';
 import { env } from '../env';
 import { sendEmail, isEmailConfigured } from '../services/emailService';
+import { notifyEvent } from '../services/notificationService';
 import {
   buildArtDirectionFeedbackMetadata,
   getPrimaryArtDirectionReferenceId,
@@ -1625,35 +1626,65 @@ async function notifyAgencyNewBriefingRequest(params: {
   briefingId: string;
   formData: any;
 }) {
-  if (!isEmailConfigured()) return;
   const { tenantId, clientId, briefingId, formData } = params;
-
-  // Find admin contacts for this client
-  const res = await pool.query(
-    `SELECT email, name FROM portal_contacts
-     WHERE client_id = $1 AND tenant_id = $2 AND role = 'admin' AND is_active = true`,
-    [clientId, tenantId],
-  );
-
-  // Also get tenant admin email from settings
-  const settingsRes = await pool.query(
-    `SELECT value FROM tenant_settings WHERE tenant_id = $1 AND key = 'notification_email' LIMIT 1`,
-    [tenantId],
-  ).catch(() => ({ rows: [] as any[] }));
-
-  const notifyEmails = new Set<string>([
-    ...res.rows.map((r: any) => r.email as string),
-    ...(settingsRes.rows[0]?.value ? [settingsRes.rows[0].value as string] : []),
-  ]);
 
   const clientRes = await pool.query(`SELECT name FROM clients WHERE id = $1`, [clientId]);
   const clientName = clientRes.rows[0]?.name ?? clientId;
 
-  const subject = `Nova solicitação de job — ${clientName}`;
-  const html = buildNewBriefingEmail({ clientName, briefingId, formData });
+  // Email notifications (existing flow)
+  if (isEmailConfigured()) {
+    const res = await pool.query(
+      `SELECT email, name FROM portal_contacts
+       WHERE client_id = $1 AND tenant_id = $2 AND role = 'admin' AND is_active = true`,
+      [clientId, tenantId],
+    );
+    const settingsRes = await pool.query(
+      `SELECT value FROM tenant_settings WHERE tenant_id = $1 AND key = 'notification_email' LIMIT 1`,
+      [tenantId],
+    ).catch(() => ({ rows: [] as any[] }));
 
-  for (const email of notifyEmails) {
-    await sendEmail({ to: email, subject, html, tenantId }).catch(() => {});
+    const notifyEmails = new Set<string>([
+      ...res.rows.map((r: any) => r.email as string),
+      ...(settingsRes.rows[0]?.value ? [settingsRes.rows[0].value as string] : []),
+    ]);
+
+    const subject = `Nova solicitação de job — ${clientName}`;
+    const html = buildNewBriefingEmail({ clientName, briefingId, formData });
+    for (const email of notifyEmails) {
+      await sendEmail({ to: email, subject, html, tenantId }).catch(() => {});
+    }
+  }
+
+  // In-app + WhatsApp notifications for all internal admins/managers
+  try {
+    const { rows: admins } = await pool.query<{ user_id: string; email: string }>(
+      `SELECT tu.user_id, u.email
+         FROM tenant_users tu
+         JOIN edro_users u ON u.id = tu.user_id
+        WHERE tu.tenant_id = $1 AND tu.role IN ('admin', 'manager', 'gestor')`,
+      [tenantId],
+    );
+
+    const requestType = formData?.type || 'Solicitação';
+    const objective = formData?.objective ? ` · ${String(formData.objective).slice(0, 80)}` : '';
+    const title = `📬 Nova solicitação: ${requestType}`;
+    const body = `${clientName}${objective}`;
+    const link = `/admin/solicitacoes`;
+
+    for (const admin of admins) {
+      await notifyEvent({
+        event: 'briefing_request.new',
+        tenantId,
+        userId: admin.user_id,
+        title,
+        body,
+        link,
+        recipientEmail: admin.email,
+        defaultChannels: ['in_app', 'whatsapp'],
+      }).catch(() => {});
+    }
+  } catch {
+    // non-blocking
   }
 }
 
