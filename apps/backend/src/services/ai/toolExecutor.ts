@@ -253,6 +253,7 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'get_art_direction',
     'list_platform_connections',
     'get_platform_recommendations',
+    'compare_variants',
   ], { systemPerm: 'clients:read' }),
   ...buildRequirementMap([
     'list_recipes',
@@ -267,6 +268,8 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
     'generate_image',
     'iterate_image',
     'approve_image',
+    'generate_copy_variants',
+    'clone_briefing',
   ], { systemPerm: 'clients:write' }),
   ...buildRequirementMap([
     'create_recipe',
@@ -274,6 +277,7 @@ const OPS_TOOL_REQUIREMENTS: Record<string, ToolPermissionRequirement> = {
   ], { systemPerm: 'library:write' }),
   apply_recipe: { systemPerm: 'clients:write' },
   schedule_to_platforms: { systemPerm: 'posts:review' },
+  bulk_approve_drafts: { systemPerm: 'posts:review' },
   get_system_health: { systemPerm: 'portfolio:read' },
   run_system_repair: { systemPerm: 'admin:jobs' },
   ...buildRequirementMap([
@@ -4765,6 +4769,7 @@ async function resolveOpsStudioClientScope(
 }
 
 const OPS_STUDIO_PLATFORMS = ['meta', 'linkedin', 'tiktok', 'google'] as const;
+const OPS_COPY_VARIANT_APPEALS = ['dor', 'logica', 'prova_social', 'curiosidade', 'autoridade'] as const;
 
 function normalizeOpsStudioPlatform(value: unknown) {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -4788,6 +4793,43 @@ function getOpsPlatformBestTime(provider: string) {
       return '09:00 - 12:00 BRT (dias úteis)';
     default:
       return '10:00 BRT';
+  }
+}
+
+function normalizeOpsCopyVariantAppeal(value: unknown) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return OPS_COPY_VARIANT_APPEALS.includes(normalized as any)
+    ? normalized as typeof OPS_COPY_VARIANT_APPEALS[number]
+    : null;
+}
+
+function formatOpsCopyVariantText(params: {
+  approvedText?: string | null;
+  hookText: string;
+  contentText: string;
+  ctaText: string;
+}) {
+  return String(params.approvedText || '').trim() || [
+    `Hook: ${params.hookText}`,
+    `Corpo: ${params.contentText}`,
+    `CTA: ${params.ctaText}`,
+  ].join('\n\n');
+}
+
+function buildOpsVariantBehaviorIntent(appeal: typeof OPS_COPY_VARIANT_APPEALS[number]) {
+  switch (appeal) {
+    case 'dor':
+      return { amd: 'pedir_proposta', momento: 'problema', triggers: ['dor', 'urgencia'], target_behavior: 'pedir orçamento', phase_id: 'convite' };
+    case 'logica':
+      return { amd: 'salvar', momento: 'solucao', triggers: ['logica', 'beneficio'], target_behavior: 'salvar o conteúdo', phase_id: 'prova' };
+    case 'prova_social':
+      return { amd: 'clicar', momento: 'decisao', triggers: ['prova_social', 'validacao'], target_behavior: 'clicar para saber mais', phase_id: 'prova' };
+    case 'curiosidade':
+      return { amd: 'clicar', momento: 'problema', triggers: ['curiosidade', 'gancho'], target_behavior: 'clicar para descobrir o restante', phase_id: 'historia' };
+    case 'autoridade':
+      return { amd: 'salvar', momento: 'decisao', triggers: ['autoridade', 'credibilidade'], target_behavior: 'salvar como referência', phase_id: 'prova' };
+    default:
+      return { amd: 'salvar', momento: 'solucao', triggers: ['logica'], target_behavior: 'salvar o conteúdo', phase_id: 'prova' };
   }
 }
 
@@ -5318,6 +5360,295 @@ async function opsScheduleToPlatforms(args: any, ctx: OperationsToolContext): Pr
   };
 }
 
+async function opsGenerateCopyVariants(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const briefingId = String(args.briefing_id || '').trim();
+  if (!briefingId) return { success: false, error: 'briefing_id é obrigatório.' };
+
+  const { rows: briefingRows } = await query<any>(
+    `SELECT id::text AS id, title, payload, client_id::text AS client_id, main_client_id
+       FROM edro_briefings
+      WHERE id::text = $1
+        AND tenant_id = $2
+      LIMIT 1`,
+    [briefingId, ctx.tenantId],
+  );
+  if (!briefingRows.length) return { success: false, error: 'Briefing não encontrado.' };
+
+  const briefing = briefingRows[0];
+  const count = Math.min(Math.max(Number(args.count) || 3, 2), 5);
+  const instructions = contextualString(args.instructions);
+  const appeals = (
+    Array.isArray(args.appeals) && args.appeals.length
+      ? args.appeals.map((value: unknown) => normalizeOpsCopyVariantAppeal(value)).filter(Boolean)
+      : ['dor', 'logica', 'prova_social']
+  ).slice(0, count) as Array<typeof OPS_COPY_VARIANT_APPEALS[number]>;
+
+  const mainClientId = contextualString(briefing.main_client_id);
+  const client = mainClientId ? await getClientById(ctx.tenantId, mainClientId).catch(() => null) : null;
+  const clientProfile = (client && typeof client.profile === 'object' && client.profile) ? client.profile : {};
+  const firstPersona = Array.isArray((clientProfile as any).personas) ? (clientProfile as any).personas[0] : null;
+  const persona = {
+    name: firstPersona?.name || client?.name || 'Público principal',
+    role: firstPersona?.role || null,
+    momento_consciencia: firstPersona?.momento_consciencia || 'solucao',
+    language_style: firstPersona?.language_style || (clientProfile as any).tone_profile || (clientProfile as any).tone || 'profissional',
+    forbidden_terms: firstPersona?.forbidden_terms || (clientProfile as any).forbidden_terms || [],
+  };
+  const platform = contextualString(briefing.payload?.platform) || 'instagram';
+  const format = contextualString(briefing.payload?.format) || 'feed';
+  const objective = contextualString(briefing.payload?.objective) || null;
+
+  const variants: Array<{ appeal: string; copy_id: string; preview: string }> = [];
+  for (const appeal of appeals) {
+    try {
+      const behaviorIntent = buildOpsVariantBehaviorIntent(appeal);
+      const extraKnowledge = instructions
+        ? `INSTRUÇÃO EXTRA DO USUÁRIO: ${instructions}\nApelo obrigatório desta variante: ${appeal}.`
+        : `Apelo obrigatório desta variante: ${appeal}.`;
+      const draft = await generateBehavioralDraft({
+        platform,
+        format,
+        persona,
+        behaviorIntent,
+        campaignObjective: objective || undefined,
+        clientName: client?.name || undefined,
+        clientSegment: client?.segment_primary || undefined,
+        knowledgeBlock: extraKnowledge,
+      });
+      const audit = await auditDraftContent({
+        draft,
+        persona,
+        behaviorIntent,
+        clientName: client?.name || undefined,
+      }).catch(() => null);
+
+      const finalText = formatOpsCopyVariantText({
+        approvedText: audit?.approved_text,
+        hookText: draft.hook_text,
+        contentText: draft.content_text,
+        ctaText: draft.cta_text,
+      });
+
+      const copyVersion = await createCopyVersion({
+        briefingId,
+        language: 'pt',
+        model: 'agent_writer',
+        prompt: extraKnowledge,
+        output: finalText,
+        payload: {
+          source: 'jarvis_generate_copy_variants',
+          appeal,
+          hook_text: draft.hook_text,
+          content_text: draft.content_text,
+          cta_text: draft.cta_text,
+          behavioral_rationale: draft.behavioral_rationale,
+          tags: draft.tags,
+          instructions: instructions || null,
+          fogg_score: audit?.fogg_score || null,
+          audit_status: audit?.approval_status || null,
+          revision_notes: audit?.revision_notes || [],
+        },
+        createdBy: ctx.userEmail ?? null,
+      });
+
+      variants.push({
+        appeal,
+        copy_id: copyVersion.id,
+        preview: finalText.slice(0, 300),
+      });
+    } catch (err: any) {
+      variants.push({
+        appeal,
+        copy_id: '',
+        preview: `Erro: ${err.message || 'Falha na geração da variante.'}`,
+      });
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      briefing_id: briefingId,
+      variants,
+      count: variants.length,
+      message: `${variants.length} variante(s) gerada(s). Use compare_variants para comparar ou bulk_approve_drafts para aprovar em lote.`,
+    },
+  };
+}
+
+async function opsCompareVariants(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const briefingId = String(args.briefing_id || '').trim();
+  if (!briefingId) return { success: false, error: 'briefing_id é obrigatório.' };
+
+  const copyIds = Array.isArray(args.copy_ids)
+    ? args.copy_ids.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+    : [];
+  const params: any[] = [briefingId, ctx.tenantId];
+  const copyFilter = copyIds.length
+    ? `AND cv.id::text = ANY($3::text[])`
+    : '';
+  if (copyIds.length) params.push(copyIds);
+
+  const { rows } = await query<any>(
+    `SELECT cv.id::text AS id, cv.output, cv.payload, cv.model, cv.created_at, cv.status
+       FROM edro_copy_versions cv
+       JOIN edro_briefings b ON b.id = cv.briefing_id
+      WHERE cv.briefing_id::text = $1
+        AND b.tenant_id = $2
+        ${copyFilter}
+      ORDER BY cv.created_at DESC
+      LIMIT ${copyIds.length ? '20' : '3'}`,
+    params,
+  );
+  if (!rows.length) return { success: false, error: 'Nenhuma versão de copy encontrada.' };
+
+  const variants = rows.map((row, index) => {
+    const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+    return {
+      index: index + 1,
+      copy_id: row.id,
+      appeal: contextualString(payload.appeal),
+      fogg_score: payload.fogg_score || null,
+      model: row.model,
+      status: row.status || null,
+      created_at: row.created_at,
+      text: row.output || '',
+      preview: String(row.output || '').slice(0, 400),
+    };
+  });
+
+  return {
+    success: true,
+    data: {
+      briefing_id: briefingId,
+      variants,
+      count: variants.length,
+      tip: 'Use bulk_approve_drafts para aprovar várias variantes ou aprove uma versão individual no Studio.',
+    },
+    metadata: { row_count: variants.length },
+  };
+}
+
+async function opsBulkApproveDrafts(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const draftIds = Array.isArray(args.draft_ids)
+    ? args.draft_ids.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+    : [];
+  if (!draftIds.length) return { success: false, error: 'Informe ao menos um draft_id.' };
+  if (draftIds.length > 20) return { success: false, error: 'Máximo de 20 drafts por operação.' };
+
+  if (ctx.explicitConfirmation !== true) {
+    return buildConfirmationRequiredResult('Confirmação pendente para aprovação em lote.', {
+      draft_count: draftIds.length,
+      draft_ids: draftIds,
+      tool_name: 'bulk_approve_drafts',
+      tool_args: { draft_ids: draftIds },
+      confirmation_prompt: `Confirmo a aprovação de ${draftIds.length} draft(s).`,
+    });
+  }
+
+  const { rows: creativeDraftRows } = await query<any>(
+    `UPDATE job_creative_drafts
+        SET status = 'approved',
+            approval_status = 'approved',
+            draft_approved_at = NOW(),
+            draft_approved_by = $3
+      WHERE id::text = ANY($1::text[])
+        AND tenant_id = $2
+      RETURNING id::text AS id, job_id::text AS job_id, draft_type`,
+    [draftIds, ctx.tenantId, ctx.userId || null],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  const { rows: copyRows } = await query<any>(
+    `UPDATE edro_copy_versions cv
+        SET status = 'approved',
+            feedback = COALESCE(cv.feedback, 'Aprovado em lote via Jarvis')
+       FROM edro_briefings b
+      WHERE b.id = cv.briefing_id
+        AND b.tenant_id = $2
+        AND cv.id::text = ANY($1::text[])
+      RETURNING cv.id::text AS id, cv.briefing_id::text AS briefing_id`,
+    [draftIds, ctx.tenantId],
+  ).catch(() => ({ rows: [] as any[] }));
+
+  const approved = [
+    ...creativeDraftRows.map((row) => ({
+      draft_id: row.id,
+      job_id: row.job_id || null,
+      type: row.draft_type || 'creative_draft',
+      source: 'job_creative_drafts',
+    })),
+    ...copyRows.map((row) => ({
+      draft_id: row.id,
+      briefing_id: row.briefing_id,
+      type: 'copy',
+      source: 'edro_copy_versions',
+    })),
+  ];
+  const approvedIds = new Set(approved.map((item) => item.draft_id));
+  const notFound = draftIds.filter((id) => !approvedIds.has(id));
+
+  return {
+    success: true,
+    data: {
+      approved,
+      not_found: notFound,
+      message: `${approved.length} draft(s) aprovado(s).${notFound.length ? ` ${notFound.length} não encontrado(s).` : ''}`,
+    },
+  };
+}
+
+async function opsCloneBriefing(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
+  const briefingId = String(args.briefing_id || '').trim();
+  if (!briefingId) return { success: false, error: 'briefing_id é obrigatório.' };
+
+  const { rows: originalRows } = await query<any>(
+    `SELECT id::text AS id, title, payload, client_id::text AS client_id, main_client_id, due_at, source
+       FROM edro_briefings
+      WHERE id::text = $1
+        AND tenant_id = $2
+      LIMIT 1`,
+    [briefingId, ctx.tenantId],
+  );
+  if (!originalRows.length) return { success: false, error: 'Briefing não encontrado.' };
+
+  const original = originalRows[0];
+  const clientScope = await resolveOpsStudioClientScope(
+    ctx.tenantId,
+    ctx,
+    contextualString(args.client_id)
+      || contextualString(original.main_client_id)
+      || contextualString(original.client_id),
+  );
+  if ('error' in clientScope) return { success: false, error: clientScope.error };
+
+  const cloned = await createBriefing({
+    clientId: clientScope.edroClientId || contextualString(original.client_id),
+    mainClientId: clientScope.mainClientId || contextualString(original.main_client_id),
+    title: contextualString(args.new_title) || `Cópia de ${original.title}`,
+    status: 'draft',
+    payload: {
+      ...(original.payload && typeof original.payload === 'object' ? original.payload : {}),
+      cloned_from_briefing_id: briefingId,
+      source: 'jarvis_clone_briefing',
+    },
+    createdBy: ctx.userEmail ?? null,
+    dueAt: original.due_at ? new Date(original.due_at) : null,
+    source: 'jarvis_clone_briefing',
+  });
+  await createBriefingStages(cloned.id, ctx.userEmail ?? null).catch(() => {});
+
+  return {
+    success: true,
+    data: {
+      original_briefing_id: briefingId,
+      new_briefing_id: cloned.id,
+      title: cloned.title,
+      studio_url: `/edro/${cloned.id}`,
+      message: `Briefing clonado com sucesso: "${cloned.title}".`,
+    },
+  };
+}
+
 async function opsGetArtDirection(args: any, ctx: OperationsToolContext): Promise<ToolResult> {
   const target = await resolveCreativeDraftTarget(
     ctx.tenantId,
@@ -5771,6 +6102,10 @@ const OPS_TOOL_MAP: Record<string, (args: any, ctx: OperationsToolContext) => Pr
   list_platform_connections: opsListPlatformConnections,
   get_platform_recommendations: opsGetPlatformRecommendations,
   schedule_to_platforms: opsScheduleToPlatforms,
+  generate_copy_variants: opsGenerateCopyVariants,
+  compare_variants: opsCompareVariants,
+  bulk_approve_drafts: opsBulkApproveDrafts,
+  clone_briefing: opsCloneBriefing,
   get_art_direction: opsGetArtDirection,
   generate_art_direction: opsGenerateArtDirection,
   generate_image: opsGenerateImage,

@@ -1471,6 +1471,49 @@ export const OPERATIONS_TOOLS: ToolDefinition[] = [
     category: 'action',
   },
   {
+    name: 'generate_copy_variants',
+    description: 'Gera múltiplas variações de copy para um briefing com apelos diferentes para comparação criativa e A/B test.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing' },
+      count: { type: 'number', description: 'Número de variantes a gerar: 2 a 5. Padrão: 3' },
+      appeals: { type: 'array', description: 'Apelos a usar. Ex.: [dor, logica, prova_social, curiosidade, autoridade]', items: { type: 'string' } },
+      instructions: { type: 'string', description: 'Instruções extras para modular a geração das variantes' },
+    },
+    required: ['briefing_id'],
+    category: 'action',
+  },
+  {
+    name: 'compare_variants',
+    description: 'Compara versões de copy de um briefing lado a lado, incluindo texto, apelo, score Fogg e data de geração.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing' },
+      copy_ids: { type: 'array', description: 'IDs específicos de versões a comparar. Se omitido, usa as 3 mais recentes', items: { type: 'string' } },
+    },
+    required: ['briefing_id'],
+    category: 'read',
+  },
+  {
+    name: 'bulk_approve_drafts',
+    description: 'Aprova múltiplos drafts criativos em lote. Aceita IDs de job_creative_drafts e/ou de versões de copy.',
+    parameters: {
+      draft_ids: { type: 'array', description: 'Lista de IDs de drafts a aprovar', items: { type: 'string' } },
+      confirmed: { type: 'boolean', description: 'true quando o usuário confirmar a aprovação em lote' },
+    },
+    required: ['draft_ids'],
+    category: 'action',
+  },
+  {
+    name: 'clone_briefing',
+    description: 'Duplica um briefing existente criando um novo em status draft, com o mesmo payload e opção de trocar o cliente.',
+    parameters: {
+      briefing_id: { type: 'string', description: 'UUID do briefing a clonar' },
+      new_title: { type: 'string', description: 'Novo título do clone. Se omitido, usa Cópia de [título original]' },
+      client_id: { type: 'string', description: 'Novo cliente para o clone. Aceita clients.id legado ou edro_clients.id' },
+    },
+    required: ['briefing_id'],
+    category: 'action',
+  },
+  {
     name: 'navigate_to_view',
     description: 'Navega o usuário para uma tela específica do sistema. Use quando o usuário pedir "me leva até", "abrir", "ir para", "mostrar a tela de", etc.',
     parameters: {
