@@ -27,6 +27,11 @@ export type LearnedPreferences = {
     editorial_insights: string[];
   };
   amd_performance: AmdPerformanceRow[];
+  post_level_performance: {
+    top_formats: { platform: string; format: string; avg_score: number; sample_size: number }[];
+    top_angles: { angle: string; avg_score: number; sample_size: number }[];
+    linked_posts: number;
+  };
   directives: {
     boost: string[];
     avoid: string[];
@@ -64,11 +69,12 @@ export async function getClientPreferences(params: {
     return {
       version: 1,
       rebuilt_at: new Date().toISOString(),
-      copy_feedback: { top_angles: [], preferred_formats: [], anti_patterns: [], overall_avg_score: 0, total_scored_copies: 0, editorial_insights: [] },
+      copy_feedback: { top_angles: [], preferred_formats: [], anti_patterns: [], overall_avg_score: 0, total_scored_copies: 0 },
       amd_performance: [],
-      reportei_performance: { top_formats: [], period_insights: [] },
+      post_level_performance: { top_formats: [], top_angles: [], linked_posts: 0 },
+      reportei_performance: { top_formats: [], top_tags: [], editorial_insights: [] },
       directives: { boost: humanBoost, avoid: humanAvoid },
-    } as any;
+    };
   }
 
   return {
@@ -84,14 +90,15 @@ export async function rebuildClientPreferences(params: {
   tenant_id: string;
   client_id: string;
 }): Promise<LearnedPreferences> {
-  const [copyFeedback, reporteiPerf, amdPerf, regenerationPatterns] = await Promise.all([
+  const [copyFeedback, reporteiPerf, amdPerf, postLevelPerf, regenerationPatterns] = await Promise.all([
     aggregateCopyFeedback(params.client_id),
     aggregateReporteiPerformance(params.tenant_id, params.client_id),
     aggregateAmdPerformance(params.client_id),
+    aggregatePostLevelPerformance(params.tenant_id, params.client_id),
     aggregateRegenerationPatterns(params.tenant_id, params.client_id),
   ]);
 
-  const directives = generateDirectives(copyFeedback, reporteiPerf, amdPerf, regenerationPatterns);
+  const directives = generateDirectives(copyFeedback, reporteiPerf, amdPerf, postLevelPerf, regenerationPatterns);
 
   const preferences: LearnedPreferences = {
     version: 1,
@@ -99,6 +106,7 @@ export async function rebuildClientPreferences(params: {
     copy_feedback: copyFeedback,
     reportei_performance: reporteiPerf,
     amd_performance: amdPerf,
+    post_level_performance: postLevelPerf,
     directives,
   };
 
@@ -318,12 +326,124 @@ async function aggregateRegenerationPatterns(
     .filter((instruction): instruction is string => Boolean(instruction));
 }
 
+async function aggregatePostLevelPerformance(
+  tenantId: string,
+  clientId: string,
+): Promise<LearnedPreferences['post_level_performance']> {
+  const { rows } = await query<{
+    platform: string;
+    format: string | null;
+    output: string | null;
+    engagement_rate: number | null;
+    impressions: number | null;
+    engagement: number | null;
+    saves: number | null;
+    shares: number | null;
+  }>(
+    `SELECT
+       bpm.platform,
+       COALESCE(bpm.format, eb.payload->>'format', eb.payload->>'channels', 'desconhecido') AS format,
+       cv.output,
+       bpm.engagement_rate,
+       bpm.impressions,
+       bpm.engagement,
+       bpm.saves,
+       bpm.shares
+     FROM briefing_post_metrics bpm
+     JOIN edro_briefings eb ON eb.id = bpm.briefing_id
+     LEFT JOIN LATERAL (
+       SELECT output
+       FROM edro_copy_versions
+       WHERE briefing_id = eb.id
+       ORDER BY
+         CASE status
+           WHEN 'approved' THEN 0
+           WHEN 'draft' THEN 1
+           ELSE 2
+         END,
+         created_at DESC
+       LIMIT 1
+     ) cv ON TRUE
+     WHERE eb.tenant_id = $1
+       AND COALESCE(eb.main_client_id::text, eb.client_id::text) = $2
+       AND bpm.match_source = 'platform_post_id'
+       AND bpm.published_at > NOW() - INTERVAL '180 days'
+     ORDER BY bpm.published_at DESC
+     LIMIT 150`,
+    [tenantId, clientId],
+  );
+
+  if (!rows.length) {
+    return { top_formats: [], top_angles: [], linked_posts: 0 };
+  }
+
+  const formatMap = new Map<string, { platform: string; format: string; total: number; count: number }>();
+  const angleMap = new Map<string, { angle: string; total: number; count: number }>();
+
+  for (const row of rows) {
+    const impressions = Number(row.impressions || 0);
+    const engagement = Number(row.engagement || 0);
+    const saves = Number(row.saves || 0);
+    const shares = Number(row.shares || 0);
+    const engagementRate = Number(row.engagement_rate || 0);
+    const saveRate = impressions > 0 ? (saves / impressions) * 100 : 0;
+    const shareRate = impressions > 0 ? (shares / impressions) * 100 : 0;
+    const fallbackRate = impressions > 0 ? (engagement / impressions) * 100 : 0;
+    const score = +(engagementRate || fallbackRate || 0) + saveRate * 2 + shareRate * 2;
+
+    const formatKey = `${row.platform}:${row.format || 'desconhecido'}`;
+    const prevFormat = formatMap.get(formatKey) || {
+      platform: row.platform,
+      format: row.format || 'desconhecido',
+      total: 0,
+      count: 0,
+    };
+    formatMap.set(formatKey, {
+      ...prevFormat,
+      total: prevFormat.total + score,
+      count: prevFormat.count + 1,
+    });
+
+    const angle = extractAngle(row.output || '');
+    if (angle) {
+      const prevAngle = angleMap.get(angle) || { angle, total: 0, count: 0 };
+      angleMap.set(angle, {
+        angle,
+        total: prevAngle.total + score,
+        count: prevAngle.count + 1,
+      });
+    }
+  }
+
+  return {
+    top_formats: Array.from(formatMap.values())
+      .map((item) => ({
+        platform: item.platform,
+        format: item.format,
+        avg_score: +(item.total / item.count).toFixed(2),
+        sample_size: item.count,
+      }))
+      .sort((left, right) => right.avg_score - left.avg_score)
+      .slice(0, 6),
+    top_angles: Array.from(angleMap.values())
+      .map((item) => ({
+        angle: item.angle,
+        avg_score: +(item.total / item.count).toFixed(2),
+        sample_size: item.count,
+      }))
+      .sort((left, right) => right.avg_score - left.avg_score)
+      .slice(0, 6),
+    linked_posts: rows.length,
+  };
+}
+
 // ── Directive Generation ───────────────────────────────────────────
 
 function generateDirectives(
   copyFeedback: CopyFeedbackAggregation,
   reporteiPerf: ReporteiPerformanceAggregation,
   amdPerf: AmdPerformanceRow[] = [],
+  postLevelPerf: LearnedPreferences['post_level_performance'],
   regenerationPatterns: string[] = [],
 ): { boost: string[]; avoid: string[] } {
   const boost: string[] = [];
@@ -356,6 +476,17 @@ function generateDirectives(
   // AMD performance directives — AMD com alta taxa de conversão
   for (const a of amdPerf.filter((r) => r.rate >= 70 && r.tracked >= 3).slice(0, 3)) {
     boost.push(`AMD "${a.amd}" no momento "${a.momento}" atinge ${a.rate}% de sucesso (${a.tracked} amostras)`);
+  }
+
+  for (const format of postLevelPerf.top_formats.filter((item) => item.sample_size >= 1).slice(0, 3)) {
+    boost.push(
+      `Posts reais linkados performaram melhor em ${format.platform}/${format.format} (score ${format.avg_score}, ${format.sample_size} posts)`
+    );
+  }
+  for (const angle of postLevelPerf.top_angles.filter((item) => item.sample_size >= 1).slice(0, 2)) {
+    boost.push(
+      `Ângulo com performance real positiva: "${angle.angle}" (score ${angle.avg_score}, ${angle.sample_size} posts)`
+    );
   }
 
   for (const pattern of regenerationPatterns.slice(0, 3)) {
