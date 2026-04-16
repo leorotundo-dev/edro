@@ -38,6 +38,22 @@ export type JarvisObservability = {
       executed: boolean;
     }>;
   };
+  execution?: {
+    traceId?: string | null;
+    taskType: string;
+    actorProfile: string;
+    confidence: {
+      score: number;
+      band: 'low' | 'medium' | 'high';
+      mode: 'respond' | 'act' | 'confirm' | 'escalate';
+      reasons: string[];
+    };
+  };
+  memoryAudit?: {
+    governancePressure: 'low' | 'medium' | 'high';
+    evidenceUsed: Array<{ title: string; source_type: string | null; related_at: string | null }>;
+    suppressedFacts: Array<{ title: string; source_type: string | null; related_at: string | null }>;
+  };
 };
 
 function formatDuration(value?: number) {
@@ -75,6 +91,19 @@ function formatAutonomy(level?: 'auto' | 'review' | 'confirm') {
   }
 }
 
+function formatConfidenceMode(mode?: 'respond' | 'act' | 'confirm' | 'escalate') {
+  switch (mode) {
+    case 'act':
+      return 'agir';
+    case 'confirm':
+      return 'confirmar';
+    case 'escalate':
+      return 'escalar';
+    default:
+      return 'responder';
+  }
+}
+
 export default function JarvisResponseTrace({ observability }: { observability?: JarvisObservability | null }) {
   if (!observability) return null;
 
@@ -103,7 +132,10 @@ export default function JarvisResponseTrace({ observability }: { observability?:
           <Chip size="small" label={`Base: ${observability.sourceLabels.primary}`} sx={{ borderColor: `${EDRO_ORANGE}40`, color: EDRO_ORANGE }} variant="outlined" />
         ) : null}
         {showIntentChip ? <Chip size="small" label={`Intent: ${formatIntent(observability.intent)}`} variant="outlined" /> : null}
+        {observability.execution ? <Chip size="small" label={`Tarefa: ${observability.execution.taskType}`} variant="outlined" /> : null}
+        {observability.execution ? <Chip size="small" label={`Perfil: ${observability.execution.actorProfile}`} variant="outlined" /> : null}
         {observability.autonomy ? <Chip size="small" label={formatAutonomy(observability.autonomy.highestLevel)} variant="outlined" /> : null}
+        {observability.execution ? <Chip size="small" label={`Confiança: ${observability.execution.confidence.band} / ${formatConfidenceMode(observability.execution.confidence.mode)}`} variant="outlined" /> : null}
         {typeof observability.toolsUsed === 'number' ? <Chip size="small" label={`Tools: ${observability.toolsUsed}`} variant="outlined" /> : null}
         {observability.retrievalBudget.contextBlocks ? <Chip size="small" label={`Blocos: ${observability.retrievalBudget.contextBlocks}`} variant="outlined" /> : null}
         {formatDuration(observability.durationMs) ? <Chip size="small" label={`Tempo: ${formatDuration(observability.durationMs)}`} variant="outlined" /> : null}
@@ -121,6 +153,16 @@ export default function JarvisResponseTrace({ observability }: { observability?:
       {observability.autonomy?.tools?.length ? (
         <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
           Governança: {observability.autonomy.tools.map((tool) => `${tool.toolName} (${tool.level}${tool.confirmed ? ', confirmado' : ''})`).join(' + ')}
+        </Typography>
+      ) : null}
+      {observability.memoryAudit?.evidenceUsed?.length ? (
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+          Evidências: {observability.memoryAudit.evidenceUsed.slice(0, 3).map((item) => item.title).join(' | ')}
+        </Typography>
+      ) : null}
+      {observability.memoryAudit?.suppressedFacts?.length ? (
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+          Suprimido: {observability.memoryAudit.suppressedFacts.slice(0, 2).map((item) => item.title).join(' | ')}
         </Typography>
       ) : null}
     </Box>

@@ -96,6 +96,22 @@ export type JarvisObservability = {
   model?: string;
   loadedMemoryBlocks?: string[];
   autonomy?: JarvisAutonomySummary;
+  execution?: {
+    traceId?: string | null;
+    taskType: string;
+    actorProfile: string;
+    confidence: {
+      score: number;
+      band: 'low' | 'medium' | 'high';
+      mode: 'respond' | 'act' | 'confirm' | 'escalate';
+      reasons: string[];
+    };
+  };
+  memoryAudit?: {
+    governancePressure: 'low' | 'medium' | 'high';
+    evidenceUsed: Array<{ title: string; source_type: string | null; related_at: string | null }>;
+    suppressedFacts: Array<{ title: string; source_type: string | null; related_at: string | null }>;
+  };
 };
 
 type ToolPolicyDraft = Omit<JarvisToolGovernance, 'confirmed' | 'executed'>;
@@ -987,7 +1003,7 @@ export function describeJarvisIntent(intent: JarvisIntent): string {
 
 export function buildJarvisObservability(
   decision: JarvisRoutingDecision,
-  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model' | 'loadedMemoryBlocks' | 'autonomy'>> = {},
+  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model' | 'loadedMemoryBlocks' | 'autonomy' | 'execution' | 'memoryAudit'>> = {},
 ): JarvisObservability {
   return {
     intent: decision.intent,
@@ -1005,6 +1021,8 @@ export function buildJarvisObservability(
     model: extras.model,
     loadedMemoryBlocks: extras.loadedMemoryBlocks,
     autonomy: extras.autonomy,
+    execution: extras.execution,
+    memoryAudit: extras.memoryAudit,
   };
 }
 

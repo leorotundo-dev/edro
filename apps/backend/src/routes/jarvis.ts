@@ -43,6 +43,16 @@ import {
   saveUnifiedConversation,
   summarizeJarvisToolGovernance,
 } from '../services/jarvisPolicyService';
+import {
+  assessJarvisConfidence,
+  detectJarvisTaskType,
+  resolveJarvisActorProfile,
+} from '../services/jarvisExecutionService';
+import {
+  buildJarvisSuppressedFacts,
+  buildJarvisTraceEvidence,
+  recordJarvisDecisionTrace,
+} from '../services/jarvisTraceService';
 import { syncWorkflowBackgroundCancelled, syncWorkflowBackgroundCancelRequested } from '../services/jarvisBackgroundHealthService';
 import crypto from 'crypto';
 
@@ -824,6 +834,100 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const pageDataContext = buildPageDataContext(body.page_data ?? undefined);
     const userContent = `${body.message}${attachmentContext}${studioContext}${pageDataContext}`;
     const explicitConfirmation = detectExplicitConfirmation(body.message);
+    const taskType = detectJarvisTaskType({
+      message: body.message,
+      intent: decision.intent,
+      pageData: body.page_data ?? undefined,
+    });
+    const actorProfile = resolveJarvisActorProfile({
+      role: userRole,
+      pageData: body.page_data ?? undefined,
+    });
+
+    const buildObservabilityWithTrace = async (params: {
+      durationMs: number;
+      toolsUsed: number;
+      provider: string;
+      model: string;
+      loadedMemoryBlocks: string[];
+      autonomy?: ReturnType<typeof summarizeJarvisToolGovernance>;
+      assistantContent: string;
+      toolResults?: Array<{ toolName: string; data: any; success: boolean; metadata?: any }>;
+      artifacts?: Array<Record<string, any>>;
+    }) => {
+      const [traceKnowledgeBase, traceClientState] = clientId
+        ? await Promise.all([
+            buildClientKnowledgeBase({
+              tenantId,
+              clientId,
+              question: [body.message, body.context_page, body.studio_context].filter(Boolean).join(' '),
+              daysBack: 60,
+              limitDocuments: 4,
+              intent: decision.route === 'operations' ? 'ops' : 'relationship',
+            }).catch(() => null),
+            buildClientState(tenantId, clientId).catch(() => null),
+          ])
+        : [null, null];
+
+      const confidence = assessJarvisConfidence({
+        decision,
+        taskType,
+        actorProfile,
+        explicitConfirmation,
+        knowledgeBase: traceKnowledgeBase,
+        clientState: traceClientState,
+      });
+      const evidenceUsed = buildJarvisTraceEvidence(traceKnowledgeBase);
+      const suppressedFacts = buildJarvisSuppressedFacts(traceKnowledgeBase);
+      const traceId = await recordJarvisDecisionTrace({
+        tenantId,
+        clientId,
+        edroClientId,
+        conversationId: effectiveConversationId,
+        userId,
+        route: decision.route,
+        intent: decision.intent,
+        taskType,
+        actorProfile,
+        confidence,
+        message: body.message,
+        response: params.assistantContent,
+        evidence: evidenceUsed,
+        suppressedFacts,
+        governance: traceKnowledgeBase?.governance || null,
+        toolSummary: (params.toolResults || []).map((item) => ({
+          toolName: item.toolName,
+          success: item.success,
+          confirmation_required: item.metadata?.confirmation_required === true,
+        })),
+        artifacts: params.artifacts || [],
+        metadata: {
+          provider: params.provider,
+          model: params.model,
+          loaded_memory_blocks: params.loadedMemoryBlocks,
+        },
+      }).catch(() => null);
+
+      return buildJarvisObservability(decision, {
+        durationMs: params.durationMs,
+        toolsUsed: params.toolsUsed,
+        provider: params.provider,
+        model: params.model,
+        loadedMemoryBlocks: params.loadedMemoryBlocks,
+        autonomy: params.autonomy,
+        execution: {
+          traceId,
+          taskType,
+          actorProfile,
+          confidence,
+        },
+        memoryAudit: {
+          governancePressure: traceKnowledgeBase?.governance?.governance_pressure || 'low',
+          evidenceUsed,
+          suppressedFacts,
+        },
+      });
+    };
 
     if (decision.route === 'planning' && !clientId) {
       return reply.status(400).send({
@@ -863,12 +967,15 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       ]);
       const responseText = toolResult.data?.message || `Ação ${toolName} executada com sucesso.`;
       const durationMs = Date.now() - startMs;
-      const observability = buildJarvisObservability(decision, {
+      const observability = await buildObservabilityWithTrace({
         durationMs,
         toolsUsed: 1,
         provider: 'jarvis_inline_action',
         model: 'jarvis_tool_confirmation_inline',
         loadedMemoryBlocks: ['Confirmação inline de ferramenta'],
+        assistantContent: responseText,
+        toolResults: [{ toolName, data: toolResult.data ?? null, success: toolResult.success, metadata: toolResult.metadata }],
+        artifacts: inlineArtifacts,
       });
       const savedConversationId = await saveUnifiedConversation({
         route: decision.route,
@@ -979,12 +1086,14 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       }
 
       const durationMs = Date.now() - startMs;
-      const observability = buildJarvisObservability(decision, {
+      const observability = await buildObservabilityWithTrace({
         durationMs,
         toolsUsed: 0,
         provider: resultProvider,
         model: resultModel,
         loadedMemoryBlocks,
+        assistantContent: responseText,
+        artifacts: inlineArtifacts,
       });
       const savedConversationId = await saveUnifiedConversation({
         route: decision.route,
@@ -1085,13 +1194,16 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         artifacts = mapJarvisToolResultsToArtifacts(loopResult.toolResults);
         const loadedMemoryBlocks = memoryBlocks.map((block) => block.label);
         const durationMs = Date.now() - startMs;
-        const observability = buildJarvisObservability(decision, {
+        const observability = await buildObservabilityWithTrace({
           durationMs,
           toolsUsed,
           provider: resultProvider,
           model: resultModel,
           loadedMemoryBlocks,
           autonomy: summarizeJarvisToolGovernance(loopResult.toolResults),
+          assistantContent: finalText,
+          toolResults: loopResult.toolResults,
+          artifacts,
         });
         const savedConversationId = await saveUnifiedConversation({
           route: decision.route,
@@ -1152,12 +1264,14 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             toolsUsed = 0;
 
             const durationMs = Date.now() - startMs;
-            const observability = buildJarvisObservability(decision, {
+            const observability = await buildObservabilityWithTrace({
               durationMs,
               toolsUsed,
               provider: resultProvider,
               model: resultModel,
               loadedMemoryBlocks: ['CCO criativo do Studio', 'Direção de arte', 'Memória do cliente'],
+              assistantContent: finalText,
+              artifacts,
             });
 
             const savedConversationId = await saveUnifiedConversation({
@@ -1391,7 +1505,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         });
 
         const durationMs = Date.now() - startMs;
-        const observability = buildJarvisObservability(decision, {
+        const observability = await buildObservabilityWithTrace({
           durationMs,
           toolsUsed,
           provider: resultProvider,
@@ -1407,6 +1521,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             ...memoryBlocks.map((block) => block.label),
           ],
           autonomy: summarizeJarvisToolGovernance(loopResult.toolResults),
+          assistantContent: finalText,
+          toolResults: loopResult.toolResults,
+          artifacts,
         });
 
         const savedConversationId = await saveUnifiedConversation({
