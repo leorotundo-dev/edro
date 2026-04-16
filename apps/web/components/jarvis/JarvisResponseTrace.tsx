@@ -42,6 +42,7 @@ export type JarvisObservability = {
     traceId?: string | null;
     taskType: string;
     actorProfile: string;
+    style?: string | null;
     confidence: {
       score: number;
       band: 'low' | 'medium' | 'high';
@@ -51,6 +52,20 @@ export type JarvisObservability = {
   };
   memoryAudit?: {
     governancePressure: 'low' | 'medium' | 'high';
+    actionPolicy?: {
+      preferredMode: string | null;
+      preferredStyle: string | null;
+      modeSignals: Array<{
+        mode: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+      styleSignals: Array<{
+        style: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+    };
     retrievalLearning?: {
       taskType: string | null;
       actorProfile: string | null;
@@ -196,6 +211,7 @@ export default function JarvisResponseTrace({ observability }: { observability?:
         {showIntentChip ? <Chip size="small" label={`Intent: ${formatIntent(observability.intent)}`} variant="outlined" /> : null}
         {observability.execution ? <Chip size="small" label={`Tarefa: ${observability.execution.taskType}`} variant="outlined" /> : null}
         {observability.execution ? <Chip size="small" label={`Perfil: ${observability.execution.actorProfile}`} variant="outlined" /> : null}
+        {observability.execution?.style ? <Chip size="small" label={`Estilo: ${observability.execution.style}`} variant="outlined" /> : null}
         {observability.autonomy ? <Chip size="small" label={formatAutonomy(observability.autonomy.highestLevel)} variant="outlined" /> : null}
         {observability.execution ? <Chip size="small" label={`Confiança: ${observability.execution.confidence.band} / ${formatConfidenceMode(observability.execution.confidence.mode)}`} variant="outlined" /> : null}
         {typeof observability.toolsUsed === 'number' ? <Chip size="small" label={`Tools: ${observability.toolsUsed}`} variant="outlined" /> : null}
@@ -242,6 +258,22 @@ export default function JarvisResponseTrace({ observability }: { observability?:
           {observability.memoryAudit.suppressedFacts.slice(0, 2).map((item) => (
             <Typography key={`${item.fingerprint || item.title}-${item.source_type || 'src'}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
               {formatEvidenceLine(item)}
+            </Typography>
+          ))}
+        </Box>
+      ) : null}
+      {observability.memoryAudit?.actionPolicy?.modeSignals?.length ? (
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Política de ação
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+            Preferido: {observability.memoryAudit.actionPolicy.preferredMode || 'n/a'}
+            {observability.memoryAudit.actionPolicy.preferredStyle ? ` / estilo ${observability.memoryAudit.actionPolicy.preferredStyle}` : ''}
+          </Typography>
+          {observability.memoryAudit.actionPolicy.modeSignals.slice(0, 2).map((item) => (
+            <Typography key={`mode-${item.mode}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              modo {item.mode} — ganho {Number(item.learning_score).toFixed(2)} em {item.sample_count} casos
             </Typography>
           ))}
         </Box>

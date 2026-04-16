@@ -34,6 +34,25 @@ export type JarvisConfidenceAssessment = {
   reasons: string[];
 };
 
+export type JarvisActionPolicyLearning = {
+  task_type: string | null;
+  actor_profile: string | null;
+  preferred_mode: JarvisConfidenceMode | null;
+  preferred_style: JarvisExecutionPolicy['style'] | null;
+  mode_signals: Array<{
+    mode: JarvisConfidenceMode;
+    sample_count: number;
+    learning_score: number;
+    avg_outcome_score: number;
+  }>;
+  style_signals: Array<{
+    style: JarvisExecutionPolicy['style'];
+    sample_count: number;
+    learning_score: number;
+    avg_outcome_score: number;
+  }>;
+};
+
 export type JarvisExecutionPolicy = {
   actorProfile: JarvisActorProfile;
   taskType: JarvisTaskType;
@@ -118,12 +137,14 @@ export function assessJarvisConfidence(params: {
   actorProfile: JarvisActorProfile;
   explicitConfirmation?: boolean;
   knowledgeBase?: Pick<ClientKnowledgeBaseSnapshot, 'evidence' | 'directives' | 'commitments' | 'recent_documents' | 'governance' | 'copy_quality_scorecard' | 'retrieval_learning'> | null;
+  actionPolicy?: JarvisActionPolicyLearning | null;
   clientState?: Pick<JarvisClientState, 'open_alerts' | 'awareness'> | null;
 }): JarvisConfidenceAssessment {
   let score = params.decision.route === 'operations' ? 0.62 : 0.58;
   const reasons: string[] = [];
   const governance = params.knowledgeBase?.governance;
   const retrievalLearning = params.knowledgeBase?.retrieval_learning;
+  const actionPolicy = params.actionPolicy;
   const state = params.clientState;
 
   const evidenceCount = Number(params.knowledgeBase?.evidence?.length || 0);
@@ -156,6 +177,16 @@ export function assessJarvisConfidence(params: {
     const topPenalty = Math.abs(Number(retrievalLearning?.penalized_facts?.[0]?.learning_score || 0));
     score -= Math.min(0.1, Math.max(0.03, topPenalty * 0.05));
     reasons.push(`Retrieval com sinais de ruído (${retrievalLearning?.penalized_facts?.length})`);
+  }
+  if (actionPolicy?.preferred_mode && (actionPolicy.mode_signals?.[0]?.sample_count || 0) >= 2) {
+    const preferredModeSignal = Number(actionPolicy.mode_signals[0]?.learning_score || 0);
+    if (preferredModeSignal > 0.35) {
+      score += Math.min(0.06, preferredModeSignal * 0.04);
+      reasons.push(`Política favorece modo ${actionPolicy.preferred_mode}`);
+    } else if (preferredModeSignal < -0.25) {
+      score -= Math.min(0.06, Math.abs(preferredModeSignal) * 0.04);
+      reasons.push(`Política recente penaliza modo ${actionPolicy.preferred_mode}`);
+    }
   }
 
   if (governance?.governance_pressure === 'high') {
@@ -210,6 +241,22 @@ export function assessJarvisConfidence(params: {
     mode = 'escalate';
   }
 
+  if (!params.explicitConfirmation && actionPolicy?.preferred_mode && (actionPolicy.mode_signals?.[0]?.sample_count || 0) >= 2) {
+    const preferredModeSignal = Number(actionPolicy.mode_signals[0]?.learning_score || 0);
+    if (preferredModeSignal > 0.45) {
+      if (actionPolicy.preferred_mode === 'act' && band !== 'low' && !['system_repair', 'scheduling'].includes(params.taskType)) {
+        mode = 'act';
+        reasons.push('Política histórica deslocou a decisão para act');
+      } else if (actionPolicy.preferred_mode === 'confirm' && mode === 'respond') {
+        mode = 'confirm';
+        reasons.push('Política histórica deslocou a decisão para confirm');
+      } else if (actionPolicy.preferred_mode === 'escalate' && band !== 'high') {
+        mode = 'escalate';
+        reasons.push('Política histórica deslocou a decisão para escalate');
+      }
+    }
+  }
+
   if (!reasons.length) reasons.push('Pouca evidência diferenciadora; fallback para modo conservador');
 
   return { score: Number(score.toFixed(3)), band, mode, reasons: reasons.slice(0, 6) };
@@ -220,8 +267,9 @@ export function buildJarvisExecutionPolicy(params: {
   taskType: JarvisTaskType;
   actorProfile: JarvisActorProfile;
   confidence: JarvisConfidenceAssessment;
+  actionPolicy?: JarvisActionPolicyLearning | null;
 }): JarvisExecutionPolicy {
-  const style: JarvisExecutionPolicy['style'] = (() => {
+  const defaultStyle: JarvisExecutionPolicy['style'] = (() => {
     switch (params.actorProfile) {
       case 'founder':
         return 'executive';
@@ -238,6 +286,11 @@ export function buildJarvisExecutionPolicy(params: {
         return 'general';
     }
   })();
+  const style = params.actionPolicy?.preferred_style
+    && (params.actionPolicy.style_signals?.[0]?.sample_count || 0) >= 2
+    && Number(params.actionPolicy.style_signals[0]?.learning_score || 0) > 0.25
+    ? params.actionPolicy.preferred_style
+    : defaultStyle;
 
   const requiresExplicitConfirmation =
     params.confidence.mode === 'confirm'

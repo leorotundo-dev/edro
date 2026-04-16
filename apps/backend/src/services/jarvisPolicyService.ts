@@ -100,6 +100,7 @@ export type JarvisObservability = {
     traceId?: string | null;
     taskType: string;
     actorProfile: string;
+    style?: string | null;
     confidence: {
       score: number;
       band: 'low' | 'medium' | 'high';
@@ -109,6 +110,20 @@ export type JarvisObservability = {
   };
   memoryAudit?: {
     governancePressure: 'low' | 'medium' | 'high';
+    actionPolicy?: {
+      preferredMode: string | null;
+      preferredStyle: string | null;
+      modeSignals: Array<{
+        mode: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+      styleSignals: Array<{
+        style: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+    };
     retrievalLearning?: {
       taskType: string | null;
       actorProfile: string | null;

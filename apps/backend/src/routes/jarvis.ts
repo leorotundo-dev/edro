@@ -55,7 +55,7 @@ import {
   buildJarvisTraceEvidence,
   recordJarvisDecisionTrace,
 } from '../services/jarvisTraceService';
-import { recordJarvisOutcomes } from '../services/jarvisOutcomeService';
+import { getJarvisActionPolicySignals, recordJarvisOutcomes } from '../services/jarvisOutcomeService';
 import { syncWorkflowBackgroundCancelled, syncWorkflowBackgroundCancelRequested } from '../services/jarvisBackgroundHealthService';
 import crypto from 'crypto';
 
@@ -847,7 +847,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       pageData: body.page_data ?? undefined,
     });
     const executionContextPromise = (async () => {
-      const [knowledgeBase, clientState] = clientId
+      const [knowledgeBase, clientState, actionPolicy] = clientId
         ? await Promise.all([
             buildClientKnowledgeBase({
               tenantId,
@@ -860,14 +860,21 @@ export default async function jarvisRoutes(app: FastifyInstance) {
               actorProfile,
             }).catch(() => null),
             buildClientState(tenantId, clientId).catch(() => null),
+            getJarvisActionPolicySignals({
+              tenantId,
+              clientId,
+              taskType,
+              actorProfile,
+            }).catch(() => null),
           ])
-        : [null, null];
+        : [null, null, null];
       const confidence = assessJarvisConfidence({
         decision,
         taskType,
         actorProfile,
         explicitConfirmation,
         knowledgeBase,
+        actionPolicy,
         clientState,
       });
       const policy = buildJarvisExecutionPolicy({
@@ -875,8 +882,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         taskType,
         actorProfile,
         confidence,
+        actionPolicy,
       });
-      return { knowledgeBase, clientState, confidence, policy };
+      return { knowledgeBase, clientState, actionPolicy, confidence, policy };
     })();
 
     const buildObservabilityWithTrace = async (params: {
@@ -919,6 +927,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           provider: params.provider,
           model: params.model,
           loaded_memory_blocks: params.loadedMemoryBlocks,
+          policy_style: executionContext.policy.style,
         },
       }).catch(() => null);
       if (clientId) {
@@ -957,10 +966,27 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           traceId,
           taskType,
           actorProfile,
+          style: executionContext.policy.style,
           confidence: executionContext.confidence,
         },
         memoryAudit: {
           governancePressure: executionContext.knowledgeBase?.governance?.governance_pressure || 'low',
+          actionPolicy: executionContext.actionPolicy
+            ? {
+                preferredMode: executionContext.actionPolicy.preferred_mode,
+                preferredStyle: executionContext.actionPolicy.preferred_style,
+                modeSignals: executionContext.actionPolicy.mode_signals.slice(0, 3).map((item) => ({
+                  mode: item.mode,
+                  learning_score: item.learning_score,
+                  sample_count: item.sample_count,
+                })),
+                styleSignals: executionContext.actionPolicy.style_signals.slice(0, 3).map((item) => ({
+                  style: item.style,
+                  learning_score: item.learning_score,
+                  sample_count: item.sample_count,
+                })),
+              }
+            : undefined,
           retrievalLearning: executionContext.knowledgeBase?.retrieval_learning
             ? {
                 taskType: executionContext.knowledgeBase.retrieval_learning.task_type,

@@ -293,3 +293,119 @@ export async function listJarvisRetrievalSignals(params: {
     avg_outcome_score: Number(row.avg_outcome_score || 0),
   }));
 }
+
+export async function getJarvisActionPolicySignals(params: {
+  tenantId: string;
+  clientId: string;
+  taskType?: string | null;
+  actorProfile?: string | null;
+  daysBack?: number;
+}) {
+  const taskType = String(params.taskType || '').trim();
+  const actorProfile = String(params.actorProfile || '').trim();
+  const { rows } = await query<{
+    confidence_mode: string;
+    policy_style: string;
+    sample_count: number | string;
+    learning_score: number | string | null;
+    avg_outcome_score: number | string | null;
+  }>(
+    `WITH trace_scores AS (
+       SELECT
+         jdt.confidence_mode,
+         COALESCE(NULLIF(jdt.metadata->>'policy_style', ''), 'general') AS policy_style,
+         COALESCE(outcomes.outcome_score,
+           CASE jdt.confidence_mode
+             WHEN 'act' THEN 0.25
+             WHEN 'respond' THEN 0.1
+             WHEN 'confirm' THEN 0.02
+             WHEN 'escalate' THEN -0.12
+             ELSE 0
+           END
+         ) AS outcome_score
+       FROM jarvis_decision_traces jdt
+       LEFT JOIN LATERAL (
+         SELECT AVG(
+           CASE oom.status
+             WHEN 'completed' THEN 1.0
+             WHEN 'pending' THEN 0.2
+             WHEN 'failed' THEN -0.9
+             WHEN 'cancelled' THEN -0.55
+             ELSE 0
+           END
+         )::numeric AS outcome_score
+         FROM jarvis_outcome_memory oom
+         WHERE oom.trace_id = jdt.id
+       ) outcomes ON TRUE
+       WHERE jdt.tenant_id = $1
+         AND jdt.client_id = $2
+         AND jdt.created_at > NOW() - make_interval(days => $5)
+         AND ($3 = '' OR jdt.task_type = $3)
+         AND ($4 = '' OR jdt.actor_profile = $4)
+     )
+     SELECT
+       confidence_mode,
+       policy_style,
+       COUNT(*)::int AS sample_count,
+       ROUND(SUM(outcome_score)::numeric, 3) AS learning_score,
+       ROUND(AVG(outcome_score)::numeric, 3) AS avg_outcome_score
+     FROM trace_scores
+     GROUP BY confidence_mode, policy_style
+     ORDER BY learning_score DESC, sample_count DESC`,
+    [
+      params.tenantId,
+      params.clientId,
+      taskType,
+      actorProfile,
+      Math.min(params.daysBack ?? 120, 180),
+    ],
+  ).catch(() => ({ rows: [] }));
+
+  const modes = rows
+    .map((row) => ({
+      mode: row.confidence_mode as 'respond' | 'act' | 'confirm' | 'escalate',
+      sample_count: Number(row.sample_count || 0),
+      learning_score: Number(row.learning_score || 0),
+      avg_outcome_score: Number(row.avg_outcome_score || 0),
+    }))
+    .reduce((acc, row) => {
+      const current = acc.get(row.mode) || { mode: row.mode, sample_count: 0, learning_score: 0, avg_outcome_score: 0 };
+      current.sample_count += row.sample_count;
+      current.learning_score += row.learning_score;
+      current.avg_outcome_score = current.sample_count
+        ? Number((((current.avg_outcome_score * Math.max(current.sample_count - row.sample_count, 0)) + (row.avg_outcome_score * row.sample_count)) / current.sample_count).toFixed(3))
+        : row.avg_outcome_score;
+      acc.set(row.mode, current);
+      return acc;
+    }, new Map<string, { mode: 'respond' | 'act' | 'confirm' | 'escalate'; sample_count: number; learning_score: number; avg_outcome_score: number }>());
+
+  const styles = rows
+    .map((row) => ({
+      style: row.policy_style as 'executive' | 'operational' | 'commercial' | 'social' | 'service' | 'general',
+      sample_count: Number(row.sample_count || 0),
+      learning_score: Number(row.learning_score || 0),
+      avg_outcome_score: Number(row.avg_outcome_score || 0),
+    }))
+    .reduce((acc, row) => {
+      const current = acc.get(row.style) || { style: row.style, sample_count: 0, learning_score: 0, avg_outcome_score: 0 };
+      current.sample_count += row.sample_count;
+      current.learning_score += row.learning_score;
+      current.avg_outcome_score = current.sample_count
+        ? Number((((current.avg_outcome_score * Math.max(current.sample_count - row.sample_count, 0)) + (row.avg_outcome_score * row.sample_count)) / current.sample_count).toFixed(3))
+        : row.avg_outcome_score;
+      acc.set(row.style, current);
+      return acc;
+    }, new Map<string, { style: 'executive' | 'operational' | 'commercial' | 'social' | 'service' | 'general'; sample_count: number; learning_score: number; avg_outcome_score: number }>());
+
+  const modeList = [...modes.values()].sort((a, b) => b.learning_score - a.learning_score || b.sample_count - a.sample_count);
+  const styleList = [...styles.values()].sort((a, b) => b.learning_score - a.learning_score || b.sample_count - a.sample_count);
+
+  return {
+    task_type: taskType || null,
+    actor_profile: actorProfile || null,
+    preferred_mode: modeList[0]?.mode || null,
+    preferred_style: styleList[0]?.style || null,
+    mode_signals: modeList,
+    style_signals: styleList,
+  };
+}
