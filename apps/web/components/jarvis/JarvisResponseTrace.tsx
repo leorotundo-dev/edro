@@ -51,8 +51,26 @@ export type JarvisObservability = {
   };
   memoryAudit?: {
     governancePressure: 'low' | 'medium' | 'high';
-    evidenceUsed: Array<{ title: string; source_type: string | null; related_at: string | null }>;
-    suppressedFacts: Array<{ title: string; source_type: string | null; related_at: string | null }>;
+    evidenceUsed: Array<{
+      fact_type: string | null;
+      fingerprint: string | null;
+      title: string;
+      summary: string | null;
+      source_type: string | null;
+      source_id: string | null;
+      related_at: string | null;
+      confidence_score: number | null;
+    }>;
+    suppressedFacts: Array<{
+      fact_type: string | null;
+      fingerprint: string | null;
+      title: string;
+      summary: string | null;
+      source_type: string | null;
+      source_id: string | null;
+      related_at: string | null;
+      confidence_score: number | null;
+    }>;
   };
   simulation?: {
     avgOverall: number | null;
@@ -110,6 +128,30 @@ function formatConfidenceMode(mode?: 'respond' | 'act' | 'confirm' | 'escalate')
   }
 }
 
+function shortFingerprint(value?: string | null) {
+  const normalized = String(value || '').trim();
+  return normalized ? normalized.slice(0, 8) : null;
+}
+
+function formatEvidenceLine(item: {
+  fact_type: string | null;
+  fingerprint: string | null;
+  title: string;
+  summary: string | null;
+  source_type: string | null;
+  related_at: string | null;
+  confidence_score: number | null;
+}) {
+  const parts = [
+    item.fact_type ? `[${item.fact_type}]` : null,
+    item.title,
+    item.source_type ? `fonte ${item.source_type}` : null,
+    shortFingerprint(item.fingerprint) ? `fp ${shortFingerprint(item.fingerprint)}` : null,
+    item.confidence_score != null ? `score ${Number(item.confidence_score).toFixed(1)}` : null,
+  ].filter(Boolean);
+  return `${parts.join(' | ')}${item.summary ? ` — ${item.summary}` : ''}`;
+}
+
 export default function JarvisResponseTrace({ observability }: { observability?: JarvisObservability | null }) {
   if (!observability) return null;
 
@@ -146,6 +188,11 @@ export default function JarvisResponseTrace({ observability }: { observability?:
         {observability.retrievalBudget.contextBlocks ? <Chip size="small" label={`Blocos: ${observability.retrievalBudget.contextBlocks}`} variant="outlined" /> : null}
         {formatDuration(observability.durationMs) ? <Chip size="small" label={`Tempo: ${formatDuration(observability.durationMs)}`} variant="outlined" /> : null}
       </Box>
+      {observability.execution?.traceId ? (
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+          Trace: {observability.execution.traceId}
+        </Typography>
+      ) : null}
       {visibleSecondaryLabels.length ? (
         <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary' }}>
           Apoios: {visibleSecondaryLabels.join(' + ')}
@@ -162,14 +209,28 @@ export default function JarvisResponseTrace({ observability }: { observability?:
         </Typography>
       ) : null}
       {observability.memoryAudit?.evidenceUsed?.length ? (
-        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
-          Evidências: {observability.memoryAudit.evidenceUsed.slice(0, 3).map((item) => item.title).join(' | ')}
-        </Typography>
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Evidências usadas
+          </Typography>
+          {observability.memoryAudit.evidenceUsed.slice(0, 3).map((item) => (
+            <Typography key={`${item.fingerprint || item.title}-${item.source_type || 'src'}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              {formatEvidenceLine(item)}
+            </Typography>
+          ))}
+        </Box>
       ) : null}
       {observability.memoryAudit?.suppressedFacts?.length ? (
-        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
-          Suprimido: {observability.memoryAudit.suppressedFacts.slice(0, 2).map((item) => item.title).join(' | ')}
-        </Typography>
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Fatos suprimidos
+          </Typography>
+          {observability.memoryAudit.suppressedFacts.slice(0, 2).map((item) => (
+            <Typography key={`${item.fingerprint || item.title}-${item.source_type || 'src'}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              {formatEvidenceLine(item)}
+            </Typography>
+          ))}
+        </Box>
       ) : null}
       {observability.simulation?.avgOverall != null ? (
         <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>

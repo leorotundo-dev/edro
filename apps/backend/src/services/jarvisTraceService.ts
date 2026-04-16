@@ -3,27 +3,77 @@ import type { ClientKnowledgeBaseSnapshot } from './clientKnowledgeBaseService';
 import type { JarvisConfidenceAssessment } from './jarvisExecutionService';
 
 export type JarvisTracePreviewItem = {
+  fact_type: string | null;
+  fingerprint: string | null;
   title: string;
+  summary: string | null;
   source_type: string | null;
+  source_id: string | null;
   related_at: string | null;
+  confidence_score: number | null;
 };
 
 export function buildJarvisTraceEvidence(snapshot?: ClientKnowledgeBaseSnapshot | null): JarvisTracePreviewItem[] {
   if (!snapshot) return [];
   return [
-    ...(snapshot.directives || []).slice(0, 2).map((item) => ({ title: item.title, source_type: item.source_type, related_at: item.related_at })),
-    ...(snapshot.commitments || []).slice(0, 2).map((item) => ({ title: item.title, source_type: item.source_type, related_at: item.related_at })),
-    ...(snapshot.evidence || []).slice(0, 3).map((item) => ({ title: item.title, source_type: item.source_type, related_at: item.related_at })),
+    ...(snapshot.directives || []).slice(0, 2).map((item) => ({
+      fact_type: item.fact_type,
+      fingerprint: item.fingerprint,
+      title: item.title,
+      summary: item.summary || item.fact_text || null,
+      source_type: item.source_type,
+      source_id: item.source_id,
+      related_at: item.related_at,
+      confidence_score: Number(item.confidence_score ?? 0),
+    })),
+    ...(snapshot.commitments || []).slice(0, 2).map((item) => ({
+      fact_type: item.fact_type,
+      fingerprint: item.fingerprint,
+      title: item.title,
+      summary: item.summary || item.fact_text || null,
+      source_type: item.source_type,
+      source_id: item.source_id,
+      related_at: item.related_at,
+      confidence_score: Number(item.confidence_score ?? 0),
+    })),
+    ...(snapshot.evidence || []).slice(0, 3).map((item) => ({
+      fact_type: item.fact_type,
+      fingerprint: item.fingerprint,
+      title: item.title,
+      summary: item.summary || item.fact_text || null,
+      source_type: item.source_type,
+      source_id: item.source_id,
+      related_at: item.related_at,
+      confidence_score: Number(item.confidence_score ?? 0),
+    })),
   ].filter((item) => item.title);
 }
 
 export function buildJarvisSuppressedFacts(snapshot?: ClientKnowledgeBaseSnapshot | null) {
   if (!snapshot?.governance?.suppressed_facts) return [];
+  const previews = (snapshot.governance.suppressed_fact_previews || []).slice(0, 3);
+  if (previews.length) {
+    return previews.map((item) => ({
+      fact_type: item.fact_type,
+      fingerprint: item.fingerprint,
+      title: item.title,
+      summary: item.summary || item.fact_text || null,
+      source_type: item.source_type,
+      source_id: item.source_id,
+      related_at: item.related_at,
+      confidence_score: Number(item.confidence_score ?? 0),
+    }));
+  }
   return [
     {
+      fact_type: 'governance',
+      fingerprint: null,
       title: `${snapshot.governance.suppressed_facts} fatos suprimidos por governança`,
+      summary: 'Fatos atenuados para evitar conflito, staleness ou deriva operacional.',
       source_type: 'memory_governance',
+      source_id: null,
       related_at: snapshot.generated_at,
+      confidence_score: null,
     },
   ];
 }

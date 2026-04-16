@@ -7,6 +7,8 @@ import { buildClientCopyQualityScorecard, type ClientCopyQualityScorecard } from
 import { listRecentJarvisOutcomes } from './jarvisOutcomeService';
 
 type KnowledgeBaseFact = {
+  fact_type: 'directive' | 'commitment' | 'evidence';
+  fingerprint: string | null;
   title: string;
   summary: string | null;
   fact_text: string;
@@ -87,6 +89,7 @@ export type ClientKnowledgeBaseSnapshot = {
     archive_candidates: number;
     replace_candidates: number;
     suppressed_facts: number;
+    suppressed_fact_previews: KnowledgeBaseFact[];
   };
   copy_quality_scorecard: ClientCopyQualityScorecard | null;
   copy_policy: ClientCopyPolicy;
@@ -185,6 +188,8 @@ function summarizeInsight(summary: Record<string, any> | null) {
 
 function toFact(item: any): KnowledgeBaseFact {
   return {
+    fact_type: item.fact_type === 'directive' || item.fact_type === 'commitment' ? item.fact_type : 'evidence',
+    fingerprint: item.fingerprint || null,
     title: String(item.title || ''),
     summary: item.summary || null,
     fact_text: String(item.fact_text || ''),
@@ -587,6 +592,12 @@ export async function buildClientKnowledgeBase(params: {
   );
 
   const activeFactRows = factRows.filter((item) => !suppressedFingerprints.has(String(item.fingerprint || '')));
+  const suppressedFactPreviews = sortFacts(
+    intent,
+    factRows
+      .filter((item) => suppressedFingerprints.has(String(item.fingerprint || '')))
+      .map(toFact),
+  );
   const directives = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'directive').map(toFact));
   const commitments = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'commitment').map(toFact));
   const evidence = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'evidence').map(toFact));
@@ -658,6 +669,7 @@ export async function buildClientKnowledgeBase(params: {
       archive_candidates: governance.summary.archive_candidates,
       replace_candidates: governance.summary.replace_candidates,
       suppressed_facts: suppressedFingerprints.size,
+      suppressed_fact_previews: suppressedFactPreviews,
     },
     scorecard: copyQualityScorecard,
     taskContext: {
@@ -704,6 +716,7 @@ export async function buildClientKnowledgeBase(params: {
       archive_candidates: governance.summary.archive_candidates,
       replace_candidates: governance.summary.replace_candidates,
       suppressed_facts: suppressedFingerprints.size,
+      suppressed_fact_previews: suppressedFactPreviews,
     },
     copy_quality_scorecard: copyQualityScorecard,
     copy_policy: copyPolicy,
@@ -738,6 +751,7 @@ export async function buildClientKnowledgeBase(params: {
         archive_candidates: governance.summary.archive_candidates,
         replace_candidates: governance.summary.replace_candidates,
         suppressed_facts: suppressedFingerprints.size,
+        suppressed_fact_previews: suppressedFactPreviews,
       },
       copyPolicyBlock,
       copyQualitySummary: copyQualityScorecard?.summary || null,

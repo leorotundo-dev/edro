@@ -109,8 +109,26 @@ export type JarvisObservability = {
   };
   memoryAudit?: {
     governancePressure: 'low' | 'medium' | 'high';
-    evidenceUsed: Array<{ title: string; source_type: string | null; related_at: string | null }>;
-    suppressedFacts: Array<{ title: string; source_type: string | null; related_at: string | null }>;
+    evidenceUsed: Array<{
+      fact_type: string | null;
+      fingerprint: string | null;
+      title: string;
+      summary: string | null;
+      source_type: string | null;
+      source_id: string | null;
+      related_at: string | null;
+      confidence_score: number | null;
+    }>;
+    suppressedFacts: Array<{
+      fact_type: string | null;
+      fingerprint: string | null;
+      title: string;
+      summary: string | null;
+      source_type: string | null;
+      source_id: string | null;
+      related_at: string | null;
+      confidence_score: number | null;
+    }>;
   };
   simulation?: {
     avgOverall: number | null;
