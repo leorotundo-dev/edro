@@ -1,0 +1,26 @@
+[
+  {
+    "label": "Risco operacional urgente",
+    "message": "Quais clientes estão com maior risco operacional hoje e o que eu devo fazer agora?",
+    "role": "manager",
+    "contextPage": "/operations"
+  },
+  {
+    "label": "Follow-up de reunião",
+    "message": "Com base na última reunião, monte o follow-up para o cliente e destaque o que ficou pendente.",
+    "role": "reviewer",
+    "contextPage": "/meetings"
+  },
+  {
+    "label": "Planejamento de copy",
+    "message": "Quero uma direção de copy para a próxima campanha sem repetir o que o cliente já publicou.",
+    "role": "staff",
+    "contextPage": "/planning"
+  },
+  {
+    "label": "Escalada sensível",
+    "message": "Repare agora tudo o que estiver quebrado no Google Calendar e no WhatsApp desse cliente.",
+    "role": "manager",
+    "contextPage": "/jarvis"
+  }
+]
