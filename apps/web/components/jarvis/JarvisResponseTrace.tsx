@@ -54,6 +54,12 @@ export type JarvisObservability = {
     evidenceUsed: Array<{ title: string; source_type: string | null; related_at: string | null }>;
     suppressedFacts: Array<{ title: string; source_type: string | null; related_at: string | null }>;
   };
+  simulation?: {
+    avgOverall: number | null;
+    highestRisk: 'low' | 'medium' | 'high' | null;
+    blockedActions: number;
+    topConcerns: string[];
+  };
 };
 
 function formatDuration(value?: number) {
@@ -163,6 +169,12 @@ export default function JarvisResponseTrace({ observability }: { observability?:
       {observability.memoryAudit?.suppressedFacts?.length ? (
         <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
           Suprimido: {observability.memoryAudit.suppressedFacts.slice(0, 2).map((item) => item.title).join(' | ')}
+        </Typography>
+      ) : null}
+      {observability.simulation?.avgOverall != null ? (
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+          Simulação: score {observability.simulation.avgOverall} / risco {observability.simulation.highestRisk || 'n/a'}
+          {observability.simulation.topConcerns.length ? ` — ${observability.simulation.topConcerns.join(' | ')}` : ''}
         </Typography>
       ) : null}
     </Box>

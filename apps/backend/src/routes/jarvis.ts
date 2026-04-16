@@ -918,6 +918,20 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           loaded_memory_blocks: params.loadedMemoryBlocks,
         },
       }).catch(() => null);
+      const simulations = (params.toolResults || [])
+        .map((item) => item.metadata?.simulation)
+        .filter((item): item is { pass: boolean; overall: number; risk: 'low' | 'medium' | 'high'; concerns: string[] } => Boolean(item));
+      const avgOverall = simulations.length
+        ? Number((simulations.reduce((sum, item) => sum + Number(item.overall || 0), 0) / simulations.length).toFixed(1))
+        : null;
+      const highestRisk = simulations.some((item) => item.risk === 'high')
+        ? 'high'
+        : simulations.some((item) => item.risk === 'medium')
+          ? 'medium'
+          : simulations.some((item) => item.risk === 'low')
+            ? 'low'
+            : null;
+      const topConcerns = Array.from(new Set(simulations.flatMap((item) => item.concerns || []))).slice(0, 3);
 
       return buildJarvisObservability(decision, {
         durationMs: params.durationMs,
@@ -936,6 +950,12 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           governancePressure: executionContext.knowledgeBase?.governance?.governance_pressure || 'low',
           evidenceUsed,
           suppressedFacts,
+        },
+        simulation: {
+          avgOverall,
+          highestRisk,
+          blockedActions: simulations.filter((item) => item.pass === false).length,
+          topConcerns,
         },
       });
     };

@@ -57,6 +57,7 @@ import { sendWhatsAppText } from '../whatsappService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
 import { buildJarvisActionGate, type JarvisConfidenceAssessment } from '../jarvisExecutionService';
+import { simulateJarvisAction } from '../jarvisSimulationService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
 import { buildClientKnowledgeBase } from '../clientKnowledgeBaseService';
 import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFactsService';
@@ -756,6 +757,21 @@ export async function executeTool(
         : null,
     });
     if (!actionGate.allow) {
+      const simulation = simulateJarvisAction({
+        toolName,
+        category: governance.policy?.category,
+        explicitConfirmation: ctx.explicitConfirmation === true || effectiveArgs.confirmed === true,
+        executionPolicy: ctx.jarvisExecution
+          ? {
+              actorProfile: ctx.jarvisExecution.actorProfile as any,
+              taskType: ctx.jarvisExecution.taskType as any,
+              confidence: ctx.jarvisExecution.confidence,
+              style: 'general',
+              requiresExplicitConfirmation: ctx.jarvisExecution.confidence.mode !== 'act',
+              shouldPreferShortAnswer: false,
+            }
+          : null,
+      });
       return {
         success: false,
         error: actionGate.reason || `Execução bloqueada para ${toolName}.`,
@@ -763,6 +779,34 @@ export async function executeTool(
           ...access.metadata,
           governance: governance.policy,
           confirmation_required: actionGate.requiresConfirmation,
+          simulation,
+        },
+      };
+    }
+    const simulation = simulateJarvisAction({
+      toolName,
+      category: governance.policy?.category,
+      explicitConfirmation: ctx.explicitConfirmation === true || effectiveArgs.confirmed === true,
+      executionPolicy: ctx.jarvisExecution
+        ? {
+            actorProfile: ctx.jarvisExecution.actorProfile as any,
+            taskType: ctx.jarvisExecution.taskType as any,
+            confidence: ctx.jarvisExecution.confidence,
+            style: 'general',
+            requiresExplicitConfirmation: ctx.jarvisExecution.confidence.mode !== 'act',
+            shouldPreferShortAnswer: false,
+          }
+        : null,
+    });
+    if (!simulation.pass) {
+      return {
+        success: false,
+        error: simulation.recommendation,
+        metadata: {
+          ...access.metadata,
+          governance: governance.policy,
+          confirmation_required: true,
+          simulation,
         },
       };
     }
@@ -775,7 +819,7 @@ export async function executeTool(
     ]);
     return truncateResult({
       ...result,
-      metadata: { ...(result.metadata || {}), ...(access.metadata || {}), governance: governance.policy },
+      metadata: { ...(result.metadata || {}), ...(access.metadata || {}), governance: governance.policy, simulation },
     });
   } catch (err: any) {
     console.error(`[toolExecutor] ${toolName} failed:`, err.message);

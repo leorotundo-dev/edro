@@ -112,6 +112,12 @@ export type JarvisObservability = {
     evidenceUsed: Array<{ title: string; source_type: string | null; related_at: string | null }>;
     suppressedFacts: Array<{ title: string; source_type: string | null; related_at: string | null }>;
   };
+  simulation?: {
+    avgOverall: number | null;
+    highestRisk: 'low' | 'medium' | 'high' | null;
+    blockedActions: number;
+    topConcerns: string[];
+  };
 };
 
 type ToolPolicyDraft = Omit<JarvisToolGovernance, 'confirmed' | 'executed'>;
@@ -1003,7 +1009,7 @@ export function describeJarvisIntent(intent: JarvisIntent): string {
 
 export function buildJarvisObservability(
   decision: JarvisRoutingDecision,
-  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model' | 'loadedMemoryBlocks' | 'autonomy' | 'execution' | 'memoryAudit'>> = {},
+  extras: Partial<Pick<JarvisObservability, 'durationMs' | 'toolsUsed' | 'provider' | 'model' | 'loadedMemoryBlocks' | 'autonomy' | 'execution' | 'memoryAudit' | 'simulation'>> = {},
 ): JarvisObservability {
   return {
     intent: decision.intent,
@@ -1023,6 +1029,7 @@ export function buildJarvisObservability(
     autonomy: extras.autonomy,
     execution: extras.execution,
     memoryAudit: extras.memoryAudit,
+    simulation: extras.simulation,
   };
 }
 
