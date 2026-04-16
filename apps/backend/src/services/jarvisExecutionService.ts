@@ -43,6 +43,12 @@ export type JarvisExecutionPolicy = {
   shouldPreferShortAnswer: boolean;
 };
 
+export type JarvisActionGateDecision = {
+  allow: boolean;
+  requiresConfirmation: boolean;
+  reason: string | null;
+};
+
 function clamp(value: number, min = 0, max = 1) {
   return Math.max(min, Math.min(max, value));
 }
@@ -257,4 +263,46 @@ export function buildJarvisExecutionPromptBlock(policy: JarvisExecutionPolicy) {
   }
 
   return parts.join('\n');
+}
+
+export function buildJarvisActionGate(params: {
+  toolName: string;
+  category?: string | null;
+  explicitConfirmation?: boolean;
+  executionPolicy?: JarvisExecutionPolicy | null;
+}) {
+  if (!params.executionPolicy || params.explicitConfirmation) {
+    return { allow: true, requiresConfirmation: false, reason: null } satisfies JarvisActionGateDecision;
+  }
+
+  const category = String(params.category || 'read');
+  if (category === 'read') {
+    return { allow: true, requiresConfirmation: false, reason: null } satisfies JarvisActionGateDecision;
+  }
+
+  if (params.executionPolicy.confidence.mode === 'act') {
+    return { allow: true, requiresConfirmation: false, reason: null } satisfies JarvisActionGateDecision;
+  }
+
+  if (params.executionPolicy.confidence.mode === 'confirm') {
+    return {
+      allow: false,
+      requiresConfirmation: true,
+      reason: `Confiança ${params.executionPolicy.confidence.band}: ${params.toolName} precisa confirmação humana antes de agir.`,
+    } satisfies JarvisActionGateDecision;
+  }
+
+  if (params.executionPolicy.confidence.mode === 'escalate') {
+    return {
+      allow: false,
+      requiresConfirmation: false,
+      reason: `Confiança ${params.executionPolicy.confidence.band}: ${params.toolName} foi bloqueado e precisa escalada humana.`,
+    } satisfies JarvisActionGateDecision;
+  }
+
+  return {
+    allow: false,
+    requiresConfirmation: false,
+    reason: `Modo ${params.executionPolicy.confidence.mode}: ${params.toolName} não deve executar ação real neste contexto.`,
+  } satisfies JarvisActionGateDecision;
 }

@@ -56,6 +56,7 @@ import { sendEmail } from '../emailService';
 import { sendWhatsAppText } from '../whatsappService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
+import { buildJarvisActionGate, type JarvisConfidenceAssessment } from '../jarvisExecutionService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
 import { buildClientKnowledgeBase } from '../clientKnowledgeBaseService';
 import { listClientMemoryFacts, recordClientMemoryFact } from '../clientMemoryFactsService';
@@ -94,6 +95,11 @@ export type ToolContext = {
   conversationId?: string | null;
   conversationRoute?: 'planning' | 'operations';
   pageData?: Record<string, unknown> | null;
+  jarvisExecution?: {
+    taskType: string;
+    actorProfile: string;
+    confidence: JarvisConfidenceAssessment;
+  } | null;
 };
 
 export type OperationsToolContext = {
@@ -732,6 +738,32 @@ export async function executeTool(
         success: false,
         error: governance.error,
         metadata: { ...access.metadata, governance: governance.policy },
+      };
+    }
+    const actionGate = buildJarvisActionGate({
+      toolName,
+      category: governance.policy?.category,
+      explicitConfirmation: ctx.explicitConfirmation === true || effectiveArgs.confirmed === true,
+      executionPolicy: ctx.jarvisExecution
+        ? {
+            actorProfile: ctx.jarvisExecution.actorProfile as any,
+            taskType: ctx.jarvisExecution.taskType as any,
+            confidence: ctx.jarvisExecution.confidence,
+            style: 'general',
+            requiresExplicitConfirmation: ctx.jarvisExecution.confidence.mode !== 'act',
+            shouldPreferShortAnswer: false,
+          }
+        : null,
+    });
+    if (!actionGate.allow) {
+      return {
+        success: false,
+        error: actionGate.reason || `Execução bloqueada para ${toolName}.`,
+        metadata: {
+          ...access.metadata,
+          governance: governance.policy,
+          confirmation_required: actionGate.requiresConfirmation,
+        },
       };
     }
     const timeoutMs = getToolTimeoutMs(toolName);

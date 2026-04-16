@@ -45,6 +45,8 @@ import {
 } from '../services/jarvisPolicyService';
 import {
   assessJarvisConfidence,
+  buildJarvisExecutionPolicy,
+  buildJarvisExecutionPromptBlock,
   detectJarvisTaskType,
   resolveJarvisActorProfile,
 } from '../services/jarvisExecutionService';
@@ -843,19 +845,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       role: userRole,
       pageData: body.page_data ?? undefined,
     });
-
-    const buildObservabilityWithTrace = async (params: {
-      durationMs: number;
-      toolsUsed: number;
-      provider: string;
-      model: string;
-      loadedMemoryBlocks: string[];
-      autonomy?: ReturnType<typeof summarizeJarvisToolGovernance>;
-      assistantContent: string;
-      toolResults?: Array<{ toolName: string; data: any; success: boolean; metadata?: any }>;
-      artifacts?: Array<Record<string, any>>;
-    }) => {
-      const [traceKnowledgeBase, traceClientState] = clientId
+    const executionContextPromise = (async () => {
+      const [knowledgeBase, clientState] = clientId
         ? await Promise.all([
             buildClientKnowledgeBase({
               tenantId,
@@ -868,17 +859,37 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             buildClientState(tenantId, clientId).catch(() => null),
           ])
         : [null, null];
-
       const confidence = assessJarvisConfidence({
         decision,
         taskType,
         actorProfile,
         explicitConfirmation,
-        knowledgeBase: traceKnowledgeBase,
-        clientState: traceClientState,
+        knowledgeBase,
+        clientState,
       });
-      const evidenceUsed = buildJarvisTraceEvidence(traceKnowledgeBase);
-      const suppressedFacts = buildJarvisSuppressedFacts(traceKnowledgeBase);
+      const policy = buildJarvisExecutionPolicy({
+        decision,
+        taskType,
+        actorProfile,
+        confidence,
+      });
+      return { knowledgeBase, clientState, confidence, policy };
+    })();
+
+    const buildObservabilityWithTrace = async (params: {
+      durationMs: number;
+      toolsUsed: number;
+      provider: string;
+      model: string;
+      loadedMemoryBlocks: string[];
+      autonomy?: ReturnType<typeof summarizeJarvisToolGovernance>;
+      assistantContent: string;
+      toolResults?: Array<{ toolName: string; data: any; success: boolean; metadata?: any }>;
+      artifacts?: Array<Record<string, any>>;
+    }) => {
+      const executionContext = await executionContextPromise;
+      const evidenceUsed = buildJarvisTraceEvidence(executionContext.knowledgeBase);
+      const suppressedFacts = buildJarvisSuppressedFacts(executionContext.knowledgeBase);
       const traceId = await recordJarvisDecisionTrace({
         tenantId,
         clientId,
@@ -889,12 +900,12 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         intent: decision.intent,
         taskType,
         actorProfile,
-        confidence,
+        confidence: executionContext.confidence,
         message: body.message,
         response: params.assistantContent,
         evidence: evidenceUsed,
         suppressedFacts,
-        governance: traceKnowledgeBase?.governance || null,
+        governance: executionContext.knowledgeBase?.governance || null,
         toolSummary: (params.toolResults || []).map((item) => ({
           toolName: item.toolName,
           success: item.success,
@@ -919,10 +930,10 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           traceId,
           taskType,
           actorProfile,
-          confidence,
+          confidence: executionContext.confidence,
         },
         memoryAudit: {
-          governancePressure: traceKnowledgeBase?.governance?.governance_pressure || 'low',
+          governancePressure: executionContext.knowledgeBase?.governance?.governance_pressure || 'low',
           evidenceUsed,
           suppressedFacts,
         },
@@ -1153,6 +1164,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       let toolsUsed = 0;
 
       if (decision.route === 'operations') {
+        const executionContext = await executionContextPromise;
         const memoryBlocks = await buildJarvisMemoryBlocks({
           tenantId,
           clientId,
@@ -1171,11 +1183,16 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           userEmail,
           role: userRole,
           explicitConfirmation,
+          jarvisExecution: {
+            taskType,
+            actorProfile,
+            confidence: executionContext.confidence,
+          },
         };
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
-            systemPrompt: buildOperationsSystemPrompt(memoryFabric),
+            systemPrompt: `${buildOperationsSystemPrompt(memoryFabric)}\n\n${buildJarvisExecutionPromptBlock(executionContext.policy)}`,
             tools: getAllToolDefinitions(),
             provider: resolvedProvider,
             toolContext: toolCtx,
@@ -1401,6 +1418,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           ), 2500)),
         ]);
 
+        const executionContext = await executionContextPromise;
         const toolCtx: ToolContext = {
           tenantId,
           clientId: clientId!,
@@ -1410,6 +1428,11 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           role: userRole,
           explicitConfirmation,
           pageData: body.page_data ?? undefined,
+          jarvisExecution: {
+            taskType,
+            actorProfile,
+            confidence: executionContext.confidence,
+          },
         };
         const memoryBlocks = await buildJarvisMemoryBlocks({
           tenantId,
@@ -1430,7 +1453,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         const memoryGovernancePreflightContext = buildMemoryGovernancePreflightContext(memoryGovernancePreflight);
         const reporteiPreflightContext = buildReporteiPreflightContext(reporteiSummaryPreflight);
         const clientStatePreflightContext = `\n\n${buildClientStatePreflightContext(clientStatePreflight)}\nINSTRUÇÃO: trate este snapshot como retrato atual do cliente e use-o para calibrar prioridade, risco, oportunidade e timing da resposta.`;
-        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${memoryGovernancePreflightContext ? `\n\n${memoryGovernancePreflightContext}` : ''}${reporteiPreflightContext ? `\n\n${reporteiPreflightContext}` : ''}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}`;
+        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${memoryGovernancePreflightContext ? `\n\n${memoryGovernancePreflightContext}` : ''}${reporteiPreflightContext ? `\n\n${reporteiPreflightContext}` : ''}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}\n\n${buildJarvisExecutionPromptBlock(executionContext.policy)}`;
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
