@@ -51,6 +51,20 @@ export type JarvisObservability = {
   };
   memoryAudit?: {
     governancePressure: 'low' | 'medium' | 'high';
+    retrievalLearning?: {
+      taskType: string | null;
+      actorProfile: string | null;
+      boostedFacts: Array<{
+        fingerprint: string;
+        title: string | null;
+        learning_score: number;
+      }>;
+      penalizedFacts: Array<{
+        fingerprint: string;
+        title: string | null;
+        learning_score: number;
+      }>;
+    };
     evidenceUsed: Array<{
       fact_type: string | null;
       fingerprint: string | null;
@@ -228,6 +242,30 @@ export default function JarvisResponseTrace({ observability }: { observability?:
           {observability.memoryAudit.suppressedFacts.slice(0, 2).map((item) => (
             <Typography key={`${item.fingerprint || item.title}-${item.source_type || 'src'}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
               {formatEvidenceLine(item)}
+            </Typography>
+          ))}
+        </Box>
+      ) : null}
+      {observability.memoryAudit?.retrievalLearning?.boostedFacts?.length ? (
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Retrieval favoreceu
+          </Typography>
+          {observability.memoryAudit.retrievalLearning.boostedFacts.slice(0, 3).map((item) => (
+            <Typography key={`boost-${item.fingerprint}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              {(item.title || shortFingerprint(item.fingerprint) || item.fingerprint)} — ganho {Number(item.learning_score).toFixed(2)}
+            </Typography>
+          ))}
+        </Box>
+      ) : null}
+      {observability.memoryAudit?.retrievalLearning?.penalizedFacts?.length ? (
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Retrieval atenuou
+          </Typography>
+          {observability.memoryAudit.retrievalLearning.penalizedFacts.slice(0, 2).map((item) => (
+            <Typography key={`penalty-${item.fingerprint}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              {(item.title || shortFingerprint(item.fingerprint) || item.fingerprint)} — peso {Number(item.learning_score).toFixed(2)}
             </Typography>
           ))}
         </Box>

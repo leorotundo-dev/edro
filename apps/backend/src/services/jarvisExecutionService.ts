@@ -117,12 +117,13 @@ export function assessJarvisConfidence(params: {
   taskType: JarvisTaskType;
   actorProfile: JarvisActorProfile;
   explicitConfirmation?: boolean;
-  knowledgeBase?: Pick<ClientKnowledgeBaseSnapshot, 'evidence' | 'directives' | 'commitments' | 'recent_documents' | 'governance' | 'copy_quality_scorecard'> | null;
+  knowledgeBase?: Pick<ClientKnowledgeBaseSnapshot, 'evidence' | 'directives' | 'commitments' | 'recent_documents' | 'governance' | 'copy_quality_scorecard' | 'retrieval_learning'> | null;
   clientState?: Pick<JarvisClientState, 'open_alerts' | 'awareness'> | null;
 }): JarvisConfidenceAssessment {
   let score = params.decision.route === 'operations' ? 0.62 : 0.58;
   const reasons: string[] = [];
   const governance = params.knowledgeBase?.governance;
+  const retrievalLearning = params.knowledgeBase?.retrieval_learning;
   const state = params.clientState;
 
   const evidenceCount = Number(params.knowledgeBase?.evidence?.length || 0);
@@ -145,6 +146,16 @@ export function assessJarvisConfidence(params: {
   if (documentsCount > 0) {
     score += 0.04;
     reasons.push(`Documentos recentes (${documentsCount})`);
+  }
+  if (Number(retrievalLearning?.boosted_facts?.length || 0) > 0) {
+    const topBoost = Number(retrievalLearning?.boosted_facts?.[0]?.learning_score || 0);
+    score += Math.min(0.08, Math.max(0.02, topBoost * 0.04));
+    reasons.push(`Retrieval com histórico positivo (${retrievalLearning?.boosted_facts?.length})`);
+  }
+  if (Number(retrievalLearning?.penalized_facts?.length || 0) > 0) {
+    const topPenalty = Math.abs(Number(retrievalLearning?.penalized_facts?.[0]?.learning_score || 0));
+    score -= Math.min(0.1, Math.max(0.03, topPenalty * 0.05));
+    reasons.push(`Retrieval com sinais de ruído (${retrievalLearning?.penalized_facts?.length})`);
   }
 
   if (governance?.governance_pressure === 'high') {

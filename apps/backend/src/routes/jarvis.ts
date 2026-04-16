@@ -961,6 +961,22 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         },
         memoryAudit: {
           governancePressure: executionContext.knowledgeBase?.governance?.governance_pressure || 'low',
+          retrievalLearning: executionContext.knowledgeBase?.retrieval_learning
+            ? {
+                taskType: executionContext.knowledgeBase.retrieval_learning.task_type,
+                actorProfile: executionContext.knowledgeBase.retrieval_learning.actor_profile,
+                boostedFacts: executionContext.knowledgeBase.retrieval_learning.boosted_facts.slice(0, 3).map((item) => ({
+                  fingerprint: item.fingerprint,
+                  title: item.title,
+                  learning_score: item.learning_score,
+                })),
+                penalizedFacts: executionContext.knowledgeBase.retrieval_learning.penalized_facts.slice(0, 2).map((item) => ({
+                  fingerprint: item.fingerprint,
+                  title: item.title,
+                  learning_score: item.learning_score,
+                })),
+              }
+            : undefined,
           evidenceUsed,
           suppressedFacts,
         },

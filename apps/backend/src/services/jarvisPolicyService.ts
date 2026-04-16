@@ -109,6 +109,20 @@ export type JarvisObservability = {
   };
   memoryAudit?: {
     governancePressure: 'low' | 'medium' | 'high';
+    retrievalLearning?: {
+      taskType: string | null;
+      actorProfile: string | null;
+      boostedFacts: Array<{
+        fingerprint: string;
+        title: string | null;
+        learning_score: number;
+      }>;
+      penalizedFacts: Array<{
+        fingerprint: string;
+        title: string | null;
+        learning_score: number;
+      }>;
+    };
     evidenceUsed: Array<{
       fact_type: string | null;
       fingerprint: string | null;
