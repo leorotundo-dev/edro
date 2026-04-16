@@ -193,3 +193,103 @@ export async function listRecentJarvisOutcomes(params: {
   for (const row of rows) hydrated.push(await syncOutcomeStatus(row));
   return hydrated;
 }
+
+export async function listJarvisRetrievalSignals(params: {
+  tenantId: string;
+  clientId: string;
+  taskType?: string | null;
+  actorProfile?: string | null;
+  daysBack?: number;
+  limit?: number;
+}) {
+  const taskType = String(params.taskType || '').trim();
+  const actorProfile = String(params.actorProfile || '').trim();
+  const { rows } = await query<{
+    fingerprint: string;
+    title: string | null;
+    fact_type: string | null;
+    sample_count: number | string;
+    last_seen_at: string | null;
+    learning_score: number | string | null;
+    avg_outcome_score: number | string | null;
+  }>(
+    `WITH trace_scores AS (
+       SELECT
+         jdt.created_at,
+         jdt.task_type,
+         jdt.actor_profile,
+         jdt.confidence_score,
+         evidence_item.value AS evidence_item,
+         COALESCE(outcomes.outcome_score,
+           CASE jdt.confidence_mode
+             WHEN 'act' THEN 0.2
+             WHEN 'confirm' THEN 0.05
+             WHEN 'escalate' THEN -0.15
+             ELSE 0
+           END
+         ) AS outcome_score
+       FROM jarvis_decision_traces jdt
+       JOIN LATERAL jsonb_array_elements(COALESCE(jdt.evidence, '[]'::jsonb)) evidence_item(value) ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT AVG(
+           CASE oom.status
+             WHEN 'completed' THEN 1.0
+             WHEN 'pending' THEN 0.25
+             WHEN 'failed' THEN -0.9
+             WHEN 'cancelled' THEN -0.6
+             ELSE 0
+           END
+         )::numeric AS outcome_score
+         FROM jarvis_outcome_memory oom
+         WHERE oom.trace_id = jdt.id
+       ) outcomes ON TRUE
+       WHERE jdt.tenant_id = $1
+         AND jdt.client_id = $2
+         AND jdt.created_at > NOW() - make_interval(days => $5)
+         AND COALESCE(evidence_item.value->>'fingerprint', '') <> ''
+     )
+     SELECT
+       evidence_item->>'fingerprint' AS fingerprint,
+       MAX(NULLIF(evidence_item->>'title', '')) AS title,
+       MAX(NULLIF(evidence_item->>'fact_type', '')) AS fact_type,
+       COUNT(*)::int AS sample_count,
+       MAX(created_at)::text AS last_seen_at,
+       ROUND(SUM(
+         outcome_score
+         * GREATEST(confidence_score, 0.35)
+         * CASE
+             WHEN $3 = '' THEN 1
+             WHEN task_type = $3 THEN 1.25
+             ELSE 0.75
+           END
+         * CASE
+             WHEN $4 = '' THEN 1
+             WHEN actor_profile = $4 THEN 1.1
+             ELSE 0.9
+           END
+       )::numeric, 3) AS learning_score,
+       ROUND(AVG(outcome_score)::numeric, 3) AS avg_outcome_score
+     FROM trace_scores
+     GROUP BY evidence_item->>'fingerprint'
+     ORDER BY learning_score DESC, sample_count DESC, MAX(created_at) DESC
+     LIMIT $6`,
+    [
+      params.tenantId,
+      params.clientId,
+      taskType,
+      actorProfile,
+      Math.min(params.daysBack ?? 90, 180),
+      Math.min(params.limit ?? 24, 40),
+    ],
+  ).catch(() => ({ rows: [] }));
+
+  return rows.map((row) => ({
+    fingerprint: row.fingerprint,
+    title: row.title || null,
+    fact_type: row.fact_type || null,
+    sample_count: Number(row.sample_count || 0),
+    last_seen_at: row.last_seen_at || null,
+    learning_score: Number(row.learning_score || 0),
+    avg_outcome_score: Number(row.avg_outcome_score || 0),
+  }));
+}

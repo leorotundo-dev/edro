@@ -4,7 +4,7 @@ import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { listClientMemoryFacts } from './clientMemoryFactsService';
 import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
 import { buildClientCopyQualityScorecard, type ClientCopyQualityScorecard } from './copyQualityScorecardService';
-import { listRecentJarvisOutcomes } from './jarvisOutcomeService';
+import { listJarvisRetrievalSignals, listRecentJarvisOutcomes } from './jarvisOutcomeService';
 
 type KnowledgeBaseFact = {
   fact_type: 'directive' | 'commitment' | 'evidence';
@@ -61,6 +61,16 @@ type ClientCopyPolicy = {
   quality_state: string | null;
 };
 
+type RetrievalLearningItem = {
+  fingerprint: string;
+  title: string | null;
+  fact_type: string | null;
+  sample_count: number;
+  last_seen_at: string | null;
+  learning_score: number;
+  avg_outcome_score: number;
+};
+
 export type ClientKnowledgeBaseIntent =
   | 'general'
   | 'copy'
@@ -90,6 +100,13 @@ export type ClientKnowledgeBaseSnapshot = {
     replace_candidates: number;
     suppressed_facts: number;
     suppressed_fact_previews: KnowledgeBaseFact[];
+  };
+  retrieval_learning: {
+    task_type: string | null;
+    actor_profile: string | null;
+    boosted_facts: RetrievalLearningItem[];
+    penalized_facts: RetrievalLearningItem[];
+    total_scored_facts: number;
   };
   copy_quality_scorecard: ClientCopyQualityScorecard | null;
   copy_policy: ClientCopyPolicy;
@@ -215,6 +232,7 @@ function buildKnowledgeBaseBlock(input: {
   copyQualitySummary?: ClientCopyQualityScorecard['summary'] | null;
   compaction: ClientKnowledgeBaseSnapshot['compaction'];
   recentOutcomes: ClientKnowledgeBaseSnapshot['recent_outcomes'];
+  retrievalLearning: ClientKnowledgeBaseSnapshot['retrieval_learning'];
 }) {
   const parts: string[] = ['BASE DE CONHECIMENTO DO CLIENTE:'];
   if (input.clientName) parts.push(`Cliente: ${input.clientName}`);
@@ -234,6 +252,16 @@ function buildKnowledgeBaseBlock(input: {
   }
   if (input.recentOutcomes.length) {
     parts.push(`Resultados recentes do Jarvis: ${input.recentOutcomes.slice(0, 3).map((item) => `${item.title} (${item.status})`).join(' | ')}`);
+  }
+  if (input.retrievalLearning.boosted_facts.length) {
+    parts.push(
+      `Aprendizado de retrieval${input.retrievalLearning.task_type ? ` para ${input.retrievalLearning.task_type}` : ''}: priorizar ${input.retrievalLearning.boosted_facts.slice(0, 3).map((item) => item.title || item.fingerprint).join(' | ')}.`,
+    );
+  }
+  if (input.retrievalLearning.penalized_facts.length) {
+    parts.push(
+      `Sinais a atenuar${input.retrievalLearning.actor_profile ? ` para perfil ${input.retrievalLearning.actor_profile}` : ''}: ${input.retrievalLearning.penalized_facts.slice(0, 2).map((item) => item.title || item.fingerprint).join(' | ')}.`,
+    );
   }
   if (input.compaction.compacted_memory_block) {
     parts.push(input.compaction.compacted_memory_block);
@@ -268,13 +296,17 @@ function rankSource(intent: ClientKnowledgeBaseIntent, sourceType: string | null
   return idx >= 0 ? idx : list.length + 1;
 }
 
-function sortFacts(intent: ClientKnowledgeBaseIntent, items: KnowledgeBaseFact[]) {
+function sortFacts(intent: ClientKnowledgeBaseIntent, items: KnowledgeBaseFact[], learningScores?: Map<string, number>) {
   return [...items].sort((a, b) => {
-    const sourceDelta = rankSource(intent, a.source_type) - rankSource(intent, b.source_type);
-    if (sourceDelta !== 0) return sourceDelta;
-    const confidenceDelta = Number(b.confidence_score || 0) - Number(a.confidence_score || 0);
-    if (confidenceDelta !== 0) return confidenceDelta;
-    return String(b.related_at || '').localeCompare(String(a.related_at || ''));
+    const score = (item: KnowledgeBaseFact) => {
+      const sourceScore = Math.max(0, 10 - rankSource(intent, item.source_type) * 2);
+      const confidenceScore = Number(item.confidence_score || 0) * 1.5;
+      const learningScore = Number((item.fingerprint && learningScores?.get(item.fingerprint)) || 0) * 3;
+      const relatedAt = parseTime(item.related_at);
+      const recencyScore = relatedAt ? Math.max(0, 3 - ((Date.now() - relatedAt) / 86400000) * 0.04) : 0;
+      return sourceScore + confidenceScore + learningScore + recencyScore;
+    };
+    return score(b) - score(a);
   });
 }
 
@@ -489,13 +521,15 @@ export async function buildClientKnowledgeBase(params: {
   objective?: string | null;
   format?: string | null;
   momento?: string | null;
+  taskType?: string | null;
+  actorProfile?: string | null;
 }) {
   const intent = params.intent ?? 'general';
   const daysBack = Math.min(params.daysBack ?? 60, 180);
   const limitDocuments = Math.min(params.limitDocuments ?? 6, 12);
   const question = String(params.question || '').trim();
 
-  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance, copyQualityScorecard, recentOutcomes] = await Promise.all([
+  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance, copyQualityScorecard, recentOutcomes, retrievalSignals] = await Promise.all([
     query<{ name: string | null; profile: Record<string, any> | null }>(
       `SELECT name, profile FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [params.tenantId, params.clientId],
@@ -577,7 +611,26 @@ export async function buildClientKnowledgeBase(params: {
       daysBack,
       limit: 6,
     }).catch(() => []),
+    params.taskType || params.actorProfile
+      ? listJarvisRetrievalSignals({
+          tenantId: params.tenantId,
+          clientId: params.clientId,
+          taskType: params.taskType,
+          actorProfile: params.actorProfile,
+          daysBack: Math.min(daysBack * 2, 180),
+          limit: 24,
+        }).catch(() => [])
+      : Promise.resolve([]),
   ]);
+
+  const retrievalLearning = {
+    task_type: params.taskType || null,
+    actor_profile: params.actorProfile || null,
+    boosted_facts: (retrievalSignals || []).filter((item) => item.learning_score > 0.15).slice(0, 6),
+    penalized_facts: (retrievalSignals || []).filter((item) => item.learning_score < -0.15).sort((a, b) => a.learning_score - b.learning_score).slice(0, 4),
+    total_scored_facts: retrievalSignals.length,
+  } satisfies ClientKnowledgeBaseSnapshot['retrieval_learning'];
+  const retrievalScoreMap = new Map((retrievalSignals || []).map((item) => [item.fingerprint, Number(item.learning_score || 0)]));
 
   const factRows = facts || [];
   const suppressedFingerprints = new Set(
@@ -597,10 +650,11 @@ export async function buildClientKnowledgeBase(params: {
     factRows
       .filter((item) => suppressedFingerprints.has(String(item.fingerprint || '')))
       .map(toFact),
+    retrievalScoreMap,
   );
-  const directives = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'directive').map(toFact));
-  const commitments = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'commitment').map(toFact));
-  const evidence = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'evidence').map(toFact));
+  const directives = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'directive').map(toFact), retrievalScoreMap);
+  const commitments = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'commitment').map(toFact), retrievalScoreMap);
+  const evidence = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'evidence').map(toFact), retrievalScoreMap);
   const recentDocuments = sortDocuments(intent, documents.map((item) => ({
     id: item.id,
     source_type: item.source_type || null,
@@ -718,6 +772,7 @@ export async function buildClientKnowledgeBase(params: {
       suppressed_facts: suppressedFingerprints.size,
       suppressed_fact_previews: suppressedFactPreviews,
     },
+    retrieval_learning: retrievalLearning,
     copy_quality_scorecard: copyQualityScorecard,
     copy_policy: copyPolicy,
     copy_policy_block: copyPolicyBlock,
@@ -765,6 +820,7 @@ export async function buildClientKnowledgeBase(params: {
         status: item.status,
         created_at: item.created_at || null,
       })),
+      retrievalLearning,
     }),
   } satisfies ClientKnowledgeBaseSnapshot;
 }

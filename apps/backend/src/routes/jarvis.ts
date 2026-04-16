@@ -856,6 +856,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
               daysBack: 60,
               limitDocuments: 4,
               intent: decision.route === 'operations' ? 'ops' : 'relationship',
+              taskType,
+              actorProfile,
             }).catch(() => null),
             buildClientState(tenantId, clientId).catch(() => null),
           ])
@@ -1375,7 +1377,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         const [[clientContext, psychContext, perfContext, livingMemoryPreflight], clientStatePreflight, memoryGovernancePreflight, reporteiSummaryPreflight] = await Promise.all([
           Promise.race([
             Promise.all([
-              buildClientContext(tenantId, clientId!),
+              buildClientContext(tenantId, clientId!, { taskType, actorProfile }),
               loadPsychContext(tenantId, clientId!),
               loadPerformanceContext(clientId!),
               buildClientKnowledgeBase({
@@ -1385,6 +1387,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                 daysBack: 60,
                 limitDocuments: 5,
                 intent: 'ops',
+                taskType,
+                actorProfile,
               }).then(knowledgeBaseToLivingMemoryPreflight).catch(() => emptyLivingMemoryPreflight()),
             ]),
             new Promise<[string, string, string, ReturnType<typeof emptyLivingMemoryPreflight>]>((resolve) => setTimeout(() => resolve([

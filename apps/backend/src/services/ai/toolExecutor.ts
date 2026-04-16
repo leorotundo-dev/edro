@@ -2349,6 +2349,8 @@ async function toolGetClientKnowledgeBase(args: any, ctx: ToolContext): Promise<
     daysBack: Math.min(args.days_back ?? 60, 180),
     limitDocuments: Math.min(args.limit_documents ?? 6, 12),
     intent: contextualString(args.intent) as any || 'general',
+    taskType: contextualString(args.task_type) || ctx.jarvisExecution?.taskType || null,
+    actorProfile: contextualString(args.actor_profile) || ctx.jarvisExecution?.actorProfile || null,
   });
 
   return {
@@ -2524,6 +2526,8 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
       daysBack: 60,
       limitDocuments: 6,
       intent: 'ops',
+      taskType: ctx.jarvisExecution?.taskType || null,
+      actorProfile: ctx.jarvisExecution?.actorProfile || null,
     }),
     buildClientLivingMemory({
       tenantId: ctx.tenantId,
@@ -2575,6 +2579,9 @@ async function toolGetContextPacket(args: any, ctx: ToolContext): Promise<ToolRe
     `- Sinais vivos 7d: ${knowledgeBase.living_memory_summary.fresh_signals_7d ?? livingMemory.snapshot.fresh_signals_7d}`,
     knowledgeBase.compaction?.last_7_days?.top_themes?.length
       ? `- Temas vivos 7d: ${knowledgeBase.compaction.last_7_days.top_themes.join(', ')}`
+      : null,
+    knowledgeBase.retrieval_learning?.boosted_facts?.length
+      ? `- Retrieval favorece: ${knowledgeBase.retrieval_learning.boosted_facts.slice(0, 2).map((item) => item.title || item.fingerprint).join(', ')}`
       : null,
     knowledgeBase.living_memory_summary.decision_signals ? `- Decisões recentes: ${knowledgeBase.living_memory_summary.decision_signals}` : null,
     knowledgeBase.living_memory_summary.objection_signals ? `- Objeções recentes: ${knowledgeBase.living_memory_summary.objection_signals}` : null,

@@ -22,7 +22,11 @@ export async function resolveEdroClientId(clientId: string): Promise<string | nu
   }
 }
 
-export async function buildClientContext(tenantId: string, clientId: string): Promise<string> {
+export async function buildClientContext(
+  tenantId: string,
+  clientId: string,
+  options?: { taskType?: string | null; actorProfile?: string | null },
+): Promise<string> {
   const client = await getClientById(tenantId, clientId);
   if (!client) return '';
 
@@ -45,6 +49,8 @@ export async function buildClientContext(tenantId: string, clientId: string): Pr
       daysBack: 60,
       limitDocuments: 8,
       intent: 'relationship',
+      taskType: options?.taskType,
+      actorProfile: options?.actorProfile,
     }).catch(() => null);
 
     if (snapshot?.latest_insight) {
