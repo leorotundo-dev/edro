@@ -55,6 +55,7 @@ import {
   buildJarvisTraceEvidence,
   recordJarvisDecisionTrace,
 } from '../services/jarvisTraceService';
+import { recordJarvisOutcomes } from '../services/jarvisOutcomeService';
 import { syncWorkflowBackgroundCancelled, syncWorkflowBackgroundCancelRequested } from '../services/jarvisBackgroundHealthService';
 import crypto from 'crypto';
 
@@ -918,6 +919,16 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           loaded_memory_blocks: params.loadedMemoryBlocks,
         },
       }).catch(() => null);
+      if (clientId) {
+        await recordJarvisOutcomes({
+          tenantId,
+          clientId,
+          traceId,
+          conversationId: effectiveConversationId,
+          toolResults: params.toolResults,
+          artifacts: params.artifacts,
+        }).catch(() => {});
+      }
       const simulations = (params.toolResults || [])
         .map((item) => item.metadata?.simulation)
         .filter((item): item is { pass: boolean; overall: number; risk: 'low' | 'medium' | 'high'; concerns: string[] } => Boolean(item));

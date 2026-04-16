@@ -4,6 +4,7 @@ import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { listClientMemoryFacts } from './clientMemoryFactsService';
 import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
 import { buildClientCopyQualityScorecard, type ClientCopyQualityScorecard } from './copyQualityScorecardService';
+import { listRecentJarvisOutcomes } from './jarvisOutcomeService';
 
 type KnowledgeBaseFact = {
   title: string;
@@ -106,6 +107,15 @@ export type ClientKnowledgeBaseSnapshot = {
     published_at: string | null;
     created_at: string | null;
   }>;
+  recent_outcomes: Array<{
+    id: string;
+    outcome_type: string;
+    source_type: string;
+    title: string;
+    summary: string | null;
+    status: string;
+    created_at: string | null;
+  }>;
   memory_block: string;
   knowledge_base_block: string;
 };
@@ -199,6 +209,7 @@ function buildKnowledgeBaseBlock(input: {
   copyPolicyBlock: string;
   copyQualitySummary?: ClientCopyQualityScorecard['summary'] | null;
   compaction: ClientKnowledgeBaseSnapshot['compaction'];
+  recentOutcomes: ClientKnowledgeBaseSnapshot['recent_outcomes'];
 }) {
   const parts: string[] = ['BASE DE CONHECIMENTO DO CLIENTE:'];
   if (input.clientName) parts.push(`Cliente: ${input.clientName}`);
@@ -215,6 +226,9 @@ function buildKnowledgeBaseBlock(input: {
   }
   if (input.copyPolicyBlock) {
     parts.push(input.copyPolicyBlock);
+  }
+  if (input.recentOutcomes.length) {
+    parts.push(`Resultados recentes do Jarvis: ${input.recentOutcomes.slice(0, 3).map((item) => `${item.title} (${item.status})`).join(' | ')}`);
   }
   if (input.compaction.compacted_memory_block) {
     parts.push(input.compaction.compacted_memory_block);
@@ -476,7 +490,7 @@ export async function buildClientKnowledgeBase(params: {
   const limitDocuments = Math.min(params.limitDocuments ?? 6, 12);
   const question = String(params.question || '').trim();
 
-  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance, copyQualityScorecard] = await Promise.all([
+  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance, copyQualityScorecard, recentOutcomes] = await Promise.all([
     query<{ name: string | null; profile: Record<string, any> | null }>(
       `SELECT name, profile FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [params.tenantId, params.clientId],
@@ -552,6 +566,12 @@ export async function buildClientKnowledgeBase(params: {
       clientId: params.clientId,
       daysBack,
     }).catch(() => null),
+    listRecentJarvisOutcomes({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      daysBack,
+      limit: 6,
+    }).catch(() => []),
   ]);
 
   const factRows = facts || [];
@@ -690,6 +710,15 @@ export async function buildClientKnowledgeBase(params: {
     copy_policy_block: copyPolicyBlock,
     compaction,
     recent_documents: recentDocuments,
+    recent_outcomes: recentOutcomes.map((item: any) => ({
+      id: item.id,
+      outcome_type: item.outcome_type,
+      source_type: item.source_type,
+      title: item.title,
+      summary: item.summary || null,
+      status: item.status,
+      created_at: item.created_at || null,
+    })),
     memory_block: livingMemory.block,
     knowledge_base_block: buildKnowledgeBaseBlock({
       intent,
@@ -713,6 +742,15 @@ export async function buildClientKnowledgeBase(params: {
       copyPolicyBlock,
       copyQualitySummary: copyQualityScorecard?.summary || null,
       compaction,
+      recentOutcomes: recentOutcomes.map((item: any) => ({
+        id: item.id,
+        outcome_type: item.outcome_type,
+        source_type: item.source_type,
+        title: item.title,
+        summary: item.summary || null,
+        status: item.status,
+        created_at: item.created_at || null,
+      })),
     }),
   } satisfies ClientKnowledgeBaseSnapshot;
 }
