@@ -120,6 +120,7 @@ export type ToolResult = {
     truncated?: boolean;
     governance?: any;
     confirmation_required?: boolean;
+    simulation?: any;
     access?: {
       systemPerm?: string | null;
       clientPerm?: ClientPerm | null;
