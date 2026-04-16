@@ -47,6 +47,7 @@ import {
   assessJarvisConfidence,
   buildJarvisExecutionPolicy,
   buildJarvisExecutionPromptBlock,
+  buildJarvisToolPolicyPromptBlock,
   detectJarvisTaskType,
   resolveJarvisActorProfile,
 } from '../services/jarvisExecutionService';
@@ -55,7 +56,7 @@ import {
   buildJarvisTraceEvidence,
   recordJarvisDecisionTrace,
 } from '../services/jarvisTraceService';
-import { getJarvisActionPolicySignals, recordJarvisOutcomes } from '../services/jarvisOutcomeService';
+import { getJarvisActionPolicySignals, getJarvisToolPolicySignals, recordJarvisOutcomes } from '../services/jarvisOutcomeService';
 import { syncWorkflowBackgroundCancelled, syncWorkflowBackgroundCancelRequested } from '../services/jarvisBackgroundHealthService';
 import crypto from 'crypto';
 
@@ -90,6 +91,7 @@ const jarvisChatSchema = z.object({
   clientId: z.string().trim().min(1).optional().nullable(),
   provider: z.enum(['openai', 'anthropic', 'google', 'collaborative']).optional().default('openai'),
   conversationId: z.string().uuid().nullish(),
+  sandbox_only: z.boolean().optional().default(false),
   context_page: z.string().optional().nullable(),
   studio_context: z.string().optional().nullable(),
   page_data: z.record(z.string(), z.unknown()).optional().nullable(),
@@ -845,9 +847,11 @@ export default async function jarvisRoutes(app: FastifyInstance) {
     const actorProfile = resolveJarvisActorProfile({
       role: userRole,
       pageData: body.page_data ?? undefined,
+      contextPage: body.context_page ?? null,
+      message: body.message,
     });
     const executionContextPromise = (async () => {
-      const [knowledgeBase, clientState, actionPolicy] = clientId
+      const [knowledgeBase, clientState, actionPolicy, toolPolicy] = clientId
         ? await Promise.all([
             buildClientKnowledgeBase({
               tenantId,
@@ -866,8 +870,14 @@ export default async function jarvisRoutes(app: FastifyInstance) {
               taskType,
               actorProfile,
             }).catch(() => null),
+            getJarvisToolPolicySignals({
+              tenantId,
+              clientId,
+              taskType,
+              actorProfile,
+            }).catch(() => null),
           ])
-        : [null, null, null];
+        : [null, null, null, null];
       const confidence = assessJarvisConfidence({
         decision,
         taskType,
@@ -883,8 +893,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         actorProfile,
         confidence,
         actionPolicy,
+        sandboxOnly: body.sandbox_only === true,
       });
-      return { knowledgeBase, clientState, actionPolicy, confidence, policy };
+      return { knowledgeBase, clientState, actionPolicy, toolPolicy, confidence, policy };
     })();
 
     const buildObservabilityWithTrace = async (params: {
@@ -921,6 +932,9 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           toolName: item.toolName,
           success: item.success,
           confirmation_required: item.metadata?.confirmation_required === true,
+          sandbox_only: item.metadata?.sandbox_only === true,
+          category: item.metadata?.governance?.category || null,
+          risk: item.metadata?.simulation?.risk || null,
         })),
         artifacts: params.artifacts || [],
         metadata: {
@@ -967,6 +981,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           taskType,
           actorProfile,
           style: executionContext.policy.style,
+          sandboxOnly: executionContext.policy.sandboxOnly,
           confidence: executionContext.confidence,
         },
         memoryAudit: {
@@ -1003,8 +1018,35 @@ export default async function jarvisRoutes(app: FastifyInstance) {
                 })),
               }
             : undefined,
+          retrievalStrategy: executionContext.knowledgeBase?.retrieval_strategy
+            ? {
+                favoredSourceTypes: executionContext.knowledgeBase.retrieval_strategy.favored_source_types,
+                favoredFactTypes: executionContext.knowledgeBase.retrieval_strategy.favored_fact_types,
+                budget: executionContext.knowledgeBase.retrieval_strategy.budget,
+              }
+            : undefined,
+          toolPolicy: executionContext.toolPolicy
+            ? {
+                preferredTools: executionContext.toolPolicy.preferred_tools.slice(0, 4).map((item) => ({
+                  tool_name: item.tool_name,
+                  learning_score: item.learning_score,
+                  sample_count: item.sample_count,
+                })),
+                penalizedTools: executionContext.toolPolicy.penalized_tools.slice(0, 3).map((item) => ({
+                  tool_name: item.tool_name,
+                  learning_score: item.learning_score,
+                  sample_count: item.sample_count,
+                })),
+              }
+            : undefined,
           evidenceUsed,
           suppressedFacts,
+          topicMaps: executionContext.knowledgeBase?.topic_maps?.slice(0, 4).map((item) => ({
+            topic: item.topic,
+            score: item.score,
+            evidence_count: item.evidence_count,
+            source_types: item.source_types,
+          })),
         },
         simulation: {
           avgOverall,
@@ -1262,12 +1304,14 @@ export default async function jarvisRoutes(app: FastifyInstance) {
             taskType,
             actorProfile,
             confidence: executionContext.confidence,
+            toolPolicy: executionContext.toolPolicy || null,
           },
+          sandboxOnly: body.sandbox_only === true,
         };
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],
-            systemPrompt: `${buildOperationsSystemPrompt(memoryFabric)}\n\n${buildJarvisExecutionPromptBlock(executionContext.policy)}`,
+            systemPrompt: `${buildOperationsSystemPrompt(memoryFabric)}\n\n${buildJarvisExecutionPromptBlock(executionContext.policy)}${buildJarvisToolPolicyPromptBlock(executionContext.toolPolicy) ? `\n\n${buildJarvisToolPolicyPromptBlock(executionContext.toolPolicy)}` : ''}`,
             tools: getAllToolDefinitions(),
             provider: resolvedProvider,
             toolContext: toolCtx,
@@ -1530,7 +1574,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         const memoryGovernancePreflightContext = buildMemoryGovernancePreflightContext(memoryGovernancePreflight);
         const reporteiPreflightContext = buildReporteiPreflightContext(reporteiSummaryPreflight);
         const clientStatePreflightContext = `\n\n${buildClientStatePreflightContext(clientStatePreflight)}\nINSTRUÇÃO: trate este snapshot como retrato atual do cliente e use-o para calibrar prioridade, risco, oportunidade e timing da resposta.`;
-        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${memoryGovernancePreflightContext ? `\n\n${memoryGovernancePreflightContext}` : ''}${reporteiPreflightContext ? `\n\n${reporteiPreflightContext}` : ''}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}\n\n${buildJarvisExecutionPromptBlock(executionContext.policy)}`;
+        const planningSystemPrompt = `${buildAgentSystemPrompt(clientContext, psychContext, perfContext, memoryFabric)}${clientStatePreflightContext}${livingMemoryPreflightContext}${memoryGovernancePreflightContext ? `\n\n${memoryGovernancePreflightContext}` : ''}${reporteiPreflightContext ? `\n\n${reporteiPreflightContext}` : ''}${briefingDiagnosticsPreflightContext ? `\n\n${briefingDiagnosticsPreflightContext}` : ''}\n\n${buildJarvisExecutionPromptBlock(executionContext.policy)}${buildJarvisToolPolicyPromptBlock(executionContext.toolPolicy) ? `\n\n${buildJarvisToolPolicyPromptBlock(executionContext.toolPolicy)}` : ''}`;
         const loopResult = await Promise.race([
           runToolUseLoop({
             messages: [...conversationHistory, { role: 'user', content: userContent }],

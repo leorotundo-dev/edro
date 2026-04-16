@@ -56,7 +56,11 @@ import { sendEmail } from '../emailService';
 import { sendWhatsAppText } from '../whatsappService';
 import { decryptJSON } from '../../security/secrets';
 import { enforceJarvisToolGovernance } from '../jarvisPolicyService';
-import { buildJarvisActionGate, type JarvisConfidenceAssessment } from '../jarvisExecutionService';
+import {
+  buildJarvisActionGate,
+  type JarvisConfidenceAssessment,
+  type JarvisToolPolicyLearning,
+} from '../jarvisExecutionService';
 import { simulateJarvisAction } from '../jarvisSimulationService';
 import { buildClientLivingMemory } from '../clientLivingMemoryService';
 import { buildClientKnowledgeBase } from '../clientKnowledgeBaseService';
@@ -93,6 +97,7 @@ export type ToolContext = {
   userEmail?: string;
   role?: string | null;
   explicitConfirmation?: boolean;
+  sandboxOnly?: boolean;
   conversationId?: string | null;
   conversationRoute?: 'planning' | 'operations';
   pageData?: Record<string, unknown> | null;
@@ -100,6 +105,7 @@ export type ToolContext = {
     taskType: string;
     actorProfile: string;
     confidence: JarvisConfidenceAssessment;
+    toolPolicy?: JarvisToolPolicyLearning | null;
   } | null;
 };
 
@@ -754,8 +760,10 @@ export async function executeTool(
             style: 'general',
             requiresExplicitConfirmation: ctx.jarvisExecution.confidence.mode !== 'act',
             shouldPreferShortAnswer: false,
+            sandboxOnly: ctx.sandboxOnly === true,
           }
         : null,
+      toolPolicy: ctx.jarvisExecution?.toolPolicy || null,
     });
     if (!actionGate.allow) {
       const simulation = simulateJarvisAction({
@@ -770,6 +778,7 @@ export async function executeTool(
               style: 'general',
               requiresExplicitConfirmation: ctx.jarvisExecution.confidence.mode !== 'act',
               shouldPreferShortAnswer: false,
+              sandboxOnly: ctx.sandboxOnly === true,
             }
           : null,
       });
@@ -796,6 +805,7 @@ export async function executeTool(
             style: 'general',
             requiresExplicitConfirmation: ctx.jarvisExecution.confidence.mode !== 'act',
             shouldPreferShortAnswer: false,
+            sandboxOnly: ctx.sandboxOnly === true,
           }
         : null,
     });
@@ -809,6 +819,24 @@ export async function executeTool(
           confirmation_required: true,
           simulation,
         },
+      };
+    }
+    if (ctx.sandboxOnly === true && governance.policy?.category !== 'read') {
+      return {
+        success: true,
+        data: {
+          message: `Sandbox ativo: ${toolName} foi simulado e não executou ação real.`,
+          preview: simulation.recommendation || `Ação ${toolName} mantida em sandbox.`,
+          sandbox_only: true,
+          tool_name: toolName,
+          args: effectiveArgs,
+        },
+        metadata: {
+          ...access.metadata,
+          governance: governance.policy,
+          simulation,
+          sandbox_only: true,
+        } as any,
       };
     }
     const timeoutMs = getToolTimeoutMs(toolName);

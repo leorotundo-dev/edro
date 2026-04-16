@@ -11,6 +11,8 @@ export type JarvisTracePreviewItem = {
   source_id: string | null;
   related_at: string | null;
   confidence_score: number | null;
+  source_excerpt?: string | null;
+  topic_tags?: string[];
 };
 
 export function buildJarvisTraceEvidence(snapshot?: ClientKnowledgeBaseSnapshot | null): JarvisTracePreviewItem[] {
@@ -25,6 +27,8 @@ export function buildJarvisTraceEvidence(snapshot?: ClientKnowledgeBaseSnapshot 
       source_id: item.source_id,
       related_at: item.related_at,
       confidence_score: Number(item.confidence_score ?? 0),
+      source_excerpt: item.source_excerpt || null,
+      topic_tags: item.topic_tags || [],
     })),
     ...(snapshot.commitments || []).slice(0, 2).map((item) => ({
       fact_type: item.fact_type,
@@ -35,6 +39,8 @@ export function buildJarvisTraceEvidence(snapshot?: ClientKnowledgeBaseSnapshot 
       source_id: item.source_id,
       related_at: item.related_at,
       confidence_score: Number(item.confidence_score ?? 0),
+      source_excerpt: item.source_excerpt || null,
+      topic_tags: item.topic_tags || [],
     })),
     ...(snapshot.evidence || []).slice(0, 3).map((item) => ({
       fact_type: item.fact_type,
@@ -45,6 +51,8 @@ export function buildJarvisTraceEvidence(snapshot?: ClientKnowledgeBaseSnapshot 
       source_id: item.source_id,
       related_at: item.related_at,
       confidence_score: Number(item.confidence_score ?? 0),
+      source_excerpt: item.source_excerpt || null,
+      topic_tags: item.topic_tags || [],
     })),
   ].filter((item) => item.title);
 }
@@ -62,6 +70,8 @@ export function buildJarvisSuppressedFacts(snapshot?: ClientKnowledgeBaseSnapsho
       source_id: item.source_id,
       related_at: item.related_at,
       confidence_score: Number(item.confidence_score ?? 0),
+      source_excerpt: item.source_excerpt || null,
+      topic_tags: item.topic_tags || [],
     }));
   }
   return [
@@ -74,6 +84,8 @@ export function buildJarvisSuppressedFacts(snapshot?: ClientKnowledgeBaseSnapsho
       source_id: null,
       related_at: snapshot.generated_at,
       confidence_score: null,
+      source_excerpt: null,
+      topic_tags: [],
     },
   ];
 }

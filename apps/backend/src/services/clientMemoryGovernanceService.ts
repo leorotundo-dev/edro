@@ -45,11 +45,36 @@ export type ClientMemoryGovernanceConflict = {
   };
 };
 
+export type ClientMemoryConflictRow = {
+  conflict_key: string;
+  severity: 'medium' | 'high';
+  reason: string;
+  status: 'active' | 'resolved';
+  detected_at: string | null;
+  resolved_at: string | null;
+  primary: {
+    fingerprint: string;
+    fact_type: ClientMemoryFactRow['fact_type'];
+    title: string;
+  };
+  conflicting: {
+    fingerprint: string;
+    fact_type: ClientMemoryFactRow['fact_type'];
+    title: string;
+  };
+  metadata: Record<string, any>;
+};
+
 type GovernancePressure = 'low' | 'medium' | 'high';
 
 function isMissingConflictTableError(error: unknown) {
   const candidate = error as { code?: string; message?: string };
   return candidate?.code === '42P01' || /client_memory_fact_conflicts/i.test(String(candidate?.message || ''));
+}
+
+function isMissingResolutionTableError(error: unknown) {
+  const candidate = error as { code?: string; message?: string };
+  return candidate?.code === '42P01' || /client_memory_resolution_log/i.test(String(candidate?.message || ''));
 }
 
 function buildConflictKey(primaryFingerprint: string, conflictingFingerprint: string) {
@@ -537,5 +562,184 @@ export async function applyClientMemoryGovernanceAction(params: {
     action: params.action,
     target: updated,
     replacement,
+  };
+}
+
+export async function listClientMemoryConflicts(params: {
+  tenantId: string;
+  clientId: string;
+  status?: 'active' | 'resolved';
+  limit?: number;
+}) {
+  try {
+    const { rows } = await query<any>(
+      `SELECT conflict_key,
+              severity,
+              reason,
+              status,
+              detected_at::text,
+              resolved_at::text,
+              metadata
+         FROM client_memory_fact_conflicts
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND ($3::text IS NULL OR status = $3)
+        ORDER BY detected_at DESC
+        LIMIT $4`,
+      [params.tenantId, params.clientId, params.status || null, Math.min(params.limit ?? 20, 50)],
+    );
+    return rows.map((row) => ({
+      conflict_key: row.conflict_key,
+      severity: row.severity,
+      reason: row.reason,
+      status: row.status,
+      detected_at: row.detected_at || null,
+      resolved_at: row.resolved_at || null,
+      primary: row.metadata?.primary || { fingerprint: '', fact_type: 'evidence', title: '' },
+      conflicting: row.metadata?.conflicting || { fingerprint: '', fact_type: 'evidence', title: '' },
+      metadata: row.metadata || {},
+    })) satisfies ClientMemoryConflictRow[];
+  } catch (error) {
+    if (isMissingConflictTableError(error)) return [];
+    throw error;
+  }
+}
+
+async function logClientMemoryResolution(params: {
+  tenantId: string;
+  clientId: string;
+  conflictKey?: string | null;
+  fingerprint?: string | null;
+  action: string;
+  actorId?: string | null;
+  actorEmail?: string | null;
+  note?: string | null;
+  payload?: Record<string, any>;
+}) {
+  try {
+    await query(
+      `INSERT INTO client_memory_resolution_log (
+         tenant_id, client_id, conflict_key, fingerprint, action, actor_id, actor_email, note, payload
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+      [
+        params.tenantId,
+        params.clientId,
+        params.conflictKey || null,
+        params.fingerprint || null,
+        params.action,
+        params.actorId || null,
+        params.actorEmail || null,
+        params.note || null,
+        JSON.stringify(params.payload || {}),
+      ],
+    );
+  } catch (error) {
+    if (!isMissingResolutionTableError(error)) throw error;
+  }
+}
+
+export async function resolveClientMemoryConflict(params: {
+  tenantId: string;
+  clientId: string;
+  conflictKey: string;
+  resolution: 'keep_primary' | 'keep_conflicting' | 'archive_both' | 'dismiss';
+  note?: string | null;
+  confirmedBy?: string | null;
+  actorId?: string | null;
+  actorEmail?: string | null;
+}) {
+  const conflicts = await listClientMemoryConflicts({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    status: 'active',
+    limit: 100,
+  });
+  const conflict = conflicts.find((item) => item.conflict_key === params.conflictKey);
+  if (!conflict) throw new Error('Conflito não encontrado.');
+
+  const affected: Array<{ fingerprint: string; status: string | null }> = [];
+  if (params.resolution === 'keep_primary') {
+    const updated = await updateClientMemoryFactStatus({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      fingerprint: conflict.conflicting.fingerprint,
+      nextStatus: 'archived',
+      expiresAt: new Date().toISOString(),
+      sourceNote: params.note || 'resolução humana: manter fato primário',
+      confirmedBy: params.confirmedBy || null,
+      supersededByFingerprint: conflict.primary.fingerprint,
+    });
+    affected.push({ fingerprint: conflict.conflicting.fingerprint, status: updated?.status || null });
+  } else if (params.resolution === 'keep_conflicting') {
+    const updated = await updateClientMemoryFactStatus({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      fingerprint: conflict.primary.fingerprint,
+      nextStatus: 'archived',
+      expiresAt: new Date().toISOString(),
+      sourceNote: params.note || 'resolução humana: manter fato conflitante',
+      confirmedBy: params.confirmedBy || null,
+      supersededByFingerprint: conflict.conflicting.fingerprint,
+    });
+    affected.push({ fingerprint: conflict.primary.fingerprint, status: updated?.status || null });
+  } else if (params.resolution === 'archive_both') {
+    for (const fingerprint of [conflict.primary.fingerprint, conflict.conflicting.fingerprint]) {
+      const updated = await updateClientMemoryFactStatus({
+        tenantId: params.tenantId,
+        clientId: params.clientId,
+        fingerprint,
+        nextStatus: 'archived',
+        expiresAt: new Date().toISOString(),
+        sourceNote: params.note || 'resolução humana: arquivar ambos os fatos em conflito',
+        confirmedBy: params.confirmedBy || null,
+      });
+      affected.push({ fingerprint, status: updated?.status || null });
+    }
+  }
+
+  try {
+    await query(
+      `UPDATE client_memory_fact_conflicts
+          SET status = 'resolved',
+              resolved_at = now(),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND conflict_key = $3`,
+      [
+        params.tenantId,
+        params.clientId,
+        params.conflictKey,
+        JSON.stringify({
+          human_resolution: params.resolution,
+          note: params.note || null,
+          confirmed_by: params.confirmedBy || null,
+          resolved_at: new Date().toISOString(),
+        }),
+      ],
+    );
+  } catch (error) {
+    if (!isMissingConflictTableError(error)) throw error;
+  }
+
+  await logClientMemoryResolution({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    conflictKey: params.conflictKey,
+    action: `resolve_conflict:${params.resolution}`,
+    actorId: params.actorId || null,
+    actorEmail: params.actorEmail || null,
+    note: params.note || null,
+    payload: {
+      conflict,
+      affected,
+    },
+  });
+
+  return {
+    conflict_key: params.conflictKey,
+    resolution: params.resolution,
+    affected,
   };
 }

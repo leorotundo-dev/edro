@@ -101,6 +101,7 @@ export type JarvisObservability = {
     taskType: string;
     actorProfile: string;
     style?: string | null;
+    sandboxOnly?: boolean;
     confidence: {
       score: number;
       band: 'low' | 'medium' | 'high';
@@ -138,6 +139,28 @@ export type JarvisObservability = {
         learning_score: number;
       }>;
     };
+    retrievalStrategy?: {
+      favoredSourceTypes: string[];
+      favoredFactTypes: string[];
+      budget: {
+        directives: number;
+        commitments: number;
+        evidence: number;
+        documents: number;
+      };
+    };
+    toolPolicy?: {
+      preferredTools: Array<{
+        tool_name: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+      penalizedTools: Array<{
+        tool_name: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+    };
     evidenceUsed: Array<{
       fact_type: string | null;
       fingerprint: string | null;
@@ -147,6 +170,8 @@ export type JarvisObservability = {
       source_id: string | null;
       related_at: string | null;
       confidence_score: number | null;
+      source_excerpt?: string | null;
+      topic_tags?: string[];
     }>;
     suppressedFacts: Array<{
       fact_type: string | null;
@@ -157,6 +182,14 @@ export type JarvisObservability = {
       source_id: string | null;
       related_at: string | null;
       confidence_score: number | null;
+      source_excerpt?: string | null;
+      topic_tags?: string[];
+    }>;
+    topicMaps?: Array<{
+      topic: string;
+      score: number;
+      evidence_count: number;
+      source_types: string[];
     }>;
   };
   simulation?: {

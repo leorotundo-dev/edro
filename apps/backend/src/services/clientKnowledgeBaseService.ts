@@ -4,7 +4,7 @@ import { buildClientLivingMemory } from './clientLivingMemoryService';
 import { listClientMemoryFacts } from './clientMemoryFactsService';
 import { analyzeClientMemoryGovernance } from './clientMemoryGovernanceService';
 import { buildClientCopyQualityScorecard, type ClientCopyQualityScorecard } from './copyQualityScorecardService';
-import { listJarvisRetrievalSignals, listRecentJarvisOutcomes } from './jarvisOutcomeService';
+import { getJarvisCohortRetrievalSignals, listJarvisRetrievalSignals, listRecentJarvisEpisodes, listRecentJarvisOutcomes } from './jarvisOutcomeService';
 
 type KnowledgeBaseFact = {
   fact_type: 'directive' | 'commitment' | 'evidence';
@@ -16,6 +16,8 @@ type KnowledgeBaseFact = {
   source_id: string | null;
   related_at: string | null;
   confidence_score: number;
+  source_excerpt?: string | null;
+  topic_tags?: string[];
   metadata?: Record<string, any>;
 };
 
@@ -71,6 +73,14 @@ type RetrievalLearningItem = {
   avg_outcome_score: number;
 };
 
+type ClientKnowledgeTopicMap = {
+  topic: string;
+  score: number;
+  evidence_count: number;
+  source_types: string[];
+  highlights: string[];
+};
+
 export type ClientKnowledgeBaseIntent =
   | 'general'
   | 'copy'
@@ -108,6 +118,23 @@ export type ClientKnowledgeBaseSnapshot = {
     penalized_facts: RetrievalLearningItem[];
     total_scored_facts: number;
   };
+  retrieval_strategy: {
+    budget: {
+      directives: number;
+      commitments: number;
+      evidence: number;
+      documents: number;
+    };
+    cohort_signals: Array<{
+      fact_type: string | null;
+      source_type: string | null;
+      sample_count: number;
+      learning_score: number;
+    }>;
+    favored_source_types: string[];
+    favored_fact_types: string[];
+  };
+  topic_maps: ClientKnowledgeTopicMap[];
   copy_quality_scorecard: ClientCopyQualityScorecard | null;
   copy_policy: ClientCopyPolicy;
   copy_policy_block: string;
@@ -134,6 +161,15 @@ export type ClientKnowledgeBaseSnapshot = {
     title: string;
     summary: string | null;
     status: string;
+    created_at: string | null;
+  }>;
+  recent_episodes: Array<{
+    id: string;
+    episode_kind: string;
+    task_type: string | null;
+    actor_profile: string | null;
+    title: string;
+    summary: string;
     created_at: string | null;
   }>;
   memory_block: string;
@@ -214,6 +250,8 @@ function toFact(item: any): KnowledgeBaseFact {
     source_id: item.source_id || null,
     related_at: item.related_at || null,
     confidence_score: Number(item.confidence_score ?? 0),
+    source_excerpt: null,
+    topic_tags: [],
     metadata: item.metadata || {},
   };
 }
@@ -232,7 +270,10 @@ function buildKnowledgeBaseBlock(input: {
   copyQualitySummary?: ClientCopyQualityScorecard['summary'] | null;
   compaction: ClientKnowledgeBaseSnapshot['compaction'];
   recentOutcomes: ClientKnowledgeBaseSnapshot['recent_outcomes'];
+  recentEpisodes: ClientKnowledgeBaseSnapshot['recent_episodes'];
   retrievalLearning: ClientKnowledgeBaseSnapshot['retrieval_learning'];
+  retrievalStrategy: ClientKnowledgeBaseSnapshot['retrieval_strategy'];
+  topicMaps: ClientKnowledgeBaseSnapshot['topic_maps'];
 }) {
   const parts: string[] = ['BASE DE CONHECIMENTO DO CLIENTE:'];
   if (input.clientName) parts.push(`Cliente: ${input.clientName}`);
@@ -253,6 +294,9 @@ function buildKnowledgeBaseBlock(input: {
   if (input.recentOutcomes.length) {
     parts.push(`Resultados recentes do Jarvis: ${input.recentOutcomes.slice(0, 3).map((item) => `${item.title} (${item.status})`).join(' | ')}`);
   }
+  if (input.recentEpisodes.length) {
+    parts.push(`Memória episódica: ${input.recentEpisodes.slice(0, 3).map((item) => `${item.title} (${item.episode_kind})`).join(' | ')}`);
+  }
   if (input.retrievalLearning.boosted_facts.length) {
     parts.push(
       `Aprendizado de retrieval${input.retrievalLearning.task_type ? ` para ${input.retrievalLearning.task_type}` : ''}: priorizar ${input.retrievalLearning.boosted_facts.slice(0, 3).map((item) => item.title || item.fingerprint).join(' | ')}.`,
@@ -262,6 +306,14 @@ function buildKnowledgeBaseBlock(input: {
     parts.push(
       `Sinais a atenuar${input.retrievalLearning.actor_profile ? ` para perfil ${input.retrievalLearning.actor_profile}` : ''}: ${input.retrievalLearning.penalized_facts.slice(0, 2).map((item) => item.title || item.fingerprint).join(' | ')}.`,
     );
+  }
+  if (input.retrievalStrategy.favored_source_types.length || input.retrievalStrategy.favored_fact_types.length) {
+    parts.push(
+      `Estratégia de retrieval: fontes ${input.retrievalStrategy.favored_source_types.join(' | ') || 'n/a'}; fatos ${input.retrievalStrategy.favored_fact_types.join(' | ') || 'n/a'}.`,
+    );
+  }
+  if (input.topicMaps.length) {
+    parts.push(`Mapas de tema vivos: ${input.topicMaps.slice(0, 4).map((item) => `${item.topic} (${item.evidence_count})`).join(' | ')}.`);
   }
   if (input.compaction.compacted_memory_block) {
     parts.push(input.compaction.compacted_memory_block);
@@ -296,15 +348,31 @@ function rankSource(intent: ClientKnowledgeBaseIntent, sourceType: string | null
   return idx >= 0 ? idx : list.length + 1;
 }
 
-function sortFacts(intent: ClientKnowledgeBaseIntent, items: KnowledgeBaseFact[], learningScores?: Map<string, number>) {
+function sortFacts(
+  intent: ClientKnowledgeBaseIntent,
+  items: KnowledgeBaseFact[],
+  learningScores?: Map<string, number>,
+  options?: {
+    favoredSourceTypes?: string[];
+    favoredFactTypes?: string[];
+    taskType?: string | null;
+  },
+) {
   return [...items].sort((a, b) => {
     const score = (item: KnowledgeBaseFact) => {
       const sourceScore = Math.max(0, 10 - rankSource(intent, item.source_type) * 2);
       const confidenceScore = Number(item.confidence_score || 0) * 1.5;
       const learningScore = Number((item.fingerprint && learningScores?.get(item.fingerprint)) || 0) * 3;
+      const cohortSourceScore = options?.favoredSourceTypes?.includes(String(item.source_type || '')) ? 1.8 : 0;
+      const cohortFactScore = options?.favoredFactTypes?.includes(String(item.fact_type || '')) ? 1.2 : 0;
+      const taskBias =
+        options?.taskType === 'risk_triage' && item.fact_type === 'commitment' ? 1.5
+        : options?.taskType === 'relationship_reply' && String(item.source_type || '').includes('whatsapp') ? 1.4
+        : options?.taskType === 'meeting_followup' && ['meeting', 'meeting_action', 'meeting_chat'].includes(String(item.source_type || '')) ? 1.4
+        : 0;
       const relatedAt = parseTime(item.related_at);
       const recencyScore = relatedAt ? Math.max(0, 3 - ((Date.now() - relatedAt) / 86400000) * 0.04) : 0;
-      return sourceScore + confidenceScore + learningScore + recencyScore;
+      return sourceScore + confidenceScore + learningScore + cohortSourceScore + cohortFactScore + taskBias + recencyScore;
     };
     return score(b) - score(a);
   });
@@ -331,6 +399,217 @@ function parseTime(value: string | null | undefined) {
   if (!value) return null;
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function compactSourceExcerpt(...parts: Array<unknown>) {
+  return shortText(parts.filter(Boolean).join(' | '), 260) || null;
+}
+
+async function loadSourceExcerptMap(params: {
+  tenantId: string;
+  clientId: string;
+  facts: Array<{ source_type: string | null; source_id: string | null }>;
+}) {
+  const keyFor = (sourceType: string | null | undefined, sourceId: string | null | undefined) =>
+    `${String(sourceType || 'unknown')}:${String(sourceId || '')}`;
+
+  const map = new Map<string, string>();
+  const idsByType = new Map<string, Set<string>>();
+  for (const fact of params.facts) {
+    const sourceType = String(fact.source_type || '').trim();
+    const sourceId = String(fact.source_id || '').trim();
+    if (!sourceType || !sourceId) continue;
+    if (!idsByType.has(sourceType)) idsByType.set(sourceType, new Set());
+    idsByType.get(sourceType)!.add(sourceId);
+  }
+
+  const allSourceIds = Array.from(new Set([...idsByType.values()].flatMap((items) => [...items])));
+  if (allSourceIds.length) {
+    const docs = await query<{
+      id: string;
+      source_id: string | null;
+      source_type: string | null;
+      title: string | null;
+      content_excerpt: string | null;
+      content_text: string | null;
+    }>(
+      `SELECT id, source_id, source_type, title, content_excerpt, content_text
+         FROM client_documents
+        WHERE tenant_id = $1
+          AND client_id = $2
+          AND (COALESCE(source_id, '') = ANY($3::text[]) OR id::text = ANY($3::text[]))
+        ORDER BY created_at DESC`,
+      [params.tenantId, params.clientId, allSourceIds],
+    ).catch(() => ({ rows: [] }));
+
+    for (const row of docs.rows) {
+      const excerpt = compactSourceExcerpt(row.title, row.content_excerpt, row.content_text);
+      if (!excerpt) continue;
+      if (row.source_id) map.set(keyFor(row.source_type, row.source_id), excerpt);
+      map.set(keyFor(row.source_type, row.id), excerpt);
+    }
+  }
+
+  const loadDirect = async <T extends { id: string; excerpt: string | null }>(sourceType: string, sql: string, ids: string[]) => {
+    if (!ids.length) return;
+    const result = await query<T>(sql, [params.tenantId, ids]).catch(() => ({ rows: [] as T[] }));
+    for (const row of result.rows) {
+      if (row.excerpt) map.set(keyFor(sourceType, row.id), row.excerpt);
+    }
+  };
+
+  await Promise.all([
+    loadDirect('meeting', `
+      SELECT id::text, LEFT(CONCAT_WS(' | ', title, summary, transcript), 260) AS excerpt
+      FROM meetings
+      WHERE tenant_id = $1 AND id::text = ANY($2::text[])
+    `, [...(idsByType.get('meeting') || [])]),
+    loadDirect('meeting_chat', `
+      SELECT id::text, LEFT(CONCAT_WS(' | ', sender_name, message_text), 260) AS excerpt
+      FROM meeting_chat_messages
+      WHERE tenant_id = $1 AND id::text = ANY($2::text[])
+    `, [...(idsByType.get('meeting_chat') || [])]),
+    loadDirect('whatsapp_message', `
+      SELECT id::text, LEFT(CONCAT_WS(' | ', sender_phone, raw_text), 260) AS excerpt
+      FROM whatsapp_messages
+      WHERE tenant_id = $1 AND id::text = ANY($2::text[])
+    `, [...(idsByType.get('whatsapp_message') || [])]),
+    loadDirect('whatsapp_group_message', `
+      SELECT id::text, LEFT(CONCAT_WS(' | ', sender_name, content), 260) AS excerpt
+      FROM whatsapp_group_messages
+      WHERE tenant_id = $1 AND id::text = ANY($2::text[])
+    `, [...(idsByType.get('whatsapp_group_message') || [])]),
+    loadDirect('meeting_action', `
+      SELECT id::text, LEFT(CONCAT_WS(' | ', title, description, raw_excerpt), 260) AS excerpt
+      FROM meeting_actions
+      WHERE tenant_id = $1 AND id::text = ANY($2::text[])
+    `, [...(idsByType.get('meeting_action') || [])]),
+    loadDirect('jarvis_outcome', `
+      SELECT id::text, LEFT(CONCAT_WS(' | ', title, summary), 260) AS excerpt
+      FROM jarvis_outcome_memory
+      WHERE tenant_id = $1 AND id::text = ANY($2::text[])
+    `, [...(idsByType.get('jarvis_outcome') || [])]),
+  ]);
+
+  return map;
+}
+
+function extractTopicTags(...parts: Array<unknown>) {
+  return Array.from(new Set(tokenizeForCompaction(parts.filter(Boolean).join(' ')))).slice(0, 4);
+}
+
+function decorateFacts(
+  facts: KnowledgeBaseFact[],
+  sourceExcerptMap: Map<string, string>,
+) {
+  return facts.map((fact) => {
+    const sourceKey = `${String(fact.source_type || 'unknown')}:${String(fact.source_id || '')}`;
+    const sourceExcerpt = sourceExcerptMap.get(sourceKey) || null;
+    return {
+      ...fact,
+      source_excerpt: sourceExcerpt,
+      topic_tags: extractTopicTags(fact.title, fact.summary, fact.fact_text, sourceExcerpt),
+    } satisfies KnowledgeBaseFact;
+  });
+}
+
+function buildTopicMaps(params: {
+  facts: KnowledgeBaseFact[];
+  recentDocuments: ClientKnowledgeBaseSnapshot['recent_documents'];
+  recentOutcomes: ClientKnowledgeBaseSnapshot['recent_outcomes'];
+}) {
+  const buckets = new Map<string, {
+    topic: string;
+    score: number;
+    evidence_count: number;
+    source_types: Set<string>;
+    highlights: string[];
+  }>();
+
+  const register = (topic: string, weight: number, sourceType: string | null | undefined, highlight: string | null | undefined) => {
+    if (!topic) return;
+    if (!buckets.has(topic)) {
+      buckets.set(topic, {
+        topic,
+        score: 0,
+        evidence_count: 0,
+        source_types: new Set<string>(),
+        highlights: [],
+      });
+    }
+    const bucket = buckets.get(topic)!;
+    bucket.score += weight;
+    bucket.evidence_count += 1;
+    if (sourceType) bucket.source_types.add(sourceType);
+    if (highlight && bucket.highlights.length < 3 && !bucket.highlights.includes(highlight)) {
+      bucket.highlights.push(highlight);
+    }
+  };
+
+  for (const fact of params.facts) {
+    for (const topic of fact.topic_tags || []) {
+      register(topic, Math.max(0.45, Number(fact.confidence_score || 0)), fact.source_type, fact.title);
+    }
+  }
+  for (const doc of params.recentDocuments.slice(0, 8)) {
+    for (const topic of extractTopicTags(doc.title, doc.excerpt)) {
+      register(topic, 0.7, doc.source_type, doc.title || doc.excerpt || '');
+    }
+  }
+  for (const outcome of params.recentOutcomes.slice(0, 6)) {
+    for (const topic of extractTopicTags(outcome.title, outcome.summary)) {
+      register(topic, outcome.status === 'completed' ? 1.05 : 0.4, outcome.source_type, outcome.title);
+    }
+  }
+
+  return [...buckets.values()]
+    .sort((a, b) => b.score - a.score || b.evidence_count - a.evidence_count || a.topic.localeCompare(b.topic))
+    .slice(0, 8)
+    .map((item) => ({
+      topic: item.topic,
+      score: Number(item.score.toFixed(3)),
+      evidence_count: item.evidence_count,
+      source_types: [...item.source_types].slice(0, 4),
+      highlights: item.highlights,
+    })) satisfies ClientKnowledgeTopicMap[];
+}
+
+function buildRetrievalStrategy(params: {
+  intent: ClientKnowledgeBaseIntent;
+  taskType?: string | null;
+  governancePressure: ClientKnowledgeBaseSnapshot['governance']['governance_pressure'];
+  cohortSignals: Array<{
+    fact_type: string | null;
+    source_type: string | null;
+    sample_count: number;
+    learning_score: number;
+  }>;
+}) {
+  const baseBudget = {
+    directives: params.intent === 'ops' ? 5 : 4,
+    commitments: params.intent === 'ops' ? 5 : 3,
+    evidence: params.intent === 'relationship' ? 6 : 5,
+    documents: params.intent === 'strategy' ? 5 : 4,
+  };
+  if (params.governancePressure === 'high') {
+    baseBudget.evidence = Math.max(3, baseBudget.evidence - 1);
+    baseBudget.documents = Math.max(2, baseBudget.documents - 1);
+  }
+  if (params.taskType === 'meeting_followup') {
+    baseBudget.commitments += 1;
+    baseBudget.evidence += 1;
+  } else if (params.taskType === 'risk_triage') {
+    baseBudget.commitments += 2;
+  } else if (params.taskType === 'relationship_reply') {
+    baseBudget.evidence += 1;
+  }
+
+  return {
+    budget: baseBudget,
+    cohort_signals: params.cohortSignals.slice(0, 6),
+    favored_source_types: Array.from(new Set(params.cohortSignals.filter((item) => item.learning_score > 0).map((item) => item.source_type).filter(Boolean))) as string[],
+    favored_fact_types: Array.from(new Set(params.cohortSignals.filter((item) => item.learning_score > 0).map((item) => item.fact_type).filter(Boolean))) as string[],
+  } satisfies ClientKnowledgeBaseSnapshot['retrieval_strategy'];
 }
 
 function buildCompactionWindow(params: {
@@ -529,9 +808,9 @@ export async function buildClientKnowledgeBase(params: {
   const limitDocuments = Math.min(params.limitDocuments ?? 6, 12);
   const question = String(params.question || '').trim();
 
-  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance, copyQualityScorecard, recentOutcomes, retrievalSignals] = await Promise.all([
-    query<{ name: string | null; profile: Record<string, any> | null }>(
-      `SELECT name, profile FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+  const [clientResult, radarResult, livingMemory, facts, latestInsight, documents, governance, copyQualityScorecard, recentOutcomes, recentEpisodes, retrievalSignals] = await Promise.all([
+    query<{ name: string | null; segment_primary: string | null; profile: Record<string, any> | null }>(
+      `SELECT name, segment_primary, profile FROM clients WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
       [params.tenantId, params.clientId],
     ),
     query<{
@@ -611,6 +890,12 @@ export async function buildClientKnowledgeBase(params: {
       daysBack,
       limit: 6,
     }).catch(() => []),
+    listRecentJarvisEpisodes({
+      tenantId: params.tenantId,
+      clientId: params.clientId,
+      daysBack,
+      limit: 6,
+    }).catch(() => []),
     params.taskType || params.actorProfile
       ? listJarvisRetrievalSignals({
           tenantId: params.tenantId,
@@ -622,6 +907,13 @@ export async function buildClientKnowledgeBase(params: {
         }).catch(() => [])
       : Promise.resolve([]),
   ]);
+  const cohortSignals = await getJarvisCohortRetrievalSignals({
+    tenantId: params.tenantId,
+    segmentPrimary: clientResult.rows[0]?.segment_primary || null,
+    taskType: params.taskType,
+    actorProfile: params.actorProfile,
+    daysBack: Math.min(daysBack * 2, 180),
+  }).catch(() => []);
 
   const retrievalLearning = {
     task_type: params.taskType || null,
@@ -633,6 +925,17 @@ export async function buildClientKnowledgeBase(params: {
   const retrievalScoreMap = new Map((retrievalSignals || []).map((item) => [item.fingerprint, Number(item.learning_score || 0)]));
 
   const factRows = facts || [];
+  const sourceExcerptMap = await loadSourceExcerptMap({
+    tenantId: params.tenantId,
+    clientId: params.clientId,
+    facts: factRows,
+  });
+  const retrievalStrategy = buildRetrievalStrategy({
+    intent,
+    taskType: params.taskType,
+    governancePressure: governance.summary.governance_pressure,
+    cohortSignals,
+  });
   const suppressedFingerprints = new Set(
     (governance?.suggestions || [])
       .filter((item) => item?.target?.fingerprint)
@@ -651,10 +954,36 @@ export async function buildClientKnowledgeBase(params: {
       .filter((item) => suppressedFingerprints.has(String(item.fingerprint || '')))
       .map(toFact),
     retrievalScoreMap,
+    {
+      favoredSourceTypes: retrievalStrategy.favored_source_types,
+      favoredFactTypes: retrievalStrategy.favored_fact_types,
+      taskType: params.taskType,
+    },
   );
-  const directives = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'directive').map(toFact), retrievalScoreMap);
-  const commitments = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'commitment').map(toFact), retrievalScoreMap);
-  const evidence = sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'evidence').map(toFact), retrievalScoreMap);
+  const directives = decorateFacts(
+    sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'directive').map(toFact), retrievalScoreMap, {
+      favoredSourceTypes: retrievalStrategy.favored_source_types,
+      favoredFactTypes: retrievalStrategy.favored_fact_types,
+      taskType: params.taskType,
+    }).slice(0, retrievalStrategy.budget.directives),
+    sourceExcerptMap,
+  );
+  const commitments = decorateFacts(
+    sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'commitment').map(toFact), retrievalScoreMap, {
+      favoredSourceTypes: retrievalStrategy.favored_source_types,
+      favoredFactTypes: retrievalStrategy.favored_fact_types,
+      taskType: params.taskType,
+    }).slice(0, retrievalStrategy.budget.commitments),
+    sourceExcerptMap,
+  );
+  const evidence = decorateFacts(
+    sortFacts(intent, activeFactRows.filter((item) => item.fact_type === 'evidence').map(toFact), retrievalScoreMap, {
+      favoredSourceTypes: retrievalStrategy.favored_source_types,
+      favoredFactTypes: retrievalStrategy.favored_fact_types,
+      taskType: params.taskType,
+    }).slice(0, retrievalStrategy.budget.evidence),
+    sourceExcerptMap,
+  );
   const recentDocuments = sortDocuments(intent, documents.map((item) => ({
     id: item.id,
     source_type: item.source_type || null,
@@ -664,7 +993,7 @@ export async function buildClientKnowledgeBase(params: {
     url: item.url || null,
     published_at: item.published_at || null,
     created_at: item.created_at || null,
-  })));
+  }))).slice(0, retrievalStrategy.budget.documents);
   const compactionItems = [
     ...directives.map((item) => ({
       kind: 'directive' as const,
@@ -694,6 +1023,13 @@ export async function buildClientKnowledgeBase(params: {
       related_at: item.published_at || item.created_at,
       summary: item.excerpt || null,
     })),
+    ...recentEpisodes.map((item: any) => ({
+      kind: 'evidence' as const,
+      title: item.title,
+      source_type: 'jarvis_episode',
+      related_at: item.created_at || null,
+      summary: item.summary || null,
+    })),
   ].sort((a, b) => String(b.related_at || '').localeCompare(String(a.related_at || '')));
   const recentChanges = compactionItems.slice(0, 6);
   const last7Days = buildCompactionWindow({ windowDays: 7, items: compactionItems });
@@ -708,6 +1044,29 @@ export async function buildClientKnowledgeBase(params: {
       recentChanges,
     }),
   };
+  const recentOutcomeRows = recentOutcomes.map((item: any) => ({
+    id: item.id,
+    outcome_type: item.outcome_type,
+    source_type: item.source_type,
+    title: item.title,
+    summary: item.summary || null,
+    status: item.status,
+    created_at: item.created_at || null,
+  }));
+  const recentEpisodeRows = recentEpisodes.map((item: any) => ({
+    id: item.id,
+    episode_kind: item.episode_kind,
+    task_type: item.task_type || null,
+    actor_profile: item.actor_profile || null,
+    title: item.title,
+    summary: item.summary,
+    created_at: item.created_at || null,
+  }));
+  const topicMaps = buildTopicMaps({
+    facts: [...directives, ...commitments, ...evidence],
+    recentDocuments,
+    recentOutcomes: recentOutcomeRows,
+  });
   const { copyPolicy, copyPolicyBlock } = buildClientCopyPolicy({
     profile: clientResult.rows[0]?.profile || {},
     latestInsight: (latestInsight?.summary || null) as Record<string, any> | null,
@@ -773,20 +1132,15 @@ export async function buildClientKnowledgeBase(params: {
       suppressed_fact_previews: suppressedFactPreviews,
     },
     retrieval_learning: retrievalLearning,
+    retrieval_strategy: retrievalStrategy,
+    topic_maps: topicMaps,
     copy_quality_scorecard: copyQualityScorecard,
     copy_policy: copyPolicy,
     copy_policy_block: copyPolicyBlock,
     compaction,
     recent_documents: recentDocuments,
-    recent_outcomes: recentOutcomes.map((item: any) => ({
-      id: item.id,
-      outcome_type: item.outcome_type,
-      source_type: item.source_type,
-      title: item.title,
-      summary: item.summary || null,
-      status: item.status,
-      created_at: item.created_at || null,
-    })),
+    recent_outcomes: recentOutcomeRows,
+    recent_episodes: recentEpisodeRows,
     memory_block: livingMemory.block,
     knowledge_base_block: buildKnowledgeBaseBlock({
       intent,
@@ -811,16 +1165,11 @@ export async function buildClientKnowledgeBase(params: {
       copyPolicyBlock,
       copyQualitySummary: copyQualityScorecard?.summary || null,
       compaction,
-      recentOutcomes: recentOutcomes.map((item: any) => ({
-        id: item.id,
-        outcome_type: item.outcome_type,
-        source_type: item.source_type,
-        title: item.title,
-        summary: item.summary || null,
-        status: item.status,
-        created_at: item.created_at || null,
-      })),
+      recentOutcomes: recentOutcomeRows,
+      recentEpisodes: recentEpisodeRows,
       retrievalLearning,
+      retrievalStrategy,
+      topicMaps,
     }),
   } satisfies ClientKnowledgeBaseSnapshot;
 }

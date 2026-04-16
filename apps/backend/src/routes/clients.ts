@@ -37,6 +37,9 @@ import { env, portalLoginSecret } from '../env';
 import { audit } from '../audit/audit';
 import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 import { buildClientCopyQualityScorecard } from '../services/copyQualityScorecardService';
+import { buildClientJarvisQualityScorecard } from '../services/jarvisEvaluationService';
+import { getClientMemoryFactByFingerprint, listClientMemoryFacts, recordClientMemoryFact, updateClientMemoryFactStatus } from '../services/clientMemoryFactsService';
+import { analyzeClientMemoryGovernance, listClientMemoryConflicts, resolveClientMemoryConflict, syncClientMemoryGovernanceState } from '../services/clientMemoryGovernanceService';
 
 type PlanExtraction = {
   name?: string;
@@ -703,6 +706,173 @@ export default async function clientsRoutes(app: FastifyInstance) {
     }
   );
 
+  // ── Memory Workbench ─────────────────────────────────────────────────────
+
+  app.get(
+    '/clients/:id/memory/facts',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const querySchema = z.object({
+        days_back: z.coerce.number().int().min(1).max(365).optional(),
+        limit: z.coerce.number().int().min(1).max(60).optional(),
+      });
+      const queryParams = querySchema.parse(request.query || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const facts = await listClientMemoryFacts({
+        tenantId,
+        clientId: params.id,
+        daysBack: queryParams.days_back ?? 180,
+        limit: queryParams.limit ?? 40,
+      });
+
+      return reply.send({
+        ok: true,
+        facts: facts || [],
+      });
+    },
+  );
+
+  app.get(
+    '/clients/:id/memory/governance',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const tenantId = (request.user as any).tenant_id;
+      const governance = await syncClientMemoryGovernanceState({
+        tenantId,
+        clientId: params.id,
+        daysBack: 365,
+        limit: 100,
+      });
+      return reply.send({ ok: true, governance });
+    },
+  );
+
+  app.get(
+    '/clients/:id/memory/conflicts',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const querySchema = z.object({
+        status: z.enum(['active', 'resolved']).optional(),
+      });
+      const queryParams = querySchema.parse(request.query || {});
+      const tenantId = (request.user as any).tenant_id;
+      const conflicts = await listClientMemoryConflicts({
+        tenantId,
+        clientId: params.id,
+        status: queryParams.status,
+        limit: 40,
+      });
+      return reply.send({ ok: true, conflicts });
+    },
+  );
+
+  app.post(
+    '/clients/:id/memory/facts/:fingerprint/archive',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1), fingerprint: z.string().min(1) }).parse(request.params);
+      const body = z.object({ reason: z.string().trim().optional().nullable() }).parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+      const user = request.user as any;
+
+      const updated = await updateClientMemoryFactStatus({
+        tenantId,
+        clientId: params.id,
+        fingerprint: params.fingerprint,
+        nextStatus: 'archived',
+        expiresAt: new Date().toISOString(),
+        sourceNote: body.reason || 'arquivado manualmente no editor de memória',
+        confirmedBy: user?.email || user?.id || null,
+      });
+      if (!updated) return reply.status(404).send({ error: 'memory_fact_not_found' });
+      return reply.send({ ok: true, fact: updated });
+    },
+  );
+
+  app.post(
+    '/clients/:id/memory/facts/:fingerprint/promote-directive',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1), fingerprint: z.string().min(1) }).parse(request.params);
+      const body = z.object({
+        directive_type: z.enum(['boost', 'avoid']),
+        title: z.string().trim().optional().nullable(),
+        archive_original: z.boolean().optional().default(true),
+        reason: z.string().trim().optional().nullable(),
+      }).parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+      const user = request.user as any;
+
+      const fact = await getClientMemoryFactByFingerprint({
+        tenantId,
+        clientId: params.id,
+        fingerprint: params.fingerprint,
+      });
+      if (!fact) return reply.status(404).send({ error: 'memory_fact_not_found' });
+
+      const recorded = await recordClientMemoryFact({
+        tenantId,
+        clientId: params.id,
+        factType: 'directive',
+        title: body.title || fact.title,
+        factText: fact.fact_text,
+        summary: fact.summary || null,
+        directiveType: body.directive_type,
+        relatedAt: fact.related_at || null,
+        sourceType: 'memory_editor',
+        sourceId: fact.fingerprint || null,
+        sourceNote: body.reason || 'promovido a diretiva pelo editor de memória',
+        confirmedBy: user?.email || user?.id || null,
+      });
+
+      if (body.archive_original) {
+        await updateClientMemoryFactStatus({
+          tenantId,
+          clientId: params.id,
+          fingerprint: params.fingerprint,
+          nextStatus: 'archived',
+          expiresAt: new Date().toISOString(),
+          sourceNote: body.reason || 'substituído por diretiva promovida no editor de memória',
+          confirmedBy: user?.email || user?.id || null,
+          supersededByFingerprint: recorded.fingerprint,
+        });
+      }
+
+      return reply.send({ ok: true, recorded });
+    },
+  );
+
+  app.post(
+    '/clients/:id/memory/conflicts/:conflictKey/resolve',
+    { preHandler: [requirePerm('clients:write'), requireClientPerm('write')] },
+    async (request: any, reply) => {
+      const params = z.object({ id: z.string().min(1), conflictKey: z.string().min(1) }).parse(request.params);
+      const body = z.object({
+        resolution: z.enum(['keep_primary', 'keep_conflicting', 'archive_both', 'dismiss']),
+        note: z.string().trim().optional().nullable(),
+      }).parse(request.body || {});
+      const tenantId = (request.user as any).tenant_id;
+      const user = request.user as any;
+
+      const result = await resolveClientMemoryConflict({
+        tenantId,
+        clientId: params.id,
+        conflictKey: params.conflictKey,
+        resolution: body.resolution,
+        note: body.note || null,
+        confirmedBy: user?.email || user?.id || null,
+        actorId: user?.id || null,
+        actorEmail: user?.email || null,
+      });
+
+      return reply.send({ ok: true, result });
+    },
+  );
+
   // ── Intelligence ──────────────────────────────────────────────────────────
 
   app.get(
@@ -998,6 +1168,30 @@ export default async function clientsRoutes(app: FastifyInstance) {
       if (!client) return reply.status(404).send({ error: 'client_not_found' });
 
       const scorecard = await buildClientCopyQualityScorecard({
+        tenantId,
+        clientId: params.id,
+        daysBack: queryParams.days_back ?? 90,
+      });
+
+      return reply.send({ ok: true, scorecard });
+    }
+  );
+
+  app.get(
+    '/clients/:id/jarvis-quality',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const querySchema = z.object({ days_back: z.coerce.number().int().min(7).max(365).optional() });
+
+      const params = paramsSchema.parse(request.params);
+      const queryParams = querySchema.parse(request.query || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const client = await getClientById(tenantId, params.id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const scorecard = await buildClientJarvisQualityScorecard({
         tenantId,
         clientId: params.id,
         daysBack: queryParams.days_back ?? 90,

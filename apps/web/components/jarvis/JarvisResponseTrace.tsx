@@ -43,6 +43,7 @@ export type JarvisObservability = {
     taskType: string;
     actorProfile: string;
     style?: string | null;
+    sandboxOnly?: boolean;
     confidence: {
       score: number;
       band: 'low' | 'medium' | 'high';
@@ -80,6 +81,28 @@ export type JarvisObservability = {
         learning_score: number;
       }>;
     };
+    retrievalStrategy?: {
+      favoredSourceTypes: string[];
+      favoredFactTypes: string[];
+      budget: {
+        directives: number;
+        commitments: number;
+        evidence: number;
+        documents: number;
+      };
+    };
+    toolPolicy?: {
+      preferredTools: Array<{
+        tool_name: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+      penalizedTools: Array<{
+        tool_name: string;
+        learning_score: number;
+        sample_count: number;
+      }>;
+    };
     evidenceUsed: Array<{
       fact_type: string | null;
       fingerprint: string | null;
@@ -89,6 +112,8 @@ export type JarvisObservability = {
       source_id: string | null;
       related_at: string | null;
       confidence_score: number | null;
+      source_excerpt?: string | null;
+      topic_tags?: string[];
     }>;
     suppressedFacts: Array<{
       fact_type: string | null;
@@ -99,6 +124,14 @@ export type JarvisObservability = {
       source_id: string | null;
       related_at: string | null;
       confidence_score: number | null;
+      source_excerpt?: string | null;
+      topic_tags?: string[];
+    }>;
+    topicMaps?: Array<{
+      topic: string;
+      score: number;
+      evidence_count: number;
+      source_types: string[];
     }>;
   };
   simulation?: {
@@ -170,6 +203,8 @@ function formatEvidenceLine(item: {
   source_type: string | null;
   related_at: string | null;
   confidence_score: number | null;
+  source_excerpt?: string | null;
+  topic_tags?: string[];
 }) {
   const parts = [
     item.fact_type ? `[${item.fact_type}]` : null,
@@ -178,7 +213,9 @@ function formatEvidenceLine(item: {
     shortFingerprint(item.fingerprint) ? `fp ${shortFingerprint(item.fingerprint)}` : null,
     item.confidence_score != null ? `score ${Number(item.confidence_score).toFixed(1)}` : null,
   ].filter(Boolean);
-  return `${parts.join(' | ')}${item.summary ? ` — ${item.summary}` : ''}`;
+  const body = item.source_excerpt || item.summary;
+  const topics = item.topic_tags?.length ? ` [${item.topic_tags.join(', ')}]` : '';
+  return `${parts.join(' | ')}${body ? ` — ${body}` : ''}${topics}`;
 }
 
 export default function JarvisResponseTrace({ observability }: { observability?: JarvisObservability | null }) {
@@ -212,6 +249,7 @@ export default function JarvisResponseTrace({ observability }: { observability?:
         {observability.execution ? <Chip size="small" label={`Tarefa: ${observability.execution.taskType}`} variant="outlined" /> : null}
         {observability.execution ? <Chip size="small" label={`Perfil: ${observability.execution.actorProfile}`} variant="outlined" /> : null}
         {observability.execution?.style ? <Chip size="small" label={`Estilo: ${observability.execution.style}`} variant="outlined" /> : null}
+        {observability.execution?.sandboxOnly ? <Chip size="small" label="Sandbox" color="warning" variant="outlined" /> : null}
         {observability.autonomy ? <Chip size="small" label={formatAutonomy(observability.autonomy.highestLevel)} variant="outlined" /> : null}
         {observability.execution ? <Chip size="small" label={`Confiança: ${observability.execution.confidence.band} / ${formatConfidenceMode(observability.execution.confidence.mode)}`} variant="outlined" /> : null}
         {typeof observability.toolsUsed === 'number' ? <Chip size="small" label={`Tools: ${observability.toolsUsed}`} variant="outlined" /> : null}
@@ -278,6 +316,23 @@ export default function JarvisResponseTrace({ observability }: { observability?:
           ))}
         </Box>
       ) : null}
+      {observability.memoryAudit?.toolPolicy?.preferredTools?.length ? (
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Política de ferramentas
+          </Typography>
+          {observability.memoryAudit.toolPolicy.preferredTools.slice(0, 3).map((item) => (
+            <Typography key={`tool-pref-${item.tool_name}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              preferida {item.tool_name} — ganho {Number(item.learning_score).toFixed(2)} em {item.sample_count} casos
+            </Typography>
+          ))}
+          {observability.memoryAudit.toolPolicy.penalizedTools.slice(0, 2).map((item) => (
+            <Typography key={`tool-pen-${item.tool_name}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              cautela {item.tool_name} — peso {Number(item.learning_score).toFixed(2)} em {item.sample_count} casos
+            </Typography>
+          ))}
+        </Box>
+      ) : null}
       {observability.memoryAudit?.retrievalLearning?.boostedFacts?.length ? (
         <Box sx={{ mt: 0.5 }}>
           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
@@ -298,6 +353,31 @@ export default function JarvisResponseTrace({ observability }: { observability?:
           {observability.memoryAudit.retrievalLearning.penalizedFacts.slice(0, 2).map((item) => (
             <Typography key={`penalty-${item.fingerprint}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
               {(item.title || shortFingerprint(item.fingerprint) || item.fingerprint)} — peso {Number(item.learning_score).toFixed(2)}
+            </Typography>
+          ))}
+        </Box>
+      ) : null}
+      {observability.memoryAudit?.retrievalStrategy ? (
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Estratégia de retrieval
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+            fontes {observability.memoryAudit.retrievalStrategy.favoredSourceTypes.join(' | ') || 'n/a'} / fatos {observability.memoryAudit.retrievalStrategy.favoredFactTypes.join(' | ') || 'n/a'}
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+            budget D{observability.memoryAudit.retrievalStrategy.budget.directives} C{observability.memoryAudit.retrievalStrategy.budget.commitments} E{observability.memoryAudit.retrievalStrategy.budget.evidence} Doc{observability.memoryAudit.retrievalStrategy.budget.documents}
+          </Typography>
+        </Box>
+      ) : null}
+      {observability.memoryAudit?.topicMaps?.length ? (
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700 }}>
+            Mapas de tema
+          </Typography>
+          {observability.memoryAudit.topicMaps.slice(0, 4).map((item) => (
+            <Typography key={`topic-${item.topic}`} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              {item.topic} — score {Number(item.score).toFixed(2)} em {item.evidence_count} sinais ({item.source_types.join(' | ')})
             </Typography>
           ))}
         </Box>

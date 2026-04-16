@@ -27,6 +27,7 @@ import { apiPost, apiGet } from '@/lib/api';
 import ArtifactCard, { Artifact, type JarvisArtifactAction, type JarvisClientAction } from '@/components/jarvis/ArtifactCard';
 import { collectPendingBackgroundJobIds, mergeBackgroundArtifactUpdate } from '@/components/jarvis/backgroundArtifacts';
 import JarvisResponseTrace, { type JarvisObservability } from '@/components/jarvis/JarvisResponseTrace';
+import JarvisMemoryWorkbench from '@/components/jarvis/JarvisMemoryWorkbench';
 import ConversationList from '@/components/jarvis/ConversationList';
 import AppShell from '@/components/AppShell';
 
@@ -312,6 +313,7 @@ export default function JarvisFullClient() {
             </>
           }
         />
+        <JarvisMemoryWorkbench clientId={clientId} />
         <Box
           sx={(theme) => ({
             display: 'flex',
@@ -324,7 +326,6 @@ export default function JarvisFullClient() {
             borderRadius: 4,
           })}
         >
-
         {/* Sidebar — history mobile */}
         <Slide direction="right" in={showHistory} mountOnEnter unmountOnExit>
           <Paper

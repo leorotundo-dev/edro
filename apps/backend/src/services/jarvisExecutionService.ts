@@ -53,6 +53,24 @@ export type JarvisActionPolicyLearning = {
   }>;
 };
 
+export type JarvisToolPolicyLearning = {
+  task_type: string | null;
+  actor_profile: string | null;
+  preferred_tools: Array<{
+    tool_name: string;
+    sample_count: number;
+    learning_score: number;
+    avg_outcome_score: number;
+  }>;
+  penalized_tools: Array<{
+    tool_name: string;
+    sample_count: number;
+    learning_score: number;
+    avg_outcome_score: number;
+  }>;
+  total_scored_tools: number;
+};
+
 export type JarvisExecutionPolicy = {
   actorProfile: JarvisActorProfile;
   taskType: JarvisTaskType;
@@ -60,6 +78,7 @@ export type JarvisExecutionPolicy = {
   style: 'executive' | 'operational' | 'commercial' | 'social' | 'service' | 'general';
   requiresExplicitConfirmation: boolean;
   shouldPreferShortAnswer: boolean;
+  sandboxOnly: boolean;
 };
 
 export type JarvisActionGateDecision = {
@@ -107,6 +126,8 @@ export function detectJarvisTaskType(params: {
 export function resolveJarvisActorProfile(params: {
   role?: string | null;
   pageData?: Record<string, unknown> | null;
+  contextPage?: string | null;
+  message?: string | null;
 }): JarvisActorProfile {
   const override = typeof params.pageData?.jarvis_actor_profile === 'string'
     ? String(params.pageData.jarvis_actor_profile).trim().toLowerCase()
@@ -121,14 +142,35 @@ export function resolveJarvisActorProfile(params: {
     case 'admin':
       return 'founder';
     case 'manager':
-      return 'manager';
+      return inferJarvisActorProfile('manager', params.contextPage, params.message);
     case 'reviewer':
       return 'atendimento';
     case 'staff':
-      return 'operacao';
+      return inferJarvisActorProfile('operacao', params.contextPage, params.message);
     default:
-      return 'general';
+      return inferJarvisActorProfile('general', params.contextPage, params.message);
   }
+}
+
+function inferJarvisActorProfile(
+  fallback: JarvisActorProfile,
+  contextPage?: string | null,
+  message?: string | null,
+): JarvisActorProfile {
+  const haystack = normalizeText([contextPage, message]);
+  if (includesAny(haystack, ['/admin/operacoes', '/operations', 'operacao', 'operacional', 'job', 'prazo', 'fila'])) {
+    return fallback === 'founder' ? 'founder' : 'operacao';
+  }
+  if (includesAny(haystack, ['/studio', 'copy', 'legenda', 'criativo', 'carrossel', 'headline', 'cta'])) {
+    return fallback === 'founder' || fallback === 'manager' ? fallback : 'social';
+  }
+  if (includesAny(haystack, ['comercial', 'proposta', 'fechar', 'closer', 'lead', 'follow up comercial'])) {
+    return fallback === 'founder' ? 'founder' : 'closer';
+  }
+  if (includesAny(haystack, ['/clients/', 'cliente respondeu', 'relacionamento', 'whatsapp', 'atendimento'])) {
+    return fallback === 'founder' || fallback === 'manager' ? fallback : 'atendimento';
+  }
+  return fallback;
 }
 
 export function assessJarvisConfidence(params: {
@@ -268,6 +310,7 @@ export function buildJarvisExecutionPolicy(params: {
   actorProfile: JarvisActorProfile;
   confidence: JarvisConfidenceAssessment;
   actionPolicy?: JarvisActionPolicyLearning | null;
+  sandboxOnly?: boolean;
 }): JarvisExecutionPolicy {
   const defaultStyle: JarvisExecutionPolicy['style'] = (() => {
     switch (params.actorProfile) {
@@ -293,9 +336,11 @@ export function buildJarvisExecutionPolicy(params: {
     : defaultStyle;
 
   const requiresExplicitConfirmation =
-    params.confidence.mode === 'confirm'
-    || params.confidence.mode === 'escalate'
-    || ['system_repair', 'scheduling'].includes(params.taskType);
+    !params.sandboxOnly && (
+      params.confidence.mode === 'confirm'
+      || params.confidence.mode === 'escalate'
+      || ['system_repair', 'scheduling'].includes(params.taskType)
+    );
 
   return {
     actorProfile: params.actorProfile,
@@ -304,6 +349,7 @@ export function buildJarvisExecutionPolicy(params: {
     style,
     requiresExplicitConfirmation,
     shouldPreferShortAnswer: style === 'executive' || style === 'operational',
+    sandboxOnly: params.sandboxOnly === true,
   };
 }
 
@@ -325,8 +371,24 @@ export function buildJarvisExecutionPromptBlock(policy: JarvisExecutionPolicy) {
   if (policy.requiresExplicitConfirmation) {
     parts.push('- Não assuma execução silenciosa de ações reais sem confirmação humana explícita.');
   }
+  if (policy.sandboxOnly) {
+    parts.push('- MODO SANDBOX: você pode planejar e chamar tools, mas nenhuma ação write/external deve executar de verdade.');
+  }
 
   return parts.join('\n');
+}
+
+export function buildJarvisToolPolicyPromptBlock(policy?: JarvisToolPolicyLearning | null) {
+  if (!policy) return '';
+  const lines: string[] = [];
+  if (policy.preferred_tools.length) {
+    lines.push(`- Ferramentas com melhor histórico: ${policy.preferred_tools.slice(0, 4).map((item) => `${item.tool_name} (${item.learning_score.toFixed(2)})`).join(' | ')}`);
+  }
+  if (policy.penalized_tools.length) {
+    lines.push(`- Ferramentas a usar com cautela: ${policy.penalized_tools.slice(0, 3).map((item) => `${item.tool_name} (${item.learning_score.toFixed(2)})`).join(' | ')}`);
+  }
+  if (!lines.length) return '';
+  return `POLÍTICA DE FERRAMENTAS:\n${lines.join('\n')}`;
 }
 
 export function buildJarvisActionGate(params: {
@@ -334,6 +396,7 @@ export function buildJarvisActionGate(params: {
   category?: string | null;
   explicitConfirmation?: boolean;
   executionPolicy?: JarvisExecutionPolicy | null;
+  toolPolicy?: JarvisToolPolicyLearning | null;
 }) {
   if (!params.executionPolicy || params.explicitConfirmation) {
     return { allow: true, requiresConfirmation: false, reason: null } satisfies JarvisActionGateDecision;
@@ -342,6 +405,15 @@ export function buildJarvisActionGate(params: {
   const category = String(params.category || 'read');
   if (category === 'read') {
     return { allow: true, requiresConfirmation: false, reason: null } satisfies JarvisActionGateDecision;
+  }
+
+  const penalizedTool = params.toolPolicy?.penalized_tools?.find((item) => item.tool_name === params.toolName);
+  if (penalizedTool && penalizedTool.learning_score <= -0.35) {
+    return {
+      allow: false,
+      requiresConfirmation: true,
+      reason: `Política histórica penaliza ${params.toolName} (${penalizedTool.learning_score.toFixed(2)}). Confirme antes de agir.`,
+    } satisfies JarvisActionGateDecision;
   }
 
   if (params.executionPolicy.confidence.mode === 'act') {
