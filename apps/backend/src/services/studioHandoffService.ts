@@ -12,6 +12,12 @@ type StudioHandoffStatus =
 
 type StudioHandoffActor = 'da' | 'traffic';
 
+type StudioHandoffAssignmentStatus =
+  | 'assigned'
+  | 'unassigned'
+  | 'fallback_to_traffic'
+  | 'fallback_to_manager';
+
 type StudioHandoffRecipient = {
   user_id: string;
   name: string | null;
@@ -19,6 +25,8 @@ type StudioHandoffRecipient = {
   role: string | null;
   specialty?: string | null;
   reason?: string | null;
+  workload?: number | null;
+  assignment_score?: number | null;
 };
 
 type StudioAutostartHandoffPacket = {
@@ -40,7 +48,10 @@ type StudioAutostartHandoffPacket = {
   assigned_name?: string | null;
   assigned_email?: string | null;
   assigned_role?: string | null;
+  assigned_at?: string | null;
+  assignment_status?: StudioHandoffAssignmentStatus | null;
   assignment_reason?: string | null;
+  assignment_score?: number | null;
   candidate_recipients?: StudioHandoffRecipient[];
   accepted_at?: string | null;
   accepted_by?: string | null;
@@ -92,6 +103,8 @@ async function listFallbackHandoffRecipients(tenantId: string) {
             eu.email,
             tu.role,
             NULL::text AS specialty,
+            NULL::int AS workload,
+            NULL::numeric AS assignment_score,
             'manager_fallback'::text AS reason
        FROM edro_users eu
        JOIN tenant_users tu ON tu.user_id = eu.id
@@ -110,10 +123,18 @@ async function listFallbackHandoffRecipients(tenantId: string) {
     [tenantId],
   ).catch(() => ({ rows: [] as StudioHandoffRecipient[] }));
 
-  return rows;
+  return rows.map((recipient, index) => ({
+    ...recipient,
+    workload: null,
+    assignment_score: normalizeAssignmentScore(0.64 - index * 0.04),
+  }));
 }
 
-async function resolveTrafficOwnerRecipient(tenantId: string, briefingId?: string | null) {
+async function resolveTrafficOwnerRecipient(
+  tenantId: string,
+  briefingId?: string | null,
+  reason = 'briefing_traffic_owner',
+) {
   if (!briefingId) return null;
   const { rows } = await query<StudioHandoffRecipient>(
     `SELECT eu.id::text AS user_id,
@@ -121,7 +142,9 @@ async function resolveTrafficOwnerRecipient(tenantId: string, briefingId?: strin
             eu.email,
             tu.role,
             NULL::text AS specialty,
-            'briefing_traffic_owner'::text AS reason
+            NULL::int AS workload,
+            NULL::numeric AS assignment_score,
+            $3::text AS reason
        FROM edro_briefings b
        JOIN edro_users eu
          ON lower(eu.email) = lower(b.traffic_owner)
@@ -131,9 +154,15 @@ async function resolveTrafficOwnerRecipient(tenantId: string, briefingId?: strin
         AND b.id = $2
         AND COALESCE(b.traffic_owner, '') <> ''
       LIMIT 1`,
-    [tenantId, briefingId],
+    [tenantId, briefingId, reason],
   ).catch(() => ({ rows: [] as StudioHandoffRecipient[] }));
-  return rows[0] ?? null;
+  return rows[0]
+    ? {
+        ...rows[0],
+        workload: null,
+        assignment_score: normalizeAssignmentScore(0.82),
+      }
+    : null;
 }
 
 async function resolveAvailableDaRecipients(tenantId: string) {
@@ -143,6 +172,8 @@ async function resolveAvailableDaRecipients(tenantId: string) {
             eu.email,
             COALESCE(tu.role, 'member') AS role,
             fp.specialty,
+            COALESCE(wl.active_jobs, 0)::int AS workload,
+            NULL::numeric AS assignment_score,
             'available_da'::text AS reason
        FROM freelancer_profiles fp
        JOIN edro_users eu ON eu.id = fp.user_id
@@ -168,7 +199,10 @@ async function resolveAvailableDaRecipients(tenantId: string) {
       LIMIT 3`,
     [tenantId],
   ).catch(() => ({ rows: [] as StudioHandoffRecipient[] }));
-  return rows;
+  return rows.map((recipient, index) => ({
+    ...recipient,
+    assignment_score: normalizeAssignmentScore(0.94 - index * 0.08 - Math.min(Math.max(Number(recipient.workload || 0), 0), 4) * 0.05),
+  }));
 }
 
 async function resolvePreferredRecipients(params: {
@@ -179,6 +213,13 @@ async function resolvePreferredRecipients(params: {
   if (params.nextActor === 'da') {
     const daRecipients = await resolveAvailableDaRecipients(params.tenantId);
     if (daRecipients.length) return daRecipients;
+
+    const trafficOwner = await resolveTrafficOwnerRecipient(
+      params.tenantId,
+      params.briefingId || null,
+      'traffic_owner_fallback_for_da',
+    );
+    if (trafficOwner) return [trafficOwner];
   }
 
   if (params.nextActor === 'traffic') {
@@ -187,6 +228,48 @@ async function resolvePreferredRecipients(params: {
   }
 
   return listFallbackHandoffRecipients(params.tenantId);
+}
+
+function normalizeAssignmentScore(score: number | null | undefined) {
+  if (!Number.isFinite(score)) return null;
+  return Math.max(0, Math.min(0.99, Number(score!.toFixed(2))));
+}
+
+function classifyAssignmentStatus(
+  nextActor: StudioHandoffActor,
+  primary: StudioHandoffRecipient | null,
+): StudioHandoffAssignmentStatus {
+  if (!primary) return 'unassigned';
+
+  const reason = String(primary.reason || '').trim();
+  if (nextActor === 'da' && reason === 'traffic_owner_fallback_for_da') {
+    return 'fallback_to_traffic';
+  }
+  if (reason === 'manager_fallback') {
+    return 'fallback_to_manager';
+  }
+  return 'assigned';
+}
+
+function buildAssignmentPatch(
+  nextActor: StudioHandoffActor,
+  recipients: StudioHandoffRecipient[],
+  assignedAt = new Date().toISOString(),
+): Partial<StudioAutostartHandoffPacket> {
+  const primary = recipients[0] || null;
+  const assignmentStatus = classifyAssignmentStatus(nextActor, primary);
+
+  return {
+    assigned_user_id: primary?.user_id || null,
+    assigned_name: primary?.name || null,
+    assigned_email: primary?.email || null,
+    assigned_role: primary?.role || null,
+    assigned_at: primary ? assignedAt : null,
+    assignment_status: assignmentStatus,
+    assignment_reason: primary?.reason || null,
+    assignment_score: primary?.assignment_score ?? null,
+    candidate_recipients: recipients,
+  };
 }
 
 async function getSessionMetadata(tenantId: string, sessionId: string) {
@@ -221,6 +304,8 @@ function stripRecipientCandidates(value?: StudioHandoffRecipient[] | null) {
         role: item.role,
         specialty: item.specialty || null,
         reason: item.reason || null,
+        workload: Number.isFinite(item.workload) ? Number(item.workload) : null,
+        assignment_score: item.assignment_score ?? null,
       }))
     : [];
 }
@@ -245,7 +330,10 @@ async function persistHandoffMetadata(params: {
     assigned_name: params.packet.assigned_name || null,
     assigned_email: params.packet.assigned_email || null,
     assigned_role: params.packet.assigned_role || null,
+    assigned_at: params.packet.assigned_at || null,
+    assignment_status: params.packet.assignment_status || null,
     assignment_reason: params.packet.assignment_reason || null,
+    assignment_score: params.packet.assignment_score ?? null,
     candidate_recipients: stripRecipientCandidates(params.packet.candidate_recipients),
     accepted_at: params.packet.accepted_at || null,
     accepted_by: params.packet.accepted_by || null,
@@ -283,6 +371,7 @@ async function notifyHandoffRecipients(params: {
         name: params.packet.assigned_name || null,
         email: params.packet.assigned_email || null,
         role: params.packet.assigned_role || null,
+        assignment_score: params.packet.assignment_score ?? null,
         reason: params.packet.assignment_reason || null,
       }]
     : (params.packet.candidate_recipients || []);
@@ -347,15 +436,10 @@ export async function initializeStudioAutostartHandoff(params: {
     briefingId: params.packet.briefing_id,
   });
 
-  const primary = recipients[0] || null;
-  const packet = buildTransitionResultPacket(params.packet, {
-    assigned_user_id: primary?.user_id || null,
-    assigned_name: primary?.name || null,
-    assigned_email: primary?.email || null,
-    assigned_role: primary?.role || null,
-    assignment_reason: primary?.reason || null,
-    candidate_recipients: recipients,
-  });
+  const packet = buildTransitionResultPacket(
+    params.packet,
+    buildAssignmentPatch(params.packet.next_actor, recipients),
+  );
 
   await persistHandoffMetadata({
     tenantId: params.tenantId,
@@ -422,13 +506,7 @@ export async function transitionStudioHandoffState(params: {
       nextActor,
       briefingId: sessionContext.session.briefing_id,
     });
-    const primary = recipients[0] || null;
-    patch.assigned_user_id = primary?.user_id || null;
-    patch.assigned_name = primary?.name || null;
-    patch.assigned_email = primary?.email || null;
-    patch.assigned_role = primary?.role || null;
-    patch.assignment_reason = primary?.reason || null;
-    patch.candidate_recipients = recipients;
+    Object.assign(patch, buildAssignmentPatch(nextActor, recipients));
 
     await query(
       `UPDATE creative_sessions
@@ -483,7 +561,10 @@ export async function transitionStudioHandoffState(params: {
     assigned_name: handoff.assigned_name || null,
     assigned_email: handoff.assigned_email || null,
     assigned_role: handoff.assigned_role || null,
+    assigned_at: handoff.assigned_at || null,
+    assignment_status: handoff.assignment_status || null,
     assignment_reason: handoff.assignment_reason || null,
+    assignment_score: handoff.assignment_score ?? null,
     candidate_recipients: handoff.candidate_recipients || [],
   }, {
     status: nextStatus,
