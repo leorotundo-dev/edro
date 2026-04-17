@@ -1,6 +1,11 @@
 import { readFileSync } from 'fs';
 import path from 'path';
-import { evaluateJarvisCase, evaluateJarvisSuite, type JarvisEvalCase } from '../services/jarvisEvaluationService';
+import {
+  buildClientJarvisHistoricalBenchmark,
+  evaluateJarvisCase,
+  evaluateJarvisSuite,
+  type JarvisEvalCase,
+} from '../services/jarvisEvaluationService';
 
 function readArg(flag: string) {
   const index = process.argv.indexOf(flag);
@@ -12,11 +17,15 @@ async function main() {
   const clientId = readArg('--client');
   const message = readArg('--message');
   const suitePath = readArg('--suite');
+  const historySuite = process.argv.includes('--history-suite');
   const role = readArg('--role');
   const contextPage = readArg('--context-page');
+  const daysBack = Number(readArg('--days-back') || 90);
+  const limit = Number(readArg('--limit') || 8);
+  const mix = readArg('--mix') as 'balanced' | 'failure_focus' | 'recent' | null;
 
-  if (!tenantId || !clientId || (!message && !suitePath)) {
-    throw new Error('Uso: pnpm --filter @edro/backend jarvis:evaluate -- --tenant <tenant> --client <client> --message \"...\" [--role manager] [--context-page /jobs] OU --suite <arquivo.json>');
+  if (!tenantId || !clientId || (!message && !suitePath && !historySuite)) {
+    throw new Error('Uso: pnpm --filter @edro/backend jarvis:evaluate -- --tenant <tenant> --client <client> --message \"...\" [--role manager] [--context-page /jobs] OU --suite <arquivo.json> OU --history-suite [--days-back 90] [--limit 8] [--mix balanced|failure_focus|recent]');
   }
 
   if (suitePath) {
@@ -30,6 +39,18 @@ async function main() {
       suite_path: absolutePath,
       ...results,
     }, null, 2)}\n`);
+    return;
+  }
+
+  if (historySuite) {
+    const results = await buildClientJarvisHistoricalBenchmark({
+      tenantId,
+      clientId,
+      daysBack,
+      limit,
+      mix: mix || 'balanced',
+    });
+    process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
     return;
   }
 

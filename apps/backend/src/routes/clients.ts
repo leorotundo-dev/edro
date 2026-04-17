@@ -37,7 +37,7 @@ import { env, portalLoginSecret } from '../env';
 import { audit } from '../audit/audit';
 import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
 import { buildClientCopyQualityScorecard } from '../services/copyQualityScorecardService';
-import { buildClientJarvisQualityScorecard } from '../services/jarvisEvaluationService';
+import { buildClientJarvisHistoricalBenchmark, buildClientJarvisQualityScorecard } from '../services/jarvisEvaluationService';
 import { getClientMemoryFactByFingerprint, listClientMemoryFacts, recordClientMemoryFact, updateClientMemoryFactStatus } from '../services/clientMemoryFactsService';
 import { analyzeClientMemoryGovernance, listClientMemoryConflicts, resolveClientMemoryConflict, syncClientMemoryGovernanceState } from '../services/clientMemoryGovernanceService';
 
@@ -1198,6 +1198,36 @@ export default async function clientsRoutes(app: FastifyInstance) {
       });
 
       return reply.send({ ok: true, scorecard });
+    }
+  );
+
+  app.get(
+    '/clients/:id/jarvis-quality/benchmark',
+    { preHandler: [requirePerm('clients:read'), requireClientPerm('read')] },
+    async (request: any, reply) => {
+      const paramsSchema = z.object({ id: z.string().min(1) });
+      const querySchema = z.object({
+        days_back: z.coerce.number().int().min(7).max(365).optional(),
+        limit: z.coerce.number().int().min(4).max(20).optional(),
+        mix: z.enum(['balanced', 'failure_focus', 'recent']).optional(),
+      });
+
+      const params = paramsSchema.parse(request.params);
+      const queryParams = querySchema.parse(request.query || {});
+      const tenantId = (request.user as any).tenant_id;
+
+      const client = await getClientById(tenantId, params.id);
+      if (!client) return reply.status(404).send({ error: 'client_not_found' });
+
+      const benchmark = await buildClientJarvisHistoricalBenchmark({
+        tenantId,
+        clientId: params.id,
+        daysBack: queryParams.days_back ?? 90,
+        limit: queryParams.limit ?? 8,
+        mix: queryParams.mix ?? 'balanced',
+      });
+
+      return reply.send({ ok: true, benchmark });
     }
   );
 
