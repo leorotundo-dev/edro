@@ -1,6 +1,7 @@
 import { fetchJobs, markJob, mergeJobPayload } from './jobQueue';
 import { query } from '../db';
 import { runCreatePostPipelineNow, type ToolContext } from '../services/ai/toolExecutor';
+import { buildStudioAutostartHandoffPacket, notifyStudioAutostartHandoff } from '../services/studioHandoffService';
 
 let running = false;
 
@@ -80,6 +81,15 @@ export async function runStudioAutostartWorkerOnce(): Promise<void> {
           await markJob(job.id, 'failed', result.error || 'studio_autostart_failed');
           continue;
         }
+
+        const handoffPacket = buildStudioAutostartHandoffPacket(result.data || null, packet.client_name || null);
+        await mergeJobPayload(job.id, {
+          studio_handoff_packet: handoffPacket,
+        }).catch(() => {});
+        await notifyStudioAutostartHandoff({
+          tenantId: job.tenant_id,
+          packet: handoffPacket,
+        }).catch(() => {});
 
         await markJob(job.id, 'done');
       } catch (error: any) {
