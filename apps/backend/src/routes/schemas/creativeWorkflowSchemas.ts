@@ -149,3 +149,13 @@ export const studioHandoffSentSchema = z.object({
   job_id: z.string().uuid(),
   note: z.string().trim().max(1000).optional().nullable(),
 });
+
+export const studioHandoffListQuerySchema = z.object({
+  role: z.enum(['da', 'traffic']).optional(),
+  mine: z.coerce.boolean().optional(),
+  status: z.enum(['needs_da_review', 'ready_for_traffic', 'accepted', 'returned_for_changes', 'exported', 'sent']).optional(),
+  overdue: z.coerce.boolean().optional(),
+  client_id: z.string().uuid().optional(),
+  assigned_user_id: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});

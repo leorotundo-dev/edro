@@ -74,6 +74,65 @@ type HandoffHistoryEntry = {
 
 type HandoffTransitionAction = 'accept' | 'return_for_changes' | 'mark_exported' | 'mark_sent';
 
+type StudioHandoffListFilters = {
+  tenantId: string;
+  userId?: string | null;
+  role?: StudioHandoffActor | null;
+  mine?: boolean;
+  status?: StudioHandoffStatus | null;
+  overdue?: boolean;
+  clientId?: string | null;
+  assignedUserId?: string | null;
+  limit?: number;
+};
+
+type StudioHandoffInboxItem = {
+  creative_session_id: string;
+  job_id: string;
+  briefing_id: string | null;
+  client_id: string | null;
+  client_name: string | null;
+  job_title: string | null;
+  deadline_at: string | null;
+  priority_band: string | null;
+  current_stage: string | null;
+  next_actor: StudioHandoffActor;
+  handoff_status: StudioHandoffStatus;
+  assignment_status: StudioHandoffAssignmentStatus;
+  assigned_user_id: string | null;
+  assigned_name: string | null;
+  assigned_email: string | null;
+  assigned_role: string | null;
+  assignment_reason: string | null;
+  assignment_score: number | null;
+  assigned_at: string | null;
+  generated_at: string | null;
+  accepted_at: string | null;
+  returned_at: string | null;
+  exported_at: string | null;
+  sent_at: string | null;
+  overdue: boolean;
+  studio_url: string;
+  copy_preview: string | null;
+  candidate_recipients: StudioHandoffRecipient[];
+};
+
+type StudioHandoffInboxSummary = {
+  unassigned: number;
+  assigned: number;
+  accepted: number;
+  returned_for_changes: number;
+  ready_for_traffic: number;
+  exported: number;
+  sent: number;
+  overdue: number;
+};
+
+type StudioHandoffInboxResult = {
+  items: StudioHandoffInboxItem[];
+  summary: StudioHandoffInboxSummary;
+};
+
 function summarizeBody(packet: StudioAutostartHandoffPacket) {
   if (packet.status === 'ready_for_traffic') {
     return 'Copy, direção e peças já estão prontas no Studio. Abra a sessão para revisar/exportar e seguir com o envio.';
@@ -358,6 +417,44 @@ function buildTransitionResultPacket(base: any, patch: Partial<StudioAutostartHa
   } as StudioAutostartHandoffPacket;
 }
 
+function parseRecipientCandidates(value: any): StudioHandoffRecipient[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      return {
+        user_id: String(item.user_id || '').trim(),
+        name: item.name ? String(item.name) : null,
+        email: item.email ? String(item.email) : null,
+        role: item.role ? String(item.role) : null,
+        specialty: item.specialty ? String(item.specialty) : null,
+        reason: item.reason ? String(item.reason) : null,
+        workload: Number.isFinite(item.workload) ? Number(item.workload) : null,
+        assignment_score: normalizeAssignmentScore(Number(item.assignment_score)),
+      } satisfies StudioHandoffRecipient;
+    })
+    .filter((item) => Boolean(item?.user_id)) as StudioHandoffRecipient[];
+}
+
+function isHandoffOverdue(deadlineAt: string | null, status: StudioHandoffStatus) {
+  if (!deadlineAt || status === 'exported' || status === 'sent') return false;
+  const due = new Date(deadlineAt);
+  return Number.isFinite(due.getTime()) && due.getTime() < Date.now();
+}
+
+function buildEmptyInboxSummary(): StudioHandoffInboxSummary {
+  return {
+    unassigned: 0,
+    assigned: 0,
+    accepted: 0,
+    returned_for_changes: 0,
+    ready_for_traffic: 0,
+    exported: 0,
+    sent: 0,
+    overdue: 0,
+  };
+}
+
 async function notifyHandoffRecipients(params: {
   tenantId: string;
   packet: StudioAutostartHandoffPacket;
@@ -398,6 +495,135 @@ async function notifyHandoffRecipients(params: {
       }),
     ),
   );
+}
+
+export async function listStudioHandoffs(filters: StudioHandoffListFilters): Promise<StudioHandoffInboxResult> {
+  const { rows } = await query<{
+    creative_session_id: string;
+    job_id: string;
+    briefing_id: string | null;
+    client_id: string | null;
+    client_name: string | null;
+    job_title: string | null;
+    deadline_at: string | null;
+    priority_band: string | null;
+    current_stage: string | null;
+    handoff: Record<string, any>;
+  }>(
+    `SELECT cs.id::text AS creative_session_id,
+            cs.job_id::text AS job_id,
+            cs.briefing_id::text AS briefing_id,
+            j.client_id::text AS client_id,
+            COALESCE(j.client_name, c.name) AS client_name,
+            j.title AS job_title,
+            j.deadline_at,
+            j.priority_band,
+            cs.current_stage,
+            COALESCE(cs.metadata->'handoff', '{}'::jsonb) AS handoff
+       FROM creative_sessions cs
+       JOIN jobs j
+         ON j.tenant_id = cs.tenant_id
+        AND j.id = cs.job_id
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE cs.tenant_id = $1
+        AND cs.metadata ? 'handoff'
+      ORDER BY COALESCE(cs.updated_at, cs.created_at) DESC
+      LIMIT $2`,
+    [filters.tenantId, Math.max(50, Math.min(filters.limit || 100, 250))],
+  ).catch(() => ({
+    rows: [] as Array<{
+      creative_session_id: string;
+      job_id: string;
+      briefing_id: string | null;
+      client_id: string | null;
+      client_name: string | null;
+      job_title: string | null;
+      deadline_at: string | null;
+      priority_band: string | null;
+      current_stage: string | null;
+      handoff: Record<string, any>;
+    }>,
+  }));
+
+  const items = rows
+    .map((row) => {
+      const handoff = row.handoff || {};
+      const handoffStatus = String(handoff.current_status || '').trim() as StudioHandoffStatus;
+      if (!handoffStatus) return null;
+
+      const nextActor = String(handoff.next_actor || '').trim() === 'traffic' ? 'traffic' : 'da';
+      const assignmentStatus = (
+        ['assigned', 'unassigned', 'fallback_to_traffic', 'fallback_to_manager'].includes(String(handoff.assignment_status || ''))
+          ? handoff.assignment_status
+          : handoff.assigned_user_id
+          ? 'assigned'
+          : 'unassigned'
+      ) as StudioHandoffAssignmentStatus;
+      const item: StudioHandoffInboxItem = {
+        creative_session_id: row.creative_session_id,
+        job_id: row.job_id,
+        briefing_id: row.briefing_id,
+        client_id: row.client_id,
+        client_name: row.client_name,
+        job_title: row.job_title,
+        deadline_at: row.deadline_at,
+        priority_band: row.priority_band,
+        current_stage: row.current_stage,
+        next_actor: nextActor,
+        handoff_status: handoffStatus,
+        assignment_status: assignmentStatus,
+        assigned_user_id: handoff.assigned_user_id ? String(handoff.assigned_user_id) : null,
+        assigned_name: handoff.assigned_name ? String(handoff.assigned_name) : null,
+        assigned_email: handoff.assigned_email ? String(handoff.assigned_email) : null,
+        assigned_role: handoff.assigned_role ? String(handoff.assigned_role) : null,
+        assignment_reason: handoff.assignment_reason ? String(handoff.assignment_reason) : null,
+        assignment_score: normalizeAssignmentScore(Number(handoff.assignment_score)),
+        assigned_at: handoff.assigned_at ? String(handoff.assigned_at) : null,
+        generated_at: handoff.generated_at ? String(handoff.generated_at) : null,
+        accepted_at: handoff.accepted_at ? String(handoff.accepted_at) : null,
+        returned_at: handoff.returned_at ? String(handoff.returned_at) : null,
+        exported_at: handoff.exported_at ? String(handoff.exported_at) : null,
+        sent_at: handoff.sent_at ? String(handoff.sent_at) : null,
+        overdue: isHandoffOverdue(row.deadline_at, handoffStatus),
+        studio_url:
+          handoff.studio_url && String(handoff.studio_url).trim()
+            ? String(handoff.studio_url)
+            : `/studio/editor?jobId=${row.job_id}&sessionId=${row.creative_session_id}`,
+        copy_preview: handoff.copy_preview ? String(handoff.copy_preview) : null,
+        candidate_recipients: parseRecipientCandidates(handoff.candidate_recipients),
+      };
+      return item;
+    })
+    .filter((item): item is StudioHandoffInboxItem => Boolean(item))
+    .filter((item) => {
+      if (filters.role && item.next_actor !== filters.role) return false;
+      if (filters.mine && filters.userId && item.assigned_user_id !== filters.userId) return false;
+      if (filters.status && item.handoff_status !== filters.status) return false;
+      if (typeof filters.overdue === 'boolean' && item.overdue !== filters.overdue) return false;
+      if (filters.clientId && item.client_id !== filters.clientId) return false;
+      if (filters.assignedUserId && item.assigned_user_id !== filters.assignedUserId) return false;
+      return true;
+    })
+    .slice(0, Math.min(filters.limit || 100, 200));
+
+  const summary = items.reduce<StudioHandoffInboxSummary>((acc, item) => {
+    if (item.overdue) acc.overdue += 1;
+    if (item.assignment_status === 'unassigned') acc.unassigned += 1;
+    if (item.handoff_status === 'ready_for_traffic') acc.ready_for_traffic += 1;
+    if (item.handoff_status === 'accepted') acc.accepted += 1;
+    if (item.handoff_status === 'returned_for_changes') acc.returned_for_changes += 1;
+    if (item.handoff_status === 'exported') acc.exported += 1;
+    if (item.handoff_status === 'sent') acc.sent += 1;
+    if (
+      item.assignment_status !== 'unassigned'
+      && (item.handoff_status === 'needs_da_review' || item.handoff_status === 'ready_for_traffic')
+    ) {
+      acc.assigned += 1;
+    }
+    return acc;
+  }, buildEmptyInboxSummary());
+
+  return { items, summary };
 }
 
 export function buildStudioAutostartHandoffPacket(resultData: any, clientName?: string | null): StudioAutostartHandoffPacket {

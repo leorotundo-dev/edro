@@ -31,12 +31,13 @@ import {
   sendCreativeReviewSchema,
   studioHandoffAcceptSchema,
   studioHandoffExportedSchema,
+  studioHandoffListQuerySchema,
   studioHandoffReturnSchema,
   studioHandoffSentSchema,
   updateCreativeStageSchema,
   updateCreativeMetadataSchema,
 } from './schemas/creativeWorkflowSchemas';
-import { transitionStudioHandoffState } from '../services/studioHandoffService';
+import { listStudioHandoffs, transitionStudioHandoffState } from '../services/studioHandoffService';
 
 const idParamsSchema = z.object({
   id: z.string().uuid(),
@@ -72,6 +73,24 @@ export default async function studioWorkflowRoutes(app: FastifyInstance) {
     const tenantId = String(request.user?.tenant_id || '');
     const data = await getCreativeSessionContextBySessionId(tenantId, id);
     if (!data) return reply.code(404).send({ success: false, error: 'Sessão criativa não encontrada.' });
+    return { success: true, data };
+  });
+
+  app.get('/studio/handoffs', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+    const query = studioHandoffListQuerySchema.parse(request.query || {});
+    const tenantId = String(request.user?.tenant_id || '');
+    const userId = String(request.user?.id || '') || null;
+    const data = await listStudioHandoffs({
+      tenantId,
+      userId,
+      role: query.role || null,
+      mine: Boolean(query.mine),
+      status: query.status || null,
+      overdue: typeof query.overdue === 'boolean' ? query.overdue : undefined,
+      clientId: query.client_id || null,
+      assignedUserId: query.assigned_user_id || null,
+      limit: query.limit || 100,
+    });
     return { success: true, data };
   });
 
