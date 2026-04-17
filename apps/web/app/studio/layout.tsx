@@ -23,6 +23,7 @@ import {
   IconX,
   IconSparkles,
   IconBrain,
+  IconInbox,
 } from '@tabler/icons-react';
 import { buildStudioHref } from './studioWorkflow';
 
@@ -82,12 +83,14 @@ function getCurrentStep(pathname: string): number {
   if (pathname.startsWith('/studio/mockups')) return 3;
   // /studio/review is no longer in the nav — map to step 4 (Exportar) for progress bar
   if (pathname.startsWith('/studio/review')) return 4;
+  if (pathname.startsWith('/studio/handoffs')) return 4;
   if (pathname.startsWith('/studio/da')) return 1;
   const step = STUDIO_STEPS.find((s) => pathname.startsWith(s.path));
   return step?.step || 1;
 }
 
 function getCurrentLabel(pathname: string): string {
+  if (pathname.startsWith('/studio/handoffs')) return 'Handoffs';
   if (pathname.startsWith('/studio/da')) return 'Motor de DA';
   if (pathname.startsWith('/studio/recipes')) return 'Livro de Receitas';
   if (pathname.startsWith('/studio/simulation')) return 'Simulador de Sucesso';
@@ -283,6 +286,25 @@ export default function StudioLayout({ children }: StudioLayoutProps) {
         {/* Pipeline IA link */}
         <Box sx={{ px: 2, pb: 1 }}>
           <PipelineLink />
+        </Box>
+
+        <Box sx={{ px: 2, pb: 1 }}>
+          <Box
+            component={Link}
+            href="/studio/handoffs"
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1.5,
+              px: 2, py: 1, borderRadius: 3, textDecoration: 'none',
+              border: pathname.startsWith('/studio/handoffs') ? '1px solid rgba(25,118,210,0.28)' : '1px solid rgba(25,118,210,0.16)',
+              bgcolor: pathname.startsWith('/studio/handoffs') ? 'rgba(25,118,210,0.08)' : 'rgba(25,118,210,0.04)',
+              color: '#1976d2',
+              transition: 'background-color 0.2s',
+              '&:hover': { bgcolor: 'rgba(25,118,210,0.1)' },
+            }}
+          >
+            <IconInbox size={16} />
+            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Inbox de Handoff</Typography>
+          </Box>
         </Box>
 
         <Box sx={{ px: 2, pb: 1 }}>

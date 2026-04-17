@@ -113,6 +113,56 @@ export type StudioInventoryItem = {
   name?: string;
 };
 
+export type StudioHandoffStatus =
+  | 'needs_da_review'
+  | 'ready_for_traffic'
+  | 'accepted'
+  | 'returned_for_changes'
+  | 'exported'
+  | 'sent';
+
+export type StudioHandoffAssignmentStatus =
+  | 'assigned'
+  | 'unassigned'
+  | 'fallback_to_traffic'
+  | 'fallback_to_manager';
+
+export type StudioHandoffInboxItem = {
+  creative_session_id: string;
+  job_id: string;
+  briefing_id?: string | null;
+  client_id?: string | null;
+  client_name?: string | null;
+  job_title?: string | null;
+  deadline_at?: string | null;
+  priority_band?: string | null;
+  current_stage?: string | null;
+  next_actor: 'da' | 'traffic';
+  handoff_status: StudioHandoffStatus;
+  assignment_status: StudioHandoffAssignmentStatus;
+  assigned_user_id?: string | null;
+  assigned_name?: string | null;
+  assigned_email?: string | null;
+  assigned_role?: string | null;
+  assignment_reason?: string | null;
+  assignment_score?: number | null;
+  assigned_at?: string | null;
+  overdue: boolean;
+  studio_url: string;
+  copy_preview?: string | null;
+};
+
+export type StudioHandoffInboxSummary = {
+  unassigned: number;
+  assigned: number;
+  accepted: number;
+  returned_for_changes: number;
+  ready_for_traffic: number;
+  exported: number;
+  sent: number;
+  overdue: number;
+};
+
 export function readStudioWorkflowContext(): StudioWorkflowContext {
   if (typeof window === 'undefined') {
     return { jobId: '', sessionId: '' };
@@ -326,6 +376,40 @@ export async function loadStudioCreativeSessionById(sessionId: string) {
   const data = response?.data || null;
   persistContextFromSession(data);
   return data;
+}
+
+export async function loadStudioHandoffInbox(params?: {
+  role?: 'da' | 'traffic';
+  mine?: boolean;
+  status?: StudioHandoffStatus;
+  overdue?: boolean;
+}) {
+  const query = new URLSearchParams();
+  if (params?.role) query.set('role', params.role);
+  if (typeof params?.mine === 'boolean') query.set('mine', String(params.mine));
+  if (params?.status) query.set('status', params.status);
+  if (typeof params?.overdue === 'boolean') query.set('overdue', String(params.overdue));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const response = await apiGet<{
+    success?: boolean;
+    data?: {
+      items?: StudioHandoffInboxItem[];
+      summary?: StudioHandoffInboxSummary;
+    };
+  }>(`/studio/handoffs${suffix}`);
+  return {
+    items: response?.data?.items || [],
+    summary: response?.data?.summary || {
+      unassigned: 0,
+      assigned: 0,
+      accepted: 0,
+      returned_for_changes: 0,
+      ready_for_traffic: 0,
+      exported: 0,
+      sent: 0,
+      overdue: 0,
+    },
+  };
 }
 
 export async function updateStudioCreativeStage(sessionId: string, payload: { current_stage: CreativeStage; reason?: string | null }) {
