@@ -14,6 +14,7 @@ import { FastifyInstance } from 'fastify';
 import { query } from '../db';
 import { env } from '../env';
 import { processWebhookAction, TrelloWebhookAction } from '../services/trelloProjectorService';
+import { enqueueDemandIntake } from '../services/demandIntakeService';
 
 export default async function webhookTrelloRoutes(app: FastifyInstance) {
 
@@ -78,6 +79,36 @@ export default async function webhookTrelloRoutes(app: FastifyInstance) {
          WHERE id = $2`,
         [handled ? 'processed' : 'skipped', eventId],
       );
+
+      if (handled && eventId) {
+        await enqueueDemandIntake({
+          tenantId,
+          source: {
+            type: 'trello_webhook',
+            id: eventId,
+            occurredAt: action.date,
+            refs: {
+              action_id: action.id,
+              action_type: action.type,
+              trello_board_id: trelloBoardId ?? null,
+              trello_card_id: action.data?.card?.id ?? null,
+              card_closed: action.data?.card?.closed ?? false,
+            },
+          },
+          summary: {
+            title: action.data?.card?.name ?? `${action.type} no Trello`,
+            description: action.data?.card?.desc ?? action.data?.text ?? null,
+            deadline: action.data?.card?.due ?? null,
+          },
+          payload: {
+            member_creator: action.memberCreator?.fullName ?? null,
+            list_before: action.data?.listBefore?.name ?? null,
+            list_after: action.data?.listAfter?.name ?? null,
+          },
+        }).catch((err: any) => {
+          console.error('[webhookTrello] demand intake enqueue failed:', err?.message);
+        });
+      }
 
       // Update last_seen_at on the webhook registry row
       if (trelloBoardId) {

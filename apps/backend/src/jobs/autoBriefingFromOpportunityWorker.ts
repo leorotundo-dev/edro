@@ -15,6 +15,7 @@
 import { query } from '../db';
 import { generateAndSelectBestCopy } from '../services/ai/copyService';
 import { buildClientKnowledgeBase } from '../services/clientKnowledgeBaseService';
+import { enqueueDemandIntake } from '../services/demandIntakeService';
 import { notifyEvent } from '../services/notificationService';
 
 const CONFIDENCE_THRESHOLD = 75;
@@ -226,6 +227,33 @@ export async function runAutoBriefingFromOpportunityOnce(): Promise<void> {
       );
 
       const briefingId = briefingRes.rows[0]?.id;
+
+      await enqueueDemandIntake({
+        tenantId: opp.tenant_id,
+        clientId: opp.client_id,
+        source: {
+          type: 'ai_opportunity',
+          id: opp.id,
+          occurredAt: new Date().toISOString(),
+          refs: {
+            briefing_id: briefingId ?? null,
+            source: opp.source ?? null,
+            confidence: opp.confidence ?? null,
+          },
+        },
+        summary: {
+          title: opp.title ?? '[Auto] oportunidade sem título',
+          description: opp.description ?? null,
+          objective: opp.suggested_action ?? null,
+          platform: 'instagram',
+          priorityHint: opp.priority ?? null,
+        },
+        payload: {
+          suggested_action: opp.suggested_action ?? null,
+          confidence: opp.confidence ?? null,
+          briefing_id: briefingId ?? null,
+        },
+      }).catch(() => {});
 
       // 4. Create copy version
       if (briefingId) {

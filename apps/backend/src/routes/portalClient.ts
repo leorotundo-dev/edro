@@ -42,6 +42,7 @@ import {
   createBriefingTrelloCard,
   sendBriefingAcceptedWhatsApp,
 } from '../services/briefingAutoPipelineService';
+import { enqueueDemandIntake } from '../services/demandIntakeService';
 import { generateCompletion } from '../services/ai/claudeService';
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
@@ -681,6 +682,31 @@ Gere um enriquecimento estruturado para a equipe interna da agência. Responda S
     );
 
     const row = result.rows[0];
+
+    await enqueueDemandIntake({
+      tenantId,
+      clientId,
+      source: {
+        type: 'portal_briefing',
+        id: row.id,
+        occurredAt: row.created_at,
+        refs: {
+          contact_id: contactId,
+        },
+      },
+      summary: {
+        title: ai_enriched?.suggested_title ?? form_data.type ?? 'Novo briefing do portal',
+        description: form_data.notes ?? null,
+        objective: form_data.objective ?? null,
+        platform: form_data.platform ?? null,
+        deadline: form_data.deadline ?? null,
+        priorityHint: ai_enriched?.urgency ?? null,
+      },
+      payload: {
+        form_data,
+        ai_enriched: ai_enriched ?? null,
+      },
+    }).catch(() => {});
 
     // Notify agency team via email (immediate, synchronous-ish)
     await notifyAgencyNewBriefingRequest({
