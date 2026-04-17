@@ -2,7 +2,14 @@ import { createHash } from 'crypto';
 import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
 
-export type DemandSourceType = 'trello_webhook' | 'portal_briefing' | 'ai_opportunity';
+export type DemandSourceType =
+  | 'trello_webhook'
+  | 'portal_briefing'
+  | 'ai_opportunity'
+  | 'meeting_action'
+  | 'whatsapp_insight'
+  | 'gmail_thread'
+  | 'calendar_signal';
 export type DemandIntakeStatus = 'eligible' | 'needs_internal_triage' | 'ignored';
 
 type DemandSourceRef = Record<string, string | number | boolean | null | undefined>;
@@ -197,6 +204,127 @@ async function classifyDemand(tenantId: string, payload: DemandQueuePayload): Pr
       return {
         status: 'eligible',
         demandKind: 'trello_card',
+        title,
+        summary: summaryText,
+        clientId,
+        priorityHint: payload.summary.priorityHint ?? null,
+        platform: payload.summary.platform ?? null,
+        deadline: payload.summary.deadline ?? null,
+        nextStep: 'briefing_compile',
+        reasons,
+      };
+    }
+    case 'meeting_action': {
+      if (!clientId) {
+        reasons.push('acao_de_reuniao_sem_cliente_vinculado');
+        return {
+          status: 'needs_internal_triage',
+          demandKind: 'meeting_action',
+          title,
+          summary: summaryText,
+          clientId,
+          priorityHint: payload.summary.priorityHint ?? null,
+          platform: payload.summary.platform ?? null,
+          deadline: payload.summary.deadline ?? null,
+          nextStep: 'internal_triage',
+          reasons,
+        };
+      }
+      reasons.push('acao_de_reuniao_compilada');
+      return {
+        status: 'eligible',
+        demandKind: `meeting_${normalizeText(payload.source.refs?.meeting_action_type, 'action')}`,
+        title,
+        summary: summaryText,
+        clientId,
+        priorityHint: payload.summary.priorityHint ?? null,
+        platform: payload.summary.platform ?? null,
+        deadline: payload.summary.deadline ?? null,
+        nextStep: 'briefing_compile',
+        reasons,
+      };
+    }
+    case 'whatsapp_insight': {
+      const insightType = normalizeText(payload.source.refs?.insight_type, 'request');
+      if (!clientId) {
+        reasons.push('insight_whatsapp_sem_cliente_vinculado');
+        return {
+          status: 'needs_internal_triage',
+          demandKind: 'whatsapp_signal',
+          title,
+          summary: summaryText,
+          clientId,
+          priorityHint: payload.summary.priorityHint ?? null,
+          platform: payload.summary.platform ?? null,
+          deadline: payload.summary.deadline ?? null,
+          nextStep: 'internal_triage',
+          reasons,
+        };
+      }
+      reasons.push('sinal_whatsapp_detectado');
+      return {
+        status: insightType === 'request' || insightType === 'deadline' ? 'eligible' : 'needs_internal_triage',
+        demandKind: `whatsapp_${insightType}`,
+        title,
+        summary: summaryText,
+        clientId,
+        priorityHint: payload.summary.priorityHint ?? null,
+        platform: payload.summary.platform ?? null,
+        deadline: payload.summary.deadline ?? null,
+        nextStep: insightType === 'request' || insightType === 'deadline' ? 'briefing_compile' : 'internal_triage',
+        reasons,
+      };
+    }
+    case 'gmail_thread': {
+      if (!clientId || !summaryText || summaryText.length < 15) {
+        reasons.push('email_sem_contexto_suficiente_para_compilar');
+        return {
+          status: 'needs_internal_triage',
+          demandKind: 'gmail_thread',
+          title,
+          summary: summaryText,
+          clientId,
+          priorityHint: payload.summary.priorityHint ?? null,
+          platform: payload.summary.platform ?? null,
+          deadline: payload.summary.deadline ?? null,
+          nextStep: 'internal_triage',
+          reasons,
+        };
+      }
+      reasons.push('email_cliente_detectado_como_demanda');
+      return {
+        status: 'eligible',
+        demandKind: 'gmail_thread',
+        title,
+        summary: summaryText,
+        clientId,
+        priorityHint: payload.summary.priorityHint ?? null,
+        platform: payload.summary.platform ?? null,
+        deadline: payload.summary.deadline ?? null,
+        nextStep: 'briefing_compile',
+        reasons,
+      };
+    }
+    case 'calendar_signal': {
+      if (!clientId) {
+        reasons.push('sinal_de_calendario_sem_cliente_vinculado');
+        return {
+          status: 'needs_internal_triage',
+          demandKind: 'calendar_signal',
+          title,
+          summary: summaryText,
+          clientId,
+          priorityHint: payload.summary.priorityHint ?? null,
+          platform: payload.summary.platform ?? null,
+          deadline: payload.summary.deadline ?? null,
+          nextStep: 'internal_triage',
+          reasons,
+        };
+      }
+      reasons.push('data_relevante_detectada_no_calendario');
+      return {
+        status: 'eligible',
+        demandKind: 'calendar_signal',
         title,
         summary: summaryText,
         clientId,

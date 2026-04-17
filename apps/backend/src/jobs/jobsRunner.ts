@@ -57,6 +57,7 @@ import { runPautaAutoGenWorkerOnce } from './pautaAutoGenWorker';
 import { runDemandIntakeWorkerOnce } from './demandIntakeWorker';
 import { runBriefingCompilerWorkerOnce } from './briefingCompilerWorker';
 import { runStudioAutostartWorkerOnce } from './studioAutostartWorker';
+import { runOmnichannelDemandIntakeWorkerOnce } from './omnichannelDemandIntakeWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -198,6 +199,8 @@ export function startJobsRunner() {
   startWorkerLoop('simulationOutcomeMatcher', runSimulationOutcomeMatcherOnce, 16000, 120_000, 60_000);
   // Auto-Briefing from Opportunities — runs at 07h BRT
   startWorkerLoop('autoBriefing', runAutoBriefingFromOpportunityOnce, 16500, 180_000, 60_000);
+  // Omnichannel intake — scans structured signals from meetings, WhatsApp, Gmail and calendar
+  startWorkerLoop('omnichannelDemandIntake', runOmnichannelDemandIntakeWorkerOnce, 16750, 120_000, 60_000);
   // Content Fatigue Monitor — 1x/hour, detects >25% engagement drops
   startWorkerLoop('contentFatigue', runContentFatigueMonitorOnce, 17000, 120_000, 60_000);
   // Weekly Digest — every Monday 08h BRT, sends intelligence summary email
