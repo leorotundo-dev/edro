@@ -55,6 +55,7 @@ import { runBedelWorkerOnce } from './bedelWorker';
 import { runClientLivingMemoryWorkerOnce } from './clientLivingMemoryWorker';
 import { runPautaAutoGenWorkerOnce } from './pautaAutoGenWorker';
 import { runDemandIntakeWorkerOnce } from './demandIntakeWorker';
+import { runBriefingCompilerWorkerOnce } from './briefingCompilerWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -109,6 +110,7 @@ export function startJobsRunner() {
   startWorkerLoop('socialListening', runSocialListeningWorkerOnce, 1000);
   startWorkerLoop('clientIntelligence', runClientIntelligenceWorkerOnce, 1500);
   startWorkerLoop('demandIntake', runDemandIntakeWorkerOnce, 1750, 30_000);
+  startWorkerLoop('briefingCompiler', runBriefingCompilerWorkerOnce, 2000, 30_000);
   // Central de Operações — keeps demands, agenda e riscos synchronized
   startWorkerLoop('operationsRuntime', runOperationsRuntimeWorkerOnce, 13500, 180_000);
   // Job Automation Pipeline — auto-copy, auto-image, auto-assign, ETA recalc
