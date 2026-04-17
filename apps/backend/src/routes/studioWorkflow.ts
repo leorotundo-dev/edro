@@ -29,9 +29,14 @@ import {
   selectCreativeAssetSchema,
   selectCreativeVersionSchema,
   sendCreativeReviewSchema,
+  studioHandoffAcceptSchema,
+  studioHandoffExportedSchema,
+  studioHandoffReturnSchema,
+  studioHandoffSentSchema,
   updateCreativeStageSchema,
   updateCreativeMetadataSchema,
 } from './schemas/creativeWorkflowSchemas';
+import { transitionStudioHandoffState } from '../services/studioHandoffService';
 
 const idParamsSchema = z.object({
   id: z.string().uuid(),
@@ -197,6 +202,71 @@ export default async function studioWorkflowRoutes(app: FastifyInstance) {
     const userId = String(request.user?.id || '') || null;
     const { job_id, ...input } = body;
     const data = await markReadyToPublish(tenantId, id, job_id, userId, input);
+    return { success: true, data };
+  });
+
+  app.post('/creative-sessions/:id/handoff/accept', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+    const { id } = sessionParamsSchema.parse(request.params || {});
+    const body = studioHandoffAcceptSchema.parse(request.body || {});
+    const tenantId = String(request.user?.tenant_id || '');
+    const userId = String(request.user?.id || '') || null;
+    const data = await transitionStudioHandoffState({
+      tenantId,
+      sessionId: id,
+      jobId: body.job_id,
+      userId,
+      action: 'accept',
+      note: body.note || null,
+    });
+    return { success: true, data };
+  });
+
+  app.post('/creative-sessions/:id/handoff/return', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+    const { id } = sessionParamsSchema.parse(request.params || {});
+    const body = studioHandoffReturnSchema.parse(request.body || {});
+    const tenantId = String(request.user?.tenant_id || '');
+    const userId = String(request.user?.id || '') || null;
+    const data = await transitionStudioHandoffState({
+      tenantId,
+      sessionId: id,
+      jobId: body.job_id,
+      userId,
+      action: 'return_for_changes',
+      note: body.note || null,
+      nextActor: body.next_actor || null,
+    });
+    return { success: true, data };
+  });
+
+  app.post('/creative-sessions/:id/handoff/exported', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+    const { id } = sessionParamsSchema.parse(request.params || {});
+    const body = studioHandoffExportedSchema.parse(request.body || {});
+    const tenantId = String(request.user?.tenant_id || '');
+    const userId = String(request.user?.id || '') || null;
+    const data = await transitionStudioHandoffState({
+      tenantId,
+      sessionId: id,
+      jobId: body.job_id,
+      userId,
+      action: 'mark_exported',
+      note: body.note || null,
+    });
+    return { success: true, data };
+  });
+
+  app.post('/creative-sessions/:id/handoff/sent', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
+    const { id } = sessionParamsSchema.parse(request.params || {});
+    const body = studioHandoffSentSchema.parse(request.body || {});
+    const tenantId = String(request.user?.tenant_id || '');
+    const userId = String(request.user?.id || '') || null;
+    const data = await transitionStudioHandoffState({
+      tenantId,
+      sessionId: id,
+      jobId: body.job_id,
+      userId,
+      action: 'mark_sent',
+      note: body.note || null,
+    });
     return { success: true, data };
   });
 

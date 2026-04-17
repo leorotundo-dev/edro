@@ -128,3 +128,24 @@ export const canvasSaveDraftSchema = z.object({
     metadata: z.record(z.string(), z.any()).optional(),
   }).optional(),
 });
+
+export const studioHandoffAcceptSchema = z.object({
+  job_id: z.string().uuid(),
+  note: z.string().trim().max(1000).optional().nullable(),
+});
+
+export const studioHandoffReturnSchema = z.object({
+  job_id: z.string().uuid(),
+  note: z.string().trim().max(1000).optional().nullable(),
+  next_actor: z.enum(['da', 'traffic']).optional().nullable(),
+});
+
+export const studioHandoffExportedSchema = z.object({
+  job_id: z.string().uuid(),
+  note: z.string().trim().max(1000).optional().nullable(),
+});
+
+export const studioHandoffSentSchema = z.object({
+  job_id: z.string().uuid(),
+  note: z.string().trim().max(1000).optional().nullable(),
+});
