@@ -22,7 +22,7 @@
     "@tailwindcss/postcss": "^4.0.0",
     "@xyflow/react": "^12.10.1",
     "apexcharts": "^4.4.0",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.4.27",
     "framer-motion": "^12.38.0",
     "html-to-image": "^1.11.11",
     "jszip": "^3.10.1",
