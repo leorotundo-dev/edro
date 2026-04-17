@@ -776,6 +776,14 @@ export default function EditorClient() {
         setCriarTab(editorMeta.criarTab);
       }
       if (typeof editorMeta.selectedArteIndex === 'number') setSelectedArteIndex(editorMeta.selectedArteIndex);
+      if (editorMeta.liveCopy && typeof editorMeta.liveCopy === 'object') {
+        setEditorCopy((prev) => ({
+          headline: typeof editorMeta.liveCopy.headline === 'string' ? editorMeta.liveCopy.headline : prev.headline,
+          body: typeof editorMeta.liveCopy.body === 'string' ? editorMeta.liveCopy.body : prev.body,
+          cta: typeof editorMeta.liveCopy.cta === 'string' ? editorMeta.liveCopy.cta : prev.cta,
+          legenda: typeof editorMeta.liveCopy.legenda === 'string' ? editorMeta.liveCopy.legenda : prev.legenda,
+        }));
+      }
       hydratedEditorMetadataRef.current = editorMetaKey;
       persistedEditorMetadataRef.current = editorMetaKey;
     }
@@ -877,7 +885,8 @@ export default function EditorClient() {
     selectedOption,
     criarTab,
     selectedArteIndex,
-  }), [activeFormatId, criarTab, forceProvider, pipeline, selectedArteIndex, selectedOption, taskType, tone]);
+    liveCopy: editorCopy,
+  }), [activeFormatId, criarTab, editorCopy, forceProvider, pipeline, selectedArteIndex, selectedOption, taskType, tone]);
 
   useEffect(() => {
     if (!workflowContext.jobId || !sessionId) return;
