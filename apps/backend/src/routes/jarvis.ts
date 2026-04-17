@@ -4,6 +4,7 @@ import { authGuard, can, normalizeRole } from '../auth/rbac';
 import { getJarvisAlerts, dismissAlert, snoozeAlert } from '../services/jarvisAlertEngine';
 import { query } from '../db';
 import { getFallbackProvider, type UsageContext } from '../services/ai/copyOrchestrator';
+import { generateAndSelectBestCopy } from '../services/ai/copyService';
 import { runToolUseLoop } from '../services/ai/toolUseLoop';
 import { getAllToolDefinitions } from '../services/ai/toolDefinitions';
 import { executeTool, type ToolContext } from '../services/ai/toolExecutor';
@@ -1121,6 +1122,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         return false;
       }
 
+      const executionContext = await executionContextPromise;
       const toolCtx: ToolContext = {
         tenantId,
         clientId,
@@ -1135,12 +1137,110 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         jarvisExecution: {
           taskType,
           actorProfile,
-          confidence: (await executionContextPromise).confidence,
+          confidence: executionContext.confidence,
         },
       };
       const briefingDraft = inferBriefingDraftFromMessage(body.message);
+      const usageCtx: UsageContext = {
+        tenant_id: tenantId,
+        feature: 'jarvis_direct_copy_fast_path',
+        metadata: {
+          client_id: clientId,
+          task_type: taskType,
+          actor_profile: actorProfile,
+          route: decision.route,
+        },
+      };
+      const sendDirectCopyPreview = async (
+        reason: string,
+        toolResults: Array<{ toolName: string; data: any; success: boolean; metadata?: any }> = [],
+      ) => {
+        const previewResult = await generateAndSelectBestCopy({
+          tenantId,
+          clientId,
+          prompt: body.message,
+          knowledgeBlock: executionContext.knowledgeBase?.knowledge_base_block || undefined,
+          platform: briefingDraft.platform,
+          usageContext: usageCtx,
+        });
+        const previewText = String(previewResult.output || '').trim();
+        const artifacts = [
+          {
+            type: 'copy_preview',
+            title: briefingDraft.title,
+            platform: briefingDraft.platform,
+            format: briefingDraft.format,
+            persisted: false,
+            reason,
+            model: previewResult.model,
+          },
+        ];
+        const finalText = [
+          reason === 'governance_guard'
+            ? 'Gerei a copy abaixo em modo prévia. Neste contexto, o Jarvis não pode salvar briefing/copy sem confirmação explícita.'
+            : 'Gerei a copy abaixo em modo prévia porque o salvamento automático falhou neste contexto.',
+          previewText,
+        ].filter(Boolean).join('\n\n');
+        const durationMs = Date.now() - startMs;
+        const observability = await buildObservabilityWithTrace({
+          durationMs,
+          toolsUsed: toolResults.length,
+          provider: 'jarvis_direct_copy_preview',
+          model: previewResult.model || 'jarvis_direct_copy_preview',
+          loadedMemoryBlocks: ['Fast-path de copy', 'Memória do cliente', 'Copy policy'],
+          autonomy: summarizeJarvisToolGovernance(toolResults),
+          assistantContent: finalText,
+          toolResults,
+          artifacts,
+        });
+        const savedConversationId = await saveUnifiedConversation({
+          route: decision.route,
+          tenantId,
+          edroClientId,
+          userId,
+          conversationId: effectiveConversationId,
+          message: body.message,
+          assistantContent: finalText,
+          provider: 'jarvis_direct_copy_preview',
+          observability,
+          artifacts,
+        }).catch(() => effectiveConversationId);
+
+        reply.send({
+          success: true,
+          data: {
+            response: finalText,
+            provider: 'jarvis_direct_copy_preview',
+            model: previewResult.model || 'jarvis_direct_copy_preview',
+            conversationId: savedConversationId,
+            artifacts,
+            intent: decision.intent,
+            route: decision.route,
+            primaryMemory: decision.primaryMemory,
+            secondaryMemories: decision.secondaryMemories,
+            retrievalBudget: decision.retrievalBudget,
+            durationMs,
+            observability,
+          },
+        });
+        return true;
+      };
+
+      if (!explicitConfirmation && executionContext.confidence.mode !== 'act') {
+        return sendDirectCopyPreview('governance_guard');
+      }
+
       const createBriefingResult = await executeTool('create_briefing', briefingDraft, toolCtx);
-      if (!createBriefingResult.success || !createBriefingResult.data?.id) return false;
+      if (!createBriefingResult.success || !createBriefingResult.data?.id) {
+        return sendDirectCopyPreview('persist_failed', [
+          {
+            toolName: 'create_briefing',
+            data: createBriefingResult.data ?? null,
+            success: createBriefingResult.success,
+            metadata: createBriefingResult.metadata,
+          },
+        ]);
+      }
 
       const generateCopyResult = await executeTool('generate_copy_for_briefing', {
         briefing_id: createBriefingResult.data.id,
@@ -1148,7 +1248,22 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         language: 'pt',
         instructions: `Pedido original do usuário: ${body.message}`,
       }, toolCtx);
-      if (!generateCopyResult.success) return false;
+      if (!generateCopyResult.success) {
+        return sendDirectCopyPreview('persist_failed', [
+          {
+            toolName: 'create_briefing',
+            data: createBriefingResult.data ?? null,
+            success: createBriefingResult.success,
+            metadata: createBriefingResult.metadata,
+          },
+          {
+            toolName: 'generate_copy_for_briefing',
+            data: generateCopyResult.data ?? null,
+            success: generateCopyResult.success,
+            metadata: generateCopyResult.metadata,
+          },
+        ]);
+      }
 
       const toolResults = [
         {
