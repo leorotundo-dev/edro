@@ -62,6 +62,14 @@ export default async function studioWorkflowRoutes(app: FastifyInstance) {
     return { success: true, data };
   });
 
+  app.get('/creative-sessions/:id', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const { id } = sessionParamsSchema.parse(request.params || {});
+    const tenantId = String(request.user?.tenant_id || '');
+    const data = await getCreativeSessionContextBySessionId(tenantId, id);
+    if (!data) return reply.code(404).send({ success: false, error: 'Sessão criativa não encontrada.' });
+    return { success: true, data };
+  });
+
   app.post('/creative-sessions/:id/stage', { preHandler: [requirePerm('clients:write')] }, async (request: any) => {
     const { id } = sessionParamsSchema.parse(request.params || {});
     const body = updateCreativeStageSchema.parse(request.body || {});

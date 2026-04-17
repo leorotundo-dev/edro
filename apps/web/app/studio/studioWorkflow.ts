@@ -319,6 +319,15 @@ export async function loadStudioCreativeSession(jobId: string) {
   return data;
 }
 
+export async function loadStudioCreativeSessionById(sessionId: string) {
+  const response = await apiGet<{ success?: boolean; data?: CreativeSessionContextDto }>(
+    `/creative-sessions/${sessionId}`
+  );
+  const data = response?.data || null;
+  persistContextFromSession(data);
+  return data;
+}
+
 export async function updateStudioCreativeStage(sessionId: string, payload: { current_stage: CreativeStage; reason?: string | null }) {
   const response = await apiPost<{ success?: boolean; data?: CreativeSessionContextDto }>(
     `/creative-sessions/${sessionId}/stage`,

@@ -73,6 +73,7 @@ import {
   addStudioCreativeVersion,
   buildStudioHref,
   loadStudioCreativeSession,
+  loadStudioCreativeSessionById,
   openStudioCreativeSession,
   persistStudioWorkflowContext,
   readStudioInventoryFromSession,
@@ -786,9 +787,9 @@ export default function EditorClient() {
     setSuccess('');
     try {
       let resolvedBriefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
-      if (workflowContext.jobId) {
+      if (sessionId || workflowContext.jobId) {
         const context = sessionId
-          ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => null)
+          ? await loadStudioCreativeSessionById(sessionId).catch(() => null)
           : await openStudioCreativeSession(workflowContext.jobId).catch(() => null);
         if (context) {
           resolvedBriefingId = context.session?.briefing_id || resolvedBriefingId;
@@ -1542,17 +1543,19 @@ export default function EditorClient() {
 
   const resolveBriefingId = () => {
     if (briefing?.id) return briefing.id;
+    if (creativeContext?.session?.briefing_id) return creativeContext.session.briefing_id;
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem('edro_briefing_id');
   };
 
   const ensureCreativeSessionContext = useCallback(async () => {
-    if (!workflowContext.jobId) return null;
     const context = sessionId
-      ? await loadStudioCreativeSession(workflowContext.jobId).catch(() => creativeContext)
-      : await openStudioCreativeSession(workflowContext.jobId, {
-          briefing_id: resolveBriefingId(),
-        }).catch(() => null);
+      ? await loadStudioCreativeSessionById(sessionId).catch(() => creativeContext)
+      : workflowContext.jobId
+        ? await openStudioCreativeSession(workflowContext.jobId, {
+            briefing_id: resolveBriefingId(),
+          }).catch(() => null)
+        : null;
     if (context) applyCreativeContext(context);
     return context;
   }, [applyCreativeContext, creativeContext, sessionId, workflowContext.jobId]);
