@@ -138,9 +138,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
       'entregue', 'publicado', 'arquivo', 'arquivado',
       'encerrado', 'cancelado', 'faturado', 'finalizado',
     ];
-    // Build SQL ILIKE conditions for each fragment (accent-insensitive via unaccent if available, otherwise ILIKE)
-    const listConditions = ignoredFragments.map((_, i) => `unaccent(pl.name) ILIKE unaccent($${i + 2})`).join(' OR ');
-    const listParams: string[] = ignoredFragments.map((f) => `%${f}%`);
+    // Keep this cleanup route extension-free: production may not have `unaccent` enabled.
+    // We normalize common PT-BR accents with translate(lower(...)) before matching fragments.
+    const normalizedListName =
+      `translate(lower(coalesce(pl.name, '')), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc')`;
+    const listConditions = ignoredFragments.map((_, i) => `${normalizedListName} LIKE $${i + 2}`).join(' OR ');
+    const listParams: string[] = ignoredFragments.map((f) => `%${f.toLowerCase()}%`);
 
     const result = await query(
       `UPDATE project_cards pc
