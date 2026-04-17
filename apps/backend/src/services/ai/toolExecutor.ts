@@ -605,6 +605,8 @@ function getToolTimeoutMs(toolName: string) {
   switch (toolName) {
     case 'create_post_pipeline':
       return 45000;
+    case 'generate_copy_for_briefing':
+      return 30000;
     case 'prepare_post_approval':
     case 'schedule_post_publication':
     case 'publish_studio_post':

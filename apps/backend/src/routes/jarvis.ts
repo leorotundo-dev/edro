@@ -192,6 +192,57 @@ function shouldSkipArte(message: string) {
   return copyOnlySignals.some((token) => haystack.includes(token));
 }
 
+function shouldUseDirectCopyFastPath(message: string, pageData?: Record<string, unknown> | null) {
+  if (shouldDelegateToCreativeExecutor(message, pageData)) return false;
+  const haystack = message.toLowerCase();
+  return [
+    'crie um post',
+    'criar um post',
+    'gere a copy',
+    'gerar copy',
+    'copy pronta',
+    'legenda',
+    'headline',
+    'cta',
+  ].some((token) => haystack.includes(token));
+}
+
+function inferBriefingDraftFromMessage(message: string) {
+  const haystack = message.toLowerCase();
+  const platform = haystack.includes('linkedin')
+    ? 'linkedin'
+    : haystack.includes('tiktok')
+      ? 'tiktok'
+      : haystack.includes('youtube')
+        ? 'youtube'
+        : haystack.includes('facebook')
+          ? 'facebook'
+          : 'instagram';
+  const format = haystack.includes('reels')
+    ? 'reels'
+    : haystack.includes('stories') || haystack.includes('story')
+      ? 'stories'
+      : haystack.includes('carrossel') || haystack.includes('carousel')
+        ? 'carousel'
+        : haystack.includes('video')
+          ? 'video'
+          : 'post';
+  const objective = haystack.includes('convers')
+    ? 'conversão'
+    : haystack.includes('engaj')
+      ? 'engajamento'
+      : 'awareness';
+  const aboutMatch = message.match(/sobre\s+(.+?)(?:[.!?]|$)/i);
+  const theme = (aboutMatch?.[1] || message).trim().slice(0, 90);
+  return {
+    title: `[Jarvis] ${platform} - ${theme}`,
+    objective,
+    platform,
+    format,
+    notes: message.trim().slice(0, 1000),
+  };
+}
+
 function emptyLivingMemoryPreflight() {
   return {
     block: '',
@@ -1057,12 +1108,138 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       });
     };
 
+    const tryDirectCopyFastPath = async () => {
+      if (
+        !clientId
+        || !edroClientId
+        || body.sandbox_only === true
+        || body.client_action
+        || decision.route !== 'planning'
+        || decision.intent !== 'creative_execution'
+        || !shouldUseDirectCopyFastPath(body.message, body.page_data ?? undefined)
+      ) {
+        return null;
+      }
+
+      const toolCtx: ToolContext = {
+        tenantId,
+        clientId,
+        edroClientId,
+        userId: userId ?? undefined,
+        userEmail,
+        role: userRole,
+        explicitConfirmation,
+        conversationId: effectiveConversationId,
+        conversationRoute: decision.route,
+        pageData: body.page_data ?? undefined,
+        jarvisExecution: {
+          taskType,
+          actorProfile,
+          confidence: (await executionContextPromise).confidence,
+        },
+      };
+      const briefingDraft = inferBriefingDraftFromMessage(body.message);
+      const createBriefingResult = await executeTool('create_briefing', briefingDraft, toolCtx);
+      if (!createBriefingResult.success || !createBriefingResult.data?.id) return null;
+
+      const generateCopyResult = await executeTool('generate_copy_for_briefing', {
+        briefing_id: createBriefingResult.data.id,
+        count: 3,
+        language: 'pt',
+        instructions: `Pedido original do usuário: ${body.message}`,
+      }, toolCtx);
+      if (!generateCopyResult.success) return null;
+
+      const toolResults = [
+        {
+          toolName: 'create_briefing',
+          data: createBriefingResult.data ?? null,
+          success: createBriefingResult.success,
+          metadata: createBriefingResult.metadata,
+        },
+        {
+          toolName: 'generate_copy_for_briefing',
+          data: generateCopyResult.data ?? null,
+          success: generateCopyResult.success,
+          metadata: generateCopyResult.metadata,
+        },
+      ];
+      const artifacts = [
+        {
+          type: 'briefing_created',
+          briefing_id: createBriefingResult.data.id,
+          title: createBriefingResult.data.title,
+          status: createBriefingResult.data.status,
+          message: `Briefing "${createBriefingResult.data.title}" criado pelo Jarvis para geração imediata de copy.`,
+        },
+        ...mapJarvisToolResultsToArtifacts(toolResults),
+      ];
+      const finalText = [
+        `Criei o briefing "${createBriefingResult.data.title}" e já gerei a copy inicial para ${briefingDraft.platform}.`,
+        generateCopyResult.data?.preview ? `Prévia:\n${generateCopyResult.data.preview}` : null,
+      ].filter(Boolean).join('\n\n');
+      const durationMs = Date.now() - startMs;
+      const observability = await buildObservabilityWithTrace({
+        durationMs,
+        toolsUsed: toolResults.length,
+        provider: 'jarvis_direct_copy',
+        model: generateCopyResult.data?.model || 'jarvis_direct_copy',
+        loadedMemoryBlocks: ['Fast-path de copy', 'Memória do cliente', 'Copy policy'],
+        autonomy: summarizeJarvisToolGovernance(toolResults),
+        assistantContent: finalText,
+        toolResults,
+        artifacts,
+      });
+      const savedConversationId = await saveUnifiedConversation({
+        route: decision.route,
+        tenantId,
+        edroClientId,
+        userId,
+        conversationId: effectiveConversationId,
+        message: body.message,
+        assistantContent: finalText,
+        provider: 'jarvis_direct_copy',
+        observability,
+        artifacts,
+      }).catch(() => effectiveConversationId);
+
+      request.log?.info({
+        event: 'jarvis_direct_copy_completed',
+        clientId,
+        conversationId: savedConversationId,
+        briefingId: createBriefingResult.data.id,
+        copyId: generateCopyResult.data?.copy_id || null,
+        ...observability,
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          response: finalText,
+          provider: 'jarvis_direct_copy',
+          model: generateCopyResult.data?.model || 'jarvis_direct_copy',
+          conversationId: savedConversationId,
+          artifacts,
+          intent: decision.intent,
+          route: decision.route,
+          primaryMemory: decision.primaryMemory,
+          secondaryMemories: decision.secondaryMemories,
+          retrievalBudget: decision.retrievalBudget,
+          durationMs,
+          observability,
+        },
+      });
+    };
+
     if (decision.route === 'planning' && !clientId) {
       return reply.status(400).send({
         success: false,
         error: 'Selecione um cliente para perguntas de estratégia, memória ou criação.',
       });
     }
+
+    const directCopyReply = await tryDirectCopyFastPath();
+    if (directCopyReply) return directCopyReply;
 
     if (body.client_action?.type === 'confirm_tool_call') {
       const toolName = String(body.client_action.tool_name || '').trim();
