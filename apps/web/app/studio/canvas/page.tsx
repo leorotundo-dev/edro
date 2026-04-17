@@ -1,7 +1,23 @@
-import CanvasClient from './CanvasClient';
+import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Canvas | Edro Studio' };
 
-export default function Page() {
-  return <CanvasClient />;
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function buildEditorRedirect(mode: string, searchParams: SearchParams) {
+  const params = new URLSearchParams();
+  Object.entries(searchParams || {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) value.forEach((item) => params.append(key, item));
+    else if (typeof value === 'string') params.set(key, value);
+  });
+  params.set('mode', mode);
+  return `/studio/editor?${params.toString()}`;
+}
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  redirect(buildEditorRedirect('canvas', await searchParams));
 }

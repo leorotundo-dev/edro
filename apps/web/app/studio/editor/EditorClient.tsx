@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -83,6 +84,10 @@ import {
   type CreativeSessionContextDto,
   updateStudioCreativeStage,
 } from '../studioWorkflow';
+
+const ReviewClient = dynamic(() => import('../review/ReviewClient'), { ssr: false });
+const CanvasClient = dynamic(() => import('../canvas/CanvasClient'), { ssr: false });
+const PipelineStudio = dynamic(() => import('../pipeline/[briefingId]/PipelineStudio'), { ssr: false });
 
 // ── agentConceito types (mirrors backend) ─────────────────────────────────────
 type CreativeConcept = {
@@ -200,6 +205,56 @@ type CopyMeta = {
   task_type?: string;
   reportei?: ReporteiSummary | null;
 };
+
+type EditorSurfaceTab = 0 | 1 | 2 | 3 | 4;
+
+const EDITOR_MODE_BY_TAB: Record<EditorSurfaceTab, 'copy' | 'mockups' | 'review' | 'canvas' | 'pipeline'> = {
+  0: 'copy',
+  1: 'mockups',
+  2: 'review',
+  3: 'canvas',
+  4: 'pipeline',
+};
+
+const EDITOR_TAB_LABELS: Record<EditorSurfaceTab, string> = {
+  0: 'Modo criar',
+  1: 'Modo mockups',
+  2: 'Modo revisão',
+  3: 'Modo canvas',
+  4: 'Modo pipeline',
+};
+
+function resolveEditorTab(mode?: string | null): EditorSurfaceTab | null {
+  switch (String(mode || '').toLowerCase()) {
+    case 'copy':
+      return 0;
+    case 'mockups':
+      return 1;
+    case 'review':
+      return 2;
+    case 'canvas':
+      return 3;
+    case 'pipeline':
+      return 4;
+    default:
+      return null;
+  }
+}
+
+function buildEditorModeHref(
+  searchParams: ReturnType<typeof useSearchParams>,
+  mode: (typeof EDITOR_MODE_BY_TAB)[EditorSurfaceTab],
+  extras?: Record<string, string | null | undefined>
+) {
+  const params = new URLSearchParams(searchParams?.toString() || '');
+  params.set('mode', mode);
+  Object.entries(extras || {}).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+    else params.delete(key);
+  });
+  const query = params.toString();
+  return query ? `/studio/editor?${query}` : '/studio/editor';
+}
 
 const TASK_TYPES = [
   { value: 'social_post', label: 'Social post' },
@@ -512,6 +567,7 @@ function CharCounter({ text, max }: { text: string; max?: number }) {
 export default function EditorClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const requestedEditorTab = useMemo(() => resolveEditorTab(searchParams.get('mode')), [searchParams]);
   const { open: openJarvis, clientId: jarvisClientId } = useJarvis();
   const workflowContext = useMemo(() => resolveStudioWorkflowContext(searchParams), [searchParams]);
   const [sessionId, setSessionId] = useState(workflowContext.sessionId);
@@ -602,8 +658,7 @@ export default function EditorClient() {
   const [selectedLibraryImageId, setSelectedLibraryImageId] = useState<string | null>(null);
   const [initStrength, setInitStrength] = useState(0.35);
   const [libraryImagesLoading, setLibraryImagesLoading] = useState(false);
-  // Tabs: 0 = Gerador de Copy, 1 = Grade de Mockups
-  const [criarTab, setCriarTab] = useState<0 | 1>(0);
+  const [criarTab, setCriarTab] = useState<EditorSurfaceTab>(requestedEditorTab ?? 0);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   // ── agentConceito ─────────────────────────────────────────────────────────
   const [concepts, setConcepts] = useState<CreativeConcept[]>([]);
@@ -619,6 +674,12 @@ export default function EditorClient() {
       setSessionId(workflowContext.sessionId);
     }
   }, [workflowContext.sessionId]);
+
+  useEffect(() => {
+    if (requestedEditorTab !== null && requestedEditorTab !== criarTab) {
+      setCriarTab(requestedEditorTab);
+    }
+  }, [criarTab, requestedEditorTab]);
 
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -772,8 +833,12 @@ export default function EditorClient() {
       if (typeof editorMeta.forceProvider === 'string') setForceProvider(editorMeta.forceProvider);
       if (typeof editorMeta.tone === 'string' && editorMeta.tone) setTone(editorMeta.tone);
       if (typeof editorMeta.selectedOption === 'number') setSelectedOption(editorMeta.selectedOption);
-      if (typeof editorMeta.criarTab === 'number' && (editorMeta.criarTab === 0 || editorMeta.criarTab === 1)) {
-        setCriarTab(editorMeta.criarTab);
+      if (
+        requestedEditorTab === null &&
+        typeof editorMeta.criarTab === 'number' &&
+        [0, 1, 2, 3, 4].includes(editorMeta.criarTab)
+      ) {
+        setCriarTab(editorMeta.criarTab as EditorSurfaceTab);
       }
       if (typeof editorMeta.selectedArteIndex === 'number') setSelectedArteIndex(editorMeta.selectedArteIndex);
       if (editorMeta.liveCopy && typeof editorMeta.liveCopy === 'object') {
@@ -787,14 +852,20 @@ export default function EditorClient() {
       hydratedEditorMetadataRef.current = editorMetaKey;
       persistedEditorMetadataRef.current = editorMetaKey;
     }
-  }, [artDirLayout, artDirVisualStrategy, tone]);
+  }, [artDirLayout, artDirVisualStrategy, requestedEditorTab, tone]);
 
   const loadBriefing = useCallback(async () => {
     setLoading(true);
     setError('');
     setSuccess('');
     try {
-      let resolvedBriefingId = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
+      const queryBriefingId = searchParams.get('briefingId');
+      let resolvedBriefingId =
+        queryBriefingId ||
+        (typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null);
+      if (typeof window !== 'undefined' && queryBriefingId) {
+        window.localStorage.setItem('edro_briefing_id', queryBriefingId);
+      }
       if (sessionId || workflowContext.jobId) {
         const context = sessionId
           ? await loadStudioCreativeSessionById(sessionId).catch(() => null)
@@ -844,7 +915,7 @@ export default function EditorClient() {
     } finally {
       setLoading(false);
     }
-  }, [applyCreativeContext, sessionId, tone, workflowContext.jobId]);
+  }, [applyCreativeContext, searchParams, sessionId, tone, workflowContext.jobId]);
 
   const loadOrchestrator = useCallback(async () => {
     try {
@@ -2149,7 +2220,7 @@ export default function EditorClient() {
                   <Chip
                     size="small"
                     color="primary"
-                    label={criarTab === 0 ? 'Modo criar' : 'Modo mockups'}
+                    label={EDITOR_TAB_LABELS[criarTab]}
                     sx={{ fontWeight: 700 }}
                   />
                   {activeFormat?.platform ? <Chip size="small" variant="outlined" label={activeFormat.platform} /> : null}
@@ -2253,30 +2324,40 @@ export default function EditorClient() {
           );
         })()}
 
-        {/* Tab bar — Gerador de Copy / Grade de Mockups */}
+        {/* Tab bar — workbench unificado */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Tabs value={criarTab} onChange={(_, v) => setCriarTab(v as 0 | 1)}>
+          <Tabs
+            value={criarTab}
+            onChange={(_, v) => {
+              const nextTab = v as EditorSurfaceTab;
+              setCriarTab(nextTab);
+              router.replace(
+                buildEditorModeHref(searchParams, EDITOR_MODE_BY_TAB[nextTab], {
+                  briefingId: briefing?.id || searchParams.get('briefingId'),
+                }),
+                { scroll: false }
+              );
+            }}
+            variant="scrollable"
+            allowScrollButtonsMobile
+          >
             <Tab value={0} label="Gerador de Copy" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
             <Tab value={1} label="Grade de Mockups" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab value={2} label="Revisão" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab value={3} label="Canvas" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab value={4} label="Pipeline" sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
           </Tabs>
-          {briefing?.id && (
-            <Button
-              size="small"
-              component={Link}
-              href={buildStudioHref(`/studio/pipeline/${briefing.id}`, searchParams)}
-              variant="outlined"
-              sx={{
-                mr: 1.5, textTransform: 'none', fontSize: '0.72rem', fontWeight: 600,
-                borderColor: '#5D87FF', color: '#5D87FF',
-                '&:hover': { borderColor: '#4a72e8', bgcolor: 'rgba(93,135,255,0.06)' },
-              }}
-            >
-              ✦ Pipeline View
-            </Button>
-          )}
         </Box>
 
         {criarTab === 1 && <MockupsPage embedded />}
+        {criarTab === 2 && <ReviewClient />}
+        {criarTab === 3 && <CanvasClient />}
+        {criarTab === 4 && briefing?.id ? (
+          <PipelineStudio briefingId={briefing.id} />
+        ) : null}
+        {criarTab === 4 && !briefing?.id ? (
+          <Alert severity="info">Abra um briefing para usar o pipeline avançado dentro do editor.</Alert>
+        ) : null}
 
         {criarTab === 0 && (
         <Grid container>

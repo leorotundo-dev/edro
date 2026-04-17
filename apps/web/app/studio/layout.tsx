@@ -35,7 +35,11 @@ function PipelineLink() {
   const [href, setHref] = useState<string>('/edro');
   useEffect(() => {
     const id = typeof window !== 'undefined' ? window.localStorage.getItem('edro_briefing_id') : null;
-    setHref(id ? buildStudioHref(`/studio/pipeline/${id}`, searchParams) : '/edro');
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('mode', 'pipeline');
+    if (id) params.set('briefingId', id);
+    const query = params.toString();
+    setHref(query ? `/studio/editor?${query}` : '/studio/editor');
   }, [searchParams]);
   return (
     <Box
@@ -52,7 +56,7 @@ function PipelineLink() {
       }}
     >
       <Box component="span" sx={{ fontSize: 16, lineHeight: 1 }}>✦</Box>
-      <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Pipeline IA</Typography>
+      <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>Pipeline no Editor</Typography>
     </Box>
   );
 }
