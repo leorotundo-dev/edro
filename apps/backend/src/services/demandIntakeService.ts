@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { query } from '../db';
 import { enqueueJob } from '../jobs/jobQueue';
+import { reconcileDemandCandidate } from './demandReconciliationService';
 
 export type DemandSourceType =
   | 'trello_webhook'
@@ -359,11 +360,28 @@ export async function enqueueDemandIntake(input: DemandIntakeInput) {
   return { jobId: String(job.id), deduped: false, fingerprint, status: 'queued' as const };
 }
 
-export async function processDemandIntakePayload(tenantId: string, payload: DemandQueuePayload) {
+export async function processDemandIntakePayload(tenantId: string, payload: DemandQueuePayload, currentJobId?: string) {
   const candidate = await classifyDemand(tenantId, payload);
+  const reconciliation = currentJobId
+    ? await reconcileDemandCandidate({
+        tenantId,
+        currentJobId,
+        payload,
+        candidate,
+      }).catch(() => ({
+        mode: 'standalone' as const,
+        canonical_job_id: null,
+        reason: 'reconciliation_failed',
+      }))
+    : {
+        mode: 'standalone' as const,
+        canonical_job_id: null,
+        reason: 'reconciliation_skipped',
+      };
   return {
     processed_at: new Date().toISOString(),
     fingerprint: payload.fingerprint,
     candidate,
+    reconciliation,
   };
 }

@@ -17,9 +17,9 @@ export async function runDemandIntakeWorkerOnce(): Promise<void> {
       if (!claimed) continue;
 
       try {
-        const result = await processDemandIntakePayload(job.tenant_id, (job.payload || {}) as any);
+        const result = await processDemandIntakePayload(job.tenant_id, (job.payload || {}) as any, String(job.id));
         await mergeJobPayload(job.id, { intake_result: result });
-        if (result.candidate?.nextStep === 'briefing_compile') {
+        if (result.candidate?.nextStep === 'briefing_compile' && result.reconciliation?.mode !== 'duplicate') {
           const existing = await query<{ id: string }>(
             `SELECT id
                FROM job_queue
