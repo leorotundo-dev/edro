@@ -127,6 +127,8 @@ export type StudioHandoffAssignmentStatus =
   | 'fallback_to_traffic'
   | 'fallback_to_manager';
 
+export type StudioHandoffSlaBucket = 'on_track' | 'attention' | 'overdue';
+
 export type StudioHandoffInboxItem = {
   creative_session_id: string;
   job_id: string;
@@ -147,6 +149,17 @@ export type StudioHandoffInboxItem = {
   assignment_reason?: string | null;
   assignment_score?: number | null;
   assigned_at?: string | null;
+  accepted_at?: string | null;
+  returned_at?: string | null;
+  exported_at?: string | null;
+  sent_at?: string | null;
+  age_minutes: number;
+  sla_bucket: StudioHandoffSlaBucket;
+  return_count: number;
+  reassignment_count: number;
+  time_to_accept_minutes?: number | null;
+  time_to_export_minutes?: number | null;
+  time_to_send_minutes?: number | null;
   overdue: boolean;
   studio_url: string;
   copy_preview?: string | null;
@@ -161,6 +174,16 @@ export type StudioHandoffInboxSummary = {
   exported: number;
   sent: number;
   overdue: number;
+};
+
+export type StudioHandoffInboxMetrics = {
+  total: number;
+  accepted_rate: number;
+  return_rate: number;
+  reassignment_rate: number;
+  avg_time_to_accept_minutes: number | null;
+  avg_time_to_export_minutes: number | null;
+  avg_time_to_send_minutes: number | null;
 };
 
 export function readStudioWorkflowContext(): StudioWorkflowContext {
@@ -395,6 +418,7 @@ export async function loadStudioHandoffInbox(params?: {
     data?: {
       items?: StudioHandoffInboxItem[];
       summary?: StudioHandoffInboxSummary;
+      metrics?: StudioHandoffInboxMetrics;
     };
   }>(`/studio/handoffs${suffix}`);
   return {
@@ -408,6 +432,15 @@ export async function loadStudioHandoffInbox(params?: {
       exported: 0,
       sent: 0,
       overdue: 0,
+    },
+    metrics: response?.data?.metrics || {
+      total: 0,
+      accepted_rate: 0,
+      return_rate: 0,
+      reassignment_rate: 0,
+      avg_time_to_accept_minutes: null,
+      avg_time_to_export_minutes: null,
+      avg_time_to_send_minutes: null,
     },
   };
 }

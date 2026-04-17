@@ -111,6 +111,13 @@ type StudioHandoffInboxItem = {
   returned_at: string | null;
   exported_at: string | null;
   sent_at: string | null;
+  age_minutes: number;
+  sla_bucket: 'on_track' | 'attention' | 'overdue';
+  return_count: number;
+  reassignment_count: number;
+  time_to_accept_minutes: number | null;
+  time_to_export_minutes: number | null;
+  time_to_send_minutes: number | null;
   overdue: boolean;
   studio_url: string;
   copy_preview: string | null;
@@ -128,9 +135,20 @@ type StudioHandoffInboxSummary = {
   overdue: number;
 };
 
+type StudioHandoffInboxMetrics = {
+  total: number;
+  accepted_rate: number;
+  return_rate: number;
+  reassignment_rate: number;
+  avg_time_to_accept_minutes: number | null;
+  avg_time_to_export_minutes: number | null;
+  avg_time_to_send_minutes: number | null;
+};
+
 type StudioHandoffInboxResult = {
   items: StudioHandoffInboxItem[];
   summary: StudioHandoffInboxSummary;
+  metrics: StudioHandoffInboxMetrics;
 };
 
 type StudioHandoffAgingRow = {
@@ -471,12 +489,46 @@ function buildEmptyInboxSummary(): StudioHandoffInboxSummary {
   };
 }
 
+function buildEmptyInboxMetrics(): StudioHandoffInboxMetrics {
+  return {
+    total: 0,
+    accepted_rate: 0,
+    return_rate: 0,
+    reassignment_rate: 0,
+    avg_time_to_accept_minutes: null,
+    avg_time_to_export_minutes: null,
+    avg_time_to_send_minutes: null,
+  };
+}
+
 function getHandoffAgeMinutes(handoff: Record<string, any>) {
   const anchor = String(handoff.accepted_at || handoff.assigned_at || handoff.generated_at || '').trim();
   if (!anchor) return 0;
   const startedAt = new Date(anchor);
   if (!Number.isFinite(startedAt.getTime())) return 0;
   return Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 60000));
+}
+
+function getElapsedMinutes(startAt?: string | null, endAt?: string | null) {
+  if (!startAt || !endAt) return null;
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return null;
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+}
+
+function averageMinutes(values: Array<number | null | undefined>) {
+  const valid = values.filter((value): value is number => Number.isFinite(value as number));
+  if (!valid.length) return null;
+  return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
+}
+
+function parseHandoffHistory(handoff: Record<string, any>) {
+  return Array.isArray(handoff.history) ? handoff.history : [];
+}
+
+function roundPercent(value: number) {
+  return Math.round(value * 1000) / 10;
 }
 
 function resolveHandoffSlaBucket(
@@ -540,6 +592,7 @@ async function notifyHandoffRecipients(params: {
 }
 
 export async function listStudioHandoffs(filters: StudioHandoffListFilters): Promise<StudioHandoffInboxResult> {
+  const escalationMinutes = Number(process.env.STUDIO_HANDOFF_ESCALATION_MINUTES || 240);
   const { rows } = await query<{
     creative_session_id: string;
     job_id: string;
@@ -590,6 +643,7 @@ export async function listStudioHandoffs(filters: StudioHandoffListFilters): Pro
   const items = rows
     .map((row) => {
       const handoff = row.handoff || {};
+      const history = parseHandoffHistory(handoff);
       const handoffStatus = String(handoff.current_status || '').trim() as StudioHandoffStatus;
       if (!handoffStatus) return null;
 
@@ -601,6 +655,19 @@ export async function listStudioHandoffs(filters: StudioHandoffListFilters): Pro
           ? 'assigned'
           : 'unassigned'
       ) as StudioHandoffAssignmentStatus;
+      const ageMinutes = Number.isFinite(Number(handoff.age_minutes))
+        ? Number(handoff.age_minutes)
+        : getHandoffAgeMinutes(handoff);
+      const slaBucket = (
+        ['on_track', 'attention', 'overdue'].includes(String(handoff.sla_bucket || ''))
+          ? String(handoff.sla_bucket)
+          : resolveHandoffSlaBucket(row.deadline_at, handoffStatus, ageMinutes, escalationMinutes)
+      ) as 'on_track' | 'attention' | 'overdue';
+      const returnCount = history.filter((entry) => String(entry?.status || '') === 'returned_for_changes').length;
+      const reassignmentCount = history.filter((entry) => {
+        const note = String(entry?.note || '').trim();
+        return note === 'studio_handoff_escalated' || note === 'studio_handoff_deadline_escalated';
+      }).length;
       const item: StudioHandoffInboxItem = {
         creative_session_id: row.creative_session_id,
         job_id: row.job_id,
@@ -626,6 +693,16 @@ export async function listStudioHandoffs(filters: StudioHandoffListFilters): Pro
         returned_at: handoff.returned_at ? String(handoff.returned_at) : null,
         exported_at: handoff.exported_at ? String(handoff.exported_at) : null,
         sent_at: handoff.sent_at ? String(handoff.sent_at) : null,
+        age_minutes: ageMinutes,
+        sla_bucket: slaBucket,
+        return_count: returnCount,
+        reassignment_count: reassignmentCount,
+        time_to_accept_minutes: getElapsedMinutes(handoff.assigned_at || handoff.generated_at, handoff.accepted_at),
+        time_to_export_minutes: getElapsedMinutes(handoff.accepted_at || handoff.generated_at, handoff.exported_at),
+        time_to_send_minutes: getElapsedMinutes(
+          handoff.exported_at || handoff.accepted_at || handoff.generated_at,
+          handoff.sent_at,
+        ),
         overdue: isHandoffOverdue(row.deadline_at, handoffStatus),
         studio_url:
           handoff.studio_url && String(handoff.studio_url).trim()
@@ -665,7 +742,18 @@ export async function listStudioHandoffs(filters: StudioHandoffListFilters): Pro
     return acc;
   }, buildEmptyInboxSummary());
 
-  return { items, summary };
+  const total = items.length;
+  const metrics: StudioHandoffInboxMetrics = {
+    total,
+    accepted_rate: total ? roundPercent(items.filter((item) => Boolean(item.accepted_at)).length / total) : 0,
+    return_rate: total ? roundPercent(items.filter((item) => item.return_count > 0).length / total) : 0,
+    reassignment_rate: total ? roundPercent(items.filter((item) => item.reassignment_count > 0).length / total) : 0,
+    avg_time_to_accept_minutes: averageMinutes(items.map((item) => item.time_to_accept_minutes)),
+    avg_time_to_export_minutes: averageMinutes(items.map((item) => item.time_to_export_minutes)),
+    avg_time_to_send_minutes: averageMinutes(items.map((item) => item.time_to_send_minutes)),
+  };
+
+  return { items, summary, metrics: total ? metrics : buildEmptyInboxMetrics() };
 }
 
 export async function processStudioHandoffAgingBatch(limit = 20) {

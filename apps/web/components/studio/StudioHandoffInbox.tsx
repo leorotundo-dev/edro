@@ -19,6 +19,7 @@ import { apiPost } from '@/lib/api';
 import {
   loadStudioHandoffInbox,
   type StudioHandoffInboxItem,
+  type StudioHandoffInboxMetrics,
   type StudioHandoffInboxSummary,
 } from '@/app/studio/studioWorkflow';
 
@@ -35,6 +36,16 @@ const EMPTY_SUMMARY: StudioHandoffInboxSummary = {
   overdue: 0,
 };
 
+const EMPTY_METRICS: StudioHandoffInboxMetrics = {
+  total: 0,
+  accepted_rate: 0,
+  return_rate: 0,
+  reassignment_rate: 0,
+  avg_time_to_accept_minutes: null,
+  avg_time_to_export_minutes: null,
+  avg_time_to_send_minutes: null,
+};
+
 function formatDate(value?: string | null) {
   if (!value) return 'Sem prazo';
   const date = new Date(value);
@@ -43,11 +54,32 @@ function formatDate(value?: string | null) {
     : value;
 }
 
+function formatMinutes(value?: number | null) {
+  if (!Number.isFinite(value as number)) return 'n/d';
+  const minutes = Math.max(0, Math.round(Number(value)));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return remaining ? `${hours}h ${remaining}min` : `${hours}h`;
+}
+
+function formatPercent(value?: number | null) {
+  if (!Number.isFinite(value as number)) return '0%';
+  return `${Number(value).toFixed(1)}%`;
+}
+
+function formatSlaBucket(value: StudioHandoffInboxItem['sla_bucket']) {
+  if (value === 'overdue') return 'Atrasado';
+  if (value === 'attention') return 'Atenção';
+  return 'No prazo';
+}
+
 export default function StudioHandoffInbox() {
   const [tab, setTab] = useState<InboxTab>('mine');
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<StudioHandoffInboxItem[]>([]);
   const [summary, setSummary] = useState<StudioHandoffInboxSummary>(EMPTY_SUMMARY);
+  const [metrics, setMetrics] = useState<StudioHandoffInboxMetrics>(EMPTY_METRICS);
   const [error, setError] = useState<string | null>(null);
   const [busySessionId, setBusySessionId] = useState<string | null>(null);
 
@@ -65,6 +97,7 @@ export default function StudioHandoffInbox() {
       const data = await loadStudioHandoffInbox(filters);
       setItems(data.items);
       setSummary(data.summary);
+      setMetrics(data.metrics);
     } catch (err: any) {
       setError(err?.message || 'Falha ao carregar handoffs.');
     } finally {
@@ -132,6 +165,16 @@ export default function StudioHandoffInbox() {
         <Chip label={`Atrasadas ${summary.overdue}`} color={summary.overdue ? 'error' : 'default'} variant="outlined" />
       </Stack>
 
+      <Stack direction="row" spacing={1} flexWrap="wrap">
+        <Chip label={`Handoffs ${metrics.total}`} variant="outlined" />
+        <Chip label={`Aceite ${formatPercent(metrics.accepted_rate)}`} variant="outlined" />
+        <Chip label={`Devolução ${formatPercent(metrics.return_rate)}`} variant="outlined" />
+        <Chip label={`Reatribuição ${formatPercent(metrics.reassignment_rate)}`} variant="outlined" />
+        <Chip label={`TMA aceite ${formatMinutes(metrics.avg_time_to_accept_minutes)}`} variant="outlined" />
+        <Chip label={`TMA export ${formatMinutes(metrics.avg_time_to_export_minutes)}`} variant="outlined" />
+        <Chip label={`TMA envio ${formatMinutes(metrics.avg_time_to_send_minutes)}`} variant="outlined" />
+      </Stack>
+
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="Minhas" value="mine" />
         <Tab label="DA" value="da" />
@@ -188,6 +231,12 @@ export default function StudioHandoffInbox() {
 
                   <Typography variant="body2" color="text.secondary">
                     Dono: {item.assigned_name || 'não atribuído'}{item.assignment_reason ? ` · ${item.assignment_reason}` : ''}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    SLA: {formatSlaBucket(item.sla_bucket)} · Idade: {formatMinutes(item.age_minutes)} · Devoluções: {item.return_count} · Reatribuições: {item.reassignment_count}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Aceite: {formatMinutes(item.time_to_accept_minutes)} · Export: {formatMinutes(item.time_to_export_minutes)} · Envio: {formatMinutes(item.time_to_send_minutes)}
                   </Typography>
                   {item.copy_preview ? (
                     <Typography variant="body2" sx={{ color: 'text.primary' }}>
