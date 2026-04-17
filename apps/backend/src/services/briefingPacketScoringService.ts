@@ -68,6 +68,7 @@ export function buildBriefingPacketScores(params: {
   missingInformation: MissingInformationItem[];
   knowledgeAvailable: boolean;
   historicalSignals: number;
+  executionProfile: 'copy_only' | 'copy_and_art' | 'adapt_existing' | 'review_existing';
 }) {
   const requiredFields = ['client_id', 'summary', 'objective', 'platform', 'format'];
   const fieldConfidence: FieldConfidenceMap = {};
@@ -86,23 +87,55 @@ export function buildBriefingPacketScores(params: {
   const clientQuestions = params.missingInformation
     .filter((item) => item.ask_target === 'client')
     .map((item) => buildQuestion(item.field, 'client', item.reason));
+  const internalGapCount = params.missingInformation.filter((item) => item.ask_target === 'internal').length;
+  const clientGapCount = params.missingInformation.filter((item) => item.ask_target === 'client').length;
   const inferableFields = Object.entries(params.fieldSources)
     .filter(([, source]) => isInferredSource(source))
     .map(([field, source]) => ({ field, source }));
 
   const autostartReasons: string[] = [];
-  let autostartMode: 'blocked' | 'review' | 'auto_run' = 'blocked';
+  let autostartMode: 'blocked' | 'review' | 'auto_run' | 'auto_run_with_da_review' = 'blocked';
+  let workflowVariant: 'copy_first' | 'full_studio' | 'adapt_existing' | 'review_existing' = 'full_studio';
+
+  if (params.executionProfile === 'copy_only') workflowVariant = 'copy_first';
+  if (params.executionProfile === 'adapt_existing') workflowVariant = 'adapt_existing';
+  if (params.executionProfile === 'review_existing') workflowVariant = 'review_existing';
 
   if (params.readiness === 'ready') {
     autostartReasons.push('briefing_packet_ready');
     if (params.knowledgeAvailable) autostartReasons.push('client_kb_loaded');
     if (params.historicalSignals > 0) autostartReasons.push('historical_context_available');
-
-    if (completenessScore >= 0.88 && params.knowledgeAvailable) {
-      autostartMode = 'auto_run';
+    if (params.executionProfile === 'copy_only' || params.executionProfile === 'adapt_existing' || params.executionProfile === 'review_existing') {
+      if (completenessScore >= 0.72 && (params.knowledgeAvailable || params.historicalSignals > 0)) {
+        autostartMode = 'auto_run';
+        autostartReasons.push('execution_profile_copy_safe');
+      } else {
+        autostartMode = 'review';
+        autostartReasons.push('copy_profile_should_be_reviewed');
+      }
+    } else if (completenessScore >= 0.82 && (params.knowledgeAvailable || params.historicalSignals >= 2)) {
+      autostartMode = 'auto_run_with_da_review';
+      autostartReasons.push('full_studio_with_da_review');
     } else {
       autostartMode = 'review';
       autostartReasons.push('briefing_ready_but_should_be_reviewed');
+    }
+  } else if (params.readiness === 'needs_internal_triage' && clientGapCount === 0) {
+    autostartReasons.push('only_internal_gaps_remaining');
+    if (params.executionProfile === 'copy_only' || params.executionProfile === 'adapt_existing' || params.executionProfile === 'review_existing') {
+      if (completenessScore >= 0.74) {
+        autostartMode = 'auto_run';
+        autostartReasons.push('internal_gaps_can_be_resolved_during_copy_autostart');
+      } else {
+        autostartMode = 'review';
+        autostartReasons.push('copy_profile_internal_review');
+      }
+    } else if (completenessScore >= 0.8 && (params.knowledgeAvailable || params.historicalSignals >= 2)) {
+      autostartMode = 'auto_run_with_da_review';
+      autostartReasons.push('internal_gaps_can_be_resolved_during_full_autostart');
+    } else {
+      autostartMode = 'review';
+      autostartReasons.push('full_studio_internal_review');
     }
   } else {
     autostartReasons.push(params.readiness);
@@ -116,8 +149,15 @@ export function buildBriefingPacketScores(params: {
     inferable_fields: inferableFields,
     autostart_recommendation: {
       mode: autostartMode,
-      confidence: autostartMode === 'auto_run' ? completenessScore : clampScore(completenessScore * 0.9),
+      confidence: autostartMode === 'auto_run' || autostartMode === 'auto_run_with_da_review'
+        ? completenessScore
+        : clampScore(completenessScore * 0.9),
       reasons: autostartReasons,
+      execution_profile: params.executionProfile,
+      workflow_variant: workflowVariant,
+      requires_da_review: autostartMode === 'auto_run_with_da_review',
+      internal_gap_count: internalGapCount,
+      client_gap_count: clientGapCount,
     },
   };
 }

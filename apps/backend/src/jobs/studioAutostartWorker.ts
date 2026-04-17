@@ -10,6 +10,10 @@ function buildAutostartRequest(packet: any) {
     packet.title ? `Demanda: ${packet.title}` : null,
     packet.objective ? `Objetivo: ${packet.objective}` : null,
     packet.summary ? `Resumo: ${packet.summary}` : null,
+    packet.execution_profile ? `Perfil de execução: ${packet.execution_profile}` : null,
+    Array.isArray(packet.internal_questions) && packet.internal_questions.length
+      ? `Resolver internamente durante a execução: ${packet.internal_questions.map((item: any) => item.prompt || item.field).join(' | ')}`
+      : null,
   ].filter(Boolean);
   return parts.join('\n');
 }
@@ -42,7 +46,12 @@ export async function runStudioAutostartWorkerOnce(): Promise<void> {
         const payload = (job.payload || {}) as any;
         const packet = payload.briefing_packet || null;
         const clientId = String(packet?.client_id || '').trim();
-        if (!packet || packet.readiness !== 'ready' || !clientId) {
+        const autostartMode = String(packet?.autostart_recommendation?.mode || '').trim();
+        const canAutostart =
+          autostartMode === 'auto_run'
+          || autostartMode === 'auto_run_with_da_review'
+          || packet?.readiness === 'ready';
+        if (!packet || !canAutostart || !clientId) {
           throw new Error('studio_autostart_not_ready');
         }
 
@@ -73,6 +82,12 @@ export async function runStudioAutostartWorkerOnce(): Promise<void> {
         }, ctx);
 
         await mergeJobPayload(job.id, {
+          studio_autostart_profile: {
+            readiness: packet.readiness || null,
+            execution_profile: packet.execution_profile || null,
+            autostart_mode: autostartMode || null,
+            autostart_confidence: packet.autostart_recommendation?.confidence ?? null,
+          },
           studio_autostart_result: result.success ? result.data || null : null,
           studio_autostart_error: result.success ? null : result.error || 'studio_autostart_failed',
         });

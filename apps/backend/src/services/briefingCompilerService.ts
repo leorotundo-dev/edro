@@ -79,6 +79,23 @@ function defaultFormatForPlatform(platform: string | null) {
   return null;
 }
 
+function inferExecutionProfile(...values: Array<unknown>) {
+  const haystack = values.map((value) => normalizeText(value).toLowerCase()).join(' ');
+  if (!haystack) return 'copy_and_art' as const;
+  if (/(adapt|adapta|desdobra|vers(a|ã)o|varia(c|ç)(a|ã)o|replica|atualiza)/.test(haystack)) {
+    return 'adapt_existing' as const;
+  }
+  if (/(revisa|corrig|aprova|review)/.test(haystack)) {
+    return 'review_existing' as const;
+  }
+  const copyHints = /(copy|legenda|texto|headline|cta|roteiro|caption|chamada)/.test(haystack);
+  const visualHints = /(arte|imagem|mockup|visual|criativo|layout|design|banner|carrossel|reel|video)/.test(haystack);
+  if (copyHints && !visualHints) {
+    return 'copy_only' as const;
+  }
+  return 'copy_and_art' as const;
+}
+
 async function loadHistoricalCreativeContext(tenantId: string, clientId: string) {
   const [briefingsRes, datesRes] = await Promise.all([
     query<{
@@ -226,6 +243,15 @@ export async function compileBriefingPacket(params: {
     candidate.deadline,
     historicalContext.upcoming_dates[0]?.date,
   );
+  const executionProfile = inferExecutionProfile(
+    candidate.demandKind,
+    params.payload.summary.title,
+    params.payload.summary.description,
+    objective,
+    platform,
+    format,
+    params.payload.payload?.request_type,
+  );
   const missingInformation = collectMissingInformation({ ...params.payload, client_id: clientId }, objective, platform, format);
 
   const knowledge = clientId
@@ -269,6 +295,7 @@ export async function compileBriefingPacket(params: {
     missingInformation,
     knowledgeAvailable: Boolean(knowledge),
     historicalSignals: historicalContext.recent_briefings.length + historicalContext.upcoming_dates.length,
+    executionProfile,
   });
 
   return {
@@ -282,6 +309,7 @@ export async function compileBriefingPacket(params: {
     },
     client_id: clientId,
     demand_kind: candidate.demandKind ?? 'unknown',
+    execution_profile: executionProfile,
     title: normalizeText(candidate.title || params.payload.summary.title),
     objective,
     platform,

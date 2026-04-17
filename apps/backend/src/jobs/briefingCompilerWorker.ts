@@ -23,7 +23,11 @@ export async function runBriefingCompilerWorkerOnce(): Promise<void> {
           payload,
         });
         await mergeJobPayload(job.id, { briefing_packet: compiled });
-        if (compiled.readiness === 'ready') {
+        if (
+          compiled.readiness === 'ready'
+          || compiled.autostart_recommendation?.mode === 'auto_run'
+          || compiled.autostart_recommendation?.mode === 'auto_run_with_da_review'
+        ) {
           const existing = await query<{ id: string }>(
             `SELECT id
                FROM job_queue
