@@ -133,6 +133,22 @@ type StudioHandoffInboxResult = {
   summary: StudioHandoffInboxSummary;
 };
 
+type StudioHandoffAgingRow = {
+  tenant_id: string;
+  creative_session_id: string;
+  job_id: string;
+  briefing_id: string | null;
+  client_name: string | null;
+  deadline_at: string | null;
+  current_status: StudioHandoffStatus;
+  next_actor: StudioHandoffActor;
+  assigned_user_id: string | null;
+  assigned_name: string | null;
+  assigned_email: string | null;
+  assigned_role: string | null;
+  handoff: Record<string, any>;
+};
+
 function summarizeBody(packet: StudioAutostartHandoffPacket) {
   if (packet.status === 'ready_for_traffic') {
     return 'Copy, direção e peças já estão prontas no Studio. Abra a sessão para revisar/exportar e seguir com o envio.';
@@ -455,6 +471,32 @@ function buildEmptyInboxSummary(): StudioHandoffInboxSummary {
   };
 }
 
+function getHandoffAgeMinutes(handoff: Record<string, any>) {
+  const anchor = String(handoff.accepted_at || handoff.assigned_at || handoff.generated_at || '').trim();
+  if (!anchor) return 0;
+  const startedAt = new Date(anchor);
+  if (!Number.isFinite(startedAt.getTime())) return 0;
+  return Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 60000));
+}
+
+function resolveHandoffSlaBucket(
+  deadlineAt: string | null,
+  handoffStatus: StudioHandoffStatus,
+  ageMinutes: number,
+  escalationMinutes: number,
+) {
+  if (isHandoffOverdue(deadlineAt, handoffStatus)) return 'overdue';
+  if (ageMinutes >= escalationMinutes) return 'attention';
+  return 'on_track';
+}
+
+function pickEscalationRecipient(
+  recipients: StudioHandoffRecipient[],
+  currentAssignedUserId?: string | null,
+) {
+  return recipients.find((recipient) => recipient.user_id !== currentAssignedUserId) || recipients[0] || null;
+}
+
 async function notifyHandoffRecipients(params: {
   tenantId: string;
   packet: StudioAutostartHandoffPacket;
@@ -624,6 +666,140 @@ export async function listStudioHandoffs(filters: StudioHandoffListFilters): Pro
   }, buildEmptyInboxSummary());
 
   return { items, summary };
+}
+
+export async function processStudioHandoffAgingBatch(limit = 20) {
+  const warningMinutes = Number(process.env.STUDIO_HANDOFF_WARNING_MINUTES || 90);
+  const escalationMinutes = Number(process.env.STUDIO_HANDOFF_ESCALATION_MINUTES || 240);
+  const { rows } = await query<StudioHandoffAgingRow>(
+    `SELECT cs.tenant_id::text AS tenant_id,
+            cs.id::text AS creative_session_id,
+            cs.job_id::text AS job_id,
+            cs.briefing_id::text AS briefing_id,
+            COALESCE(j.client_name, c.name) AS client_name,
+            j.deadline_at,
+            COALESCE(cs.metadata->'handoff'->>'current_status', 'needs_da_review')::text AS current_status,
+            CASE
+              WHEN COALESCE(cs.metadata->'handoff'->>'next_actor', 'da') = 'traffic' THEN 'traffic'
+              ELSE 'da'
+            END::text AS next_actor,
+            cs.metadata->'handoff'->>'assigned_user_id' AS assigned_user_id,
+            cs.metadata->'handoff'->>'assigned_name' AS assigned_name,
+            cs.metadata->'handoff'->>'assigned_email' AS assigned_email,
+            cs.metadata->'handoff'->>'assigned_role' AS assigned_role,
+            COALESCE(cs.metadata->'handoff', '{}'::jsonb) AS handoff
+       FROM creative_sessions cs
+       JOIN jobs j
+         ON j.tenant_id = cs.tenant_id
+        AND j.id = cs.job_id
+       LEFT JOIN clients c ON c.id = j.client_id
+      WHERE cs.metadata ? 'handoff'
+        AND COALESCE(cs.metadata->'handoff'->>'current_status', '') IN ('needs_da_review', 'ready_for_traffic', 'accepted')
+      ORDER BY COALESCE((cs.metadata->'handoff'->>'assigned_at')::timestamptz, cs.updated_at, cs.created_at) ASC
+      LIMIT $1`,
+    [Math.max(1, Math.min(limit, 100))],
+  ).catch(() => ({ rows: [] as StudioHandoffAgingRow[] }));
+
+  for (const row of rows) {
+    const metadata = await getSessionMetadata(row.tenant_id, row.creative_session_id).catch(() => null);
+    if (!metadata) continue;
+
+    const handoff = metadata.handoff || {};
+    const history = Array.isArray(handoff.history) ? handoff.history : [];
+    const ageMinutes = getHandoffAgeMinutes(handoff);
+    const overdue = isHandoffOverdue(row.deadline_at, row.current_status);
+    const slaBucket = resolveHandoffSlaBucket(row.deadline_at, row.current_status, ageMinutes, escalationMinutes);
+    const nowIso = new Date().toISOString();
+
+    metadata.handoff = {
+      ...handoff,
+      age_minutes: ageMinutes,
+      overdue,
+      sla_bucket: slaBucket,
+      last_aged_at: nowIso,
+    };
+
+    let changed = false;
+
+    if (
+      row.current_status !== 'accepted'
+      && !handoff.aging_warning_at
+      && ageMinutes >= warningMinutes
+    ) {
+      metadata.handoff.aging_warning_at = nowIso;
+      metadata.handoff.history = [
+        ...history,
+        buildHistoryEntry(row.current_status, row.next_actor, null, 'studio_handoff_aging_warning'),
+      ];
+      changed = true;
+
+      if (row.assigned_user_id) {
+        await notifyEvent({
+          event: 'studio_handoff_aging_warning',
+          tenantId: row.tenant_id,
+          userId: row.assigned_user_id,
+          title: `Handoff parado: ${row.client_name || 'cliente'}`,
+          body: 'O handoff do Studio ainda não foi assumido. Revise ou aceite a peça.',
+          link: `/studio/editor?jobId=${row.job_id}&sessionId=${row.creative_session_id}`,
+          recipientEmail: row.assigned_email || undefined,
+          payload: {
+            creative_session_id: row.creative_session_id,
+            job_id: row.job_id,
+            handoff_status: row.current_status,
+          },
+          defaultChannels: ['in_app'],
+        }).catch(() => {});
+      }
+    }
+
+    if (!handoff.escalated_at && (overdue || (row.current_status !== 'accepted' && ageMinutes >= escalationMinutes))) {
+      const refreshedRecipients = await resolvePreferredRecipients({
+        tenantId: row.tenant_id,
+        nextActor: row.next_actor,
+        briefingId: row.briefing_id,
+      });
+      const reassignee = pickEscalationRecipient(refreshedRecipients, row.assigned_user_id);
+      const orderedRecipients = reassignee
+        ? [reassignee, ...refreshedRecipients.filter((recipient) => recipient.user_id !== reassignee.user_id)]
+        : refreshedRecipients;
+
+      metadata.handoff = {
+        ...metadata.handoff,
+        ...buildAssignmentPatch(row.next_actor, orderedRecipients, nowIso),
+        escalated_at: nowIso,
+        escalated_reason: overdue ? 'deadline_passed' : 'handoff_unaccepted',
+        history: [
+          ...(Array.isArray(metadata.handoff.history) ? metadata.handoff.history : history),
+          buildHistoryEntry(row.current_status, row.next_actor, null, overdue ? 'studio_handoff_deadline_escalated' : 'studio_handoff_escalated'),
+        ],
+      };
+      changed = true;
+
+      if (metadata.handoff.assigned_user_id) {
+        await notifyEvent({
+          event: 'studio_handoff_escalated',
+          tenantId: row.tenant_id,
+          userId: String(metadata.handoff.assigned_user_id),
+          title: `Handoff escalado: ${row.client_name || 'cliente'}`,
+          body: overdue
+            ? 'A peça passou do prazo e foi escalada automaticamente.'
+            : 'A peça ficou tempo demais sem aceite e foi escalada automaticamente.',
+          link: `/studio/editor?jobId=${row.job_id}&sessionId=${row.creative_session_id}`,
+          recipientEmail: metadata.handoff.assigned_email || undefined,
+          payload: {
+            creative_session_id: row.creative_session_id,
+            job_id: row.job_id,
+            escalated_reason: metadata.handoff.escalated_reason,
+          },
+          defaultChannels: ['in_app', 'email'],
+        }).catch(() => {});
+      }
+    }
+
+    if (changed) {
+      await setSessionMetadata(row.tenant_id, row.creative_session_id, metadata).catch(() => {});
+    }
+  }
 }
 
 export function buildStudioAutostartHandoffPacket(resultData: any, clientName?: string | null): StudioAutostartHandoffPacket {

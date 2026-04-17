@@ -58,6 +58,7 @@ import { runDemandIntakeWorkerOnce } from './demandIntakeWorker';
 import { runBriefingCompilerWorkerOnce } from './briefingCompilerWorker';
 import { runStudioAutostartWorkerOnce } from './studioAutostartWorker';
 import { runOmnichannelDemandIntakeWorkerOnce } from './omnichannelDemandIntakeWorker';
+import { runStudioHandoffAgingWorkerOnce } from './studioHandoffAgingWorker';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -114,6 +115,7 @@ export function startJobsRunner() {
   startWorkerLoop('demandIntake', runDemandIntakeWorkerOnce, 1750, 30_000);
   startWorkerLoop('briefingCompiler', runBriefingCompilerWorkerOnce, 2000, 30_000);
   startWorkerLoop('studioAutostart', runStudioAutostartWorkerOnce, 2250, 120_000);
+  startWorkerLoop('studioHandoffAging', runStudioHandoffAgingWorkerOnce, 2500, 60_000, 60_000);
   // Central de Operações — keeps demands, agenda e riscos synchronized
   startWorkerLoop('operationsRuntime', runOperationsRuntimeWorkerOnce, 13500, 180_000);
   // Job Automation Pipeline — auto-copy, auto-image, auto-assign, ETA recalc
