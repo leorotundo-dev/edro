@@ -1118,7 +1118,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         || decision.intent !== 'creative_execution'
         || !shouldUseDirectCopyFastPath(body.message, body.page_data ?? undefined)
       ) {
-        return null;
+        return false;
       }
 
       const toolCtx: ToolContext = {
@@ -1140,7 +1140,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       };
       const briefingDraft = inferBriefingDraftFromMessage(body.message);
       const createBriefingResult = await executeTool('create_briefing', briefingDraft, toolCtx);
-      if (!createBriefingResult.success || !createBriefingResult.data?.id) return null;
+      if (!createBriefingResult.success || !createBriefingResult.data?.id) return false;
 
       const generateCopyResult = await executeTool('generate_copy_for_briefing', {
         briefing_id: createBriefingResult.data.id,
@@ -1148,7 +1148,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         language: 'pt',
         instructions: `Pedido original do usuário: ${body.message}`,
       }, toolCtx);
-      if (!generateCopyResult.success) return null;
+      if (!generateCopyResult.success) return false;
 
       const toolResults = [
         {
@@ -1212,7 +1212,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
         ...observability,
       });
 
-      return reply.send({
+      reply.send({
         success: true,
         data: {
           response: finalText,
@@ -1229,6 +1229,7 @@ export default async function jarvisRoutes(app: FastifyInstance) {
           observability,
         },
       });
+      return true;
     };
 
     if (decision.route === 'planning' && !clientId) {
@@ -1238,8 +1239,8 @@ export default async function jarvisRoutes(app: FastifyInstance) {
       });
     }
 
-    const directCopyReply = await tryDirectCopyFastPath();
-    if (directCopyReply) return directCopyReply;
+    const directCopyHandled = await tryDirectCopyFastPath();
+    if (directCopyHandled) return;
 
     if (body.client_action?.type === 'confirm_tool_call') {
       const toolName = String(body.client_action.tool_name || '').trim();
