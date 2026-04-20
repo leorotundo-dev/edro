@@ -4,7 +4,7 @@ RUN apk add --no-cache wget
 RUN corepack enable || npm install -g pnpm@9
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
 COPY apps/backend/package.json ./apps/backend/
-COPY packages/shared/package.json ./packages/shared/
+COPY packages/shared ./packages/shared
 RUN pnpm install --filter "@edro/backend..." --prod --no-frozen-lockfile
 
 FROM node:20-alpine AS builder
