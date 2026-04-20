@@ -394,6 +394,34 @@ export default async function authRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  /**
+   * PATCH /admin/users/:userId/whatsapp
+   * Admin sets any team member's WhatsApp JID (updates tenant_users + freelancer_profiles).
+   */
+  app.patch('/admin/users/:userId/whatsapp', { preHandler: [authGuard, requirePerm('admin')] }, async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const bodySchema = z.object({
+      whatsapp_jid: z.string().max(64).nullable(),
+    });
+    const body = bodySchema.parse(request.body);
+    const tenantId = (request.user as any)?.tenant_id as string | undefined;
+    if (!tenantId) return reply.status(401).send({ error: 'Não autorizado.' });
+
+    // Update tenant_users (for internal team notifications)
+    await query(
+      `UPDATE tenant_users SET whatsapp_jid = $1 WHERE user_id::text = $2::text AND tenant_id::text = $3::text`,
+      [body.whatsapp_jid ?? null, userId, tenantId],
+    );
+
+    // Also update freelancer_profiles if this user has one (best-effort)
+    await query(
+      `UPDATE freelancer_profiles SET whatsapp_jid = $1 WHERE user_id::text = $2::text AND tenant_id::text = $3::text`,
+      [body.whatsapp_jid ?? null, userId, tenantId],
+    ).catch(() => {});
+
+    return reply.send({ ok: true });
+  });
+
   app.post('/auth/refresh', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const bodySchema = z.object({
       userId: z.string().uuid(),

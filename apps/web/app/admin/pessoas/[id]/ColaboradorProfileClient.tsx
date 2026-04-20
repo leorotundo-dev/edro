@@ -18,6 +18,7 @@ import { alpha, useTheme } from '@mui/material/styles';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Tooltip from '@mui/material/Tooltip';
+import TextField from '@mui/material/TextField';
 import {
   IconArrowLeft,
   IconArrowUpRight,
@@ -31,6 +32,19 @@ import {
   IconStar,
   IconX,
 } from '@tabler/icons-react';
+
+/** Strip non-digits, prepend Brazil +55, return JID or null */
+function phoneToJid(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  const normalized = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`;
+  return `${normalized}@s.whatsapp.net`;
+}
+
+function jidToDisplay(jid: string | null): string {
+  if (!jid) return '';
+  return jid.replace(/@.*/, '');
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -205,6 +219,12 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
   const [planner, setPlanner] = useState<PlannerOwner | null>(null);
   const [stats, setStats] = useState<FreelancerStats | null>(null);
 
+  // WhatsApp editor
+  const [editingWhatsapp, setEditingWhatsapp] = useState(false);
+  const [whatsappInput, setWhatsappInput] = useState('');
+  const [savingWhatsapp, setSavingWhatsapp] = useState(false);
+  const [whatsappError, setWhatsappError] = useState('');
+
   // Skills editor
   const [editingSkills, setEditingSkills] = useState(false);
   const [savingSkills, setSavingSkills] = useState(false);
@@ -278,6 +298,35 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
     load();
     return () => { active = false; };
   }, [id]);
+
+  function openWhatsappEditor() {
+    setWhatsappInput(jidToDisplay(stats?.profile?.whatsapp_jid ?? null));
+    setWhatsappError('');
+    setEditingWhatsapp(true);
+  }
+
+  async function saveWhatsapp() {
+    const p = stats?.profile;
+    if (!p) return;
+    const jid = phoneToJid(whatsappInput.trim());
+    setSavingWhatsapp(true);
+    setWhatsappError('');
+    try {
+      // Update tenant_users + freelancer_profiles via admin endpoint (uses user_id)
+      if (p.user_id) {
+        await apiPatch(`/admin/users/${p.user_id}/whatsapp`, { whatsapp_jid: jid });
+      } else {
+        // Fallback: update freelancer_profiles only
+        await apiPatch(`/freelancers/${p.id}`, { whatsapp_jid: jid });
+      }
+      setStats((prev) => prev ? { ...prev, profile: { ...prev.profile, whatsapp_jid: jid } } : prev);
+      setEditingWhatsapp(false);
+    } catch (e: any) {
+      setWhatsappError(e?.message ?? 'Erro ao salvar');
+    } finally {
+      setSavingWhatsapp(false);
+    }
+  }
 
   function openSkillsEditor() {
     const p = stats?.profile;
@@ -490,12 +539,68 @@ export default function ColaboradorProfileClient({ id }: { id: string }) {
                       <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{profile.phone}</Typography>
                     </Stack>
                   )}
-                  {profile?.whatsapp_jid && (
+                  {/* WhatsApp — editable inline */}
+                  {editingWhatsapp ? (
+                    <Stack spacing={0.75}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <IconBrandWhatsapp size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
+                        <TextField
+                          size="small"
+                          placeholder="+55 (11) 9 9999-9999"
+                          value={whatsappInput}
+                          onChange={(e) => setWhatsappInput(e.target.value)}
+                          sx={{ flex: 1, '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5 } }}
+                          autoFocus
+                        />
+                      </Stack>
+                      {whatsappError && (
+                        <Typography variant="caption" color="error">{whatsappError}</Typography>
+                      )}
+                      <Stack direction="row" spacing={0.75}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={saveWhatsapp}
+                          disabled={savingWhatsapp}
+                          startIcon={savingWhatsapp ? <CircularProgress size={12} /> : <IconCheck size={12} />}
+                          sx={{ fontSize: '0.68rem', textTransform: 'none', px: 1, py: 0.25 }}
+                        >
+                          Salvar
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="text"
+                          onClick={() => setEditingWhatsapp(false)}
+                          disabled={savingWhatsapp}
+                          startIcon={<IconX size={12} />}
+                          sx={{ fontSize: '0.68rem', textTransform: 'none', px: 0.75, py: 0.25 }}
+                        >
+                          Cancelar
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  ) : (
                     <Stack direction="row" spacing={1} alignItems="center">
                       <IconBrandWhatsapp size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                        {profile.whatsapp_jid.replace(/@.*/, '')}
+                      <Typography
+                        variant="body2"
+                        color={profile?.whatsapp_jid ? 'text.secondary' : 'text.disabled'}
+                        sx={{ fontSize: '0.8rem', flex: 1 }}
+                      >
+                        {profile?.whatsapp_jid ? jidToDisplay(profile.whatsapp_jid) : 'WhatsApp não configurado'}
                       </Typography>
+                      {profile && (
+                        <Tooltip title="Editar WhatsApp">
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={openWhatsappEditor}
+                            sx={{ minWidth: 0, p: 0.25, color: 'text.disabled', '&:hover': { color: 'primary.main' } }}
+                          >
+                            <IconPencil size={13} />
+                          </Button>
+                        </Tooltip>
+                      )}
                     </Stack>
                   )}
                   {profile?.weekly_capacity_hours && (
