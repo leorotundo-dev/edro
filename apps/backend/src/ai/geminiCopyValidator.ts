@@ -87,7 +87,7 @@ SAIDA (JSON):
         const errText = await response.text();
         throw new Error(`Gemini error: ${response.status} ${errText}`);
       }
-      const data = await response.json();
+      const data = await response.json() as any;
       const parts = data?.candidates?.[0]?.content?.parts ?? [];
       raw = parts.map((part: any) => part.text || '').join('').trim();
     }

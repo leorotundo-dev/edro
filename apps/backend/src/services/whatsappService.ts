@@ -87,7 +87,7 @@ export async function sendWhatsAppText(
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     if (!response.ok) {
       const errMsg = data?.error?.message || JSON.stringify(data);

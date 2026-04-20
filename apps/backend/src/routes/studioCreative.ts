@@ -1887,7 +1887,7 @@ Retorne SOMENTE JSON válido:
         );
 
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as any;
           const raw = (data?.candidates?.[0]?.content?.parts ?? [])
             .map((p: any) => p.text || '').join('').trim();
           const start = raw.indexOf('{');
