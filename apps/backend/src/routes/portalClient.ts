@@ -773,8 +773,8 @@ Gere um enriquecimento estruturado para a equipe interna da agência. Responda S
     return reply.send({ report: rows[0] });
   });
 
-  // POST /monthly-reports/:id/approve — client marketing manager approves
-  app.post('/monthly-reports/:id/approve', async (request: any, reply) => {
+  // POST /monthly-reports/mine/:id/approve — client marketing manager approves
+  app.post('/monthly-reports/mine/:id/approve', async (request: any, reply) => {
     const clientId = requireClient(request, reply);
     if (!clientId) return;
 

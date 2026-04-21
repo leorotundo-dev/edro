@@ -174,7 +174,7 @@ export default function ReportViewerClient(props: Props) {
     if (!report) return;
     setApproving(true);
     try {
-      await apiPost(`/monthly-reports/${report.id}/approve`);
+      await apiPost(`/monthly-reports/mine/${report.id}/approve`);
       setApproved(true);
       setReport((prev) => prev ? { ...prev, status: 'approved' } : prev);
     } catch {
