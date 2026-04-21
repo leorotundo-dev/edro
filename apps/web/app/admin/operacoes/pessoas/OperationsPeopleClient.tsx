@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -18,6 +17,8 @@ import { alpha, useTheme } from '@mui/material/styles';
 import { IconArrowUpRight, IconExternalLink, IconUserOff, IconUsers } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import { OpsCard } from '@/components/operations/primitives';
+import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import { useOperationsData } from '@/components/operations/useOperationsData';
 import { apiGet, apiPatch } from '@/lib/api';
 import { type OperationsJob, type OperationsOwner } from '@/components/operations/model';
 
@@ -69,11 +70,24 @@ const STAGE_COLORS: Record<string, string> = {
 export default function OperationsPeopleClient() {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [plannerData, setPlannerData] = useState<PlannerData>({ owners: [], unassigned_jobs: [] });
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
+
+  // Job detail drawer
+  const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const { lookups, currentUserId, updateJob, changeStatus, fetchJob, refresh } = useOperationsData('?active=true');
+
+  const openJobDetail = useCallback(async (job: OperationsJob) => {
+    setSelectedJob(job);
+    setDetailOpen(true);
+    try {
+      const fresh = await fetchJob(job.id);
+      if (fresh) setSelectedJob(fresh as OperationsJob);
+    } catch { /* keep stale */ }
+  }, [fetchJob]);
 
   useEffect(() => {
     let active = true;
@@ -385,7 +399,7 @@ export default function OperationsPeopleClient() {
                           <OpsCard
                             key={job.id}
                             job={job}
-                            onClick={() => router.push(`/admin/operacoes/jobs?highlight=${encodeURIComponent(job.id)}`)}
+                            onClick={() => void openJobDetail(job)}
                             onAssign={assignOwner}
                             onAdvance={advanceJob}
                             owners={ownersList}
@@ -430,7 +444,7 @@ export default function OperationsPeopleClient() {
                           <OpsCard
                             key={job.id}
                             job={job}
-                            onClick={() => router.push(`/admin/operacoes/jobs?highlight=${encodeURIComponent(job.id)}`)}
+                            onClick={() => void openJobDetail(job)}
                             onAssign={assignOwner}
                             onAdvance={advanceJob}
                             owners={ownersList}
@@ -457,6 +471,36 @@ export default function OperationsPeopleClient() {
           </>
         )}
       </Stack>
+
+      <JobWorkbenchDrawer
+        open={detailOpen && Boolean(selectedJob)}
+        mode="edit"
+        job={selectedJob}
+        presentation="modal"
+        jobTypes={lookups.jobTypes}
+        skills={lookups.skills}
+        channels={lookups.channels}
+        clients={lookups.clients}
+        owners={lookups.owners}
+        currentUserId={currentUserId}
+        onClose={() => { setDetailOpen(false); setSelectedJob(null); }}
+        onCreate={async (payload) => { void payload; return {} as any; }}
+        onUpdate={async (jobId, payload) => {
+          const updated = await updateJob(jobId, payload);
+          await refresh();
+          setSelectedJob(updated as OperationsJob);
+          return updated;
+        }}
+        onStatusChange={async (jobId, status, reason) => {
+          const updated = await changeStatus(jobId, status, reason);
+          await refresh();
+          const fresh = await fetchJob(jobId);
+          const next = (fresh ?? updated) as OperationsJob;
+          setSelectedJob(next);
+          return next;
+        }}
+        onFetchDetail={fetchJob}
+      />
     </OperationsShell>
   );
 }
