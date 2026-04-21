@@ -24,9 +24,10 @@ import {
   IconUsers,
   IconBrain,
   IconInbox,
+  IconPencil,
 } from '@tabler/icons-react';
 
-export type OperationsSection = 'overview' | 'jobs' | 'ia' | 'people' | 'semana' | 'radar' | 'quality' | 'pauta';
+export type OperationsSection = 'overview' | 'jobs' | 'ia' | 'people' | 'semana' | 'radar' | 'quality' | 'pauta' | 'redacao';
 
 type CommandOption = {
   label: string;
@@ -39,6 +40,7 @@ const SECTIONS: Array<{ key: OperationsSection; label: string; href: string; ico
   { key: 'overview', label: 'Hoje', href: '/admin/operacoes', icon: <IconTargetArrow size={16} /> },
   { key: 'jobs', label: 'Pauta Geral', href: '/admin/operacoes/jobs?view=table&group=client', icon: <IconLayoutKanban size={16} /> },
   { key: 'pauta', label: 'Pauta Inbox', href: '/admin/operacoes/pauta', icon: <IconInbox size={16} /> },
+  { key: 'redacao', label: 'Redação', href: '/admin/operacoes/redacao', icon: <IconPencil size={16} /> },
   { key: 'ia', label: 'Handoff', href: '/admin/operacoes/ia', icon: <IconBrain size={16} /> },
   { key: 'people', label: 'Pessoas', href: '/admin/operacoes/pessoas', icon: <IconUsers size={16} /> },
   { key: 'semana', label: 'Semana', href: '/admin/operacoes/semana', icon: <IconCalendarTime size={16} /> },
@@ -55,6 +57,7 @@ const SECTION_COPY: Record<OperationsSection, { title: string; subtitle: string 
   radar: { title: 'Riscos', subtitle: 'Mesa de exceção para sinais, bloqueios e itens que podem estourar.' },
   quality: { title: 'SLA', subtitle: 'Prazo, estimativa e precisão operacional no mesmo lugar.' },
   pauta: { title: 'Pauta Inbox', subtitle: 'Sugestões de pauta geradas pelo Motor — aprove, ajuste ou descarte.' },
+  redacao: { title: 'Redação IA', subtitle: 'Pipeline de posts, copy e design do briefing à publicação.' },
 };
 
 const COMMANDS: CommandOption[] = [
@@ -69,6 +72,7 @@ const COMMANDS: CommandOption[] = [
   { label: 'SLA', subtitle: 'Abrir a leitura de prazo e estimativa da operação', href: '/admin/operacoes/qualidade', searchTerms: ['auditoria sla', 'qualidade'] },
   { label: 'Pauta Inbox', subtitle: 'Aprovar ou rejeitar sugestões de pauta geradas pelo Motor', href: '/admin/operacoes/pauta', searchTerms: ['sugestões pauta', 'inbox pauta', 'aprovar pauta'] },
   { label: 'Handoff criativo', subtitle: 'Abrir a bandeja de briefing, copy e aprovação', href: '/admin/operacoes/ia', searchTerms: ['extração para ia', 'prontos para copy'] },
+  { label: 'Redação IA', subtitle: 'Pipeline de posts e copy do briefing à publicação', href: '/admin/operacoes/redacao', searchTerms: ['pipeline redacao', 'kanban copy', 'producao conteudo'] },
   { label: 'Demandas sem responsável', subtitle: 'Ir direto para a fila sem responsável definido', href: '/admin/operacoes/jobs?unassigned=true' },
   { label: 'Distribuição da semana', subtitle: 'Abrir a semana no modo distribuição da equipe', href: '/admin/operacoes/semana?view=distribution' },
   { label: 'Agenda operacional', subtitle: 'Ver impacto temporal da semana em calendário', href: '/admin/operacoes/semana?view=calendar' },

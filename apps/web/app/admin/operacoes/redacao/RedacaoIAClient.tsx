@@ -333,7 +333,7 @@ export default function RedacaoIAClient() {
 
   return (
     <OperationsShell
-      section="jobs"
+      section="redacao"
       titleOverride="Redação IA · Pipeline de Conteúdo"
       subtitleOverride="Visão do pipeline de posts, copy e design — do briefing à publicação."
       summary={
