@@ -22,7 +22,7 @@ import {
 } from '../services/mfaService';
 import { issueRefreshToken, rotateRefreshToken, revokeAllRefresh } from '../auth/refresh';
 import { ensureTenantForDomain, ensureTenantMembership, getPrimaryTenantForUser, mapRoleToTenantRole } from '../repos/tenantRepo';
-import { authGuard, shouldEnforcePrivilegedMfa } from '../auth/rbac';
+import { authGuard, requirePerm, shouldEnforcePrivilegedMfa } from '../auth/rbac';
 import { sendEmail } from '../services/emailService';
 import { pool, query } from '../db';
 import { allowUnsafeLocalAuthHelpers, env } from '../env';
