@@ -43,7 +43,7 @@ export default function RelatoriosPage() {
   async function handleApprove(report: MonthlyReport) {
     setApprovingId(report.id);
     try {
-      await apiPost(`/monthly-reports/${report.id}/approve`);
+      await apiPost(`/monthly-reports/mine/${report.id}/approve`);
       setApprovedIds((prev) => new Set(prev).add(report.id));
       await mutate();
     } catch {
