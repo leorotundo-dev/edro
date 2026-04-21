@@ -12,9 +12,8 @@ ALTER TABLE client_monthly_reports
 -- Backfill access_token for existing rows
 UPDATE client_monthly_reports SET access_token = encode(gen_random_bytes(24), 'hex') WHERE access_token IS NULL;
 
--- Make access_token unique after backfill
-ALTER TABLE client_monthly_reports ADD CONSTRAINT cmr_access_token_unique UNIQUE (access_token);
+-- Unique index (idempotent — IF NOT EXISTS)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cmr_access_token_unique ON client_monthly_reports (access_token);
 
 CREATE INDEX IF NOT EXISTS idx_cmr_status ON client_monthly_reports (tenant_id, status);
-CREATE INDEX IF NOT EXISTS idx_cmr_access_token ON client_monthly_reports (access_token);
 CREATE INDEX IF NOT EXISTS idx_cmr_client_period ON client_monthly_reports (client_id, period_month DESC);
