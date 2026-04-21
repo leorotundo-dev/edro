@@ -10,7 +10,7 @@ import {
   type OperationsJob,
   type OperationsOwner,
 } from '@/components/operations/model';
-import { ClientThumb, StatusDot, DeadlineCountdown } from '@/components/operations/primitives';
+import { ClientThumb, OpsCard, StatusDot, DeadlineCountdown } from '@/components/operations/primitives';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 
@@ -445,15 +445,24 @@ function BacklogRow({
           Arraste para a semana ↑
         </Typography>
       </Stack>
-      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)', xl: 'repeat(5, 1fr)' },
+          gap: 1,
+        }}
+      >
         {jobs.sort(sortByOperationalPriority).map((job) => (
-          <Box key={job.id} sx={{ width: { xs: '100%', sm: '48%', md: '23%', lg: '18%' } }}>
-            <JobCard
+          <Box
+            key={job.id}
+            draggable
+            onDragStart={(e) => onDragStart(job.id, e)}
+            sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
+          >
+            <OpsCard
               job={job}
-              owners={owners}
               selected={selectedJobId === job.id}
               onClick={() => onSelectJob(job.id)}
-              onDragStart={(e) => onDragStart(job.id, e)}
             />
           </Box>
         ))}
