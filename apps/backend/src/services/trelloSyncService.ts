@@ -9,6 +9,7 @@
 
 import { query, pool } from '../db';
 import { logActivity } from './integrationMonitor';
+import { syncAllProjectCardsToJobs } from './trelloJobBridgeService';
 
 const TRELLO_BASE = 'https://api.trello.com/1';
 
@@ -635,7 +636,12 @@ export async function syncAllTrelloBoardsForTenant(tenantId: string): Promise<vo
     }
   }
 
-  // After all boards synced, refresh intelligence signals (non-blocking)
+  // After all boards synced, promote all project_cards → jobs (non-blocking)
+  syncAllProjectCardsToJobs(tenantId).catch((err: any) =>
+    console.error(`[trelloSync] job bridge error:`, err?.message),
+  );
+
+  // Refresh intelligence signals (non-blocking)
   syncTrelloIntelligenceSignals(tenantId).catch((err: any) =>
     console.error(`[trelloSync] intelligence signals error:`, err?.message),
   );

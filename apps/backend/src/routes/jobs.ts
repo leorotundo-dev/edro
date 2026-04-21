@@ -15,6 +15,7 @@ import { proposeAllocations, updateFreelancerScores } from '../services/allocati
 import { generateCalibrationReport, getCalibratedEstimate } from '../services/jobs/calibrationService';
 import { notifyJobBlocked, notifyJobAssigned, notifyJobReadyForReview } from '../services/jobs/opsNotificationService';
 import { audit } from '../audit/audit';
+import { enqueueJobChangeToTrello } from '../services/trelloJobBridgeService';
 import { createBillingEntryForJob, consumeCapacitySlot, releaseCapacitySlot } from '../services/daBillingService';
 import {
   buildArtDirectionFeedbackMetadata,
@@ -852,6 +853,16 @@ export default async function jobsRoutes(app: FastifyInstance) {
 
     await syncOperationalRuntimeForJob(tenantId, jobId);
 
+    // ── Edro → Trello: propagate field changes back to Trello card (best-effort) ──
+    {
+      const trelloChanges: Parameters<typeof enqueueJobChangeToTrello>[2] = {};
+      if (patch.title !== undefined) trelloChanges.title = rows[0].title;
+      if (patch.deadline_at !== undefined) trelloChanges.deadline_at = rows[0].deadline_at ?? null;
+      if (Object.keys(trelloChanges).length > 0) {
+        enqueueJobChangeToTrello(tenantId, jobId, trelloChanges).catch(() => {});
+      }
+    }
+
     // Notify new owner via in-app + WhatsApp when assignment changes
     const newOwnerId = rows[0].owner_id as string | null;
     if (newOwnerId && newOwnerId !== existing.owner_id) {
@@ -1028,6 +1039,9 @@ export default async function jobsRoutes(app: FastifyInstance) {
       after: { status: body.status, reason: body.reason ?? null },
       ip: request.ip,
     }).catch(() => {});
+
+    // ── Edro → Trello: propagate status change back to Trello card (best-effort) ──
+    enqueueJobChangeToTrello(tenantId, jobId, { status: body.status }).catch(() => {});
 
     return { data: rows[0] };
   });
