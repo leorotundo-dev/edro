@@ -19,7 +19,8 @@ import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
-import { IconRefresh, IconDownload, IconFileTypePdf, IconPlus, IconCalendar } from '@tabler/icons-react';
+import Link from 'next/link';
+import { IconRefresh, IconDownload, IconFileTypePdf, IconPlus, IconCalendar, IconEdit } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
 
 type Report = {
@@ -255,20 +256,34 @@ export default function RelatoriosMensaisClient({ embedded = false }: { embedded
                               : '—'}
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Baixar PDF">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={downloading === report.id
-                                  ? <CircularProgress size={12} color="inherit" />
-                                  : <IconDownload size={14} />}
-                                onClick={() => handleDownload(report)}
-                                disabled={downloading === report.id}
-                                sx={{ fontSize: '0.68rem', minWidth: 90 }}
-                              >
-                                PDF
-                              </Button>
-                            </Tooltip>
+                            <Stack direction="row" spacing={0.75} justifyContent="flex-end">
+                              <Tooltip title="Construir relatório estruturado">
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  startIcon={<IconEdit size={13} />}
+                                  component={Link}
+                                  href={`/admin/relatorios/${report.client_id}/${month}`}
+                                  sx={{ fontSize: '0.68rem' }}
+                                >
+                                  Construir
+                                </Button>
+                              </Tooltip>
+                              <Tooltip title="Baixar PDF">
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  startIcon={downloading === report.id
+                                    ? <CircularProgress size={12} color="inherit" />
+                                    : <IconDownload size={14} />}
+                                  onClick={() => handleDownload(report)}
+                                  disabled={downloading === report.id}
+                                  sx={{ fontSize: '0.68rem', minWidth: 70 }}
+                                >
+                                  PDF
+                                </Button>
+                              </Tooltip>
+                            </Stack>
                           </TableCell>
                         </TableRow>
                       ))}

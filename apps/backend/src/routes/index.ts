@@ -75,6 +75,7 @@ import relatoriosRoutes from './relatorios';
 import systemHealthRoutes from './systemHealth';
 import boardPresentationsRoutes from './boardPresentations';
 import roomsRoutes from './rooms';
+import monthlyReportsRoutes from './monthlyReports';
 import { env } from '../env';
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -167,4 +168,5 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(systemHealthRoutes, { prefix: '/api' });
   app.register(boardPresentationsRoutes, { prefix: '/api' });
   app.register(roomsRoutes, { prefix: '/api' });
+  app.register(monthlyReportsRoutes, { prefix: '/api' });
 }

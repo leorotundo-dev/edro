@@ -1,0 +1,123 @@
+import { FastifyInstance } from 'fastify';
+import { authGuard, requirePerm } from '../auth/rbac';
+import {
+  approveReport,
+  autoGenerateReport,
+  getReport,
+  getReportByToken,
+  listReports,
+  publishReport,
+  submitForApproval,
+  updateReport,
+} from '../services/monthlyReportService';
+
+export default async function monthlyReportsRoutes(app: FastifyInstance) {
+  const guards = [authGuard, requirePerm('clients:read')];
+
+  // POST /monthly-reports/generate — body: { clientId, periodMonth }
+  app.post('/monthly-reports/generate', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const { clientId, periodMonth } = (req.body as any) || {};
+    if (!clientId || !periodMonth) {
+      return reply.status(400).send({ error: 'clientId and periodMonth are required' });
+    }
+    if (!/^\d{4}-\d{2}$/.test(periodMonth)) {
+      return reply.status(400).send({ error: 'periodMonth must be YYYY-MM' });
+    }
+
+    const report = await autoGenerateReport(clientId, periodMonth, tenantId);
+    return reply.send({ report });
+  });
+
+  // GET /monthly-reports — query: ?clientId=&status=&limit=
+  app.get('/monthly-reports', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const qs = req.query as Record<string, string>;
+    const reports = await listReports(tenantId, {
+      clientId: qs.clientId || undefined,
+      status:   qs.status   || undefined,
+      limit:    qs.limit    ? parseInt(qs.limit, 10) : undefined,
+    });
+
+    return reply.send({ reports });
+  });
+
+  // GET /monthly-reports/:clientId/:month
+  app.get('/monthly-reports/:clientId/:month', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const { clientId, month } = req.params as { clientId: string; month: string };
+    const report = await getReport(clientId, month, tenantId);
+    if (!report) return reply.status(404).send({ error: 'report_not_found' });
+
+    return reply.send({ report });
+  });
+
+  // PUT /monthly-reports/:id — body: { sections }
+  app.put('/monthly-reports/:id', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const { id } = req.params as { id: string };
+    const { sections } = (req.body as any) || {};
+    if (!sections) return reply.status(400).send({ error: 'sections is required' });
+
+    const report = await updateReport(id, sections, tenantId);
+    if (!report) return reply.status(404).send({ error: 'report_not_found' });
+
+    return reply.send({ report });
+  });
+
+  // POST /monthly-reports/:id/submit
+  app.post('/monthly-reports/:id/submit', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const { id } = req.params as { id: string };
+    const report = await submitForApproval(id, tenantId);
+    if (!report) return reply.status(404).send({ error: 'report_not_found_or_not_draft' });
+
+    return reply.send({ report });
+  });
+
+  // POST /monthly-reports/:id/approve — body: { approvedBy }
+  app.post('/monthly-reports/:id/approve', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const { id } = req.params as { id: string };
+    const { approvedBy } = (req.body as any) || {};
+    if (!approvedBy) return reply.status(400).send({ error: 'approvedBy is required' });
+
+    const report = await approveReport(id, approvedBy, tenantId);
+    if (!report) return reply.status(404).send({ error: 'report_not_found_or_not_pending' });
+
+    return reply.send({ report });
+  });
+
+  // POST /monthly-reports/:id/publish
+  app.post('/monthly-reports/:id/publish', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const { id } = req.params as { id: string };
+    const report = await publishReport(id, tenantId);
+    if (!report) return reply.status(404).send({ error: 'report_not_found_or_not_approved' });
+
+    return reply.send({ report });
+  });
+
+  // GET /r/:token — PUBLIC, no auth
+  app.get('/r/:token', async (req: any, reply) => {
+    const { token } = req.params as { token: string };
+    const report = await getReportByToken(token);
+    if (!report) return reply.status(404).send({ error: 'report_not_found' });
+
+    return reply.send({ report });
+  });
+}
