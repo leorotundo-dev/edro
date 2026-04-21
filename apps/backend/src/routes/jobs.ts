@@ -378,6 +378,90 @@ export default async function jobsRoutes(app: FastifyInstance) {
     };
   });
 
+  // ── GET /jobs/sla-monitor — Per-card SLA table (replicates spreadsheet view) ──
+  app.get('/jobs/sla-monitor', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const {
+      days = '90',
+      client_id,
+      avaliacao,
+      status,
+      job_type,
+      limit: limitQ = '200',
+      offset: offsetQ = '0',
+    } = request.query as Record<string, string | undefined>;
+
+    const daysNum = Math.min(Math.max(Number(days) || 90, 7), 730);
+    const limitNum = Math.min(Number(limitQ) || 200, 500);
+    const offsetNum = Number(offsetQ) || 0;
+
+    const filters: string[] = [`r.tenant_id = $1`];
+    const values: any[] = [tenantId];
+
+    // Include cards created within window OR still open (so open jobs always show)
+    filters.push(`(r.created_at > NOW() - INTERVAL '${daysNum} days' OR r.status NOT IN ('done','published','archived'))`);
+
+    if (client_id) { values.push(client_id); filters.push(`r.client_id = $${values.length}`); }
+    if (avaliacao) { values.push(avaliacao); filters.push(`r.avaliacao = $${values.length}`); }
+    if (status) { values.push(status); filters.push(`r.status = $${values.length}`); }
+    if (job_type) { values.push(job_type); filters.push(`r.job_type = $${values.length}`); }
+
+    const whereClause = filters.join(' AND ');
+
+    const [rowsRes, countRes, clientsRes] = await Promise.all([
+      query(
+        `SELECT
+           r.id,
+           r.client_id,
+           r.client_name,
+           r.owner_name,
+           r.title,
+           r.job_type,
+           r.status,
+           r.trello_card_id,
+           r.trello_list_name,
+           r.sla_agreed_days,
+           r.deadline_at,
+           r.created_at,
+           r.completed_at,
+           r.tempo_real_dias,
+           r.dias_overdue,
+           r.avaliacao,
+           r.sla_met,
+           j.metadata->>'trello_url' AS trello_url
+         FROM job_sla_report r
+         JOIN jobs j ON j.id = r.id
+         WHERE ${whereClause}
+         ORDER BY
+           CASE r.avaliacao WHEN 'Estourado' THEN 0 WHEN 'Em andamento' THEN 1 ELSE 2 END,
+           r.tempo_real_dias DESC NULLS LAST
+         LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+        [...values, limitNum, offsetNum],
+      ),
+      query(
+        `SELECT COUNT(*) FROM job_sla_report r WHERE ${whereClause}`,
+        values,
+      ),
+      // Client list for filter dropdown
+      query(
+        `SELECT DISTINCT r.client_id, r.client_name
+         FROM job_sla_report r
+         WHERE r.tenant_id = $1 AND r.client_id IS NOT NULL
+         ORDER BY r.client_name`,
+        [tenantId],
+      ),
+    ]);
+
+    return {
+      data: {
+        rows: rowsRes.rows,
+        total: Number(countRes.rows[0]?.count || 0),
+        period_days: daysNum,
+        clients: clientsRes.rows,
+      },
+    };
+  });
+
   app.get('/jobs/calibration', { preHandler: [requirePerm('clients:read')] }, async (request: any) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { days } = request.query as { days?: string };
