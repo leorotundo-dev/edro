@@ -14,7 +14,6 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconAlertTriangle,
-  IconArrowUpRight,
   IconChecks,
   IconClockHour4,
   IconFileText,
@@ -23,15 +22,12 @@ import {
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
-import AskJarvisButton from '@/components/jarvis/AskJarvisButton';
+import { OpsCard } from '@/components/operations/primitives';
 import { useJarvisPage } from '@/hooks/useJarvisPage';
 import {
-  formatDateTime,
-  formatSourceLabel,
   getDeliveryStatus,
   getTrelloListName,
   getTrelloLabelNames,
-  getTrelloLabels,
   isApprovalQueueJob,
   isCopyReadyJob,
   isWaitingBriefing,
@@ -310,135 +306,30 @@ export default function OperationsIaClient() {
                         />
                       </Stack>
 
-                      <Stack spacing={1.2}>
+                      <Stack spacing={1}>
                         {lanes[lane.key].length ? (
-                          lanes[lane.key].slice(0, 10).map((job) => {
-                            const due = getDueState(job);
-                            const labels = getTrelloLabels(job).slice(0, 2);
-                            const primaryHref = getPrimaryActionHref(job, lane.key);
-                            return (
-                              <Paper
-                                key={job.id}
-                                elevation={0}
-                                sx={{
-                                  borderRadius: 2,
-                                  p: 1.5,
-                                  border: `1px solid ${alpha(theme.palette.text.primary, dark ? 0.08 : 0.06)}`,
-                                  bgcolor: dark ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.012),
-                                }}
-                              >
-                                <Stack spacing={1.1}>
-                                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                                    <Box sx={{ minWidth: 0 }}>
-                                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800 }}>
-                                        {job.client_name || 'Sem cliente'}
-                                      </Typography>
-                                      <Typography
-                                        variant="subtitle2"
-                                        sx={{
-                                          fontWeight: 900,
-                                          mt: 0.25,
-                                          lineHeight: 1.35,
-                                          display: '-webkit-box',
-                                          WebkitLineClamp: 2,
-                                          WebkitBoxOrient: 'vertical',
-                                          overflow: 'hidden',
-                                        }}
-                                      >
-                                        {cleanJobTitle(job.title, job.client_name)}
-                                      </Typography>
-                                    </Box>
-                                    <Chip
-                                      size="small"
-                                      label={due.label}
-                                      sx={{
-                                        height: 20,
-                                        fontSize: '0.65rem',
-                                        fontWeight: 900,
-                                        bgcolor:
-                                          due.tone === 'critical'
-                                            ? alpha('#FA896B', 0.16)
-                                            : due.tone === 'warning'
-                                              ? alpha('#FFAE1F', 0.16)
-                                              : alpha('#5D87FF', 0.12),
-                                        color:
-                                          due.tone === 'critical'
-                                            ? '#d9485f'
-                                            : due.tone === 'warning'
-                                              ? '#d97706'
-                                              : '#2563eb',
-                                      }}
-                                    />
-                                  </Stack>
-
-                                  <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
-                                    <Chip size="small" label={getTrelloListName(job) || 'Sem lista'} />
-                                    {job.owner_name ? <Chip size="small" label={job.owner_name} variant="outlined" /> : null}
-                                    <Chip size="small" label={formatSourceLabel(job.source)} variant="outlined" />
-                                    {labels.map((label, index) => (
-                                      <Chip key={`${job.id}-${label.name || index}`} size="small" label={label.name || 'Etiqueta'} variant="outlined" />
-                                    ))}
-                                  </Stack>
-
-                                  <Stack spacing={0.45}>
-                                    <Typography variant="caption" color="text.secondary">
-                                      Lista do Trello: {getTrelloListName(job) || 'Sem lista'}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      Prazo {formatDateTime(job.deadline_at)}
-                                    </Typography>
-                                  </Stack>
-
-                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                    <Button
-                                      variant="contained"
-                                      size="small"
-                                      onClick={() => void openJobDetail(job)}
-                                      endIcon={<IconArrowUpRight size={14} />}
-                                    >
-                                      Ver demanda
-                                    </Button>
-                                    {primaryHref ? (
-                                      <Button
-                                        component={Link}
-                                        href={primaryHref}
-                                        variant="outlined"
-                                        size="small"
-                                        startIcon={lane.key === 'copy_ready' ? <IconSparkles size={14} /> : <IconFileText size={14} />}
-                                      >
-                                        {getPrimaryActionLabel(lane.key)}
-                                      </Button>
-                                    ) : null}
-                                    <AskJarvisButton
-                                      message={
-                                        lane.key === 'copy_ready'
-                                          ? `Resolva a direção criativa e gere o copy inicial da demanda "${job.title}" do cliente "${job.client_name || 'Sem cliente'}".`
-                                          : lane.key === 'approval'
-                                            ? `Resuma a demanda "${job.title}" e prepare a aprovação ou o ajuste que precisa voltar para o cliente.`
-                                            : `Leia a demanda "${job.title}" do cliente "${job.client_name || 'Sem cliente'}" e diga o próximo passo operacional e criativo.`
-                                      }
-                                      label="Jarvis"
-                                      variant="outlined"
-                                    />
-                                  </Stack>
-                                </Stack>
-                              </Paper>
-                            );
-                          })
+                          lanes[lane.key].slice(0, 10).map((job) => (
+                            <OpsCard
+                              key={job.id}
+                              job={job}
+                              onClick={() => void openJobDetail(job)}
+                              onAdvance={changeStatus}
+                              onAssign={async (jobId, ownerId) => { await updateJob(jobId, { owner_id: ownerId }); await refresh(); }}
+                              owners={lookups.owners}
+                            />
+                          ))
                         ) : (
-                          <Paper
-                            elevation={0}
+                          <Box
                             sx={{
                               borderRadius: 2,
                               p: 2,
                               border: `1px dashed ${alpha(theme.palette.text.primary, dark ? 0.12 : 0.1)}`,
-                              bgcolor: 'transparent',
                             }}
                           >
                             <Typography variant="body2" color="text.secondary">
                               Nada nessa etapa agora.
                             </Typography>
-                          </Paper>
+                          </Box>
                         )}
                       </Stack>
                     </Stack>
