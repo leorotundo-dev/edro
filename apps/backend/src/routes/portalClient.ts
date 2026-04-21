@@ -729,6 +729,78 @@ Gere um enriquecimento estruturado para a equipe interna da agência. Responda S
 
     return reply.send({ ok: true, briefing: row });
   });
+
+  // ── Monthly Reports — portal client access ───────────────────────────────────
+
+  // GET /monthly-reports/mine — list published + pending_approval reports for this client
+  app.get('/monthly-reports/mine', async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { rows } = await pool.query(
+      `SELECT id, client_id, client_name, period_month, status,
+              sections, approved_at, published_at, access_token
+       FROM client_monthly_reports
+       WHERE client_id = $1
+         AND status IN ('pending_approval', 'approved', 'published')
+       ORDER BY period_month DESC
+       LIMIT 24`,
+      [clientId],
+    );
+    return reply.send({ reports: rows });
+  });
+
+  // GET /monthly-reports/mine/:month — get single report for this client
+  app.get('/monthly-reports/mine/:month', async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { month } = request.params as { month: string };
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      return reply.status(400).send({ error: 'Invalid month format' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, client_id, client_name, period_month, status,
+              sections, approved_at, published_at, access_token
+       FROM client_monthly_reports
+       WHERE client_id = $1 AND period_month = $2
+         AND status IN ('pending_approval', 'approved', 'published')`,
+      [clientId, month],
+    );
+
+    if (!rows[0]) return reply.status(404).send({ error: 'report_not_found' });
+    return reply.send({ report: rows[0] });
+  });
+
+  // POST /monthly-reports/:id/approve — client marketing manager approves
+  app.post('/monthly-reports/:id/approve', async (request: any, reply) => {
+    const clientId = requireClient(request, reply);
+    if (!clientId) return;
+
+    const { id } = request.params as { id: string };
+
+    // Verify the report belongs to this client and is pending approval
+    const check = await pool.query(
+      `SELECT id FROM client_monthly_reports
+       WHERE id = $1 AND client_id = $2 AND status = 'pending_approval'`,
+      [id, clientId],
+    );
+    if (!check.rows[0]) {
+      return reply.status(404).send({ error: 'report_not_found_or_already_approved' });
+    }
+
+    const contact = (request as any).portalContact?.name ?? (request as any).portalContact?.email ?? 'Gerente de marketing';
+
+    const { rows } = await pool.query(
+      `UPDATE client_monthly_reports
+       SET status = 'approved', approved_by = $1, approved_at = now()
+       WHERE id = $2
+       RETURNING id, status, approved_at`,
+      [contact, id],
+    );
+    return reply.send({ report: rows[0] });
+  });
 }
 
 // ── Public token routes (separate Fastify instance — no JWT preHandler) ──────
