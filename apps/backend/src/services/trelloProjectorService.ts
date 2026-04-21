@@ -20,6 +20,7 @@
 
 import { query } from '../db';
 import { refreshSignalForCard } from './trelloSyncService';
+import { upsertJobFromCard } from './trelloJobBridgeService';
 
 // ── Trello action payload types (minimal) ─────────────────────────────────────
 
@@ -479,6 +480,7 @@ export async function processWebhookAction(
       if (trelloCardId) {
         const cardId = await resolveCardId(tenantId, trelloCardId);
         if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+        upsertJobFromCard(tenantId, trelloCardId).catch(() => undefined);
       }
       return true;
     case 'createCard':
@@ -486,10 +488,12 @@ export async function processWebhookAction(
       if (trelloCardId) {
         const cardId = await resolveCardId(tenantId, trelloCardId);
         if (cardId) refreshSignalForCard(tenantId, cardId).catch(() => undefined);
+        upsertJobFromCard(tenantId, trelloCardId).catch(() => undefined);
       }
       return true;
     case 'deleteCard':
       await handleDeleteCard(tenantId, action);
+      if (trelloCardId) upsertJobFromCard(tenantId, trelloCardId).catch(() => undefined);
       return true;
     case 'commentCard':
       await handleCommentCard(tenantId, action);
@@ -506,6 +510,7 @@ export async function processWebhookAction(
       return true;
     case 'updateCheckItemStateOnCard':
       await handleUpdateCheckItem(tenantId, action);
+      if (trelloCardId) upsertJobFromCard(tenantId, trelloCardId).catch(() => undefined);
       return true;
     case 'deleteCheckItem':
       await handleDeleteCheckItem(tenantId, action);
