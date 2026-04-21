@@ -1,18 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
@@ -21,17 +18,17 @@ import {
   IconCheck,
   IconClock,
   IconEye,
-  IconExternalLink,
   IconPencil,
   IconPlayerStop,
   IconRefresh,
   IconSend,
   IconSparkles,
-  IconBrandTrello,
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
-import { apiGet } from '@/lib/api';
-import { cleanJobTitle, type OperationsJob } from '@/components/operations/model';
+import { OpsCard } from '@/components/operations/primitives';
+import JobWorkbenchDrawer from '@/components/operations/JobWorkbenchDrawer';
+import { useOperationsData } from '@/components/operations/useOperationsData';
+import { type OperationsJob } from '@/components/operations/model';
 
 // ── Stage definitions ────────────────────────────────────────────────────────
 
@@ -112,8 +109,7 @@ const STAGES: Stage[] = [
   },
 ];
 
-// ── Job types that are "content production" ──────────────────────────────────
-
+// Job types considered "content production"
 const CONTENT_JOB_TYPES = new Set([
   'copy',
   'design_static',
@@ -130,96 +126,26 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   publication: 'Post',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function daysSince(iso: string): number {
-  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-}
-
-// ── Job Card ─────────────────────────────────────────────────────────────────
-
-function JobCard({ job, stageColor }: { job: OperationsJob; stageColor: string }) {
-  const theme = useTheme();
-  const age = daysSince(job.created_at as string);
-  const isOld = age > 5;
-  const trelloUrl = (job.metadata as any)?.trello_url ?? null;
-
-  return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 1.25,
-        borderRadius: 1.5,
-        borderColor: isOld ? alpha('#FA896B', 0.3) : theme.palette.divider,
-        bgcolor: isOld
-          ? alpha('#FA896B', 0.04)
-          : theme.palette.mode === 'dark'
-          ? alpha(theme.palette.common.white, 0.02)
-          : alpha(theme.palette.common.black, 0.01),
-        '&:hover': { borderColor: alpha(stageColor, 0.4), bgcolor: alpha(stageColor, 0.04) },
-        transition: 'all 160ms ease',
-      }}
-    >
-      <Stack spacing={0.75}>
-        {/* Client + age */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
-          <Typography variant="caption" fontWeight={700} color="text.secondary" noWrap sx={{ maxWidth: '70%' }}>
-            {(job as any).client_name || '—'}
-          </Typography>
-          <Chip
-            size="small"
-            label={`${age}d`}
-            sx={{
-              height: 16,
-              fontSize: '0.6rem',
-              fontWeight: 700,
-              bgcolor: isOld ? alpha('#FA896B', 0.12) : alpha(stageColor, 0.1),
-              color: isOld ? '#FA896B' : stageColor,
-            }}
-          />
-        </Stack>
-
-        {/* Title */}
-        <Tooltip title={job.title} placement="top">
-          <Typography variant="caption" fontWeight={600} sx={{ lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {cleanJobTitle(job.title)}
-          </Typography>
-        </Tooltip>
-
-        {/* Type chip + action icons */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Chip
-            size="small"
-            label={JOB_TYPE_LABELS[job.job_type] ?? job.job_type}
-            variant="outlined"
-            sx={{ height: 18, fontSize: '0.62rem' }}
-          />
-          <Stack direction="row" spacing={0.25}>
-            {trelloUrl && (
-              <Tooltip title="Abrir no Trello">
-                <IconButton size="small" component="a" href={trelloUrl} target="_blank" rel="noopener" sx={{ color: '#0052CC', p: 0.3 }}>
-                  <IconBrandTrello size={13} />
-                </IconButton>
-              </Tooltip>
-            )}
-            <Tooltip title="Ver demanda">
-              <IconButton size="small" component={Link} href={`/admin/operacoes/jobs/${job.id}`} sx={{ color: 'text.secondary', p: 0.3 }}>
-                <IconExternalLink size={13} />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        </Stack>
-      </Stack>
-    </Paper>
-  );
-}
-
 // ── Stage Column ──────────────────────────────────────────────────────────────
 
-function StageColumn({ stage, jobs }: { stage: Stage; jobs: OperationsJob[] }) {
+function StageColumn({
+  stage,
+  jobs,
+  onCardClick,
+  onAdvance,
+  onAssign,
+  owners,
+}: {
+  stage: Stage;
+  jobs: OperationsJob[];
+  onCardClick: (job: OperationsJob) => void;
+  onAdvance: (jobId: string, status: string) => void;
+  onAssign: (jobId: string, ownerId: string) => void;
+  owners: OperationsJob[];
+}) {
   const theme = useTheme();
   return (
-    <Box sx={{ minWidth: 220, maxWidth: 260, flex: '0 0 240px' }}>
+    <Box sx={{ minWidth: 260, maxWidth: 290, flex: '0 0 270px' }}>
       {/* Column header */}
       <Box
         sx={{
@@ -242,21 +168,37 @@ function StageColumn({ stage, jobs }: { stage: Stage; jobs: OperationsJob[] }) {
                 label={jobs.length}
                 sx={{ height: 16, fontSize: '0.65rem', fontWeight: 800, bgcolor: alpha(stage.color, 0.15), color: stage.color }}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>{stage.subtitle}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>
+                {stage.subtitle}
+              </Typography>
             </Stack>
           </Box>
         </Stack>
       </Box>
 
-      {/* Cards */}
+      {/* Cards — canonical OpsCard */}
       <Stack spacing={1}>
         {jobs.length === 0 ? (
-          <Box sx={{ py: 3, textAlign: 'center' }}>
+          <Box
+            sx={{
+              py: 3,
+              textAlign: 'center',
+              borderRadius: 2,
+              border: `1px dashed ${alpha(stage.color, 0.2)}`,
+            }}
+          >
             <Typography variant="caption" color="text.disabled">Nenhuma demanda</Typography>
           </Box>
         ) : (
           jobs.map((job) => (
-            <JobCard key={job.id} job={job} stageColor={stage.color} />
+            <OpsCard
+              key={job.id}
+              job={job}
+              onClick={() => onCardClick(job)}
+              onAdvance={onAdvance}
+              onAssign={onAssign}
+              owners={owners as any}
+            />
           ))
         )}
       </Stack>
@@ -267,48 +209,41 @@ function StageColumn({ stage, jobs }: { stage: Stage; jobs: OperationsJob[] }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function RedacaoIAClient() {
+  const theme = useTheme();
+  const { jobs, lookups, loading, error, refresh, currentUserId, createJob, updateJob, changeStatus, fetchJob } =
+    useOperationsData('?active=true');
+
+  const [selectedJob, setSelectedJob] = useState<OperationsJob | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const [clientFilter, setClientFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [jobs, setJobs] = useState<OperationsJob[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    try {
-      const res = await apiGet<{ data: OperationsJob[] }>('/jobs?active=true&limit=500');
-      const all = res?.data ?? [];
-      setJobs(all.filter((j) => CONTENT_JOB_TYPES.has(j.job_type)));
-    } catch (e: any) {
-      setError(e?.message || 'Erro ao carregar demandas.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Only content production jobs
+  const contentJobs = useMemo(
+    () => jobs.filter((j) => CONTENT_JOB_TYPES.has(j.job_type)),
+    [jobs],
+  );
 
-  // Load on mount
-  useEffect(() => { load(); }, [load]);
-
-  // Get unique clients from jobs
-  const clientOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const j of jobs) {
-      const cid = j.client_id;
-      const cn = (j as any).client_name;
-      if (cid && cn) map.set(cid, cn);
-    }
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [jobs]);
-
-  // Apply filters
   const filtered = useMemo(() => {
-    let arr = jobs;
+    let arr = contentJobs;
     if (clientFilter) arr = arr.filter((j) => j.client_id === clientFilter);
     if (typeFilter) arr = arr.filter((j) => j.job_type === typeFilter);
     return arr;
-  }, [jobs, clientFilter, typeFilter]);
+  }, [contentJobs, clientFilter, typeFilter]);
 
-  // Bucket by stage
+  // Unique clients for filter dropdown
+  const clientOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const j of contentJobs) {
+      if (j.client_id && j.client_name) map.set(j.client_id, j.client_name);
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [contentJobs]);
+
+  // Bucket by pipeline stage
   const byStage = useMemo(() => {
     const map: Record<StageKey, OperationsJob[]> = {
       novo: [], em_criacao: [], revisao: [], aprovacao: [],
@@ -325,92 +260,162 @@ export default function RedacaoIAClient() {
     return map;
   }, [filtered]);
 
+  const openDetail = async (job: OperationsJob) => {
+    setSelectedJob(job);
+    setDetailOpen(true);
+    try {
+      const fresh = await fetchJob(job.id);
+      if (fresh) setSelectedJob(fresh as OperationsJob);
+    } catch {
+      // keep stale
+    }
+  };
+
   const active = filtered.filter((j) => !['published', 'done'].includes(j.status)).length;
-  const atRisk = filtered.filter((j) => {
-    if (!j.deadline_at) return false;
-    return new Date(j.deadline_at) < new Date();
-  }).length;
+  const atRisk = filtered.filter((j) => j.deadline_at && new Date(j.deadline_at) < new Date()).length;
 
   return (
-    <OperationsShell
-      section="redacao"
-      titleOverride="Redação IA · Pipeline de Conteúdo"
-      subtitleOverride="Visão do pipeline de posts, copy e design — do briefing à publicação."
-      summary={
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Chip label={`${filtered.length} demandas`} size="small" />
-          <Chip label={`${active} em aberto`} size="small" color="primary" />
-          {atRisk > 0 && <Chip label={`${atRisk} em risco`} size="small" color="error" icon={<IconAlertTriangle size={12} />} />}
-        </Stack>
-      }
-    >
-      <Stack spacing={2.5}>
-        {/* Toolbar */}
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-          <TextField
-            select size="small" value={clientFilter} onChange={(e) => setClientFilter(e.target.value)}
-            label="Cliente" sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="">Todos os clientes</MenuItem>
-            {clientOptions.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select size="small" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-            label="Tipo" sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="">Todos os tipos</MenuItem>
-            {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => (
-              <MenuItem key={k} value={k}>{v}</MenuItem>
-            ))}
-          </TextField>
-
-          <Box sx={{ flex: 1 }} />
-          <Button variant="outlined" size="small" component={Link} href="/admin/operacoes/ia">
-            Ver handoff IA
-          </Button>
-          <Tooltip title="Recarregar">
-            <IconButton size="small" onClick={load} disabled={loading}><IconRefresh size={16} /></IconButton>
-          </Tooltip>
-        </Stack>
-
-        {error && <Alert severity="error">{error}</Alert>}
-
-        {loading ? (
-          <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>
-        ) : (
-          /* Horizontal pipeline */
-          <Box
-            sx={{
-              overflowX: 'auto',
-              pb: 2,
-              '&::-webkit-scrollbar': { height: 6 },
-              '&::-webkit-scrollbar-track': { borderRadius: 99 },
-              '&::-webkit-scrollbar-thumb': { borderRadius: 99, bgcolor: 'divider' },
-            }}
-          >
-            <Stack direction="row" spacing={2} sx={{ minWidth: 'max-content', pb: 1 }}>
-              {STAGES.map((stage) => (
-                <StageColumn key={stage.key} stage={stage} jobs={byStage[stage.key]} />
-              ))}
-            </Stack>
-          </Box>
-        )}
-
-        {/* Legend */}
-        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <IconClock size={14} color="#FA896B" />
-            <Typography variant="caption" color="text.secondary">Chip vermelho = mais de 5 dias nesta fase</Typography>
+    <>
+      <OperationsShell
+        section="redacao"
+        titleOverride="Redação IA · Pipeline de Conteúdo"
+        subtitleOverride="Pipeline de posts, copy e design do briefing à publicação."
+        summary={
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip label={`${filtered.length} demandas`} size="small" />
+            <Chip label={`${active} em aberto`} size="small" color="primary" />
+            {atRisk > 0 && (
+              <Chip
+                label={`${atRisk} em risco`}
+                size="small"
+                color="error"
+                icon={<IconAlertTriangle size={12} />}
+              />
+            )}
           </Stack>
-          <Typography variant="caption" color="text.disabled">·</Typography>
-          <Typography variant="caption" color="text.secondary">
-            Apenas jobs dos tipos: Copy, Design, Carrossel, Vídeo, Post
-          </Typography>
+        }
+      >
+        <Stack spacing={2.5}>
+          {/* Toolbar */}
+          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+            <TextField
+              select size="small" value={clientFilter}
+              onChange={(e) => setClientFilter(e.target.value)}
+              label="Cliente" sx={{ minWidth: 180 }}
+            >
+              <MenuItem value="">Todos os clientes</MenuItem>
+              {clientOptions.map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select size="small" value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              label="Tipo" sx={{ minWidth: 140 }}
+            >
+              <MenuItem value="">Todos os tipos</MenuItem>
+              {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => (
+                <MenuItem key={k} value={k}>{v}</MenuItem>
+              ))}
+            </TextField>
+
+            <Box sx={{ flex: 1 }} />
+            <Button variant="outlined" size="small" component={Link} href="/admin/operacoes/ia">
+              Ver handoff IA
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={refresh}
+              disabled={loading}
+              startIcon={<IconRefresh size={14} />}
+            >
+              Atualizar
+            </Button>
+          </Stack>
+
+          {error && <Alert severity="error">{error}</Alert>}
+
+          {loading ? (
+            <Box sx={{ py: 10, display: 'flex', justifyContent: 'center' }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            /* Horizontal pipeline */
+            <Box
+              sx={{
+                overflowX: 'auto',
+                pb: 2,
+                '&::-webkit-scrollbar': { height: 6 },
+                '&::-webkit-scrollbar-track': { borderRadius: 99 },
+                '&::-webkit-scrollbar-thumb': { borderRadius: 99, bgcolor: 'divider' },
+              }}
+            >
+              <Stack direction="row" spacing={2} sx={{ minWidth: 'max-content', pb: 1 }}>
+                {STAGES.map((stage) => (
+                  <StageColumn
+                    key={stage.key}
+                    stage={stage}
+                    jobs={byStage[stage.key]}
+                    onCardClick={openDetail}
+                    onAdvance={changeStatus}
+                    onAssign={async (jobId, ownerId) => {
+                      await updateJob(jobId, { owner_id: ownerId });
+                      await refresh();
+                    }}
+                    owners={lookups.owners as any}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Legend */}
+          <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <IconClock size={14} color={theme.palette.warning.main} />
+              <Typography variant="caption" color="text.secondary">
+                Chip vermelho no card = mais de 3 dias sem atualização
+              </Typography>
+            </Stack>
+            <Typography variant="caption" color="text.disabled">·</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Tipos: Copy · Design · Carrossel · Vídeo · Post
+            </Typography>
+          </Stack>
         </Stack>
-      </Stack>
-    </OperationsShell>
+      </OperationsShell>
+
+      <JobWorkbenchDrawer
+        open={detailOpen && Boolean(selectedJob)}
+        mode="edit"
+        job={selectedJob}
+        presentation="modal"
+        jobTypes={lookups.jobTypes}
+        skills={lookups.skills}
+        channels={lookups.channels}
+        clients={lookups.clients}
+        owners={lookups.owners}
+        currentUserId={currentUserId}
+        onClose={() => { setDetailOpen(false); setSelectedJob(null); }}
+        onCreate={createJob}
+        onUpdate={async (jobId, payload) => {
+          const updated = await updateJob(jobId, payload);
+          await refresh();
+          setSelectedJob(updated as OperationsJob);
+          return updated;
+        }}
+        onStatusChange={async (jobId, status, reason) => {
+          const updated = await changeStatus(jobId, status, reason);
+          await refresh();
+          const fresh = await fetchJob(jobId);
+          const next = (fresh ?? updated) as OperationsJob;
+          setSelectedJob(next);
+          return next;
+        }}
+        onFetchDetail={fetchJob}
+      />
+    </>
   );
 }
