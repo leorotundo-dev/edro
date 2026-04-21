@@ -13,14 +13,17 @@ import {
   IconChecklist,
   IconClockCheck,
   IconScale,
+  IconTable,
 } from '@tabler/icons-react';
 import OperationsShell from '@/components/operations/OperationsShell';
 import CalibracaoClient from '../calibracao/CalibracaoClient';
 import SlaClient from '../sla/SlaClient';
+import SlaMonitorClient from '../sla/SlaMonitorClient';
 
-type QualityTab = 'sla' | 'calibracao';
+type QualityTab = 'sla' | 'calibracao' | 'monitor';
 
 const TABS: Array<{ key: QualityTab; label: string; subtitle: string }> = [
+  { key: 'monitor', label: 'Monitor', subtitle: 'Visão card a card: SLA acordado, tempo real e avaliação — idêntico à planilha operacional' },
   { key: 'sla', label: 'Prazo', subtitle: 'Quem está entregando no prazo e onde a operação está derrapando' },
   { key: 'calibracao', label: 'Estimativa', subtitle: 'Onde a agência está subestimando ou superestimando esforço' },
 ];
@@ -28,7 +31,12 @@ const TABS: Array<{ key: QualityTab; label: string; subtitle: string }> = [
 export default function QualidadeWorkspaceClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentTab: QualityTab = searchParams.get('tab') === 'calibracao' ? 'calibracao' : 'sla';
+  const tabParam = searchParams.get('tab');
+  const currentTab: QualityTab =
+    tabParam === 'calibracao' ? 'calibracao' :
+    tabParam === 'sla' ? 'sla' :
+    tabParam === 'monitor' ? 'monitor' :
+    'monitor'; // default to Monitor (the spreadsheet-style table)
 
   const currentMeta = useMemo(
     () => TABS.find((tab) => tab.key === currentTab) ?? TABS[0],
@@ -37,7 +45,7 @@ export default function QualidadeWorkspaceClient() {
 
   const handleTabChange = (next: QualityTab) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === 'sla') params.delete('tab');
+    if (next === 'monitor') params.delete('tab');
     else params.set('tab', next);
     const qs = params.toString();
     router.replace(qs ? `/admin/operacoes/qualidade?${qs}` : '/admin/operacoes/qualidade', { scroll: false });
@@ -84,11 +92,12 @@ export default function QualidadeWorkspaceClient() {
             <Box
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
+                gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(5, minmax(0, 1fr))' },
                 gap: 1.25,
               }}
             >
               {[
+                { label: 'Monitor', subtitle: 'Card a card — SLA e avaliação', icon: <IconTable size={16} />, color: '#A855F7', active: currentTab === 'monitor' },
                 { label: 'Prazo', subtitle: 'Olha atraso e entrega no prazo', icon: <IconClockCheck size={16} />, color: '#13DEB9', active: currentTab === 'sla' },
                 { label: 'Estimativa', subtitle: 'Olha diferença entre previsto e real', icon: <IconScale size={16} />, color: '#5D87FF', active: currentTab === 'calibracao' },
                 { label: 'Fila', subtitle: 'Reorganizar o que está travando', icon: <IconChecklist size={16} />, color: '#FFAE1F', href: '/admin/operacoes/jobs?unassigned=true' },
@@ -98,7 +107,10 @@ export default function QualidadeWorkspaceClient() {
                   key={item.label}
                   component={item.href ? 'a' : 'button'}
                   href={item.href}
-                  onClick={item.href ? undefined : () => handleTabChange(item.label === 'Prazo' ? 'sla' : 'calibracao')}
+                  onClick={item.href ? undefined : () => {
+                    const key = item.label === 'Monitor' ? 'monitor' : item.label === 'Prazo' ? 'sla' : 'calibracao';
+                    handleTabChange(key as QualityTab);
+                  }}
                   sx={(theme) => ({
                     textAlign: 'left',
                     textDecoration: 'none',
@@ -168,7 +180,7 @@ export default function QualidadeWorkspaceClient() {
           ))}
         </Stack>
 
-        {currentTab === 'sla' ? <SlaClient embedded /> : <CalibracaoClient embedded />}
+        {currentTab === 'monitor' ? <SlaMonitorClient embedded /> : currentTab === 'sla' ? <SlaClient embedded /> : <CalibracaoClient embedded />}
       </Stack>
     </OperationsShell>
   );
