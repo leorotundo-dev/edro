@@ -2565,11 +2565,10 @@ export function PipelineBoard({
           gap: { xs: 1.5, xl: 2 },
           pb: 1,
           alignItems: 'stretch',
-          justifyContent: { xl: 'center' },
           gridTemplateColumns: {
             xs: 'minmax(0, 1fr)',
             md: 'repeat(2, minmax(0, 1fr))',
-            xl: 'repeat(4, minmax(270px, 300px))',
+            xl: 'repeat(4, minmax(0, 1fr))',
           },
         }}
       >
