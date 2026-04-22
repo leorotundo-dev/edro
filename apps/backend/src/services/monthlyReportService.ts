@@ -92,6 +92,8 @@ interface ReportSections {
     pipeline: Pipeline | null;
   };
   synthesis: string | null;
+  /** Primary brand color (hex) used to tint the report hero */
+  brand_color: string | null;
 }
 
 interface MonthlyReport {
@@ -271,7 +273,8 @@ function buildSections(jobs: JobRow[], snapshots: MetricSnapshotRow[], prevSnaps
       director_action: null,
       pipeline:        null,
     },
-    synthesis: null,
+    synthesis:   null,
+    brand_color: null,
   };
 }
 
@@ -517,7 +520,8 @@ Regras obrigatórias:
           risk_window:  str(ai.pipeline_risk_window),
         } : null,
       },
-      synthesis: str(ai.synthesis),
+      synthesis:   str(ai.synthesis),
+      brand_color: sections.brand_color, // preserved from outer scope
     };
   } catch {
     // Claude unavailable — return sections without enrichment
@@ -541,7 +545,7 @@ export async function autoGenerateReport(
   const prevStartIso = prevStart.toISOString();
   const prevEndIso   = prevEnd.toISOString();
 
-  const [jobsRes, snapshotsRes, prevSnapshotsRes, clientRes] = await Promise.all([
+  const [jobsRes, snapshotsRes, prevSnapshotsRes, clientRes, visualRes] = await Promise.all([
     query<JobRow>(
       `SELECT id, title, job_type, channel, status, owner_name, completed_at, updated_at
        FROM edro_jobs
@@ -577,14 +581,25 @@ export async function autoGenerateReport(
       `SELECT name FROM clients WHERE id = $1 LIMIT 1`,
       [clientId],
     ),
+    query<{ dominant_colors: string[] | null }>(
+      `SELECT dominant_colors FROM client_visual_style
+       WHERE client_id = $1 ORDER BY analyzed_at DESC LIMIT 1`,
+      [clientId],
+    ),
   ]);
 
-  const jobs         = jobsRes.rows;
-  const snapshots    = snapshotsRes.rows;
+  const jobs          = jobsRes.rows;
+  const snapshots     = snapshotsRes.rows;
   const prevSnapshots = prevSnapshotsRes.rows;
-  const clientName   = clientRes.rows[0]?.name ?? null;
+  const clientName    = clientRes.rows[0]?.name ?? null;
+
+  // Pick first valid hex color from the client's visual style analysis
+  const dominantColors = visualRes.rows[0]?.dominant_colors ?? [];
+  const brandColor     = dominantColors.find((c) => /^#[0-9a-fA-F]{6}$/.test(c)) ?? null;
 
   const rawSections = buildSections(jobs, snapshots, prevSnapshots);
+  // Inject brand_color before AI enrichment so it's preserved in the return
+  rawSections.brand_color = brandColor;
   const sections    = await enrichSectionsWithAI(rawSections, jobs, periodMonth);
   const autoData    = { jobs_snapshot: jobs, snapshots_raw: snapshots };
   const title       = `Relatório ${periodMonth}`;
