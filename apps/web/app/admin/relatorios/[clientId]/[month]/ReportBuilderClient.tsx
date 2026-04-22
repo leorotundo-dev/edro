@@ -268,8 +268,8 @@ export default function ReportBuilderClient({
     setActionLoading(true);
     try {
       const res = await apiPost<{ report: MonthlyReport }>('/monthly-reports/generate', {
-        client_id: clientId,
-        month,
+        clientId,
+        periodMonth: month,
       });
       setReport(res.report);
       setSections(res.report.sections);
@@ -331,7 +331,7 @@ export default function ReportBuilderClient({
 
   function handleCopyLink() {
     if (!report?.access_token) return;
-    const url = `${window.location.origin}/portal/relatorio/${report.access_token}`;
+    const url = `${window.location.origin}/r/${report.access_token}`;
     navigator.clipboard.writeText(url).then(() => toast('Link copiado!'));
   }
 
@@ -398,7 +398,7 @@ export default function ReportBuilderClient({
             size="small"
             variant="outlined"
             startIcon={<IconEye size={14} />}
-            href={`/portal/relatorio/${report.access_token}`}
+            href={`/r/${report.access_token}`}
             target="_blank"
           >
             Ver como diretor
