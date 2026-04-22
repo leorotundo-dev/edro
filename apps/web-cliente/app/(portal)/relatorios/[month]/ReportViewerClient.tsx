@@ -362,21 +362,21 @@ function SectionTitle({ children, number }: { children: React.ReactNode; number?
       {number !== undefined && (
         <Box
           sx={{
-            width: 22, height: 22, borderRadius: '6px',
+            width: 26, height: 26, borderRadius: '8px',
             background: 'linear-gradient(135deg, #5D87FF, #7ca8ff)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}
         >
-          <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+          <Typography sx={{ fontSize: '12px', fontWeight: 900, color: '#fff', lineHeight: 1 }}>
             {number}
           </Typography>
         </Box>
       )}
       {number === undefined && (
-        <Box sx={{ width: 4, height: 14, borderRadius: '2px', bgcolor: '#5D87FF', flexShrink: 0 }} />
+        <Box sx={{ width: 4, height: 16, borderRadius: '2px', bgcolor: '#5D87FF', flexShrink: 0 }} />
       )}
-      <Typography sx={{ fontSize: '10px', fontWeight: 800, letterSpacing: '.15em', textTransform: 'uppercase', color: 'text.disabled' }}>
+      <Typography sx={{ fontSize: '13px', fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'text.secondary' }}>
         {children}
       </Typography>
     </Stack>
