@@ -17,32 +17,97 @@ import {
   IconAlertTriangle,
   IconBulb,
   IconCircleCheck,
+  IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandFacebook,
+  IconBrandTiktok,
+  IconBrandYoutube,
+  IconChartBar,
+  IconTarget,
+  IconRocket,
+  IconTrendingUp,
+  IconClockHour4,
 } from '@tabler/icons-react';
 import { apiGet, apiPost } from '@/lib/api';
-import type { MonthlyReport, KPI, Channel, FeaturedDeliverable, Priority, Risk } from '@/types/monthly-report';
+import type {
+  MonthlyReport,
+  KPI,
+  Channel,
+  FeaturedDeliverable,
+  Priority,
+  Risk,
+  BusinessImpactItem,
+  DeliverableCategory,
+  Pipeline,
+  ExecutiveContext,
+} from '@/types/monthly-report';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function formatPeriod(p: string) {
   const [y, m] = p.split('-');
   const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric',
+    month: 'long', year: 'numeric',
   });
   return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-function formatPeriodShort(p: string) {
-  const [y, m] = p.split('-');
-  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-  }).toUpperCase();
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
+
+// ─── Platform icons & colors ─────────────────────────────────────────────────
+
+const PLATFORM_CONFIG: Record<string, {
+  icon: React.ReactNode;
+  gradient: string;
+  dot: string;
+}> = {
+  instagram: {
+    icon: <IconBrandInstagram size={20} color="#fff" />,
+    gradient: 'linear-gradient(135deg, #f9ce34, #ee2a7b, #6228d7)',
+    dot: '#ee2a7b',
+  },
+  linkedin: {
+    icon: <IconBrandLinkedin size={20} color="#fff" />,
+    gradient: '#0a66c2',
+    dot: '#0a66c2',
+  },
+  facebook: {
+    icon: <IconBrandFacebook size={20} color="#fff" />,
+    gradient: '#1877f2',
+    dot: '#1877f2',
+  },
+  tiktok: {
+    icon: <IconBrandTiktok size={20} color="#fff" />,
+    gradient: 'linear-gradient(135deg, #010101, #69c9d0)',
+    dot: '#69c9d0',
+  },
+  youtube: {
+    icon: <IconBrandYoutube size={20} color="#fff" />,
+    gradient: '#ff0000',
+    dot: '#ff0000',
+  },
+};
+
+function PlatformIcon({ platform }: { platform: string }) {
+  const cfg = PLATFORM_CONFIG[platform.toLowerCase()];
+  return (
+    <Box
+      sx={{
+        width: 36, height: 36, borderRadius: '10px',
+        background: cfg?.gradient ?? '#5D87FF',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+        boxShadow: `0 4px 12px ${alpha(cfg?.dot ?? '#5D87FF', 0.35)}`,
+      }}
+    >
+      {cfg?.icon ?? <IconChartBar size={20} color="#fff" />}
+    </Box>
+  );
+}
+
+// ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_COLOR = {
   green:  { bg: '#16A34A', light: alpha('#16A34A', 0.06), label: 'Verde',    text: 'Operação em dia' },
@@ -50,54 +115,75 @@ const STATUS_COLOR = {
   red:    { bg: '#DC2626', light: alpha('#DC2626', 0.06), label: 'Vermelho', text: 'Ação imediata' },
 };
 
-const TREND_COLOR = { up: '#16A34A', down: '#DC2626', stable: '#6B7280' };
-const TREND_ARROW = { up: '↑', down: '↓', stable: '→' };
+const TREND = {
+  up:     { color: '#13DEB9', bg: alpha('#13DEB9', 0.05), arrow: '↑', border: '#13DEB9' },
+  down:   { color: '#FA896B', bg: alpha('#FA896B', 0.05), arrow: '↓', border: '#FA896B' },
+  stable: { color: '#98aab4', bg: 'transparent',          arrow: '→', border: '#e8edf2' },
+};
 
-// ─── sub-components ──────────────────────────────────────────────────────────
+// ─── KPI card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({ kpi }: { kpi: KPI }) {
-  const color = TREND_COLOR[kpi.trend];
-  const arrow = TREND_ARROW[kpi.trend];
+  const t = TREND[kpi.trend];
+  const pct = kpi.previous_value !== null && kpi.previous_value > 0
+    ? Math.round(((kpi.value - kpi.previous_value) / kpi.previous_value) * 100)
+    : null;
 
   return (
     <Paper
       elevation={0}
-      sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, textAlign: 'center' }}
+      sx={{
+        border: '1px solid', borderColor: 'divider',
+        borderRadius: '14px', p: '18px 14px 16px',
+        textAlign: 'center',
+        bgcolor: t.bg,
+        position: 'relative', overflow: 'hidden',
+        '&::before': {
+          content: '""', position: 'absolute',
+          top: 0, left: 0, right: 0, height: '3px',
+          bgcolor: t.color, borderRadius: '2px 2px 0 0',
+        },
+      }}
     >
-      <Typography variant="h4" fontWeight={900} sx={{ color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
-        {kpi.value.toLocaleString('pt-BR')}
+      <Typography
+        sx={{
+          fontSize: '2rem', fontWeight: 900, lineHeight: 1, mb: 0.5,
+          color: t.color, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em',
+        }}
+      >
+        {kpi.value >= 1000 ? `${(kpi.value / 1000).toFixed(1)}K` : kpi.value.toLocaleString('pt-BR')}
       </Typography>
-      <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.5} mt={0.5}>
-        <Typography variant="caption" sx={{ color, fontWeight: 700 }}>
-          {arrow}
-        </Typography>
-        {kpi.previous_value !== null && (
-          <Typography variant="caption" color="text.disabled">
-            ant. {kpi.previous_value.toLocaleString('pt-BR')}
-          </Typography>
-        )}
-      </Stack>
-      <Typography variant="caption" fontWeight={700} display="block" sx={{ mt: 0.5, textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: '0.08em', color: 'text.secondary' }}>
-        {kpi.label}
-      </Typography>
-      {kpi.context && (
-        <Typography variant="caption" color="text.disabled" display="block" sx={{ mt: 0.5, fontStyle: 'italic', fontSize: '0.65rem' }}>
-          {kpi.context}
+
+      {kpi.previous_value !== null && (
+        <Typography sx={{ fontSize: '10px', fontWeight: 700, color: t.color, mb: 0.75 }}>
+          {t.arrow} ant. {kpi.previous_value >= 1000
+            ? `${(kpi.previous_value / 1000).toFixed(1)}K`
+            : kpi.previous_value.toLocaleString('pt-BR')}
+          {pct !== null ? ` (${pct > 0 ? '+' : ''}${pct}%)` : ''}
         </Typography>
       )}
+
+      <Typography sx={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: 'text.disabled' }}>
+        {kpi.label}
+      </Typography>
     </Paper>
   );
 }
 
+// ─── Channel section ──────────────────────────────────────────────────────────
+
 function ChannelSection({ channel }: { channel: Channel }) {
   return (
-    <Box>
-      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
-        {channel.label || channel.platform}
-      </Typography>
+    <Box sx={{ mb: 3.5 }}>
+      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+        <PlatformIcon platform={channel.platform} />
+        <Typography variant="h6" fontWeight={800} sx={{ fontSize: '16px' }}>
+          {channel.label || channel.platform}
+        </Typography>
+      </Stack>
       <Grid container spacing={1.5}>
         {channel.kpis.map((kpi) => (
-          <Grid key={kpi.key} size={{ xs: 6, md: 3 }}>
+          <Grid key={kpi.key} size={{ xs: 6, sm: 3 }}>
             <KpiCard kpi={kpi} />
           </Grid>
         ))}
@@ -106,38 +192,55 @@ function ChannelSection({ channel }: { channel: Channel }) {
   );
 }
 
-function DeliverableCard({ item }: { item: FeaturedDeliverable }) {
+// ─── Deliverable card ─────────────────────────────────────────────────────────
+
+const DELIVERABLE_THUMBS = [
+  'linear-gradient(135deg, #f9ce34, #ee2a7b, #6228d7)',
+  'linear-gradient(135deg, #5D87FF, #7ca8ff)',
+  'linear-gradient(135deg, #13DEB9, #4fe8d0)',
+  'linear-gradient(135deg, #7460EE, #9d8ff0)',
+  'linear-gradient(135deg, #ff6600, #ff9933)',
+];
+
+function DeliverableCard({ item, index }: { item: FeaturedDeliverable; index: number }) {
+  const thumb = DELIVERABLE_THUMBS[index % DELIVERABLE_THUMBS.length];
   return (
     <Paper
       elevation={0}
-      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}
+      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,.05)' }}
     >
-      {item.image_url && (
+      {item.image_url ? (
         <Box
           sx={{
-            height: 140,
-            bgcolor: 'grey.100',
-            backgroundImage: `url(${item.image_url})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            height: 130, backgroundImage: `url(${item.image_url})`,
+            backgroundSize: 'cover', backgroundPosition: 'center',
           }}
         />
-      )}
-      {!item.image_url && (
-        <Box sx={{ height: 140, bgcolor: 'grey.100', borderRadius: 0 }} />
+      ) : (
+        <Box
+          sx={{
+            height: 130, background: thumb,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '44px',
+          }}
+        >
+          🎯
+        </Box>
       )}
       <Box sx={{ p: 2 }}>
         <Chip
           label={item.category}
           size="small"
-          color="primary"
-          variant="outlined"
-          sx={{ mb: 1, fontWeight: 700, fontSize: '0.65rem' }}
+          sx={{
+            mb: 1, fontWeight: 700, fontSize: '10px',
+            bgcolor: alpha('#5D87FF', 0.1), color: '#5D87FF',
+            height: 22,
+          }}
         />
-        <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+        <Typography variant="subtitle2" fontWeight={800} gutterBottom sx={{ fontSize: '13px' }}>
           {item.title}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
           {item.description}
         </Typography>
       </Box>
@@ -145,7 +248,54 @@ function DeliverableCard({ item }: { item: FeaturedDeliverable }) {
   );
 }
 
-// ─── main component ───────────────────────────────────────────────────────────
+// ─── Section title ────────────────────────────────────────────────────────────
+
+function SectionTitle({ children, number }: { children: React.ReactNode; number?: number }) {
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2.5 }}>
+      {number !== undefined && (
+        <Box
+          sx={{
+            width: 22, height: 22, borderRadius: '6px',
+            background: 'linear-gradient(135deg, #5D87FF, #7ca8ff)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+            {number}
+          </Typography>
+        </Box>
+      )}
+      {number === undefined && (
+        <Box sx={{ width: 4, height: 14, borderRadius: '2px', bgcolor: '#5D87FF', flexShrink: 0 }} />
+      )}
+      <Typography sx={{ fontSize: '10px', fontWeight: 800, letterSpacing: '.15em', textTransform: 'uppercase', color: 'text.disabled' }}>
+        {children}
+      </Typography>
+    </Stack>
+  );
+}
+
+// ─── Numbered section card ────────────────────────────────────────────────────
+
+function SectionCard({ children, sx = {} }: { children: React.ReactNode; sx?: object }) {
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        border: '1px solid', borderColor: 'divider',
+        borderRadius: '16px', p: { xs: '24px', md: '28px 32px' },
+        boxShadow: '0 2px 12px rgba(0,0,0,.04)',
+        ...sx,
+      }}
+    >
+      {children}
+    </Paper>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 type Props =
   | { mode: 'portal'; params: Promise<{ month: string }>; report?: never; token?: never }
@@ -153,12 +303,11 @@ type Props =
 
 export default function ReportViewerClient(props: Props) {
   const [report, setReport] = useState<MonthlyReport | null>(props.mode === 'public' ? props.report : null);
-  const [loading, setLoading] = useState(props.mode === 'portal');
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading]     = useState(props.mode === 'portal');
+  const [error, setError]         = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
-  const [approved, setApproved] = useState(false);
+  const [approved, setApproved]   = useState(false);
 
-  // resolve params in portal mode
   const resolvedParams = props.mode === 'portal' ? use(props.params) : null;
   const month = resolvedParams?.month ?? null;
 
@@ -184,325 +333,682 @@ export default function ReportViewerClient(props: Props) {
     }
   }
 
-  if (loading) {
-    return (
-      <Stack alignItems="center" justifyContent="center" py={10}>
-        <CircularProgress size={28} />
-      </Stack>
-    );
-  }
+  if (loading) return (
+    <Stack alignItems="center" justifyContent="center" py={10}><CircularProgress size={28} /></Stack>
+  );
 
-  if (error && !report) {
-    return (
-      <Box sx={{ maxWidth: 860, mx: 'auto', px: { xs: 2, md: 3 }, py: 4 }}>
-        <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>
-      </Box>
-    );
-  }
+  if (error && !report) return (
+    <Box sx={{ maxWidth: 860, mx: 'auto', px: { xs: 2, md: 4 }, py: 4 }}>
+      <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>
+    </Box>
+  );
 
-  if (!report) {
-    return (
-      <Box sx={{ maxWidth: 860, mx: 'auto', px: { xs: 2, md: 3 }, py: 4 }}>
-        <Alert severity="info" sx={{ borderRadius: 2 }}>Relatório não encontrado.</Alert>
-      </Box>
-    );
-  }
+  if (!report) return (
+    <Box sx={{ maxWidth: 860, mx: 'auto', px: { xs: 2, md: 4 }, py: 4 }}>
+      <Alert severity="info" sx={{ borderRadius: 2 }}>Relatório não encontrado.</Alert>
+    </Box>
+  );
 
   const { sections } = report;
   const statusCfg = STATUS_COLOR[sections.status.color];
   const isPending = report.status === 'pending_approval' && props.mode === 'portal';
 
+  // optional new fields (backward-compatible)
+  const facts              = sections.status.facts              ?? [];
+  const attention          = sections.status.attention          ?? null;
+  const execCtx            = sections.executive_context         ?? null;
+  const categories         = sections.deliverables.categories   ?? [];
+  const businessImpact     = sections.business_impact           ?? null;
+  const kpiNarrative       = sections.metrics.kpi_narrative     ?? null;
+  const pipeline           = sections.next_steps.pipeline       ?? null;
+  const synthesis          = sections.synthesis                 ?? null;
+
+  let sectionNum = 1;
+
   return (
-    <Box sx={{ bgcolor: 'background.paper', minHeight: '100vh' }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       <Box sx={{ maxWidth: 860, mx: 'auto', px: { xs: 2, md: 4 }, py: { xs: 3, md: 5 } }}>
-        <Stack spacing={5}>
+        <Stack spacing={3.5}>
 
-          {/* ── Portal approval banner ── */}
+          {/* ── Approval banner ── */}
           {isPending && !approved && (
-            <Alert
-              severity="warning"
-              sx={{ borderRadius: 2 }}
-              action={
-                <Button
-                  color="warning"
-                  variant="contained"
-                  size="small"
-                  disabled={approving}
-                  startIcon={approving ? <CircularProgress size={14} color="inherit" /> : <IconCircleCheck size={16} />}
-                  onClick={handleApprove}
-                  sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
-                >
-                  Aprovar relatório
-                </Button>
-              }
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #FFAE1F, #ffd166)',
+                borderRadius: '12px',
+                p: '14px 20px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                flexWrap: 'wrap', gap: 1.5,
+                boxShadow: '0 4px 16px rgba(255,174,31,.22)',
+              }}
             >
-              Este relatório aguarda sua aprovação antes de ir para a diretoria.
-            </Alert>
-          )}
-
-          {approved && (
-            <Alert severity="success" sx={{ borderRadius: 2 }}>
-              Relatório aprovado com sucesso!
-            </Alert>
-          )}
-
-          {error && (
-            <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert>
-          )}
-
-          {/* ── Hero ── */}
-          <Box>
-            <Typography
-              variant="overline"
-              color="text.disabled"
-              sx={{ letterSpacing: '0.12em', fontSize: '0.65rem' }}
-            >
-              RELATÓRIO DE COMUNICAÇÃO · {formatPeriodShort(report.period_month)}
-            </Typography>
-            <Typography variant="h3" fontWeight={900} sx={{ mt: 0.5, letterSpacing: '-0.02em' }}>
-              {report.client_name}
-            </Typography>
-
-            {/* Status row */}
-            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mt: 2 }}>
-              <Box
-                sx={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: '50%',
-                  bgcolor: statusCfg.bg,
-                  flexShrink: 0,
-                  boxShadow: `0 0 0 4px ${alpha(statusCfg.bg, 0.18)}`,
-                }}
-              />
-              <Typography variant="body1" color="text.secondary">
-                Status:{' '}
-                <Box component="span" sx={{ fontWeight: 700, color: statusCfg.bg }}>
-                  {statusCfg.label}
-                </Box>{' '}
-                — {statusCfg.text}
+              <Typography sx={{ fontSize: '13px', fontWeight: 700, color: '#7a4800' }}>
+                ⚠️ Este relatório aguarda sua aprovação antes de ir para a diretoria.
               </Typography>
-            </Stack>
+              <Button
+                variant="contained"
+                size="small"
+                disabled={approving}
+                startIcon={approving ? <CircularProgress size={14} color="inherit" /> : <IconCircleCheck size={16} />}
+                onClick={handleApprove}
+                sx={{
+                  bgcolor: '#fff', color: '#b87600', fontWeight: 800,
+                  '&:hover': { bgcolor: alpha('#fff', 0.9) },
+                  boxShadow: '0 2px 8px rgba(0,0,0,.1)',
+                }}
+              >
+                Aprovar relatório
+              </Button>
+            </Box>
+          )}
 
-            <Divider sx={{ mt: 2.5 }} />
-          </Box>
+          {approved && <Alert severity="success" sx={{ borderRadius: 2 }}>Relatório aprovado com sucesso!</Alert>}
+          {error     && <Alert severity="error"   sx={{ borderRadius: 2 }}>{error}</Alert>}
 
-          {/* ── Bloco 1: O mês em uma frase ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── Hero ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
           <Box
             sx={{
-              bgcolor: statusCfg.light,
-              borderRadius: 3,
-              p: { xs: 3, md: 4 },
-              textAlign: 'center',
+              background: 'linear-gradient(135deg, #ff6600 0%, #ff8533 50%, #ffaa55 100%)',
+              borderRadius: '16px',
+              p: { xs: '28px 24px', md: '32px 36px' },
+              color: '#fff',
+              position: 'relative', overflow: 'hidden',
+              boxShadow: '0 8px 32px rgba(255,102,0,.25)',
             }}
           >
-            <Typography
-              variant="overline"
-              color="text.disabled"
-              sx={{ letterSpacing: '0.12em', fontSize: '0.65rem' }}
+            <Box sx={{ position: 'absolute', top: -80, right: -60, width: 280, height: 280, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.08)' }} />
+            <Box sx={{ position: 'absolute', bottom: -60, right: 60, width: 160, height: 160, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.06)' }} />
+
+            <Box
+              sx={{
+                display: 'inline-flex', alignItems: 'center', gap: 0.75,
+                bgcolor: 'rgba(255,255,255,.2)', backdropFilter: 'blur(6px)',
+                borderRadius: '100px', px: 1.75, py: 0.5,
+                fontSize: '10px', fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase',
+                mb: 1.5,
+              }}
             >
-              SÍNTESE DO MÊS
-            </Typography>
-            <Box sx={{ my: 1.5, display: 'flex', justifyContent: 'center' }}>
-              <IconSparkles size={36} color={statusCfg.bg} />
+              📊 Relatório Gerencial de Comunicação
             </Box>
-            <Typography variant="h5" fontWeight={700} sx={{ color: 'text.primary' }}>
-              {sections.status.headline}
+
+            <Typography
+              sx={{ fontSize: { xs: '30px', md: '38px' }, fontWeight: 900, letterSpacing: '-.03em', lineHeight: 1, mb: 0.75, position: 'relative' }}
+            >
+              {report.client_name}
             </Typography>
+            <Typography sx={{ fontSize: '17px', fontWeight: 600, opacity: .85, mb: 2.5, position: 'relative' }}>
+              Consolidado de {formatPeriod(report.period_month)}
+            </Typography>
+
+            <Box
+              sx={{
+                display: 'inline-flex', alignItems: 'center', gap: 1,
+                bgcolor: 'rgba(255,255,255,.18)', borderRadius: '100px',
+                px: 2, py: 0.875, position: 'relative',
+              }}
+            >
+              <Box sx={{
+                width: 10, height: 10, borderRadius: '50%',
+                bgcolor: statusCfg.bg,
+                boxShadow: `0 0 0 3px ${alpha(statusCfg.bg, 0.4)}`,
+              }} />
+              <Typography sx={{ fontSize: '13px', fontWeight: 700 }}>
+                Status {statusCfg.label} — {statusCfg.text}
+              </Typography>
+            </Box>
           </Box>
 
-          {/* ── Bloco 2: Entregas em destaque ── */}
-          <Box>
-            <Typography
-              variant="overline"
-              color="text.disabled"
-              sx={{ letterSpacing: '0.12em', fontSize: '0.65rem', mb: 2, display: 'block' }}
-            >
-              O QUE FOI ENTREGUE
-            </Typography>
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 1. Contexto Executivo ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {(execCtx || sections.status.headline) && (
+            <SectionCard>
+              <SectionTitle number={sectionNum++}>Contexto Executivo e Accountability</SectionTitle>
 
-            {sections.deliverables.featured.length > 0 ? (
-              <Grid container spacing={2}>
-                {sections.deliverables.featured.map((item, i) => (
-                  <Grid key={item.job_id ?? i} size={{ xs: 12, sm: 6 }}>
-                    <DeliverableCard item={item} />
-                  </Grid>
-                ))}
-              </Grid>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Nenhuma entrega em destaque registrada.
-              </Typography>
-            )}
+              {sections.status.headline && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    background: 'linear-gradient(135deg, rgba(93,135,255,.06), rgba(19,222,185,.04))',
+                    border: '1px solid', borderColor: alpha('#5D87FF', 0.2),
+                    borderRadius: '12px', p: '16px 20px',
+                    mb: execCtx ? 2.5 : 0,
+                    display: 'flex', gap: 1.5, alignItems: 'flex-start',
+                  }}
+                >
+                  <Box sx={{ color: '#5D87FF', flexShrink: 0, mt: 0.25 }}>
+                    <IconSparkles size={18} />
+                  </Box>
+                  <Typography sx={{ fontSize: '16px', fontWeight: 800, lineHeight: 1.4, color: 'text.primary' }}>
+                    {sections.status.headline}
+                  </Typography>
+                </Paper>
+              )}
 
-            {sections.deliverables.total_count > sections.deliverables.featured.length && (
-              <Typography
-                variant="caption"
-                color="text.disabled"
-                display="block"
-                sx={{ mt: 2, fontStyle: 'italic' }}
+              {execCtx && (
+                <>
+                  {execCtx.focus_areas.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: 'text.disabled', mb: 1 }}>
+                        Foco estratégico do mês
+                      </Typography>
+                      <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                        {execCtx.focus_areas.map((area, i) => (
+                          <Chip
+                            key={i}
+                            label={area}
+                            size="small"
+                            sx={{
+                              fontWeight: 700, fontSize: '11px',
+                              bgcolor: alpha('#ff6600', 0.08), color: '#ff6600',
+                              border: `1px solid ${alpha('#ff6600', 0.2)}`,
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+
+                  <Typography sx={{ fontSize: '14px', lineHeight: 1.7, color: 'text.primary' }}>
+                    {execCtx.execution_narrative}
+                  </Typography>
+                </>
+              )}
+            </SectionCard>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 2. Cenário, Status e Riscos ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {(facts.length > 0 || attention) && (
+            <SectionCard>
+              <SectionTitle number={sectionNum++}>Cenário, Status e Riscos</SectionTitle>
+
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                <Box
+                  sx={{
+                    display: 'inline-flex', alignItems: 'center', gap: 1,
+                    bgcolor: statusCfg.light,
+                    border: `1px solid ${alpha(statusCfg.bg, 0.25)}`,
+                    borderRadius: '100px', px: 2, py: 0.75,
+                  }}
+                >
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: statusCfg.bg }} />
+                  <Typography sx={{ fontSize: '12px', fontWeight: 800, color: statusCfg.bg }}>
+                    Status {statusCfg.label} — {statusCfg.text}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              {facts.length > 0 && (
+                <Box sx={{ mb: attention ? 2.5 : 0 }}>
+                  <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: 'text.disabled', mb: 1.5 }}>
+                    Fatos Relevantes
+                  </Typography>
+                  <Stack spacing={0.75}>
+                    {facts.map((fact, i) => (
+                      <Stack key={i} direction="row" spacing={1.5} alignItems="flex-start">
+                        <Box
+                          sx={{
+                            width: 20, height: 20, borderRadius: '6px',
+                            bgcolor: alpha('#13DEB9', 0.1),
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0, mt: '1px',
+                          }}
+                        >
+                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#13DEB9' }} />
+                        </Box>
+                        <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{fact}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {attention && (
+                <Box
+                  sx={{
+                    bgcolor: alpha('#FFAE1F', 0.06),
+                    border: '1px solid', borderColor: alpha('#FFAE1F', 0.3),
+                    borderLeft: '4px solid #FFAE1F',
+                    borderRadius: '12px', p: '12px 16px',
+                    display: 'flex', gap: 1.5, alignItems: 'flex-start',
+                  }}
+                >
+                  <Box sx={{ color: '#FFAE1F', flexShrink: 0, mt: 0.2 }}>
+                    <IconAlertTriangle size={16} />
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#FFAE1F', mb: 0.5 }}>
+                      Ponto de Atenção
+                    </Typography>
+                    <Typography variant="body2">{attention}</Typography>
+                  </Box>
+                </Box>
+              )}
+            </SectionCard>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 3. Detalhamento das Entregas ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {sections.deliverables.total_count > 0 && (
+            <SectionCard>
+              <SectionTitle number={sectionNum++}>O Detalhamento das Entregas</SectionTitle>
+
+              {/* Total count badge */}
+              <Box
+                sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: 1.5,
+                  bgcolor: alpha('#5D87FF', 0.06),
+                  border: `1px solid ${alpha('#5D87FF', 0.18)}`,
+                  borderRadius: '12px', px: 2.5, py: 1.25,
+                  mb: categories.length > 0 || sections.deliverables.featured.length > 0 ? 2.5 : 0,
+                }}
               >
-                Além desses destaques,{' '}
-                {sections.deliverables.total_count - sections.deliverables.featured.length} outros itens foram concluídos no mês.
-              </Typography>
-            )}
-          </Box>
+                <Typography sx={{ fontSize: '2rem', fontWeight: 900, color: '#5D87FF', lineHeight: 1 }}>
+                  {sections.deliverables.total_count}
+                </Typography>
+                <Typography sx={{ fontSize: '13px', color: 'text.secondary', lineHeight: 1.3 }}>
+                  {sections.deliverables.total_count === 1 ? 'ação concluída' : 'ações concluídas'}<br />
+                  <span style={{ fontSize: '11px' }}>no período</span>
+                </Typography>
+              </Box>
 
-          {/* ── Bloco 3: Performance de canal ── */}
-          <Box>
-            <Typography
-              variant="overline"
-              color="text.disabled"
-              sx={{ letterSpacing: '0.12em', fontSize: '0.65rem', mb: 2, display: 'block' }}
-            >
-              PERFORMANCE DE CANAL
-            </Typography>
+              {/* Categorised deliverables */}
+              {categories.length > 0 && (
+                <Stack spacing={2} sx={{ mb: sections.deliverables.featured.length > 0 ? 2.5 : 0 }}>
+                  {categories.map((cat: DeliverableCategory, ci: number) => (
+                    <Box key={ci}>
+                      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                        <Box
+                          sx={{
+                            width: 24, height: 24, borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #5D87FF, #7ca8ff)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#fff' }}>
+                            {ci + 1}
+                          </Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: 'text.secondary' }}>
+                          {cat.label}
+                        </Typography>
+                      </Stack>
+                      <Stack spacing={0.5} sx={{ pl: 4 }}>
+                        {cat.items.map((item: string, ii: number) => (
+                          <Stack key={ii} direction="row" spacing={1} alignItems="flex-start">
+                            <Typography sx={{ color: '#5D87FF', fontSize: '14px', lineHeight: 1.5, flexShrink: 0 }}>•</Typography>
+                            <Typography variant="body2" sx={{ lineHeight: 1.55 }}>{item}</Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
 
-            {sections.metrics.channels.length > 0 ? (
-              <Stack spacing={3}>
-                {sections.metrics.channels.map((channel, i) => (
-                  <ChannelSection key={channel.platform + i} channel={channel} />
+              {/* Featured deliverables (cards with images) */}
+              {sections.deliverables.featured.length > 0 && (
+                <Grid container spacing={2}>
+                  {sections.deliverables.featured.map((item, i) => (
+                    <Grid key={(item as FeaturedDeliverable).job_id ?? i} size={{ xs: 12, sm: 6 }}>
+                      <DeliverableCard item={item as FeaturedDeliverable} index={i} />
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+
+              {/* Extra count */}
+              {categories.length === 0 && sections.deliverables.featured.length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  {sections.deliverables.total_count} {sections.deliverables.total_count === 1 ? 'item concluído' : 'itens concluídos'} no período.
+                </Typography>
+              )}
+            </SectionCard>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 4. Impacto no Negócio ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {businessImpact && businessImpact.length > 0 && (
+            <SectionCard>
+              <SectionTitle number={sectionNum++}>Impacto no Negócio</SectionTitle>
+              <Stack spacing={2}>
+                {businessImpact.map((item: BusinessImpactItem, i: number) => (
+                  <Box
+                    key={i}
+                    sx={{
+                      display: 'flex', gap: 2, alignItems: 'flex-start',
+                      p: '16px 18px',
+                      bgcolor: i === 0 ? alpha('#ff6600', 0.04) : alpha('#5D87FF', 0.03),
+                      border: '1px solid',
+                      borderColor: i === 0 ? alpha('#ff6600', 0.15) : alpha('#5D87FF', 0.12),
+                      borderRadius: '12px',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 36, height: 36, borderRadius: '10px', flexShrink: 0,
+                        background: i === 0
+                          ? 'linear-gradient(135deg, #ff6600, #ff9933)'
+                          : i === 1
+                            ? 'linear-gradient(135deg, #5D87FF, #7ca8ff)'
+                            : 'linear-gradient(135deg, #13DEB9, #4fe8d0)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: `0 4px 10px ${alpha(i === 0 ? '#ff6600' : '#5D87FF', 0.3)}`,
+                      }}
+                    >
+                      {i === 0
+                        ? <IconRocket size={18} color="#fff" />
+                        : i === 1
+                          ? <IconTrendingUp size={18} color="#fff" />
+                          : <IconTarget size={18} color="#fff" />}
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontSize: '14px', fontWeight: 800, mb: 0.5 }}>{item.title}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.65 }}>{item.description}</Typography>
+                    </Box>
+                  </Box>
                 ))}
               </Stack>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Nenhuma métrica de canal disponível para este período.
-              </Typography>
-            )}
+            </SectionCard>
+          )}
 
-            {sections.metrics.insight && (
-              <Paper
-                elevation={0}
-                sx={{
-                  mt: 2.5,
-                  p: 2,
-                  border: '1px solid',
-                  borderColor: 'primary.light',
-                  borderRadius: 2,
-                  bgcolor: alpha('#5D87FF', 0.04),
-                  display: 'flex',
-                  gap: 1.5,
-                  alignItems: 'flex-start',
-                }}
-              >
-                <Box sx={{ color: 'primary.main', flexShrink: 0, mt: 0.25 }}>
-                  <IconBulb size={18} />
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 5. Performance e KPIs ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {sections.metrics.channels.length > 0 && (
+            <SectionCard>
+              <SectionTitle number={sectionNum++}>Performance e KPIs</SectionTitle>
+
+              {sections.metrics.channels.map((channel, i) => (
+                <ChannelSection key={channel.platform + i} channel={channel} />
+              ))}
+
+              {/* KPI narrative — "what the numbers mean" */}
+              {kpiNarrative && (
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    bgcolor: alpha('#7460EE', 0.05),
+                    border: '1px solid', borderColor: alpha('#7460EE', 0.2),
+                    borderLeft: '4px solid #7460EE',
+                    borderRadius: '12px', p: '14px 18px',
+                    display: 'flex', gap: 1.5, alignItems: 'flex-start',
+                  }}
+                >
+                  <Box sx={{ color: '#7460EE', flexShrink: 0, mt: 0.25 }}><IconSparkles size={16} /></Box>
+                  <Box>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#7460EE', mb: 0.5 }}>
+                      Leitura Estratégica dos Números
+                    </Typography>
+                    <Typography variant="body2" sx={{ lineHeight: 1.65 }}>{kpiNarrative}</Typography>
+                  </Box>
                 </Box>
-                <Typography variant="body2" color="text.primary">
-                  {sections.metrics.insight}
-                </Typography>
-              </Paper>
-            )}
-          </Box>
+              )}
 
-          {/* ── Bloco 4: Próximos 30 dias ── */}
-          <Box>
-            <Typography
-              variant="overline"
-              color="text.disabled"
-              sx={{ letterSpacing: '0.12em', fontSize: '0.65rem', mb: 2, display: 'block' }}
-            >
-              PRÓXIMOS 30 DIAS
-            </Typography>
+              {/* Standard metrics insight */}
+              {sections.metrics.insight && (
+                <Box
+                  sx={{
+                    mt: 1.5,
+                    bgcolor: alpha('#5D87FF', 0.05),
+                    border: '1px solid', borderColor: alpha('#5D87FF', 0.2),
+                    borderLeft: '4px solid #5D87FF',
+                    borderRadius: '12px', p: 2,
+                    display: 'flex', gap: 1.5, alignItems: 'flex-start',
+                  }}
+                >
+                  <Box sx={{ color: '#5D87FF', flexShrink: 0, mt: 0.25 }}><IconBulb size={18} /></Box>
+                  <Typography variant="body2" sx={{ lineHeight: 1.65 }}>
+                    {sections.metrics.insight}
+                  </Typography>
+                </Box>
+              )}
+            </SectionCard>
+          )}
 
-            {/* Prioridades */}
-            {sections.next_steps.priorities.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-                  Prioridades
-                </Typography>
-                <Stack spacing={1.5}>
-                  {sections.next_steps.priorities.map((p: Priority, i: number) => (
-                    <Stack key={i} direction="row" spacing={2} alignItems="flex-start">
-                      <Typography
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 6. Prioridades do Mês Corrente ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {sections.next_steps.priorities.length > 0 && (
+            <SectionCard>
+              <SectionTitle number={sectionNum++}>Prioridades do Próximo Mês</SectionTitle>
+              <Stack spacing={1.5}>
+                {sections.next_steps.priorities.map((p: Priority, i: number) => (
+                  <Box
+                    key={i}
+                    sx={{
+                      display: 'flex', gap: 2, alignItems: 'flex-start',
+                      border: '1px solid', borderColor: 'divider',
+                      borderRadius: '14px', p: '16px 18px',
+                      boxShadow: '0 2px 10px rgba(0,0,0,.04)',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 38, height: 38, borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #5D87FF, #7ca8ff)',
+                        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '16px', fontWeight: 900, flexShrink: 0,
+                      }}
+                    >
+                      {String(i + 1).padStart(2, '0')}
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontSize: '14px', fontWeight: 800, mb: 0.4 }}>{p.title}</Typography>
+                      <Typography variant="body2" color="text.secondary">{p.description}</Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Stack>
+
+              {/* Director action */}
+              {sections.next_steps.director_action && (
+                <Box
+                  sx={{
+                    mt: 2.5,
+                    background: 'linear-gradient(135deg, rgba(93,135,255,.07), rgba(93,135,255,.02))',
+                    border: '2px solid #5D87FF',
+                    borderRadius: '14px', p: { xs: '20px', md: '20px 24px' },
+                    position: 'relative', overflow: 'hidden',
+                    '&::after': { content: '"⚡"', position: 'absolute', right: '20px', top: '16px', fontSize: '28px', opacity: .12 },
+                  }}
+                >
+                  <Typography sx={{ fontSize: '10px', fontWeight: 800, letterSpacing: '.15em', textTransform: 'uppercase', color: '#5D87FF', mb: 1, display: 'block' }}>
+                    ⚡ Ação do Diretor
+                  </Typography>
+                  <Typography sx={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.5 }}>
+                    {sections.next_steps.director_action}
+                  </Typography>
+                </Box>
+              )}
+            </SectionCard>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 7. Previsibilidade & Pipeline ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {(sections.next_steps.risks.length > 0 || pipeline) && (
+            <SectionCard>
+              <SectionTitle number={sectionNum++}>Previsibilidade e Pipeline</SectionTitle>
+
+              {/* Pipeline */}
+              {pipeline && (
+                <Box sx={{ mb: sections.next_steps.risks.length > 0 ? 3 : 0 }}>
+                  <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: 'text.disabled', mb: 1.5 }}>
+                    Pipeline de Iniciativas
+                  </Typography>
+                  <Stack spacing={1}>
+                    {pipeline.short && (
+                      <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                        <Box
+                          sx={{
+                            width: 72, height: 22, borderRadius: '6px', flexShrink: 0,
+                            bgcolor: alpha('#13DEB9', 0.1),
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >
+                          <Typography sx={{ fontSize: '9px', fontWeight: 800, color: '#13DEB9', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                            Curto
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{pipeline.short}</Typography>
+                      </Stack>
+                    )}
+                    {pipeline.medium && (
+                      <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                        <Box
+                          sx={{
+                            width: 72, height: 22, borderRadius: '6px', flexShrink: 0,
+                            bgcolor: alpha('#FFAE1F', 0.1),
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >
+                          <Typography sx={{ fontSize: '9px', fontWeight: 800, color: '#D97706', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                            Médio
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{pipeline.medium}</Typography>
+                      </Stack>
+                    )}
+                    {pipeline.long && (
+                      <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                        <Box
+                          sx={{
+                            width: 72, height: 22, borderRadius: '6px', flexShrink: 0,
+                            bgcolor: alpha('#7460EE', 0.1),
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >
+                          <Typography sx={{ fontSize: '9px', fontWeight: 800, color: '#7460EE', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                            Longo
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{pipeline.long}</Typography>
+                      </Stack>
+                    )}
+                  </Stack>
+
+                  {pipeline.risk_window && (
+                    <Box
+                      sx={{
+                        mt: 1.5,
+                        bgcolor: alpha('#FA896B', 0.05),
+                        border: '1px solid', borderColor: alpha('#FA896B', 0.2),
+                        borderLeft: '4px solid #FA896B',
+                        borderRadius: '10px', p: '12px 16px',
+                        display: 'flex', gap: 1.5, alignItems: 'flex-start',
+                      }}
+                    >
+                      <Box sx={{ color: '#FA896B', flexShrink: 0, mt: 0.1 }}><IconClockHour4 size={15} /></Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#FA896B', mb: 0.4 }}>
+                          Janela de Risco
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontSize: '12px' }}>{pipeline.risk_window}</Typography>
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              {/* Risks */}
+              {sections.next_steps.risks.length > 0 && (
+                <Box>
+                  {pipeline && (
+                    <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: 'text.disabled', mb: 1.5 }}>
+                      Riscos Identificados
+                    </Typography>
+                  )}
+                  <Stack spacing={1}>
+                    {sections.next_steps.risks.map((r: Risk, i: number) => (
+                      <Box
+                        key={i}
                         sx={{
-                          fontWeight: 900,
-                          fontSize: '1.1rem',
-                          color: 'primary.main',
-                          minWidth: 28,
-                          lineHeight: 1.3,
-                          fontVariantNumeric: 'tabular-nums',
+                          bgcolor: alpha('#FA896B', 0.05),
+                          border: '1px solid', borderColor: alpha('#FA896B', 0.2),
+                          borderLeft: '4px solid #FA896B',
+                          borderRadius: '12px', p: '14px 18px',
+                          display: 'flex', gap: 1.5, alignItems: 'flex-start',
                         }}
                       >
-                        {String(i + 1).padStart(2, '0')}
-                      </Typography>
-                      <Box>
-                        <Typography variant="subtitle2" fontWeight={700}>{p.title}</Typography>
-                        <Typography variant="body2" color="text.secondary">{p.description}</Typography>
-                      </Box>
-                    </Stack>
-                  ))}
-                </Stack>
-              </Box>
-            )}
-
-            {/* Riscos */}
-            {sections.next_steps.risks.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-                  Riscos
-                </Typography>
-                <Stack spacing={1}>
-                  {sections.next_steps.risks.map((r: Risk, i: number) => (
-                    <Paper
-                      key={i}
-                      elevation={0}
-                      sx={{ p: 1.5, border: '1px solid', borderColor: 'error.light', borderRadius: 2 }}
-                    >
-                      <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                        <Box sx={{ color: 'error.main', flexShrink: 0, mt: 0.2 }}>
-                          <IconAlertTriangle size={16} />
-                        </Box>
-                        <Box sx={{ flex: 1 }}>
+                        <Box sx={{ color: '#FA896B', flexShrink: 0, mt: 0.2 }}><IconAlertTriangle size={16} /></Box>
+                        <Box>
                           <Typography variant="body2">{r.description}</Typography>
-                          <Box sx={{ mt: 0.5 }}>
-                            <Chip
-                              size="small"
-                              label={`Responsável: ${r.owner}`}
-                              variant="outlined"
-                              sx={{ fontSize: '0.65rem', height: 20 }}
-                            />
-                          </Box>
+                          <Chip
+                            size="small"
+                            label={`Responsável: ${r.owner}`}
+                            variant="outlined"
+                            sx={{ mt: 0.75, fontSize: '10px', height: 20 }}
+                          />
                         </Box>
-                      </Stack>
-                    </Paper>
-                  ))}
-                </Stack>
-              </Box>
-            )}
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+            </SectionCard>
+          )}
 
-            {/* Ação do diretor */}
-            {sections.next_steps.director_action && (
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2.5,
-                  border: '2px solid',
-                  borderColor: 'primary.main',
-                  borderRadius: 2,
-                  bgcolor: alpha('#5D87FF', 0.03),
-                }}
-              >
-                <Typography
-                  variant="overline"
-                  sx={{ fontSize: '0.6rem', letterSpacing: '0.12em', color: 'primary.main', display: 'block', mb: 0.75 }}
-                >
-                  AÇÃO DO DIRETOR
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* ── 8. Síntese e Fechamento ── */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {synthesis && (
+            <SectionCard
+              sx={{
+                background: 'linear-gradient(135deg, rgba(93,135,255,.05) 0%, rgba(116,96,238,.03) 100%)',
+                border: '1px solid', borderColor: alpha('#5D87FF', 0.2),
+              }}
+            >
+              <SectionTitle number={sectionNum++}>Consolidação e Fechamento</SectionTitle>
+              <Stack spacing={0.75} sx={{ mb: 2.5 }}>
+                <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.12em', color: '#5D87FF', mb: 0.5 }}>
+                  Síntese do Mês
                 </Typography>
-                <Typography variant="body1" fontWeight={500}>
-                  {sections.next_steps.director_action}
+                <Typography sx={{ fontSize: '14px', lineHeight: 1.75, color: 'text.primary' }}>
+                  {synthesis}
                 </Typography>
-              </Paper>
-            )}
-          </Box>
+              </Stack>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Next-steps summary chips */}
+              {sections.next_steps.priorities.length > 0 && (
+                <Box>
+                  <Typography sx={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: 'text.disabled', mb: 1.25 }}>
+                    Próximos Passos ({formatPeriod(report.period_month).split(' ')[0] + ' →'})
+                  </Typography>
+                  <Stack spacing={0.75}>
+                    {sections.next_steps.priorities.map((p: Priority, i: number) => (
+                      <Stack key={i} direction="row" spacing={1.5} alignItems="flex-start">
+                        <Typography sx={{ fontWeight: 900, fontSize: '13px', color: '#5D87FF', minWidth: 20, lineHeight: '20px' }}>
+                          {i + 1}.
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.title}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+            </SectionCard>
+          )}
 
           {/* ── Rodapé ── */}
-          <Box>
-            <Divider sx={{ mb: 2 }} />
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={0.5}>
-              <Typography variant="caption" color="text.disabled">
-                Relatório elaborado por Edro Studio · {formatPeriod(report.period_month)}
-              </Typography>
+          <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2.5 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={0.5}>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#ff6600' }} />
+                <Typography sx={{ fontSize: '12px', fontWeight: 800 }}>Edro Studio</Typography>
+                <Typography variant="caption" color="text.disabled">
+                  · Relatório Gerencial de Comunicação · {formatPeriod(report.period_month)}
+                </Typography>
+              </Stack>
               {report.published_at && (
                 <Typography variant="caption" color="text.disabled">
                   Publicado em {formatDate(report.published_at)}

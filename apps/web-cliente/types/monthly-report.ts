@@ -26,11 +26,77 @@ export type FeaturedDeliverable = {
 export type Priority = { title: string; description: string };
 export type Risk = { description: string; owner: string };
 
+export type DeliverableCategory = {
+  label: string;
+  items: string[];
+};
+
+export type BusinessImpactItem = {
+  title: string;
+  description: string;
+};
+
+export type Pipeline = {
+  short: string | null;
+  medium: string | null;
+  long: string | null;
+  risk_window: string | null;
+};
+
+export type ExecutiveContext = {
+  execution_narrative: string;
+  focus_areas: string[];
+};
+
 export type ReportSections = {
-  status: { color: 'green' | 'yellow' | 'red'; headline: string; override: boolean };
-  deliverables: { featured: FeaturedDeliverable[]; total_count: number; insight: string | null };
-  metrics: { channels: Channel[]; insight: string | null };
-  next_steps: { priorities: Priority[]; risks: Risk[]; director_action: string | null };
+  // ── Status ───────────────────────────────────────────────────────────────
+  status: {
+    color: 'green' | 'yellow' | 'red';
+    headline: string;
+    override: boolean;
+    /** Bullet points of key highlights / facts of the month */
+    facts?: string[];
+    /** A single "ponto de atenção" warning */
+    attention?: string | null;
+  };
+
+  // ── Executive Context (accountability) ───────────────────────────────────
+  /** Summary of what was executed + focus areas that shaped the month */
+  executive_context?: ExecutiveContext | null;
+
+  // ── Deliverables ──────────────────────────────────────────────────────────
+  deliverables: {
+    featured: FeaturedDeliverable[];
+    total_count: number;
+    insight: string | null;
+    /** Categorised breakdown of all deliverables */
+    categories?: DeliverableCategory[];
+  };
+
+  // ── Business Impact ───────────────────────────────────────────────────────
+  /** How the work moved the needle on actual business outcomes */
+  business_impact?: BusinessImpactItem[] | null;
+
+  // ── Metrics ───────────────────────────────────────────────────────────────
+  metrics: {
+    channels: Channel[];
+    insight: string | null;
+    /** Contextual narrative explaining rises / drops in KPIs */
+    kpi_narrative?: string | null;
+  };
+
+  // ── Next Steps ────────────────────────────────────────────────────────────
+  next_steps: {
+    priorities: Priority[];
+    risks: Risk[];
+    director_action: string | null;
+    /** Short / medium / long pipeline + risk window */
+    pipeline?: Pipeline | null;
+  };
+
+  // ── Synthesis ─────────────────────────────────────────────────────────────
+  /** Closing paragraph that ties everything together */
+  synthesis?: string | null;
 };
 
 export type MonthlyReport = {

@@ -32,26 +32,56 @@ interface Risk {
   owner: string;
 }
 
+interface DeliverableCategory {
+  label: string;
+  items: string[];
+}
+
+interface BusinessImpactItem {
+  title: string;
+  description: string;
+}
+
+interface Pipeline {
+  short: string | null;
+  medium: string | null;
+  long: string | null;
+  risk_window: string | null;
+}
+
+interface ExecutiveContext {
+  execution_narrative: string;
+  focus_areas: string[];
+}
+
 interface ReportSections {
   status: {
     color: 'green' | 'yellow' | 'red';
     headline: string;
     override: boolean;
+    facts: string[];
+    attention: string | null;
   };
+  executive_context: ExecutiveContext | null;
   deliverables: {
     featured: unknown[];
     total_count: number;
+    categories: DeliverableCategory[];
     insight: string | null;
   };
+  business_impact: BusinessImpactItem[] | null;
   metrics: {
     channels: ChannelMetrics[];
     insight: string | null;
+    kpi_narrative: string | null;
   };
   next_steps: {
     priorities: Priority[];
     risks: Risk[];
     director_action: string | null;
+    pipeline: Pipeline | null;
   };
+  synthesis: string | null;
 }
 
 interface MonthlyReport {
@@ -202,24 +232,32 @@ function buildSections(jobs: JobRow[], snapshots: MetricSnapshotRow[], prevSnaps
 
   return {
     status: {
-      color:    statusColor,
-      headline: '',
-      override: false,
+      color:     statusColor,
+      headline:  '',
+      override:  false,
+      facts:     [],
+      attention: null,
     },
+    executive_context: null,
     deliverables: {
       featured:    [],
       total_count: jobs.length,
+      categories:  [],
       insight:     null,
     },
+    business_impact: null,
     metrics: {
       channels,
-      insight: null,
+      insight:       null,
+      kpi_narrative: null,
     },
     next_steps: {
       priorities:      [] as Priority[],
       risks:           [] as Risk[],
       director_action: null,
+      pipeline:        null,
     },
+    synthesis: null,
   };
 }
 
@@ -244,85 +282,169 @@ async function enrichSectionsWithAI(
 
   const period = periodLabel(periodMonth);
 
+  // ── Build context block ──────────────────────────────────────────────────
   const contextLines: string[] = [
     `Período: ${period}`,
     `Total de entregas concluídas: ${jobs.length}`,
   ];
 
   if (jobs.length > 0) {
-    contextLines.push(`Itens entregues: ${jobs.slice(0, 8).map((j) => j.title).join(', ')}`);
+    const byType: Record<string, string[]> = {};
+    for (const j of jobs) {
+      const t = j.job_type ?? 'Outros';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(j.title);
+    }
+    for (const [type, titles] of Object.entries(byType)) {
+      contextLines.push(`  ${type}: ${titles.join(', ')}`);
+    }
   }
 
   if (channels.length > 0) {
+    contextLines.push('\nMétricas por canal:');
     for (const ch of channels) {
       const kpiStr = ch.kpis
         .map((k) => {
-          const prevTxt = k.previous_value !== null ? `, ant: ${k.previous_value.toLocaleString('pt-BR')}` : '';
+          const prevTxt = k.previous_value !== null
+            ? `, ant: ${k.previous_value.toLocaleString('pt-BR')}`
+            : '';
           return `${k.label}: ${k.value.toLocaleString('pt-BR')}${prevTxt} (${k.trend})`;
         })
         .join('; ');
-      contextLines.push(`${ch.label}: ${kpiStr}`);
+      contextLines.push(`  ${ch.label}: ${kpiStr}`);
     }
   } else {
-    contextLines.push('Métricas de canal: não disponíveis');
+    contextLines.push('\nMétricas de canal: não disponíveis neste período');
   }
 
   const context = contextLines.join('\n');
 
-  const prompt = `Você é o analista estratégico de uma agência de comunicação digital. Com base nos dados abaixo, gere o conteúdo para um relatório executivo mensal para o cliente.
+  const prompt = `Você é o analista estratégico sênior de uma agência de comunicação digital de alto desempenho.
+Com base nos dados reais abaixo, gere o conteúdo completo de um relatório executivo mensal para o cliente.
 
+DADOS DO MÊS:
 ${context}
 
-Responda APENAS com JSON válido no seguinte formato:
+Responda APENAS com JSON válido, sem markdown, no seguinte formato:
 {
-  "headline": "string — síntese do mês em 1 frase impactante (máx. 110 chars)",
-  "metrics_insight": "string — 1-2 frases interpretando tendências das métricas (o que subiu/caiu e o que significa para o negócio). Se não há métricas, escreva 'Dados de performance em processamento.'",
+  "headline": "síntese executiva do mês em 1 frase impactante (máx. 110 chars)",
+  "status_facts": [
+    "fato relevante 1 (ex: 'X entregas concluídas com foco em Y')",
+    "fato relevante 2",
+    "fato relevante 3"
+  ],
+  "status_attention": "1 frase sobre o principal ponto de atenção ou risco operacional (null se tudo verde)",
+  "execution_narrative": "2-3 frases descrevendo como foi a execução do mês — o que foi priorizado, como a equipe atuou e qual foi o resultado geral",
+  "focus_areas": [
+    "área estratégica 1 que guiou o mês (ex: 'Expansão B2B')",
+    "área estratégica 2",
+    "área estratégica 3"
+  ],
+  "deliverable_categories": [
+    {
+      "label": "Nome da categoria (ex: 'Infraestrutura', 'Conteúdo Orgânico', 'Materiais Comerciais')",
+      "items": ["item 1", "item 2"]
+    }
+  ],
+  "business_impact": [
+    {
+      "title": "Título do impacto (ex: 'Redução de Custo Operacional')",
+      "description": "1-2 frases explicando o impacto real no negócio do cliente"
+    }
+  ],
+  "kpi_narrative": "2-3 frases explicando o que os números de performance significam na prática — contextualize quedas e altas (se não há métricas, escreva null)",
+  "metrics_insight": "1-2 frases com a principal leitura das métricas para o cliente",
   "priorities": [
-    { "title": "string", "description": "string — máx. 80 chars" }
+    { "title": "Prioridade para o próximo mês", "description": "descrição objetiva (máx. 80 chars)" }
   ],
   "risks": [
-    { "description": "string", "owner": "Equipe Edro" }
-  ]
+    { "description": "descrição do risco", "owner": "Equipe Edro" }
+  ],
+  "director_action": "1 frase sobre a ação que o diretor/cliente precisa tomar (null se não houver)",
+  "pipeline_short": "foco do próximo mês em 1 frase",
+  "pipeline_medium": "foco dos próximos 2-3 meses em 1 frase",
+  "pipeline_long": "visão de longo prazo / posicionamento estratégico em 1 frase",
+  "pipeline_risk_window": "principal janela de risco que pode travar o pipeline (null se não identificado)",
+  "synthesis": "parágrafo de fechamento (3-4 frases) — o que o mês representou, o que foi aprendido e o que isso significa para o próximo ciclo"
 }
 
-Regras:
-- headline: direto, sem rodeios, destaque o resultado mais importante do mês
-- priorities: 2-3 itens para o próximo mês baseados nas entregas e gaps detectados
-- risks: 0-2 riscos reais identificados (omita o array se não houver risco evidente)
-- Resposta em português brasileiro
-- Não invente dados — baseie-se apenas no que foi informado`;
+Regras obrigatórias:
+- Resposta em português brasileiro, tom executivo direto
+- Não invente dados numéricos — baseie-se apenas no que foi informado
+- status_facts: 2-4 bullet points com os fatos mais relevantes do mês
+- deliverable_categories: agrupe as entregas por tipo de trabalho (2-4 categorias)
+- business_impact: 2-3 impactos concretos no negócio do cliente (não na agência)
+- priorities: 2-3 itens para o próximo mês
+- risks: 0-2 riscos reais (omita ou use [] se não houver risco evidente)
+- synthesis: deve ser o parágrafo mais reflexivo e estratégico do relatório`;
 
   try {
-    const result = await generateCompletion({ prompt, maxTokens: 700, temperature: 0.3 });
+    const result = await generateCompletion({ prompt, maxTokens: 2000, temperature: 0.35 });
     const match  = result.text.match(/\{[\s\S]*\}/);
     if (!match) return sections;
 
     const ai = JSON.parse(match[0]) as {
-      headline?:        string;
-      metrics_insight?: string;
-      priorities?:      Priority[];
-      risks?:           Risk[];
+      headline?:               string;
+      status_facts?:           string[];
+      status_attention?:       string | null;
+      execution_narrative?:    string;
+      focus_areas?:            string[];
+      deliverable_categories?: { label: string; items: string[] }[];
+      business_impact?:        { title: string; description: string }[];
+      kpi_narrative?:          string | null;
+      metrics_insight?:        string;
+      priorities?:             Priority[];
+      risks?:                  Risk[];
+      director_action?:        string | null;
+      pipeline_short?:         string | null;
+      pipeline_medium?:        string | null;
+      pipeline_long?:          string | null;
+      pipeline_risk_window?:   string | null;
+      synthesis?:              string | null;
     };
+
+    const str = (v: unknown): string | null =>
+      typeof v === 'string' && v.trim() ? v.trim() : null;
 
     return {
       ...sections,
       status: {
         ...sections.status,
-        headline: typeof ai.headline === 'string' && ai.headline.trim()
-          ? ai.headline.trim()
-          : sections.status.headline,
+        headline:  str(ai.headline)  ?? sections.status.headline,
+        facts:     Array.isArray(ai.status_facts) ? ai.status_facts.slice(0, 5) : [],
+        attention: str(ai.status_attention),
       },
+      executive_context: str(ai.execution_narrative) ? {
+        execution_narrative: str(ai.execution_narrative)!,
+        focus_areas: Array.isArray(ai.focus_areas) ? ai.focus_areas.slice(0, 4) : [],
+      } : null,
+      deliverables: {
+        ...sections.deliverables,
+        categories: Array.isArray(ai.deliverable_categories)
+          ? ai.deliverable_categories.slice(0, 5)
+          : [],
+      },
+      business_impact: Array.isArray(ai.business_impact) && ai.business_impact.length > 0
+        ? ai.business_impact.slice(0, 3)
+        : null,
       metrics: {
         ...sections.metrics,
-        insight: typeof ai.metrics_insight === 'string' && ai.metrics_insight.trim()
-          ? ai.metrics_insight.trim()
-          : null,
+        insight:       str(ai.metrics_insight),
+        kpi_narrative: str(ai.kpi_narrative),
       },
       next_steps: {
         ...sections.next_steps,
-        priorities: Array.isArray(ai.priorities) ? ai.priorities.slice(0, 3) : [],
-        risks:      Array.isArray(ai.risks)      ? ai.risks.slice(0, 2)      : [],
+        priorities:      Array.isArray(ai.priorities) ? ai.priorities.slice(0, 3) : [],
+        risks:           Array.isArray(ai.risks)      ? ai.risks.slice(0, 2)      : [],
+        director_action: str(ai.director_action),
+        pipeline: (ai.pipeline_short || ai.pipeline_medium || ai.pipeline_long) ? {
+          short:        str(ai.pipeline_short),
+          medium:       str(ai.pipeline_medium),
+          long:         str(ai.pipeline_long),
+          risk_window:  str(ai.pipeline_risk_window),
+        } : null,
       },
+      synthesis: str(ai.synthesis),
     };
   } catch {
     // Claude unavailable — return sections without enrichment
