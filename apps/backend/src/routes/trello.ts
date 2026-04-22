@@ -881,7 +881,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
   app.get('/trello/health', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
     const tenantId = request.user?.tenant_id as string;
 
-    const [boardsRes, listsRes, membersRes] = await Promise.all([
+    const [boardsRes, listsRes, membersRes, webhooksRes, outboxRes] = await Promise.all([
       query<{
         id: string; name: string; trello_board_id: string | null;
         client_id: string | null; client_name: string | null;
@@ -927,7 +927,30 @@ export default async function trelloRoutes(app: FastifyInstance) {
         JOIN project_boards pb ON pb.id = pc.board_id
         WHERE pb.tenant_id = $1 AND pcm.email IS NULL
       `, [tenantId]),
+      // Webhook status per board
+      query<{
+        trello_board_id: string; is_active: boolean;
+        last_seen_at: string | null; last_error: string | null;
+      }>(`
+        SELECT trello_board_id, is_active, last_seen_at, last_error
+        FROM trello_webhooks
+        WHERE tenant_id = $1
+      `, [tenantId]),
+      // Outbox backlog
+      query<{ backlog: number; dead: number }>(`
+        SELECT
+          COUNT(*) FILTER (WHERE status IN ('pending','error'))::int AS backlog,
+          COUNT(*) FILTER (WHERE status = 'dead')::int AS dead
+        FROM trello_outbox WHERE tenant_id = $1
+      `, [tenantId]),
     ]);
+
+    // Build webhook lookup by trello_board_id
+    const webhookByBoard: Record<string, { is_active: boolean; last_seen_at: string | null; last_error: string | null }> = {};
+    for (const w of webhooksRes.rows) {
+      webhookByBoard[w.trello_board_id] = { is_active: w.is_active, last_seen_at: w.last_seen_at, last_error: w.last_error };
+    }
+    const outbox = outboxRes.rows[0] ?? { backlog: 0, dead: 0 };
 
     const boards = boardsRes.rows.map((b) => {
       const ageH = Number(b.sync_age_hours ?? Infinity);
@@ -936,7 +959,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
       else if (b.last_sync_status === 'error') sync_status = 'error';
       else if (ageH > 2) sync_status = 'stale';
       else sync_status = 'ok';
-      return { ...b, sync_status };
+      const wh = b.trello_board_id ? webhookByBoard[b.trello_board_id] ?? null : null;
+      return { ...b, sync_status, webhook: wh };
     });
 
     const unmappedLists = listsRes.rows.filter(
@@ -952,9 +976,23 @@ export default async function trelloRoutes(app: FastifyInstance) {
       unlinked_count: boards.filter((b) => !b.client_id).length,
       unmapped_list_count: unmappedLists.length,
       members_without_email: membersRes.rows[0]?.count ?? 0,
+      webhook_active_count: boards.filter((b) => b.webhook?.is_active).length,
+      boards_without_webhook: boards.filter((b) => b.trello_board_id && !b.webhook?.is_active).length,
+      outbox_backlog: outbox.backlog,
+      outbox_dead: outbox.dead,
     };
 
     return reply.send({ boards, unmappedLists, summary });
+  });
+
+  // POST /trello/webhooks/ensure — re-register webhooks for all active boards
+  app.post('/trello/webhooks/ensure', { preHandler: [authGuard, requirePerm('admin')] }, async (request: TR, reply) => {
+    const tenantId = request.user?.tenant_id as string;
+    const { ensureAllWebhooksForTenant } = await import('../services/trelloWebhookService');
+    ensureAllWebhooksForTenant(tenantId).catch((err: any) => {
+      console.warn('[trello/webhooks/ensure] background error:', err?.message);
+    });
+    return reply.send({ success: true, message: 'Webhook registration triggered (background)' });
   });
 
   // GET /trello/list-status-map/:boardId — all lists with current effective status

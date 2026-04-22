@@ -25,6 +25,9 @@ import {
   IconExternalLink,
   IconLinkOff,
   IconTrash,
+  IconBolt,
+  IconAlertTriangle,
+  IconCircleCheck,
 } from '@tabler/icons-react';
 
 type ConnectorStatus = {
@@ -65,6 +68,32 @@ type SyncLog = {
 
 type ClientRow = { id: string; name: string };
 
+type WebhookInfo = { is_active: boolean; last_seen_at: string | null; last_error: string | null } | null;
+
+type TrelloHealthBoard = {
+  id: string;
+  name: string;
+  trello_board_id: string | null;
+  sync_status: 'ok' | 'stale' | 'error' | 'never';
+  webhook: WebhookInfo;
+};
+
+type TrelloHealthSummary = {
+  total_boards: number;
+  ok_count: number;
+  stale_count: number;
+  error_count: number;
+  webhook_active_count: number;
+  boards_without_webhook: number;
+  outbox_backlog: number;
+  outbox_dead: number;
+};
+
+type TrelloHealthData = {
+  boards: TrelloHealthBoard[];
+  summary: TrelloHealthSummary;
+};
+
 const TRELLO_HELP_URL = 'https://trello.com/app-key';
 
 function fmtDate(v?: string | null) {
@@ -85,6 +114,8 @@ export default function TrelloAdminClient() {
   const [projectBoards, setProjectBoards] = useState<ProjectBoard[]>([]);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
+  const [healthData, setHealthData] = useState<TrelloHealthData | null>(null);
+  const [ensuringWebhooks, setEnsuringWebhooks] = useState(false);
 
   // Import dialog state
   const [importing, setImporting] = useState<string | null>(null); // trelloBoardId being imported
@@ -106,6 +137,15 @@ export default function TrelloAdminClient() {
     setSyncLogs(logsData.logs ?? []);
   }, []);
 
+  const loadHealth = useCallback(async () => {
+    try {
+      const data = await apiGet<TrelloHealthData>('/trello/health');
+      setHealthData(data);
+    } catch {
+      // health is non-critical
+    }
+  }, []);
+
   const loadClients = useCallback(async () => {
     const data = await apiGet('/clients?limit=200&status=active');
     setClients(data.clients ?? data.rows ?? []);
@@ -115,7 +155,8 @@ export default function TrelloAdminClient() {
     loadConnector();
     loadProjectBoards();
     loadClients();
-  }, [loadConnector, loadProjectBoards, loadClients]);
+    loadHealth();
+  }, [loadConnector, loadProjectBoards, loadClients, loadHealth]);
 
   async function handleConnect() {
     if (!apiKey.trim() || !apiToken.trim()) return;
@@ -229,7 +270,23 @@ export default function TrelloAdminClient() {
     }
   }
 
+  async function handleEnsureWebhooks() {
+    setEnsuringWebhooks(true);
+    try {
+      await apiPost('/trello/webhooks/ensure', {});
+      setTimeout(() => { loadHealth(); }, 3000);
+    } finally {
+      setEnsuringWebhooks(false);
+    }
+  }
+
   const isConnected = connector?.connected && connector.is_active;
+  const webhookByBoardId: Record<string, WebhookInfo> = {};
+  if (healthData) {
+    for (const b of healthData.boards) {
+      if (b.trello_board_id) webhookByBoardId[b.trello_board_id] = b.webhook;
+    }
+  }
 
   return (
     <AppShell title="Integração Trello">
@@ -449,10 +506,18 @@ export default function TrelloAdminClient() {
                       >
                         <Box>
                           <Typography variant="body2" fontWeight={600}>{board.name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {board.card_count} cards · sync {fmtDate(board.last_synced_at)}
-                            {clientName ? ` · cliente ${clientName}` : ' · sem cliente vinculado'}
-                          </Typography>
+                          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                            <Typography variant="caption" color="text.secondary">
+                              {board.card_count} cards · sync {fmtDate(board.last_synced_at)}
+                              {clientName ? ` · ${clientName}` : ' · sem cliente'}
+                            </Typography>
+                            {board.trello_board_id && (() => {
+                              const wh = webhookByBoardId[board.trello_board_id];
+                              if (!wh) return <Chip size="small" label="sem webhook" sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#fef3c7', color: '#92400e' }} />;
+                              if (wh.is_active) return <Chip size="small" label="webhook ativo" sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#dcfce7', color: '#166534' }} />;
+                              return <Chip size="small" label="webhook inativo" sx={{ height: 16, fontSize: '0.58rem', bgcolor: '#fee2e2', color: '#991b1b' }} />;
+                            })()}
+                          </Stack>
                         </Box>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                           <TextField
@@ -505,6 +570,81 @@ export default function TrelloAdminClient() {
                         </Typography>
                       )}
                     </Box>
+                  );
+                })}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Webhooks em Tempo Real ── */}
+        {isConnected && healthData && (
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconBolt size={18} color="#5D87FF" />
+                  <Typography variant="subtitle1" fontWeight={600}>Webhooks em Tempo Real</Typography>
+                </Stack>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={ensuringWebhooks ? <CircularProgress size={13} /> : <IconRefresh size={15} />}
+                  onClick={handleEnsureWebhooks}
+                  disabled={ensuringWebhooks}
+                >
+                  Re-registrar webhooks
+                </Button>
+              </Stack>
+
+              {/* Summary chips */}
+              <Stack direction="row" spacing={1} flexWrap="wrap" mb={1.5}>
+                <Chip
+                  size="small"
+                  icon={<IconCircleCheck size={13} />}
+                  label={`${healthData.summary.webhook_active_count} ativos`}
+                  color={healthData.summary.webhook_active_count > 0 ? 'success' : 'default'}
+                />
+                {healthData.summary.boards_without_webhook > 0 && (
+                  <Chip
+                    size="small"
+                    icon={<IconAlertTriangle size={13} />}
+                    label={`${healthData.summary.boards_without_webhook} sem webhook`}
+                    color="warning"
+                  />
+                )}
+                {healthData.summary.outbox_backlog > 0 && (
+                  <Tooltip title="Operações Edro→Trello na fila (processadas em segundos)">
+                    <Chip size="small" label={`${healthData.summary.outbox_backlog} na fila`} color="info" />
+                  </Tooltip>
+                )}
+                {healthData.summary.outbox_dead > 0 && (
+                  <Tooltip title="Operações com falha permanente — verificar trello_outbox">
+                    <Chip size="small" label={`${healthData.summary.outbox_dead} falha permanente`} color="error" />
+                  </Tooltip>
+                )}
+              </Stack>
+
+              {/* Per-board webhook status */}
+              <Stack spacing={0.5}>
+                {healthData.boards.filter((b) => b.trello_board_id).map((b) => {
+                  const wh = b.webhook;
+                  const whLabel = !wh ? 'sem webhook' : wh.is_active ? 'ativo' : 'inativo';
+                  const whColor = !wh ? '#f59e0b' : wh.is_active ? '#22c55e' : '#ef4444';
+                  const lastSeen = wh?.last_seen_at ? new Date(wh.last_seen_at).toLocaleString('pt-BR') : null;
+                  return (
+                    <Stack key={b.id} direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: whColor, flexShrink: 0 }} />
+                      <Typography variant="body2" sx={{ flex: 1 }}>{b.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                        {whLabel}{lastSeen ? ` · último evento ${lastSeen}` : ''}
+                      </Typography>
+                      {wh?.last_error && (
+                        <Tooltip title={wh.last_error}>
+                          <IconAlertTriangle size={14} color="#ef4444" />
+                        </Tooltip>
+                      )}
+                    </Stack>
                   );
                 })}
               </Stack>
