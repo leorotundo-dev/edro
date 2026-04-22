@@ -755,7 +755,7 @@ export default function JobDetailClient({
             size="small"
             startIcon={<IconSparkles size={14} />}
             component={Link}
-            href={`/admin/briefings/new?job_id=${job.id}${job.client_id ? `&client_id=${job.client_id}` : ''}`}
+            href={`/admin/operacoes/jobs/${job.id}/briefing`}
             sx={{ fontWeight: 800, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2, boxShadow: 'none', whiteSpace: 'nowrap' }}
           >
             Gerar Copy
@@ -1359,7 +1359,7 @@ export default function JobDetailClient({
                   fullWidth size="small"
                   startIcon={<IconSparkles size={15} />}
                   component={Link}
-                  href={`/admin/briefings/new?job_id=${job.id}${job.client_id ? `&client_id=${job.client_id}` : ''}`}
+                  href={`/admin/operacoes/jobs/${job.id}/briefing`}
                   sx={(t) => ({
                     justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
                     borderRadius: 1.5, px: 1.5, color: 'text.primary',
