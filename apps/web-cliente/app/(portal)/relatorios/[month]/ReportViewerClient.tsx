@@ -121,51 +121,115 @@ const TREND = {
   stable: { color: '#98aab4', bg: 'transparent',          arrow: '→', border: '#e8edf2' },
 };
 
+// ─── Benchmark zone config ────────────────────────────────────────────────────
+
+const ZONE = {
+  below: { color: '#FA896B', bg: alpha('#FA896B', 0.12), label: '↓ abaixo', rangeBg: alpha('#FA896B', 0.22) },
+  in:    { color: '#13DEB9', bg: alpha('#13DEB9', 0.12), label: '✓ em faixa', rangeBg: alpha('#13DEB9', 0.22) },
+  above: { color: '#5D87FF', bg: alpha('#5D87FF', 0.12), label: '↑ acima',  rangeBg: alpha('#5D87FF', 0.22) },
+};
+
+function fmtNum(n: number) {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : n.toLocaleString('pt-BR');
+}
+
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({ kpi }: { kpi: KPI }) {
-  const t = TREND[kpi.trend];
-  const pct = kpi.previous_value !== null && kpi.previous_value > 0
+  const t    = TREND[kpi.trend];
+  const zone = kpi.benchmark_zone ? ZONE[kpi.benchmark_zone] : null;
+  const pct  = kpi.previous_value !== null && kpi.previous_value > 0
     ? Math.round(((kpi.value - kpi.previous_value) / kpi.previous_value) * 100)
     : null;
+
+  // Benchmark bar geometry
+  // Scale: 0 → benchmark_max * 1.6  (leaves room to show "above" values)
+  const hasBm = zone !== null
+    && typeof kpi.benchmark_min === 'number'
+    && typeof kpi.benchmark_max === 'number';
+
+  let rangeLeft = 0, rangeWidth = 0, dotLeft = 0;
+  if (hasBm) {
+    const scale = (kpi.benchmark_max as number) * 1.6;
+    rangeLeft  = Math.round(((kpi.benchmark_min as number) / scale) * 100);
+    rangeWidth = Math.round((((kpi.benchmark_max as number) - (kpi.benchmark_min as number)) / scale) * 100);
+    dotLeft    = Math.min(96, Math.max(4, Math.round((kpi.value / scale) * 100)));
+  }
+
+  const topColor  = zone ? zone.color : t.color;
+  const valueBg   = zone ? zone.bg    : t.bg;
 
   return (
     <Paper
       elevation={0}
       sx={{
         border: '1px solid', borderColor: 'divider',
-        borderRadius: '14px', p: '18px 14px 16px',
+        borderRadius: '14px', p: '16px 10px 12px',
         textAlign: 'center',
-        bgcolor: t.bg,
+        bgcolor: valueBg,
         position: 'relative', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
         '&::before': {
           content: '""', position: 'absolute',
           top: 0, left: 0, right: 0, height: '3px',
-          bgcolor: t.color, borderRadius: '2px 2px 0 0',
+          bgcolor: topColor, borderRadius: '2px 2px 0 0',
         },
       }}
     >
       <Typography
         sx={{
           fontSize: '2rem', fontWeight: 900, lineHeight: 1, mb: 0.5,
-          color: t.color, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em',
+          color: topColor, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em',
         }}
       >
-        {kpi.value >= 1000 ? `${(kpi.value / 1000).toFixed(1)}K` : kpi.value.toLocaleString('pt-BR')}
+        {fmtNum(kpi.value)}
       </Typography>
 
       {kpi.previous_value !== null && (
-        <Typography sx={{ fontSize: '10px', fontWeight: 700, color: t.color, mb: 0.75 }}>
-          {t.arrow} ant. {kpi.previous_value >= 1000
-            ? `${(kpi.previous_value / 1000).toFixed(1)}K`
-            : kpi.previous_value.toLocaleString('pt-BR')}
+        <Typography sx={{ fontSize: '10px', fontWeight: 700, color: t.color, mb: 0.5 }}>
+          {t.arrow} ant. {fmtNum(kpi.previous_value)}
           {pct !== null ? ` (${pct > 0 ? '+' : ''}${pct}%)` : ''}
         </Typography>
       )}
 
-      <Typography sx={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: 'text.disabled' }}>
+      <Typography sx={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: 'text.disabled', mb: hasBm ? 1 : 0 }}>
         {kpi.label}
       </Typography>
+
+      {/* ── Benchmark bar ── */}
+      {hasBm && zone && (
+        <Box sx={{ mt: 'auto' }}>
+          {/* bar track */}
+          <Box sx={{ position: 'relative', height: '4px', borderRadius: '2px', bgcolor: alpha('#000', 0.07), mx: '2px', mb: '5px' }}>
+            {/* reference range fill */}
+            <Box sx={{
+              position: 'absolute', top: 0, height: '4px', borderRadius: '2px',
+              bgcolor: zone.rangeBg,
+              left: `${rangeLeft}%`, width: `${rangeWidth}%`,
+            }} />
+            {/* client dot */}
+            <Box sx={{
+              position: 'absolute', top: '-3px',
+              width: '10px', height: '10px', borderRadius: '50%',
+              bgcolor: zone.color, border: '2px solid #fff',
+              boxShadow: `0 1px 4px ${alpha(zone.color, 0.5)}`,
+              left: `${dotLeft}%`, transform: 'translateX(-50%)',
+            }} />
+          </Box>
+          {/* label */}
+          <Typography sx={{ fontSize: '8.5px', fontWeight: 700, color: 'text.disabled', lineHeight: 1.2 }}>
+            {kpi.benchmark_label}
+            {' '}
+            <Box component="span" sx={{
+              fontWeight: 800, fontSize: '8px',
+              px: '5px', py: '1px', borderRadius: '100px',
+              bgcolor: alpha(zone.color, 0.12), color: zone.color,
+            }}>
+              {zone.label}
+            </Box>
+          </Typography>
+        </Box>
+      )}
     </Paper>
   );
 }

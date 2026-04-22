@@ -7,6 +7,8 @@ type ReportStatus = 'draft' | 'pending_approval' | 'approved' | 'published';
 
 type TrendDirection = 'up' | 'down' | 'stable';
 
+type BenchmarkZone = 'below' | 'in' | 'above';
+
 interface KpiEntry {
   key: string;
   label: string;
@@ -14,6 +16,14 @@ interface KpiEntry {
   previous_value: number | null;
   trend: TrendDirection;
   context: null;
+  /** Reference range min value (same unit as value) */
+  benchmark_min: number | null;
+  /** Reference range max value (same unit as value) */
+  benchmark_max: number | null;
+  /** Human-readable label, e.g. "Ref. B2B: 1.5–4%" */
+  benchmark_label: string | null;
+  /** Where the client sits relative to the reference range */
+  benchmark_zone: BenchmarkZone | null;
 }
 
 interface ChannelMetrics {
@@ -201,12 +211,16 @@ function buildChannelMetrics(
         : null;
 
       kpis.push({
-        key:            kpiDef.key,
-        label:          kpiDef.label,
+        key:             kpiDef.key,
+        label:           kpiDef.label,
         value,
         previous_value,
-        trend:          computeTrend(value, previous_value),
-        context:        null,
+        trend:           computeTrend(value, previous_value),
+        context:         null,
+        benchmark_min:   null,
+        benchmark_max:   null,
+        benchmark_label: null,
+        benchmark_zone:  null,
       });
     }
 
@@ -365,7 +379,16 @@ Responda APENAS com JSON válido, sem markdown, no seguinte formato:
   "pipeline_medium": "foco dos próximos 2-3 meses em 1 frase",
   "pipeline_long": "visão de longo prazo / posicionamento estratégico em 1 frase",
   "pipeline_risk_window": "principal janela de risco que pode travar o pipeline (null se não identificado)",
-  "synthesis": "parágrafo de fechamento (3-4 frases) — o que o mês representou, o que foi aprendido e o que isso significa para o próximo ciclo"
+  "synthesis": "parágrafo de fechamento (3-4 frases) — o que o mês representou, o que foi aprendido e o que isso significa para o próximo ciclo",
+  "kpi_benchmarks": [
+    {
+      "platform": "instagram",
+      "kpi_key": "reach",
+      "min": 3000,
+      "max": 9000,
+      "label": "Ref. setor: 3K–9K"
+    }
+  ]
 }
 
 Regras obrigatórias:
@@ -376,12 +399,28 @@ Regras obrigatórias:
 - business_impact: 2-3 impactos concretos no negócio do cliente (não na agência)
 - priorities: 2-3 itens para o próximo mês
 - risks: 0-2 riscos reais (omita ou use [] se não houver risco evidente)
-- synthesis: deve ser o parágrafo mais reflexivo e estratégico do relatório`;
+- synthesis: deve ser o parágrafo mais reflexivo e estratégico do relatório
+- kpi_benchmarks: para cada KPI de canal disponível nos dados, forneça uma faixa de referência de mercado
+  adequada ao porte e setor do cliente (inferido a partir das entregas e contexto).
+  Use sempre a MESMA unidade do KPI (ex: se reach é número absoluto, benchmark em número absoluto).
+  kpi_key deve ser exatamente: "reach", "engagements" ou "followers_count".
+  Exemplos de referências por setor (adapte ao porte estimado da conta):
+    Instagram B2B institucional (1K–10K seguidores): reach 2K–8K, engagements 100–600, followers_count 30–120/mês
+    Instagram varejo/consumo (5K–50K seguidores): reach 5K–25K, engagements 300–2000, followers_count 50–300/mês
+    LinkedIn B2B (500–5K seguidores): engagements 200–1200, followers_count 20–80/mês`;
 
   try {
-    const result = await generateCompletion({ prompt, maxTokens: 2000, temperature: 0.35 });
+    const result = await generateCompletion({ prompt, maxTokens: 2200, temperature: 0.35 });
     const match  = result.text.match(/\{[\s\S]*\}/);
     if (!match) return sections;
+
+    interface AiBenchmark {
+      platform: string;
+      kpi_key: string;
+      min: number;
+      max: number;
+      label: string;
+    }
 
     const ai = JSON.parse(match[0]) as {
       headline?:               string;
@@ -401,10 +440,43 @@ Regras obrigatórias:
       pipeline_long?:          string | null;
       pipeline_risk_window?:   string | null;
       synthesis?:              string | null;
+      kpi_benchmarks?:         AiBenchmark[];
     };
 
     const str = (v: unknown): string | null =>
       typeof v === 'string' && v.trim() ? v.trim() : null;
+
+    // ── Build benchmark lookup: platform+key → benchmark ─────────────────────
+    const bmLookup = new Map<string, AiBenchmark>();
+    if (Array.isArray(ai.kpi_benchmarks)) {
+      for (const bm of ai.kpi_benchmarks) {
+        if (bm.platform && bm.kpi_key) {
+          bmLookup.set(`${bm.platform.toLowerCase()}__${bm.kpi_key}`, bm);
+        }
+      }
+    }
+
+    function computeZone(value: number, min: number, max: number): BenchmarkZone {
+      if (value < min) return 'below';
+      if (value > max) return 'above';
+      return 'in';
+    }
+
+    // ── Enrich channels with benchmark data ───────────────────────────────────
+    const enrichedChannels = sections.metrics.channels.map((ch) => ({
+      ...ch,
+      kpis: ch.kpis.map((kpi) => {
+        const bm = bmLookup.get(`${ch.platform.toLowerCase()}__${kpi.key}`);
+        if (!bm || typeof bm.min !== 'number' || typeof bm.max !== 'number') return kpi;
+        return {
+          ...kpi,
+          benchmark_min:   bm.min,
+          benchmark_max:   bm.max,
+          benchmark_label: bm.label ?? null,
+          benchmark_zone:  computeZone(kpi.value, bm.min, bm.max),
+        };
+      }),
+    }));
 
     return {
       ...sections,
@@ -429,6 +501,7 @@ Regras obrigatórias:
         : null,
       metrics: {
         ...sections.metrics,
+        channels:      enrichedChannels,
         insight:       str(ai.metrics_insight),
         kpi_narrative: str(ai.kpi_narrative),
       },
