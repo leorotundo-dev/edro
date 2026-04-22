@@ -106,6 +106,10 @@ export type ReportSections = {
   // ── Synthesis ─────────────────────────────────────────────────────────────
   /** Closing paragraph that ties everything together */
   synthesis?: string | null;
+
+  // ── Brand ─────────────────────────────────────────────────────────────────
+  /** Primary brand color (hex) extracted from client visual style analysis */
+  brand_color?: string | null;
 };
 
 export type MonthlyReport = {

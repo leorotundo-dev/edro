@@ -44,6 +44,48 @@ import type {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+/** Parse hex → [r, g, b] 0-255 */
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = hex.replace('#', '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return null;
+  return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+}
+
+/** Lighten a hex color by mixing with white (0–1 factor) */
+function lighten(hex: string, factor: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const [r, g, b] = rgb.map((c) => Math.round(c + (255 - c) * factor));
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Darken a hex color by scaling toward black */
+function darken(hex: string, factor: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const [r, g, b] = rgb.map((c) => Math.round(c * (1 - factor)));
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Perceived brightness (0-255) */
+function brightness(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 128;
+  return (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+}
+
+/** Build a 3-stop hero gradient from a brand hex color */
+function heroGradient(brandHex: string | null | undefined): string {
+  const base = (brandHex && /^#[0-9a-fA-F]{6}$/.test(brandHex)) ? brandHex : '#ff6600';
+  return `linear-gradient(135deg, ${darken(base, 0.08)} 0%, ${base} 50%, ${lighten(base, 0.22)} 100%)`;
+}
+
+/** Pick text color (white vs dark) based on brand brightness */
+function heroTextColor(brandHex: string | null | undefined): string {
+  const base = (brandHex && /^#[0-9a-fA-F]{6}$/.test(brandHex)) ? brandHex : '#ff6600';
+  return brightness(base) > 165 ? 'rgba(0,0,0,0.82)' : '#ffffff';
+}
+
 function formatPeriod(p: string) {
   const [y, m] = p.split('-');
   const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('pt-BR', {
@@ -414,8 +456,12 @@ export default function ReportViewerClient(props: Props) {
   );
 
   const { sections } = report;
-  const statusCfg = STATUS_COLOR[sections.status.color];
-  const isPending = report.status === 'pending_approval' && props.mode === 'portal';
+  const statusCfg   = STATUS_COLOR[sections.status.color];
+  const isPending   = report.status === 'pending_approval' && props.mode === 'portal';
+  const brandColor  = sections.brand_color ?? null;
+  const gradient    = heroGradient(brandColor);
+  const textColor   = heroTextColor(brandColor);
+  const shadowColor = brandColor ?? '#ff6600';
 
   // optional new fields (backward-compatible)
   const facts              = sections.status.facts              ?? [];
@@ -474,51 +520,68 @@ export default function ReportViewerClient(props: Props) {
           {/* ════════════════════════════════════════════════════════════════ */}
           <Box
             sx={{
-              background: 'linear-gradient(135deg, #ff6600 0%, #ff8533 50%, #ffaa55 100%)',
+              background: gradient,
               borderRadius: '16px',
-              p: { xs: '28px 24px', md: '32px 36px' },
-              color: '#fff',
+              p: { xs: '28px 24px', md: '36px 40px' },
+              color: textColor,
               position: 'relative', overflow: 'hidden',
-              boxShadow: '0 8px 32px rgba(255,102,0,.25)',
+              boxShadow: `0 8px 32px ${alpha(shadowColor, 0.28)}`,
             }}
           >
+            {/* decorative circles */}
             <Box sx={{ position: 'absolute', top: -80, right: -60, width: 280, height: 280, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.08)' }} />
             <Box sx={{ position: 'absolute', bottom: -60, right: 60, width: 160, height: 160, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.06)' }} />
 
+            {/* eyebrow badge */}
             <Box
               sx={{
                 display: 'inline-flex', alignItems: 'center', gap: 0.75,
-                bgcolor: 'rgba(255,255,255,.2)', backdropFilter: 'blur(6px)',
+                bgcolor: 'rgba(255,255,255,.22)', backdropFilter: 'blur(6px)',
                 borderRadius: '100px', px: 1.75, py: 0.5,
                 fontSize: '10px', fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase',
+                color: textColor,
                 mb: 1.5,
               }}
             >
               📊 Relatório Gerencial de Comunicação
             </Box>
 
+            {/* Client name */}
             <Typography
-              sx={{ fontSize: { xs: '30px', md: '38px' }, fontWeight: 900, letterSpacing: '-.03em', lineHeight: 1, mb: 0.75, position: 'relative' }}
+              sx={{
+                fontSize: { xs: '32px', md: '42px' },
+                fontWeight: 900, letterSpacing: '-.03em', lineHeight: 1,
+                mb: 1, position: 'relative', color: textColor,
+              }}
             >
               {report.client_name}
             </Typography>
-            <Typography sx={{ fontSize: '17px', fontWeight: 600, opacity: .85, mb: 2.5, position: 'relative' }}>
+
+            {/* Period — BIGGER */}
+            <Typography
+              sx={{
+                fontSize: { xs: '20px', md: '24px' },
+                fontWeight: 700, opacity: .9, mb: 3, position: 'relative', color: textColor,
+              }}
+            >
               Consolidado de {formatPeriod(report.period_month)}
             </Typography>
 
+            {/* Status pill — BIGGER */}
             <Box
               sx={{
-                display: 'inline-flex', alignItems: 'center', gap: 1,
-                bgcolor: 'rgba(255,255,255,.18)', borderRadius: '100px',
-                px: 2, py: 0.875, position: 'relative',
+                display: 'inline-flex', alignItems: 'center', gap: 1.5,
+                bgcolor: 'rgba(255,255,255,.2)', backdropFilter: 'blur(6px)',
+                borderRadius: '100px', px: 2.5, py: 1.25,
+                position: 'relative',
               }}
             >
               <Box sx={{
-                width: 10, height: 10, borderRadius: '50%',
+                width: 12, height: 12, borderRadius: '50%',
                 bgcolor: statusCfg.bg,
                 boxShadow: `0 0 0 3px ${alpha(statusCfg.bg, 0.4)}`,
               }} />
-              <Typography sx={{ fontSize: '13px', fontWeight: 700 }}>
+              <Typography sx={{ fontSize: '15px', fontWeight: 800, color: textColor }}>
                 Status {statusCfg.label} — {statusCfg.text}
               </Typography>
             </Box>
