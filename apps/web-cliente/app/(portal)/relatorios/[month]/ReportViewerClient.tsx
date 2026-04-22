@@ -164,8 +164,8 @@ export default function ReportViewerClient(props: Props) {
 
   useEffect(() => {
     if (props.mode !== 'portal' || !month) return;
-    apiGet<MonthlyReport>(`/monthly-reports/mine/${month}`)
-      .then(setReport)
+    apiGet<{ report: MonthlyReport }>(`/monthly-reports/mine/${month}`)
+      .then((res) => setReport(res.report))
       .catch(() => setError('Não foi possível carregar o relatório.'))
       .finally(() => setLoading(false));
   }, [props.mode, month]);

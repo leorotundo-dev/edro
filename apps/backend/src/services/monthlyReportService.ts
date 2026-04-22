@@ -272,7 +272,7 @@ export async function autoGenerateReport(
   const clientName   = clientRes.rows[0]?.name ?? null;
 
   const sections  = buildSections(jobs, snapshots, prevSnapshots);
-  const autoData  = { jobs_raw: jobs, snapshots_raw: snapshots };
+  const autoData  = { jobs_snapshot: jobs, snapshots_raw: snapshots };
   const title     = `Relatório ${periodMonth}`;
 
   const { rows } = await query<MonthlyReport>(
