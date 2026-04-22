@@ -37,7 +37,7 @@
     "apexcharts": "5.3.6",
     "chance": "^1.1.13",
     "date-fns": "^4.1.0",
-    "dompurify": "^3.3.0",
+    "dompurify": "^3.4.1",
     "formik": "^2.4.9",
     "formik-mui": "^5.0.0-alpha.1",
     "framer-motion": "^12.23.25",
