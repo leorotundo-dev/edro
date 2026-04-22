@@ -1,5 +1,7 @@
 export type ReportStatus = 'draft' | 'pending_approval' | 'approved' | 'published';
 
+export type BenchmarkZone = 'below' | 'in' | 'above';
+
 export type KPI = {
   key: string;
   label: string;
@@ -7,6 +9,13 @@ export type KPI = {
   previous_value: number | null;
   trend: 'up' | 'down' | 'stable';
   context: string | null;
+  /** Reference range — same unit as value */
+  benchmark_min?: number | null;
+  benchmark_max?: number | null;
+  /** Human-readable label, e.g. "Ref. B2B: 3K–9K" */
+  benchmark_label?: string | null;
+  /** Where the client sits vs the reference range */
+  benchmark_zone?: BenchmarkZone | null;
 };
 
 export type Channel = {
