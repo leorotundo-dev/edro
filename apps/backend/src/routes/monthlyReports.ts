@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authGuard, requirePerm } from '../auth/rbac';
+import { query } from '../db/db';
 import {
   approveReport,
   autoGenerateReport,
@@ -29,6 +30,35 @@ export default async function monthlyReportsRoutes(app: FastifyInstance) {
 
     const report = await autoGenerateReport(clientId, periodMonth, tenantId);
     return reply.send({ report });
+  });
+
+  // POST /monthly-reports/generate-all — body: { periodMonth } — gera para todos os clientes ativos
+  app.post('/monthly-reports/generate-all', { preHandler: guards }, async (req: any, reply) => {
+    const tenantId = req.user?.tenant_id as string;
+    if (!tenantId) return reply.status(401).send({ error: 'missing_tenant' });
+
+    const { periodMonth } = (req.body as any) || {};
+    if (!periodMonth || !/^\d{4}-\d{2}$/.test(periodMonth)) {
+      return reply.status(400).send({ error: 'periodMonth is required (YYYY-MM)' });
+    }
+
+    const { rows: clients } = await query<{ id: string }>(
+      `SELECT id FROM clients WHERE tenant_id = $1 AND active = true`,
+      [tenantId],
+    );
+
+    let generated = 0;
+    let failed = 0;
+    for (const client of clients) {
+      try {
+        await autoGenerateReport(client.id, periodMonth, tenantId);
+        generated++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return reply.send({ generated, failed, month: periodMonth });
   });
 
   // GET /monthly-reports — query: ?clientId=&status=&limit=
