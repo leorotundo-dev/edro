@@ -1,4 +1,5 @@
 import { query, pool } from '../db/db';
+import { generateCompletion } from './ai/claudeService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,16 @@ interface ChannelMetrics {
   kpis: KpiEntry[];
 }
 
+interface Priority {
+  title: string;
+  description: string;
+}
+
+interface Risk {
+  description: string;
+  owner: string;
+}
+
 interface ReportSections {
   status: {
     color: 'green' | 'yellow' | 'red';
@@ -30,16 +41,16 @@ interface ReportSections {
   deliverables: {
     featured: unknown[];
     total_count: number;
-    insight: null;
+    insight: string | null;
   };
   metrics: {
     channels: ChannelMetrics[];
-    insight: null;
+    insight: string | null;
   };
   next_steps: {
-    priorities: unknown[];
-    risks: unknown[];
-    director_action: null;
+    priorities: Priority[];
+    risks: Risk[];
+    director_action: string | null;
   };
 }
 
@@ -205,11 +216,118 @@ function buildSections(jobs: JobRow[], snapshots: MetricSnapshotRow[], prevSnaps
       insight: null,
     },
     next_steps: {
-      priorities:      [],
-      risks:           [],
+      priorities:      [] as Priority[],
+      risks:           [] as Risk[],
       director_action: null,
     },
   };
+}
+
+// ─── AI Enrichment ────────────────────────────────────────────────────────────
+
+function periodLabel(periodMonth: string): string {
+  const [y, m] = periodMonth.split('-').map(Number);
+  const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('pt-BR', {
+    month: 'long', year: 'numeric', timeZone: 'UTC',
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+async function enrichSectionsWithAI(
+  sections: ReportSections,
+  jobs: JobRow[],
+  periodMonth: string,
+): Promise<ReportSections> {
+  const channels = sections.metrics.channels;
+  const hasData  = jobs.length > 0 || channels.length > 0;
+  if (!hasData) return sections;
+
+  const period = periodLabel(periodMonth);
+
+  const contextLines: string[] = [
+    `Período: ${period}`,
+    `Total de entregas concluídas: ${jobs.length}`,
+  ];
+
+  if (jobs.length > 0) {
+    contextLines.push(`Itens entregues: ${jobs.slice(0, 8).map((j) => j.title).join(', ')}`);
+  }
+
+  if (channels.length > 0) {
+    for (const ch of channels) {
+      const kpiStr = ch.kpis
+        .map((k) => {
+          const prevTxt = k.previous_value !== null ? `, ant: ${k.previous_value.toLocaleString('pt-BR')}` : '';
+          return `${k.label}: ${k.value.toLocaleString('pt-BR')}${prevTxt} (${k.trend})`;
+        })
+        .join('; ');
+      contextLines.push(`${ch.label}: ${kpiStr}`);
+    }
+  } else {
+    contextLines.push('Métricas de canal: não disponíveis');
+  }
+
+  const context = contextLines.join('\n');
+
+  const prompt = `Você é o analista estratégico de uma agência de comunicação digital. Com base nos dados abaixo, gere o conteúdo para um relatório executivo mensal para o cliente.
+
+${context}
+
+Responda APENAS com JSON válido no seguinte formato:
+{
+  "headline": "string — síntese do mês em 1 frase impactante (máx. 110 chars)",
+  "metrics_insight": "string — 1-2 frases interpretando tendências das métricas (o que subiu/caiu e o que significa para o negócio). Se não há métricas, escreva 'Dados de performance em processamento.'",
+  "priorities": [
+    { "title": "string", "description": "string — máx. 80 chars" }
+  ],
+  "risks": [
+    { "description": "string", "owner": "Equipe Edro" }
+  ]
+}
+
+Regras:
+- headline: direto, sem rodeios, destaque o resultado mais importante do mês
+- priorities: 2-3 itens para o próximo mês baseados nas entregas e gaps detectados
+- risks: 0-2 riscos reais identificados (omita o array se não houver risco evidente)
+- Resposta em português brasileiro
+- Não invente dados — baseie-se apenas no que foi informado`;
+
+  try {
+    const result = await generateCompletion({ prompt, maxTokens: 700, temperature: 0.3 });
+    const match  = result.text.match(/\{[\s\S]*\}/);
+    if (!match) return sections;
+
+    const ai = JSON.parse(match[0]) as {
+      headline?:        string;
+      metrics_insight?: string;
+      priorities?:      Priority[];
+      risks?:           Risk[];
+    };
+
+    return {
+      ...sections,
+      status: {
+        ...sections.status,
+        headline: typeof ai.headline === 'string' && ai.headline.trim()
+          ? ai.headline.trim()
+          : sections.status.headline,
+      },
+      metrics: {
+        ...sections.metrics,
+        insight: typeof ai.metrics_insight === 'string' && ai.metrics_insight.trim()
+          ? ai.metrics_insight.trim()
+          : null,
+      },
+      next_steps: {
+        ...sections.next_steps,
+        priorities: Array.isArray(ai.priorities) ? ai.priorities.slice(0, 3) : [],
+        risks:      Array.isArray(ai.risks)      ? ai.risks.slice(0, 2)      : [],
+      },
+    };
+  } catch {
+    // Claude unavailable — return sections without enrichment
+    return sections;
+  }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -271,9 +389,10 @@ export async function autoGenerateReport(
   const prevSnapshots = prevSnapshotsRes.rows;
   const clientName   = clientRes.rows[0]?.name ?? null;
 
-  const sections  = buildSections(jobs, snapshots, prevSnapshots);
-  const autoData  = { jobs_snapshot: jobs, snapshots_raw: snapshots };
-  const title     = `Relatório ${periodMonth}`;
+  const rawSections = buildSections(jobs, snapshots, prevSnapshots);
+  const sections    = await enrichSectionsWithAI(rawSections, jobs, periodMonth);
+  const autoData    = { jobs_snapshot: jobs, snapshots_raw: snapshots };
+  const title       = `Relatório ${periodMonth}`;
 
   const { rows } = await query<MonthlyReport>(
     `INSERT INTO client_monthly_reports
