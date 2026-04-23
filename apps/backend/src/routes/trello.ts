@@ -34,8 +34,11 @@ function getBoardBindingScore(clientKey: string, boardKey: string) {
 }
 
 function currentYearCardClause(alias: string) {
-  return `COALESCE(${alias}.due_date::timestamp, ${alias}.created_at) >= date_trunc('year', CURRENT_DATE)
-          AND COALESCE(${alias}.due_date::timestamp, ${alias}.created_at) < (date_trunc('year', CURRENT_DATE) + interval '1 year')`;
+  // Use last_activity_at (real Trello activity time) before created_at (our sync time).
+  // created_at in project_cards is set to NOW() at import, so 2025 Trello cards
+  // synced in 2026 would incorrectly show as "2026 cards" without this fix.
+  return `COALESCE(${alias}.due_date::timestamp, ${alias}.last_activity_at, ${alias}.created_at) >= date_trunc('year', CURRENT_DATE)
+          AND COALESCE(${alias}.due_date::timestamp, ${alias}.last_activity_at, ${alias}.created_at) < (date_trunc('year', CURRENT_DATE) + interval '1 year')`;
 }
 
 export default async function trelloRoutes(app: FastifyInstance) {
