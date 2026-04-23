@@ -1728,7 +1728,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const cardRes = await query<Record<string, any>>(
       `SELECT
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
-         pc.is_urgent, pc.job_size, pc.estimated_minutes, pc.metadata,
+         -- is_urgent / job_size / estimated_minutes are stored in metadata jsonb (no dedicated columns yet)
+         (pc.metadata->>'is_urgent')::boolean                    AS is_urgent,
+         pc.metadata->>'job_size'                                AS job_size,
+         (pc.metadata->>'estimated_minutes')::integer            AS estimated_minutes,
+         pc.metadata,
          pc.trello_url, pc.trello_card_id, pc.campaign_id,
          camp.name as campaign_name,
          pl.id as list_id, pl.name as list_name,
@@ -1986,9 +1990,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     if (body.title !== undefined) patchPayload.title = body.title;
     if (body.summary !== undefined) patchPayload.description = body.summary ?? '';
     if (body.deadline_at !== undefined) patchPayload.due_date = normalizeDeadlineDate(body.deadline_at);
-    if (body.is_urgent !== undefined) patchPayload.is_urgent = body.is_urgent;
-    if (body.job_size !== undefined) patchPayload.job_size = body.job_size;
-    if (body.estimated_minutes !== undefined) patchPayload.estimated_minutes = body.estimated_minutes;
+    // is_urgent / job_size / estimated_minutes stored in metadata — handled separately below
 
     if (Object.keys(patchPayload).length) {
       const reqBody = { ...patchPayload };
@@ -2048,6 +2050,20 @@ export default async function trelloRoutes(app: FastifyInstance) {
         enqueueOutbox(tenantId, 'member.sync', { trelloCardId: current.trello_card_id, toRemove, toAdd },
           `member.sync.${current.trello_card_id}`).catch(() => undefined);
       }
+    }
+
+    // Merge is_urgent / job_size / estimated_minutes into metadata jsonb (no dedicated columns)
+    const metaUpdates: Record<string, unknown> = {};
+    if (body.is_urgent !== undefined) metaUpdates.is_urgent = body.is_urgent;
+    if (body.job_size !== undefined) metaUpdates.job_size = body.job_size;
+    if (body.estimated_minutes !== undefined) metaUpdates.estimated_minutes = body.estimated_minutes;
+    if (Object.keys(metaUpdates).length) {
+      await query(
+        `UPDATE project_cards
+         SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb, updated_at = now()
+         WHERE id = $2 AND tenant_id = $3`,
+        [JSON.stringify(metaUpdates), cardId, tenantId],
+      );
     }
 
     const detailRes = await app.inject({
