@@ -163,7 +163,6 @@ export default async function peopleRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { id } = request.params as { id: string };
 
-    const step = (label: string) => ({ label }); // step marker for error attribution
     let currentStep = 'connect';
 
     const client = await pool.connect();
@@ -290,7 +289,6 @@ export default async function peopleRoutes(app: FastifyInstance) {
       return reply.code(409).send({
         error: 'delete_failed',
         message: 'Não foi possível excluir este colaborador porque ainda existem vínculos operacionais ativos.',
-        debug: { step: currentStep, code: error?.code, constraint: error?.constraint, table: error?.table, detail: error?.detail, message: error?.message },
       });
     } finally {
       client.release();
