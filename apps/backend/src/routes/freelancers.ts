@@ -465,62 +465,188 @@ function hasValue(value: unknown) {
   return typeof value === 'string' ? value.trim().length > 0 : value != null;
 }
 
+const EDRO_LOGO_URL = 'https://studio.edro.digital/brand/logo-orange.png';
+const FREELANCER_PORTAL_FALLBACK = 'https://freelancer.edro.digital';
+
 function buildFreelancerPortalEmailShell(params: {
-  eyebrow: string;
   title: string;
   subtitle: string;
-  introHtml: string;
+  bodyHtml: string;
   code: string;
-  helperHtml: string;
-  ctaUrl: string | null;
+  ctaUrl: string;
   ctaLabel: string;
-  footerHtml?: string;
 }) {
-  return `<div style="background:#f5f7fb;margin:0;padding:32px 16px">
-    <div style="font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">
-      <div style="background:linear-gradient(135deg,#E85219 0%,#FF7A45 100%);padding:26px 32px;border-radius:24px 24px 0 0">
-        <div style="color:rgba(255,255,255,.78);font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;margin:0 0 10px">Edro Digital</div>
-        <h1 style="margin:0;color:#fff;font-size:30px;line-height:1.1;font-weight:800">${params.title}</h1>
-        <p style="margin:10px 0 0;color:rgba(255,255,255,.92);font-size:15px;line-height:1.6">${params.subtitle}</p>
-      </div>
-      <div style="background:#ffffff;padding:32px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 24px 24px;box-shadow:0 18px 45px rgba(15,23,42,.08)">
-        <div style="display:inline-flex;align-items:center;background:#FFF0EA;color:#E85219;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:18px">${params.eyebrow}</div>
-        ${params.introHtml}
-        <div style="margin:24px 0;background:#0f172a;border-radius:18px;padding:22px 24px;text-align:center">
-          <div style="color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;margin-bottom:12px">Código de acesso</div>
-          <div style="font-size:36px;line-height:1;font-weight:900;letter-spacing:.34em;color:#ffffff">${params.code}</div>
-        </div>
-        <div style="color:#64748b;font-size:14px;line-height:1.7">${params.helperHtml}</div>
-        ${params.ctaUrl ? `<div style="margin:28px 0 20px"><a href="${params.ctaUrl}" style="display:inline-block;background:#E85219;color:#fff;padding:14px 24px;border-radius:12px;text-decoration:none;font-weight:800;font-size:14px">${params.ctaLabel}</a></div>
-        <p style="margin:0 0 20px;color:#475569;font-size:13px;line-height:1.6">Se o botão não abrir, copie e cole este link no navegador:<br/><span style="color:#E85219;word-break:break-all">${params.ctaUrl}</span></p>` : ''}
-        ${params.footerHtml ?? ''}
-        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
-        <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6">Edro Digital — este é um e-mail automático.</p>
-      </div>
-    </div>
-  </div>`;
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <title>${params.title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4fc;font-family:'Segoe UI',Arial,Helvetica,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4fc;padding:40px 16px">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;width:100%">
+
+        <!-- LOGO -->
+        <tr>
+          <td align="center" style="padding-bottom:24px">
+            <img src="${EDRO_LOGO_URL}" alt="Edro Digital" width="120" height="auto"
+              style="display:block;border:0;max-width:120px"/>
+          </td>
+        </tr>
+
+        <!-- CARD PRINCIPAL -->
+        <tr>
+          <td style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,.10)">
+
+            <!-- HEADER LARANJA -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background:linear-gradient(135deg,#E85219 0%,#FF7A45 100%);padding:36px 40px 32px">
+                  <p style="margin:0 0 10px;color:rgba(255,255,255,.8);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase">Programa de Parcerias — Edro Digital</p>
+                  <h1 style="margin:0 0 10px;color:#ffffff;font-size:28px;font-weight:800;line-height:1.2">${params.title}</h1>
+                  <p style="margin:0;color:rgba(255,255,255,.9);font-size:15px;line-height:1.6">${params.subtitle}</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- BODY -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:36px 40px 0">
+                  ${params.bodyHtml}
+                </td>
+              </tr>
+            </table>
+
+            <!-- CÓDIGO DE ACESSO -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:28px 40px 0">
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                    style="background:#0f172a;border-radius:16px">
+                    <tr>
+                      <td style="padding:24px 32px;text-align:center">
+                        <p style="margin:0 0 10px;color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase">Seu código de acesso</p>
+                        <p style="margin:0;font-size:40px;font-weight:900;letter-spacing:.32em;color:#ffffff;font-family:'Courier New',Courier,monospace">${params.code}</p>
+                        <p style="margin:10px 0 0;color:#64748b;font-size:12px">Válido por <strong style="color:#94a3b8">24 horas</strong> · Não compartilhe com ninguém</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- CTA -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:32px 40px 0;text-align:center">
+                  <a href="${params.ctaUrl}"
+                    style="display:inline-block;background:#E85219;color:#ffffff;padding:16px 40px;border-radius:12px;text-decoration:none;font-size:16px;font-weight:800;letter-spacing:.02em">
+                    ${params.ctaLabel}
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:14px 40px 0;text-align:center">
+                  <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6">
+                    Se o botão não funcionar, acesse:<br/>
+                    <a href="${params.ctaUrl}" style="color:#E85219;word-break:break-all;text-decoration:none">${params.ctaUrl}</a>
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- DIVIDER + FOOTER -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:32px 40px 36px">
+                  <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 24px"/>
+                  <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.7;text-align:center">
+                    Edro Digital · Gestão de Ecossistema de Parceiros Criativos<br/>
+                    Este é um e-mail automático — não responda a esta mensagem.
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+
+        <!-- TAGLINE ABAIXO DO CARD -->
+        <tr>
+          <td align="center" style="padding:24px 0 0">
+            <p style="margin:0;color:#94a3b8;font-size:12px">© 2026 Edro Digital. Todos os direitos reservados.</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
 
 function buildFreelancerInviteEmail(params: { firstName: string; code: string; portalUrl: string | null }) {
-  const loginUrl = params.portalUrl ? `${params.portalUrl}/login` : null;
-  const loginLine = loginUrl
-    ? `Acesse o portal por este link: ${loginUrl}`
-    : 'Acesse o Portal Freelancer Edro para começar.';
+  const loginUrl = `${params.portalUrl ?? FREELANCER_PORTAL_FALLBACK}/login`;
+
+  const bodyHtml = `
+    <p style="margin:0 0 20px;color:#0f172a;font-size:16px;line-height:1.7">
+      Olá, <strong>${params.firstName}</strong>! 🎉
+    </p>
+    <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
+      Seu portfólio chamou a nossa atenção e estamos muito felizes em tê-lo como parceiro da Edro.
+      Sua empresa foi selecionada para integrar nossa rede de parceiros criativos B2B.
+    </p>
+
+    <p style="margin:0 0 12px;color:#0f172a;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Como funciona na prática</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px">
+      <tr>
+        <td style="vertical-align:top;padding:10px 14px;background:#fff7f3;border-left:3px solid #E85219;border-radius:0 8px 8px 0;margin-bottom:8px">
+          <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.6"><strong>📝 Onboarding Digital</strong> — Valide seu CNPJ e assine o contrato mestre pelo celular.</p>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px">
+      <tr>
+        <td style="vertical-align:top;padding:10px 14px;background:#f8fafc;border-left:3px solid #94a3b8;border-radius:0 8px 8px 0">
+          <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.6"><strong>🎯 Match por Skills</strong> — Configure seu perfil e receba oportunidades que combinam com seu talento.</p>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px">
+      <tr>
+        <td style="vertical-align:top;padding:10px 14px;background:#f8fafc;border-left:3px solid #94a3b8;border-radius:0 8px 8px 0">
+          <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.6"><strong>🛒 Cards P / M / G</strong> — Aceite ou recuse demandas com briefing completo, valor e prazo definidos.</p>
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px">
+      <tr>
+        <td style="vertical-align:top;padding:10px 14px;background:#f8fafc;border-left:3px solid #94a3b8;border-radius:0 8px 8px 0">
+          <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.6"><strong>💰 Pagamento todo dia 10</strong> — Dashboard financeiro em tempo real. Emita a NF até o dia 05 e receba no dia 10.</p>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:24px 0 0;color:#334155;font-size:15px;line-height:1.7">
+      Use o código abaixo para entrar no portal, completar seu cadastro e assinar o contrato:
+    </p>
+  `;
 
   return {
-    subject: 'Parabéns! Seu acesso ao Portal Freelancer Edro',
-    text: `Olá, ${params.firstName}!\n\nParabéns e seja bem-vindo à Edro.\n\nSeu acesso inicial ao Portal Freelancer já está liberado.\n\nCódigo de acesso:\n${params.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\nDepois de preencher seu perfil, você seguirá para a etapa do contrato.\n\n${loginLine}\n\n— Edro Digital`,
+    subject: '🚀 Bem-vindo à Edro! Seu acesso ao Portal de Parceiros',
+    text: `Olá, ${params.firstName}!\n\nBem-vindo à Edro! Seu acesso ao Portal Freelancer está liberado.\n\nCódigo de acesso: ${params.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\nAcesse o portal por este link:\n${loginUrl}\n\nComo funciona:\n1. Onboarding Digital — Valide seu CNPJ e assine o contrato pelo celular.\n2. Match por Skills — Configure seu perfil e receba oportunidades.\n3. Cards P/M/G — Aceite demandas com briefing, valor e prazo definidos.\n4. Pagamento todo dia 10 — Emita a NF até o dia 05.\n\nEquipe Edro`,
     html: buildFreelancerPortalEmailShell({
-      eyebrow: 'Acesso inicial',
-      title: 'Parabéns! Seu acesso inicial está liberado',
-      subtitle: 'Entre no Portal Freelancer da Edro, complete seu onboarding e avance para a etapa do contrato.',
-      introHtml: `<p style="margin:0 0 14px;font-size:16px;line-height:1.7">Olá, <strong>${params.firstName}</strong>! Seja bem-vindo à Edro.</p>
-        <p style="margin:0 0 16px;font-size:16px;line-height:1.7">Use o código abaixo para entrar no Portal Freelancer e completar seu onboarding.</p>`,
+      title: 'Bem-vindo ao Portal de Parceiros Edro',
+      subtitle: 'Seu acesso inicial está liberado. Complete o onboarding e comece a receber oportunidades.',
+      bodyHtml,
       code: params.code,
-      helperHtml: `<p style="margin:0">Este código expira em <strong>24 horas</strong>. Não compartilhe com ninguém.</p>`,
       ctaUrl: loginUrl,
-      ctaLabel: 'Acessar Portal Freelancer',
-      footerHtml: `<p style="margin:20px 0 0;color:#0f172a;font-size:15px;line-height:1.7">Depois de preencher seus dados, você seguirá automaticamente para a etapa do contrato.</p>`,
+      ctaLabel: 'Acessar o Portal Edro →',
     }),
   };
 }
@@ -884,7 +1010,7 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       const message = buildFreelancerInviteEmail({
         firstName,
         code: issued.code,
-        portalUrl: env.FREELANCER_PORTAL_URL ?? null,
+        portalUrl: env.FREELANCER_PORTAL_URL ?? FREELANCER_PORTAL_FALLBACK,
       });
       const delivery = await sendEmail({
         to: accessEmail,
@@ -4194,26 +4320,24 @@ export default async function freelancersRoutes(app: FastifyInstance) {
       // Email with signed contract + portal access code
       try {
         const issued = await issuePortalLoginCode(prof.email, { ttlMinutes: 60 * 24 });
-        const portalUrl = env.FREELANCER_PORTAL_URL ?? null;
-        const loginUrl = portalUrl ? `${portalUrl}/login` : null;
-        const loginLine = loginUrl
-          ? `Acesse o portal por este link: ${loginUrl}`
-          : 'Acesse o Portal Freelancer Edro para começar.';
+        const loginUrl = `${env.FREELANCER_PORTAL_URL ?? FREELANCER_PORTAL_FALLBACK}/login`;
         await sendEmail({
           to: prof.email,
-          subject: '✅ Contrato assinado — seu código de acesso ao Portal Edro',
-          text: `Olá, ${firstName}!\n\nSeu contrato com a Edro foi assinado com sucesso. Seu acesso ao portal está liberado.\n\nSeu código de acesso é:\n\n${issued.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\n${pdfUrl ? `Contrato assinado: ${pdfUrl}\n\n` : ''}${loginLine}\n\n— Edro Digital`,
+          subject: '✅ Contrato assinado — seu acesso ao Portal Edro está liberado',
+          text: `Olá, ${firstName}!\n\nSeu contrato com a Edro foi assinado com sucesso. Seu acesso ao portal está liberado.\n\nSeu código de acesso é:\n\n${issued.code}\n\nEste código expira em 24 horas. Não compartilhe com ninguém.\n\n${pdfUrl ? `Contrato assinado: ${pdfUrl}\n\n` : ''}Acesse o portal por este link:\n${loginUrl}\n\n— Edro Digital`,
           html: buildFreelancerPortalEmailShell({
-            eyebrow: 'Contrato assinado',
-            title: '✅ Contrato assinado! Seu acesso final está liberado',
-            subtitle: 'Seu contrato com a Edro foi concluído com sucesso. Agora você já pode entrar no portal e começar a usar o sistema.',
-            introHtml: `<p style="margin:0 0 16px;font-size:16px;line-height:1.7">Olá, <strong>${firstName}</strong>! Seu contrato foi assinado com sucesso.</p>
-              <p style="margin:0 0 16px;font-size:16px;line-height:1.7">Para acessar o portal, use o código abaixo.</p>`,
+            title: '✅ Contrato assinado! Acesso liberado',
+            subtitle: 'Seu contrato com a Edro foi concluído com sucesso. Agora é só entrar no portal.',
+            bodyHtml: `<p style="margin:0 0 16px;color:#0f172a;font-size:16px;line-height:1.7">
+                Olá, <strong>${firstName}</strong>! 🎉 Seu contrato foi assinado com sucesso.
+              </p>
+              <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
+                A partir de agora você tem acesso completo ao portal. Use o código abaixo para entrar:
+              </p>
+              ${pdfUrl ? `<p style="margin:0 0 0;font-size:14px"><a href="${pdfUrl}" style="color:#E85219;font-weight:700;text-decoration:none">📄 Baixar contrato assinado →</a></p>` : ''}`,
             code: issued.code,
-            helperHtml: `<p style="margin:0">Este código expira em <strong>24 horas</strong>. Não compartilhe com ninguém.</p>`,
             ctaUrl: loginUrl,
-            ctaLabel: 'Entrar no Portal Freelancer',
-            footerHtml: `${pdfUrl ? `<p style="margin:20px 0 0"><a href="${pdfUrl}" style="color:#E85219;font-weight:700;text-decoration:none">Baixar contrato assinado →</a></p>` : ''}`,
+            ctaLabel: 'Entrar no Portal Edro →',
           }),
           tenantId: prof.tenant_id,
         });
