@@ -285,10 +285,26 @@ export default async function peopleRoutes(app: FastifyInstance) {
       return reply.send({ success: true });
     } catch (error: any) {
       await client.query('ROLLBACK').catch(() => {});
-      request.log?.error?.(error, 'people.delete failed');
+      // Log full PG error details so Railway logs show the exact cause
+      request.log?.error?.({
+        err: error,
+        pg_code: error?.code,
+        pg_detail: error?.detail,
+        pg_constraint: error?.constraint,
+        pg_table: error?.table,
+        pg_message: error?.message,
+      }, 'people.delete failed');
       return reply.code(409).send({
         error: 'delete_failed',
         message: 'Não foi possível excluir este colaborador porque ainda existem vínculos operacionais ativos.',
+        // Include pg details to help debug (remove after fix)
+        debug: {
+          code: error?.code,
+          constraint: error?.constraint,
+          table: error?.table,
+          detail: error?.detail,
+          message: error?.message,
+        },
       });
     } finally {
       client.release();
