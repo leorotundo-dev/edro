@@ -2273,37 +2273,71 @@ export function OpsCard({
           {/* Footer: avatar + datas */}
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 0.75 }}>
 
-            {/* Avatares */}
-            <Stack direction="row" alignItems="center" spacing={0.75}>
-              <Box sx={{ display: 'flex', '& > *:not(:first-of-type)': { ml: '-8px' } }}>
-                {job.owner_name && (
-                  <Tooltip title={job.owner_name} arrow placement="top">
+            {/* Avatares — owner em destaque */}
+            <Stack direction="row" alignItems="center" spacing={1}>
+              {job.owner_name ? (
+                <Tooltip title={job.owner_name} arrow placement="top">
+                  <Stack direction="row" alignItems="center" spacing={0.75}
+                    sx={{
+                      bgcolor: dark ? alpha('#5D87FF', 0.10) : alpha('#5D87FF', 0.07),
+                      border: `1.5px solid ${alpha('#5D87FF', 0.22)}`,
+                      borderRadius: 2,
+                      px: 0.75,
+                      py: 0.4,
+                      cursor: 'default',
+                    }}
+                  >
                     <Avatar
                       src={job.owner_avatar_url ?? undefined}
-                      sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 900, bgcolor: alpha('#5D87FF', 0.18), color: '#5D87FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        fontSize: '0.85rem',
+                        fontWeight: 900,
+                        bgcolor: alpha('#5D87FF', 0.22),
+                        color: '#5D87FF',
+                        border: `2px solid ${alpha('#5D87FF', 0.35)}`,
+                        flexShrink: 0,
+                      }}
                     >
                       {initials(job.owner_name)}
                     </Avatar>
-                  </Tooltip>
-                )}
-                {extraAssignees.map((a) => (
-                  <Tooltip key={a.user_id} title={a.name} arrow placement="top">
-                    <Avatar
-                      src={a.avatar_url ?? undefined}
-                      sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 900, bgcolor: alpha('#7B61FF', 0.18), color: '#7B61FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
+                    <Typography
+                      noWrap
+                      sx={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        color: dark ? '#a9c4ff' : '#3a5db5',
+                        maxWidth: 72,
+                        lineHeight: 1.1,
+                      }}
                     >
-                      {initials(a.name)}
-                    </Avatar>
-                  </Tooltip>
-                ))}
-                {extraAssignees.length > 2 && (
-                  <Avatar sx={{ width: 30, height: 30, fontSize: '0.55rem', fontWeight: 800, bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.08), color: 'text.secondary', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}>
-                    +{extraAssignees.length - 2}
-                  </Avatar>
-                )}
-              </Box>
-              {!job.owner_name && (
+                      {job.owner_name.split(' ')[0]}
+                    </Typography>
+                  </Stack>
+                </Tooltip>
+              ) : (
                 <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>Sem dono</Typography>
+              )}
+              {/* Assignees extras menores */}
+              {extraAssignees.length > 0 && (
+                <Box sx={{ display: 'flex', '& > *:not(:first-of-type)': { ml: '-8px' } }}>
+                  {extraAssignees.map((a) => (
+                    <Tooltip key={a.user_id} title={a.name} arrow placement="top">
+                      <Avatar
+                        src={a.avatar_url ?? undefined}
+                        sx={{ width: 26, height: 26, fontSize: '0.5rem', fontWeight: 900, bgcolor: alpha('#7B61FF', 0.18), color: '#7B61FF', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}
+                      >
+                        {initials(a.name)}
+                      </Avatar>
+                    </Tooltip>
+                  ))}
+                  {extraAssignees.length > 2 && (
+                    <Avatar sx={{ width: 26, height: 26, fontSize: '0.5rem', fontWeight: 800, bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.08), color: 'text.secondary', border: `2px solid ${dark ? '#1a1a2e' : '#fff'}` }}>
+                      +{extraAssignees.length - 2}
+                    </Avatar>
+                  )}
+                </Box>
               )}
             </Stack>
 
