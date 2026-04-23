@@ -15,6 +15,7 @@ import { getBoardInsights, analyzeAllBoardsForTenant, analyzeBoardHistory } from
 import { stripTrelloTitle, normalizeTrelloLabels, normalizeTrelloAttachments, inferJobTypeFromLabels } from '../services/trelloCardMapper';
 import { enqueueOutbox } from '../services/trelloOutboxService';
 import { ensureAllWebhooksForTenant, ensureWebhookForBoard } from '../services/trelloWebhookService';
+import { generateCompletion } from '../services/ai/claudeService';
 import { query } from '../db';
 
 function normalizeBoardBindingKey(value?: string | null) {
@@ -2399,6 +2400,83 @@ export default async function trelloRoutes(app: FastifyInstance) {
     );
 
     return reply.status(201).send({ data: { ...rows[0], created_at: rows[0].commented_at } });
+  });
+
+  // POST /trello/ops-cards/:cardId/quick-copy — generate copy inline via Jarvis and persist to card metadata
+  app.post('/trello/ops-cards/:cardId/quick-copy', { preHandler: [authGuard] }, async (request: TR, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+
+    // Load card info
+    const { rows: cardRows } = await query<{
+      title: string;
+      description: string | null;
+      metadata: Record<string, any>;
+      client_name: string | null;
+      job_type: string | null;
+      required_skill: string | null;
+      channel: string | null;
+    }>(
+      `SELECT pc.title, pc.description, pc.metadata,
+              cl.name AS client_name,
+              pc.metadata->>'job_type' AS job_type,
+              pc.metadata->>'required_skill' AS required_skill,
+              pc.metadata->>'channel' AS channel
+       FROM project_cards pc
+       LEFT JOIN clients cl ON cl.id = (pc.metadata->>'client_id')::uuid AND cl.tenant_id = $2
+       WHERE pc.id = $1 AND pc.tenant_id = $2
+       LIMIT 1`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const card = cardRows[0];
+
+    // Build prompt from available context
+    const context = [
+      card.client_name ? `Cliente: ${card.client_name}` : null,
+      card.job_type ? `Tipo de peça: ${card.job_type}` : null,
+      card.required_skill ? `Especialidade: ${card.required_skill}` : null,
+      card.channel ? `Canal: ${card.channel}` : null,
+      card.description ? `Contexto: ${card.description.slice(0, 600)}` : null,
+    ].filter(Boolean).join('\n');
+
+    const prompt = `Você é o Jarvis, o assistente de criação da Edro.Digital.
+Crie um copy profissional e persuasivo para a seguinte demanda:
+
+Título: ${card.title}
+${context}
+
+Gere um texto de copy completo com:
+- Headline impactante
+- Corpo do texto (3-5 frases)
+- CTA claro
+
+Responda apenas com o copy pronto, sem explicações.`;
+
+    let copyText: string;
+    try {
+      const result = await generateCompletion({
+        prompt,
+        temperature: 0.75,
+        maxTokens: 600,
+      });
+      copyText = result.text.trim();
+    } catch (err: any) {
+      return reply.status(502).send({ error: 'Falha ao gerar copy com IA.', detail: err?.message });
+    }
+
+    // Persist to card metadata
+    const updatedMeta = {
+      ...(card.metadata ?? {}),
+      quick_copy: copyText,
+      quick_copy_generated_at: new Date().toISOString(),
+    };
+    await query(
+      `UPDATE project_cards SET metadata = $1, updated_at = now() WHERE id = $2 AND tenant_id = $3`,
+      [JSON.stringify(updatedMeta), cardId, tenantId],
+    );
+
+    return reply.status(201).send({ data: { copy_text: copyText, generated_at: updatedMeta.quick_copy_generated_at } });
   });
 
   // POST /trello/ops-cards/:cardId/assign — assign member + sync to Trello
