@@ -163,10 +163,15 @@ export default async function peopleRoutes(app: FastifyInstance) {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { id } = request.params as { id: string };
 
+    const step = (label: string) => ({ label }); // step marker for error attribution
+    let currentStep = 'connect';
+
     const client = await pool.connect();
     try {
+      currentStep = 'BEGIN';
       await client.query('BEGIN');
 
+      currentStep = 'check_exists';
       const existing = await client.query<{ id: string }>(
         `SELECT id FROM people WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
         [id, tenantId],
@@ -176,104 +181,91 @@ export default async function peopleRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: 'not_found' });
       }
 
+      // Find linked edro_users (via freelancer profile OR email identity)
+      currentStep = 'linked_users';
       const linkedUsers = await client.query<{ user_id: string }>(
         `SELECT DISTINCT eu.id AS user_id
            FROM edro_users eu
-           JOIN tenant_users tu
-             ON tu.user_id = eu.id
-            AND tu.tenant_id = $2
-           LEFT JOIN freelancer_profiles fp
-             ON fp.user_id = eu.id
+           JOIN tenant_users tu ON tu.user_id = eu.id AND tu.tenant_id = $2::uuid
+           LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
            LEFT JOIN person_identities pi
-             ON pi.person_id::text = $1::text
+             ON pi.person_id = $1::uuid
             AND pi.tenant_id = $2
             AND pi.identity_type = 'email'
-          WHERE fp.person_id::text = $1::text
-             OR LOWER(eu.email) = pi.normalized_value`,
+          WHERE fp.person_id = $1::uuid
+             OR (pi.normalized_value IS NOT NULL AND LOWER(eu.email) = pi.normalized_value)`,
         [id, tenantId],
       );
       const userIds = linkedUsers.rows.map((row) => row.user_id);
 
-      // Clear known references explicitly so delete does not depend on FK shape in legacy data.
+      // Clear FK references before deletion
+      currentStep = 'clear_client_contacts';
       await client.query(
-        `UPDATE client_contacts
-            SET person_id = NULL
-          WHERE person_id::text = $1::text
-            AND tenant_id = $2`,
+        `UPDATE client_contacts SET person_id = NULL WHERE person_id = $1::uuid AND tenant_id = $2`,
         [id, tenantId],
       );
+
+      currentStep = 'clear_freelancer_profiles';
       await client.query(
-        `UPDATE freelancer_profiles
-            SET person_id = NULL
-          WHERE person_id::text = $1::text`,
+        `UPDATE freelancer_profiles SET person_id = NULL WHERE person_id = $1::uuid`,
         [id],
       );
+
+      currentStep = 'clear_meeting_participants';
       await client.query(
-        `UPDATE meeting_participants
-            SET person_id = NULL
-          WHERE person_id::text = $1::text
-            AND tenant_id = $2`,
+        `UPDATE meeting_participants SET person_id = NULL WHERE person_id = $1::uuid AND tenant_id = $2`,
         [id, tenantId],
       );
+
+      currentStep = 'clear_whatsapp_group_messages';
       await client.query(
-        `UPDATE whatsapp_group_messages
-            SET sender_person_id = NULL
-          WHERE sender_person_id::text = $1::text
-            AND tenant_id = $2`,
+        `UPDATE whatsapp_group_messages SET sender_person_id = NULL WHERE sender_person_id = $1::uuid AND tenant_id = $2`,
         [id, tenantId],
       );
+
+      currentStep = 'clear_whatsapp_messages';
       await client.query(
-        `UPDATE whatsapp_messages
-            SET sender_person_id = NULL
-          WHERE sender_person_id::text = $1::text
-            AND tenant_id = $2`,
+        `UPDATE whatsapp_messages SET sender_person_id = NULL WHERE sender_person_id = $1::uuid AND tenant_id = $2`,
         [id, tenantId],
       );
 
       if (userIds.length) {
+        currentStep = 'deactivate_freelancer_profiles';
         await client.query(
-          `UPDATE freelancer_profiles
-              SET is_active = false,
-                  person_id = NULL,
-                  updated_at = now()
-            WHERE user_id = ANY($1::uuid[])`,
+          `UPDATE freelancer_profiles SET is_active = false, person_id = NULL, updated_at = now() WHERE user_id = ANY($1::uuid[])`,
           [userIds],
         );
+
+        currentStep = 'delete_client_permissions';
         await client.query(
-          `DELETE FROM client_permissions
-            WHERE tenant_id = $1
-              AND user_id = ANY($2::uuid[])`,
+          `DELETE FROM client_permissions WHERE tenant_id = $1::uuid AND user_id = ANY($2::uuid[])`,
           [tenantId, userIds],
         );
+
+        currentStep = 'delete_tenant_users';
         await client.query(
-          `DELETE FROM tenant_users
-            WHERE tenant_id = $1
-              AND user_id = ANY($2::uuid[])`,
+          `DELETE FROM tenant_users WHERE tenant_id = $1::uuid AND user_id = ANY($2::uuid[])`,
           [tenantId, userIds],
         );
+
+        currentStep = 'deactivate_edro_users';
         await client.query(
-          `UPDATE edro_users eu
-              SET status = 'inactive',
-                  updated_at = now()
-            WHERE eu.id = ANY($1::uuid[])
-              AND NOT EXISTS (
-                SELECT 1
-                  FROM tenant_users tu
-                 WHERE tu.user_id = eu.id
-              )`,
+          `UPDATE edro_users SET status = 'inactive', updated_at = now()
+            WHERE id = ANY($1::uuid[])
+              AND NOT EXISTS (SELECT 1 FROM tenant_users tu WHERE tu.user_id = edro_users.id)`,
           [userIds],
         );
       }
 
+      currentStep = 'delete_person_identities';
       await client.query(
-        `DELETE FROM person_identities
-          WHERE person_id::text = $1::text
-            AND tenant_id = $2`,
+        `DELETE FROM person_identities WHERE person_id = $1::uuid AND tenant_id = $2`,
         [id, tenantId],
       );
 
+      currentStep = 'delete_people';
       const deleted = await client.query<{ id: string }>(
-        `DELETE FROM people WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+        `DELETE FROM people WHERE id = $1::uuid AND tenant_id = $2 RETURNING id`,
         [id, tenantId],
       );
       if (!deleted.rows.length) {
@@ -285,26 +277,18 @@ export default async function peopleRoutes(app: FastifyInstance) {
       return reply.send({ success: true });
     } catch (error: any) {
       await client.query('ROLLBACK').catch(() => {});
-      // Log full PG error details so Railway logs show the exact cause
       request.log?.error?.({
-        err: error,
+        step: currentStep,
         pg_code: error?.code,
-        pg_detail: error?.detail,
         pg_constraint: error?.constraint,
         pg_table: error?.table,
+        pg_detail: error?.detail,
         pg_message: error?.message,
       }, 'people.delete failed');
       return reply.code(409).send({
         error: 'delete_failed',
         message: 'Não foi possível excluir este colaborador porque ainda existem vínculos operacionais ativos.',
-        // Include pg details to help debug (remove after fix)
-        debug: {
-          code: error?.code,
-          constraint: error?.constraint,
-          table: error?.table,
-          detail: error?.detail,
-          message: error?.message,
-        },
+        debug: { step: currentStep, code: error?.code, constraint: error?.constraint, table: error?.table, detail: error?.detail, message: error?.message },
       });
     } finally {
       client.release();
