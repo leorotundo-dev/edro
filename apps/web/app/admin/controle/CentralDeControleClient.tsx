@@ -30,12 +30,14 @@ import {
   IconCalendar,
   IconCircleCheck,
   IconClockHour4,
+  IconDatabase,
   IconDatabaseImport,
   IconExternalLink,
   IconInfoCircle,
   IconPlugOff,
   IconRefresh,
   IconRobot,
+  IconServer,
   IconShieldCheck,
   IconVideo,
 } from '@tabler/icons-react';
@@ -88,6 +90,15 @@ type ControleData = {
   domains: DataDomain[];
   alerts: ControleAlert[];
   summary: ControleSummary;
+};
+
+type ReadinessCheck = { ok: boolean; detail?: string; latency_ms?: number };
+type ReadinessData = {
+  status: 'ready' | 'degraded' | 'not_ready';
+  degraded: string[];
+  checks: Record<string, ReadinessCheck>;
+  uptime_s: number;
+  ts: string;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -147,13 +158,18 @@ export default function CentralDeControleClient() {
   const [renewingWatches, setRenewingWatches] = useState(false);
   const [renewResult, setRenewResult] = useState<string>('');
   const [error, setError] = useState('');
+  const [readiness, setReadiness] = useState<ReadinessData | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await apiGet<ControleData>('/admin/controle');
+      const [res, ready] = await Promise.all([
+        apiGet<ControleData>('/admin/controle'),
+        apiGet<ReadinessData>('/health/ready').catch(() => null),
+      ]);
       setData(res);
+      setReadiness(ready);
     } catch (err: any) {
       setError(err?.message ?? 'Erro ao carregar dados.');
     } finally {
@@ -381,6 +397,79 @@ export default function CentralDeControleClient() {
                 );
               })}
             </Grid>
+
+            {/* ── Infrastructure Readiness ── */}
+            {readiness && (() => {
+              const CHECK_LABELS: Record<string, string> = {
+                db: 'Banco de dados',
+                db_pool: 'Pool de conexões',
+                gmail_watch: 'Gmail Watch',
+                calendar_watch: 'Calendar Watch',
+                trello_outbox: 'Trello Outbox',
+                evolution: 'Evolution / WhatsApp',
+                storage: 'Storage (S3)',
+              };
+              const statusColor = readiness.status === 'ready' ? '#2e7d32'
+                : readiness.status === 'degraded' ? '#ed6c02'
+                : '#d32f2f';
+              const uptimeH = Math.floor(readiness.uptime_s / 3600);
+              const uptimeM = Math.floor((readiness.uptime_s % 3600) / 60);
+
+              return (
+                <Box sx={{ mb: 3 }}>
+                  <Stack direction="row" alignItems="center" spacing={1.5} mb={1.5}>
+                    <IconServer size={18} />
+                    <Typography variant="subtitle1" fontWeight={700}>Prontidão da Infraestrutura</Typography>
+                    <Chip
+                      label={readiness.status === 'ready' ? 'Pronto' : readiness.status === 'degraded' ? 'Degradado' : 'Não pronto'}
+                      size="small"
+                      sx={{ bgcolor: alpha(statusColor, 0.1), color: statusColor, fontWeight: 700, fontSize: '0.7rem' }}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      uptime {uptimeH}h {uptimeM}m
+                    </Typography>
+                  </Stack>
+                  <Paper elevation={0} sx={{ borderRadius: '8px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                    {Object.entries(readiness.checks).map(([key, check], i) => {
+                      const color = check.ok ? '#2e7d32' : '#d32f2f';
+                      return (
+                        <Box key={key}>
+                          {i > 0 && <Divider />}
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={2}
+                            sx={{ px: 2.5, py: 1.25 }}
+                          >
+                            <Box sx={{ color, display: 'flex' }}>
+                              {check.ok ? <IconCircleCheck size={16} /> : <IconAlertCircle size={16} />}
+                            </Box>
+                            <Typography variant="body2" fontWeight={600} flex={1}>
+                              {CHECK_LABELS[key] ?? key}
+                            </Typography>
+                            {check.latency_ms !== undefined && (
+                              <Typography variant="caption" color="text.secondary">
+                                {check.latency_ms}ms
+                              </Typography>
+                            )}
+                            {check.detail && (
+                              <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 280, textAlign: 'right' }}>
+                                {check.detail}
+                              </Typography>
+                            )}
+                            <Chip
+                              label={check.ok ? 'OK' : 'Falha'}
+                              size="small"
+                              sx={{ bgcolor: alpha(color, 0.08), color, fontWeight: 700, fontSize: '0.65rem', minWidth: 52 }}
+                            />
+                          </Stack>
+                        </Box>
+                      );
+                    })}
+                  </Paper>
+                </Box>
+              );
+            })()}
 
             {/* ── Data Freshness ── */}
             <Typography variant="subtitle1" fontWeight={700} mb={1.5}>
