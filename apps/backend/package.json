@@ -42,7 +42,7 @@
     "openai": "^4.52.0",
     "openid-client": "^6.0.0",
     "pdf-parse": "^1.1.1",
-    "pdfkit": "^0.15.2",
+    "pdfkit": "^0.18.0",
     "pg": "^8.11.0",
     "pptxgenjs": "^4.0.1",
     "prom-client": "^15.1.0",
