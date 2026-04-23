@@ -26,11 +26,13 @@ import {
   IconArrowLeft,
   IconBrush,
   IconCalendar,
+  IconCalendarEvent,
   IconCheck,
   IconChevronDown,
   IconChevronUp,
   IconClipboardList,
   IconExternalLink,
+  IconFileText,
   IconFlag,
   IconHistory,
   IconMessage,
@@ -42,6 +44,7 @@ import {
   IconSend,
   IconSparkles,
   IconUser,
+  IconUserPlus,
   IconUsers,
   IconX,
 } from '@tabler/icons-react';
@@ -316,6 +319,11 @@ export default function JobDetailClient({
   // Checklist item toggling
   const [togglingItem, setTogglingItem] = useState<string | null>(null);
 
+  // Quick copy generation
+  const [generatingCopy, setGeneratingCopy] = useState(false);
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [quickCopyText, setQuickCopyText] = useState<string | null>(null);
+
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -511,6 +519,28 @@ export default function JobDetailClient({
     }
   };
 
+  const generateQuickCopy = async () => {
+    if (!job || generatingCopy) return;
+    setGeneratingCopy(true);
+    try {
+      const res = await apiPost<{ data?: { copy_text: string; generated_at: string } }>(
+        `/trello/ops-cards/${id}/quick-copy`,
+        {},
+      );
+      if (res?.data?.copy_text) {
+        setQuickCopyText(res.data.copy_text);
+        setCopyDialogOpen(true);
+        // optimistically update job metadata so the icon flips green
+        setJob((prev) => prev ? {
+          ...prev,
+          metadata: { ...(prev.metadata ?? {}), quick_copy: res.data!.copy_text, quick_copy_generated_at: res.data!.generated_at },
+        } : prev);
+      }
+    } catch { /* silent — user already sees loading stopped */ } finally {
+      setGeneratingCopy(false);
+    }
+  };
+
   const pct = job ? checklistPct(job) : null;
 
   if (loading) {
@@ -551,6 +581,17 @@ export default function JobDetailClient({
   const trelloAttachments = (job.attachments ?? (job.metadata?.attachments as any[]) ?? []) as Array<{ url: string; name: string; preview_url?: string | null; is_image?: boolean }>;
   const coverUrl = job.cover_url ?? (job.metadata?.cover_image_url as string | null) ?? null;
 
+  // Copy status: green if quick_copy is saved in metadata, or if a briefing_id is linked
+  const hasCopy = Boolean(job.metadata?.quick_copy || job.metadata?.briefing_id);
+  const existingCopyText = (job.metadata?.quick_copy as string | undefined) ?? null;
+
+  // Date helpers
+  const entryDate = job.start_date ?? job.created_at ?? null;
+  const deadlineOverdue = job.deadline_at ? new Date(job.deadline_at) < new Date() : false;
+  const deadlineThisWeek = job.deadline_at
+    ? !deadlineOverdue && (new Date(job.deadline_at).getTime() - Date.now()) < 7 * 86400000
+    : false;
+
   return (
     <Box sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
       {/* ── Cover image (Trello-style) ── */}
@@ -589,7 +630,7 @@ export default function JobDetailClient({
       )}
 
       {/* ── Header ── */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 2 }}>
         <Stack spacing={1.15} sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
             <Avatar
@@ -684,21 +725,6 @@ export default function JobDetailClient({
               </Typography>
             </Tooltip>
           )}
-          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-            {job.client_name && (
-              <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ fontSize: '0.78rem' }}>
-                {job.client_name}
-              </Typography>
-            )}
-            {job.deadline_at && (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <IconCalendar size={13} color={theme.palette.text.disabled as string} />
-                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.75rem' }}>
-                  Entrega {fmtDate(job.deadline_at)}
-                </Typography>
-              </Stack>
-            )}
-          </Stack>
           <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
             <Chip size="small" variant="outlined" label={sourceLabel} sx={{ fontWeight: 700 }} />
             <Chip size="small" variant="outlined" label={job.job_type} sx={{ fontWeight: 700 }} />
@@ -762,6 +788,278 @@ export default function JobDetailClient({
           </Button>
         </Stack>
       </Stack>
+
+      {/* ── DATE HERO BANNER ── */}
+      <Paper
+        variant="outlined"
+        sx={(t) => ({
+          borderRadius: 3,
+          mb: 2.5,
+          overflow: 'hidden',
+          borderColor: deadlineOverdue
+            ? alpha('#FA896B', 0.4)
+            : deadlineThisWeek
+              ? alpha('#FFAE1F', 0.35)
+              : t.palette.divider,
+          bgcolor: deadlineOverdue
+            ? alpha('#FA896B', 0.04)
+            : deadlineThisWeek
+              ? alpha('#FFAE1F', 0.04)
+              : 'transparent',
+        })}
+      >
+        <Stack direction={{ xs: 'column', sm: 'row' }} divider={<Divider orientation="vertical" flexItem />}>
+          {/* Entrada */}
+          <Box sx={{ flex: 1, px: 3, py: 2 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+              <IconCalendarEvent size={15} color={theme.palette.text.disabled as string} />
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Entrada
+              </Typography>
+            </Stack>
+            <Typography
+              fontWeight={800}
+              sx={{ fontSize: { xs: '1.5rem', md: '1.75rem' }, lineHeight: 1, color: 'text.primary' }}
+            >
+              {entryDate ? fmtDate(entryDate) : '—'}
+            </Typography>
+            {job.client_name && (
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, mt: 0.35, display: 'block' }}>
+                {job.client_name}
+              </Typography>
+            )}
+          </Box>
+
+          {/* Entrega */}
+          <Box sx={{ flex: 1, px: 3, py: 2 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+              <IconFlag
+                size={15}
+                color={deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#FFAE1F' : theme.palette.text.disabled as string}
+              />
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
+                  color: deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#B26A00' : 'text.disabled',
+                }}
+              >
+                Entrega
+              </Typography>
+              {deadlineOverdue && (
+                <Chip size="small" label="Atrasado" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha('#FA896B', 0.15), color: '#FA896B', ml: 0.5 }} />
+              )}
+              {!deadlineOverdue && deadlineThisWeek && (
+                <Chip size="small" label="Esta semana" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha('#FFAE1F', 0.15), color: '#B26A00', ml: 0.5 }} />
+              )}
+            </Stack>
+            <Typography
+              fontWeight={800}
+              sx={{
+                fontSize: { xs: '1.5rem', md: '1.75rem' }, lineHeight: 1,
+                color: deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#B26A00' : 'text.primary',
+              }}
+            >
+              {job.deadline_at ? fmtDate(job.deadline_at) : 'Sem prazo'}
+            </Typography>
+            <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 600, mt: 0.35, display: 'block', color: deadlineOverdue ? alpha('#FA896B', 0.8) : 'text.secondary' }}>
+              {deadlineInfo.label}
+            </Typography>
+          </Box>
+        </Stack>
+      </Paper>
+
+      {/* ── OWNER HERO ── */}
+      <Paper
+        variant="outlined"
+        sx={(t) => ({
+          borderRadius: 3,
+          mb: 2.5,
+          px: 2.5,
+          py: 1.75,
+          borderColor: !job.owner_id ? alpha('#FFAE1F', 0.4) : t.palette.divider,
+          bgcolor: !job.owner_id ? alpha('#FFAE1F', 0.03) : 'transparent',
+        })}
+      >
+        {job.owner_id && job.owner_name ? (
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Avatar
+              src={job.owner_avatar_url ?? undefined}
+              sx={{
+                width: 52,
+                height: 52,
+                fontSize: '1.05rem',
+                fontWeight: 800,
+                bgcolor: alpha('#5D87FF', 0.15),
+                color: '#5D87FF',
+                flexShrink: 0,
+              }}
+            >
+              {initials(job.owner_name)}
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Responsável
+              </Typography>
+              <Typography fontWeight={800} sx={{ fontSize: '1.1rem', lineHeight: 1.2, mt: 0.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {job.owner_name}
+              </Typography>
+              {job.person_type && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                  {job.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'}
+                </Typography>
+              )}
+            </Box>
+            <Tooltip title="Trocar responsável">
+              <IconButton
+                size="small"
+                onClick={() => { setPeopleOpen(true); setPeopleError(''); }}
+                sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+              >
+                <IconUser size={16} />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        ) : (
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Box
+              sx={{
+                width: 52, height: 52, borderRadius: '50%', flexShrink: 0,
+                border: `2px dashed ${alpha('#FFAE1F', 0.5)}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <IconUser size={22} color={alpha('#FFAE1F', 0.7)} />
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Responsável
+              </Typography>
+              <Typography color="text.secondary" sx={{ fontSize: '0.9rem', fontWeight: 600, mt: 0.25 }}>
+                Nenhum responsável definido
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<IconUserPlus size={15} />}
+              onClick={() => { setPeopleOpen(true); setPeopleError(''); }}
+              sx={{
+                fontWeight: 700, fontSize: '0.8rem', textTransform: 'none', borderRadius: 2,
+                borderColor: alpha('#FFAE1F', 0.5), color: '#B26A00',
+                '&:hover': { borderColor: '#FFAE1F', bgcolor: alpha('#FFAE1F', 0.06) },
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Atribuir a alguém
+            </Button>
+          </Stack>
+        )}
+      </Paper>
+
+      {/* ── COPY STATUS BANNER ── */}
+      <Paper
+        variant="outlined"
+        sx={(t) => ({
+          borderRadius: 3,
+          mb: 2.5,
+          px: 2.5,
+          py: 1.5,
+          borderColor: hasCopy ? alpha('#13DEB9', 0.35) : alpha('#5D87FF', 0.25),
+          bgcolor: hasCopy ? alpha('#13DEB9', 0.03) : alpha('#5D87FF', 0.03),
+        })}
+      >
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Box
+            sx={{
+              width: 40, height: 40, borderRadius: 2, flexShrink: 0,
+              bgcolor: hasCopy ? alpha('#13DEB9', 0.12) : alpha('#5D87FF', 0.1),
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {hasCopy
+              ? <IconFileText size={20} color="#13DEB9" />
+              : <IconSparkles size={20} color="#5D87FF" />}
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography fontWeight={700} sx={{ fontSize: '0.88rem', color: hasCopy ? '#13DEB9' : 'text.primary' }}>
+              {hasCopy ? 'Copy disponível' : 'Sem copy gerado'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+              {hasCopy
+                ? 'Clique para visualizar o copy gerado pelo Jarvis'
+                : 'O Jarvis pode gerar um copy na hora para este job'}
+            </Typography>
+          </Box>
+          {hasCopy ? (
+            <Button
+              size="small"
+              startIcon={<IconFileText size={14} />}
+              onClick={() => { setQuickCopyText(existingCopyText); setCopyDialogOpen(true); }}
+              sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2, color: '#13DEB9', whiteSpace: 'nowrap' }}
+            >
+              Ver copy
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={generatingCopy ? <CircularProgress size={13} sx={{ color: '#fff' }} /> : <IconSparkles size={14} />}
+              disabled={generatingCopy}
+              onClick={generateQuickCopy}
+              sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2, boxShadow: 'none', whiteSpace: 'nowrap' }}
+            >
+              {generatingCopy ? 'Gerando...' : 'Gerar com Jarvis'}
+            </Button>
+          )}
+        </Stack>
+      </Paper>
+
+      {/* ── COPY DIALOG ── */}
+      {copyDialogOpen && (
+        <Paper
+          variant="outlined"
+          sx={(t) => ({
+            borderRadius: 3,
+            mb: 2.5,
+            p: 2.5,
+            borderColor: alpha('#13DEB9', 0.4),
+            bgcolor: dark ? alpha('#13DEB9', 0.05) : alpha('#13DEB9', 0.03),
+            position: 'relative',
+          })}
+        >
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <IconSparkles size={16} color="#13DEB9" />
+              <Typography fontWeight={800} sx={{ fontSize: '0.88rem', color: '#13DEB9' }}>
+                Copy gerado pelo Jarvis
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={0.5}>
+              <Tooltip title="Abrir briefing completo">
+                <IconButton size="small" component={Link} href={`/admin/operacoes/jobs/${job.id}/briefing`}
+                  sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}>
+                  <IconExternalLink size={14} />
+                </IconButton>
+              </Tooltip>
+              <IconButton size="small" onClick={() => setCopyDialogOpen(false)} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                <IconX size={14} />
+              </IconButton>
+            </Stack>
+          </Stack>
+          <Box
+            sx={{
+              p: 2, borderRadius: 2,
+              bgcolor: dark ? alpha('#fff', 0.04) : alpha('#000', 0.025),
+              border: `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.07)}`,
+            }}
+          >
+            <Typography variant="body2" sx={{ fontSize: '0.9rem', lineHeight: 1.65, whiteSpace: 'pre-wrap', color: 'text.primary' }}>
+              {quickCopyText || '(copy não disponível)'}
+            </Typography>
+          </Box>
+        </Paper>
+      )}
 
       {/* ── Body: 2 columns ── */}
       <Grid container spacing={3}>
