@@ -16,6 +16,8 @@ import { stripTrelloTitle, normalizeTrelloLabels, normalizeTrelloAttachments, in
 import { enqueueOutbox } from '../services/trelloOutboxService';
 import { ensureAllWebhooksForTenant, ensureWebhookForBoard } from '../services/trelloWebhookService';
 import { generateCompletion } from '../services/ai/claudeService';
+import { sendDirectMessage } from '../services/integrations/evolutionApiService';
+import { createCalendarMeeting } from '../services/integrations/googleCalendarService';
 import { query } from '../db';
 
 function normalizeBoardBindingKey(value?: string | null) {
@@ -1628,8 +1630,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
       owner_name: c.owner_name ?? null,
       owner_email: c.owner_email ?? null,
       deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
-      estimated_minutes: null, actual_minutes: null,
+      is_urgent: Boolean(c.is_urgent),
+      job_size: (c.job_size as string | null) ?? null,
+      estimated_minutes: c.estimated_minutes != null ? Number(c.estimated_minutes) : null,
+      actual_minutes: null,
       metadata: {
+        ...(c.metadata ?? {}),              // DB metadata first (quick_copy, briefing_id, etc.)
         trello_card_id: c.trello_card_id, trello_url: c.trello_url,
         board_id: c.board_id, board_name: c.board_name,
         list_id: c.list_id, list_name: c.list_name,
@@ -1722,6 +1728,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const cardRes = await query<Record<string, any>>(
       `SELECT
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
+         pc.is_urgent, pc.job_size, pc.estimated_minutes, pc.metadata,
          pc.trello_url, pc.trello_card_id, pc.campaign_id,
          camp.name as campaign_name,
          pl.id as list_id, pl.name as list_name,
@@ -1936,6 +1943,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
         owner_id: assignees[0]?.user_id ?? liveJob.owner_id ?? null,
         owner_name: assignees[0]?.name ?? liveJob.owner_name ?? null,
         owner_email: assignees[0]?.email ?? liveJob.owner_email ?? null,
+        owner_avatar_url: assignees[0]?.avatar_url ?? null,
         assignees,
         comments,
         checklists,
@@ -1953,6 +1961,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
       deadline_at: z.string().nullable().optional(),
       owner_id: z.string().uuid().nullable().optional(),
       assignee_ids: z.array(z.string().uuid()).optional(),
+      is_urgent: z.boolean().optional(),
+      job_size: z.enum(['P', 'M', 'G', 'GG']).nullable().optional(),
+      estimated_minutes: z.number().int().nonnegative().nullable().optional(),
     }).parse(request.body);
 
     const cardRes = await query<{ board_id: string; trello_card_id: string | null; owner_email: string | null }>(
@@ -1975,6 +1986,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
     if (body.title !== undefined) patchPayload.title = body.title;
     if (body.summary !== undefined) patchPayload.description = body.summary ?? '';
     if (body.deadline_at !== undefined) patchPayload.due_date = normalizeDeadlineDate(body.deadline_at);
+    if (body.is_urgent !== undefined) patchPayload.is_urgent = body.is_urgent;
+    if (body.job_size !== undefined) patchPayload.job_size = body.job_size;
+    if (body.estimated_minutes !== undefined) patchPayload.estimated_minutes = body.estimated_minutes;
 
     if (Object.keys(patchPayload).length) {
       const reqBody = { ...patchPayload };
@@ -2477,6 +2491,159 @@ Responda apenas com o copy pronto, sem explicações.`;
     );
 
     return reply.status(201).send({ data: { copy_text: copyText, generated_at: updatedMeta.quick_copy_generated_at } });
+  });
+
+  // POST /trello/ops-cards/:cardId/notify-owner — send WhatsApp to the DA assigned to this job
+  app.post('/trello/ops-cards/:cardId/notify-owner', { preHandler: [authGuard] }, async (request: TR, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      // Optional override phone — provided by frontend when DB lookup returns no_phone
+      phone: z.string().optional(),
+      message: z.string().optional(),
+    }).parse(request.body);
+
+    // Load card + owner info
+    const { rows: cardRows } = await query<{
+      title: string;
+      due_date: string | null;
+      client_name: string | null;
+      owner_name: string | null;
+      owner_email: string | null;
+      owner_user_id: string | null;
+    }>(
+      `SELECT
+         pc.title,
+         pc.due_date,
+         cl.name AS client_name,
+         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) AS owner_name,
+         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) AS owner_email,
+         (SELECT eu.id::text FROM project_card_members pcm
+          JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+          WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) AS owner_user_id
+       FROM project_cards pc
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pc.id = $1 AND pc.tenant_id = $2 LIMIT 1`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const card = cardRows[0];
+
+    // Resolve phone: 1) from request body (user-entered), 2) from person_identities DB
+    let phone = body.phone?.trim() ?? null;
+    if (!phone && card.owner_user_id) {
+      const { rows: phoneRows } = await query<{ phone: string }>(
+        `SELECT pi.identity_value AS phone
+         FROM person_identities pi
+         JOIN people pe ON pe.id = pi.person_id AND pe.tenant_id = $2
+         JOIN edro_users eu ON LOWER(eu.email) = LOWER(pe.email)
+         WHERE eu.id = $1::uuid
+           AND pi.identity_type = 'phone_e164'
+           AND pi.tenant_id = $2
+         LIMIT 1`,
+        [card.owner_user_id, tenantId],
+      ).catch(() => ({ rows: [] }));
+      phone = phoneRows[0]?.phone ?? null;
+    }
+
+    if (!phone) {
+      return reply.status(422).send({
+        error: 'no_phone',
+        owner_name: card.owner_name,
+        owner_email: card.owner_email,
+        message: 'Responsável não tem número de WhatsApp cadastrado. Informe o número para enviar.',
+      });
+    }
+
+    // Build message
+    const deadlineLabel = card.due_date
+      ? new Date(`${card.due_date}T23:59:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+      : 'Sem prazo definido';
+    const text = body.message?.trim() || [
+      `🎯 *Novo job atribuído a você!*`,
+      ``,
+      `*${card.title}*`,
+      card.client_name ? `Cliente: ${card.client_name}` : null,
+      `Prazo: ${deadlineLabel}`,
+      ``,
+      `Acesse o Studio para ver os detalhes e gerar o copy.`,
+    ].filter((l) => l !== null).join('\n');
+
+    try {
+      await sendDirectMessage(tenantId, phone, text);
+    } catch (err: any) {
+      return reply.status(502).send({ error: 'whatsapp_failed', detail: err?.message ?? 'Falha ao enviar mensagem.' });
+    }
+
+    return reply.status(200).send({ ok: true, phone, owner_name: card.owner_name });
+  });
+
+  // POST /trello/ops-cards/:cardId/meeting — create Google Calendar meeting + Meet link
+  app.post('/trello/ops-cards/:cardId/meeting', { preHandler: [authGuard] }, async (request: TR, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      start_at: z.string(), // ISO datetime string
+      duration_minutes: z.number().int().positive().default(60),
+      title: z.string().optional(),
+    }).parse(request.body);
+
+    // Load card + owner info
+    const { rows: cardRows } = await query<{
+      title: string;
+      client_id: string | null;
+      client_name: string | null;
+      owner_email: string | null;
+      description: string | null;
+    }>(
+      `SELECT
+         pc.title, pc.description,
+         pb.client_id,
+         cl.name AS client_name,
+         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) AS owner_email
+       FROM project_cards pc
+       JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       WHERE pc.id = $1 AND pc.tenant_id = $2 LIMIT 1`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const card = cardRows[0];
+
+    const startAt = new Date(body.start_at);
+    if (Number.isNaN(startAt.getTime())) {
+      return reply.status(400).send({ error: 'Data de início inválida.' });
+    }
+
+    const meetingTitle = body.title?.trim() || `Kickoff: ${card.title}`;
+    const attendeeEmails = card.owner_email ? [card.owner_email] : [];
+
+    try {
+      const event = await createCalendarMeeting({
+        tenantId,
+        title: meetingTitle,
+        startAt,
+        durationMinutes: body.duration_minutes,
+        attendeeEmails,
+        description: card.description ?? undefined,
+        clientId: card.client_id ?? null,
+        clientName: card.client_name ?? null,
+      });
+      return reply.status(201).send({
+        ok: true,
+        data: {
+          event_id: event.eventId,
+          meet_url: event.meetUrl,
+          html_link: event.htmlLink,
+          start_at: startAt.toISOString(),
+          organizer: event.organizerName,
+          attendees: event.attendees,
+        },
+      });
+    } catch (err: any) {
+      return reply.status(502).send({ error: 'meeting_failed', detail: err?.message ?? 'Falha ao criar reunião.' });
+    }
   });
 
   // POST /trello/ops-cards/:cardId/assign — assign member + sync to Trello

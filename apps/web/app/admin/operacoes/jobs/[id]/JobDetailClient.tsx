@@ -24,16 +24,20 @@ import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   IconArrowLeft,
+  IconBrandWhatsapp,
   IconBrush,
   IconCalendar,
   IconCalendarEvent,
+  IconCalendarPlus,
   IconCheck,
   IconChevronDown,
   IconChevronUp,
   IconClipboardList,
+  IconClock,
   IconExternalLink,
   IconFileText,
   IconFlag,
+  IconFlame,
   IconHistory,
   IconMessage,
   IconPencil,
@@ -46,6 +50,7 @@ import {
   IconUser,
   IconUserPlus,
   IconUsers,
+  IconVideo,
   IconX,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
@@ -111,6 +116,14 @@ function fmtDateTime(iso: string | null | undefined) {
 
 function initials(name?: string | null) {
   return (name || '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+/** Convert ISO/date string → YYYY-MM-DD for <input type="date"> */
+function toDateInput(iso: string | null | undefined) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
 }
 
 function checklistPct(job: OperationsJob) {
@@ -323,6 +336,32 @@ export default function JobDetailClient({
   const [generatingCopy, setGeneratingCopy] = useState(false);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [quickCopyText, setQuickCopyText] = useState<string | null>(null);
+
+  // Inline deadline editing
+  const [editingDeadline, setEditingDeadline] = useState(false);
+  const [deadlineDraft, setDeadlineDraft] = useState('');
+  const [savingDeadline, setSavingDeadline] = useState(false);
+
+  // Job controls: urgency, size, estimate
+  const [urgentSaving, setUrgentSaving] = useState(false);
+  const [sizeSaving, setSizeSaving] = useState(false);
+  const [editingEstimate, setEditingEstimate] = useState(false);
+  const [estimateDraft, setEstimateDraft] = useState('');
+  const [estimateSaving, setEstimateSaving] = useState(false);
+
+  // WhatsApp notify
+  const [whatsappSending, setWhatsappSending] = useState(false);
+  const [whatsappPhoneOpen, setWhatsappPhoneOpen] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [whatsappSent, setWhatsappSent] = useState(false);
+
+  // Meeting scheduler
+  const [meetingOpen, setMeetingOpen] = useState(false);
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('09:00');
+  const [meetingDuration, setMeetingDuration] = useState('60');
+  const [meetingLoading, setMeetingLoading] = useState(false);
+  const [meetingResult, setMeetingResult] = useState<{ meet_url?: string; html_link?: string } | null>(null);
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
@@ -538,6 +577,104 @@ export default function JobDetailClient({
       }
     } catch { /* silent — user already sees loading stopped */ } finally {
       setGeneratingCopy(false);
+    }
+  };
+
+  // ── Job controls ──────────────────────────────────────────────────────────────
+
+  const saveDeadline = async () => {
+    if (!job || savingDeadline) return;
+    setSavingDeadline(true);
+    try {
+      const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
+        deadline_at: deadlineDraft || null,
+      });
+      if (res?.data) setJob(res.data);
+    } finally {
+      setSavingDeadline(false);
+      setEditingDeadline(false);
+    }
+  };
+
+  const toggleUrgent = async () => {
+    if (!job || urgentSaving) return;
+    setUrgentSaving(true);
+    try {
+      const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
+        is_urgent: !job.is_urgent,
+      });
+      if (res?.data) setJob(res.data);
+    } finally {
+      setUrgentSaving(false);
+    }
+  };
+
+  const setJobSizeValue = async (size: string | null) => {
+    if (!job || sizeSaving) return;
+    const newSize = job.job_size === size ? null : size; // toggle off if already selected
+    setSizeSaving(true);
+    try {
+      const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
+        job_size: newSize as any,
+      });
+      if (res?.data) setJob(res.data);
+    } finally {
+      setSizeSaving(false);
+    }
+  };
+
+  const saveEstimate = async () => {
+    if (!job || estimateSaving) return;
+    const minutes = Math.max(0, Math.round(parseFloat(estimateDraft) * 60));
+    setEstimateSaving(true);
+    try {
+      const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
+        estimated_minutes: minutes || null,
+      });
+      if (res?.data) setJob(res.data);
+    } finally {
+      setEstimateSaving(false);
+      setEditingEstimate(false);
+    }
+  };
+
+  const sendWhatsApp = async (overridePhone?: string) => {
+    if (!job || whatsappSending) return;
+    setWhatsappSending(true);
+    setWhatsappSent(false);
+    try {
+      const res = await apiPost<{ ok?: boolean; error?: string; owner_name?: string }>(
+        `/trello/ops-cards/${id}/notify-owner`,
+        { phone: overridePhone?.trim() || undefined },
+      );
+      if ((res as any)?.error === 'no_phone') {
+        setWhatsappPhoneOpen(true);
+      } else if (res?.ok) {
+        setWhatsappSent(true);
+        setWhatsappPhoneOpen(false);
+        setTimeout(() => setWhatsappSent(false), 4000);
+      }
+    } catch (e: any) {
+      // surface error as warning — silent for now
+    } finally {
+      setWhatsappSending(false);
+    }
+  };
+
+  const scheduleMeeting = async () => {
+    if (!job || meetingLoading || !meetingDate) return;
+    setMeetingLoading(true);
+    try {
+      const startAt = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
+      const res = await apiPost<{ ok?: boolean; data?: { meet_url?: string; html_link?: string } }>(
+        `/trello/ops-cards/${id}/meeting`,
+        { start_at: startAt, duration_minutes: parseInt(meetingDuration, 10) },
+      );
+      if (res?.data) {
+        setMeetingResult(res.data);
+      }
+    } catch { /* silent */ } finally {
+      setMeetingLoading(false);
     }
   };
 
@@ -830,8 +967,16 @@ export default function JobDetailClient({
             )}
           </Box>
 
-          {/* Entrega */}
-          <Box sx={{ flex: 1, px: 3, py: 2 }}>
+          {/* Entrega — click to edit */}
+          <Box
+            sx={{ flex: 1, px: 3, py: 2, cursor: editingDeadline ? 'default' : 'pointer', position: 'relative' }}
+            onClick={() => {
+              if (!editingDeadline) {
+                setDeadlineDraft(toDateInput(job.deadline_at));
+                setEditingDeadline(true);
+              }
+            }}
+          >
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
               <IconFlag
                 size={15}
@@ -846,25 +991,67 @@ export default function JobDetailClient({
               >
                 Entrega
               </Typography>
-              {deadlineOverdue && (
+              {!editingDeadline && (
+                <Tooltip title="Clique para alterar o prazo">
+                  <Box sx={{ ml: 'auto', opacity: 0.4, '&:hover': { opacity: 0.8 } }}>
+                    <IconPencil size={12} />
+                  </Box>
+                </Tooltip>
+              )}
+              {deadlineOverdue && !editingDeadline && (
                 <Chip size="small" label="Atrasado" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha('#FA896B', 0.15), color: '#FA896B', ml: 0.5 }} />
               )}
-              {!deadlineOverdue && deadlineThisWeek && (
+              {!deadlineOverdue && deadlineThisWeek && !editingDeadline && (
                 <Chip size="small" label="Esta semana" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 800, bgcolor: alpha('#FFAE1F', 0.15), color: '#B26A00', ml: 0.5 }} />
               )}
             </Stack>
-            <Typography
-              fontWeight={800}
-              sx={{
-                fontSize: { xs: '1.5rem', md: '1.75rem' }, lineHeight: 1,
-                color: deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#B26A00' : 'text.primary',
-              }}
-            >
-              {job.deadline_at ? fmtDate(job.deadline_at) : 'Sem prazo'}
-            </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 600, mt: 0.35, display: 'block', color: deadlineOverdue ? alpha('#FA896B', 0.8) : 'text.secondary' }}>
-              {deadlineInfo.label}
-            </Typography>
+            {editingDeadline ? (
+              <Stack direction="row" spacing={1} alignItems="center" onClick={(e) => e.stopPropagation()}>
+                <Box
+                  component="input"
+                  type="date"
+                  value={deadlineDraft}
+                  onChange={(e) => setDeadlineDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveDeadline();
+                    if (e.key === 'Escape') setEditingDeadline(false);
+                  }}
+                  autoFocus
+                  sx={{
+                    fontSize: '1.1rem', fontWeight: 800, border: 'none', outline: 'none', p: '4px 8px',
+                    borderRadius: 1, bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.05),
+                    color: 'inherit', fontFamily: 'inherit', width: 'auto',
+                  }}
+                />
+                <Button
+                  size="small" variant="contained"
+                  disabled={savingDeadline}
+                  onClick={saveDeadline}
+                  sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5, boxShadow: 'none', minWidth: 0, px: 1.5 }}
+                >
+                  {savingDeadline ? <CircularProgress size={12} sx={{ color: '#fff' }} /> : 'Salvar'}
+                </Button>
+                <Button size="small" onClick={() => setEditingDeadline(false)}
+                  sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5, minWidth: 0 }}>
+                  ✕
+                </Button>
+              </Stack>
+            ) : (
+              <>
+                <Typography
+                  fontWeight={800}
+                  sx={{
+                    fontSize: { xs: '1.5rem', md: '1.75rem' }, lineHeight: 1,
+                    color: deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#B26A00' : 'text.primary',
+                  }}
+                >
+                  {job.deadline_at ? fmtDate(job.deadline_at) : 'Sem prazo'}
+                </Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 600, mt: 0.35, display: 'block', color: deadlineOverdue ? alpha('#FA896B', 0.8) : 'text.secondary' }}>
+                  {deadlineInfo.label}
+                </Typography>
+              </>
+            )}
           </Box>
         </Stack>
       </Paper>
@@ -954,6 +1141,322 @@ export default function JobDetailClient({
               Atribuir a alguém
             </Button>
           </Stack>
+        )}
+      </Paper>
+
+      {/* ── JOB CONTROLS PANEL ── */}
+      <Paper
+        variant="outlined"
+        sx={(t) => ({ borderRadius: 3, mb: 2.5, overflow: 'hidden', borderColor: t.palette.divider })}
+      >
+        <Box sx={{ px: 2.5, pt: 1.75, pb: 2 }}>
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Configurar job
+          </Typography>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
+
+            {/* Urgente toggle */}
+            <Tooltip title={job.is_urgent ? 'Remover urgência' : 'Marcar como urgente'}>
+              <Chip
+                icon={urgentSaving ? <CircularProgress size={12} /> : <IconFlame size={14} />}
+                label="Urgente"
+                clickable
+                onClick={toggleUrgent}
+                disabled={urgentSaving}
+                sx={{
+                  fontWeight: 800, fontSize: '0.78rem',
+                  bgcolor: job.is_urgent ? alpha('#F9A825', 0.15) : (dark ? alpha('#fff', 0.07) : alpha('#000', 0.06)),
+                  color: job.is_urgent ? '#F9A825' : 'text.secondary',
+                  border: job.is_urgent ? `1px solid ${alpha('#F9A825', 0.4)}` : '1px solid transparent',
+                  '&:hover': { bgcolor: alpha('#F9A825', 0.2) },
+                }}
+              />
+            </Tooltip>
+
+            {/* Divider */}
+            <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+
+            {/* Size picker */}
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem', fontWeight: 700, mr: 0.5 }}>
+                Tamanho
+              </Typography>
+              {(['P', 'M', 'G', 'GG'] as const).map((size) => (
+                <Chip
+                  key={size}
+                  label={size}
+                  size="small"
+                  clickable
+                  disabled={sizeSaving}
+                  onClick={() => setJobSizeValue(size)}
+                  sx={{
+                    fontWeight: 800, fontSize: '0.72rem', height: 26, minWidth: 32,
+                    bgcolor: job.job_size === size ? '#5D87FF' : (dark ? alpha('#fff', 0.07) : alpha('#000', 0.06)),
+                    color: job.job_size === size ? '#fff' : 'text.secondary',
+                    border: job.job_size === size ? `1px solid #5D87FF` : '1px solid transparent',
+                    '&:hover': { bgcolor: job.job_size === size ? '#4a72f5' : alpha('#5D87FF', 0.15) },
+                  }}
+                />
+              ))}
+            </Stack>
+
+            {/* Divider */}
+            <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+
+            {/* Estimated time */}
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <IconClock size={15} color={theme.palette.text.disabled as string} />
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem', fontWeight: 700 }}>
+                Estimativa
+              </Typography>
+              {editingEstimate ? (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Box
+                    component="input"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={estimateDraft}
+                    onChange={(e) => setEstimateDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveEstimate();
+                      if (e.key === 'Escape') setEditingEstimate(false);
+                    }}
+                    placeholder="horas"
+                    autoFocus
+                    sx={{
+                      width: 72, fontSize: '0.82rem', fontWeight: 700, border: 'none', outline: 'none',
+                      p: '3px 8px', borderRadius: 1,
+                      bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.05),
+                      color: 'inherit', fontFamily: 'inherit',
+                    }}
+                  />
+                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>h</Typography>
+                  <IconButton size="small" onClick={saveEstimate} disabled={estimateSaving} sx={{ p: 0.25 }}>
+                    {estimateSaving ? <CircularProgress size={10} /> : <IconCheck size={13} />}
+                  </IconButton>
+                  <IconButton size="small" onClick={() => setEditingEstimate(false)} sx={{ p: 0.25, opacity: 0.5 }}>
+                    <IconX size={13} />
+                  </IconButton>
+                </Stack>
+              ) : (
+                <Tooltip title="Clique para definir estimativa">
+                  <Typography
+                    variant="caption"
+                    fontWeight={700}
+                    onClick={() => {
+                      setEstimateDraft(job.estimated_minutes ? String(job.estimated_minutes / 60) : '');
+                      setEditingEstimate(true);
+                    }}
+                    sx={{
+                      fontSize: '0.82rem', cursor: 'pointer', color: job.estimated_minutes ? 'text.primary' : 'text.disabled',
+                      borderRadius: 1, px: 0.5, '&:hover': { bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.05) },
+                    }}
+                  >
+                    {job.estimated_minutes ? formatMinutes(job.estimated_minutes) : 'Definir →'}
+                  </Typography>
+                </Tooltip>
+              )}
+            </Stack>
+          </Stack>
+        </Box>
+      </Paper>
+
+      {/* ── NOTIFY / DISPATCH PANEL ── */}
+      <Paper
+        variant="outlined"
+        sx={(t) => ({ borderRadius: 3, mb: 2.5, overflow: 'hidden', borderColor: t.palette.divider })}
+      >
+        <Box sx={{ px: 2.5, pt: 1.75, pb: meetingOpen ? 0 : 2 }}>
+          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Notificar & Despachar
+          </Typography>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
+
+            {/* WhatsApp pro DA */}
+            {!whatsappPhoneOpen ? (
+              <Tooltip title={!job.owner_id ? 'Atribua um responsável primeiro' : whatsappSent ? 'Mensagem enviada!' : 'Enviar WhatsApp para o DA'}>
+                <span>
+                  <Button
+                    size="small"
+                    startIcon={whatsappSending ? <CircularProgress size={13} /> : whatsappSent ? <IconCheck size={15} /> : <IconBrandWhatsapp size={15} />}
+                    disabled={!job.owner_id || whatsappSending}
+                    onClick={() => sendWhatsApp()}
+                    sx={{
+                      fontWeight: 700, fontSize: '0.82rem', textTransform: 'none', borderRadius: 2,
+                      color: whatsappSent ? '#13DEB9' : '#25D366',
+                      bgcolor: whatsappSent ? alpha('#13DEB9', 0.1) : alpha('#25D366', 0.1),
+                      border: `1px solid ${whatsappSent ? alpha('#13DEB9', 0.3) : alpha('#25D366', 0.3)}`,
+                      '&:hover': { bgcolor: alpha('#25D366', 0.18) },
+                      '&:disabled': { opacity: 0.45 },
+                    }}
+                  >
+                    {whatsappSent ? 'WA enviado!' : `WhatsApp${job.owner_name ? ` → ${job.owner_name.split(' ')[0]}` : ' pro DA'}`}
+                  </Button>
+                </span>
+              </Tooltip>
+            ) : (
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <Box
+                  component="input"
+                  type="tel"
+                  value={whatsappPhone}
+                  onChange={(e) => setWhatsappPhone(e.target.value)}
+                  placeholder="+55 11 99999-9999"
+                  autoFocus
+                  sx={{
+                    fontSize: '0.82rem', fontWeight: 600, border: 'none', outline: 'none',
+                    p: '6px 10px', borderRadius: 1.5, width: 180,
+                    bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.05),
+                    color: 'inherit', fontFamily: 'inherit',
+                  }}
+                />
+                <Button
+                  size="small" variant="contained"
+                  disabled={whatsappSending || !whatsappPhone.trim()}
+                  onClick={() => sendWhatsApp(whatsappPhone)}
+                  sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5, boxShadow: 'none', bgcolor: '#25D366', '&:hover': { bgcolor: '#1da851' } }}
+                >
+                  {whatsappSending ? <CircularProgress size={12} sx={{ color: '#fff' }} /> : 'Enviar'}
+                </Button>
+                <IconButton size="small" onClick={() => setWhatsappPhoneOpen(false)} sx={{ opacity: 0.5 }}>
+                  <IconX size={14} />
+                </IconButton>
+              </Stack>
+            )}
+
+            {/* Agendar Kickoff */}
+            <Button
+              size="small"
+              startIcon={<IconCalendarPlus size={15} />}
+              onClick={() => { setMeetingOpen((v) => !v); setMeetingResult(null); }}
+              sx={{
+                fontWeight: 700, fontSize: '0.82rem', textTransform: 'none', borderRadius: 2,
+                color: '#5D87FF',
+                bgcolor: alpha('#5D87FF', 0.1),
+                border: `1px solid ${alpha('#5D87FF', 0.3)}`,
+                '&:hover': { bgcolor: alpha('#5D87FF', 0.18) },
+              }}
+            >
+              Agendar Kickoff
+            </Button>
+
+          </Stack>
+        </Box>
+
+        {/* Meeting form — expands inline */}
+        {meetingOpen && (
+          <Box sx={{ px: 2.5, pb: 2, pt: 1.5, borderTop: `1px solid ${dark ? alpha('#fff', 0.07) : alpha('#000', 0.06)}`, mt: 1.5 }}>
+            {meetingResult ? (
+              <Stack spacing={1}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconCheck size={16} color="#13DEB9" />
+                  <Typography fontWeight={700} sx={{ fontSize: '0.88rem', color: '#13DEB9' }}>Reunião criada!</Typography>
+                </Stack>
+                <Stack direction="row" spacing={1.5}>
+                  {meetingResult.meet_url && (
+                    <Button
+                      size="small" variant="contained"
+                      component="a" href={meetingResult.meet_url} target="_blank" rel="noreferrer"
+                      startIcon={<IconVideo size={14} />}
+                      sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2, boxShadow: 'none' }}
+                    >
+                      Abrir Meet
+                    </Button>
+                  )}
+                  {meetingResult.html_link && (
+                    <Button
+                      size="small" variant="outlined"
+                      component="a" href={meetingResult.html_link} target="_blank" rel="noreferrer"
+                      startIcon={<IconCalendarEvent size={14} />}
+                      sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2 }}
+                    >
+                      Ver no Calendar
+                    </Button>
+                  )}
+                  <Button size="small" onClick={() => { setMeetingOpen(false); setMeetingResult(null); }}
+                    sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', borderRadius: 2, opacity: 0.6 }}>
+                    Fechar
+                  </Button>
+                </Stack>
+              </Stack>
+            ) : (
+              <Stack spacing={1.5}>
+                <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  Kickoff: {cleanJobTitle(job.title, job.client_name)}
+                  {job.owner_name ? ` • com ${job.owner_name.split(' ')[0]}` : ''}
+                </Typography>
+                <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+                  <Box>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>Data</Typography>
+                    <Box
+                      component="input"
+                      type="date"
+                      value={meetingDate}
+                      onChange={(e) => setMeetingDate(e.target.value)}
+                      sx={{
+                        fontSize: '0.82rem', fontWeight: 600, border: 'none', outline: 'none',
+                        p: '6px 10px', borderRadius: 1.5,
+                        bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.05),
+                        color: 'inherit', fontFamily: 'inherit',
+                      }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>Hora</Typography>
+                    <Box
+                      component="input"
+                      type="time"
+                      value={meetingTime}
+                      onChange={(e) => setMeetingTime(e.target.value)}
+                      sx={{
+                        fontSize: '0.82rem', fontWeight: 600, border: 'none', outline: 'none',
+                        p: '6px 10px', borderRadius: 1.5,
+                        bgcolor: dark ? alpha('#fff', 0.08) : alpha('#000', 0.05),
+                        color: 'inherit', fontFamily: 'inherit',
+                      }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>Duração</Typography>
+                    <Stack direction="row" spacing={0.5}>
+                      {[30, 60, 90].map((min) => (
+                        <Chip
+                          key={min}
+                          label={`${min}min`}
+                          size="small"
+                          clickable
+                          onClick={() => setMeetingDuration(String(min))}
+                          sx={{
+                            fontWeight: 700, fontSize: '0.7rem', height: 26,
+                            bgcolor: meetingDuration === String(min) ? '#5D87FF' : (dark ? alpha('#fff', 0.07) : alpha('#000', 0.06)),
+                            color: meetingDuration === String(min) ? '#fff' : 'text.secondary',
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+                </Stack>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small" variant="contained"
+                    disabled={meetingLoading || !meetingDate}
+                    onClick={scheduleMeeting}
+                    startIcon={meetingLoading ? <CircularProgress size={13} sx={{ color: '#fff' }} /> : <IconCalendarPlus size={14} />}
+                    sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2, boxShadow: 'none' }}
+                  >
+                    {meetingLoading ? 'Criando...' : 'Criar com Google Meet'}
+                  </Button>
+                  <Button size="small" onClick={() => setMeetingOpen(false)}
+                    sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', borderRadius: 2, opacity: 0.6 }}>
+                    Cancelar
+                  </Button>
+                </Stack>
+              </Stack>
+            )}
+          </Box>
         )}
       </Paper>
 
