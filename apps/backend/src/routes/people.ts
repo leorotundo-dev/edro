@@ -183,6 +183,8 @@ export default async function peopleRoutes(app: FastifyInstance) {
 
       // Find linked edro_users (via freelancer profile OR email identity)
       currentStep = 'linked_users';
+      // Note: person_identities.tenant_id is TEXT, tenant_users.tenant_id is UUID.
+      // Use explicit casts per-column to avoid "operator does not exist: text = uuid" (PG-42883).
       const linkedUsers = await client.query<{ user_id: string }>(
         `SELECT DISTINCT eu.id AS user_id
            FROM edro_users eu
@@ -190,7 +192,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
            LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
            LEFT JOIN person_identities pi
              ON pi.person_id = $1::uuid
-            AND pi.tenant_id = $2
+            AND pi.tenant_id = $2::text
             AND pi.identity_type = 'email'
           WHERE fp.person_id = $1::uuid
              OR (pi.normalized_value IS NOT NULL AND LOWER(eu.email) = pi.normalized_value)`,
