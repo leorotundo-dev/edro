@@ -101,6 +101,26 @@ type ReadinessData = {
   ts: string;
 };
 
+type WorkerEntry = {
+  name: string;
+  status: 'ok' | 'pending' | 'stale' | 'error';
+  last_run_at: string | null;
+  last_duration_ms: number | null;
+  last_error: string | null;
+  last_error_at: string | null;
+  run_count: number;
+  error_count: number;
+  slow_count: number;
+  idle_sec: number | null;
+};
+
+type WorkersData = {
+  summary: { total: number; ok: number; pending: number; stale: number; error: number };
+  workers: WorkerEntry[];
+  uptime_s: number;
+  ts: string;
+};
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtAgo(ts: string | null) {
@@ -159,17 +179,21 @@ export default function CentralDeControleClient() {
   const [renewResult, setRenewResult] = useState<string>('');
   const [error, setError] = useState('');
   const [readiness, setReadiness] = useState<ReadinessData | null>(null);
+  const [workers, setWorkers] = useState<WorkersData | null>(null);
+  const [showAllWorkers, setShowAllWorkers] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [res, ready] = await Promise.all([
+      const [res, ready, wkrs] = await Promise.all([
         apiGet<ControleData>('/admin/controle'),
         apiGet<ReadinessData>('/health/ready').catch(() => null),
+        apiGet<WorkersData>('/health/workers').catch(() => null),
       ]);
       setData(res);
       setReadiness(ready);
+      setWorkers(wkrs);
     } catch (err: any) {
       setError(err?.message ?? 'Erro ao carregar dados.');
     } finally {
@@ -467,6 +491,101 @@ export default function CentralDeControleClient() {
                       );
                     })}
                   </Paper>
+                </Box>
+              );
+            })()}
+
+            {/* ── Workers ── */}
+            {workers && (() => {
+              const { summary } = workers;
+              const problemWorkers = workers.workers.filter((w) => w.status !== 'ok' && w.status !== 'pending');
+              const visibleWorkers = showAllWorkers ? workers.workers : problemWorkers;
+              const WORKER_COLOR: Record<WorkerEntry['status'], string> = {
+                ok: '#2e7d32', pending: '#9e9e9e', stale: '#ed6c02', error: '#d32f2f',
+              };
+              const WORKER_LABEL: Record<WorkerEntry['status'], string> = {
+                ok: 'OK', pending: 'Aguardando', stale: 'Parado', error: 'Erro',
+              };
+              const fmtIdle = (s: number | null) => {
+                if (s === null) return '—';
+                if (s < 60) return `${s}s`;
+                if (s < 3600) return `${Math.floor(s / 60)}m`;
+                return `${Math.floor(s / 3600)}h`;
+              };
+              const overallOk = summary.stale === 0 && summary.error === 0;
+              const overallColor = overallOk ? '#2e7d32' : summary.error > 0 ? '#d32f2f' : '#ed6c02';
+
+              return (
+                <Box sx={{ mb: 3 }}>
+                  <Stack direction="row" alignItems="center" spacing={1.5} mb={1.5}>
+                    <IconRobot size={18} />
+                    <Typography variant="subtitle1" fontWeight={700}>Workers de Background</Typography>
+                    <Chip
+                      label={overallOk ? `${summary.ok} OK` : `${summary.error} erro · ${summary.stale} parado`}
+                      size="small"
+                      sx={{ bgcolor: alpha(overallColor, 0.1), color: overallColor, fontWeight: 700, fontSize: '0.7rem' }}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      {summary.total} workers · {summary.pending} aguardando primeiro tick
+                    </Typography>
+                    <Box flex={1} />
+                    <Button size="small" variant="text" onClick={() => setShowAllWorkers((v) => !v)}
+                      sx={{ fontSize: '0.72rem', color: 'text.secondary', minWidth: 0, px: 1 }}>
+                      {showAllWorkers ? 'Só problemas' : `Ver todos (${summary.total})`}
+                    </Button>
+                  </Stack>
+
+                  {visibleWorkers.length === 0 ? (
+                    <Alert severity="success" icon={<IconCircleCheck size={18} />}>
+                      Todos os workers concluíram pelo menos um ciclo sem erros.
+                    </Alert>
+                  ) : (
+                    <Paper elevation={0} sx={{ borderRadius: '8px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                      {visibleWorkers.map((w, i) => {
+                        const color = WORKER_COLOR[w.status];
+                        return (
+                          <Box key={w.name}>
+                            {i > 0 && <Divider />}
+                            <Stack direction="row" alignItems="center" spacing={2} sx={{ px: 2.5, py: 1.25 }}>
+                              <Box sx={{ color, display: 'flex', flexShrink: 0 }}>
+                                {w.status === 'ok'      ? <IconCircleCheck size={15} />
+                                : w.status === 'error'  ? <IconAlertCircle size={15} />
+                                : w.status === 'stale'  ? <IconClockHour4 size={15} />
+                                : <IconClockHour4 size={15} />}
+                              </Box>
+                              <Typography variant="body2" fontWeight={600} sx={{ minWidth: 180, fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                                {w.name}
+                              </Typography>
+                              <Box flex={1}>
+                                {w.last_error && (
+                                  <Typography variant="caption" color="error.main" noWrap sx={{ maxWidth: 320, display: 'block' }}>
+                                    {w.last_error}
+                                  </Typography>
+                                )}
+                              </Box>
+                              <Stack direction="row" spacing={2} alignItems="center" sx={{ flexShrink: 0 }}>
+                                <Tooltip title="Idle desde último tick">
+                                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 32, textAlign: 'right' }}>
+                                    {fmtIdle(w.idle_sec)}
+                                  </Typography>
+                                </Tooltip>
+                                <Tooltip title={`${w.run_count} execuções · ${w.error_count} erros · ${w.slow_count} lentos`}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 64, textAlign: 'right' }}>
+                                    {w.run_count}× / {w.error_count}err
+                                  </Typography>
+                                </Tooltip>
+                                <Chip
+                                  label={WORKER_LABEL[w.status]}
+                                  size="small"
+                                  sx={{ bgcolor: alpha(color, 0.08), color, fontWeight: 700, fontSize: '0.65rem', minWidth: 70 }}
+                                />
+                              </Stack>
+                            </Stack>
+                          </Box>
+                        );
+                      })}
+                    </Paper>
+                  )}
                 </Box>
               );
             })()}

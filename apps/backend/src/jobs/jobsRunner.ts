@@ -59,6 +59,7 @@ import { runBriefingCompilerWorkerOnce } from './briefingCompilerWorker';
 import { runStudioAutostartWorkerOnce } from './studioAutostartWorker';
 import { runOmnichannelDemandIntakeWorkerOnce } from './omnichannelDemandIntakeWorker';
 import { runStudioHandoffAgingWorkerOnce } from './studioHandoffAgingWorker';
+import { registerWorker, recordSuccess, recordError } from './workerRegistry';
 
 export function startJobsRunner() {
   const enabled = (process.env.JOBS_RUNNER_ENABLED || 'true') === 'true';
@@ -82,20 +83,24 @@ export function startJobsRunner() {
     const effectiveWarnMs = customWarnMs ?? warnMs;
     const effectiveIntervalMs = customIntervalMs ?? defaultIntervalMs;
 
+    registerWorker(name);
+
     const tick = async () => {
       if (running) return;
       running = true;
       const startedAt = Date.now();
       try {
         await fn();
+        const elapsed = Date.now() - startedAt;
+        const slow = elapsed > effectiveWarnMs;
+        if (slow) console.warn(`[jobs] worker ${name} slow: ${elapsed}ms`);
+        recordSuccess(name, elapsed, slow);
       } catch (error: any) {
+        const elapsed = Date.now() - startedAt;
         // Don't crash the server for background loop errors.
         console.error(`[jobs] worker ${name} failed:`, error?.message || error);
+        recordError(name, elapsed, error);
       } finally {
-        const elapsed = Date.now() - startedAt;
-        if (elapsed > effectiveWarnMs) {
-          console.warn(`[jobs] worker ${name} slow: ${elapsed}ms`);
-        }
         running = false;
       }
     };
