@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { pool } from '../db';
 import { env } from '../env';
+import { getAllWorkers, getStaleWorkers } from '../jobs/workerRegistry';
 
 // ── Shallow healthcheck — used by Railway container healthcheck (Path: /) ────
 // Must stay fast and always return 200 while the process is alive.
@@ -151,15 +152,70 @@ export default async function healthRoutes(app: FastifyInstance) {
       };
     }
 
-    const degraded = Object.values(checks).filter((c) => !c.ok).map((_, i) => Object.keys(checks)[i]);
+    // Worker registry summary — stale = no tick in the last 10 min for 5s workers,
+    // or no tick in the last 5 min for workers that should have run by now.
+    // We use a generous 10-minute window so slow workers don't false-alarm.
+    const allWorkers = getAllWorkers();
+    const staleWorkers = getStaleWorkers(10 * 60 * 1000);        // >10 min since last tick
+    const neverRan    = allWorkers.filter((w) => w.last_run_at === null);
+    const errorWorkers = allWorkers.filter((w) => w.last_error_at !== null && w.last_run_at !== null &&
+      w.last_error_at === w.last_run_at);  // last tick was an error
+
+    if (allWorkers.length > 0) {
+      checks.workers = {
+        ok: staleWorkers.length === 0 && errorWorkers.length === 0,
+        detail: [
+          `total=${allWorkers.length}`,
+          `pending=${neverRan.length}`,
+          staleWorkers.length ? `stale=${staleWorkers.map((w) => w.name).join(',')}` : null,
+          errorWorkers.length ? `erroring=${errorWorkers.map((w) => w.name).join(',')}` : null,
+        ].filter(Boolean).join(' '),
+      };
+    }
+
     const statusCode = dbOk ? 200 : 503;
 
     return reply.code(statusCode).send({
-      status: dbOk ? (degraded.length === 0 ? 'ready' : 'degraded') : 'not_ready',
+      status: dbOk ? (Object.values(checks).every((c) => c.ok) ? 'ready' : 'degraded') : 'not_ready',
       degraded: Object.keys(checks).filter((k) => !checks[k].ok),
       checks,
       uptime_s: Math.floor(process.uptime()),
       node_version: process.version,
+      ts: new Date().toISOString(),
+    });
+  });
+
+  // ── Full worker list — ops visibility ────────────────────────────────────────
+  // Unauthenticated intentionally — no tenant data, just process state.
+  app.get('/health/workers', async (_req, reply) => {
+    const all = getAllWorkers();
+    const now = Date.now();
+
+    const enriched = all.map((w) => {
+      const lastRunMs = w.last_run_at ? new Date(w.last_run_at).getTime() : null;
+      const idleSec   = lastRunMs !== null ? Math.floor((now - lastRunMs) / 1000) : null;
+      const lastErrMs = w.last_error_at ? new Date(w.last_error_at).getTime() : null;
+      const status =
+        w.last_run_at === null                            ? 'pending'
+        : lastErrMs !== null && lastErrMs === lastRunMs   ? 'error'
+        : idleSec !== null && idleSec > 600              ? 'stale'
+        : 'ok';
+
+      return { ...w, idle_sec: idleSec, status };
+    });
+
+    const summary = {
+      total:   enriched.length,
+      ok:      enriched.filter((w) => w.status === 'ok').length,
+      pending: enriched.filter((w) => w.status === 'pending').length,
+      stale:   enriched.filter((w) => w.status === 'stale').length,
+      error:   enriched.filter((w) => w.status === 'error').length,
+    };
+
+    return reply.send({
+      summary,
+      workers: enriched,
+      uptime_s: Math.floor(process.uptime()),
       ts: new Date().toISOString(),
     });
   });
