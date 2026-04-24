@@ -66,6 +66,15 @@ function isJsonResponse(response: Response) {
   return contentType.includes('application/json') || contentType.includes('+json');
 }
 
+function buildJsonProxyOptions(response: Response) {
+  const headers = new Headers();
+  for (const key of ['cache-control', 'pragma', 'expires']) {
+    const value = response.headers.get(key);
+    if (value) headers.set(key, value);
+  }
+  return { status: response.status, headers };
+}
+
 async function buildProxyResponse(response: Response) {
   if (response.status === 204) {
     return NextResponse.json({}, { status: 204 });
@@ -73,14 +82,15 @@ async function buildProxyResponse(response: Response) {
 
   if (isJsonResponse(response)) {
     const text = await response.text();
+    const options = buildJsonProxyOptions(response);
     if (!text) {
-      return NextResponse.json({}, { status: response.status });
+      return NextResponse.json({}, options);
     }
     try {
       const data = JSON.parse(text);
-      return NextResponse.json(data, { status: response.status });
+      return NextResponse.json(data, options);
     } catch {
-      return NextResponse.json({ raw: text }, { status: response.status });
+      return NextResponse.json({ raw: text }, options);
     }
   }
 

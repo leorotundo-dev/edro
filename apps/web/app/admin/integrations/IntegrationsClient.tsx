@@ -367,7 +367,8 @@ export default function IntegrationsClient() {
 
   const redirectToOAuth = async (path: string) => {
     try {
-      const response = await apiGet<OAuthStartResponse>(`${path}?mode=json`);
+      const separator = path.includes('?') ? '&' : '?';
+      const response = await apiGet<OAuthStartResponse>(`${path}${separator}mode=json&_=${Date.now()}`);
       if (!response?.url) {
         throw new Error('URL de autenticação não disponível.');
       }

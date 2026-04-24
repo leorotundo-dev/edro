@@ -32,8 +32,12 @@ export default async function googleDriveRoutes(app: FastifyInstance) {
     const mode = typeof request.query?.mode === 'string' ? request.query.mode : '';
     try {
       const url = driveOAuthUrl(tenantId);
+      const redirectUri = new URL(url).searchParams.get('redirect_uri') ?? null;
+      reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      reply.header('Pragma', 'no-cache');
+      reply.header('Expires', '0');
       if (mode === 'json') {
-        return reply.send({ url });
+        return reply.send({ url, redirectUri });
       }
       return reply.redirect(url);
     } catch (err: any) {
