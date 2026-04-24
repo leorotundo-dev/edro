@@ -49,7 +49,6 @@ import {
   IconSparkles,
   IconUser,
   IconUserPlus,
-  IconUsers,
   IconVideo,
   IconX,
 } from '@tabler/icons-react';
@@ -979,16 +978,6 @@ export default function JobDetailClient({
               </IconButton>
             </Tooltip>
           )}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<IconSparkles size={14} />}
-            component={Link}
-            href={`/admin/operacoes/jobs/${job.id}/briefing`}
-            sx={{ fontWeight: 800, fontSize: '0.78rem', textTransform: 'none', borderRadius: 2, boxShadow: 'none', whiteSpace: 'nowrap' }}
-          >
-            Gerar Copy
-          </Button>
         </Stack>
       </Stack>
 
@@ -1206,6 +1195,76 @@ export default function JobDetailClient({
             >
               Atribuir a alguém
             </Button>
+          </Stack>
+        )}
+
+        {/* ── People picker — inline below owner hero ── */}
+        {peopleOpen && (
+          <Stack spacing={1.25} sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
+            <Autocomplete
+              options={owners}
+              value={selectedOwner}
+              onChange={(_event, value) => {
+                const nextOwnerId = value?.id || null;
+                setSelectedOwnerId(nextOwnerId);
+                if (nextOwnerId && !selectedAssigneeIds.includes(nextOwnerId)) {
+                  setSelectedAssigneeIds((current) => [...current, nextOwnerId]);
+                }
+              }}
+              getOptionLabel={(option) => option.name}
+              renderInput={(params) => <TextField {...params} label="Responsável principal" size="small" />}
+              renderOption={(props, option) => (
+                <Box component="li" {...props}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>{initials(option.name)}</Avatar>
+                    <Box>
+                      <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}</Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              )}
+            />
+            <Autocomplete
+              multiple
+              options={owners}
+              value={selectedAssignees}
+              onChange={(_event, value) => {
+                const ids = value.map((item) => item.id);
+                setSelectedAssigneeIds(ids);
+                if (selectedOwnerId && !ids.includes(selectedOwnerId)) setSelectedOwnerId(ids[0] ?? null);
+              }}
+              getOptionLabel={(option) => option.name}
+              renderInput={(params) => <TextField {...params} label="Equipe do job" size="small" placeholder="Adicionar pessoa..." />}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => (
+                  <Chip key={option.id} size="small" avatar={<Avatar>{initials(option.name)}</Avatar>} label={option.name} {...getTagProps({ index })} />
+                ))
+              }
+              renderOption={(props, option) => (
+                <Box component="li" {...props}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>{initials(option.name)}</Avatar>
+                    <Box>
+                      <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}</Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              )}
+            />
+            {peopleError && <Alert severity="error" sx={{ fontSize: '0.78rem', py: 0.5 }}>{peopleError}</Alert>}
+            <Stack direction="row" spacing={1}>
+              <Button variant="contained" size="small" disabled={savingPeople} onClick={handlePeopleSave}
+                endIcon={savingPeople ? <CircularProgress size={12} /> : undefined}
+                sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 1.5, boxShadow: 'none', flex: 1 }}>
+                {savingPeople ? 'Salvando...' : 'Salvar'}
+              </Button>
+              <Button size="small" onClick={() => { setPeopleOpen(false); setPeopleError(''); }}
+                sx={{ fontWeight: 600, fontSize: '0.78rem', textTransform: 'none', borderRadius: 1.5 }}>
+                Cancelar
+              </Button>
+            </Stack>
           </Stack>
         )}
       </Paper>
@@ -2158,112 +2217,6 @@ export default function JobDetailClient({
               </Typography>
               <Stack spacing={0.75}>
 
-                {/* Membros */}
-                <Box>
-                  <Button
-                    fullWidth
-                    size="small"
-                    startIcon={<IconUsers size={15} />}
-                    onClick={() => { setPeopleOpen((v) => !v); setPeopleError(''); }}
-                    sx={(t) => ({
-                      justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
-                      borderRadius: 1.5, px: 1.5,
-                      color: 'text.primary',
-                      bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
-                      '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
-                    })}
-                  >
-                    Membros
-                    {(job.assignees?.length ?? 0) > 0 && (
-                      <Stack direction="row" spacing={-0.5} sx={{ ml: 'auto' }}>
-                        {(job.assignees ?? []).slice(0, 3).map((a) => (
-                          <Tooltip key={a.user_id} title={a.name}>
-                            <Avatar src={a.avatar_url ?? undefined} sx={{ width: 22, height: 22, fontSize: '0.52rem', fontWeight: 800, border: `2px solid ${dark ? '#1e1e2d' : '#fff'}` }}>
-                              {initials(a.name)}
-                            </Avatar>
-                          </Tooltip>
-                        ))}
-                      </Stack>
-                    )}
-                  </Button>
-
-                  {/* People picker inline */}
-                  {peopleOpen && (
-                    <Box sx={(t) => ({
-                      mt: 0.75, p: 1.5, borderRadius: 2,
-                      border: `1px solid ${t.palette.divider}`,
-                      bgcolor: t.palette.background.paper,
-                    })}>
-                      <Stack spacing={1.25}>
-                        <Autocomplete
-                          options={owners}
-                          value={selectedOwner}
-                          onChange={(_event, value) => {
-                            const nextOwnerId = value?.id || null;
-                            setSelectedOwnerId(nextOwnerId);
-                            if (nextOwnerId && !selectedAssigneeIds.includes(nextOwnerId)) {
-                              setSelectedAssigneeIds((current) => [...current, nextOwnerId]);
-                            }
-                          }}
-                          getOptionLabel={(option) => option.name}
-                          renderInput={(params) => <TextField {...params} label="Responsável principal" size="small" />}
-                          renderOption={(props, option) => (
-                            <Box component="li" {...props}>
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>{initials(option.name)}</Avatar>
-                                <Box>
-                                  <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
-                                  <Typography variant="caption" color="text.secondary">{option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}</Typography>
-                                </Box>
-                              </Stack>
-                            </Box>
-                          )}
-                        />
-                        <Autocomplete
-                          multiple
-                          options={owners}
-                          value={selectedAssignees}
-                          onChange={(_event, value) => {
-                            const ids = value.map((item) => item.id);
-                            setSelectedAssigneeIds(ids);
-                            if (selectedOwnerId && !ids.includes(selectedOwnerId)) setSelectedOwnerId(ids[0] ?? null);
-                          }}
-                          getOptionLabel={(option) => option.name}
-                          renderInput={(params) => <TextField {...params} label="Equipe do job" size="small" placeholder="Adicionar pessoa..." />}
-                          renderTags={(value, getTagProps) =>
-                            value.map((option, index) => (
-                              <Chip key={option.id} size="small" avatar={<Avatar>{initials(option.name)}</Avatar>} label={option.name} {...getTagProps({ index })} />
-                            ))
-                          }
-                          renderOption={(props, option) => (
-                            <Box component="li" {...props}>
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', fontWeight: 800 }}>{initials(option.name)}</Avatar>
-                                <Box>
-                                  <Typography variant="body2" fontWeight={700}>{option.name}</Typography>
-                                  <Typography variant="caption" color="text.secondary">{option.person_type === 'freelancer' ? 'Freelancer' : 'Equipe interna'} · {option.specialty || option.role}</Typography>
-                                </Box>
-                              </Stack>
-                            </Box>
-                          )}
-                        />
-                        {peopleError && <Alert severity="error" sx={{ fontSize: '0.78rem', py: 0.5 }}>{peopleError}</Alert>}
-                        <Stack direction="row" spacing={1}>
-                          <Button variant="contained" size="small" disabled={savingPeople} onClick={handlePeopleSave}
-                            endIcon={savingPeople ? <CircularProgress size={12} /> : undefined}
-                            sx={{ fontWeight: 700, fontSize: '0.78rem', textTransform: 'none', borderRadius: 1.5, boxShadow: 'none', flex: 1 }}>
-                            {savingPeople ? 'Salvando...' : 'Salvar'}
-                          </Button>
-                          <Button size="small" onClick={() => { setPeopleOpen(false); setPeopleError(''); }}
-                            sx={{ fontWeight: 600, fontSize: '0.78rem', textTransform: 'none', borderRadius: 1.5 }}>
-                            Cancelar
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    </Box>
-                  )}
-                </Box>
-
                 {/* Mover (status) */}
                 {/* Campanha */}
                 {job.client_id && (
@@ -2399,20 +2352,6 @@ export default function JobDetailClient({
               <Stack spacing={0.75}>
                 <Button
                   fullWidth size="small"
-                  startIcon={<IconSparkles size={15} />}
-                  component={Link}
-                  href={`/admin/operacoes/jobs/${job.id}/briefing`}
-                  sx={(t) => ({
-                    justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
-                    borderRadius: 1.5, px: 1.5, color: 'text.primary',
-                    bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
-                    '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
-                  })}
-                >
-                  Gerar Copy
-                </Button>
-                <Button
-                  fullWidth size="small"
                   startIcon={<IconBrush size={15} />}
                   component={Link}
                   href={`/studio?jobId=${job.id}`}
@@ -2439,21 +2378,6 @@ export default function JobDetailClient({
                     })}
                   >
                     Abrir Campanha
-                  </Button>
-                )}
-                {job.external_link && (
-                  <Button
-                    fullWidth size="small"
-                    startIcon={<IconExternalLink size={15} />}
-                    component="a" href={job.external_link} target="_blank" rel="noreferrer"
-                    sx={(t) => ({
-                      justifyContent: 'flex-start', textTransform: 'none', fontWeight: 600, fontSize: '0.82rem',
-                      borderRadius: 1.5, px: 1.5, color: 'text.primary',
-                      bgcolor: dark ? alpha('#fff', 0.06) : alpha('#000', 0.055),
-                      '&:hover': { bgcolor: dark ? alpha('#fff', 0.1) : alpha('#000', 0.09) },
-                    })}
-                  >
-                    Abrir no Trello
                   </Button>
                 )}
                 {onStatusChange && (
@@ -2497,7 +2421,6 @@ export default function JobDetailClient({
                     { label: 'Tipo', value: job.job_type },
                     { label: 'Especialidade', value: skillLabel },
                     { label: 'Origem', value: sourceLabel },
-                    { label: 'Próxima ação', value: nextAction.label },
                     job.job_size ? { label: 'Tamanho', value: job.job_size } : null,
                   ].filter(Boolean).map((row) => (
                     <Stack key={row!.label} direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
@@ -2520,25 +2443,6 @@ export default function JobDetailClient({
                       </Typography>
                     </Stack>
                   )}
-                  {/* Responsável */}
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
-                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Responsável</Typography>
-                    {job.owner_name ? (
-                      <Stack direction="row" spacing={0.75} alignItems="center">
-                        <Avatar src={job.owner_avatar_url ?? undefined} sx={{ width: 18, height: 18, fontSize: '0.5rem', fontWeight: 800 }}>{initials(job.owner_name)}</Avatar>
-                        <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem' }}>{job.owner_name}</Typography>
-                      </Stack>
-                    ) : (
-                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.78rem' }}>—</Typography>
-                    )}
-                  </Stack>
-                  {/* Ritmo */}
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
-                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>Ritmo</Typography>
-                    <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem', textAlign: 'right', color: deadlineInfo.tone === 'error' ? '#FA896B' : deadlineInfo.tone === 'warning' ? '#B26A00' : deadlineInfo.tone === 'info' ? '#5D87FF' : 'text.primary' }}>
-                      {deadlineInfo.label}
-                    </Typography>
-                  </Stack>
                 </Stack>
               </Box>
             </Paper>
