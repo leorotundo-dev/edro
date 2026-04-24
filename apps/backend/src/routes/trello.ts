@@ -1678,11 +1678,15 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const seen = new Set<string>();
     return rows
       .map((row) => {
-        const key = row.user_id || row.email || row.name || '';
-        if (!key || seen.has(key)) return null;
+        // Only include assignees linked to an edro_users account (user_id is a UUID).
+        // Trello members without a matching edro account produce null user_id — skip them
+        // so the frontend never puts non-UUID strings into assignee_ids.
+        if (!row.user_id) return null;
+        const key = row.user_id;
+        if (seen.has(key)) return null;
         seen.add(key);
         return {
-          user_id: row.user_id || key,
+          user_id: row.user_id,
           name: row.name || row.email || 'Pessoa sem nome',
           email: row.email || '',
           avatar_url: row.freelancer_profile_id && row.avatar_url
