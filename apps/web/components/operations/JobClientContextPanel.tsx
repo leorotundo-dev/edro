@@ -97,22 +97,51 @@ export default function JobClientContextPanel({ jobId, compact = false }: { jobI
   const signals = context?.signals ?? [];
   const visibleSignals = signals.slice(0, compact ? 3 : 6);
   const confidence = context?.confidence ?? 'none';
+  const recallAccent = confidence === 'high'
+    ? '#13DEB9'
+    : confidence === 'medium'
+      ? '#FFAE1F'
+      : confidence === 'low'
+        ? '#5D87FF'
+        : '#E85219';
 
   return (
     <Box sx={(theme) => ({
-      p: compact ? 1.25 : 1.75,
-      borderRadius: compact ? 2 : 3,
-      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-      bgcolor: alpha(theme.palette.primary.main, 0.035),
+      position: 'relative',
+      overflow: 'hidden',
+      p: compact ? 1.25 : 1.9,
+      borderRadius: compact ? 2.5 : 4,
+      border: `1px solid ${alpha(recallAccent, confidence === 'none' ? 0.22 : 0.28)}`,
+      background: theme.palette.mode === 'dark'
+        ? `linear-gradient(135deg, ${alpha(recallAccent, 0.10)} 0%, ${alpha(theme.palette.background.paper, 0.96)} 56%, ${alpha(theme.palette.primary.main, 0.08)} 100%)`
+        : `linear-gradient(135deg, ${alpha(recallAccent, 0.075)} 0%, #FFFFFF 56%, ${alpha(theme.palette.primary.main, 0.045)} 100%)`,
+      boxShadow: compact ? 'none' : (theme.palette.mode === 'dark' ? '0 12px 28px rgba(0,0,0,0.22)' : '0 16px 34px rgba(15,23,42,0.06)'),
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: -54,
+        right: -46,
+        width: 140,
+        height: 140,
+        borderRadius: '999px',
+        bgcolor: alpha(recallAccent, theme.palette.mode === 'dark' ? 0.10 : 0.12),
+        pointerEvents: 'none',
+      },
+      '& > *': {
+        position: 'relative',
+        zIndex: 1,
+      },
     })}>
       <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
         <Stack direction="row" spacing={0.9} alignItems="flex-start">
           <Box sx={(theme) => ({
             width: compact ? 26 : 40,
             height: compact ? 26 : 40,
-            borderRadius: compact ? '50%' : 2,
-            bgcolor: alpha(theme.palette.primary.main, 0.12),
-            color: 'primary.main',
+            borderRadius: compact ? '50%' : 2.4,
+            bgcolor: alpha(recallAccent, 0.14),
+            color: recallAccent,
+            border: `1px solid ${alpha(recallAccent, 0.22)}`,
+            boxShadow: `0 0 0 ${compact ? 3 : 5}px ${alpha(recallAccent, 0.07)}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -121,7 +150,7 @@ export default function JobClientContextPanel({ jobId, compact = false }: { jobI
             <IconSparkles size={compact ? 15 : 20} />
           </Box>
           <Box>
-            <Typography variant="caption" fontWeight={900} sx={{ color: 'primary.main', textTransform: 'uppercase', fontSize: compact ? '0.62rem' : '0.68rem', letterSpacing: 0.5 }}>
+            <Typography variant="caption" fontWeight={900} sx={{ color: recallAccent, textTransform: 'uppercase', fontSize: compact ? '0.62rem' : '0.68rem', letterSpacing: 0.5 }}>
               Jarvis Recall do cliente
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: compact ? '0.7rem' : '0.76rem', lineHeight: 1.35 }}>
@@ -134,7 +163,16 @@ export default function JobClientContextPanel({ jobId, compact = false }: { jobI
           color={contextConfidenceColor(confidence)}
           variant={confidence === 'none' ? 'outlined' : 'filled'}
           label={loading ? 'buscando recall' : contextConfidenceLabel(confidence)}
-          sx={{ height: compact ? 22 : 24, fontSize: compact ? '0.62rem' : '0.68rem', fontWeight: 800, flexShrink: 0 }}
+          sx={{
+            height: compact ? 22 : 24,
+            fontSize: compact ? '0.62rem' : '0.68rem',
+            fontWeight: 900,
+            flexShrink: 0,
+            borderRadius: 1.5,
+            ...(confidence === 'none'
+              ? { bgcolor: alpha(recallAccent, 0.04), borderColor: alpha(recallAccent, 0.35), color: 'text.secondary' }
+              : { bgcolor: alpha(recallAccent, 0.14), color: recallAccent }),
+          }}
         />
       </Stack>
 
@@ -164,15 +202,29 @@ export default function JobClientContextPanel({ jobId, compact = false }: { jobI
               const isMeeting = signal.source === 'meeting' || signal.source === 'meeting_chat';
               return (
                 <Box key={signal.id} sx={(theme) => ({
-                  p: compact ? 1 : 1.15,
-                  borderRadius: compact ? 1.5 : 2,
-                  bgcolor: alpha(theme.palette.background.paper, 0.86),
-                  border: `1px solid ${alpha(theme.palette.divider, 0.65)}`,
+                  p: compact ? 1 : 1.25,
+                  borderRadius: compact ? 1.75 : 2.5,
+                  bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.82) : alpha('#fff', 0.88),
+                  border: `1px solid ${alpha(isMeeting ? theme.palette.info.main : theme.palette.success.main, 0.18)}`,
+                  boxShadow: compact ? 'none' : '0 8px 18px rgba(15,23,42,0.045)',
+                  transition: 'transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease',
+                  '&:hover': {
+                    transform: compact ? 'none' : 'translateY(-1px)',
+                    borderColor: alpha(isMeeting ? theme.palette.info.main : theme.palette.success.main, 0.32),
+                    boxShadow: compact ? 'none' : '0 12px 24px rgba(15,23,42,0.075)',
+                  },
                 })}>
                   <Stack direction="row" spacing={0.8} alignItems="flex-start">
                     <Box sx={(theme) => ({
-                      mt: 0.15,
+                      mt: 0.05,
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      bgcolor: alpha(isMeeting ? theme.palette.info.main : theme.palette.success.main, 0.10),
                       color: isMeeting ? theme.palette.info.main : theme.palette.success.main,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       flexShrink: 0,
                     })}>
                       {isMeeting ? <IconUsers size={14} /> : <IconMessageCircle size={14} />}

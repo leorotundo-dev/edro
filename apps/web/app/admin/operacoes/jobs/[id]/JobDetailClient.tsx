@@ -792,6 +792,14 @@ export default function JobDetailClient({
   const railStickyTop = onClose ? 20 : 80;
   const selectedOwner = owners.find((owner) => owner.id === selectedOwnerId) || null;
   const selectedAssignees = owners.filter((owner) => selectedAssigneeIds.includes(owner.id));
+  const brandAccent = job.client_brand_color || '#E85219';
+  const riskAccent = risk.level === 'critical'
+    ? '#FA896B'
+    : risk.level === 'high'
+      ? '#FFAE1F'
+      : risk.level === 'medium'
+        ? '#5D87FF'
+        : '#13DEB9';
 
   const trelloLabels = (job.labels ?? (job.metadata?.labels as any[]) ?? []) as Array<{ color: string | null; name: string; hex?: string }>;
   const trelloAttachments = (job.attachments ?? (job.metadata?.attachments as any[]) ?? []) as Array<{ url: string; name: string; preview_url?: string | null; is_image?: boolean }>;
@@ -850,7 +858,46 @@ export default function JobDetailClient({
   const tamanhoColor = (job.job_size || job.estimated_minutes) ? '#5D87FF' : '#9E9E9E';
 
   return (
-    <Box sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
+    <Box
+      sx={(t) => ({
+        position: 'relative',
+        minHeight: onClose ? '88vh' : 'calc(100vh - 64px)',
+        overflow: 'hidden',
+        px: { xs: 2, md: 4 },
+        py: 3,
+        background: dark
+          ? `radial-gradient(circle at top left, ${alpha(brandAccent, 0.16)}, transparent 32%), radial-gradient(circle at 85% 12%, ${alpha(riskAccent, 0.12)}, transparent 28%), ${t.palette.background.default}`
+          : `radial-gradient(circle at top left, ${alpha(brandAccent, 0.12)}, transparent 34%), radial-gradient(circle at 88% 8%, ${alpha(riskAccent, 0.10)}, transparent 30%), linear-gradient(180deg, #fff 0%, #F8FAFC 72%)`,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: -110,
+          right: -95,
+          width: 260,
+          height: 260,
+          borderRadius: '999px',
+          bgcolor: alpha(brandAccent, dark ? 0.10 : 0.11),
+          filter: 'blur(6px)',
+          pointerEvents: 'none',
+        },
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          left: 28,
+          top: 120,
+          width: 150,
+          height: 150,
+          borderRadius: '999px',
+          bgcolor: alpha(riskAccent, dark ? 0.07 : 0.06),
+          filter: 'blur(12px)',
+          pointerEvents: 'none',
+        },
+        '& > *': {
+          position: 'relative',
+          zIndex: 1,
+        },
+      })}
+    >
       {/* ── Cover image (Trello-style) ── */}
       {coverUrl && (
         <Box
@@ -887,18 +934,52 @@ export default function JobDetailClient({
       )}
 
       {/* ── Header ── */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 2 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        spacing={2}
+        sx={(t) => ({
+          mb: 2.5,
+          p: { xs: 2, md: 2.5 },
+          pr: onClose ? { xs: 5, md: 6 } : { xs: 2, md: 2.5 },
+          borderRadius: 4,
+          border: `1px solid ${alpha(brandAccent, dark ? 0.22 : 0.16)}`,
+          background: dark
+            ? `linear-gradient(135deg, ${alpha(brandAccent, 0.12)} 0%, ${alpha(t.palette.background.paper, 0.92)} 46%, ${alpha(riskAccent, 0.08)} 100%)`
+            : `linear-gradient(135deg, ${alpha(brandAccent, 0.10)} 0%, #FFFFFF 48%, ${alpha(riskAccent, 0.075)} 100%)`,
+          boxShadow: dark ? '0 16px 36px rgba(0,0,0,0.28)' : '0 18px 42px rgba(15,23,42,0.08)',
+          overflow: 'hidden',
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            inset: 'auto -42px -58px auto',
+            width: 170,
+            height: 170,
+            borderRadius: '999px',
+            bgcolor: alpha(brandAccent, dark ? 0.10 : 0.12),
+            pointerEvents: 'none',
+          },
+          '& > *': {
+            position: 'relative',
+            zIndex: 1,
+          },
+        })}
+      >
         <Stack spacing={1.15} sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
             <Avatar
               src={job.client_logo_url ?? undefined}
               sx={{
-                width: 34,
-                height: 34,
+                width: 42,
+                height: 42,
                 fontSize: '0.78rem',
-                fontWeight: 800,
-                bgcolor: alpha(job.client_brand_color || '#E85219', 0.14),
-                color: job.client_brand_color || '#E85219',
+                fontWeight: 900,
+                bgcolor: alpha(brandAccent, 0.14),
+                color: brandAccent,
+                border: `1px solid ${alpha(brandAccent, 0.22)}`,
+                boxShadow: `0 0 0 5px ${alpha(brandAccent, 0.08)}`,
               }}
             >
               {initials(job.client_name)}
@@ -969,6 +1050,7 @@ export default function JobDetailClient({
                 sx={{
                   lineHeight: 1.2,
                   fontSize: { xs: '1.4rem', md: '1.7rem' },
+                  letterSpacing: '-0.03em',
                   color: 'text.primary',
                   cursor: 'text',
                   borderRadius: 1,
@@ -983,13 +1065,13 @@ export default function JobDetailClient({
             </Tooltip>
           )}
           <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-            <Chip size="small" variant="outlined" label={formatJobType(job.job_type)} sx={{ fontWeight: 700 }} />
+            <Chip size="small" variant="outlined" label={formatJobType(job.job_type)} sx={{ fontWeight: 800, borderRadius: 1.5, bgcolor: alpha(brandAccent, 0.06), borderColor: alpha(brandAccent, 0.28) }} />
             {skillLabel && !skillLabel.toLowerCase().includes('indefin') && (
-              <Chip size="small" variant="outlined" label={skillLabel} sx={{ fontWeight: 700 }} />
+              <Chip size="small" variant="outlined" label={skillLabel} sx={{ fontWeight: 800, borderRadius: 1.5, bgcolor: alpha('#5D87FF', 0.06), borderColor: alpha('#5D87FF', 0.28) }} />
             )}
-            {job.channel ? <Chip size="small" variant="outlined" label={job.channel} sx={{ fontWeight: 700 }} /> : null}
+            {job.channel ? <Chip size="small" variant="outlined" label={job.channel} sx={{ fontWeight: 800, borderRadius: 1.5 }} /> : null}
             {job.job_size ? (
-              <Chip size="small" variant="outlined" label={`Tamanho ${job.job_size}`} sx={{ fontWeight: 700, color: '#5D87FF', borderColor: '#5D87FF' }} />
+              <Chip size="small" variant="outlined" label={`Tamanho ${job.job_size}`} sx={{ fontWeight: 800, borderRadius: 1.5, color: '#5D87FF', borderColor: alpha('#5D87FF', 0.35), bgcolor: alpha('#5D87FF', 0.06) }} />
             ) : null}
             {job.is_urgent ? null : null /* urgent already shown as top chip */}
           </Stack>
@@ -1044,26 +1126,29 @@ export default function JobDetailClient({
       <Paper
         variant="outlined"
         sx={(t) => ({
-          borderRadius: 3,
+          borderRadius: 4,
           mb: 2.5,
           overflow: 'hidden',
           borderColor: deadlineOverdue
             ? alpha('#FA896B', 0.4)
             : deadlineThisWeek
               ? alpha('#FFAE1F', 0.35)
-              : t.palette.divider,
-          bgcolor: deadlineOverdue
-            ? alpha('#FA896B', 0.04)
+              : alpha(brandAccent, 0.16),
+          background: deadlineOverdue
+            ? `linear-gradient(135deg, ${alpha('#FA896B', dark ? 0.12 : 0.08)} 0%, ${alpha(t.palette.background.paper, 0.96)} 100%)`
             : deadlineThisWeek
-              ? alpha('#FFAE1F', 0.04)
-              : 'transparent',
+              ? `linear-gradient(135deg, ${alpha('#FFAE1F', dark ? 0.12 : 0.08)} 0%, ${alpha(t.palette.background.paper, 0.96)} 100%)`
+              : `linear-gradient(135deg, ${alpha(brandAccent, dark ? 0.08 : 0.045)} 0%, ${alpha(t.palette.background.paper, 0.98)} 100%)`,
+          boxShadow: dark ? '0 10px 24px rgba(0,0,0,0.20)' : '0 14px 30px rgba(15,23,42,0.055)',
         })}
       >
         <Stack direction={{ xs: 'column', sm: 'row' }} divider={<Divider orientation="vertical" flexItem />}>
           {/* Entrada */}
-          <Box sx={{ flex: 1, px: 3, py: 2 }}>
+          <Box sx={{ flex: 1, px: 3, py: 2.25 }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-              <IconCalendarEvent size={15} color={theme.palette.text.disabled as string} />
+              <Box sx={{ width: 24, height: 24, borderRadius: 1.6, bgcolor: alpha(brandAccent, 0.10), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconCalendarEvent size={14} color={brandAccent} />
+              </Box>
               <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Entrada
               </Typography>
@@ -1083,7 +1168,7 @@ export default function JobDetailClient({
 
           {/* Entrega — click to edit */}
           <Box
-            sx={{ flex: 1, px: 3, py: 2, cursor: editingDeadline ? 'default' : 'pointer', position: 'relative' }}
+            sx={{ flex: 1, px: 3, py: 2.25, cursor: editingDeadline ? 'default' : 'pointer', position: 'relative' }}
             onClick={() => {
               if (!editingDeadline) {
                 setDeadlineDraft(toDateInput(job.deadline_at));
@@ -1092,10 +1177,12 @@ export default function JobDetailClient({
             }}
           >
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-              <IconFlag
-                size={15}
-                color={deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#FFAE1F' : theme.palette.text.disabled as string}
-              />
+              <Box sx={{ width: 24, height: 24, borderRadius: 1.6, bgcolor: alpha(deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#FFAE1F' : brandAccent, 0.10), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconFlag
+                  size={14}
+                  color={deadlineOverdue ? '#FA896B' : deadlineThisWeek ? '#FFAE1F' : brandAccent}
+                />
+              </Box>
               <Typography
                 variant="caption"
                 sx={{
@@ -1176,12 +1263,15 @@ export default function JobDetailClient({
       <Paper
         variant="outlined"
         sx={(t) => ({
-          borderRadius: 3,
+          borderRadius: 4,
           mb: 2.5,
           px: 2.5,
           py: 1.75,
-          borderColor: !job.owner_id ? alpha('#FFAE1F', 0.4) : t.palette.divider,
-          bgcolor: !job.owner_id ? alpha('#FFAE1F', 0.03) : 'transparent',
+          borderColor: !job.owner_id ? alpha('#FFAE1F', 0.42) : alpha(brandAccent, 0.14),
+          background: !job.owner_id
+            ? `linear-gradient(135deg, ${alpha('#FFAE1F', dark ? 0.11 : 0.07)} 0%, ${alpha(t.palette.background.paper, 0.98)} 100%)`
+            : `linear-gradient(135deg, ${alpha('#13DEB9', dark ? 0.09 : 0.045)} 0%, ${alpha(t.palette.background.paper, 0.98)} 100%)`,
+          boxShadow: dark ? '0 10px 24px rgba(0,0,0,0.18)' : '0 12px 26px rgba(15,23,42,0.045)',
         })}
       >
         {job.owner_id && job.owner_name ? (
@@ -1358,7 +1448,16 @@ export default function JobDetailClient({
       {/* ── JOB CONTROLS PANEL ── */}
       <Paper
         variant="outlined"
-        sx={(t) => ({ borderRadius: 3, mb: 2.5, overflow: 'hidden', borderColor: t.palette.divider })}
+        sx={(t) => ({
+          borderRadius: 4,
+          mb: 2.5,
+          overflow: 'hidden',
+          borderColor: alpha('#5D87FF', 0.14),
+          background: dark
+            ? `linear-gradient(135deg, ${alpha('#5D87FF', 0.08)} 0%, ${alpha(t.palette.background.paper, 0.98)} 100%)`
+            : `linear-gradient(135deg, ${alpha('#5D87FF', 0.045)} 0%, #fff 100%)`,
+          boxShadow: dark ? '0 10px 22px rgba(0,0,0,0.16)' : '0 12px 24px rgba(15,23,42,0.04)',
+        })}
       >
         <Box sx={{ px: 2.5, pt: 1.75, pb: 2 }}>
           <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -1477,7 +1576,16 @@ export default function JobDetailClient({
       {/* ── NOTIFY / DISPATCH PANEL ── */}
       <Paper
         variant="outlined"
-        sx={(t) => ({ borderRadius: 3, mb: 2.5, overflow: 'hidden', borderColor: t.palette.divider })}
+        sx={(t) => ({
+          borderRadius: 4,
+          mb: 2.5,
+          overflow: 'hidden',
+          borderColor: alpha('#13DEB9', 0.16),
+          background: dark
+            ? `linear-gradient(135deg, ${alpha('#13DEB9', 0.08)} 0%, ${alpha(t.palette.background.paper, 0.98)} 100%)`
+            : `linear-gradient(135deg, ${alpha('#13DEB9', 0.045)} 0%, #fff 100%)`,
+          boxShadow: dark ? '0 10px 22px rgba(0,0,0,0.16)' : '0 12px 24px rgba(15,23,42,0.04)',
+        })}
       >
         <Box sx={{ px: 2.5, pt: 1.75, pb: meetingOpen ? 0 : 2 }}>
           <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>

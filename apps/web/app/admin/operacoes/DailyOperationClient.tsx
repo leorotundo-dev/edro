@@ -621,7 +621,7 @@ export default function DailyOperationClient() {
         fullWidth
         maxWidth="lg"
         scroll="paper"
-        PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh' } }}
+        PaperProps={{ sx: { borderRadius: 4, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 28px 80px rgba(15,23,42,0.28)' } }}
       >
         <DialogTitle sx={{ p: 0, position: 'relative' }}>
           <IconButton
