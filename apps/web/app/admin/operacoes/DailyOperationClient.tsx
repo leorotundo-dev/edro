@@ -208,11 +208,28 @@ export default function DailyOperationClient() {
     }
   };
 
-  // Stats
-  const activeJobs        = useMemo(() => jobs.filter((j) => j.status !== 'archived'), [jobs]);
-  const pendingApproval   = useMemo(() => jobs.filter((j) => j.status === 'awaiting_approval').length, [jobs]);
-  const peopleInvolved    = useMemo(() => new Set(jobs.map((j) => j.owner_id || j.owner_email || j.owner_name).filter(Boolean)).size, [jobs]);
-  const urgentCount       = useMemo(() => jobs.filter((j) => j.is_urgent || j.priority_band === 'p0' || getRisk(j).level === 'critical').length, [jobs]);
+  const activeJobs = useMemo(() => jobs.filter((j) => j.status !== 'archived'), [jobs]);
+
+  const drilldownJobs = useMemo(() => {
+    let result = activeJobs;
+    if (filterClientId !== 'all') result = result.filter((j) => j.client_id === filterClientId);
+    if (filterOwnerId !== 'all') {
+      result = filterOwnerId === '__none__'
+        ? result.filter((j) => !j.owner_id && !j.owner_name)
+        : result.filter((j) => j.owner_id === filterOwnerId || j.owner_email === filterOwnerId || j.owner_name === filterOwnerId);
+    }
+    return result;
+  }, [activeJobs, filterClientId, filterOwnerId]);
+
+  const scopedJobs = useMemo(() => {
+    if (!filterDay) return drilldownJobs;
+    return drilldownJobs.filter((j) => jobDayKey(j) === filterDay);
+  }, [drilldownJobs, filterDay]);
+
+  // Stats reflect the current client/owner/day scope, before the status chip filter.
+  const pendingApproval = useMemo(() => scopedJobs.filter((j) => j.status === 'awaiting_approval').length, [scopedJobs]);
+  const peopleInvolved = useMemo(() => new Set(scopedJobs.map((j) => j.owner_id || j.owner_email || j.owner_name).filter(Boolean)).size, [scopedJobs]);
+  const urgentCount = useMemo(() => filterJobs(scopedJobs, 'urgent').length, [scopedJobs]);
 
   // Week strip data
   const weekDays = useMemo(() => {
@@ -234,12 +251,12 @@ export default function DailyOperationClient() {
   const jobsPerDay = useMemo(() => {
     const map = new Map<string, number>();
     for (const d of weekDays) map.set(d.key, 0);
-    for (const job of activeJobs) {
+    for (const job of drilldownJobs) {
       const dk = jobDayKey(job);
       if (dk && map.has(dk)) map.set(dk, (map.get(dk) ?? 0) + 1);
     }
     return map;
-  }, [weekDays, activeJobs]);
+  }, [weekDays, drilldownJobs]);
 
   const maxDayJobs = useMemo(
     () => Math.max(1, ...weekDays.map((d) => jobsPerDay.get(d.key) ?? 0)),
@@ -264,16 +281,8 @@ export default function DailyOperationClient() {
 
   // Filtered + sorted (with day, client, owner drill-downs)
   const displayed = useMemo(() => {
-    let result = filterJobs(activeJobs, filter);
-    if (filterDay) result = result.filter((j) => jobDayKey(j) === filterDay);
-    if (filterClientId !== 'all') result = result.filter((j) => j.client_id === filterClientId);
-    if (filterOwnerId !== 'all') {
-      result = filterOwnerId === '__none__'
-        ? result.filter((j) => !j.owner_id && !j.owner_name)
-        : result.filter((j) => j.owner_id === filterOwnerId || j.owner_email === filterOwnerId || j.owner_name === filterOwnerId);
-    }
-    return result.sort(sortByOperationalPriority);
-  }, [activeJobs, filter, filterDay, filterClientId, filterOwnerId]);
+    return [...filterJobs(scopedJobs, filter)].sort(sortByOperationalPriority);
+  }, [scopedJobs, filter]);
 
   // Grouped by client (for group mode)
   const groupedByClient = useMemo(() => {
@@ -289,13 +298,13 @@ export default function DailyOperationClient() {
 
   // Filter chip counts
   const counts: Record<FilterKey, number> = useMemo(() => ({
-    all:         activeJobs.length,
-    focus:       filterJobs(activeJobs, 'focus').length,
+    all:         scopedJobs.length,
+    focus:       filterJobs(scopedJobs, 'focus').length,
     urgent:      urgentCount,
-    in_progress: activeJobs.filter((j) => ['allocated', 'in_progress'].includes(j.status)).length,
-    awaiting:    activeJobs.filter((j) => ['awaiting_approval', 'in_review'].includes(j.status)).length,
-    unassigned:  activeJobs.filter((j) => !j.owner_id && !j.owner_name).length,
-  }), [activeJobs, urgentCount]);
+    in_progress: filterJobs(scopedJobs, 'in_progress').length,
+    awaiting:    filterJobs(scopedJobs, 'awaiting').length,
+    unassigned:  filterJobs(scopedJobs, 'unassigned').length,
+  }), [scopedJobs, urgentCount]);
 
   useJarvisPage(
     {
@@ -316,20 +325,6 @@ export default function DailyOperationClient() {
     <OperationsShell section="overview" onNewDemand={openCreate}>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {syncHealth?.needs_attention && !loading && (
-        <Alert
-          severity="warning"
-          sx={{ mb: 2 }}
-          action={
-            <Button size="small" color="inherit" onClick={handleSync} disabled={syncing}>
-              {syncing ? 'Sincronizando...' : 'Sincronizar'}
-            </Button>
-          }
-        >
-          Trello desatualizado — dados podem estar incompletos.
-        </Alert>
-      )}
-
       {/* ── Stats row ── */}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
@@ -342,7 +337,7 @@ export default function DailyOperationClient() {
         sx={{ mb: 3 }}
       >
         <Stack direction="row" spacing={4} flexWrap="wrap" useFlexGap>
-          <StatNumber value={activeJobs.length} label="Jobs ativos" onClick={() => setFilter('all')} />
+          <StatNumber value={scopedJobs.length} label="Jobs ativos" onClick={() => setFilter('all')} />
           <StatNumber value={pendingApproval}   label="Pendentes aprovação" color={pendingApproval > 0 ? '#7C3AED' : undefined} onClick={() => setFilter('awaiting')} />
           <StatNumber value={peopleInvolved}    label="Pessoas envolvidas" />
           {urgentCount > 0 && (

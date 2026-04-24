@@ -34,6 +34,7 @@ import {
   IconUsers,
   IconZoomQuestion,
 } from '@tabler/icons-react';
+import AppShell from '@/components/AppShell';
 import { apiGet } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -409,7 +410,7 @@ export default function AdminCampanhasClient() {
   const doneJobs = campaigns.reduce((s, c) => s + (c.job_done_count ?? 0), 0);
   const budget = campaigns.reduce((s, c) => s + (c.budget_brl ?? 0), 0);
 
-  return (
+  const content = (
     <Box>
       {/* Header */}
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
@@ -510,5 +511,11 @@ export default function AdminCampanhasClient() {
         </Grid>
       )}
     </Box>
+  );
+
+  return (
+    <AppShell title="Campanhas" meta="Visão executiva · todas as campanhas ativas na agência">
+      {content}
+    </AppShell>
   );
 }
