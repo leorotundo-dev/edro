@@ -1433,6 +1433,27 @@ export default async function trelloRoutes(app: FastifyInstance) {
       ).catch(() => undefined);
     }
 
+    // Create a shadow jobs row immediately so metadata fields (is_urgent, job_size, estimated_minutes)
+    // can be saved via PATCH without waiting for the Trello webhook to fire upsertJobFromCard.
+    await query(
+      `INSERT INTO jobs (id, tenant_id, trello_card_id, client_id, title, job_type, complexity, source, status, is_urgent, deadline_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 's', 'trello', $7, $8, $9)
+       ON CONFLICT (id) DO NOTHING`,
+      [
+        insertRes.rows[0].id,
+        tenantId,
+        trelloCardId,
+        board.client_id ?? null,
+        body.title,
+        body.job_type || 'briefing',
+        effectiveListOpsStatus(preferredList.name, preferredList.override_status),
+        body.is_urgent ?? false,
+        dueDateValue ? `${dueDateValue}T23:59:00` : null,
+      ],
+    ).catch((err: any) => {
+      console.warn('[trello ops] failed to create shadow jobs row:', err?.message);
+    });
+
     let ownerName: string | null = null;
     let ownerEmail: string | null = null;
 
@@ -1990,10 +2011,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
       definition_of_done: z.string().max(2000).nullable().optional(),
     }).parse(request.body);
 
-    const cardRes = await query<{ board_id: string; trello_card_id: string | null; owner_email: string | null }>(
-      `SELECT pc.board_id, pc.trello_card_id,
+    const cardRes = await query<{ board_id: string; trello_card_id: string | null; owner_email: string | null; title: string; client_id: string | null }>(
+      `SELECT pc.board_id, pc.trello_card_id, pc.title, pb.client_id,
               (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_email
        FROM project_cards pc
+       LEFT JOIN project_boards pb ON pb.id = pc.board_id
        WHERE pc.id = $1 AND pc.tenant_id = $2`,
       [cardId, tenantId],
     );
@@ -2080,11 +2102,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
     if (body.estimated_minutes !== undefined) metaUpdates.estimated_minutes = body.estimated_minutes;
     if (body.definition_of_done !== undefined) metaUpdates.definition_of_done = body.definition_of_done;
     if (Object.keys(metaUpdates).length) {
+      // Upsert: create the jobs row if it doesn't exist yet (e.g. new card, webhook not yet received)
       await query(
-        `UPDATE jobs
-         SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb, updated_at = now()
-         WHERE id = $2 AND tenant_id = $3`,
-        [JSON.stringify(metaUpdates), cardId, tenantId],
+        `INSERT INTO jobs (id, tenant_id, trello_card_id, client_id, title, job_type, complexity, source, status, metadata)
+         VALUES ($1, $2, $3, $4, $5, 'briefing', 's', 'trello', 'intake', $6::jsonb)
+         ON CONFLICT (id) DO UPDATE
+           SET metadata = COALESCE(jobs.metadata, '{}'::jsonb) || EXCLUDED.metadata,
+               updated_at = now()`,
+        [cardId, tenantId, current.trello_card_id, current.client_id ?? null, current.title, JSON.stringify(metaUpdates)],
       );
     }
 
