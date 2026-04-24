@@ -2086,10 +2086,10 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     const detailRes = await app.inject({
       method: 'GET',
-      url: `/trello/ops-cards/${cardId}`,
-      headers: request.headers as Record<string, string>,
+      url: `/api/trello/ops-cards/${cardId}`,
+      headers: { authorization: (request.headers as Record<string, string>).authorization ?? '' },
     });
-    return reply.status(detailRes.statusCode).headers(detailRes.headers).send(detailRes.json());
+    return reply.send(detailRes.json());
   });
 
   // PATCH /trello/ops-cards/:cardId/checklist-items/:checkItemId — toggle checklist item state
@@ -2785,10 +2785,10 @@ Responda apenas com o copy pronto, sem explicações.`;
     // Return updated full job
     const detailRes = await app.inject({
       method: 'GET',
-      url: `/trello/ops-cards/${cardId}`,
-      headers: request.headers as Record<string, string>,
+      url: `/api/trello/ops-cards/${cardId}`,
+      headers: { authorization: (request.headers as Record<string, string>).authorization ?? '' },
     });
-    return reply.status(201).send(detailRes.json());
+    return reply.send(detailRes.json());
   });
 
   // POST /trello/ops-cards/:cardId/add-attachment — attach a URL reference to a card
@@ -2837,10 +2837,10 @@ Responda apenas com o copy pronto, sem explicações.`;
     // Return updated full job
     const detailRes = await app.inject({
       method: 'GET',
-      url: `/trello/ops-cards/${cardId}`,
-      headers: request.headers as Record<string, string>,
+      url: `/api/trello/ops-cards/${cardId}`,
+      headers: { authorization: (request.headers as Record<string, string>).authorization ?? '' },
     });
-    return reply.status(201).send(detailRes.json());
+    return reply.send(detailRes.json());
   });
 
   // POST /trello/ops-cards/:cardId/assign — assign member + sync to Trello
