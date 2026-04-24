@@ -89,6 +89,15 @@ function toCreativeDeliveryAt(dueDate?: unknown, explicitEta?: unknown): string 
   return key ? `${key}T18:00:00` : null;
 }
 
+function toOwnerAvatarUrl(avatarUrl?: unknown, freelancerProfileId?: unknown): string | null {
+  const url = avatarUrl ? String(avatarUrl) : '';
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url) || url.startsWith('/')) return url;
+
+  const fpId = freelancerProfileId ? String(freelancerProfileId) : '';
+  return fpId ? `/api/proxy/freelancers/${fpId}/avatar` : url;
+}
+
 function isLikelyNonCreativeMemberName(value?: string | null) {
   const normalized = String(value || '')
     .normalize('NFD')
@@ -1142,7 +1151,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          creative_owner.email as owner_email,
          creative_owner.user_id as owner_user_id,
          creative_owner.fp_id as owner_fp_id,
-         COALESCE(creative_owner.fp_avatar_url, creative_owner.avatar_url) as owner_avatar_url,
+         COALESCE(creative_owner.fp_avatar_url, creative_owner.person_avatar_url, creative_owner.avatar_url) as owner_avatar_url,
          (creative_owner.fp_id IS NOT NULL) as owner_is_freelancer,
          -- intelligence: inactivity
          CASE WHEN pc.last_activity_at IS NOT NULL THEN EXTRACT(DAY FROM NOW() - pc.last_activity_at)::int ELSE NULL END as days_inactive,
@@ -1178,10 +1187,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
            pcm.avatar_url,
            eu.id::text AS user_id,
            fp.id::text AS fp_id,
-           fp.avatar_url AS fp_avatar_url
+           fp.avatar_url AS fp_avatar_url,
+           p.avatar_url AS person_avatar_url
          FROM project_card_members pcm
          LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
          LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+         LEFT JOIN people p ON p.id = fp.person_id
          WHERE pcm.card_id = pc.id
          ORDER BY
            CASE
@@ -1297,9 +1308,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
         owner_id: c.owner_user_id ?? null,
         owner_name: c.owner_name ?? null,
         owner_email: c.owner_email ?? null,
-        owner_avatar_url: c.owner_avatar_url && c.owner_fp_id
-          ? `/api/proxy/freelancers/${c.owner_fp_id}/avatar`
-          : c.owner_avatar_url ?? null,
+        owner_avatar_url: toOwnerAvatarUrl(c.owner_avatar_url, c.owner_fp_id),
         person_type: c.owner_is_freelancer ? 'freelancer' : (c.owner_user_id ? 'internal' : null),
         start_date: c.start_date ?? null,
         deadline_at: toClientDeadlineAt(c.due_date),
@@ -1745,9 +1754,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       owner_id: c.owner_user_id ?? null,
       owner_name: c.owner_name ?? null,
       owner_email: c.owner_email ?? null,
-      owner_avatar_url: c.owner_avatar_url && c.owner_fp_id
-        ? `/api/proxy/freelancers/${c.owner_fp_id}/avatar`
-        : c.owner_avatar_url ?? null,
+      owner_avatar_url: toOwnerAvatarUrl(c.owner_avatar_url, c.owner_fp_id),
       deadline_at: toClientDeadlineAt(c.due_date),
       estimated_delivery_at: toCreativeDeliveryAt(c.due_date, c.estimated_delivery_at),
       is_urgent: Boolean(c.is_urgent),
@@ -1879,7 +1886,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
          creative_owner.email as owner_email,
          creative_owner.user_id as owner_user_id,
          creative_owner.fp_id as owner_fp_id,
-         COALESCE(creative_owner.fp_avatar_url, creative_owner.avatar_url) as owner_avatar_url
+         COALESCE(creative_owner.fp_avatar_url, creative_owner.person_avatar_url, creative_owner.avatar_url) as owner_avatar_url
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
@@ -1894,10 +1901,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
            pcm.avatar_url,
            eu.id::text AS user_id,
            fp.id::text AS fp_id,
-           fp.avatar_url AS fp_avatar_url
+           fp.avatar_url AS fp_avatar_url,
+           p.avatar_url AS person_avatar_url
          FROM project_card_members pcm
          LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
          LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+         LEFT JOIN people p ON p.id = fp.person_id
          WHERE pcm.card_id = pc.id
          ORDER BY
            CASE
@@ -2346,9 +2355,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
           email: row.owner_email as string,
           user_id: row.owner_user_id as string | null,
           fp_id: row.owner_fp_id as string | null,
-          avatar_url: row.owner_avatar_url && row.owner_fp_id
-            ? `/api/proxy/freelancers/${row.owner_fp_id}/avatar`
-            : null,
+          avatar_url: toOwnerAvatarUrl(row.owner_avatar_url, row.owner_fp_id),
           person_type: row.owner_fp_id
             ? (row.owner_avatar_url ? 'freelancer' : 'internal') // fp exists = known user; use avatar as freelancer heuristic
             : (row.owner_user_id ? 'internal' : null),
@@ -3716,9 +3723,7 @@ Responda apenas com o copy pronto, sem explicações.`;
     // Normalize: proxy avatar through backend
     const normalizedCards = cards.map((c: any) => ({
       ...c,
-      owner_avatar_url: c.owner_avatar_url && c.owner_fp_id
-        ? `/api/proxy/freelancers/${c.owner_fp_id}/avatar`
-        : c.owner_avatar_url ?? null,
+      owner_avatar_url: toOwnerAvatarUrl(c.owner_avatar_url, c.owner_fp_id),
     }));
 
     return reply.send({

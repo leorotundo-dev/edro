@@ -2323,24 +2323,20 @@ export function OpsCard({
                 <Tooltip title={`DA: ${displayedOwnerName}`} arrow placement="top">
                   <Stack direction="row" alignItems="center" spacing={0.75}
                     sx={{
-                      bgcolor: dark ? alpha('#5D87FF', 0.10) : alpha('#5D87FF', 0.07),
-                      border: `1.5px solid ${alpha('#5D87FF', 0.22)}`,
-                      borderRadius: 2,
-                      px: 0.75,
-                      py: 0.4,
+                      minWidth: 0,
                       cursor: 'default',
                     }}
                   >
                     <Avatar
                       src={job.owner_avatar_url ?? undefined}
                       sx={{
-                        width: 38,
-                        height: 38,
-                        fontSize: '0.85rem',
+                        width: 34,
+                        height: 34,
+                        fontSize: '0.78rem',
                         fontWeight: 900,
-                        bgcolor: alpha('#5D87FF', 0.22),
-                        color: '#5D87FF',
-                        border: `2px solid ${alpha('#5D87FF', 0.35)}`,
+                        bgcolor: job.owner_avatar_url ? 'transparent' : alpha(theme.palette.text.primary, 0.08),
+                        color: 'text.secondary',
+                        border: `1px solid ${alpha(theme.palette.text.primary, 0.12)}`,
                         flexShrink: 0,
                       }}
                     >
@@ -2356,7 +2352,7 @@ export function OpsCard({
                           mt: 0.2,
                           fontSize: '0.7rem',
                           fontWeight: 800,
-                          color: dark ? '#a9c4ff' : '#3a5db5',
+                          color: 'text.primary',
                           maxWidth: 78,
                           lineHeight: 1.1,
                         }}
