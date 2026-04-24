@@ -330,8 +330,9 @@ export async function getBriefingById(id: string, tenantId?: string): Promise<Ed
         ) AS current_stage
       FROM edro_briefings b
       LEFT JOIN edro_clients c ON c.id = b.client_id
+      LEFT JOIN clients cl ON cl.id = b.main_client_id
       WHERE b.id = $1
-        ${tenantId ? 'AND b.tenant_id = $2' : ''}
+        ${tenantId ? 'AND (cl.tenant_id = $2 OR b.main_client_id IS NULL)' : ''}
       LIMIT 1
     `,
     values
