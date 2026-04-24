@@ -57,9 +57,6 @@ import {
   PRIORITY_LABELS,
   formatMinutes,
   formatSkillLabel,
-  formatSourceLabel,
-  getDeliveryStatus,
-  getNextAction,
   getRisk,
   cleanJobTitle,
   type OperationsOwner,
@@ -99,6 +96,22 @@ const STATUS_COLORS: Record<string, string> = {
 
 function statusColor(status: string) {
   return STATUS_COLORS[status] || '#9E9E9E';
+}
+
+const JOB_TYPE_LABELS: Record<string, string> = {
+  copy:            'Copy / Texto',
+  design_static:   'Design Estático',
+  design_carousel: 'Carrossel',
+  video_edit:      'Vídeo',
+  meeting:         'Reunião',
+  briefing:        'Briefing',
+  publication:     'Publicação',
+  campaign:        'Campanha',
+  urgent_request:  'Pedido Urgente',
+};
+
+function formatJobType(type: string | null | undefined) {
+  return JOB_TYPE_LABELS[type ?? ''] ?? type ?? '—';
 }
 
 function fmtDate(iso: string | null | undefined) {
@@ -766,15 +779,10 @@ export default function JobDetailClient({
   const allItems = job.checklists?.flatMap((c) => c.items) ?? [];
   const checkedCount = allItems.filter((i) => i.checked).length;
   const risk = getRisk(job);
-  const nextAction = getNextAction(job);
-  const delivery = getDeliveryStatus(job);
   const deadlineInfo = deadlinePulse(job.deadline_at);
   const priorityLabel = PRIORITY_LABELS[job.priority_band] ?? job.priority_band;
   const skillLabel = formatSkillLabel(job.required_skill);
-  const sourceLabel = formatSourceLabel(job.source);
   const estimateLabel = job.estimated_minutes ? formatMinutes(job.estimated_minutes) : 'Sem estimativa';
-  const queueLabel = job.queue_minutes ? formatMinutes(job.queue_minutes) : 'Sem fila';
-  const blockedLabel = job.blocked_minutes ? formatMinutes(job.blocked_minutes) : 'Sem bloqueio';
   const railStickyTop = onClose ? 20 : 80;
   const selectedOwner = owners.find((owner) => owner.id === selectedOwnerId) || null;
   const selectedAssignees = owners.filter((owner) => selectedAssigneeIds.includes(owner.id));
@@ -793,6 +801,47 @@ export default function JobDetailClient({
   const deadlineThisWeek = job.deadline_at
     ? !deadlineOverdue && (new Date(job.deadline_at).getTime() - Date.now()) < 7 * 86400000
     : false;
+
+  // ── Metric tiles (concrete, actionable) ──────────────────────────────────────
+  const daysDiff = job.deadline_at
+    ? Math.round((new Date(job.deadline_at).getTime() - Date.now()) / 86400000)
+    : null;
+  const prazoValue = daysDiff === null ? 'Sem prazo'
+    : daysDiff < 0  ? `${Math.abs(daysDiff)} dia${Math.abs(daysDiff) !== 1 ? 's' : ''} de atraso`
+    : daysDiff === 0 ? 'Vence hoje'
+    : daysDiff === 1 ? 'Vence amanhã'
+    : `${daysDiff} dias restantes`;
+  const prazoCaption = daysDiff === null ? 'Defina um prazo de entrega'
+    : daysDiff < 0  ? 'Prazo ultrapassado — ação necessária'
+    : daysDiff <= 2 ? 'Atenção: vence em breve'
+    : 'Dentro do prazo';
+  const prazoColor = daysDiff === null ? '#9E9E9E'
+    : daysDiff < 0  ? '#FA896B'
+    : daysDiff <= 2 ? '#FFAE1F'
+    : '#13DEB9';
+
+  const progressValue = pct !== null
+    ? `${checkedCount}/${allItems.length} itens`
+    : 'Sem checklist';
+  const progressCaption = pct !== null
+    ? pct === 100 ? 'Tudo concluído!' : `${pct}% do checklist feito`
+    : 'Adicione um checklist para acompanhar';
+  const progressColor = pct === null ? '#9E9E9E'
+    : pct === 100 ? '#13DEB9'
+    : pct >= 50 ? '#5D87FF'
+    : '#FFAE1F';
+
+  const tamanhoValue = job.job_size
+    ? `Tamanho ${job.job_size}`
+    : job.estimated_minutes
+      ? estimateLabel
+      : 'Não definido';
+  const tamanhoCaption = job.job_size && job.estimated_minutes
+    ? estimateLabel
+    : job.job_size
+      ? 'Defina uma estimativa de horas'
+      : 'Configure tamanho ou estimativa';
+  const tamanhoColor = (job.job_size || job.estimated_minutes) ? '#5D87FF' : '#9E9E9E';
 
   return (
     <Box sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
@@ -928,11 +977,15 @@ export default function JobDetailClient({
             </Tooltip>
           )}
           <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-            <Chip size="small" variant="outlined" label={sourceLabel} sx={{ fontWeight: 700 }} />
-            <Chip size="small" variant="outlined" label={job.job_type} sx={{ fontWeight: 700 }} />
-            <Chip size="small" variant="outlined" label={skillLabel} sx={{ fontWeight: 700 }} />
+            <Chip size="small" variant="outlined" label={formatJobType(job.job_type)} sx={{ fontWeight: 700 }} />
+            {skillLabel && !skillLabel.toLowerCase().includes('indefin') && (
+              <Chip size="small" variant="outlined" label={skillLabel} sx={{ fontWeight: 700 }} />
+            )}
             {job.channel ? <Chip size="small" variant="outlined" label={job.channel} sx={{ fontWeight: 700 }} /> : null}
-            {job.job_size ? <Chip size="small" variant="outlined" label={`Tamanho ${job.job_size}`} sx={{ fontWeight: 700 }} /> : null}
+            {job.job_size ? (
+              <Chip size="small" variant="outlined" label={`Tamanho ${job.job_size}`} sx={{ fontWeight: 700, color: '#5D87FF', borderColor: '#5D87FF' }} />
+            ) : null}
+            {job.is_urgent ? null : null /* urgent already shown as top chip */}
           </Stack>
 
           {/* ── Trello labels row ── */}
@@ -1702,22 +1755,22 @@ export default function JobDetailClient({
               }}
             >
               <SignalTile
-                eyebrow="Próxima ação"
-                value={nextAction.label}
-                caption={job.owner_name ? `Com ${job.owner_name}` : 'Ainda sem responsável definido'}
-                color={nextAction.intent === 'error' ? '#FA896B' : nextAction.intent === 'warning' ? '#FFAE1F' : nextAction.intent === 'success' ? '#13DEB9' : '#5D87FF'}
+                eyebrow="Prazo"
+                value={prazoValue}
+                caption={prazoCaption}
+                color={prazoColor}
               />
               <SignalTile
-                eyebrow="Status da entrega"
-                value={delivery.label}
-                caption={deadlineInfo.label}
-                color={delivery.color}
+                eyebrow="Progresso"
+                value={progressValue}
+                caption={progressCaption}
+                color={progressColor}
               />
               <SignalTile
-                eyebrow="Esforço"
-                value={estimateLabel}
-                caption={hasChecklist ? `${checkedCount}/${allItems.length} itens de checklist` : 'Sem checklist operacional'}
-                color="#5D87FF"
+                eyebrow="Tamanho / Estimativa"
+                value={tamanhoValue}
+                caption={tamanhoCaption}
+                color={tamanhoColor}
               />
             </Box>
 
@@ -2409,23 +2462,31 @@ export default function JobDetailClient({
               </Box>
               <Divider />
               <Box sx={{ px: 1.5, py: 1 }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1, mb: 1.25 }}>
-                  <SignalTile eyebrow="Risco" value={risk.label} caption={`Score ${risk.score}`} color={risk.level === 'critical' ? '#FA896B' : risk.level === 'high' ? '#FFAE1F' : risk.level === 'medium' ? '#5D87FF' : '#13DEB9'} />
-                  <SignalTile eyebrow="Fila" value={queueLabel} caption={blockedLabel} color="#5D87FF" />
-                </Box>
                 <Stack spacing={0} divider={<Divider />}>
                   {[
                     { label: 'Cliente', value: job.client_name },
-                    { label: 'Prazo', value: fmtDate(job.deadline_at), color: job.deadline_at && new Date(job.deadline_at) < new Date() ? '#FA896B' : undefined },
+                    {
+                      label: 'Prazo',
+                      value: job.deadline_at ? fmtDate(job.deadline_at) : '—',
+                      color: daysDiff !== null && daysDiff < 0 ? '#FA896B' : undefined,
+                      extra: daysDiff !== null && daysDiff < 0 ? `${Math.abs(daysDiff)}d de atraso` : undefined,
+                    },
                     { label: 'Status', value: STATUS_LABELS[job.status] ?? job.status, color: statusColor(job.status) },
-                    { label: 'Tipo', value: job.job_type },
-                    { label: 'Especialidade', value: skillLabel },
-                    { label: 'Origem', value: sourceLabel },
+                    { label: 'Tipo', value: formatJobType(job.job_type) },
+                    skillLabel && !skillLabel.toLowerCase().includes('indefin') ? { label: 'Especialidade', value: skillLabel } : null,
                     job.job_size ? { label: 'Tamanho', value: job.job_size } : null,
+                    job.estimated_minutes ? { label: 'Estimativa', value: estimateLabel } : null,
                   ].filter(Boolean).map((row) => (
                     <Stack key={row!.label} direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ py: 0.875 }}>
                       <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>{row!.label}</Typography>
-                      <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem', textAlign: 'right', color: row!.color ?? 'text.primary' }}>{row!.value ?? '—'}</Typography>
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        {(row as any).extra && (
+                          <Typography variant="caption" sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#FA896B' }}>
+                            {(row as any).extra}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" fontWeight={600} sx={{ fontSize: '0.78rem', textAlign: 'right', color: (row as any).color ?? 'text.primary' }}>{row!.value ?? '—'}</Typography>
+                      </Stack>
                     </Stack>
                   ))}
                   {/* Campanha — rendered separately to allow navigation link */}
