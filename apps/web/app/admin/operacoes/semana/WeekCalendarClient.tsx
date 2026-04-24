@@ -84,12 +84,26 @@ function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function parseValidDate(value?: string | Date | null): Date | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatValidDate(
+  value: string | Date | null | undefined,
+  options: Intl.DateTimeFormatOptions,
+  fallback = '—',
+): string {
+  const d = parseValidDate(value);
+  return d ? new Intl.DateTimeFormat('pt-BR', options).format(d) : fallback;
+}
+
 function jobDateKey(job: OperationsJob): string | null {
   const alloc = job.metadata?.allocation as { planned_date?: string } | undefined;
   const dateStr = alloc?.planned_date || job.deadline_at;
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = parseValidDate(dateStr);
+  if (!d) return null;
   return dateKey(d);
 }
 
@@ -203,6 +217,7 @@ function JobCard({
   const ownerFirstName = job.owner_name?.split(' ')[0] || 'Sem dono';
   const hours = job.estimated_minutes ? `${Math.round(job.estimated_minutes / 60)}h` : '';
   const chIcon = channelIcon(job.channel);
+  const deadlineDate = parseValidDate(job.deadline_at);
 
   return (
     <Tooltip
@@ -216,9 +231,9 @@ function JobCard({
           <Typography variant="caption" display="block">Canal: {job.channel || '—'}</Typography>
           <Typography variant="caption" display="block">Status: {job.status}</Typography>
           <Typography variant="caption" display="block">Risco: {risk.label}</Typography>
-          {job.deadline_at && (
+          {deadlineDate && (
             <Typography variant="caption" display="block">
-              Prazo: {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(job.deadline_at))}
+              Prazo: {formatValidDate(deadlineDate, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
             </Typography>
           )}
         </Box>
@@ -389,7 +404,7 @@ function DayColumnView({
 
       {/* Job cards */}
       <Box sx={{ flex: 1, p: 0.75, display: 'flex', flexDirection: 'column', gap: 0.5, minHeight: 120, overflowY: 'auto' }}>
-        {col.jobs.sort(sortByOperationalPriority).map((job) => (
+        {[...col.jobs].sort(sortByOperationalPriority).map((job) => (
           <JobCard
             key={job.id}
             job={job}
@@ -452,7 +467,7 @@ function BacklogRow({
           gap: 1,
         }}
       >
-        {jobs.sort(sortByOperationalPriority).map((job) => (
+        {[...jobs].sort(sortByOperationalPriority).map((job) => (
           <Box
             key={job.id}
             draggable
@@ -496,8 +511,7 @@ function PublicationsRow({ jobs }: { jobs: OperationsJob[] }) {
           Publicações
         </Typography>
         {pubJobs.slice(0, 8).map((j) => {
-          const d = j.deadline_at ? new Date(j.deadline_at) : null;
-          const dayLabel = d ? new Intl.DateTimeFormat('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(d) : '—';
+          const dayLabel = formatValidDate(j.deadline_at, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
           return (
             <Chip
               key={j.id}
@@ -562,7 +576,7 @@ function DistributionCell({
         gap: 0.4,
       }}
     >
-      {jobs.sort(sortByOperationalPriority).map((job) => {
+      {[...jobs].sort(sortByOperationalPriority).map((job) => {
         const color = ownerColor(job.owner_id, owners);
         const selected = selectedJobId === job.id;
         return (
