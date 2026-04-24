@@ -2299,7 +2299,16 @@ export function OpsCard({
           })()}
 
           {/* Footer: DA + internal/client deadlines */}
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 0.75 }}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            sx={{
+              mt: 0.75,
+              pt: 0.75,
+              borderTop: `1px solid ${dark ? alpha('#fff', 0.05) : alpha('#000', 0.05)}`,
+            }}
+          >
 
             {/* Avatar — DA/criativo em destaque */}
             <Stack direction="row" alignItems="center" spacing={1}>
@@ -2398,7 +2407,7 @@ export function OpsCard({
             </Stack>
           </Stack>
 
-          {/* CTA rodapé — alocar quando sem dono, avançar status quando tem dono */}
+          {/* CTA rodape: only visible actions should reserve card height */}
           {!hasDisplayedOwner && onAssign && owners?.length ? (
             <>
               <Button
@@ -2431,17 +2440,6 @@ export function OpsCard({
                 ))}
               </Menu>
             </>
-          ) : nextStatus && onAdvance ? (
-            <Button
-              className="ops-card-actions"
-              variant="text"
-              size="small"
-              endIcon={<IconArrowRight size={14} />}
-              onClick={(e) => { e.stopPropagation(); setConfirmAnchor(e.currentTarget); }}
-              sx={{ alignSelf: 'flex-start', px: 0, minWidth: 0, fontWeight: 700, color: vis.color, opacity: 0, transition: 'opacity 0.15s', '&:hover': { bgcolor: 'transparent', opacity: '1 !important' } }}
-            >
-              {nextAction.label}
-            </Button>
           ) : null}
         </Box>
       </Box>
