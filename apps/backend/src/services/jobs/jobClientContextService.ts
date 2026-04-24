@@ -97,6 +97,63 @@ function tokenize(value: unknown, limit = 12) {
   )).slice(0, limit);
 }
 
+function tokenizeLoose(value: unknown) {
+  return Array.from(new Set(
+    normalizeText(value)
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2),
+  ));
+}
+
+function compactToken(value: unknown) {
+  return normalizeText(value).replace(/\s+/g, '');
+}
+
+function collectClientTokens(job: JobRow) {
+  const tokens = new Set<string>();
+  const addTokens = (value: unknown) => {
+    const looseTokens = tokenizeLoose(value);
+    looseTokens.forEach((token) => tokens.add(token));
+
+    const compacted = compactToken(value);
+    if (compacted.length >= 3) tokens.add(compacted);
+
+    const withoutShortSuffix = looseTokens.filter((token, index) => index < looseTokens.length - 1 || token.length > 2);
+    if (withoutShortSuffix.length > 1) tokens.add(withoutShortSuffix.join(''));
+  };
+
+  addTokens(job.client_name);
+  addTokens(job.client_id);
+  return tokens;
+}
+
+function stripClientPrefixFromTitle(title: string, clientTokens: Set<string>) {
+  const parts = String(title || '')
+    .split(/[_|]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) return title;
+
+  const prefix = parts[0];
+  const prefixTokens = tokenizeLoose(prefix);
+  const prefixCompact = compactToken(prefix);
+  const looksLikeClientPrefix =
+    clientTokens.has(prefixCompact) ||
+    prefixTokens.some((token) => clientTokens.has(token));
+
+  return looksLikeClientPrefix ? parts.slice(1).join(' ') : title;
+}
+
+function getDistinctiveTitleTokens(job: JobRow) {
+  const clientTokens = collectClientTokens(job);
+  const titleWithoutClient = stripClientPrefixFromTitle(job.title, clientTokens);
+  return tokenize(titleWithoutClient, 10)
+    .filter((token) => token.length >= 4 && !clientTokens.has(token) && !clientTokens.has(compactToken(token)))
+    .slice(0, 8);
+}
+
 function tokenVariants(token: string) {
   const variants = new Set([token]);
   if (token.length > 4 && token.endsWith('s')) variants.add(token.slice(0, -1));
@@ -559,16 +616,13 @@ export async function getJobClientContext(params: {
   }
 
   const queryText = [
-    job.title,
+    stripClientPrefixFromTitle(job.title, collectClientTokens(job)),
     job.summary,
     job.job_type,
-    job.source,
-    typeof job.metadata?.trello_card_id === 'string' ? job.metadata.trello_card_id : null,
-    typeof job.metadata?.trello_url === 'string' ? job.metadata.trello_url : null,
   ].filter(Boolean).join(' ');
 
   const tokens = tokenize(queryText);
-  const titleTokens = tokenize(job.title, 8);
+  const titleTokens = getDistinctiveTitleTokens(job);
   const exactRefs = collectExactRefs(job);
   const candidates = await loadCandidates({
     tenantId: params.tenantId,
@@ -610,7 +664,7 @@ export async function getJobClientContext(params: {
       };
     })
     .filter((item) => item.score >= minScore)
-    .filter((item) => item.directMatch || titleTokens.length === 0 || item.titleTokenHits > 0)
+    .filter((item) => item.directMatch || (titleTokens.length > 0 ? item.titleTokenHits > 0 : item.tokenHits >= 2))
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
       return new Date(right.signal.occurred_at || 0).getTime() - new Date(left.signal.occurred_at || 0).getTime();
