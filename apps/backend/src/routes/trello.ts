@@ -1716,14 +1716,14 @@ export default async function trelloRoutes(app: FastifyInstance) {
            JOIN project_cards pc ON pc.id = pcm.card_id
            JOIN project_boards pb ON pb.id = pc.board_id
            WHERE LOWER(pcm.email) = LOWER(u.email)
-             AND pb.tenant_id = $2
+             AND pb.tenant_id = $2::text
              AND pcm.trello_member_id IS NOT NULL
            ORDER BY pcm.created_at DESC
            LIMIT 1
          ) AS trello_member_id
        FROM edro_users u
        JOIN tenant_users tu ON tu.user_id = u.id
-       WHERE tu.tenant_id = $2
+       WHERE tu.tenant_id::text = $2::text
          AND u.id = ANY($1::uuid[])`,
       [userIds, tenantId],
     );
