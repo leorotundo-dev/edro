@@ -37,11 +37,22 @@ function getBoardBindingScore(clientKey: string, boardKey: string) {
 }
 
 function currentYearCardClause(alias: string) {
-  // Use last_activity_at (real Trello activity time) before created_at (our sync time).
-  // created_at in project_cards is set to NOW() at import, so 2025 Trello cards
-  // synced in 2026 would incorrectly show as "2026 cards" without this fix.
-  return `COALESCE(${alias}.due_date::timestamp, ${alias}.last_activity_at, ${alias}.created_at) >= date_trunc('year', CURRENT_DATE)
-          AND COALESCE(${alias}.due_date::timestamp, ${alias}.last_activity_at, ${alias}.created_at) < (date_trunc('year', CURRENT_DATE) + interval '1 year')`;
+  // Filter strategy (in priority order):
+  // 1. due_date — if explicitly set, it determines the card's year
+  // 2. Actual Trello card creation time — decoded from the MongoDB ObjectId embedded in
+  //    trello_card_id (first 8 hex chars = Unix seconds). This is the true creation date.
+  // 3. pc.created_at — our DB insertion time (fallback for manual/non-Trello cards)
+  //
+  // We intentionally EXCLUDE last_activity_at from the WHERE filter because Trello
+  // updates it during syncs, making 2025 stale cards appear as 2026 cards incorrectly.
+  // The true creation timestamp (from the card ID) correctly identifies old abandoned cards.
+  //
+  // No upper bound — cards with due dates in future years should remain visible.
+  const trelloTs = `CASE WHEN ${alias}.trello_card_id IS NOT NULL
+      THEN to_timestamp(('x' || substring(${alias}.trello_card_id, 1, 8))::bit(32)::bigint)
+      ELSE ${alias}.created_at
+    END`;
+  return `COALESCE(${alias}.due_date::timestamp, ${trelloTs}) >= date_trunc('year', CURRENT_DATE)`;
 }
 
 export default async function trelloRoutes(app: FastifyInstance) {
