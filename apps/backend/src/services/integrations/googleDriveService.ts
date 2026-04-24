@@ -43,7 +43,7 @@ function resolveDriveRedirectUri(): string {
   if (env.GOOGLE_DRIVE_REDIRECT_URI) {
     return env.GOOGLE_DRIVE_REDIRECT_URI;
   }
-  const publicBase = env.PUBLIC_API_URL?.replace(/\/$/, '');
+  const publicBase = env.PUBLIC_API_URL?.replace(/\/+$/, '').replace(/\/api$/, '');
   if (!publicBase) {
     throw new Error('Configure GOOGLE_DRIVE_REDIRECT_URI ou PUBLIC_API_URL para o OAuth do Google Drive.');
   }
