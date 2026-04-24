@@ -461,7 +461,7 @@ export async function getJobClientContext(params: {
   daysBack?: number;
   limit?: number;
 }): Promise<JobClientContextResponse | null> {
-  const { rows } = await query<JobRow>(
+  const jobRows = await query<JobRow>(
     `SELECT j.id,
             j.title,
             j.summary,
@@ -478,7 +478,33 @@ export async function getJobClientContext(params: {
     [params.tenantId, params.jobId],
   );
 
-  const job = rows[0];
+  let job = jobRows.rows[0];
+
+  if (!job) {
+    const cardRows = await query<JobRow>(
+      `SELECT pc.id::text AS id,
+              pc.title,
+              pc.description AS summary,
+              NULL::text AS job_type,
+              'trello'::text AS source,
+              pb.client_id,
+              c.name AS client_name,
+              jsonb_build_object(
+                'project_card_id', pc.id::text,
+                'trello_card_id', pc.trello_card_id,
+                'trello_url', pc.trello_url
+              ) AS metadata
+         FROM project_cards pc
+         JOIN project_boards pb ON pb.id = pc.board_id
+         LEFT JOIN clients c ON c.id = pb.client_id
+        WHERE pc.tenant_id = $1
+          AND (pc.id::text = $2 OR pc.trello_card_id = $2)
+        LIMIT 1`,
+      [params.tenantId, params.jobId],
+    );
+    job = cardRows.rows[0];
+  }
+
   if (!job) return null;
 
   const responseJob = {
