@@ -92,14 +92,17 @@ export function useOperationsData(query = '?active=true') {
     setLoading(true);
     setError('');
     try {
-      // Use Trello as the data source for the Operations Center
-      const feed = await apiGet<{ jobs: OperationsJob[]; owners: any[]; clients: any[]; sync_health?: SyncHealth }>(`/trello/ops-feed${query}`);
+      // Fetch jobs feed + static lookups in parallel
+      const [feed, staticLookups] = await Promise.all([
+        apiGet<{ jobs: OperationsJob[]; owners: any[]; clients: any[]; sync_health?: SyncHealth }>(`/trello/ops-feed${query}`),
+        apiGet<{ jobTypes: OperationsLookup[]; skills: OperationsLookup[]; channels: OperationsLookup[] }>('/jobs/lookups').catch(() => null),
+      ]);
       const nextJobs = feed?.jobs ?? [];
       setJobs(nextJobs);
       setLookups({
-        jobTypes: [],
-        skills: [],
-        channels: [],
+        jobTypes: staticLookups?.jobTypes ?? [],
+        skills: staticLookups?.skills ?? [],
+        channels: staticLookups?.channels ?? [],
         clients: feed?.clients ?? [],
         owners: feed?.owners ?? [],
       });
