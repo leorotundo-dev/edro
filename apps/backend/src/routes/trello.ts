@@ -2318,7 +2318,9 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
        WHERE pc.tenant_id = $1
          AND pc.is_archived = false
-         AND ${currentYearCardClause('pc')}
+         -- No year filter here — planner must show ALL active workload regardless of card creation date.
+         -- A card created in 2025 that's still in-progress in 2026 is valid workload.
+         -- Status-based exclusion (done/published/excluded lists) is sufficient.
          AND pl.is_archived = false
          AND COALESCE(m.ops_status, '') <> 'excluded'
          AND NOT (
