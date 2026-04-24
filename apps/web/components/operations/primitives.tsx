@@ -2133,6 +2133,14 @@ export function OpsCard({
   const hasDisplayedOwner = Boolean(job.owner_id || displayedOwnerName);
   const daDeliveryLabel = formatOpsCardDate(job.estimated_delivery_at);
   const clientDeadlineLabel = formatOpsCardDate(job.deadline_at);
+  const compactSummary = job.summary
+    ? String(job.summary)
+      .replace(/\*\*/g, '')
+      .replace(/__/g, '')
+      .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+      .trim()
+    : null;
+  const cardAccent = accentColor || typeVis.color;
 
   // Aging badge
   const agingDays = (() => {
@@ -2151,34 +2159,52 @@ export function OpsCard({
       <Box
         onClick={onClick}
         sx={{
-          borderRadius: 3,
-          bgcolor: dark ? alpha('#fff', 0.04) : '#fff',
+          position: 'relative',
+          isolation: 'isolate',
+          borderRadius: 4,
+          background: dark
+            ? alpha('#fff', 0.04)
+            : `linear-gradient(180deg, ${alpha(cardAccent, 0.075)} 0%, #fff 36%)`,
           boxShadow: dark
             ? '0 2px 12px rgba(0,0,0,0.35)'
-            : '0 2px 12px rgba(0,0,0,0.07)',
+            : '0 10px 26px rgba(15,23,42,0.07)',
           border: selected
             ? `1.5px solid ${alpha(theme.palette.primary.main, 0.5)}`
-            : `1px solid ${dark ? alpha('#fff', 0.06) : alpha('#000', 0.06)}`,
+            : `1px solid ${dark ? alpha('#fff', 0.06) : alpha(cardAccent, 0.12)}`,
           display: 'flex',
           flexDirection: 'column',
           flexShrink: 0,
           cursor: onClick ? 'pointer' : 'default',
           overflow: 'hidden',
-          transition: 'box-shadow 0.15s, transform 0.15s',
+          transition: 'box-shadow 0.18s, transform 0.18s, border-color 0.18s',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: -42,
+            right: -38,
+            width: 112,
+            height: 112,
+            borderRadius: '999px',
+            bgcolor: alpha(cardAccent, dark ? 0.10 : 0.12),
+            filter: 'blur(2px)',
+            pointerEvents: 'none',
+            zIndex: 0,
+          },
           '&:hover': {
-            boxShadow: dark ? '0 8px 28px rgba(0,0,0,0.45)' : '0 8px 28px rgba(0,0,0,0.13)',
-            transform: 'translateY(-2px)',
+            boxShadow: dark ? '0 8px 28px rgba(0,0,0,0.45)' : '0 16px 36px rgba(15,23,42,0.12)',
+            borderColor: alpha(cardAccent, 0.28),
+            transform: 'translateY(-3px)',
           },
         }}
       >
         {/* Cover image — só aparece com URL real */}
         {coverImageUrl && (
-          <Box sx={{ height: 150, overflow: 'hidden', flexShrink: 0 }}>
+          <Box sx={{ position: 'relative', zIndex: 1, height: 150, overflow: 'hidden', flexShrink: 0 }}>
             <Box component="img" src={coverImageUrl} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </Box>
         )}
 
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+        <Box sx={{ position: 'relative', zIndex: 1, p: 2, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
 
           {/* Row 1: chip tipo + Urgente + ⋮ */}
           <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -2229,26 +2255,29 @@ export function OpsCard({
 
           {/* Nome do cliente */}
           {job.client_name && (
-            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.07em', lineHeight: 1 }}>
-              {job.client_name}
-            </Typography>
+            <Stack direction="row" spacing={0.55} alignItems="center" sx={{ minWidth: 0 }}>
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: cardAccent, boxShadow: `0 0 0 3px ${alpha(cardAccent, 0.12)}`, flexShrink: 0 }} />
+              <Typography noWrap sx={{ fontSize: '0.67rem', fontWeight: 900, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.07em', lineHeight: 1 }}>
+                {job.client_name}
+              </Typography>
+            </Stack>
           )}
 
           {/* Nome do job */}
           <Typography
-            fontWeight={700}
-            sx={{ fontSize: '0.9rem', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+            fontWeight={900}
+            sx={{ fontSize: '0.94rem', lineHeight: 1.28, letterSpacing: '-0.015em', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
           >
             {cleanJobTitle(job.title, job.client_name)}
           </Typography>
 
           {/* Pequena descrição — sempre visível se existir */}
-          {job.summary && (
+          {compactSummary && (
             <Typography
               color="text.secondary"
-              sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: '0.78rem', lineHeight: 1.5 }}
+              sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: '0.76rem', lineHeight: 1.45 }}
             >
-              {job.summary}
+              {compactSummary}
             </Typography>
           )}
 
@@ -2265,12 +2294,19 @@ export function OpsCard({
                 direction="row"
                 alignItems="center"
                 spacing={0.75}
-                sx={{ pt: 0.75, borderTop: `1px solid ${dark ? alpha('#fff', 0.05) : alpha('#000', 0.05)}` }}
+                sx={{
+                  mt: 0.1,
+                  px: 0.75,
+                  py: 0.55,
+                  borderRadius: 2.2,
+                  bgcolor: dark ? alpha('#fff', 0.035) : alpha('#F8FAFC', 0.92),
+                  border: `1px solid ${dark ? alpha('#fff', 0.05) : alpha('#000', 0.045)}`,
+                }}
               >
                 {/* Risco */}
                 <Tooltip title={intel.alerts.join(' · ') || rlLabel} arrow placement="top">
                   <Stack direction="row" alignItems="center" spacing={0.4}
-                    sx={{ px: 0.75, py: 0.25, borderRadius: 999, bgcolor: bgColor, flexShrink: 0, cursor: 'default' }}>
+                    sx={{ px: 0.7, py: 0.3, borderRadius: 999, bgcolor: bgColor, flexShrink: 0, cursor: 'default' }}>
                     <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: dotColor, flexShrink: 0 }} />
                     <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: dotColor, lineHeight: 1 }}>
                       {rlLabel}
@@ -2312,8 +2348,8 @@ export function OpsCard({
             alignItems="center"
             sx={{
               mt: 0.75,
-              pt: 0.75,
-              borderTop: `1px solid ${dark ? alpha('#fff', 0.05) : alpha('#000', 0.05)}`,
+              pt: 0.85,
+              borderTop: `1px dashed ${dark ? alpha('#fff', 0.08) : alpha('#000', 0.08)}`,
             }}
           >
 
@@ -2330,8 +2366,8 @@ export function OpsCard({
                     <Avatar
                       src={job.owner_avatar_url ?? undefined}
                       sx={{
-                        width: 34,
-                        height: 34,
+                        width: 36,
+                        height: 36,
                         fontSize: '0.78rem',
                         fontWeight: 900,
                         bgcolor: job.owner_avatar_url ? 'transparent' : alpha(theme.palette.text.primary, 0.08),
@@ -2388,22 +2424,22 @@ export function OpsCard({
             </Stack>
 
             {/* Datas: entrega do DA + deadline do cliente */}
-            <Stack spacing={0.25} alignItems="flex-end" sx={{ minWidth: 86 }}>
-              <Stack direction="row" spacing={0.35} alignItems="center">
-                <IconCalendarTime size={11} color={alpha(theme.palette.text.primary, 0.38)} />
-                <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', fontWeight: 800, lineHeight: 1 }}>
+            <Stack spacing={0.35} alignItems="flex-end" sx={{ minWidth: 92 }}>
+              <Stack direction="row" spacing={0.45} alignItems="center" sx={{ px: 0.55, py: 0.22, borderRadius: 999, bgcolor: alpha('#FFAE1F', dark ? 0.10 : 0.12) }}>
+                <IconCalendarTime size={10.5} color={theme.palette.warning.main} />
+                <Typography sx={{ fontSize: '0.57rem', color: 'text.disabled', fontWeight: 900, lineHeight: 1 }}>
                   DA
                 </Typography>
-                <Typography sx={{ fontSize: '0.64rem', color: opsCardDateTone(job.estimated_delivery_at), fontWeight: 900, lineHeight: 1 }}>
+                <Typography sx={{ fontSize: '0.63rem', color: opsCardDateTone(job.estimated_delivery_at), fontWeight: 950, lineHeight: 1 }}>
                   {daDeliveryLabel || 'sem data'}
                 </Typography>
               </Stack>
-              <Stack direction="row" spacing={0.35} alignItems="center">
-                <IconCalendarDue size={11} color={alpha(theme.palette.text.primary, 0.38)} />
-                <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', fontWeight: 800, lineHeight: 1 }}>
+              <Stack direction="row" spacing={0.45} alignItems="center" sx={{ px: 0.55, py: 0.22, borderRadius: 999, bgcolor: alpha(cardAccent, dark ? 0.10 : 0.09) }}>
+                <IconCalendarDue size={10.5} color={cardAccent} />
+                <Typography sx={{ fontSize: '0.57rem', color: 'text.disabled', fontWeight: 900, lineHeight: 1 }}>
                   Cliente
                 </Typography>
-                <Typography sx={{ fontSize: '0.64rem', color: opsCardDateTone(job.deadline_at), fontWeight: 900, lineHeight: 1 }}>
+                <Typography sx={{ fontSize: '0.63rem', color: opsCardDateTone(job.deadline_at), fontWeight: 950, lineHeight: 1 }}>
                   {clientDeadlineLabel || 'sem prazo'}
                 </Typography>
               </Stack>
