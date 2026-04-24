@@ -67,6 +67,17 @@ const SOURCE_LABELS: Record<JobClientContextSource, string> = {
   memory: 'Memoria do cliente',
 };
 
+const TOKEN_STOPWORDS = new Set([
+  'a', 'o', 'os', 'as', 'de', 'do', 'da', 'das', 'dos', 'e', 'em', 'no', 'na', 'nos', 'nas',
+  'um', 'uma', 'uns', 'umas', 'que', 'como', 'qual', 'quais', 'pra', 'para', 'com', 'sem',
+  'foi', 'sao', 'por', 'sobre', 'cliente', 'job', 'jobs', 'card', 'cards', 'demanda', 'demandas',
+  'peca', 'pecas', 'post', 'posts', 'copy', 'texto', 'arte', 'artes', 'criativo', 'criativos',
+  'design', 'estatico', 'estatica', 'video', 'foto', 'fotos', 'imagem', 'imagens',
+  'campanha', 'campanhas', 'aprovacao', 'aprovar', 'aprovado', 'aprovada', 'entrada',
+  'incompleta', 'tamanho', 'normal', 'urgente', 'trello', 'edro', 'digital', 'studio',
+  'http', 'https', 'www', 'com',
+]);
+
 function normalizeText(value: unknown) {
   return String(value || '')
     .toLowerCase()
@@ -78,19 +89,29 @@ function normalizeText(value: unknown) {
 }
 
 function tokenize(value: unknown, limit = 12) {
-  const stopwords = new Set([
-    'a', 'o', 'os', 'as', 'de', 'do', 'da', 'das', 'dos', 'e', 'em', 'no', 'na', 'nos', 'nas',
-    'um', 'uma', 'uns', 'umas', 'que', 'como', 'qual', 'quais', 'pra', 'para', 'com', 'sem',
-    'foi', 'sao', 'por', 'sobre', 'cliente', 'job', 'card', 'demanda', 'peca', 'post', 'copy',
-    'trello', 'edro', 'digital', 'studio',
-  ]);
-
   return Array.from(new Set(
     normalizeText(value)
       .split(/\s+/)
       .map((token) => token.trim())
-      .filter((token) => token.length >= 3 && !stopwords.has(token)),
+      .filter((token) => token.length >= 3 && !TOKEN_STOPWORDS.has(token)),
   )).slice(0, limit);
+}
+
+function tokenVariants(token: string) {
+  const variants = new Set([token]);
+  if (token.length > 4 && token.endsWith('s')) variants.add(token.slice(0, -1));
+  if (token.length > 5 && token.endsWith('es')) variants.add(token.slice(0, -2));
+  return variants;
+}
+
+function countTokenHits(haystack: string, tokens: string[]) {
+  const words = new Set(haystack.split(/\s+/).filter(Boolean));
+  let hits = 0;
+  for (const token of tokens) {
+    const variants = tokenVariants(token);
+    if (Array.from(variants).some((variant) => words.has(variant))) hits += 1;
+  }
+  return hits;
 }
 
 function compact(value: unknown, maxChars = 360) {
@@ -113,21 +134,34 @@ function collectExactRefs(job: JobRow) {
     'briefing_id',
     'whatsapp_digest_id',
     'whatsapp_message_id',
+    'project_card_id',
+    'trello_card_id',
+    'trello_url',
     'pipeline_share_token',
     'publication_schedule_id',
   ].forEach((key) => addRef(refs, metadata[key]));
   return refs;
 }
 
-function scoreCandidate(candidate: EvidenceCandidate, tokens: string[]) {
-  const haystack = normalizeText(candidate.haystack);
-  let tokenHits = 0;
-  for (const token of tokens) {
-    if (haystack.includes(token)) tokenHits += 1;
+function hasExactReference(candidate: EvidenceCandidate, refs: Set<string>) {
+  if (candidate.direct_match) return true;
+  const haystack = String(candidate.haystack || '').toLowerCase();
+  for (const ref of refs) {
+    const normalizedRef = String(ref || '').trim().toLowerCase();
+    if (normalizedRef.length >= 8 && haystack.includes(normalizedRef)) return true;
   }
+  return false;
+}
+
+function scoreCandidate(candidate: EvidenceCandidate, tokens: string[], titleTokens: string[], exactRefs: Set<string>) {
+  const haystack = normalizeText(candidate.haystack);
+  const tokenHits = countTokenHits(haystack, tokens);
+  const titleTokenHits = countTokenHits(haystack, titleTokens);
+  const directMatch = hasExactReference(candidate, exactRefs);
 
   let score = Number(candidate.base_score || 0) + tokenHits * 5;
-  if (candidate.direct_match) score += 18;
+  if (titleTokenHits > 0) score += titleTokenHits * 4;
+  if (directMatch) score += 18;
   if (candidate.occurred_at) {
     const timestamp = new Date(candidate.occurred_at).getTime();
     if (!Number.isNaN(timestamp)) {
@@ -137,7 +171,7 @@ function scoreCandidate(candidate: EvidenceCandidate, tokens: string[]) {
     }
   }
 
-  return { score, tokenHits };
+  return { score, tokenHits, titleTokenHits, directMatch };
 }
 
 function confidenceFromSignals(signals: JobClientContextSignal[]): JobClientContextConfidence {
@@ -534,6 +568,7 @@ export async function getJobClientContext(params: {
   ].filter(Boolean).join(' ');
 
   const tokens = tokenize(queryText);
+  const titleTokens = tokenize(job.title, 8);
   const exactRefs = collectExactRefs(job);
   const candidates = await loadCandidates({
     tenantId: params.tenantId,
@@ -546,12 +581,14 @@ export async function getJobClientContext(params: {
   const minScore = tokens.length ? 5 : 3;
   const rankedSignals = candidates
     .map((candidate) => {
-      const { score, tokenHits } = scoreCandidate(candidate, tokens);
-      const matchType = candidate.direct_match ? 'direct' : 'probable';
+      const { score, tokenHits, titleTokenHits, directMatch } = scoreCandidate(candidate, tokens, titleTokens, exactRefs);
+      const matchType = directMatch ? 'direct' : 'probable';
       return {
         candidate,
         score,
         tokenHits,
+        titleTokenHits,
+        directMatch,
         signal: {
           id: `${candidate.source}:${candidate.source_id}`,
           source: candidate.source,
@@ -561,10 +598,10 @@ export async function getJobClientContext(params: {
           author_name: candidate.author_name || null,
           occurred_at: candidate.occurred_at || null,
           snippet: candidate.snippet || '',
-          relevance_reason: candidate.direct_match
+          relevance_reason: directMatch
             ? 'fonte vinculada diretamente a este job'
-            : tokenHits > 0
-            ? `${tokenHits} termo${tokenHits === 1 ? '' : 's'} do job encontrado${tokenHits === 1 ? '' : 's'} na fonte`
+            : titleTokenHits > 0
+            ? `${titleTokenHits} termo${titleTokenHits === 1 ? '' : 's'} distintivo${titleTokenHits === 1 ? '' : 's'} do título encontrado${titleTokenHits === 1 ? '' : 's'} na fonte`
             : 'contexto recente do mesmo cliente',
           match_type: matchType,
           confidence: Math.max(0.25, Math.min(0.96, score / 24)),
@@ -573,6 +610,7 @@ export async function getJobClientContext(params: {
       };
     })
     .filter((item) => item.score >= minScore)
+    .filter((item) => item.directMatch || titleTokens.length === 0 || item.titleTokenHits > 0)
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
       return new Date(right.signal.occurred_at || 0).getTime() - new Date(left.signal.occurred_at || 0).getTime();
