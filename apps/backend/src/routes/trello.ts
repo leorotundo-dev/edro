@@ -1729,11 +1729,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
     const cardRes = await query<Record<string, any>>(
       `SELECT
          pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
-         -- is_urgent / job_size / estimated_minutes are stored in metadata jsonb (no dedicated columns yet)
-         (pc.metadata->>'is_urgent')::boolean                    AS is_urgent,
-         pc.metadata->>'job_size'                                AS job_size,
-         (pc.metadata->>'estimated_minutes')::integer            AS estimated_minutes,
-         pc.metadata,
+         -- is_urgent / job_size / estimated_minutes / definition_of_done are stored in jobs.metadata jsonb
+         (j.metadata->>'is_urgent')::boolean                    AS is_urgent,
+         j.metadata->>'job_size'                                AS job_size,
+         (j.metadata->>'estimated_minutes')::integer            AS estimated_minutes,
+         j.metadata,
          pc.trello_url, pc.trello_card_id, pc.campaign_id,
          camp.name as campaign_name,
          pl.id as list_id, pl.name as list_name,
@@ -1750,6 +1750,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN jobs j ON j.id = pc.id AND j.tenant_id = $2
        LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
        LEFT JOIN campaigns camp ON camp.id = pc.campaign_id
@@ -2054,7 +2055,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
       }
     }
 
-    // Merge is_urgent / job_size / estimated_minutes / definition_of_done into metadata jsonb
+    // Merge is_urgent / job_size / estimated_minutes / definition_of_done into jobs.metadata jsonb
+    // (project_cards has no metadata column — these fields live on the jobs row)
     const metaUpdates: Record<string, unknown> = {};
     if (body.is_urgent !== undefined) metaUpdates.is_urgent = body.is_urgent;
     if (body.job_size !== undefined) metaUpdates.job_size = body.job_size;
@@ -2062,7 +2064,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
     if (body.definition_of_done !== undefined) metaUpdates.definition_of_done = body.definition_of_done;
     if (Object.keys(metaUpdates).length) {
       await query(
-        `UPDATE project_cards
+        `UPDATE jobs
          SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb, updated_at = now()
          WHERE id = $2 AND tenant_id = $3`,
         [JSON.stringify(metaUpdates), cardId, tenantId],
@@ -2450,13 +2452,15 @@ export default async function trelloRoutes(app: FastifyInstance) {
       required_skill: string | null;
       channel: string | null;
     }>(
-      `SELECT pc.title, pc.description, pc.metadata,
+      `SELECT pc.title, pc.description, j.metadata,
               cl.name AS client_name,
-              pc.metadata->>'job_type' AS job_type,
-              pc.metadata->>'required_skill' AS required_skill,
-              pc.metadata->>'channel' AS channel
+              j.metadata->>'job_type' AS job_type,
+              j.metadata->>'required_skill' AS required_skill,
+              j.metadata->>'channel' AS channel
        FROM project_cards pc
-       LEFT JOIN clients cl ON cl.id = (pc.metadata->>'client_id')::uuid AND cl.tenant_id = $2
+       LEFT JOIN jobs j ON j.id = pc.id AND j.tenant_id = $2
+       LEFT JOIN project_boards pb ON pb.id = pc.board_id
+       LEFT JOIN clients cl ON cl.id::text = pb.client_id
        WHERE pc.id = $1 AND pc.tenant_id = $2
        LIMIT 1`,
       [cardId, tenantId],
@@ -2498,14 +2502,14 @@ Responda apenas com o copy pronto, sem explicações.`;
       return reply.status(502).send({ error: 'Falha ao gerar copy com IA.', detail: err?.message });
     }
 
-    // Persist to card metadata
+    // Persist to jobs.metadata (project_cards has no metadata column)
     const updatedMeta = {
       ...(card.metadata ?? {}),
       quick_copy: copyText,
       quick_copy_generated_at: new Date().toISOString(),
     };
     await query(
-      `UPDATE project_cards SET metadata = $1, updated_at = now() WHERE id = $2 AND tenant_id = $3`,
+      `UPDATE jobs SET metadata = $1, updated_at = now() WHERE id = $2 AND tenant_id = $3`,
       [JSON.stringify(updatedMeta), cardId, tenantId],
     );
 
