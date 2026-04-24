@@ -1378,19 +1378,42 @@ export async function buildPlannerSnapshot(tenantId: string) {
   await syncAllocations(tenantId);
 
   const { rows: ownerRows } = await query<any>(
-    `SELECT
-       u.id,
-       COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name,
-       u.email,
-       tu.role,
-       fp.specialty,
-       fp.id AS freelancer_profile_id,
-       CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type
-     FROM tenant_users tu
-     JOIN edro_users u ON u.id = tu.user_id
-     LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id
-    WHERE tu.tenant_id = $1
-    ORDER BY name ASC`,
+    `WITH owner_candidates AS (
+       SELECT
+         u.id,
+         COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) AS name,
+         u.email,
+         tu.role,
+         fp.specialty,
+         fp.id AS freelancer_profile_id,
+         CASE WHEN fp.id IS NOT NULL THEN 'freelancer' ELSE 'internal' END AS person_type,
+         ROW_NUMBER() OVER (
+           PARTITION BY COALESCE(fp.person_id::text, pi.person_id::text, u.id::text)
+           ORDER BY
+             CASE WHEN fp.id IS NOT NULL THEN 0 ELSE 1 END,
+             CASE tu.role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,
+             COALESCE(NULLIF(u.name, ''), split_part(u.email, '@', 1)) ASC,
+             u.email ASC
+         ) AS owner_rank
+       FROM tenant_users tu
+       JOIN edro_users u ON u.id = tu.user_id
+       LEFT JOIN freelancer_profiles fp ON fp.user_id = u.id AND fp.is_active = true
+       LEFT JOIN LATERAL (
+         SELECT person_id
+           FROM person_identities pi
+          WHERE pi.tenant_id::text = tu.tenant_id::text
+            AND pi.identity_type = 'email'
+            AND pi.normalized_value = LOWER(u.email)
+          ORDER BY pi.is_primary DESC, pi.created_at ASC
+          LIMIT 1
+       ) pi ON true
+      WHERE tu.tenant_id = $1
+        AND COALESCE(u.status, 'active') = 'active'
+     )
+     SELECT id, name, email, role, specialty, freelancer_profile_id, person_type
+       FROM owner_candidates
+      WHERE owner_rank = 1
+      ORDER BY name ASC`,
     [tenantId],
   );
 
