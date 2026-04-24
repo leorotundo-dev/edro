@@ -388,7 +388,7 @@ export default function DailyOperationClient() {
             />
           )}
         </Stack>
-        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           {weekDays.map((day) => {
             const count = jobsPerDay.get(day.key) ?? 0;
             const pct = Math.round((count / maxDayJobs) * 100);
@@ -399,8 +399,8 @@ export default function DailyOperationClient() {
                 key={day.key}
                 onClick={() => setFilterDay(isSelected ? null : day.key)}
                 sx={(t) => ({
-                  minWidth: 68,
-                  px: 1.25,
+                  minWidth: { xs: 76, sm: 88 },
+                  px: 1.45,
                   pt: 0.9,
                   pb: 0.75,
                   borderRadius: 2,
