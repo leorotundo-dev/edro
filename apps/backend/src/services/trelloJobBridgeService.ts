@@ -124,14 +124,15 @@ export async function upsertJobFromCard(
   // Fetch card with joined list name and client name
   const cardRes = await query<ProjectCardRow>(
     `SELECT
-       pc.id, pc.tenant_id, pc.client_id, pc.title, pc.description,
+       pc.id, pc.tenant_id, pb.client_id, pc.title, pc.description,
        pc.due_date, pc.due_complete, pc.is_archived, pc.labels, pc.priority,
        pc.trello_card_id, pc.trello_url, pc.completed_at,
        pl.name   AS list_name,
        c.name    AS client_name
      FROM project_cards pc
      LEFT JOIN project_lists pl ON pl.id = pc.list_id
-     LEFT JOIN clients c        ON c.id  = pc.client_id
+     LEFT JOIN project_boards pb ON pb.id = pc.board_id
+     LEFT JOIN clients c        ON c.id::text = pb.client_id
      WHERE pc.tenant_id = $1 AND pc.trello_card_id = $2
      LIMIT 1`,
     [tenantId, trelloCardId],
@@ -237,14 +238,15 @@ async function upsertJobFromCardRow(card: ProjectCardRow): Promise<string | null
 export async function syncAllProjectCardsToJobs(tenantId: string): Promise<number> {
   const cardsRes = await query<ProjectCardRow>(
     `SELECT
-       pc.id, pc.tenant_id, pc.client_id, pc.title, pc.description,
+       pc.id, pc.tenant_id, pb.client_id, pc.title, pc.description,
        pc.due_date, pc.due_complete, pc.is_archived, pc.labels, pc.priority,
        pc.trello_card_id, pc.trello_url, pc.completed_at,
        pl.name   AS list_name,
        c.name    AS client_name
      FROM project_cards pc
      LEFT JOIN project_lists pl ON pl.id = pc.list_id
-     LEFT JOIN clients c        ON c.id  = pc.client_id
+     LEFT JOIN project_boards pb ON pb.id = pc.board_id
+     LEFT JOIN clients c        ON c.id::text = pb.client_id
      WHERE pc.tenant_id = $1
        AND pc.trello_card_id IS NOT NULL
      ORDER BY pc.last_activity_at DESC`,

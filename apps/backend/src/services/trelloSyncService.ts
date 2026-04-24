@@ -735,7 +735,7 @@ export async function syncTrelloIntelligenceSignals(tenantId: string): Promise<v
         (tenant_id, domain, signal_type, severity, title, summary,
          entity_type, entity_id, client_id, client_name, actions, dedup_key, expires_at)
       VALUES ($1, 'trello_ops', 'attention', $2, $3, $4, 'trello_card', $5, $6::uuid, $7, $8, $9, now() + interval '72 hours')
-      ON CONFLICT (tenant_id, dedup_key) WHERE resolved_at IS NULL
+      ON CONFLICT (tenant_id, dedup_key) WHERE dedup_key IS NOT NULL AND resolved_at IS NULL
       DO UPDATE SET severity = $2, summary = $4, expires_at = now() + interval '72 hours', created_at = now()
     `, [
       tenantId, severity,
@@ -856,7 +856,7 @@ export async function refreshSignalForCard(tenantId: string, cardId: string): Pr
       (tenant_id, domain, signal_type, severity, title, summary,
        entity_type, entity_id, client_id, client_name, actions, dedup_key, expires_at)
     VALUES ($1, 'trello_ops', 'attention', $2, $3, $4, 'trello_card', $5, $6::uuid, $7, $8, $9, now() + interval '72 hours')
-    ON CONFLICT (tenant_id, dedup_key) WHERE resolved_at IS NULL
+    ON CONFLICT (tenant_id, dedup_key) WHERE dedup_key IS NOT NULL AND resolved_at IS NULL
     DO UPDATE SET severity = $2, summary = $4, expires_at = now() + interval '72 hours', created_at = now()
   `, [
     tenantId, severity,
