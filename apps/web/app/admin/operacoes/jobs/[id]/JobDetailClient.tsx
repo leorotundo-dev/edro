@@ -53,6 +53,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import JobClientContextPanel from '@/components/operations/JobClientContextPanel';
 import {
   PRIORITY_LABELS,
   formatMinutes,
@@ -1637,6 +1638,11 @@ export default function JobDetailClient({
           </Box>
         )}
       </Paper>
+
+      {/* ── JARVIS RECALL / CLIENT CONTEXT ── */}
+      <Box sx={{ mb: 2.5 }}>
+        <JobClientContextPanel jobId={job.id} />
+      </Box>
 
       {/* ── COPY STATUS BANNER ── */}
       <Paper
