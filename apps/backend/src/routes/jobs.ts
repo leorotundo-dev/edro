@@ -13,6 +13,9 @@ import { notifyEvent } from '../services/notificationService';
 import { sendWhatsAppText } from '../services/whatsappService';
 import { proposeAllocations, updateFreelancerScores } from '../services/allocationService';
 import { generateCalibrationReport, getCalibratedEstimate } from '../services/jobs/calibrationService';
+import { getJobClientContext } from '../services/jobs/jobClientContextService';
+import { ensureJobCode } from '../services/jobs/jobCodeService';
+import { provisionDriveForJob } from '../services/jobs/jobDriveProvisioningService';
 import { notifyJobBlocked, notifyJobAssigned, notifyJobReadyForReview } from '../services/jobs/opsNotificationService';
 import { audit } from '../audit/audit';
 import { enqueueJobChangeToTrello } from '../services/trelloJobBridgeService';
@@ -595,6 +598,25 @@ export default async function jobsRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: rows });
   });
 
+  app.get('/jobs/:jobId/client-context', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
+    const tenantId = (request.user as any)?.tenant_id as string;
+    const { jobId } = request.params as { jobId: string };
+    const { days_back, limit } = request.query as { days_back?: string; limit?: string };
+
+    const data = await getJobClientContext({
+      tenantId,
+      jobId,
+      daysBack: days_back ? Number(days_back) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+
+    if (!data) {
+      return reply.status(404).send({ error: 'Job não encontrado.' });
+    }
+
+    return { success: true, data };
+  });
+
   app.get('/jobs/:jobId', { preHandler: [requirePerm('clients:read')] }, async (request: any, reply) => {
     const tenantId = (request.user as any)?.tenant_id as string;
     const { jobId } = request.params as { jobId: string };
@@ -783,6 +805,8 @@ export default async function jobsRoutes(app: FastifyInstance) {
       ]
     );
 
+    let createdJob = rows[0];
+
     // Sync multiple assignees
     const assigneeIds = body.assignee_ids?.length
       ? body.assignee_ids
@@ -798,6 +822,17 @@ export default async function jobsRoutes(app: FastifyInstance) {
     );
     await syncOperationalRuntimeForJob(tenantId, rows[0].id);
 
+    if (body.client_id) {
+      await ensureJobCode(tenantId, rows[0].id).catch((err: any) => {
+        console.error('[jobs] ensure job code failed:', err?.message || err);
+      });
+      provisionDriveForJob(tenantId, rows[0].id).catch((err: any) => {
+        console.error('[jobs] drive provisioning failed:', err?.message || err);
+      });
+      const refreshed = await query(`SELECT * FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [tenantId, rows[0].id]);
+      createdJob = refreshed.rows[0] ?? createdJob;
+    }
+
     // ── Briefing gate: all jobs with a client go to briefing first ──
     // Copy generation only fires after briefing is approved (POST /jobs/:id/briefing/approve)
     if (body.client_id) {
@@ -810,11 +845,11 @@ export default async function jobsRoutes(app: FastifyInstance) {
       action: 'JOB_CREATED',
       entity_type: 'jobs',
       entity_id: rows[0].id,
-      after: { title: rows[0].title, job_type: rows[0].job_type, status: rows[0].status, client_id: rows[0].client_id },
+      after: { title: createdJob.title, job_type: createdJob.job_type, status: createdJob.status, client_id: createdJob.client_id },
       ip: request.ip,
     }).catch(() => {});
 
-    return reply.status(201).send({ data: rows[0] });
+    return reply.status(201).send({ data: createdJob });
   });
 
   app.patch('/jobs/:jobId', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {
@@ -925,6 +960,18 @@ export default async function jobsRoutes(app: FastifyInstance) {
         merged.external_link ?? null,
       ]
     );
+    let updatedJob = rows[0];
+
+    if (patch.title !== undefined || patch.client_id !== undefined) {
+      await ensureJobCode(tenantId, jobId).catch((err: any) => {
+        console.error('[jobs] ensure job code failed:', err?.message || err);
+      });
+      provisionDriveForJob(tenantId, jobId).catch((err: any) => {
+        console.error('[jobs] drive provisioning failed:', err?.message || err);
+      });
+      const refreshed = await query(`SELECT * FROM jobs WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [tenantId, jobId]);
+      updatedJob = refreshed.rows[0] ?? updatedJob;
+    }
 
     // Sync assignees if explicitly provided in the patch
     if (patch.assignee_ids !== undefined) {
@@ -940,19 +987,19 @@ export default async function jobsRoutes(app: FastifyInstance) {
     // ── Edro → Trello: propagate field changes back to Trello card (best-effort) ──
     {
       const trelloChanges: Parameters<typeof enqueueJobChangeToTrello>[2] = {};
-      if (patch.title !== undefined) trelloChanges.title = rows[0].title;
-      if (patch.deadline_at !== undefined) trelloChanges.deadline_at = rows[0].deadline_at ?? null;
+      if (patch.title !== undefined) trelloChanges.title = updatedJob.title;
+      if (patch.deadline_at !== undefined) trelloChanges.deadline_at = updatedJob.deadline_at ?? null;
       if (Object.keys(trelloChanges).length > 0) {
         enqueueJobChangeToTrello(tenantId, jobId, trelloChanges).catch(() => {});
       }
     }
 
     // Notify new owner via in-app + WhatsApp when assignment changes
-    const newOwnerId = rows[0].owner_id as string | null;
+    const newOwnerId = updatedJob.owner_id as string | null;
     if (newOwnerId && newOwnerId !== existing.owner_id) {
-      const clientId = rows[0].client_id as string | null;
-      const jobTitle = rows[0].title as string;
-      const deadlineAt = rows[0].deadline_at as string | null;
+      const clientId = updatedJob.client_id as string | null;
+      const jobTitle = updatedJob.title as string;
+      const deadlineAt = updatedJob.deadline_at as string | null;
       (async () => {
         try {
           let clientName: string | null = null;
@@ -967,7 +1014,7 @@ export default async function jobsRoutes(app: FastifyInstance) {
       })();
     }
 
-    return { data: rows[0] };
+    return { data: updatedJob };
   });
 
   app.post('/jobs/:jobId/status', { preHandler: [requirePerm('clients:write')] }, async (request: any, reply) => {

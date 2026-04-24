@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { apiDelete, apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -38,6 +38,7 @@ import {
   IconCalendar,
   IconChartBar,
   IconExternalLink,
+  IconFolder,
   IconRobot,
   IconPlugConnected,
   IconRefresh,
@@ -73,6 +74,28 @@ type CalendarStatus = {
   lastNotificationAt?: string;
   lastNotificationState?: string;
   stats?: { totalMeetings: number; enqueuedMeetings: number };
+};
+
+type DriveStatus = {
+  configured: boolean;
+  email?: string;
+  tokenExpiry?: string | null;
+  connectedAt?: string;
+  lastError?: string | null;
+  clientRoots?: number;
+  pendingJobs?: number;
+  clientsRootFolderId?: string | null;
+  clientsRootFolderUrl?: string | null;
+};
+
+type DriveClientRoot = {
+  client_id: string;
+  client_name: string;
+  job_code_prefix?: string | null;
+  drive_folder_id?: string | null;
+  drive_folder_url?: string | null;
+  active?: boolean | null;
+  updated_at?: string | null;
 };
 
 
@@ -262,10 +285,17 @@ export default function IntegrationsClient() {
   const [view, setView] = useState<'catalog' | 'monitor'>('catalog');
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  const [drive, setDrive] = useState<DriveStatus | null>(null);
+  const [driveRoots, setDriveRoots] = useState<DriveClientRoot[]>([]);
+  const [driveRootDrafts, setDriveRootDrafts] = useState<Record<string, string>>({});
+  const [driveClientsRootDraft, setDriveClientsRootDraft] = useState('');
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
   const [health, setHealth] = useState<IntegrationHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [renewingCalendar, setRenewingCalendar] = useState(false);
+  const [provisioningDrive, setProvisioningDrive] = useState(false);
+  const [savingDriveSettings, setSavingDriveSettings] = useState(false);
+  const [savingDriveRoot, setSavingDriveRoot] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [waTestPhone, setWaTestPhone] = useState('');
   const [waTestSending, setWaTestSending] = useState(false);
@@ -282,15 +312,24 @@ export default function IntegrationsClient() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [gmailRes, calRes, waRes, healthRes, monitorRes] = await Promise.all([
+      const [gmailRes, calRes, driveRes, driveRootsRes, waRes, healthRes, monitorRes] = await Promise.all([
         apiGet<GmailStatus>('/gmail/status').catch(() => ({ configured: false } as GmailStatus)),
         apiGet<CalendarStatus>('/calendar/watch-status').catch(() => ({ configured: false } as CalendarStatus)),
+        apiGet<DriveStatus>('/drive/status').catch(() => ({ configured: false } as DriveStatus)),
+        apiGet<{ data: DriveClientRoot[] }>('/drive/client-roots').catch(() => ({ data: [] })),
         apiGet<WhatsAppStatus>('/whatsapp-groups/status').catch(() => ({ connected: false } as WhatsAppStatus)),
         apiGet<IntegrationHealth>('/admin/integrations/health').catch(() => null),
         apiGet<{ services: ServiceMonitorStatus[] }>('/admin/integrations/monitor').catch(() => null),
       ]);
       setGmail(gmailRes ?? { configured: false });
       setCalendar(calRes ?? { configured: false });
+      setDrive(driveRes ?? { configured: false });
+      setDriveClientsRootDraft(driveRes?.clientsRootFolderUrl || driveRes?.clientsRootFolderId || '');
+      const rootRows = driveRootsRes?.data ?? [];
+      setDriveRoots(rootRows);
+      setDriveRootDrafts(Object.fromEntries(
+        rootRows.map((row) => [row.client_id, row.drive_folder_url || row.drive_folder_id || '']),
+      ));
       setWhatsapp(waRes ?? { connected: false });
       setHealth(healthRes ?? null);
       setMonitor(monitorRes?.services ?? null);
@@ -370,6 +409,66 @@ export default function IntegrationsClient() {
     }
   };
 
+  const handleDriveConnect = async () => {
+    await redirectToOAuth('/auth/google/drive/start');
+  };
+
+  const handleDriveDisconnect = async () => {
+    if (!confirm('Desconectar o Google Drive? Jobs novos não criarão pastas automaticamente.')) return;
+    await apiDelete('/drive/disconnect');
+    load();
+  };
+
+  const handleDriveRetry = async () => {
+    setProvisioningDrive(true);
+    try {
+      await apiPost('/drive/provision/retry', { limit: 50 });
+      await load();
+    } catch (e: any) {
+      setError(e.message || 'Falha ao reprocessar jobs pendentes no Drive.');
+    } finally {
+      setProvisioningDrive(false);
+    }
+  };
+
+  const handleSaveDriveSettings = async () => {
+    const value = driveClientsRootDraft.trim();
+    if (!value) {
+      setError('Cole o link da pasta geral onde ficam as pastas dos clientes.');
+      return;
+    }
+    setSavingDriveSettings(true);
+    try {
+      await apiPut('/drive/settings', {
+        clients_root_folder_url: value,
+      });
+      await load();
+    } catch (e: any) {
+      setError(e.message || 'Falha ao salvar raiz geral do Drive.');
+    } finally {
+      setSavingDriveSettings(false);
+    }
+  };
+
+  const handleSaveDriveRoot = async (row: DriveClientRoot) => {
+    const value = (driveRootDrafts[row.client_id] || '').trim();
+    if (!value) {
+      setError('Cole o link ou ID da pasta raiz do cliente no Google Drive.');
+      return;
+    }
+    setSavingDriveRoot(row.client_id);
+    try {
+      await apiPut(`/drive/client-roots/${encodeURIComponent(row.client_id)}`, {
+        folder_url: value,
+      });
+      await load();
+    } catch (e: any) {
+      setError(e.message || 'Falha ao salvar pasta raiz do cliente.');
+    } finally {
+      setSavingDriveRoot(null);
+    }
+  };
+
   const handleWaTestSend = async () => {
     if (!waTestPhone.trim()) return;
     setWaTestSending(true);
@@ -405,6 +504,8 @@ export default function IntegrationsClient() {
   const gmailWarn = searchParams.get('gmail_warn');
   const calendarConnected = searchParams.get('calendar_connected');
   const calendarError = searchParams.get('calendar_error');
+  const driveConnected = searchParams.get('drive_connected');
+  const driveError = searchParams.get('drive_error');
   const sortedMonitor = monitor
     ? [...monitor].sort((a, b) => (
         monitorSortRank(a) - monitorSortRank(b)
@@ -484,6 +585,8 @@ export default function IntegrationsClient() {
         {gmailError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Gmail: {gmailError}</Alert>}
         {calendarConnected && <Alert severity="success" sx={{ mb: 2 }}>Google Calendar conectado: {calendarConnected}</Alert>}
         {calendarError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Google Calendar: {calendarError}</Alert>}
+        {driveConnected && <Alert severity="success" sx={{ mb: 2 }}>Google Drive conectado: {driveConnected}</Alert>}
+        {driveError && <Alert severity="error" sx={{ mb: 2 }}>Falha ao conectar Google Drive: {driveError}</Alert>}
         {attentionMonitor.length > 0 && (
           <Alert severity={attentionMonitor.some((svc) => svc.status === 'error') ? 'error' : 'warning'} sx={{ mb: 2 }}>
             <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>
@@ -1017,6 +1120,196 @@ export default function IntegrationsClient() {
                 <Typography variant="caption" color="text.secondary">
                   Quando um evento com Google Meet, Zoom ou Teams é criado no calendário, o bot de reunião é enfileirado
                   automaticamente 5 minutos antes. Requer <code>GOOGLE_CALENDAR_WEBHOOK_URL</code>.
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* ── Google Drive ── */}
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar sx={{ bgcolor: '#1A73E8', width: 40, height: 40 }}>
+                      <IconFolder size={22} />
+                    </Avatar>
+                    <Box>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="subtitle1" fontWeight={700}>Google Drive</Typography>
+                        <Chip
+                          label={drive?.configured ? 'Conectado' : 'Desconectado'}
+                          size="small"
+                          color={drive?.configured ? 'success' : 'default'}
+                        />
+                        {drive?.pendingJobs ? (
+                          <Chip label={`${drive.pendingJobs} pendentes`} size="small" color="warning" variant="outlined" />
+                        ) : null}
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        {drive?.configured
+                          ? `${drive.email} · ${drive.clientRoots ?? 0} clientes com pasta raiz · ${drive.pendingJobs ?? 0} jobs aguardando Drive`
+                          : 'Cria a pasta do job no cliente e anexa o link no Trello automaticamente'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1}>
+                    {drive?.configured ? (
+                      <>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={provisioningDrive ? <CircularProgress size={14} color="inherit" /> : <IconRefresh size={14} />}
+                          disabled={provisioningDrive}
+                          onClick={handleDriveRetry}
+                        >
+                          {provisioningDrive ? 'Processando...' : 'Processar pendentes'}
+                        </Button>
+                        <Button size="small" startIcon={<IconRefresh size={14} />} onClick={load}>
+                          Atualizar
+                        </Button>
+                        <Button size="small" color="error" startIcon={<IconTrash size={14} />} onClick={handleDriveDisconnect}>
+                          Desconectar
+                        </Button>
+                      </>
+                    ) : (
+                      <Tooltip title={!health?.google.client_id ? 'Configure GOOGLE_CLIENT_ID e GOOGLE_DRIVE_REDIRECT_URI nas variáveis de ambiente' : ''}>
+                        <span>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<IconFolder size={16} />}
+                            onClick={handleDriveConnect}
+                            disabled={health !== null && !health.google.client_id}
+                            sx={{ bgcolor: '#1A73E8', '&:hover': { bgcolor: '#1558b0' } }}
+                          >
+                            Conectar Drive
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    )}
+                  </Stack>
+                </Stack>
+
+                {drive?.configured && (
+                  <>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+                      <Chip label={`Conectado: ${fmtDateTime(drive.connectedAt)}`} size="small" variant="outlined" />
+                      <Chip label={`Token: ${fmtDateTime(drive.tokenExpiry)}`} size="small" variant="outlined" />
+                      <Chip label={`${drive.clientRoots ?? 0} raízes configuradas`} size="small" color="info" variant="outlined" />
+                      <Chip label={`${drive.pendingJobs ?? 0} jobs pendentes`} size="small" color={(drive.pendingJobs ?? 0) > 0 ? 'warning' : 'success'} variant="outlined" />
+                    </Stack>
+
+                    {drive.lastError && (
+                      <Alert severity="warning" sx={{ mt: 2 }}>
+                        Último erro do Drive: {drive.lastError}
+                      </Alert>
+                    )}
+
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Cole a raiz geral dos clientes ou a pasta raiz específica de cada cliente. Quando um job novo entrar, a Edro cria
+                      <strong> CÓDIGO | Nome do job</strong> dentro dela, com Assets, Editáveis, Aprovação, Entregues e Referências.
+                    </Alert>
+
+                    <Stack
+                      direction={{ xs: 'column', md: 'row' }}
+                      spacing={1}
+                      alignItems={{ xs: 'stretch', md: 'center' }}
+                      sx={{ mt: 2, p: 1.25, bgcolor: 'action.hover', borderRadius: 1 }}
+                    >
+                      <Box sx={{ minWidth: { md: 210 }, flex: '0 0 auto' }}>
+                        <Typography variant="body2" fontWeight={700}>Raiz geral dos clientes</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Ex.: pasta “Clientes” da Edro. Usada para achar/criar a pasta de cada cliente.
+                        </Typography>
+                      </Box>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        placeholder="Cole o link da pasta geral dos clientes"
+                        value={driveClientsRootDraft}
+                        onChange={(event) => setDriveClientsRootDraft(event.target.value)}
+                      />
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        {drive?.clientsRootFolderUrl ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            href={drive.clientsRootFolderUrl}
+                            target="_blank"
+                            endIcon={<IconExternalLink size={12} />}
+                          >
+                            Abrir
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="small"
+                          variant="contained"
+                          disabled={savingDriveSettings}
+                          onClick={handleSaveDriveSettings}
+                        >
+                          {savingDriveSettings ? 'Salvando...' : 'Salvar raiz'}
+                        </Button>
+                      </Stack>
+                    </Stack>
+
+                    <Box sx={{ mt: 2, maxHeight: 360, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                      {driveRoots.map((row) => {
+                        const configured = Boolean(row.drive_folder_id && row.active !== false);
+                        return (
+                          <Stack
+                            key={row.client_id}
+                            direction={{ xs: 'column', md: 'row' }}
+                            spacing={1}
+                            alignItems={{ xs: 'stretch', md: 'center' }}
+                            sx={{ p: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}
+                          >
+                            <Box sx={{ minWidth: { md: 210 }, flex: '0 0 auto' }}>
+                              <Typography variant="body2" fontWeight={700}>{row.client_name}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Prefixo: {row.job_code_prefix || 'automático'} · {configured ? 'raiz ativa' : 'sem raiz'}
+                              </Typography>
+                            </Box>
+                            <TextField
+                              size="small"
+                              fullWidth
+                              placeholder="Cole o link da pasta raiz do cliente no Google Drive"
+                              value={driveRootDrafts[row.client_id] ?? ''}
+                              onChange={(event) => setDriveRootDrafts((prev) => ({
+                                ...prev,
+                                [row.client_id]: event.target.value,
+                              }))}
+                            />
+                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                              {row.drive_folder_url ? (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  href={row.drive_folder_url}
+                                  target="_blank"
+                                  endIcon={<IconExternalLink size={12} />}
+                                >
+                                  Abrir
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="small"
+                                variant="contained"
+                                disabled={savingDriveRoot === row.client_id}
+                                onClick={() => handleSaveDriveRoot(row)}
+                              >
+                                {savingDriveRoot === row.client_id ? 'Salvando...' : 'Salvar'}
+                              </Button>
+                            </Stack>
+                          </Stack>
+                        );
+                      })}
+                    </Box>
+                  </>
+                )}
+
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="caption" color="text.secondary">
+                  O código visível do job é gerado pela Edro e usado também no Trello e na pasta do Drive.
+                  A conta conectada precisa permissão para criar pastas dentro das raízes dos clientes.
                 </Typography>
               </CardContent>
             </Card>

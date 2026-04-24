@@ -42,7 +42,7 @@ import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
 import LinearProgress from '@mui/material/LinearProgress';
 import Tooltip from '@mui/material/Tooltip';
-import { IconShieldCheck, IconChevronDown, IconChevronUp, IconBolt, IconCheck, IconX as IconXMark } from '@tabler/icons-react';
+import { IconShieldCheck, IconChevronDown, IconChevronUp, IconBolt, IconCheck, IconX as IconXMark, IconMessageCircle, IconUsers } from '@tabler/icons-react';
 import AskJarvisButton from '@/components/jarvis/AskJarvisButton';
 import {
   AutomationPipeline,
@@ -109,6 +109,28 @@ type CreativeDraft = {
   error_message?: string | null;
   generated_at?: string | null;
   created_at: string;
+};
+
+type JobClientContextSignal = {
+  id: string;
+  source: 'whatsapp' | 'meeting' | 'meeting_chat' | 'memory';
+  source_id: string;
+  source_label: string;
+  title: string;
+  author_name?: string | null;
+  occurred_at?: string | null;
+  snippet: string;
+  relevance_reason: string;
+  match_type: 'direct' | 'probable';
+  confidence: number;
+  tags: string[];
+};
+
+type JobClientContext = {
+  confidence: 'high' | 'medium' | 'low' | 'none';
+  summary: string | null;
+  searched_sources: string[];
+  signals: JobClientContextSignal[];
 };
 
 type ComposerPath = 'briefing' | 'job' | 'adjustment' | 'client_request';
@@ -188,6 +210,174 @@ function FoggBar({ label, value }: { label: string; value?: number | null }) {
         <Box sx={{ height: 4, borderRadius: 2, bgcolor: color, width: `${pct}%`, transition: 'width 300ms ease' }} />
       </Box>
     </Stack>
+  );
+}
+
+function formatClientContextDate(value?: string | null) {
+  if (!value) return 'sem data';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'sem data';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function contextConfidenceLabel(confidence: JobClientContext['confidence']) {
+  if (confidence === 'high') return 'alta confiança';
+  if (confidence === 'medium') return 'confiança média';
+  if (confidence === 'low') return 'baixa confiança';
+  return 'sem evidência direta';
+}
+
+function contextConfidenceColor(confidence: JobClientContext['confidence']) {
+  if (confidence === 'high') return 'success';
+  if (confidence === 'medium') return 'warning';
+  if (confidence === 'low') return 'default';
+  return 'default';
+}
+
+function JobClientContextPanel({ jobId, compact = false }: { jobId: string; compact?: boolean }) {
+  const [context, setContext] = useState<JobClientContext | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!jobId) return;
+    let cancelled = false;
+    setLoading(true);
+    setContext(null);
+    apiGet<{ success?: boolean; data?: JobClientContext }>(`/jobs/${jobId}/client-context?limit=${compact ? 5 : 8}`)
+      .then((res) => {
+        if (!cancelled) setContext(res?.data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setContext(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [compact, jobId]);
+
+  const signals = context?.signals ?? [];
+  const visibleSignals = signals.slice(0, compact ? 3 : 6);
+  const confidence = context?.confidence ?? 'none';
+
+  return (
+    <Box sx={(theme) => ({
+      p: compact ? 1.25 : 1.5,
+      borderRadius: 2,
+      border: `1px solid ${alpha(theme.palette.primary.main, 0.18)}`,
+      bgcolor: alpha(theme.palette.primary.main, 0.035),
+    })}>
+      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
+        <Stack direction="row" spacing={0.85} alignItems="flex-start">
+          <Box sx={(theme) => ({
+            width: 26,
+            height: 26,
+            borderRadius: '50%',
+            bgcolor: alpha(theme.palette.primary.main, 0.12),
+            color: 'primary.main',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          })}>
+            <IconSparkles size={15} />
+          </Box>
+          <Box>
+            <Typography variant="caption" fontWeight={900} sx={{ color: 'primary.main', textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: 0.5 }}>
+              Voz do Cliente
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem', lineHeight: 1.35 }}>
+              WhatsApp e reuniões relacionados a esta demanda
+            </Typography>
+          </Box>
+        </Stack>
+        <Chip
+          size="small"
+          color={contextConfidenceColor(confidence) as any}
+          variant={confidence === 'none' ? 'outlined' : 'filled'}
+          label={loading ? 'buscando' : contextConfidenceLabel(confidence)}
+          sx={{ height: 22, fontSize: '0.62rem', fontWeight: 800, flexShrink: 0 }}
+        />
+      </Stack>
+
+      {loading ? (
+        <Stack spacing={0.75}>
+          <Skeleton variant="text" width="88%" height={18} />
+          <Skeleton variant="rounded" height={44} />
+        </Stack>
+      ) : signals.length === 0 ? (
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', lineHeight: 1.45 }}>
+          Jarvis ainda não encontrou fala específica do cliente sobre este job em WhatsApp ou reuniões. Quando houver evidência, ela aparece aqui com a fonte.
+        </Typography>
+      ) : (
+        <Stack spacing={1}>
+          {context?.summary ? (
+            <Typography variant="caption" sx={{ fontSize: '0.72rem', lineHeight: 1.45, color: 'text.primary', display: 'block' }}>
+              {context.summary}
+            </Typography>
+          ) : null}
+          <Stack spacing={0.75}>
+            {visibleSignals.map((signal) => {
+              const isMeeting = signal.source === 'meeting' || signal.source === 'meeting_chat';
+              return (
+                <Box key={signal.id} sx={(theme) => ({
+                  p: 1,
+                  borderRadius: 1.5,
+                  bgcolor: alpha(theme.palette.background.paper, 0.84),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.65)}`,
+                })}>
+                  <Stack direction="row" spacing={0.75} alignItems="flex-start">
+                    <Box sx={(theme) => ({
+                      mt: 0.15,
+                      color: isMeeting ? theme.palette.info.main : theme.palette.success.main,
+                      flexShrink: 0,
+                    })}>
+                      {isMeeting ? <IconUsers size={14} /> : <IconMessageCircle size={14} />}
+                    </Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 0.35 }}>
+                        <Typography variant="caption" fontWeight={900} sx={{ fontSize: '0.66rem', color: isMeeting ? 'info.main' : 'success.main' }}>
+                          {signal.source_label}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.64rem' }}>
+                          {formatClientContextDate(signal.occurred_at)}
+                        </Typography>
+                        {signal.match_type === 'direct' ? (
+                          <Chip size="small" label="ligado ao job" color="success" variant="outlined" sx={{ height: 18, fontSize: '0.56rem', fontWeight: 800 }} />
+                        ) : (
+                          <Chip size="small" label="provável relação" variant="outlined" sx={{ height: 18, fontSize: '0.56rem', fontWeight: 800 }} />
+                        )}
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{
+                        display: 'block',
+                        fontSize: '0.7rem',
+                        lineHeight: 1.45,
+                        whiteSpace: 'pre-line',
+                      }}>
+                        {signal.snippet}
+                      </Typography>
+                      <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.35, fontSize: '0.62rem' }}>
+                        {signal.author_name ? `${signal.author_name} · ` : ''}{signal.relevance_reason}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+          {signals.length > visibleSignals.length ? (
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.64rem' }}>
+              +{signals.length - visibleSignals.length} evidência{signals.length - visibleSignals.length === 1 ? '' : 's'} adicional{signals.length - visibleSignals.length === 1 ? '' : 'is'} no contexto deste job.
+            </Typography>
+          ) : null}
+        </Stack>
+      )}
+    </Box>
   );
 }
 
@@ -1252,6 +1442,8 @@ function JobJourneyPanel({
 
       {/* Prazo visual */}
       <DeadlineBar deadline_at={job.deadline_at} is_urgent={job.is_urgent} />
+
+      <JobClientContextPanel jobId={job.id} compact />
 
       {/* DA responsável + picker com disponibilidade */}
       <DAAssignmentBlock
@@ -2320,6 +2512,7 @@ export default function JobWorkbenchDrawer({
                   />
                 </Grid>
               </Grid>
+              <JobClientContextPanel jobId={detailJob.id} />
               <Box
                 sx={(theme) => ({
                   p: 1.5,

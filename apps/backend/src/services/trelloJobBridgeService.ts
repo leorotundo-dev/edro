@@ -22,6 +22,8 @@
 import { query } from '../db';
 import { enqueueOutbox } from './trelloOutboxService';
 import { inferJobTypeFromLabels, normalizeTrelloLabels, stripTrelloTitle } from './trelloCardMapper';
+import { ensureJobCode } from './jobs/jobCodeService';
+import { provisionDriveForJob } from './jobs/jobDriveProvisioningService';
 
 // ── SLA by category ───────────────────────────────────────────────────────────
 
@@ -225,7 +227,28 @@ async function upsertJobFromCardRow(card: ProjectCardRow): Promise<string | null
     ],
   );
 
-  return result.rows[0]?.id ?? null;
+  const jobId = result.rows[0]?.id ?? null;
+  if (!jobId) return null;
+
+  try {
+    const code = await ensureJobCode(card.tenant_id, jobId);
+    if (code.jobCode && code.canonicalTitle && code.trelloCardId && card.title !== code.canonicalTitle) {
+      await enqueueOutbox(
+        card.tenant_id,
+        'card.update',
+        { trelloCardId: code.trelloCardId, fields: { name: code.canonicalTitle } },
+        `job.${jobId}.canonical-title`,
+      ).catch(() => {});
+    }
+
+    provisionDriveForJob(card.tenant_id, jobId).catch((err: any) => {
+      console.error(`[trelloJobBridge] Drive provisioning failed for job ${jobId}: ${err?.message || err}`);
+    });
+  } catch (err: any) {
+    console.error(`[trelloJobBridge] Failed to ensure job code for ${jobId}: ${err?.message || err}`);
+  }
+
+  return jobId;
 }
 
 // ── Bulk sync: all project_cards → jobs ──────────────────────────────────────

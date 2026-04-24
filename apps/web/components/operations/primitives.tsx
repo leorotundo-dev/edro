@@ -2127,6 +2127,7 @@ export function OpsCard({
             : `1px solid ${dark ? alpha('#fff', 0.06) : alpha('#000', 0.06)}`,
           display: 'flex',
           flexDirection: 'column',
+          flexShrink: 0,
           cursor: onClick ? 'pointer' : 'default',
           overflow: 'hidden',
           transition: 'box-shadow 0.15s, transform 0.15s',
@@ -2523,7 +2524,7 @@ export function PipelineColumn({
             <Typography variant="caption" color="text.disabled">Nenhum item</Typography>
           </Box>
         ) : (
-          <Box sx={{ overflowY: 'auto', maxHeight: 680, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ overflowY: 'auto', maxHeight: 680, display: 'flex', flexDirection: 'column', gap: 1, '& > *': { flexShrink: 0 } }}>
             {jobs.slice(0, 12).map((job) => (
               <PipelineCard
                 key={job.id}

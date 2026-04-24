@@ -59,6 +59,7 @@ import gmailRoutes from './gmailRoutes';
 import webhookGmailRoutes from './webhookGmail';
 import googleCalendarRoutes from './googleCalendarRoutes';
 import webhookGoogleCalendarRoutes from './webhookGoogleCalendar';
+import googleDriveRoutes from './googleDriveRoutes';
 import webhookRecallRoutes from './webhookRecall';
 import webhookTrelloRoutes from './webhookTrello';
 import jobsRoutes from './jobs';
@@ -154,6 +155,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(portalTokenRoutes, { prefix: '/api' });
   app.register(gmailRoutes, { prefix: '/api' });
   app.register(googleCalendarRoutes, { prefix: '/api' });
+  app.register(googleDriveRoutes, { prefix: '/api' });
   app.register(jobsRoutes, { prefix: '/api' });
   app.register(operationsRoutes, { prefix: '/api' });
   app.register(webhookAdminRoutes, { prefix: '/api' });

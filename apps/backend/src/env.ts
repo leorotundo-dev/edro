@@ -111,6 +111,7 @@ const envSchema = z.object({
   GOOGLE_CALENDAR_REDIRECT_URI: z.string().optional(),
   GOOGLE_CALENDAR_WEBHOOK_URL: z.string().optional(),
   GOOGLE_CALENDAR_WEBHOOK_SECRET: z.string().optional(),
+  GOOGLE_DRIVE_REDIRECT_URI: z.string().optional(),
   RECALL_API_KEY: z.string().optional(),
   RECALL_REGION: z.string().optional(),
   RECALL_GOOGLE_LOGIN_GROUP_ID: z.string().optional(),
@@ -205,6 +206,7 @@ function validateSecureRuntimeConfig() {
   validateUrl('GOOGLE_REDIRECT_URI', parsed.GOOGLE_REDIRECT_URI, issues);
   validateUrl('GOOGLE_CALENDAR_REDIRECT_URI', parsed.GOOGLE_CALENDAR_REDIRECT_URI, issues);
   validateUrl('GOOGLE_CALENDAR_WEBHOOK_URL', parsed.GOOGLE_CALENDAR_WEBHOOK_URL, issues);
+  validateUrl('GOOGLE_DRIVE_REDIRECT_URI', parsed.GOOGLE_DRIVE_REDIRECT_URI, issues);
 
   const oidcConfigured = [
     parsed.OIDC_ISSUER_URL,
@@ -258,6 +260,21 @@ function validateSecureRuntimeConfig() {
     }
     if (!hasValue(parsed.WEB_URL)) {
       issues.push('WEB_URL é obrigatório quando Google Calendar estiver habilitado.');
+    }
+  }
+
+  const driveConfigured = [
+    parsed.GOOGLE_DRIVE_REDIRECT_URI,
+  ].some(hasValue);
+  if (driveConfigured) {
+    if (!hasValue(parsed.GOOGLE_CLIENT_ID) || !hasValue(parsed.GOOGLE_CLIENT_SECRET)) {
+      issues.push('Google Drive OAuth exige GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.');
+    }
+    if (!hasValue(parsed.GOOGLE_DRIVE_REDIRECT_URI) && !hasValue(parsed.PUBLIC_API_URL)) {
+      issues.push('Google Drive OAuth exige GOOGLE_DRIVE_REDIRECT_URI ou PUBLIC_API_URL.');
+    }
+    if (!hasValue(parsed.WEB_URL)) {
+      issues.push('WEB_URL é obrigatório quando Google Drive OAuth estiver habilitado.');
     }
   }
 
