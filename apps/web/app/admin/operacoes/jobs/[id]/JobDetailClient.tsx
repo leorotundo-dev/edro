@@ -363,6 +363,21 @@ export default function JobDetailClient({
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [meetingResult, setMeetingResult] = useState<{ meet_url?: string; html_link?: string } | null>(null);
 
+  // Definition of Done editing
+  const [editingDOD, setEditingDOD] = useState(false);
+  const [dodDraft, setDodDraft] = useState('');
+  const [savingDOD, setSavingDOD] = useState(false);
+
+  // Checklist template
+  const [checklistTemplateOpen, setChecklistTemplateOpen] = useState(false);
+  const [addingChecklistTemplate, setAddingChecklistTemplate] = useState(false);
+
+  // Add attachment / URL reference
+  const [attachmentOpen, setAttachmentOpen] = useState(false);
+  const [attachmentUrl, setAttachmentUrl] = useState('');
+  const [attachmentName, setAttachmentName] = useState('');
+  const [addingAttachment, setAddingAttachment] = useState(false);
+
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -675,6 +690,57 @@ export default function JobDetailClient({
       }
     } catch { /* silent */ } finally {
       setMeetingLoading(false);
+    }
+  };
+
+  // ── Definition of Done ────────────────────────────────────────────────────────
+
+  const saveDOD = async () => {
+    if (!job || savingDOD) return;
+    setSavingDOD(true);
+    try {
+      const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
+        definition_of_done: dodDraft.trim() || null,
+      });
+      if (res?.data) setJob(res.data);
+      setEditingDOD(false);
+    } catch { /* silent */ } finally {
+      setSavingDOD(false);
+    }
+  };
+
+  // ── Checklist template ────────────────────────────────────────────────────────
+
+  const addChecklistTemplate = async (jobType: string) => {
+    if (!job || addingChecklistTemplate) return;
+    setAddingChecklistTemplate(true);
+    setChecklistTemplateOpen(false);
+    try {
+      const res = await apiPost<{ data?: OperationsJob }>(`/trello/ops-cards/${id}/add-checklist`, { job_type: jobType });
+      if (res?.data) setJob(res.data);
+      else await load();
+    } catch { /* silent */ } finally {
+      setAddingChecklistTemplate(false);
+    }
+  };
+
+  // ── Add attachment / URL reference ────────────────────────────────────────────
+
+  const addAttachment = async () => {
+    if (!job || addingAttachment || !attachmentUrl.trim()) return;
+    setAddingAttachment(true);
+    try {
+      const res = await apiPost<{ data?: OperationsJob }>(`/trello/ops-cards/${id}/add-attachment`, {
+        url: attachmentUrl.trim(),
+        name: attachmentName.trim() || undefined,
+      });
+      if (res?.data) setJob(res.data);
+      else await load();
+      setAttachmentOpen(false);
+      setAttachmentUrl('');
+      setAttachmentName('');
+    } catch { /* silent */ } finally {
+      setAddingAttachment(false);
     }
   };
 
@@ -1683,97 +1749,272 @@ export default function JobDetailClient({
                   Clique para adicionar uma descrição...
                 </Typography>
               )}
-              {!editingDesc && job.definition_of_done ? (
+              {!editingDesc && (
                 <Box
                   sx={(theme) => ({
                     mt: 2,
                     p: 1.5,
                     borderRadius: 2.5,
-                    bgcolor: theme.palette.mode === 'dark' ? alpha('#13DEB9', 0.08) : alpha('#13DEB9', 0.045),
-                    border: `1px solid ${alpha('#13DEB9', 0.18)}`,
+                    bgcolor: theme.palette.mode === 'dark' ? alpha('#13DEB9', 0.06) : alpha('#13DEB9', 0.03),
+                    border: `1px solid ${alpha('#13DEB9', job.definition_of_done ? 0.18 : 0.1)}`,
                   })}
                 >
-                  <Typography variant="caption" sx={{ display: 'block', mb: 0.45, fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#13DEB9' }}>
-                    Definition of Done
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
-                    {job.definition_of_done}
-                  </Typography>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: job.definition_of_done && !editingDOD ? 0.45 : 0 }}>
+                    <Typography variant="caption" sx={{ fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#13DEB9' }}>
+                      Definition of Done
+                    </Typography>
+                    {!editingDOD && (
+                      <Tooltip title={job.definition_of_done ? 'Editar' : 'Adicionar'}>
+                        <IconButton
+                          size="small"
+                          onClick={() => { setDodDraft(job.definition_of_done ?? ''); setEditingDOD(true); }}
+                          sx={{ p: 0.25, opacity: 0.45, '&:hover': { opacity: 1 } }}
+                        >
+                          <IconPencil size={12} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
+                  {editingDOD ? (
+                    <Stack spacing={1} sx={{ mt: 0.5 }}>
+                      <TextField
+                        autoFocus
+                        multiline
+                        minRows={2}
+                        maxRows={8}
+                        fullWidth
+                        value={dodDraft}
+                        onChange={(e) => setDodDraft(e.target.value)}
+                        disabled={savingDOD}
+                        size="small"
+                        placeholder="Ex: Copy aprovada pelo cliente + link do doc no comentário"
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.82rem' } }}
+                      />
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button size="small" onClick={() => setEditingDOD(false)} disabled={savingDOD} sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', borderRadius: 2 }}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={saveDOD}
+                          disabled={savingDOD}
+                          endIcon={savingDOD ? <CircularProgress size={11} /> : undefined}
+                          sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', borderRadius: 2, boxShadow: 'none', bgcolor: '#13DEB9', '&:hover': { bgcolor: '#0ec8a8' } }}
+                        >
+                          {savingDOD ? 'Salvando...' : 'Salvar'}
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  ) : job.definition_of_done ? (
+                    <Typography variant="body2" sx={{ fontSize: '0.82rem', lineHeight: 1.6 }}>
+                      {job.definition_of_done}
+                    </Typography>
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      color="text.disabled"
+                      sx={{ cursor: 'text', fontStyle: 'italic', fontSize: '0.8rem', mt: 0.5 }}
+                      onClick={() => { setDodDraft(''); setEditingDOD(true); }}
+                    >
+                      Clique para definir o critério de pronto...
+                    </Typography>
+                  )}
                 </Box>
-              ) : null}
+              )}
             </Paper>
 
             {/* Checklists */}
-            {hasChecklist && (
-              <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  sx={{ px: 2.5, py: 1.75, cursor: 'pointer', '&:hover': { bgcolor: dark ? alpha('#fff', 0.03) : alpha('#000', 0.02) } }}
-                  onClick={() => setChecklistOpen((v) => !v)}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <IconClipboardList size={16} />
-                    <Typography fontWeight={700} sx={{ fontSize: '0.9rem' }}>Checklists</Typography>
-                    {pct !== null && (
-                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem' }}>{pct}%</Typography>
-                    )}
-                  </Stack>
-                  {checklistOpen ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                sx={{ px: 2.5, py: 1.75, cursor: 'pointer', '&:hover': { bgcolor: dark ? alpha('#fff', 0.03) : alpha('#000', 0.02) } }}
+                onClick={() => setChecklistOpen((v) => !v)}
+              >
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <IconClipboardList size={16} />
+                  <Typography fontWeight={700} sx={{ fontSize: '0.9rem' }}>Checklists</Typography>
+                  {pct !== null && (
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.72rem' }}>{pct}%</Typography>
+                  )}
                 </Stack>
-                {checklistOpen && (
-                  <>
-                    <Divider />
-                    <Box sx={{ px: 2.5, py: 2 }}>
-                      {job.checklists?.map((cl) => (
-                        <Box key={cl.id} sx={{ mb: 2.5 }}>
-                          {cl.name && (
-                            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', mb: 1 }}>
-                              {cl.name}
-                            </Typography>
-                          )}
-                          <Stack spacing={0.75}>
-                            {cl.items.map((item, i) => {
-                              const isToggling = item.id ? togglingItem === item.id : false;
-                              return (
-                                <Stack
-                                  key={item.id ?? i}
-                                  direction="row"
-                                  spacing={1}
-                                  alignItems="flex-start"
-                                  onClick={() => !isToggling && toggleChecklistItem(cl.id, item.id, item.checked, i)}
-                                  sx={{ cursor: 'pointer', borderRadius: 1, px: 0.5, mx: -0.5, py: 0.25, '&:hover': { bgcolor: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }, opacity: isToggling ? 0.5 : 1, transition: 'opacity 0.15s' }}
-                                >
-                                  <Box sx={{ width: 16, height: 16, mt: '1px', flexShrink: 0, borderRadius: '4px', border: `2px solid ${item.checked ? '#5D87FF' : theme.palette.divider}`, bgcolor: item.checked ? '#5D87FF' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                                    {item.checked && <IconCheck size={10} color="#fff" />}
-                                  </Box>
-                                  <Typography variant="body2" sx={{ fontSize: '0.84rem', lineHeight: 1.5, textDecoration: item.checked ? 'line-through' : 'none', color: item.checked ? 'text.disabled' : 'text.primary', transition: 'all 0.15s', userSelect: 'none' }}>
-                                    {item.text}
-                                  </Typography>
-                                </Stack>
-                              );
-                            })}
-                          </Stack>
-                        </Box>
-                      ))}
-                    </Box>
-                  </>
-                )}
-              </Paper>
-            )}
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Tooltip title="Adicionar checklist padrão por tipo">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => { e.stopPropagation(); setChecklistTemplateOpen((v) => !v); }}
+                      disabled={addingChecklistTemplate}
+                      sx={{ p: 0.5, opacity: 0.55, '&:hover': { opacity: 1 } }}
+                    >
+                      {addingChecklistTemplate ? <CircularProgress size={13} /> : <IconPlus size={13} />}
+                    </IconButton>
+                  </Tooltip>
+                  {hasChecklist ? (checklistOpen ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />) : null}
+                </Stack>
+              </Stack>
 
-            {/* ── Attachments (Trello-style) ── */}
-            {trelloAttachments.length > 0 && (
-              <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+              {/* Template picker */}
+              {checklistTemplateOpen && (
+                <Box sx={(t) => ({ px: 2.5, pb: 1.5, borderTop: `1px solid ${t.palette.divider}` })}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mt: 1.25, mb: 1, fontSize: '0.7rem' }}>
+                    Escolha o tipo de checklist:
+                  </Typography>
+                  <Stack direction="row" flexWrap="wrap" gap={0.75}>
+                    {[
+                      { type: 'copy', label: '✍️ Copy' },
+                      { type: 'design', label: '🎨 Design' },
+                      { type: 'video', label: '🎬 Vídeo' },
+                      { type: 'social', label: '📱 Social' },
+                      { type: 'ads', label: '📊 Mídia Paga' },
+                      { type: 'generic', label: '📋 Padrão' },
+                    ].map(({ type, label }) => (
+                      <Chip
+                        key={type}
+                        label={label}
+                        size="small"
+                        clickable
+                        onClick={() => addChecklistTemplate(type)}
+                        sx={{
+                          fontWeight: 700, fontSize: '0.72rem', height: 28,
+                          bgcolor: dark ? alpha('#5D87FF', 0.12) : alpha('#5D87FF', 0.08),
+                          color: '#5D87FF',
+                          '&:hover': { bgcolor: alpha('#5D87FF', 0.2) },
+                        }}
+                      />
+                    ))}
+                    <Chip
+                      label="Cancelar"
+                      size="small"
+                      clickable
+                      onClick={() => setChecklistTemplateOpen(false)}
+                      sx={{ fontWeight: 600, fontSize: '0.72rem', height: 28 }}
+                    />
+                  </Stack>
+                </Box>
+              )}
+
+              {hasChecklist && checklistOpen && (
+                <>
+                  <Divider />
+                  <Box sx={{ px: 2.5, py: 2 }}>
+                    {job.checklists?.map((cl) => (
+                      <Box key={cl.id} sx={{ mb: 2.5 }}>
+                        {cl.name && (
+                          <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', mb: 1 }}>
+                            {cl.name}
+                          </Typography>
+                        )}
+                        <Stack spacing={0.75}>
+                          {cl.items.map((item, i) => {
+                            const isToggling = item.id ? togglingItem === item.id : false;
+                            return (
+                              <Stack
+                                key={item.id ?? i}
+                                direction="row"
+                                spacing={1}
+                                alignItems="flex-start"
+                                onClick={() => !isToggling && toggleChecklistItem(cl.id, item.id, item.checked, i)}
+                                sx={{ cursor: 'pointer', borderRadius: 1, px: 0.5, mx: -0.5, py: 0.25, '&:hover': { bgcolor: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }, opacity: isToggling ? 0.5 : 1, transition: 'opacity 0.15s' }}
+                              >
+                                <Box sx={{ width: 16, height: 16, mt: '1px', flexShrink: 0, borderRadius: '4px', border: `2px solid ${item.checked ? '#5D87FF' : theme.palette.divider}`, bgcolor: item.checked ? '#5D87FF' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                                  {item.checked && <IconCheck size={10} color="#fff" />}
+                                </Box>
+                                <Typography variant="body2" sx={{ fontSize: '0.84rem', lineHeight: 1.5, textDecoration: item.checked ? 'line-through' : 'none', color: item.checked ? 'text.disabled' : 'text.primary', transition: 'all 0.15s', userSelect: 'none' }}>
+                                  {item.text}
+                                </Typography>
+                              </Stack>
+                            );
+                          })}
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Box>
+                </>
+              )}
+            </Paper>
+
+            {/* ── Attachments + URL references ── */}
+            <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: trelloAttachments.length > 0 ? 1.5 : 0 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
                   <Typography variant="caption" fontWeight={700} color="text.disabled" sx={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Anexos
+                    Anexos e referências
                   </Typography>
-                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
-                    ({trelloAttachments.length})
-                  </Typography>
+                  {trelloAttachments.length > 0 && (
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
+                      ({trelloAttachments.length})
+                    </Typography>
+                  )}
                 </Stack>
+                <Tooltip title="Adicionar URL de referência">
+                  <IconButton
+                    size="small"
+                    onClick={() => setAttachmentOpen((v) => !v)}
+                    sx={{ p: 0.5, opacity: 0.55, '&:hover': { opacity: 1 } }}
+                  >
+                    <IconPlus size={13} />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+
+              {/* Add URL form */}
+              {attachmentOpen && (
+                <Stack spacing={1} sx={(t) => ({ mb: 1.5, p: 1.5, borderRadius: 2, bgcolor: dark ? alpha('#fff', 0.04) : alpha('#000', 0.02), border: `1px solid ${t.palette.divider}` })}>
+                  <TextField
+                    autoFocus
+                    size="small"
+                    fullWidth
+                    placeholder="https://..."
+                    label="URL"
+                    value={attachmentUrl}
+                    onChange={(e) => setAttachmentUrl(e.target.value)}
+                    disabled={addingAttachment}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.84rem' } }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addAttachment(); }}
+                  />
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Nome da referência (opcional)"
+                    label="Nome"
+                    value={attachmentName}
+                    onChange={(e) => setAttachmentName(e.target.value)}
+                    disabled={addingAttachment}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.84rem' } }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addAttachment(); }}
+                  />
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Button size="small" onClick={() => { setAttachmentOpen(false); setAttachmentUrl(''); setAttachmentName(''); }} disabled={addingAttachment}
+                      sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', borderRadius: 2 }}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      variant="contained" size="small"
+                      onClick={addAttachment}
+                      disabled={addingAttachment || !attachmentUrl.trim()}
+                      endIcon={addingAttachment ? <CircularProgress size={11} sx={{ color: '#fff' }} /> : undefined}
+                      sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', borderRadius: 2, boxShadow: 'none' }}
+                    >
+                      {addingAttachment ? 'Adicionando...' : 'Adicionar'}
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+
+              {trelloAttachments.length === 0 && !attachmentOpen && (
+                <Typography
+                  variant="body2"
+                  color="text.disabled"
+                  sx={{ cursor: 'text', fontStyle: 'italic', fontSize: '0.82rem' }}
+                  onClick={() => setAttachmentOpen(true)}
+                >
+                  Nenhum anexo. Clique em + para adicionar uma referência.
+                </Typography>
+              )}
+
+              {trelloAttachments.length > 0 && (
                 <Stack spacing={1}>
                   {trelloAttachments.map((att, i) => (
                     <Stack
@@ -1812,8 +2053,8 @@ export default function JobDetailClient({
                     </Stack>
                   ))}
                 </Stack>
-              </Paper>
-            )}
+              )}
+            </Paper>
 
             {/* Tabs: Comentários | Histórico */}
             <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>

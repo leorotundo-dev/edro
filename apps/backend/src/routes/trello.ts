@@ -1621,6 +1621,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       : 'copy';
     return {
       id: c.id, title: c.title, summary: c.description ?? null,
+      definition_of_done: (c.metadata?.definition_of_done as string | null) ?? null,
       client_id: c.client_id ?? null, client_name: c.client_name ?? c.board_name,
       client_logo_url: c.client_logo_url ?? null, client_brand_color: c.client_brand_color ?? null,
       job_type: jobType, complexity: 'm', channel: null, source: 'trello', status,
@@ -1968,6 +1969,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       is_urgent: z.boolean().optional(),
       job_size: z.enum(['P', 'M', 'G', 'GG']).nullable().optional(),
       estimated_minutes: z.number().int().nonnegative().nullable().optional(),
+      definition_of_done: z.string().max(2000).nullable().optional(),
     }).parse(request.body);
 
     const cardRes = await query<{ board_id: string; trello_card_id: string | null; owner_email: string | null }>(
@@ -2052,11 +2054,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
       }
     }
 
-    // Merge is_urgent / job_size / estimated_minutes into metadata jsonb (no dedicated columns)
+    // Merge is_urgent / job_size / estimated_minutes / definition_of_done into metadata jsonb
     const metaUpdates: Record<string, unknown> = {};
     if (body.is_urgent !== undefined) metaUpdates.is_urgent = body.is_urgent;
     if (body.job_size !== undefined) metaUpdates.job_size = body.job_size;
     if (body.estimated_minutes !== undefined) metaUpdates.estimated_minutes = body.estimated_minutes;
+    if (body.definition_of_done !== undefined) metaUpdates.definition_of_done = body.definition_of_done;
     if (Object.keys(metaUpdates).length) {
       await query(
         `UPDATE project_cards
@@ -2660,6 +2663,167 @@ Responda apenas com o copy pronto, sem explicações.`;
     } catch (err: any) {
       return reply.status(502).send({ error: 'meeting_failed', detail: err?.message ?? 'Falha ao criar reunião.' });
     }
+  });
+
+  // POST /trello/ops-cards/:cardId/add-checklist — insert a template checklist by job type
+  app.post('/trello/ops-cards/:cardId/add-checklist', { preHandler: [authGuard] }, async (request: TR, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      job_type: z.enum(['copy', 'design', 'video', 'social', 'ads', 'generic']).default('generic'),
+    }).parse(request.body);
+
+    const TEMPLATES: Record<string, Array<{ text: string }>> = {
+      copy: [
+        { text: 'Briefing validado com o cliente' },
+        { text: 'Copy rascunho escrito' },
+        { text: 'Revisão gramatical e ortográfica' },
+        { text: 'Validação interna do copy' },
+        { text: 'Envio para aprovação do cliente' },
+        { text: 'Ajustes pós-feedback' },
+        { text: 'Entregue' },
+      ],
+      design: [
+        { text: 'Conceito criativo aprovado' },
+        { text: 'Arte-final executada' },
+        { text: 'Revisão de identidade visual e marca' },
+        { text: 'Exportação nos formatos corretos' },
+        { text: 'Envio para aprovação do cliente' },
+        { text: 'Ajustes pós-feedback' },
+        { text: 'Entregue' },
+      ],
+      video: [
+        { text: 'Roteiro / storyboard aprovado' },
+        { text: 'Captação / gravação realizada' },
+        { text: 'Edição e montagem concluída' },
+        { text: 'Color grading e áudio finalizados' },
+        { text: 'Envio para aprovação do cliente' },
+        { text: 'Ajustes pós-feedback' },
+        { text: 'Exportação final e entrega' },
+      ],
+      social: [
+        { text: 'Pauta aprovada' },
+        { text: 'Copy e visual produzidos' },
+        { text: 'Revisão interna' },
+        { text: 'Aprovação do cliente' },
+        { text: 'Agendamento e publicação' },
+      ],
+      ads: [
+        { text: 'Briefing de mídia validado' },
+        { text: 'Criativo produzido e revisado' },
+        { text: 'Configuração da campanha na plataforma' },
+        { text: 'Aprovação do cliente' },
+        { text: 'Go live' },
+        { text: 'Relatório de 7 dias' },
+      ],
+      generic: [
+        { text: 'Briefing recebido e validado' },
+        { text: 'Execução da demanda' },
+        { text: 'Revisão interna' },
+        { text: 'Aprovação do cliente' },
+        { text: 'Entregue' },
+      ],
+    };
+
+    const NAMES: Record<string, string> = {
+      copy: 'Checklist de Copy',
+      design: 'Checklist de Design',
+      video: 'Checklist de Vídeo',
+      social: 'Checklist de Social Media',
+      ads: 'Checklist de Mídia Paga',
+      generic: 'Checklist Padrão',
+    };
+
+    const templateItems = TEMPLATES[body.job_type] ?? TEMPLATES.generic;
+    const checklistName = NAMES[body.job_type] ?? 'Checklist Padrão';
+
+    // Verify card belongs to tenant
+    const { rows: cardRows } = await query<{ trello_card_id: string | null }>(
+      `SELECT trello_card_id FROM project_cards WHERE id = $1 AND tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const trelloCardId = cardRows[0].trello_card_id;
+
+    // Save locally
+    const items = templateItems.map((it) => ({ text: it.text, checked: false }));
+    const { rows: inserted } = await query<{ id: string }>(
+      `INSERT INTO project_card_checklists (card_id, tenant_id, name, items)
+       VALUES ($1, $2, $3, $4::jsonb)
+       RETURNING id`,
+      [cardId, tenantId, checklistName, JSON.stringify(items)],
+    );
+    const checklistId = inserted[0]?.id;
+
+    // Optionally push to Trello via outbox
+    if (trelloCardId) {
+      enqueueOutbox(tenantId, 'checklist.create', {
+        trelloCardId,
+        name: checklistName,
+        items: items.map((it) => it.text),
+        localChecklistId: checklistId,
+      }).catch(() => undefined);
+    }
+
+    // Return updated full job
+    const detailRes = await app.inject({
+      method: 'GET',
+      url: `/trello/ops-cards/${cardId}`,
+      headers: request.headers as Record<string, string>,
+    });
+    return reply.status(201).send(detailRes.json());
+  });
+
+  // POST /trello/ops-cards/:cardId/add-attachment — attach a URL reference to a card
+  app.post('/trello/ops-cards/:cardId/add-attachment', { preHandler: [authGuard] }, async (request: TR, reply) => {
+    const { cardId } = request.params as { cardId: string };
+    const tenantId = request.user?.tenant_id as string;
+    const body = z.object({
+      url: z.string().url({ message: 'URL inválida.' }),
+      name: z.string().trim().max(200).optional(),
+    }).parse(request.body);
+
+    // Verify card belongs to tenant
+    const { rows: cardRows } = await query<{ trello_card_id: string | null; attachments: any[] }>(
+      `SELECT trello_card_id, COALESCE(attachments, '[]'::jsonb) AS attachments
+       FROM project_cards WHERE id = $1 AND tenant_id = $2`,
+      [cardId, tenantId],
+    );
+    if (!cardRows.length) return reply.status(404).send({ error: 'Card não encontrado.' });
+    const { trello_card_id: trelloCardId, attachments: existing } = cardRows[0];
+
+    const attName = body.name || new URL(body.url).hostname;
+    const newAtt = {
+      id: `local_${Date.now()}`,
+      name: attName,
+      url: body.url,
+      is_image: /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(body.url),
+      preview_url: /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(body.url) ? body.url : null,
+      date: new Date().toISOString(),
+    };
+
+    const updatedAttachments = Array.isArray(existing) ? [...existing, newAtt] : [newAtt];
+    await query(
+      `UPDATE project_cards SET attachments = $1::jsonb, updated_at = now() WHERE id = $2 AND tenant_id = $3`,
+      [JSON.stringify(updatedAttachments), cardId, tenantId],
+    );
+
+    // Optionally push to Trello via outbox
+    if (trelloCardId) {
+      enqueueOutbox(tenantId, 'attachment.add', {
+        trelloCardId,
+        url: body.url,
+        name: attName,
+      }).catch(() => undefined);
+    }
+
+    // Return updated full job
+    const detailRes = await app.inject({
+      method: 'GET',
+      url: `/trello/ops-cards/${cardId}`,
+      headers: request.headers as Record<string, string>,
+    });
+    return reply.status(201).send(detailRes.json());
   });
 
   // POST /trello/ops-cards/:cardId/assign — assign member + sync to Trello

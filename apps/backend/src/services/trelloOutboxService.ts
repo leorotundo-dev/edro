@@ -9,6 +9,8 @@
  *   member.sync        — { trelloCardId, toRemove: string[], toAdd: string[] }
  *   comment.add        — { trelloCardId, text }
  *   checklist.toggle   — { trelloCardId, checkItemId, state: 'complete'|'incomplete' }
+ *   checklist.create   — { trelloCardId, name, items: string[], localChecklistId }
+ *   attachment.add     — { trelloCardId, url, name }
  *
  * Dedupe: pass a dedupeKey to upsert the payload instead of inserting a
  * second row (e.g. rapid title edits coalesce into one outbound call).
@@ -21,7 +23,9 @@ export type OutboxOperation =
   | 'card.update'
   | 'member.sync'
   | 'comment.add'
-  | 'checklist.toggle';
+  | 'checklist.toggle'
+  | 'checklist.create'
+  | 'attachment.add';
 
 export async function enqueueOutbox(
   tenantId: string,

@@ -154,6 +154,61 @@ async function execChecklistToggle(creds: { apiKey: string; apiToken: string }, 
   if (!res.ok) throw new Error(`checklist.toggle ${res.status}: ${await res.text().catch(() => '')}`);
 }
 
+async function execChecklistCreate(
+  creds: { apiKey: string; apiToken: string },
+  tenantId: string,
+  payload: Record<string, any>,
+): Promise<void> {
+  const { trelloCardId, name, items, localChecklistId } = payload as {
+    trelloCardId: string;
+    name: string;
+    items: string[];
+    localChecklistId?: string;
+  };
+  if (!trelloCardId || !name) return;
+  if (!/^[a-f0-9]{24}$/i.test(trelloCardId)) throw new Error('invalid_trello_card_id');
+
+  const clParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, name, idCard: trelloCardId });
+  // codeql[js/request-forgery] TRELLO_BASE is a hardcoded constant
+  const clRes = await fetch(`${TRELLO_BASE}/checklists?${clParams}`, {
+    method: 'POST', signal: AbortSignal.timeout(10_000),
+  });
+  if (!clRes.ok) throw new Error(`checklist.create ${clRes.status}: ${await clRes.text().catch(() => '')}`);
+
+  const created = await clRes.json() as { id: string };
+  const trelloChecklistId = created.id;
+
+  // Persist trello_checklist_id back to local table
+  if (localChecklistId) {
+    await query(
+      `UPDATE project_card_checklists SET trello_checklist_id = $1, updated_at = now() WHERE id = $2 AND tenant_id = $3`,
+      [trelloChecklistId, localChecklistId, tenantId],
+    ).catch(() => null);
+  }
+
+  // Add each item to the checklist
+  for (const itemText of (items ?? [])) {
+    const itemParams = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, name: itemText, checked: 'false' });
+    // codeql[js/request-forgery] TRELLO_BASE is a hardcoded constant; trelloChecklistId from API response
+    await fetch(`${TRELLO_BASE}/checklists/${trelloChecklistId}/checkItems?${itemParams}`, {
+      method: 'POST', signal: AbortSignal.timeout(8_000),
+    }).catch(() => null);
+  }
+}
+
+async function execAttachmentAdd(creds: { apiKey: string; apiToken: string }, payload: Record<string, any>): Promise<void> {
+  const { trelloCardId, url, name } = payload as { trelloCardId: string; url: string; name?: string };
+  if (!trelloCardId || !url) return;
+  if (!/^[a-f0-9]{24}$/i.test(trelloCardId)) throw new Error('invalid_trello_card_id');
+
+  const params = new URLSearchParams({ key: creds.apiKey, token: creds.apiToken, url, ...(name ? { name } : {}) });
+  // codeql[js/request-forgery] TRELLO_BASE is a hardcoded constant; trelloCardId resolved from internal DB
+  const res = await fetch(`${TRELLO_BASE}/cards/${trelloCardId}/attachments?${params}`, {
+    method: 'POST', signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`attachment.add ${res.status}: ${await res.text().catch(() => '')}`);
+}
+
 // ── Main dispatch ─────────────────────────────────────────────────────────────
 
 async function executeItem(item: OutboxItem): Promise<void> {
@@ -166,6 +221,8 @@ async function executeItem(item: OutboxItem): Promise<void> {
     case 'member.sync':       return execMemberSync(creds, item.payload);
     case 'comment.add':       return execCommentAdd(creds, item.payload);
     case 'checklist.toggle':  return execChecklistToggle(creds, item.payload);
+    case 'checklist.create':  return execChecklistCreate(creds, item.tenant_id, item.payload);
+    case 'attachment.add':    return execAttachmentAdd(creds, item.payload);
     default:
       throw new Error(`unknown_operation: ${item.operation}`);
   }
