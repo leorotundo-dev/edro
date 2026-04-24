@@ -13,6 +13,12 @@ type DriveConnectionRow = {
   token_expiry: string | null;
 };
 
+type OAuthStatePayload = {
+  tenantId: string;
+  service?: string;
+  ts?: number;
+};
+
 export type DriveFolder = {
   id: string;
   name: string;
@@ -27,7 +33,7 @@ function signOAuthState(payload: object): string {
   return `${data}.${sig}`;
 }
 
-function verifyOAuthState(rawState: string): { tenantId: string } {
+function verifyOAuthState(rawState: string): OAuthStatePayload {
   const dotIndex = rawState.lastIndexOf('.');
   if (dotIndex < 0) throw new Error('Invalid OAuth state format');
   const data = rawState.slice(0, dotIndex);
@@ -37,6 +43,15 @@ function verifyOAuthState(rawState: string): { tenantId: string } {
   const expected = crypto.createHmac('sha256', secret).update(data).digest('base64url');
   if (sig !== expected) throw new Error('Invalid OAuth state signature');
   return JSON.parse(Buffer.from(data, 'base64url').toString());
+}
+
+export function isDriveOAuthState(rawState: string | undefined | null): boolean {
+  if (!rawState) return false;
+  try {
+    return verifyOAuthState(rawState).service === 'drive';
+  } catch {
+    return false;
+  }
 }
 
 function resolveDriveRedirectUri(): string {
@@ -73,7 +88,7 @@ export function driveOAuthUrl(tenantId: string): string {
   const redirectUri = resolveDriveRedirectUri();
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID não configurado.');
 
-  const state = signOAuthState({ tenantId, ts: Date.now() });
+  const state = signOAuthState({ tenantId, service: 'drive', ts: Date.now() });
 
   const params = new URLSearchParams({
     client_id: clientId,

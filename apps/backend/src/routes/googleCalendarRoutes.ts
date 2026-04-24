@@ -21,6 +21,10 @@ import {
   watchCalendar,
 } from '../services/integrations/googleCalendarService';
 import {
+  exchangeDriveCode,
+  isDriveOAuthState,
+} from '../services/integrations/googleDriveService';
+import {
   CalendarAutoJoinQueueError,
   requeueCalendarAutoJoinById,
 } from '../services/calendarAutoJoinQueueService';
@@ -56,13 +60,25 @@ export default async function googleCalendarRoutes(app: FastifyInstance) {
   // ── OAuth callback ──────────────────────────────────────────────────────
   app.get('/auth/google/calendar/callback', async (request: any, reply) => {
     const { code, state, error } = request.query as Record<string, string>;
+    const isDriveCallback = isDriveOAuthState(state);
 
     if (error) {
-      return reply.redirect(getIntegrationsRedirectUrl(`calendar_error=${encodeURIComponent(error)}`));
+      const errorKey = isDriveCallback ? 'drive_error' : 'calendar_error';
+      return reply.redirect(getIntegrationsRedirectUrl(`${errorKey}=${encodeURIComponent(error)}`));
     }
 
     if (!code || !state) {
       return reply.code(400).send({ error: 'Missing code or state' });
+    }
+
+    if (isDriveCallback) {
+      try {
+        const { email } = await exchangeDriveCode(code, state);
+        return reply.redirect(getIntegrationsRedirectUrl(`drive_connected=${encodeURIComponent(email)}`));
+      } catch (err: any) {
+        console.error('[googleCalendarRoutes] drive callback error:', err?.message);
+        return reply.redirect(getIntegrationsRedirectUrl(`drive_error=${encodeURIComponent(err.message)}`));
+      }
     }
 
     try {
