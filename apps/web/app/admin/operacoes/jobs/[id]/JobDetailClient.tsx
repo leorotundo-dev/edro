@@ -354,6 +354,8 @@ export default function JobDetailClient({
   const [editingDeadline, setEditingDeadline] = useState(false);
   const [deadlineDraft, setDeadlineDraft] = useState('');
   const [savingDeadline, setSavingDeadline] = useState(false);
+  // Synchronous ref so onBlur doesn't double-save when onChange already fired
+  const savingDeadlineRef = useRef(false);
 
   // Job controls: urgency, size, estimate
   const [urgentSaving, setUrgentSaving] = useState(false);
@@ -611,8 +613,9 @@ export default function JobDetailClient({
   // ── Job controls ──────────────────────────────────────────────────────────────
 
   const saveDeadline = async (valueOverride?: string) => {
-    if (!job || savingDeadline) return;
+    if (!job || savingDeadlineRef.current) return; // synchronous guard prevents double-save
     const dateToSave = valueOverride !== undefined ? valueOverride : deadlineDraft;
+    savingDeadlineRef.current = true; // set synchronously before any await
     setSavingDeadline(true);
     try {
       const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
@@ -620,6 +623,7 @@ export default function JobDetailClient({
       });
       if (res?.data) setJob(res.data);
     } finally {
+      savingDeadlineRef.current = false;
       setSavingDeadline(false);
       setEditingDeadline(false);
     }
