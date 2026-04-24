@@ -86,6 +86,30 @@ function filterJobs(jobs: OperationsJob[], filter: FilterKey): OperationsJob[] {
   }
 }
 
+const OWNER_NAME_FILTER_PREFIX = '__owner_name__:';
+
+function ownerDisplayName(name: string | null | undefined): string {
+  return String(name || '').trim().split(/\s+/)[0] || '';
+}
+
+function ownerNameToken(name: string | null | undefined): string {
+  return ownerDisplayName(name)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function ownerNameFilterValue(name: string | null | undefined): string {
+  return `${OWNER_NAME_FILTER_PREFIX}${ownerNameToken(name)}`;
+}
+
+function matchesOwnerFilter(job: OperationsJob, filterOwnerId: string): boolean {
+  if (filterOwnerId.startsWith(OWNER_NAME_FILTER_PREFIX)) {
+    return ownerNameToken(job.owner_name) === filterOwnerId.slice(OWNER_NAME_FILTER_PREFIX.length);
+  }
+  return job.owner_id === filterOwnerId || job.owner_email === filterOwnerId || job.owner_name === filterOwnerId;
+}
+
 // ── Week helpers ─────────────────────────────────────────────────────────────
 
 function startOfWeek(date: Date): Date {
@@ -216,7 +240,7 @@ export default function DailyOperationClient() {
     if (filterOwnerId !== 'all') {
       result = filterOwnerId === '__none__'
         ? result.filter((j) => !j.owner_id && !j.owner_name)
-        : result.filter((j) => j.owner_id === filterOwnerId || j.owner_email === filterOwnerId || j.owner_name === filterOwnerId);
+        : result.filter((j) => matchesOwnerFilter(j, filterOwnerId));
     }
     return result;
   }, [activeJobs, filterClientId, filterOwnerId]);
@@ -273,10 +297,10 @@ export default function DailyOperationClient() {
   const activeOwnersList = useMemo(() => {
     const map = new Map<string, string>();
     for (const job of activeJobs) {
-      const key = job.owner_id || job.owner_email || job.owner_name;
-      if (key && job.owner_name) map.set(key, job.owner_name);
+      const displayName = ownerDisplayName(job.owner_name);
+      if (displayName) map.set(ownerNameFilterValue(job.owner_name), displayName);
     }
-    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR', { sensitivity: 'base' }));
   }, [activeJobs]);
 
   // Filtered + sorted (with day, client, owner drill-downs)
@@ -521,7 +545,7 @@ export default function DailyOperationClient() {
             <MenuItem value="all">Todos criativos</MenuItem>
             <MenuItem value="__none__">Sem dono</MenuItem>
             {activeOwnersList.map(([key, name]) => (
-              <MenuItem key={key} value={key}>{name.split(' ')[0]}</MenuItem>
+              <MenuItem key={key} value={key}>{name}</MenuItem>
             ))}
           </Select>
         </Stack>
