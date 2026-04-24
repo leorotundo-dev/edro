@@ -1060,7 +1060,13 @@ export default async function trelloRoutes(app: FastifyInstance) {
          pc.cover_color, pc.cover_url, pc.last_activity_at::text, pc.attachments,
          pc.trello_url, pc.trello_card_id,
          pc.start_date::text, pc.priority, pc.estimated_hours,
-         pc.created_at::text, pc.campaign_id,
+         -- Trello card ID encodes creation time (MongoDB ObjectId: first 8 hex chars = Unix ts seconds)
+         -- Fallback to pc.created_at (sync time) when trello_card_id is null
+         COALESCE(
+           to_timestamp(('x' || substring(pc.trello_card_id, 1, 8))::bit(32)::bigint)::text,
+           pc.created_at::text
+         ) AS created_at,
+         pc.campaign_id,
          pl.id as list_id, pl.name as list_name,
          pb.id as board_id, pb.name as board_name,
          pb.client_id,
@@ -1622,6 +1628,8 @@ export default async function trelloRoutes(app: FastifyInstance) {
     return {
       id: c.id, title: c.title, summary: c.description ?? null,
       definition_of_done: (c.metadata?.definition_of_done as string | null) ?? null,
+      // created_at decoded from Trello card ID (first 8 hex chars = Unix timestamp)
+      created_at: (c.trello_created_at as string | null) ?? null,
       client_id: c.client_id ?? null, client_name: c.client_name ?? c.board_name,
       client_logo_url: c.client_logo_url ?? null, client_brand_color: c.client_brand_color ?? null,
       job_type: jobType, complexity: 'm', channel: null, source: 'trello', status,
@@ -1734,6 +1742,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
          j.metadata->>'job_size'                                AS job_size,
          (j.metadata->>'estimated_minutes')::integer            AS estimated_minutes,
          j.metadata,
+         -- Trello card ID encodes creation time (MongoDB ObjectId: first 8 hex chars = Unix ts seconds)
+         COALESCE(
+           to_timestamp(('x' || substring(pc.trello_card_id, 1, 8))::bit(32)::bigint)::text,
+           pc.created_at::text
+         ) AS trello_created_at,
          pc.trello_url, pc.trello_card_id, pc.campaign_id,
          camp.name as campaign_name,
          pl.id as list_id, pl.name as list_name,
