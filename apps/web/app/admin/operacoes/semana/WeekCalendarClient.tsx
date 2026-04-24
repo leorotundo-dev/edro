@@ -18,6 +18,9 @@ import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
@@ -38,12 +41,15 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconDeviceDesktop,
+  IconDots,
   IconLayoutList,
   IconMail,
   IconRefresh,
   IconUsers,
   IconUserOff,
+  IconX,
 } from '@tabler/icons-react';
+import JobDetailClient from '../jobs/[id]/JobDetailClient';
 
 /* ─── helpers ─── */
 
@@ -202,12 +208,14 @@ function JobCard({
   owners,
   selected,
   onClick,
+  onQuickEdit,
   onDragStart,
 }: {
   job: OperationsJob;
   owners: OperationsOwner[];
   selected?: boolean;
   onClick: () => void;
+  onQuickEdit: () => void;
   onDragStart?: (e: React.DragEvent) => void;
 }) {
   const theme = useTheme();
@@ -289,6 +297,25 @@ function JobCard({
               {chIcon}
             </Box>
           )}
+          <IconButton
+            aria-label="Editar rapidamente"
+            size="small"
+            draggable={false}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onQuickEdit();
+            }}
+            sx={{
+              p: 0.15,
+              ml: 0.25,
+              color: alpha(theme.palette.text.primary, 0.42),
+              '&:hover': { color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.08) },
+            }}
+          >
+            <IconDots size={14} />
+          </IconButton>
         </Stack>
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, pl: 2.5 }}>
           <Typography variant="caption" sx={(t) => ({ color: alpha(t.palette.text.primary, 0.55), fontWeight: 600, fontSize: '0.68rem' })}>
@@ -315,6 +342,7 @@ function DayColumnView({
   teamCapacityPerDay,
   selectedJobId,
   onSelectJob,
+  onQuickEditJob,
   onDragStart,
   onDrop,
   onDragOver,
@@ -324,6 +352,7 @@ function DayColumnView({
   teamCapacityPerDay: number;
   selectedJobId: string | null;
   onSelectJob: (id: string) => void;
+  onQuickEditJob: (id: string) => void;
   onDragStart: (jobId: string, e: React.DragEvent) => void;
   onDrop: (dayKey: string) => void;
   onDragOver: (e: React.DragEvent) => void;
@@ -411,6 +440,7 @@ function DayColumnView({
             owners={owners}
             selected={selectedJobId === job.id}
             onClick={() => onSelectJob(job.id)}
+            onQuickEdit={() => onQuickEditJob(job.id)}
             onDragStart={(e) => onDragStart(job.id, e)}
           />
         ))}
@@ -431,12 +461,14 @@ function BacklogRow({
   owners,
   selectedJobId,
   onSelectJob,
+  onQuickEditJob,
   onDragStart,
 }: {
   jobs: OperationsJob[];
   owners: OperationsOwner[];
   selectedJobId: string | null;
   onSelectJob: (id: string) => void;
+  onQuickEditJob: (id: string) => void;
   onDragStart: (jobId: string, e: React.DragEvent) => void;
 }) {
   const theme = useTheme();
@@ -479,6 +511,7 @@ function BacklogRow({
               job={job}
               selected={selectedJobId === job.id}
               onClick={() => onSelectJob(job.id)}
+              onOpen={(openedJob) => onQuickEditJob(openedJob.id)}
             />
           </Box>
         ))}
@@ -540,6 +573,7 @@ function DistributionCell({
   today,
   selectedJobId,
   onSelectJob,
+  onQuickEditJob,
   onDragStart,
   onDrop,
 }: {
@@ -550,6 +584,7 @@ function DistributionCell({
   today: boolean;
   selectedJobId: string | null;
   onSelectJob: (id: string) => void;
+  onQuickEditJob: (id: string) => void;
   onDragStart: (jobId: string, e: React.DragEvent) => void;
   onDrop: (dayKey: string, ownerId: string | null) => void;
 }) {
@@ -611,20 +646,42 @@ function DistributionCell({
                 transition: 'background-color 120ms ease',
               }}
             >
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 700,
-                  fontSize: '0.68rem',
-                  display: 'block',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  lineHeight: 1.4,
-                }}
-              >
-                {job.title}
-              </Typography>
+              <Stack direction="row" spacing={0.4} alignItems="center">
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: '0.68rem',
+                    display: 'block',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1.4,
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  {job.title}
+                </Typography>
+                <IconButton
+                  aria-label="Editar rapidamente"
+                  size="small"
+                  draggable={false}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onQuickEditJob(job.id);
+                  }}
+                  sx={{
+                    p: 0.05,
+                    color: alpha(theme.palette.text.primary, 0.42),
+                    '&:hover': { color: theme.palette.text.primary, bgcolor: alpha(theme.palette.text.primary, 0.08) },
+                  }}
+                >
+                  <IconDots size={12} />
+                </IconButton>
+              </Stack>
             </Box>
           </Tooltip>
         );
@@ -639,6 +696,7 @@ function DistributionView({
   activeJobs,
   selectedJobId,
   onSelectJob,
+  onQuickEditJob,
   onDragStart,
   onDistributionDrop,
 }: {
@@ -647,6 +705,7 @@ function DistributionView({
   activeJobs: OperationsJob[];
   selectedJobId: string | null;
   onSelectJob: (id: string) => void;
+  onQuickEditJob: (id: string) => void;
   onDragStart: (jobId: string, e: React.DragEvent) => void;
   onDistributionDrop: (dayKey: string, ownerId: string | null) => void;
 }) {
@@ -751,6 +810,7 @@ function DistributionView({
             today={col.today}
             selectedJobId={selectedJobId}
             onSelectJob={onSelectJob}
+            onQuickEditJob={onQuickEditJob}
             onDragStart={onDragStart}
             onDrop={onDistributionDrop}
           />
@@ -846,8 +906,19 @@ export default function WeekCalendarClient() {
   // Selection & drawer
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detailJobId, setDetailJobId] = useState<string | null>(null);
 
   const handleSelectJob = useCallback((id: string) => {
+    setSelectedJobId(id);
+    setDetailJobId(id);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailJobId(null);
+    setSelectedJobId(null);
+  }, []);
+
+  const handleQuickEditJob = useCallback((id: string) => {
     setSelectedJobId(id);
     setDrawerOpen(true);
   }, []);
@@ -1128,6 +1199,7 @@ export default function WeekCalendarClient() {
                   teamCapacityPerDay={teamCapacityPerDay}
                   selectedJobId={selectedJobId}
                   onSelectJob={handleSelectJob}
+                  onQuickEditJob={handleQuickEditJob}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
@@ -1142,6 +1214,7 @@ export default function WeekCalendarClient() {
                 activeJobs={activeJobs}
                 selectedJobId={selectedJobId}
                 onSelectJob={handleSelectJob}
+                onQuickEditJob={handleQuickEditJob}
                 onDragStart={handleDragStart}
                 onDistributionDrop={handleDistributionDrop}
               />
@@ -1173,11 +1246,35 @@ export default function WeekCalendarClient() {
               owners={owners}
               selectedJobId={selectedJobId}
               onSelectJob={handleSelectJob}
+              onQuickEditJob={handleQuickEditJob}
               onDragStart={handleDragStart}
             />
           </Box>
         </Stack>
       )}
+
+      {/* ─── Job Detail Dialog ─── */}
+      <Dialog
+        open={Boolean(detailJobId)}
+        onClose={handleCloseDetail}
+        fullWidth
+        maxWidth="lg"
+        scroll="paper"
+        PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh' } }}
+      >
+        <DialogTitle sx={{ p: 0, position: 'relative' }}>
+          <IconButton
+            onClick={handleCloseDetail}
+            size="small"
+            sx={{ position: 'absolute', top: 12, right: 12, zIndex: 10, opacity: 0.6, '&:hover': { opacity: 1 } }}
+          >
+            <IconX size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {detailJobId ? <JobDetailClient id={detailJobId} onClose={handleCloseDetail} /> : null}
+        </DialogContent>
+      </Dialog>
 
       {/* ─── Job Detail Drawer ─── */}
       <JobWorkbenchDrawer
