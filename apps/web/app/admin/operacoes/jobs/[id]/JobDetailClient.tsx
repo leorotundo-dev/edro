@@ -610,12 +610,13 @@ export default function JobDetailClient({
 
   // ── Job controls ──────────────────────────────────────────────────────────────
 
-  const saveDeadline = async () => {
+  const saveDeadline = async (valueOverride?: string) => {
     if (!job || savingDeadline) return;
+    const dateToSave = valueOverride !== undefined ? valueOverride : deadlineDraft;
     setSavingDeadline(true);
     try {
       const res = await apiPatch<{ data?: OperationsJob }>(`/trello/ops-cards/${id}`, {
-        deadline_at: deadlineDraft || null,
+        deadline_at: dateToSave || null,
       });
       if (res?.data) setJob(res.data);
     } finally {
@@ -1120,7 +1121,16 @@ export default function JobDetailClient({
                   component="input"
                   type="date"
                   value={deadlineDraft}
-                  onChange={(e) => setDeadlineDraft(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDeadlineDraft(val);
+                    // Auto-save immediately when a date is picked from the native picker
+                    if (val) saveDeadline(val);
+                  }}
+                  onBlur={() => {
+                    // Fallback: save when field loses focus (e.g. keyboard entry then Tab)
+                    if (!savingDeadline) saveDeadline();
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') saveDeadline();
                     if (e.key === 'Escape') setEditingDeadline(false);
@@ -1132,16 +1142,9 @@ export default function JobDetailClient({
                     color: 'inherit', fontFamily: 'inherit', width: 'auto',
                   }}
                 />
-                <Button
-                  size="small" variant="contained"
-                  disabled={savingDeadline}
-                  onClick={saveDeadline}
-                  sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5, boxShadow: 'none', minWidth: 0, px: 1.5 }}
-                >
-                  {savingDeadline ? <CircularProgress size={12} sx={{ color: '#fff' }} /> : 'Salvar'}
-                </Button>
+                {savingDeadline && <CircularProgress size={14} sx={{ color: 'text.secondary' }} />}
                 <Button size="small" onClick={() => setEditingDeadline(false)}
-                  sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5, minWidth: 0 }}>
+                  sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'none', borderRadius: 1.5, minWidth: 0, opacity: 0.5 }}>
                   ✕
                 </Button>
               </Stack>
