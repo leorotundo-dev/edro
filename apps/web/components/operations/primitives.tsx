@@ -882,7 +882,7 @@ export function OpsJobRow({
           </Stack>
 
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
-            {job.is_urgent ? (
+            {isJobUrgent(job) ? (
               <Chip size="small" color="error" label="!" sx={{ height: 20, minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />
             ) : null}
             <PriorityPill priorityBand={job.priority_band} />
@@ -1986,9 +1986,17 @@ const PIPELINE_COLUMNS = [
    OpsCard — canonical card shared by ALL ops views
    ═══════════════════════════════════════════════════════════════════ */
 
+// Statuses where urgency is no longer meaningful — job has been delivered, client is reviewing or done.
+// In these stages the is_urgent flag should be visually suppressed.
+const POST_DELIVERY_STATUSES = new Set(['awaiting_approval', 'done', 'published']);
+
+function isJobUrgent(job: OperationsJob): boolean {
+  if (POST_DELIVERY_STATUSES.has(job.status)) return false;
+  return Boolean(job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical');
+}
+
 function opsCardBg(job: OperationsJob, dark: boolean): string {
-  const risk = getRisk(job).level;
-  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical')
+  if (isJobUrgent(job))
     return dark ? alpha('#F9A825', 0.07) : alpha('#F9A825', 0.05);
   if (job.status === 'awaiting_approval')
     return dark ? alpha('#7C3AED', 0.07) : alpha('#7C3AED', 0.04);
@@ -1998,8 +2006,7 @@ function opsCardBg(job: OperationsJob, dark: boolean): string {
 }
 
 function opsBarColor(job: OperationsJob): string {
-  const risk = getRisk(job).level;
-  if (job.is_urgent || job.priority_band === 'p0' || risk === 'critical') return '#F9A825';
+  if (isJobUrgent(job)) return '#F9A825';
   if (job.status === 'blocked') return '#FA896B';
   if (job.status === 'awaiting_approval') return '#7C3AED';
   if (job.status === 'in_review') return '#5D87FF';
@@ -2113,7 +2120,7 @@ export function OpsCard({
       : `Me ajuda com o job "${cleanJobTitle(job.title, job.client_name)}" (${job.client_name ?? ''}).`;
     openWithMessage(msg);
   }, [job, setPageData, openWithMessage]);
-  const isUrgent = job.is_urgent || job.priority_band === 'p0' || getRisk(job).level === 'critical';
+  const isUrgent = isJobUrgent(job);
   const vis = STATUS_VISUALS[job.status] || STATUS_VISUALS.intake;
   const nextStatus = getNextStatus(job);
   const nextAction = getNextAction(job);
