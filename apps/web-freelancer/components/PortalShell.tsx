@@ -210,9 +210,14 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         setName(profile?.display_name ?? profile?.email?.split('@')[0] ?? 'Freelancer');
         setEmail(profile?.email ?? '');
         setAvatarUrl(profile?.avatar_url ?? '');
-      } catch {
-        clearToken();
-        window.location.href = '/login';
+      } catch (err: any) {
+        // Only redirect to login for true auth errors — 429 / network errors must NOT log the user out
+        // (lib/api.ts already handles the window.location redirect for 401 before throwing)
+        if (err?.message === 'Unauthorized') {
+          clearToken();
+          window.location.href = '/login';
+        }
+        // For rate-limit (429) or transient network errors: stay on page, let SWR retry naturally
       }
     };
 

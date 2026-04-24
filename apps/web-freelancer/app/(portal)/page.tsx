@@ -163,12 +163,15 @@ function WelcomeCard({ profile }: { profile: Profile }) {
 }
 
 export default function DashboardPage() {
-  const { data: profile, mutate } = useSWR<Profile>('/freelancers/portal/me', swrFetcher);
+  // shouldRetryOnError: false — prevents SWR from hammering the API on 429/network errors
+  // which would create a rate-limit death spiral (each retry triggers more 429s → more retries)
+  const swrOpts = { shouldRetryOnError: false };
+  const { data: profile, mutate } = useSWR<Profile>('/freelancers/portal/me', swrFetcher, swrOpts);
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const { data: entriesData } = useSWR(`/freelancers/portal/me/entries?month=${currentMonth}`, swrFetcher);
-  const { data: payablesData } = useSWR('/freelancers/portal/me/payables', swrFetcher);
-  const { data: jobsData } = useSWR<{ jobs?: Job[] }>('/freelancers/portal/me/jobs', swrFetcher);
+  const { data: entriesData } = useSWR(`/freelancers/portal/me/entries?month=${currentMonth}`, swrFetcher, swrOpts);
+  const { data: payablesData } = useSWR('/freelancers/portal/me/payables', swrFetcher, swrOpts);
+  const { data: jobsData } = useSWR<{ jobs?: Job[] }>('/freelancers/portal/me/jobs', swrFetcher, swrOpts);
 
   const totalMinutes = (entriesData?.entries ?? []).reduce((s: number, e: any) => s + (e.minutes ?? 0), 0);
   const pendingPayable = (payablesData?.payables ?? []).find((p: Payable) => p.status === 'open');
