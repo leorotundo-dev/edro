@@ -1252,6 +1252,31 @@ export default function JobDetailClient({
           </Stack>
         )}
 
+        {/* ── Extra team members (assignees beyond the main owner) ── */}
+        {!peopleOpen && (() => {
+          const extraMembers = (job?.assignees ?? []).filter((a) => a.user_id !== job?.owner_id);
+          if (!extraMembers.length) return null;
+          return (
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.25, pt: 1.25, borderTop: `1px solid ${theme.palette.divider}` }}>
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0 }}>
+                Equipe
+              </Typography>
+              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                {extraMembers.map((member) => (
+                  <Tooltip key={member.user_id} title={member.name}>
+                    <Avatar
+                      src={member.avatar_url ?? undefined}
+                      sx={{ width: 28, height: 28, fontSize: '0.62rem', fontWeight: 800, bgcolor: alpha('#5D87FF', 0.12), color: '#5D87FF', cursor: 'default' }}
+                    >
+                      {initials(member.name)}
+                    </Avatar>
+                  </Tooltip>
+                ))}
+              </Stack>
+            </Stack>
+          );
+        })()}
+
         {/* ── People picker — inline below owner hero ── */}
         {peopleOpen && (
           <Stack spacing={1.25} sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
