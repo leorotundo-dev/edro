@@ -2024,6 +2024,36 @@ function formatJobTypeLabel(t?: string | null): string {
   return labels[t || ''] || String(t || 'Job').replace(/_/g, ' ');
 }
 
+function parseOpsCardDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0);
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatOpsCardDate(value?: string | null): string | null {
+  const date = parseOpsCardDate(value);
+  if (!date) return null;
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+function opsCardDateTone(value?: string | null) {
+  const date = parseOpsCardDate(value);
+  if (!date) return 'text.disabled';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  if (day.getTime() < today.getTime()) return 'error.main';
+  if (day.getTime() === today.getTime()) return 'warning.main';
+  return 'text.secondary';
+}
+
 const JOB_TYPE_ICONS_LG: Record<string, React.ReactNode> = {
   briefing: <IconFileText size={36} />, copy: <IconPencil size={36} />,
   design_static: <IconBrush size={36} />, design_carousel: <IconPhoto size={36} />,
@@ -2092,6 +2122,10 @@ export function OpsCard({
   const typeVis = JOB_TYPE_VISUALS[job.job_type] || { icon: <IconBriefcase size={14} />, color: '#A0AEC0' };
   const coverImageUrl: string | null = (job.metadata?.cover_image_url as string | null) ?? null;
   const extraAssignees = (job.assignees || []).filter((a) => a.user_id !== job.owner_id).slice(0, 2);
+  const displayedOwnerName = job.owner_name || null;
+  const hasDisplayedOwner = Boolean(job.owner_id || displayedOwnerName);
+  const daDeliveryLabel = formatOpsCardDate(job.estimated_delivery_at);
+  const clientDeadlineLabel = formatOpsCardDate(job.deadline_at);
 
   // Aging badge
   const agingDays = (() => {
@@ -2100,13 +2134,6 @@ export function OpsCard({
     if (!ACTIVE.includes(job.status)) return null;
     const d = Math.floor((Date.now() - new Date(job.updated_at).getTime()) / 86400000);
     return d >= 3 ? d : null;
-  })();
-
-  // Safe deadline date (avoid Invalid Date)
-  const deadlineDate = (() => {
-    if (!job.deadline_at) return null;
-    const d = new Date(job.deadline_at);
-    return isNaN(d.getTime()) ? null : d;
   })();
 
   const commentCount = job.comments?.length ?? 0;
@@ -2271,13 +2298,13 @@ export function OpsCard({
             );
           })()}
 
-          {/* Footer: avatar + datas */}
+          {/* Footer: DA + internal/client deadlines */}
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 0.75 }}>
 
-            {/* Avatares — owner em destaque */}
+            {/* Avatar — DA/criativo em destaque */}
             <Stack direction="row" alignItems="center" spacing={1}>
-              {job.owner_name ? (
-                <Tooltip title={job.owner_name} arrow placement="top">
+              {displayedOwnerName ? (
+                <Tooltip title={`DA: ${displayedOwnerName}`} arrow placement="top">
                   <Stack direction="row" alignItems="center" spacing={0.75}
                     sx={{
                       bgcolor: dark ? alpha('#5D87FF', 0.10) : alpha('#5D87FF', 0.07),
@@ -2301,24 +2328,30 @@ export function OpsCard({
                         flexShrink: 0,
                       }}
                     >
-                      {initials(job.owner_name)}
+                      {initials(displayedOwnerName)}
                     </Avatar>
-                    <Typography
-                      noWrap
-                      sx={{
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        color: dark ? '#a9c4ff' : '#3a5db5',
-                        maxWidth: 72,
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      {job.owner_name.split(' ')[0]}
-                    </Typography>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: '0.52rem', fontWeight: 900, color: alpha(theme.palette.text.primary, 0.45), lineHeight: 1, letterSpacing: '0.08em' }}>
+                        DA
+                      </Typography>
+                      <Typography
+                        noWrap
+                        sx={{
+                          mt: 0.2,
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                          color: dark ? '#a9c4ff' : '#3a5db5',
+                          maxWidth: 78,
+                          lineHeight: 1.1,
+                        }}
+                      >
+                        {displayedOwnerName.split(' ')[0]}
+                      </Typography>
+                    </Box>
                   </Stack>
                 </Tooltip>
               ) : (
-                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>Sem dono</Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'warning.main', fontWeight: 700 }}>Sem DA</Typography>
               )}
               {/* Assignees extras menores */}
               {extraAssignees.length > 0 && (
@@ -2342,29 +2375,31 @@ export function OpsCard({
               )}
             </Stack>
 
-            {/* Datas: entrada → entrega */}
-            <Stack direction="row" spacing={0.4} alignItems="center">
-              {job.created_at && (
-                <Typography sx={{ fontSize: '0.63rem', color: 'text.disabled' }}>
-                  {new Date(job.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+            {/* Datas: entrega do DA + deadline do cliente */}
+            <Stack spacing={0.25} alignItems="flex-end" sx={{ minWidth: 86 }}>
+              <Stack direction="row" spacing={0.35} alignItems="center">
+                <IconCalendarTime size={11} color={alpha(theme.palette.text.primary, 0.38)} />
+                <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', fontWeight: 800, lineHeight: 1 }}>
+                  DA
                 </Typography>
-              )}
-              {job.created_at && deadlineDate && (
-                <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>→</Typography>
-              )}
-              {deadlineDate && (
-                <Stack direction="row" spacing={0.3} alignItems="center">
-                  <IconCalendar size={11} color={getRisk(job).level === 'critical' ? '#FA896B' : getRisk(job).level === 'warning' ? '#FFAE1F' : alpha(theme.palette.text.primary, 0.35)} />
-                  <Typography sx={{ fontSize: '0.63rem', fontWeight: 700, color: getRisk(job).level === 'critical' ? 'error.main' : getRisk(job).level === 'warning' ? 'warning.main' : 'text.secondary' }}>
-                    {deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                  </Typography>
-                </Stack>
-              )}
+                <Typography sx={{ fontSize: '0.64rem', color: opsCardDateTone(job.estimated_delivery_at), fontWeight: 900, lineHeight: 1 }}>
+                  {daDeliveryLabel || 'sem data'}
+                </Typography>
+              </Stack>
+              <Stack direction="row" spacing={0.35} alignItems="center">
+                <IconCalendarDue size={11} color={alpha(theme.palette.text.primary, 0.38)} />
+                <Typography sx={{ fontSize: '0.58rem', color: 'text.disabled', fontWeight: 800, lineHeight: 1 }}>
+                  Cliente
+                </Typography>
+                <Typography sx={{ fontSize: '0.64rem', color: opsCardDateTone(job.deadline_at), fontWeight: 900, lineHeight: 1 }}>
+                  {clientDeadlineLabel || 'sem prazo'}
+                </Typography>
+              </Stack>
             </Stack>
           </Stack>
 
           {/* CTA rodapé — alocar quando sem dono, avançar status quando tem dono */}
-          {!job.owner_id && onAssign && owners?.length ? (
+          {!hasDisplayedOwner && onAssign && owners?.length ? (
             <>
               <Button
                 variant="text"

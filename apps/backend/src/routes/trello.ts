@@ -55,6 +55,52 @@ function currentYearCardClause(alias: string) {
   return `COALESCE(${alias}.due_date::timestamp, ${trelloTs}) >= date_trunc('year', CURRENT_DATE)`;
 }
 
+function dateKeyFromDb(value?: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const raw = String(value);
+  const match = raw.match(/\d{4}-\d{2}-\d{2}/);
+  return match?.[0] ?? null;
+}
+
+function toClientDeadlineAt(value?: unknown): string | null {
+  const key = dateKeyFromDb(value);
+  return key ? `${key}T23:59:00` : null;
+}
+
+function previousBusinessDayKey(value?: unknown): string | null {
+  const key = dateKeyFromDb(value);
+  if (!key) return null;
+  const date = new Date(`${key}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+
+  do {
+    date.setDate(date.getDate() - 1);
+  } while (date.getDay() === 0 || date.getDay() === 6);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function toCreativeDeliveryAt(dueDate?: unknown, explicitEta?: unknown): string | null {
+  const explicit = explicitEta ? String(explicitEta) : '';
+  if (explicit) return explicit;
+
+  const key = previousBusinessDayKey(dueDate);
+  return key ? `${key}T18:00:00` : null;
+}
+
+function isLikelyNonCreativeMemberName(value?: string | null) {
+  const normalized = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return /(roberta|andressa|debora|sthephany|trello\s*mkt|mkt\s*vip)/.test(normalized);
+}
+
+function pickCreativeTrelloMember<T extends { fullName?: string | null; email?: string | null }>(members: T[]): T | undefined {
+  return members.find((member) => !isLikelyNonCreativeMemberName(member.fullName)) ?? members[0];
+}
+
 export default async function trelloRoutes(app: FastifyInstance) {
 
   // POST /trello/connect — salva credenciais e valida
@@ -1052,6 +1098,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       last_activity_at: string | null; attachments: any;
       trello_url: string | null; trello_card_id: string | null;
       start_date: string | null; priority: string; estimated_hours: number | null;
+      estimated_delivery_at: string | null;
       created_at: string;
       list_id: string; list_name: string;
       board_id: string; board_name: string;
@@ -1067,10 +1114,17 @@ export default async function trelloRoutes(app: FastifyInstance) {
       suggested_owner_name: string | null;
     }>(
       `SELECT
-         pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
+         pc.id, pc.title, pc.description, pc.due_date::text AS due_date, pc.due_complete, pc.labels,
          pc.cover_color, pc.cover_url, pc.last_activity_at::text, pc.attachments,
          pc.trello_url, pc.trello_card_id,
          pc.start_date::text, pc.priority, pc.estimated_hours,
+         (
+           SELECT ja.estimated_delivery_at::text
+             FROM job_allocations ja
+            WHERE ja.job_id = pc.id
+            ORDER BY ja.estimated_delivery_at ASC NULLS LAST
+            LIMIT 1
+         ) AS estimated_delivery_at,
          -- Trello card ID encodes creation time (MongoDB ObjectId: first 8 hex chars = Unix ts seconds)
          -- Fallback to pc.created_at (sync time) when trello_card_id is null
          COALESCE(
@@ -1084,13 +1138,12 @@ export default async function trelloRoutes(app: FastifyInstance) {
          cl.name as client_name,
          cl.profile->>'logo_url' as client_logo_url,
          cl.profile->'brand_colors'->>0 as client_brand_color,
-         -- first assigned member (prefer matched edro user)
-         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_name,
-         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_email,
-         (SELECT eu.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_user_id,
-         (SELECT fp.id FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_fp_id,
-         (SELECT fp.avatar_url FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_avatar_url,
-         EXISTS(SELECT 1 FROM project_card_members pcm JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email) JOIN freelancer_profiles fp ON fp.user_id = eu.id WHERE pcm.card_id = pc.id LIMIT 1) as owner_is_freelancer,
+         creative_owner.display_name as owner_name,
+         creative_owner.email as owner_email,
+         creative_owner.user_id as owner_user_id,
+         creative_owner.fp_id as owner_fp_id,
+         COALESCE(creative_owner.fp_avatar_url, creative_owner.avatar_url) as owner_avatar_url,
+         (creative_owner.fp_id IS NOT NULL) as owner_is_freelancer,
          -- intelligence: inactivity
          CASE WHEN pc.last_activity_at IS NOT NULL THEN EXTRACT(DAY FROM NOW() - pc.last_activity_at)::int ELSE NULL END as days_inactive,
          -- intelligence: client delay history
@@ -1118,6 +1171,27 @@ export default async function trelloRoutes(app: FastifyInstance) {
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
+       LEFT JOIN LATERAL (
+         SELECT
+           pcm.display_name,
+           pcm.email,
+           pcm.avatar_url,
+           eu.id::text AS user_id,
+           fp.id::text AS fp_id,
+           fp.avatar_url AS fp_avatar_url
+         FROM project_card_members pcm
+         LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+         LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+         WHERE pcm.card_id = pc.id
+         ORDER BY
+           CASE
+             WHEN LOWER(COALESCE(pcm.display_name, '')) ~ '(roberta|andressa|d[ée]bora|sthephany|trello[[:space:]]*mkt|mkt[[:space:]]*vip)' THEN 2
+             WHEN pcm.email IS NOT NULL THEN 0
+             ELSE 1
+           END,
+           pcm.created_at DESC
+         LIMIT 1
+       ) creative_owner ON true
        WHERE pc.tenant_id = $1
          AND pc.is_archived = false
          AND ${currentYearCardClause('pc')}
@@ -1225,10 +1299,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
         owner_email: c.owner_email ?? null,
         owner_avatar_url: c.owner_avatar_url && c.owner_fp_id
           ? `/api/proxy/freelancers/${c.owner_fp_id}/avatar`
-          : null,
+          : c.owner_avatar_url ?? null,
         person_type: c.owner_is_freelancer ? 'freelancer' : (c.owner_user_id ? 'internal' : null),
         start_date: c.start_date ?? null,
-        deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
+        deadline_at: toClientDeadlineAt(c.due_date),
+        estimated_delivery_at: toCreativeDeliveryAt(c.due_date, c.estimated_delivery_at),
         created_at: c.created_at,
         estimated_minutes: c.estimated_hours ? Math.round(c.estimated_hours * 60) : null,
         actual_minutes: null,
@@ -1638,7 +1713,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
       ok: true,
       data: {
         id: c.id, title: c.title, status: targetStatus,
-        client_name: c.client_name ?? c.board_name, deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
+        client_name: c.client_name ?? c.board_name, deadline_at: toClientDeadlineAt(c.due_date),
         source: 'trello', job_type: 'copy', complexity: 'm', impact_level: 2, dependency_level: 2,
         priority_band: band, priority_score: score,
         metadata: { board_name: c.board_name, list_name: c.list_name },
@@ -1670,7 +1745,11 @@ export default async function trelloRoutes(app: FastifyInstance) {
       owner_id: c.owner_user_id ?? null,
       owner_name: c.owner_name ?? null,
       owner_email: c.owner_email ?? null,
-      deadline_at: c.due_date ? `${c.due_date}T23:59:00` : null,
+      owner_avatar_url: c.owner_avatar_url && c.owner_fp_id
+        ? `/api/proxy/freelancers/${c.owner_fp_id}/avatar`
+        : c.owner_avatar_url ?? null,
+      deadline_at: toClientDeadlineAt(c.due_date),
+      estimated_delivery_at: toCreativeDeliveryAt(c.due_date, c.estimated_delivery_at),
       is_urgent: Boolean(c.is_urgent),
       job_size: (c.job_size as string | null) ?? null,
       estimated_minutes: c.estimated_minutes != null ? Number(c.estimated_minutes) : null,
@@ -1772,7 +1851,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
     const cardRes = await query<Record<string, any>>(
       `SELECT
-         pc.id, pc.title, pc.description, pc.due_date, pc.due_complete, pc.labels,
+         pc.id, pc.title, pc.description, pc.due_date::text AS due_date, pc.due_complete, pc.labels,
          -- is_urgent / job_size / estimated_minutes / definition_of_done are stored in jobs.metadata jsonb
          (j.metadata->>'is_urgent')::boolean                    AS is_urgent,
          j.metadata->>'job_size'                                AS job_size,
@@ -1784,18 +1863,23 @@ export default async function trelloRoutes(app: FastifyInstance) {
            pc.created_at::text
          ) AS trello_created_at,
          pc.trello_url, pc.trello_card_id, pc.campaign_id,
+         (
+           SELECT ja.estimated_delivery_at::text
+             FROM job_allocations ja
+            WHERE ja.job_id = pc.id
+            ORDER BY ja.estimated_delivery_at ASC NULLS LAST
+            LIMIT 1
+         ) AS estimated_delivery_at,
          camp.name as campaign_name,
          pl.id as list_id, pl.name as list_name,
          m.ops_status as override_status,
          pb.id as board_id, pb.name as board_name, pb.client_id,
          cl.name as client_name, NULL::text as client_logo_url, NULL::text as client_brand_color,
-         (SELECT pcm.display_name FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_name,
-         (SELECT pcm.email FROM project_card_members pcm WHERE pcm.card_id = pc.id ORDER BY pcm.created_at ASC LIMIT 1) as owner_email,
-         (SELECT eu.id FROM project_card_members pcm
-            JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
-           WHERE pcm.card_id = pc.id
-           ORDER BY pcm.created_at ASC
-           LIMIT 1) as owner_user_id
+         creative_owner.display_name as owner_name,
+         creative_owner.email as owner_email,
+         creative_owner.user_id as owner_user_id,
+         creative_owner.fp_id as owner_fp_id,
+         COALESCE(creative_owner.fp_avatar_url, creative_owner.avatar_url) as owner_avatar_url
        FROM project_cards pc
        JOIN project_lists pl ON pl.id = pc.list_id
        JOIN project_boards pb ON pb.id = pc.board_id
@@ -1803,6 +1887,27 @@ export default async function trelloRoutes(app: FastifyInstance) {
        LEFT JOIN trello_list_status_map m ON m.list_id = pl.id AND m.tenant_id = $2
        LEFT JOIN clients cl ON cl.id::text = pb.client_id
        LEFT JOIN campaigns camp ON camp.id = pc.campaign_id
+       LEFT JOIN LATERAL (
+         SELECT
+           pcm.display_name,
+           pcm.email,
+           pcm.avatar_url,
+           eu.id::text AS user_id,
+           fp.id::text AS fp_id,
+           fp.avatar_url AS fp_avatar_url
+         FROM project_card_members pcm
+         LEFT JOIN edro_users eu ON LOWER(eu.email) = LOWER(pcm.email)
+         LEFT JOIN freelancer_profiles fp ON fp.user_id = eu.id
+         WHERE pcm.card_id = pc.id
+         ORDER BY
+           CASE
+             WHEN LOWER(COALESCE(pcm.display_name, '')) ~ '(roberta|andressa|d[ée]bora|sthephany|trello[[:space:]]*mkt|mkt[[:space:]]*vip)' THEN 2
+             WHEN pcm.email IS NOT NULL THEN 0
+             ELSE 1
+           END,
+           pcm.created_at DESC
+         LIMIT 1
+       ) creative_owner ON true
        WHERE pc.id = $1 AND pc.tenant_id = $2`,
       [cardId, tenantId],
     );
@@ -1976,7 +2081,7 @@ export default async function trelloRoutes(app: FastifyInstance) {
 
           if (membersLiveRes.ok) {
             const liveMembers = await membersLiveRes.json() as Array<{ email?: string; fullName?: string }>;
-            const primaryMember = liveMembers[0];
+            const primaryMember = pickCreativeTrelloMember(liveMembers);
             if (primaryMember?.email || primaryMember?.fullName) {
               liveJob = {
                 ...liveJob,
