@@ -160,7 +160,7 @@ function buildSummary(signals: JobClientContextSignal[]) {
     .slice(0, 2)
     .join(', ');
   const top = signals[0];
-  return `Jarvis encontrou ${signals.length} sinal${signals.length === 1 ? '' : 'es'} relacionado${signals.length === 1 ? '' : 's'} a este job (${dominantSources}). Principal evidência: ${top.snippet}`;
+  return `Jarvis encontrou ${signals.length} ${signals.length === 1 ? 'sinal relacionado' : 'sinais relacionados'} a este job (${dominantSources}). Principal evidência: ${top.snippet}`;
 }
 
 async function safeRows<T>(sql: string, values: unknown[]): Promise<T[]> {
@@ -544,7 +544,7 @@ export async function getJobClientContext(params: {
   });
 
   const minScore = tokens.length ? 5 : 3;
-  const signals = candidates
+  const rankedSignals = candidates
     .map((candidate) => {
       const { score, tokenHits } = scoreCandidate(candidate, tokens);
       const matchType = candidate.direct_match ? 'direct' : 'probable';
@@ -576,8 +576,15 @@ export async function getJobClientContext(params: {
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
       return new Date(right.signal.occurred_at || 0).getTime() - new Date(left.signal.occurred_at || 0).getTime();
-    })
-    .slice(0, Math.min(Math.max(Number(params.limit || 8), 1), 12))
+    });
+
+  const maxSignals = Math.min(Math.max(Number(params.limit || 8), 1), 12);
+  const digestSignals = rankedSignals.filter((item) => item.candidate.tags?.includes('digest'));
+  const granularSignals = rankedSignals.filter((item) => !item.candidate.tags?.includes('digest'));
+  const selectedGranular = granularSignals.slice(0, maxSignals);
+  const selectedDigest = digestSignals.slice(0, Math.max(0, maxSignals - selectedGranular.length));
+  const signals = [...selectedGranular, ...selectedDigest]
+    .slice(0, maxSignals)
     .map((item) => item.signal);
 
   return {
